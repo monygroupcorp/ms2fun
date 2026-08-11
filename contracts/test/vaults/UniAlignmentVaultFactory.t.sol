@@ -13,6 +13,7 @@ import { MockEXECToken } from "../mocks/MockEXECToken.sol";
 import { CREATEX } from "../../src/shared/CreateXConstants.sol";
 import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
 
 contract UniAlignmentVaultFactoryTest is Test {
     UniAlignmentVaultFactory public factory;
@@ -29,6 +30,7 @@ contract UniAlignmentVaultFactoryTest is Test {
     uint256 internal _saltCounter;
 
     uint256 constant TARGET_ID = 1;
+    address constant TREASURY = address(0xFEE);
 
     event VaultDeployed(address indexed vault, address indexed alignmentToken);
 
@@ -57,6 +59,7 @@ contract UniAlignmentVaultFactoryTest is Test {
             address(mockZRouter),
             3000,
             60,
+            TREASURY,
             IVaultPriceValidator(address(mockPriceValidator)),
             IAlignmentRegistry(address(mockRegistry)),
             address(0)
@@ -180,6 +183,7 @@ contract UniAlignmentVaultFactoryTest is Test {
         assertEq(factory.zRouter(), address(mockZRouter));
         assertEq(factory.zRouterFee(), 3000);
         assertEq(factory.zRouterTickSpacing(), 60);
+        assertEq(factory.protocolTreasury(), TREASURY);
         assertEq(address(factory.defaultPriceValidator()), address(mockPriceValidator));
         assertEq(address(factory.alignmentRegistry()), address(mockRegistry));
         assertTrue(factory.vaultImplementation() != address(0));
@@ -193,5 +197,59 @@ contract UniAlignmentVaultFactoryTest is Test {
             factory.computeVaultAddress(address(0xA11CE), salt) != factory.computeVaultAddress(address(0xBAD), salt),
             "same salt must map to different address per creator"
         );
+    }
+
+    // ── Protocol treasury threading (the 1% yield-cut destination) ───────────
+
+    /// @dev The vault's protocol cut accrues from its first fee collection, and the vault has no
+    ///      treasury setter — so a factory-deployed vault must be born with a non-zero destination.
+    function test_deployVault_threadsProtocolTreasury() public {
+        address vault =
+            factory.deployVault(_nextSalt(), address(alignmentToken), TARGET_ID, IVaultPriceValidator(address(0)));
+
+        assertTrue(UniAlignmentVault(payable(vault)).protocolTreasury() != address(0), "treasury must be set");
+        assertEq(UniAlignmentVault(payable(vault)).protocolTreasury(), factory.protocolTreasury(), "matches factory");
+    }
+
+    function test_initialize_revertsOnZeroProtocolTreasury() public {
+        UniAlignmentVault impl = new UniAlignmentVault();
+        UniAlignmentVault vault = UniAlignmentVault(payable(LibClone.clone(address(impl))));
+
+        vm.expectRevert(UniAlignmentVault.TreasuryNotSet.selector);
+        vault.initialize(
+            address(this),
+            mockWeth,
+            mockPoolManager,
+            address(alignmentToken),
+            address(mockZRouter),
+            3000,
+            60,
+            IVaultPriceValidator(address(mockPriceValidator)),
+            IAlignmentRegistry(address(mockRegistry)),
+            TARGET_ID,
+            address(0)
+        );
+    }
+
+    // ── Dust distribution threshold passthrough ──────────────────────────────
+
+    /// @dev The vault's owner is the factory, so the threshold is only reachable through this
+    ///      passthrough. Vaults aligned to a token that does not use 18 decimals need it retuned.
+    function test_setVaultDustDistributionThreshold_ownerCanRetune() public {
+        address vault =
+            factory.deployVault(_nextSalt(), address(alignmentToken), TARGET_ID, IVaultPriceValidator(address(0)));
+
+        factory.setVaultDustDistributionThreshold(vault, 1e6);
+
+        assertEq(UniAlignmentVault(payable(vault)).dustDistributionThreshold(), 1e6, "threshold retuned");
+    }
+
+    function test_setVaultDustDistributionThreshold_nonOwnerReverts() public {
+        address vault =
+            factory.deployVault(_nextSalt(), address(alignmentToken), TARGET_ID, IVaultPriceValidator(address(0)));
+
+        vm.prank(address(0xBAD));
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        factory.setVaultDustDistributionThreshold(vault, 1e6);
     }
 }

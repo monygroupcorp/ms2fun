@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import { ForkTestBase } from "../helpers/ForkTestBase.sol";
 import { UniAlignmentVault } from "src/vaults/uni/UniAlignmentVault.sol";
+import { FeeSeamUniAlignmentVault } from "../../helpers/TestableUniAlignmentVault.sol";
 import { UniswapVaultPriceValidator } from "src/peripherals/UniswapVaultPriceValidator.sol";
 import { IVaultPriceValidator } from "src/interfaces/IVaultPriceValidator.sol";
 import { MockAlignmentRegistry } from "../../mocks/MockAlignmentRegistry.sol";
@@ -23,9 +24,10 @@ import { IHooks } from "v4-core/interfaces/IHooks.sol";
  * - Multi-claim delta calculation
  */
 contract VaultMultiDepositTest is ForkTestBase {
-    UniAlignmentVault vault;
+    FeeSeamUniAlignmentVault vault;
     MockAlignmentRegistry mockRegistry;
     uint256 constant TARGET_ID = 1;
+    address constant TREASURY = address(0xFEE);
     address owner;
     address alice;
     address bob;
@@ -51,8 +53,9 @@ contract VaultMultiDepositTest is ForkTestBase {
         mockRegistry.setTargetActive(TARGET_ID, true);
         mockRegistry.setTokenInTarget(TARGET_ID, alignmentToken, true);
 
-        UniAlignmentVault vaultImpl = new UniAlignmentVault();
-        vault = UniAlignmentVault(payable(LibClone.clone(address(vaultImpl))));
+        // FeeSeam subclass: the accrual seam only — the real V4 _addToLpPosition is kept.
+        FeeSeamUniAlignmentVault vaultImpl = new FeeSeamUniAlignmentVault();
+        vault = FeeSeamUniAlignmentVault(payable(LibClone.clone(address(vaultImpl))));
         vm.prank(owner);
         vault.initialize(
             owner,
@@ -64,7 +67,8 @@ contract VaultMultiDepositTest is ForkTestBase {
             60,
             IVaultPriceValidator(address(priceValidator)),
             IAlignmentRegistry(address(mockRegistry)),
-            TARGET_ID
+            TARGET_ID,
+            TREASURY
         );
 
         // Set V4 pool key - H-02: Hook requires native ETH (address(0)), not WETH
@@ -274,7 +278,7 @@ contract VaultMultiDepositTest is ForkTestBase {
         // First fee accumulation: 1 ETH
         vm.deal(owner, 1 ether);
         vm.prank(owner);
-        vault.depositFees{ value: 1 ether }();
+        vault.simulateFeeAccrual{ value: 1 ether }(1 ether);
 
         emit log_string("");
         emit log_string("--- First Fee Accumulation: 1 ETH ---");
@@ -291,7 +295,7 @@ contract VaultMultiDepositTest is ForkTestBase {
         // Second fee accumulation: 2 ETH more
         vm.deal(owner, 2 ether);
         vm.prank(owner);
-        vault.depositFees{ value: 2 ether }();
+        vault.simulateFeeAccrual{ value: 2 ether }(2 ether);
 
         emit log_string("");
         emit log_string("--- Second Fee Accumulation: 2 ETH more (3 ETH total) ---");
@@ -407,7 +411,7 @@ contract VaultMultiDepositTest is ForkTestBase {
         // Deposit 20 ETH in fees to match the 20 ETH total contributions (5:3:2 ratio)
         vm.deal(owner, 20 ether);
         vm.prank(owner);
-        vault.depositFees{ value: 20 ether }();
+        vault.simulateFeeAccrual{ value: 20 ether }(20 ether);
 
         // Each claims
         vm.prank(alice);

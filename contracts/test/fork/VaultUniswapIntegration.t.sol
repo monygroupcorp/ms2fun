@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import { ForkTestBase } from "./helpers/ForkTestBase.sol";
 import { UniAlignmentVault } from "src/vaults/uni/UniAlignmentVault.sol";
+import { FeeSeamUniAlignmentVault } from "../helpers/TestableUniAlignmentVault.sol";
 import { UniswapVaultPriceValidator } from "src/peripherals/UniswapVaultPriceValidator.sol";
 import { IVaultPriceValidator } from "src/interfaces/IVaultPriceValidator.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
@@ -19,13 +20,14 @@ import { IHooks } from "v4-core/interfaces/IHooks.sol";
  *      Run with: forge test --mp test/fork/VaultUniswapIntegration.t.sol --fork-url $ETH_RPC_URL -vvv
  */
 contract VaultUniswapIntegrationTest is ForkTestBase {
-    UniAlignmentVault vault;
+    FeeSeamUniAlignmentVault vault;
     MockAlignmentRegistry mockRegistry;
     address owner;
     address alice;
     address bob;
     address charlie;
     address alignmentToken;
+    address constant TREASURY = address(0xFEE);
     uint256 constant TARGET_ID = 1;
 
     function setUp() public {
@@ -46,8 +48,9 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         mockRegistry.setTargetActive(TARGET_ID, true);
         mockRegistry.setTokenInTarget(TARGET_ID, alignmentToken, true);
 
-        UniAlignmentVault vaultImpl = new UniAlignmentVault();
-        vault = UniAlignmentVault(payable(LibClone.clone(address(vaultImpl))));
+        // FeeSeam subclass: the accrual seam only — the real V4 _addToLpPosition is kept.
+        FeeSeamUniAlignmentVault vaultImpl = new FeeSeamUniAlignmentVault();
+        vault = FeeSeamUniAlignmentVault(payable(LibClone.clone(address(vaultImpl))));
         vm.prank(owner);
         vault.initialize(
             owner,
@@ -59,7 +62,8 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
             60,
             IVaultPriceValidator(address(priceValidator)),
             IAlignmentRegistry(address(mockRegistry)),
-            TARGET_ID
+            TARGET_ID,
+            TREASURY
         );
 
         // Set V4 pool key - H-02: Hook requires native ETH (address(0)), not WETH
@@ -146,7 +150,8 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
                 )
             ),
             IAlignmentRegistry(address(mockRegistry)),
-            TARGET_ID
+            TARGET_ID,
+            TREASURY
         );
 
         // Verify initial state
@@ -159,27 +164,6 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         assertEq(newVault.alignmentToken(), alignmentToken, "Alignment token mismatch");
 
         emit log_string("[PASS] Vault deploys with correct initial state");
-    }
-
-    function test_setAlignmentToken_success() public {
-        address newToken = makeAddr("newAlignmentToken");
-        mockRegistry.setTokenInTarget(TARGET_ID, newToken, true);
-
-        vm.prank(owner);
-        vault.setAlignmentToken(newToken);
-
-        assertEq(vault.alignmentToken(), newToken, "Alignment token not updated");
-        emit log_string("[PASS] Owner can update alignment token");
-    }
-
-    function test_setAlignmentToken_onlyOwner() public {
-        address newToken = makeAddr("newAlignmentToken");
-
-        vm.prank(alice);
-        vm.expectRevert();
-        vault.setAlignmentToken(newToken);
-
-        emit log_string("[PASS] Non-owner cannot update alignment token");
     }
 
     function test_setV4PoolKey_success() public {
@@ -457,37 +441,6 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
     // │  E. Fee Accumulation & Claims        │
     // └─────────────────────────────────────┘
 
-    function test_recordAccumulatedFees_ownerOnly() public {
-        // Owner can record fees
-        vm.prank(owner);
-        vault.recordAccumulatedFees(1 ether);
-        assertEq(vault.accumulatedFees(), 1 ether, "Fees should be recorded");
-
-        // Non-owner cannot
-        vm.prank(alice);
-        vm.expectRevert();
-        vault.recordAccumulatedFees(1 ether);
-
-        emit log_string("[PASS] Only owner can record accumulated fees");
-    }
-
-    function test_depositFees_ownerOnly() public {
-        vm.deal(owner, 1 ether);
-
-        // Owner can deposit fees
-        vm.prank(owner);
-        vault.depositFees{ value: 1 ether }();
-        assertEq(vault.accumulatedFees(), 1 ether, "Fees should be deposited");
-
-        // Non-owner cannot
-        vm.deal(bob, 1 ether);
-        vm.prank(bob);
-        vm.expectRevert();
-        vault.depositFees{ value: 1 ether }();
-
-        emit log_string("[PASS] Only owner can deposit fees");
-    }
-
     function test_claimFees_singleContributor() public {
         // Setup: Alice gets shares
         _contribute(alice, 5 ether);
@@ -496,7 +449,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // Simulate fees accumulating
         vm.deal(owner, 2 ether);
         vm.prank(owner);
-        vault.depositFees{ value: 2 ether }();
+        vault.simulateFeeAccrual{ value: 2 ether }(2 ether);
 
         // Alice claims (should get all fees since she has 100% shares)
         uint256 aliceBalanceBefore = alice.balance;
@@ -522,7 +475,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // Accumulate 1 ETH in fees
         vm.deal(owner, 1 ether);
         vm.prank(owner);
-        vault.depositFees{ value: 1 ether }();
+        vault.simulateFeeAccrual{ value: 1 ether }(1 ether);
 
         // Calculate expected claims (with tolerance for share rounding)
         uint256 aliceShares = vault.benefactorShares(alice);
@@ -556,7 +509,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // First fee deposit
         vm.deal(owner, 1 ether);
         vm.prank(owner);
-        vault.depositFees{ value: 1 ether }();
+        vault.simulateFeeAccrual{ value: 1 ether }(1 ether);
 
         // Alice claims
         vm.prank(alice);
@@ -566,7 +519,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // Second fee deposit
         vm.deal(owner, 2 ether);
         vm.prank(owner);
-        vault.depositFees{ value: 2 ether }();
+        vault.simulateFeeAccrual{ value: 2 ether }(2 ether);
 
         // Alice claims again (should only get delta)
         vm.prank(alice);
@@ -576,7 +529,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // Third fee deposit
         vm.deal(owner, 3 ether);
         vm.prank(owner);
-        vault.depositFees{ value: 3 ether }();
+        vault.simulateFeeAccrual{ value: 3 ether }(3 ether);
 
         // Alice claims third time
         vm.prank(alice);
@@ -712,7 +665,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // Add fees
         vm.deal(owner, 5 ether);
         vm.prank(owner);
-        vault.depositFees{ value: 5 ether }();
+        vault.simulateFeeAccrual{ value: 5 ether }(5 ether);
 
         // Calculate claimable (total, not delta)
         uint256 claimable = vault.calculateClaimableAmount(alice);
@@ -732,7 +685,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // Add more fees
         vm.deal(owner, 3 ether);
         vm.prank(owner);
-        vault.depositFees{ value: 3 ether }();
+        vault.simulateFeeAccrual{ value: 3 ether }(3 ether);
 
         // Total claimable now 8 ETH
         assertEq(vault.calculateClaimableAmount(alice), 8 ether, "Total now 8 ETH");
@@ -750,7 +703,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
 
         vm.deal(owner, 2 ether);
         vm.prank(owner);
-        vault.depositFees{ value: 2 ether }();
+        vault.simulateFeeAccrual{ value: 2 ether }(2 ether);
 
         uint256 unclaimed = vault.getUnclaimedFees(alice);
         uint256 claimable = vault.calculateClaimableAmount(alice);

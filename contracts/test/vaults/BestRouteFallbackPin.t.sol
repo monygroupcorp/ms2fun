@@ -124,7 +124,8 @@ contract BestRouteFallbackPinTest is Test {
             FIXED_TICK,
             IVaultPriceValidator(address(validator)),
             IAlignmentRegistry(address(registry)),
-            TARGET_ID
+            TARGET_ID,
+            address(0xFEE) // protocol treasury (1% yield-cut destination, fixed at initialize)
         );
         // NOTE: setZQuoter is deliberately NEVER called → vault.zQuoter() stays address(0) (fallback-only).
 

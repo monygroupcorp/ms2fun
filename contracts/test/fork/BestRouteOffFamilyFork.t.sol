@@ -43,6 +43,7 @@ contract BestRouteOffFamilyForkTest is ForkTestBase {
     uint24 constant FEE = 3000; // vault fixed-pool family fee (V4)
     int24 constant TICK_SPACING = 60;
     uint256 constant TARGET_ID = 1;
+    address constant TREASURY = address(0xFEE);
 
     address zQuoter; // operator-supplied real quoter (ZQUOTER_ADDRESS)
     address offFamilyToken; // operator-supplied off-family token (OFF_FAMILY_TOKEN)
@@ -94,6 +95,7 @@ contract BestRouteOffFamilyForkTest is ForkTestBase {
             address(router),
             FEE,
             TICK_SPACING,
+            TREASURY,
             IVaultPriceValidator(address(priceValidator)),
             IAlignmentRegistry(address(registry)),
             quoter // factory forwards to vault.setZQuoter on create when != address(0)

@@ -3,11 +3,12 @@ pragma solidity ^0.8.20;
 
 import { Test } from "forge-std/Test.sol";
 import { UniAlignmentVault } from "../../../src/vaults/uni/UniAlignmentVault.sol";
+import { TestableUniAlignmentVault } from "../../helpers/TestableUniAlignmentVault.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 
 /// @notice Invariant handler for UniAlignmentVault share accounting
 contract UniVaultHandler is Test {
-    UniAlignmentVault public vault;
+    TestableUniAlignmentVault public vault;
 
     address[] public actors;
     mapping(address => bool) public isActor;
@@ -22,7 +23,7 @@ contract UniVaultHandler is Test {
     mapping(address => uint256) public ghost_sharesSnapshot;
     mapping(address => uint256) public ghost_ethAtConversion;
 
-    constructor(UniAlignmentVault _vault, address[] memory _actors) {
+    constructor(TestableUniAlignmentVault _vault, address[] memory _actors) {
         vault = _vault;
         for (uint256 i = 0; i < _actors.length; i++) {
             actors.push(_actors[i]);
@@ -85,13 +86,13 @@ contract UniVaultHandler is Test {
         }
     }
 
-    function depositFees(uint256 amount) external {
+    /// @dev Fee accrual via the test-only seam (production accrual needs a live V4 PoolManager).
+    function accrueFees(uint256 amount) external {
         amount = bound(amount, 0.001 ether, 1 ether);
         if (vault.totalShares() == 0) return;
 
-        vm.deal(vault.owner(), amount);
-        vm.prank(vault.owner());
-        vault.depositFees{ value: amount }();
+        vm.deal(address(this), address(this).balance + amount);
+        vault.simulateFeeAccrual{ value: amount }(amount);
     }
 
     function claimFees(uint256 actorSeed) external {

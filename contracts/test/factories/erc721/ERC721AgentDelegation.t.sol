@@ -81,7 +81,8 @@ contract ERC721AgentDelegationTest is GlobalMessagingTestBase {
                 60,
                 IVaultPriceValidator(address(new MockVaultPriceValidator())),
                 IAlignmentRegistry(address(mockAlignmentRegistry)),
-                TARGET_ID
+                TARGET_ID,
+                address(0xFEE) // protocol treasury (1% yield-cut destination, fixed at initialize)
             );
         }
 

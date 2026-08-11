@@ -11,6 +11,7 @@ import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegist
 import { LaunchManager } from "../../src/factories/erc404/LaunchManager.sol";
 import { QueryAggregator } from "../../src/query/QueryAggregator.sol";
 import { Currency } from "v4-core/types/Currency.sol";
+import { UniAlignmentVault } from "../../src/vaults/uni/UniAlignmentVault.sol";
 
 contract DeployCoreTest is Test {
     address constant STETH = 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
@@ -111,6 +112,19 @@ contract DeployCoreTest is Test {
         assertEq(s.erc404Factory().protocolTreasury(), address(s.treasury()));
         assertEq(s.erc1155Factory().protocolTreasury(), address(s.treasury()));
         assertEq(s.erc721Factory().protocolTreasury(), address(s.treasury()));
+    }
+
+    /// @dev The instance factories are not the only contracts that take a protocol cut: each vault
+    ///      family accrues 1% of LP yield to its own `protocolTreasury`, set when the vault is
+    ///      deployed. A deploy that wires the factories but not the vaults leaves that cut with no
+    ///      payout destination, so the deploy gate asserts the vault leg too.
+    function test_vaultTreasuryWiring() public view {
+        assertEq(s.uniVaultFactory().protocolTreasury(), address(s.treasury()), "uni factory treasury");
+        assertEq(
+            UniAlignmentVault(payable(s.uniVaults(0))).protocolTreasury(),
+            address(s.treasury()),
+            "deployed uni vault treasury"
+        );
     }
 
     function test_alignmentTargetRegistered() public view {
