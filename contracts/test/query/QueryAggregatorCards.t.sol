@@ -38,14 +38,8 @@ contract MockERC404Card {
         return keccak256("erc404");
     }
 
-    function curveParams() external view returns (uint256, uint256, uint256, uint256, uint256) {
-        return (
-            _params.initialPrice,
-            _params.quarticCoeff,
-            _params.cubicCoeff,
-            _params.quadraticCoeff,
-            _params.normalizationFactor
-        );
+    function curveParams() external view returns (uint256, uint256, uint256) {
+        return (_params.kCoeff, _params.poleWad, _params.normalizationFactor);
     }
 }
 
@@ -148,9 +142,7 @@ contract QueryAggregatorCardsTest is Test {
     function _params() internal pure returns (BondingCurveMath.Params memory) {
         // initialPrice=1e18, normalizationFactor=1e18 → basePart integral = supply/1e18, so a 1e24-token
         // (=1 NFT) buy at supply 500e18 costs ~1e6 wei — small but nonzero and deterministic.
-        return BondingCurveMath.Params({
-            initialPrice: 1e18, quarticCoeff: 0, cubicCoeff: 0, quadraticCoeff: 0, normalizationFactor: 1e18
-        });
+        return BondingCurveMath.Params({ kCoeff: 1e18, poleWad: 1.0438e18, normalizationFactor: 1e18 });
     }
 
     function _batch(address inst) internal view returns (QueryAggregator.ProjectCard memory) {

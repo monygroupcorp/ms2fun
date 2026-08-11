@@ -166,11 +166,9 @@ export function SwapPanel({
     const ctrl = new AbortController()
     setSolving(true)
     const params = {
-      initialPrice: curveParams[0],
-      quarticCoeff: curveParams[1],
-      cubicCoeff: curveParams[2],
-      quadraticCoeff: curveParams[3],
-      normalizationFactor: curveParams[4],
+      kCoeff: curveParams[0],
+      poleWad: curveParams[1],
+      normalizationFactor: curveParams[2],
     }
     const costOf = (amt: bigint): Promise<bigint> =>
       publicClient.readContract({
@@ -223,11 +221,9 @@ export function SwapPanel({
       curveParams !== undefined && sellAmount !== undefined
         ? [
             {
-              initialPrice: curveParams[0],
-              quarticCoeff: curveParams[1],
-              cubicCoeff: curveParams[2],
-              quadraticCoeff: curveParams[3],
-              normalizationFactor: curveParams[4],
+              kCoeff: curveParams[0],
+              poleWad: curveParams[1],
+              normalizationFactor: curveParams[2],
             },
             view.totalBondingSupply,
             sellAmount,

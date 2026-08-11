@@ -12,9 +12,7 @@ contract MockCurveComputer is ICurveComputer {
         pure
         returns (BondingCurveMath.Params memory)
     {
-        return BondingCurveMath.Params({
-            initialPrice: 1, quarticCoeff: 1, cubicCoeff: 1, quadraticCoeff: 1, normalizationFactor: 1
-        });
+        return BondingCurveMath.Params({ kCoeff: 1, poleWad: 1.0438e18, normalizationFactor: 1 });
     }
 }
 

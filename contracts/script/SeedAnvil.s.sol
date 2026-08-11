@@ -795,22 +795,10 @@ contract SeedAnvil is Script {
         vm.stopBroadcast();
     }
 
-    /// @dev Reconstruct the curve Params struct from the public auto-getter (returns a 5-tuple).
+    /// @dev Reconstruct the curve Params struct from the public auto-getter (returns a 3-tuple).
     function _curveParams(ERC404BondingInstance b) internal view returns (BondingCurveMath.Params memory p) {
-        (
-            uint256 initialPrice,
-            uint256 quarticCoeff,
-            uint256 cubicCoeff,
-            uint256 quadraticCoeff,
-            uint256 normalizationFactor
-        ) = b.curveParams();
-        p = BondingCurveMath.Params({
-            initialPrice: initialPrice,
-            quarticCoeff: quarticCoeff,
-            cubicCoeff: cubicCoeff,
-            quadraticCoeff: quadraticCoeff,
-            normalizationFactor: normalizationFactor
-        });
+        (uint256 kCoeff, uint256 poleWad, uint256 normalizationFactor) = b.curveParams();
+        p = BondingCurveMath.Params({ kCoeff: kCoeff, poleWad: poleWad, normalizationFactor: normalizationFactor });
     }
 
     /// @param vault    the alignment/endowment vault the instance binds to (any of the 4 flavors)

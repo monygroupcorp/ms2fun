@@ -49,14 +49,8 @@ contract ParityMockERC404 {
         return keccak256("erc404");
     }
 
-    function curveParams() external view returns (uint256, uint256, uint256, uint256, uint256) {
-        return (
-            _params.initialPrice,
-            _params.quarticCoeff,
-            _params.cubicCoeff,
-            _params.quadraticCoeff,
-            _params.normalizationFactor
-        );
+    function curveParams() external view returns (uint256, uint256, uint256) {
+        return (_params.kCoeff, _params.poleWad, _params.normalizationFactor);
     }
 
     function params() external view returns (BondingCurveMath.Params memory) {
@@ -88,7 +82,7 @@ contract ParityMockERC404Reverting {
         return false;
     }
 
-    function curveParams() external pure returns (uint256, uint256, uint256, uint256, uint256) {
+    function curveParams() external pure returns (uint256, uint256, uint256) {
         revert("curve read broken");
     }
 }
@@ -213,9 +207,7 @@ contract QueryAggregatorParityTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function _defaultParams() internal pure returns (BondingCurveMath.Params memory) {
-        return BondingCurveMath.Params({
-            initialPrice: 1e18, quarticCoeff: 0, cubicCoeff: 0, quadraticCoeff: 0, normalizationFactor: 1e18
-        });
+        return BondingCurveMath.Params({ kCoeff: 1e18, poleWad: 1.0438e18, normalizationFactor: 1e18 });
     }
 
     function _card(address inst) internal view returns (QueryAggregator.ProjectCard memory) {

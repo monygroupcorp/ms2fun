@@ -68,13 +68,7 @@ contract ERC404StakingReserveOverlockTest is Test {
         registry = new MockMasterRegistry();
         module = new ERC404StakingModule(address(registry));
 
-        curveParams = BondingCurveMath.Params({
-            initialPrice: 0.025 ether,
-            quarticCoeff: 3 gwei,
-            cubicCoeff: 1333333333,
-            quadraticCoeff: 2 gwei,
-            normalizationFactor: 1e7
-        });
+        curveParams = BondingCurveMath.Params({ kCoeff: 0.025 ether, poleWad: 1.0438e18, normalizationFactor: 1e7 });
     }
 
     // ── Helpers (mirror ERC404StakingReserveGuard harness) ─────────────────────
@@ -131,10 +125,8 @@ contract ERC404StakingReserveOverlockTest is Test {
     }
 
     function _cost(ERC404BondingInstance inst, uint256 amount) internal view returns (uint256) {
-        (uint256 ip, uint256 qc, uint256 cc, uint256 qdc, uint256 nf) = inst.curveParams();
-        BondingCurveMath.Params memory p = BondingCurveMath.Params({
-            initialPrice: ip, quarticCoeff: qc, cubicCoeff: cc, quadraticCoeff: qdc, normalizationFactor: nf
-        });
+        (uint256 ip, uint256 qc, uint256 nf) = inst.curveParams();
+        BondingCurveMath.Params memory p = BondingCurveMath.Params({ kCoeff: ip, poleWad: qc, normalizationFactor: nf });
         return curveComputer.calculateCost(p, inst.totalBondingSupply(), amount);
     }
 
