@@ -888,9 +888,8 @@ contract ERC404FactoryTest is Test {
     }
 
     function _buyExact(ERC404BondingInstance inst, uint256 amount) internal {
-        (uint256 ip, uint256 qc, uint256 cc, uint256 qd, uint256 nf) = inst.curveParams();
-        uint256 cost =
-            curveComp.calculateCost(BondingCurveMath.Params(ip, qc, cc, qd, nf), inst.totalBondingSupply(), amount);
+        (uint256 ip, uint256 qc, uint256 nf) = inst.curveParams();
+        uint256 cost = curveComp.calculateCost(BondingCurveMath.Params(ip, qc, nf), inst.totalBondingSupply(), amount);
         vm.prank(creator1);
         inst.buyBonding{ value: cost }(amount, cost, false, bytes(""), "", 0);
     }

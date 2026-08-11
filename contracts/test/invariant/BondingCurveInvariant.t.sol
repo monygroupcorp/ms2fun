@@ -99,13 +99,7 @@ contract BondingCurveInvariantTest is StdInvariant, Test {
     function setUp() public {
         mockLiquidityDeployer = address(new MockLiqDeployer());
 
-        curveParams = BondingCurveMath.Params({
-            initialPrice: 0.025 ether,
-            quarticCoeff: 3 gwei,
-            cubicCoeff: 1333333333,
-            quadraticCoeff: 2 gwei,
-            normalizationFactor: 1e7
-        });
+        curveParams = BondingCurveMath.Params({ kCoeff: 0.025 ether, poleWad: 1.0438e18, normalizationFactor: 1e7 });
 
         vm.startPrank(owner);
 

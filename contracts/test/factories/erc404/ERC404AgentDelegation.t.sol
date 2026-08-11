@@ -586,13 +586,7 @@ contract ERC404AgentDelegationTest is Test {
                 unit: 1e18,
                 liquidityReserveBps: 1000,
                 declaredMaxAllowanceBps: 0,
-                curve: BondingCurveMath.Params({
-                    initialPrice: 0.0001 ether,
-                    quarticCoeff: 1,
-                    cubicCoeff: 1,
-                    quadraticCoeff: 1,
-                    normalizationFactor: 1e18
-                })
+                curve: BondingCurveMath.Params({ kCoeff: 0.0001 ether, poleWad: 1.0438e18, normalizationFactor: 1e18 })
             }),
             address(mockDeployer),
             address(0),

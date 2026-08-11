@@ -119,9 +119,8 @@ contract TierCrossFeatureTest is Test {
     ///      drive the factory-only entry points (`initTierBands`, `initializeFreeMint`,
     ///      `initializeStaking`) exactly as `ERC404Factory` does in the create path.
     function _newInstance() internal returns (ERC404BondingInstance t) {
-        BondingCurveMath.Params memory curveParams = BondingCurveMath.Params({
-            initialPrice: 0.0001 ether, quarticCoeff: 1, cubicCoeff: 1, quadraticCoeff: 1, normalizationFactor: 1e18
-        });
+        BondingCurveMath.Params memory curveParams =
+            BondingCurveMath.Params({ kCoeff: 0.0001 ether, poleWad: 1.0438e18, normalizationFactor: 1e18 });
 
         t = ERC404BondingInstance(payable(LibClone.clone(address(impl))));
         t.initialize(
