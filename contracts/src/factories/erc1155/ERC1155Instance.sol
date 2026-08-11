@@ -167,6 +167,10 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     event VaultCutRedirected(address indexed vault, address indexed treasury, uint256 amount);
 
     event EditionMetadataUpdated(uint256 indexed editionId, string metadataURI);
+    /// @dev ERC-1155 required event. Emitted wherever an edition's metadata URI is set: at creation
+    ///      (`addEdition`, where it is fixed) and on change (`updateEditionMetadata`). The
+    ///      collection-level ERC-7572 `contractURI` is not a per-id URI and is not a site for this.
+    event URI(string value, uint256 indexed id);
     event FreeMintClaimed(address indexed user, uint256 indexed editionId);
     /// @dev Emitted when an edition's free-mint allocation is set (at creation) or later adjusted.
     event FreeMintAllocationSet(uint256 indexed editionId, uint256 allocation);
@@ -219,8 +223,8 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     }
 
     /// @notice Update the ERC-7572 collection metadata URI. Owner-only.
-    function setContractURI(string calldata uri) external onlyOwner {
-        contractURI = uri;
+    function setContractURI(string calldata newContractURI) external onlyOwner {
+        contractURI = newContractURI;
         emit ContractURIUpdated();
     }
 
@@ -367,6 +371,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
             emit FreeMintAllocationSet(editionId, freeMintAlloc);
         }
 
+        emit URI(metadataURI, editionId);
         emit EditionAdded(editionId, pieceTitle, basePrice, supply, pricingModel);
     }
 
@@ -412,6 +417,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         if (editions[editionId].id == 0) revert EditionNotFound();
 
         editions[editionId].metadataURI = metadataURI;
+        emit URI(metadataURI, editionId);
         emit EditionMetadataUpdated(editionId, metadataURI);
     }
 
@@ -721,9 +727,51 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         emit ApprovalForAll(msg.sender, operator, approved);
     }
 
+    /**
+     * @notice Balances for a set of (account, id) pairs.
+     * @dev ERC-1155 required member. Reads the same `balanceOf` mapping as the per-id getter; no
+     *      additional storage. Reverts `LengthMismatch` when the arrays differ in length, as the
+     *      standard requires.
+     */
+    function balanceOfBatch(address[] memory accounts, uint256[] memory ids)
+        external
+        view
+        returns (uint256[] memory batchBalances)
+    {
+        if (accounts.length != ids.length) revert LengthMismatch();
+        batchBalances = new uint256[](accounts.length);
+        for (uint256 i = 0; i < accounts.length; i++) {
+            batchBalances[i] = balanceOf[accounts[i]][ids[i]];
+        }
+    }
+
+    /**
+     * @notice ERC-165 interface detection.
+     * @dev Answers for ERC-165 (`0x01ffc9a7`), ERC-1155 (`0xd9b67a26`) and ERC-1155 metadata URI
+     *      (`0x0e89341c`), and returns `false` — never reverts — for anything else, including
+     *      `0xffffffff`. Consumers that probe before deciding what a contract is (marketplaces,
+     *      indexers, wallets) depend on both halves of that.
+     */
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
+        return
+            interfaceId == 0x01ffc9a7 // ERC-165
+                || interfaceId == 0xd9b67a26 // ERC-1155
+                || interfaceId == 0x0e89341c; // ERC-1155 metadata URI
+    }
+
     // ┌─────────────────────────┐
     // │   Metadata Functions    │
     // └─────────────────────────┘
+
+    /**
+     * @notice ERC-1155 metadata URI for an edition.
+     * @dev Returns `editions[id].metadataURI` — the same field `getEdition` exposes, so there is one
+     *      source of truth for an edition's URI. An id that does not exist answers with the empty
+     *      string rather than reverting, so a metadata probe on an uncreated edition is a plain miss.
+     */
+    function uri(uint256 id) external view returns (string memory) {
+        return editions[id].metadataURI;
+    }
 
     /**
      * @notice Get all edition IDs
@@ -761,7 +809,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     // └─────────────────────────┘
 
     /// @notice Set project-level style URI (creator only)
-    function setStyle(string memory uri) external {
+    function setStyle(string memory newStyleUri) external {
         if (msg.sender == owner()) {
             // Owner always allowed
         } else if (agentDelegationEnabled && masterRegistry.isAgent(msg.sender)) {
@@ -769,7 +817,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         } else {
             revert Unauthorized();
         }
-        styleUri = uri;
+        styleUri = newStyleUri;
     }
 
     // ┌─────────────────────────────────────┐

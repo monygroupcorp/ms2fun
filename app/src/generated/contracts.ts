@@ -3631,6 +3631,18 @@ export const erc1155InstanceAbi = [
   {
     type: 'function',
     inputs: [
+      { name: 'accounts', internalType: 'address[]', type: 'address[]' },
+      { name: 'ids', internalType: 'uint256[]', type: 'uint256[]' },
+    ],
+    name: 'balanceOfBatch',
+    outputs: [
+      { name: 'batchBalances', internalType: 'uint256[]', type: 'uint256[]' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
       { name: 'editionId', internalType: 'uint256', type: 'uint256' },
       { name: 'amount', internalType: 'uint256', type: 'uint256' },
     ],
@@ -4023,7 +4035,9 @@ export const erc1155InstanceAbi = [
   },
   {
     type: 'function',
-    inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
+    inputs: [
+      { name: 'newContractURI', internalType: 'string', type: 'string' },
+    ],
     name: 'setContractURI',
     outputs: [],
     stateMutability: 'nonpayable',
@@ -4040,7 +4054,7 @@ export const erc1155InstanceAbi = [
   },
   {
     type: 'function',
-    inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
+    inputs: [{ name: 'newStyleUri', internalType: 'string', type: 'string' }],
     name: 'setStyle',
     outputs: [],
     stateMutability: 'nonpayable',
@@ -4051,6 +4065,13 @@ export const erc1155InstanceAbi = [
     name: 'styleUri',
     outputs: [{ name: '', internalType: 'string', type: 'string' }],
     stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'interfaceId', internalType: 'bytes4', type: 'bytes4' }],
+    name: 'supportsInterface',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'pure',
   },
   {
     type: 'function',
@@ -4089,6 +4110,13 @@ export const erc1155InstanceAbi = [
     name: 'updateEditionMetadata',
     outputs: [],
     stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'id', internalType: 'uint256', type: 'uint256' }],
+    name: 'uri',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -4369,6 +4397,15 @@ export const erc1155InstanceAbi = [
       },
     ],
     name: 'TransferSingle',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'value', internalType: 'string', type: 'string', indexed: false },
+      { name: 'id', internalType: 'uint256', type: 'uint256', indexed: true },
+    ],
+    name: 'URI',
   },
   {
     type: 'event',
@@ -17860,6 +17897,15 @@ export const useReadErc1155InstanceBalanceOf =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"balanceOfBatch"`
+ */
+export const useReadErc1155InstanceBalanceOfBatch =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'balanceOfBatch',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"calculateMintCost"`
  */
 export const useReadErc1155InstanceCalculateMintCost =
@@ -18110,6 +18156,15 @@ export const useReadErc1155InstanceStyleUri =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"supportsInterface"`
+ */
+export const useReadErc1155InstanceSupportsInterface =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'supportsInterface',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"symbol"`
  */
 export const useReadErc1155InstanceSymbol = /*#__PURE__*/ createUseReadContract(
@@ -18133,6 +18188,14 @@ export const useReadErc1155InstanceTotalWithdrawn =
     abi: erc1155InstanceAbi,
     functionName: 'totalWithdrawn',
   })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"uri"`
+ */
+export const useReadErc1155InstanceUri = /*#__PURE__*/ createUseReadContract({
+  abi: erc1155InstanceAbi,
+  functionName: 'uri',
+})
 
 /**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"vault"`
@@ -18687,6 +18750,15 @@ export const useWatchErc1155InstanceTransferSingleEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc1155InstanceAbi,
     eventName: 'TransferSingle',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"URI"`
+ */
+export const useWatchErc1155InstanceUriEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155InstanceAbi,
+    eventName: 'URI',
   })
 
 /**
