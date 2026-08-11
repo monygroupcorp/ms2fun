@@ -290,8 +290,8 @@ contract SeedRich is Script {
     }
 
     function _buyBonding(ERC404BondingInstance b, uint256 key, uint256 amount, string memory pw) internal {
-        (uint256 ip, uint256 q4, uint256 q3, uint256 q2, uint256 nf) = b.curveParams();
-        BondingCurveMath.Params memory p = BondingCurveMath.Params(ip, q4, q3, q2, nf);
+        (uint256 k, uint256 pole, uint256 nf) = b.curveParams();
+        BondingCurveMath.Params memory p = BondingCurveMath.Params(k, pole, nf);
         uint256 cost = BondingCurveMath.calculateCost(p, b.totalBondingSupply(), amount);
         uint256 total = cost + (cost * b.bondingFeeBps()) / 10000;
         vm.startBroadcast(key);

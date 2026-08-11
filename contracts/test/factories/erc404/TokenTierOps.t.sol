@@ -128,9 +128,8 @@ contract TokenTierOpsTest is Test {
     function setUp() public {
         liquidityDeployer = new TierMockLiquidityDeployer();
 
-        BondingCurveMath.Params memory curveParams = BondingCurveMath.Params({
-            initialPrice: 0.0001 ether, quarticCoeff: 1, cubicCoeff: 1, quadraticCoeff: 1, normalizationFactor: 1e18
-        });
+        BondingCurveMath.Params memory curveParams =
+            BondingCurveMath.Params({ kCoeff: 0.0001 ether, poleWad: 1.0438e18, normalizationFactor: 1e18 });
 
         ERC404BondingOps ops = new ERC404BondingOps();
         ERC404BondingInstance impl = new ERC404BondingInstance(address(ops));
@@ -889,8 +888,10 @@ contract TokenTierOpsTest is Test {
         );
 
         // Seal a ladder on both probes by writing the `tierBands` array length directly — the probes are
-        // never initialized, so `initTierBands` is unreachable on them.
-        bytes32 tierBandsSlot = bytes32(uint256(33));
+        // never initialized, so `initTierBands` is unreachable on them. The slot index tracks
+        // ERC404BondingStorage's declaration order; confirm it with
+        // `forge inspect ERC404BondingInstance storage` after any storage change.
+        bytes32 tierBandsSlot = bytes32(uint256(31));
         vm.store(address(probe), tierBandsSlot, bytes32(uint256(1)));
         vm.store(address(opsProbe), tierBandsSlot, bytes32(uint256(1)));
         assertEq(probe.probeTierBandCount(), 1, "instance probe: the ladder write landed on the right slot");

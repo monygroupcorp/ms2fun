@@ -6,605 +6,138 @@ import { BondingCurveMath } from "../../src/factories/erc404/libraries/BondingCu
 
 /**
  * @title BondingCurveMathTest
- * @notice Comprehensive test suite for BondingCurveMath library
- * @dev Tests polynomial bonding curve: P(s) = quarticCoeff * S^4 + cubicCoeff * S^3 + quadraticCoeff * S^2 + initialPrice
+ * @notice Test suite for BondingCurveMath — hyperbolic family P(s) = kCoeff / (poleWad - s),
+ *         I(s) = -kCoeff * ln(1 - s / poleWad), s = supply / normalizationFactor.
+ * @dev The fixtures below are real curves: `normalizationFactor` maps the bonding cap onto s = 1e18,
+ *      and every magnitude assertion is two-sided against the closed form. A flat curve fails them.
  */
 contract BondingCurveMathTest is Test {
     using BondingCurveMath for BondingCurveMath.Params;
 
-    // Standard ERC404 bonding curve parameters (matching CULTEXEC404)
+    /// @dev Pole solved for the shipped presets (liquidityReserveBps = 1000 → G = 7.2).
+    uint256 internal constant POLE = 1.0438e18;
+    /// @dev Bonding cap in base units for a 1e7 normalization factor: s(CAP) = 1e18.
+    uint256 internal constant CAP = 1e25;
+    uint256 internal constant NORM = 1e7;
+
+    /// @notice Shipped-preset shape: pole 4.38% beyond the cap.
     BondingCurveMath.Params public standardParams;
-    BondingCurveMath.Params public linearParams;
-    BondingCurveMath.Params public quadraticParams;
-    BondingCurveMath.Params public fullPolynomialParams;
+    /// @notice Flattest shape the parameter band admits (pole = 2e18, ratio 2x).
+    BondingCurveMath.Params public gentleParams;
+    /// @notice Steepest shape the parameter band admits (pole = 1.02e18, ratio 51x).
+    BondingCurveMath.Params public steepParams;
 
     function setUp() public {
-        // Standard parameters (realistic ERC404 curve)
-        standardParams = BondingCurveMath.Params({
-            initialPrice: 0.025 ether,
-            quarticCoeff: 3 gwei, // 12/4 * 1 gwei (integral coefficient)
-            cubicCoeff: 1333333333, // 4/3 * 1 gwei (integral coefficient)
-            quadraticCoeff: 2 gwei, // 4/2 * 1 gwei (integral coefficient)
-            normalizationFactor: 1e7 // 10M tokens base
-        });
-
-        // Linear only (no polynomial terms)
-        linearParams = BondingCurveMath.Params({
-            initialPrice: 0.01 ether, quarticCoeff: 0, cubicCoeff: 0, quadraticCoeff: 0, normalizationFactor: 1e7
-        });
-
-        // Quadratic only
-        quadraticParams = BondingCurveMath.Params({
-            initialPrice: 0.01 ether, quarticCoeff: 0, cubicCoeff: 0, quadraticCoeff: 1 gwei, normalizationFactor: 1e7
-        });
-
-        // Full polynomial with all coefficients
-        fullPolynomialParams = BondingCurveMath.Params({
-            initialPrice: 0.05 ether,
-            quarticCoeff: 5 gwei,
-            cubicCoeff: 2 gwei,
-            quadraticCoeff: 3 gwei,
-            normalizationFactor: 1e7
-        });
+        standardParams = BondingCurveMath.Params({ kCoeff: 1 ether, poleWad: POLE, normalizationFactor: NORM });
+        gentleParams = BondingCurveMath.Params({ kCoeff: 1 ether, poleWad: 2e18, normalizationFactor: NORM });
+        steepParams = BondingCurveMath.Params({ kCoeff: 1 ether, poleWad: 1.02e18, normalizationFactor: NORM });
     }
 
     // ============================================
-    // 1. Basic Integral Calculation (6 tests)
+    // Helpers
     // ============================================
 
-    function test_calculateIntegral_ZeroToSmall() public view {
-        // Test integral from 0 to 100 tokens
-        // Note: 100 tokens / normalizationFactor (1e7) = 0.00001 scaled supply
-        // So the cost is very small due to scaling
-        uint256 amount = 100 * 1e18;
-        uint256 integral = BondingCurveMath.calculateIntegral(standardParams, 0, amount);
-
-        // Should be positive and relatively small for low supply
-        assertGt(integral, 0, "Integral should be positive");
-        // Due to normalization, cost is: 0.025 ether * (100*1e18/1e7) / 1e18 = 0.00025 ether
-        assertLt(integral, 0.001 ether, "Integral should be small for 100 tokens");
+    /// @dev Cost of a small probe window at normalized supply `sWad`, i.e. the marginal price times
+    ///      the probe width. The probe is 1e-9 of the bonding range, so the secant sits within
+    ///      ~1e-9 of the tangent.
+    function _priceAt(BondingCurveMath.Params memory p, uint256 sWad) internal pure returns (uint256) {
+        uint256 probe = 1e9 * p.normalizationFactor;
+        uint256 supply = sWad * p.normalizationFactor;
+        return BondingCurveMath.calculateCost(p, supply, probe);
     }
 
-    function test_calculateIntegral_SmallRange() public view {
-        // Test integral from 100 to 200 tokens
-        uint256 lower = 100 * 1e18;
-        uint256 upper = 200 * 1e18;
-        uint256 integral = BondingCurveMath.calculateIntegral(standardParams, lower, upper);
-
-        assertGt(integral, 0, "Integral should be positive");
-        // Due to very small scaled supply, costs are similar at low ranges
-        uint256 firstIntegral = BondingCurveMath.calculateIntegral(standardParams, 0, 100 * 1e18);
-        // At very small scales, the polynomial terms are negligible
-        assertGe(integral, firstIntegral * 99 / 100, "Costs should be similar at low supply");
+    /// @dev Closed-form last/first price ratio: poleWad / (poleWad - 1e18).
+    function _expectedRatio(BondingCurveMath.Params memory p) internal pure returns (uint256) {
+        return (p.poleWad * 1e18) / (p.poleWad - 1e18);
     }
 
-    function test_calculateIntegral_LargeRange() public view {
-        // Test integral from 0 to 1M tokens (10% of normalization factor)
-        uint256 amount = 1_000_000 * 1e18;
-        uint256 integral = BondingCurveMath.calculateIntegral(standardParams, 0, amount);
+    // ============================================
+    // 1. Magnitude — the gate the family exists for
+    // ============================================
 
-        assertGt(integral, 0, "Integral should be positive");
-        // 1M tokens at 0.1 scaled supply should have noticeable cost
-        assertGt(integral, 0.001 ether, "Large supply should have measurable cost");
+    function test_Magnitude_PriceRatioMatchesClosedForm() public view {
+        // last/first price ratio must land on poleWad / (poleWad - 1e18), two-sided.
+        // A flat curve reads 1.0 here and fails at every pole in the band.
+        uint256 first = _priceAt(standardParams, 0);
+        uint256 last = _priceAt(standardParams, 1e18 - 1e9);
+        uint256 ratio = (last * 1e18) / first;
+
+        assertApproxEqRel(ratio, _expectedRatio(standardParams), 0.001e18, "standard ratio off closed form");
+        assertApproxEqRel(ratio, 23.8310502e18, 0.001e18, "standard ratio off the pinned 23.83x");
     }
+
+    function test_Magnitude_PriceRatioAcrossBand() public view {
+        uint256 gentleRatio = (_priceAt(gentleParams, 1e18 - 1e9) * 1e18) / _priceAt(gentleParams, 0);
+        uint256 steepRatio = (_priceAt(steepParams, 1e18 - 1e9) * 1e18) / _priceAt(steepParams, 0);
+
+        assertApproxEqRel(gentleRatio, _expectedRatio(gentleParams), 0.001e18, "gentle ratio off closed form");
+        assertApproxEqRel(steepRatio, _expectedRatio(steepParams), 0.001e18, "steep ratio off closed form");
+        // Two-sided, so neither degenerates to flat and neither runs away.
+        assertApproxEqRel(gentleRatio, 2e18, 0.001e18, "gentle should be exactly 2x end to end");
+        assertApproxEqRel(steepRatio, 51e18, 0.001e18, "steep should be exactly 51x end to end");
+    }
+
+    function test_Magnitude_GraduationMultiple() public view {
+        // Final price / average price = (R - 1) / ln R = 7.2 at the shipped pole. The whole range is
+        // exactly 1e18 of normalized supply, so the total raise IS the average price per WAD.
+        uint256 total = BondingCurveMath.calculateCost(standardParams, 0, CAP);
+        uint256 lastPrice = (_priceAt(standardParams, 1e18 - 1e9) * 1e18) / 1e9;
+
+        uint256 g = (lastPrice * 1e18) / total;
+        assertApproxEqRel(g, 7.2e18, 0.001e18, "graduation multiple must be 7.2x at the shipped pole");
+    }
+
+    function test_Magnitude_PriceShapeAcrossSupply() public view {
+        // Measured multipliers of the average price at 0 / 50% / 90% of supply.
+        uint256 total = BondingCurveMath.calculateCost(standardParams, 0, CAP);
+        uint256 p0 = (_priceAt(standardParams, 0) * 1e18) / 1e9;
+        uint256 p50 = (_priceAt(standardParams, 0.5e18) * 1e18) / 1e9;
+        uint256 p90 = (_priceAt(standardParams, 0.9e18) * 1e18) / 1e9;
+
+        assertApproxEqRel((p0 * 1e18) / total, 0.302e18, 0.01e18, "price at 0 should be 0.302x average");
+        assertApproxEqRel((p50 * 1e18) / total, 0.581e18, 0.01e18, "price at 50% should be 0.581x average");
+        assertApproxEqRel((p90 * 1e18) / total, 2.193e18, 0.01e18, "price at 90% should be 2.193x average");
+    }
+
+    function test_Magnitude_LastDecileCarriesTheRaise() public view {
+        // The early-buyer advantage is the design: the first decile pays ~3.2% of the raise and the
+        // last decile ~37.7%. Asserted two-sided so a flatter or a steeper curve both fail.
+        uint256 total = BondingCurveMath.calculateCost(standardParams, 0, CAP);
+        uint256 firstDecile = BondingCurveMath.calculateCost(standardParams, 0, CAP / 10);
+        uint256 lastDecile = BondingCurveMath.calculateCost(standardParams, (CAP * 9) / 10, CAP / 10);
+
+        assertApproxEqRel((firstDecile * 1e18) / total, 0.0316e18, 0.02e18, "first decile share");
+        assertApproxEqRel((lastDecile * 1e18) / total, 0.377e18, 0.02e18, "last decile share");
+    }
+
+    // ============================================
+    // 2. Integral basics
+    // ============================================
 
     function test_calculateIntegral_SamePoints() public view {
-        // Test integral where upperBound == lowerBound (should return 0)
-        uint256 supply = 1000 * 1e18;
-        uint256 integral = BondingCurveMath.calculateIntegral(standardParams, supply, supply);
-
-        assertEq(integral, 0, "Integral of same points should be zero");
+        uint256 supply = 1_000_000 * 1e18;
+        assertEq(BondingCurveMath.calculateIntegral(standardParams, supply, supply), 0, "integral of a point is zero");
     }
 
-    function test_calculateIntegral_Ordering() public view {
-        // Verify (0,100) + (100,200) = (0,200)
-        uint256 integral1 = BondingCurveMath.calculateIntegral(standardParams, 0, 100 * 1e18);
-        uint256 integral2 = BondingCurveMath.calculateIntegral(standardParams, 100 * 1e18, 200 * 1e18);
-        uint256 integralTotal = BondingCurveMath.calculateIntegral(standardParams, 0, 200 * 1e18);
-
-        assertEq(integral1 + integral2, integralTotal, "Integral additivity should hold");
+    function test_calculateIntegral_Additivity() public view {
+        uint256 a = BondingCurveMath.calculateIntegral(standardParams, 0, CAP / 3);
+        uint256 b = BondingCurveMath.calculateIntegral(standardParams, CAP / 3, (2 * CAP) / 3);
+        uint256 total = BondingCurveMath.calculateIntegral(standardParams, 0, (2 * CAP) / 3);
+        assertEq(a + b, total, "integral additivity");
     }
 
-    function test_calculateIntegral_WithHighPrecision() public view {
-        // Test rounding behavior with very small amounts
-        uint256 smallAmount = 1e18; // 1 token
-        uint256 integral = BondingCurveMath.calculateIntegral(standardParams, 0, smallAmount);
-
-        // Should be close to initial price but account for polynomial terms
-        assertGt(integral, 0, "Integral should be positive");
-        assertLt(integral, 0.1 ether, "Single token should be reasonably priced");
+    function test_calculateIntegral_InvalidBounds() public {
+        vm.expectRevert(BondingCurveMath.InvalidBounds.selector);
+        this.externalCalculateIntegral(standardParams, 100, 50);
     }
 
-    // ============================================
-    // 2. Cost Calculation (calculateCost) (8 tests)
-    // ============================================
-
-    function test_calculateCost_FirstToken() public view {
-        // Cost of first token from zero supply
-        // 1 token / 1e7 normalization = 0.0000001 scaled supply
-        uint256 cost = BondingCurveMath.calculateCost(standardParams, 0, 1e18);
-
-        assertGt(cost, 0, "First token should have cost");
-        // Due to normalization, cost is scaled down proportionally
-        // 1 token out of 10M base costs about 0.025 ether / 1e7
-        assertGt(cost, 1 gwei, "First token should have measurable cost");
-        assertLt(cost, 0.01 ether, "First token should not be too expensive");
+    function test_calculateIntegral_ZeroNormalizationFactor() public {
+        BondingCurveMath.Params memory bad = standardParams;
+        bad.normalizationFactor = 0;
+        vm.expectRevert(BondingCurveMath.NormalizationFactorZero.selector);
+        this.externalCalculateIntegral(bad, 0, 1e18);
     }
 
-    function test_calculateCost_SmallAmount() public view {
-        // Cost of 1 token at supply 100
-        // At very low supply (100 / 1e7 = 0.00001), polynomial terms are negligible
-        uint256 currentSupply = 100 * 1e18;
-        uint256 cost = BondingCurveMath.calculateCost(standardParams, currentSupply, 1e18);
-
-        assertGt(cost, 0, "Cost should be positive");
-        // At tiny scaled supply, costs are essentially the same (polynomial insignificant)
-        uint256 firstTokenCost = BondingCurveMath.calculateCost(standardParams, 0, 1e18);
-        assertGe(cost, firstTokenCost * 99 / 100, "Costs should be similar at low supply");
-    }
-
-    function test_calculateCost_LargeAmount() public view {
-        // Cost of 1M tokens from zero supply (10% of normalization)
-        uint256 amount = 1_000_000 * 1e18;
-        uint256 cost = BondingCurveMath.calculateCost(standardParams, 0, amount);
-
-        assertGt(cost, 0, "Large purchase should have cost");
-        // 1M tokens is substantial relative to the scaled curve
-        assertGt(cost, 0.001 ether, "1M tokens should have measurable cost");
-    }
-
-    function test_calculateCost_ZeroAmount() public view {
-        // Cost of zero tokens should be zero
-        uint256 cost = BondingCurveMath.calculateCost(standardParams, 0, 0);
-
-        assertEq(cost, 0, "Zero amount should have zero cost");
-    }
-
-    function test_calculateCost_MonotonicIncreasing() public view {
-        // Each additional token should cost more (or equal for linear)
-        uint256 supply = 0;
-        uint256 previousCost = 0;
-
-        for (uint256 i = 0; i < 10; i++) {
-            uint256 cost = BondingCurveMath.calculateCost(standardParams, supply, 100 * 1e18);
-            assertGe(cost, previousCost, "Cost should monotonically increase");
-            previousCost = cost;
-            supply += 100 * 1e18;
-        }
-    }
-
-    function test_calculateCost_WithDifferentCoefficients() public view {
-        // Test impact of each coefficient
-        uint256 amount = 1000 * 1e18;
-
-        // Linear only
-        uint256 linearCost = BondingCurveMath.calculateCost(linearParams, 0, amount);
-
-        // Quadratic
-        uint256 quadraticCost = BondingCurveMath.calculateCost(quadraticParams, 0, amount);
-
-        // Full polynomial
-        uint256 fullCost = BondingCurveMath.calculateCost(fullPolynomialParams, 0, amount);
-
-        // All should be positive
-        assertGt(linearCost, 0, "Linear cost should be positive");
-        assertGt(quadraticCost, 0, "Quadratic cost should be positive");
-        assertGt(fullCost, 0, "Full polynomial cost should be positive");
-
-        // Polynomial terms add cost
-        assertGt(quadraticCost, linearCost, "Quadratic should cost more than linear");
-    }
-
-    function test_calculateCost_Scalability() public view {
-        // Test with supply approaching normalization factor
-        uint256 nearMaxSupply = 9_000_000 * 1e18; // 90% of 10M normalization (scaled = 0.9)
-        uint256 cost = BondingCurveMath.calculateCost(standardParams, nearMaxSupply, 1000 * 1e18);
-
-        assertGt(cost, 0, "Cost at high supply should be positive");
-        // At 0.9 scaled supply, cost includes polynomial terms
-        // but still relatively small due to coefficient sizes
-        assertGt(cost, 0.000001 ether, "High supply tokens should cost something");
-    }
-
-    function test_calculateCost_NormalizationFactor() public view {
-        // Test different normalization factors
-        BondingCurveMath.Params memory params10x = standardParams;
-        params10x.normalizationFactor = 1e8; // 100M tokens (10x larger)
-
-        BondingCurveMath.Params memory params01x = standardParams;
-        params01x.normalizationFactor = 1e6; // 1M tokens (0.1x smaller)
-
-        uint256 amount = 1000 * 1e18;
-
-        uint256 costStandard = BondingCurveMath.calculateCost(standardParams, 0, amount);
-        uint256 cost10x = BondingCurveMath.calculateCost(params10x, 0, amount);
-        uint256 cost01x = BondingCurveMath.calculateCost(params01x, 0, amount);
-
-        // Larger normalization = slower price growth = cheaper
-        assertLt(cost10x, costStandard, "10x normalization should be cheaper");
-        // Smaller normalization = faster price growth = more expensive
-        assertGt(cost01x, costStandard, "0.1x normalization should be more expensive");
-    }
-
-    // ============================================
-    // 3. Refund Calculation (calculateRefund) (6 tests)
-    // ============================================
-
-    function test_calculateRefund_AfterMint() public view {
-        // Mint 100 tokens, refund for 1 token
-        uint256 mintAmount = 100 * 1e18;
-        uint256 costToMint = BondingCurveMath.calculateCost(standardParams, 0, mintAmount);
-
-        // Now refund 1 token at supply 100
-        uint256 refund = BondingCurveMath.calculateRefund(standardParams, mintAmount, 1e18);
-
-        assertGt(refund, 0, "Refund should be positive");
-        // At very low supply (100/1e7), cost progression is minimal
-        // Refund for token 100->99 should be similar to cost for token 0->1
-        uint256 firstTokenCost = BondingCurveMath.calculateCost(standardParams, 0, 1e18);
-        assertGe(refund, firstTokenCost * 99 / 100, "Refund should be similar at low supply");
-    }
-
-    function test_calculateRefund_PartialReturn() public view {
-        // Buy 100 tokens, return 50
-        uint256 currentSupply = 100 * 1e18;
-        uint256 returnAmount = 50 * 1e18;
-
-        uint256 refund = BondingCurveMath.calculateRefund(standardParams, currentSupply, returnAmount);
-
-        assertGt(refund, 0, "Partial refund should be positive");
-        // Refund should be less than cost of buying those same 50 tokens
-        uint256 costOfLast50 = BondingCurveMath.calculateCost(standardParams, 50 * 1e18, 50 * 1e18);
-        assertApproxEqAbs(refund, costOfLast50, 1e15, "Refund should match integral");
-    }
-
-    function test_calculateRefund_AllTokens() public view {
-        // Return all tokens
-        uint256 currentSupply = 100 * 1e18;
-        uint256 refund = BondingCurveMath.calculateRefund(standardParams, currentSupply, currentSupply);
-
-        // Refund should equal cost to buy from 0 to 100
-        uint256 costToBuy = BondingCurveMath.calculateCost(standardParams, 0, currentSupply);
-
-        assertEq(refund, costToBuy, "Full refund should equal original cost");
-    }
-
-    function test_calculateRefund_ZeroAmount() public view {
-        // Refund of zero tokens should be zero
-        uint256 refund = BondingCurveMath.calculateRefund(standardParams, 100 * 1e18, 0);
-
-        assertEq(refund, 0, "Zero refund amount should be zero");
-    }
-
-    function test_calculateRefund_AsymmetryToCost() public view {
-        // Buy 100 tokens, then sell 100 tokens
-        uint256 amount = 100 * 1e18;
-
-        // Cost to buy from 0 to 100
-        uint256 costToBuy = BondingCurveMath.calculateCost(standardParams, 0, amount);
-
-        // Refund for selling from 100 to 0
-        uint256 refundFromSell = BondingCurveMath.calculateRefund(standardParams, amount, amount);
-
-        // These should be equal (same integral range)
-        assertEq(costToBuy, refundFromSell, "Buy and sell over same range should be equal");
-    }
-
-    function test_calculateRefund_SequentialReturns() public view {
-        // Return 10 then 20 should equal returning 30
-        uint256 currentSupply = 100 * 1e18;
-
-        uint256 refund1 = BondingCurveMath.calculateRefund(standardParams, currentSupply, 10 * 1e18);
-        uint256 refund2 = BondingCurveMath.calculateRefund(standardParams, currentSupply - 10 * 1e18, 20 * 1e18);
-        uint256 refundTotal = BondingCurveMath.calculateRefund(standardParams, currentSupply, 30 * 1e18);
-
-        assertEq(refund1 + refund2, refundTotal, "Sequential refunds should add up");
-    }
-
-    // ============================================
-    // 4. Cost vs Refund Dynamics (7 tests)
-    // ============================================
-
-    function test_CostRefundAsymmetry() public view {
-        // Buy 1 token at supply 50, then sell 1 token at supply 51
-        uint256 baseSupply = 50 * 1e18;
-
-        uint256 costToBuy = BondingCurveMath.calculateCost(standardParams, baseSupply, 1e18);
-        uint256 refundToSell = BondingCurveMath.calculateRefund(standardParams, baseSupply + 1e18, 1e18);
-
-        // These should be equal (same supply range)
-        assertEq(costToBuy, refundToSell, "Cost and refund at same supply should be equal");
-    }
-
-    function test_BondingCurveProgression() public view {
-        // Verify price progression with larger supply differences
-        uint256 firstTokenCost = BondingCurveMath.calculateCost(standardParams, 0, 1e18);
-        uint256 token1MCost = BondingCurveMath.calculateCost(standardParams, 999_999 * 1e18, 1e18);
-        uint256 token5MCost = BondingCurveMath.calculateCost(standardParams, 4_999_999 * 1e18, 1e18);
-
-        // Need significant scaled supply to see polynomial effects
-        assertLt(firstTokenCost, token1MCost, "Cost should increase at 10% supply");
-        assertLt(token1MCost, token5MCost, "Cost should increase at 50% supply");
-
-        // Ratio should increase due to polynomial (at higher scaled values)
-        uint256 ratio1 = (token1MCost * 1e18) / firstTokenCost;
-        uint256 ratio2 = (token5MCost * 1e18) / token1MCost;
-        assertGe(ratio2, ratio1, "Price acceleration should be visible at higher supply");
-    }
-
-    function test_CostIncreaseWithSupply() public view {
-        // Same amount costs more at higher initial supply - need significant supply differences
-        uint256 amount = 10_000 * 1e18;
-
-        uint256 costAtZero = BondingCurveMath.calculateCost(standardParams, 0, amount);
-        uint256 costAt1M = BondingCurveMath.calculateCost(standardParams, 1_000_000 * 1e18, amount);
-        uint256 costAt5M = BondingCurveMath.calculateCost(standardParams, 5_000_000 * 1e18, amount);
-
-        assertLt(costAtZero, costAt1M, "Cost should increase at 10% supply");
-        assertLt(costAt1M, costAt5M, "Cost should increase at 50% supply");
-    }
-
-    function test_FullCycleProfitability() public view {
-        // Buy 100 tokens, sell 100 tokens - should break even (no slippage loss)
-        uint256 amount = 100 * 1e18;
-
-        uint256 costToBuy = BondingCurveMath.calculateCost(standardParams, 0, amount);
-        uint256 refundToSell = BondingCurveMath.calculateRefund(standardParams, amount, amount);
-
-        // With bonding curve, should be equal (no loss, same integral)
-        assertEq(costToBuy, refundToSell, "Full cycle should break even");
-    }
-
-    function test_CostRefundGap() public view {
-        // Gap between buying and selling at different supply points
-        // Buy 10 tokens at supply 100
-        uint256 supply = 100 * 1e18;
-        uint256 amount = 10 * 1e18;
-
-        uint256 costToBuy = BondingCurveMath.calculateCost(standardParams, supply, amount);
-        // Sell 10 tokens at supply 100 (before buying)
-        uint256 refundBeforeBuy = BondingCurveMath.calculateRefund(standardParams, supply, amount);
-
-        // These should be equal (same supply range 90-100)
-        assertEq(costToBuy, refundBeforeBuy, "Cost to buy 100->110 should equal refund 100->90");
-    }
-
-    function test_BreakEvenPoint() public view {
-        // Due to integral math, buying and selling same range should be equal
-        uint256 supply = 500 * 1e18;
-        uint256 amount = 50 * 1e18;
-
-        uint256 cost = BondingCurveMath.calculateCost(standardParams, supply, amount);
-        uint256 refund = BondingCurveMath.calculateRefund(standardParams, supply + amount, amount);
-
-        assertEq(cost, refund, "Cost and refund should be equal for same range");
-    }
-
-    function test_RealWorldScenario_ERC404Bonding() public view {
-        // Simulate real ERC404 bonding scenario
-        // User buys 1000 tokens at start
-        uint256 initialBuy = 1000 * 1e18;
-        uint256 initialCost = BondingCurveMath.calculateCost(standardParams, 0, initialBuy);
-
-        // Supply increases as others buy
-        uint256 newSupply = 5000 * 1e18;
-
-        // User sells their 1000 tokens at higher supply
-        uint256 refund = BondingCurveMath.calculateRefund(standardParams, newSupply, 1000 * 1e18);
-
-        // User profits from supply increase
-        assertGt(refund, initialCost, "Should profit from supply increase");
-
-        // Log the profit
-        uint256 profit = refund - initialCost;
-        console2.log("Initial buy (1000 tokens):", initialCost);
-        console2.log("Refund at 5000 supply:", refund);
-        console2.log("Profit:", profit);
-    }
-
-    // ============================================
-    // 5. Polynomial Coefficient Effects (8 tests)
-    // ============================================
-
-    function test_WithOnlyInitialPrice() public view {
-        // Linear curve (constant price) - but scaled by normalization
-        uint256 amount = 1000 * 1e18;
-        uint256 cost = BondingCurveMath.calculateCost(linearParams, 0, amount);
-
-        // Cost is initialPrice * (scaledSupply) = initialPrice * (amount / normalizationFactor)
-        // = 0.01 ether * (1000 * 1e18 / 1e7) = 0.01 ether * 100 = 1 ether (but in WAD)
-        uint256 scaledAmount = amount / linearParams.normalizationFactor; // 1e18 / 1e7 * 1000 = 100e11
-        uint256 expected = (linearParams.initialPrice * scaledAmount) / 1e18;
-        assertApproxEqRel(cost, expected, 0.01e18, "Linear cost should match scaled calculation");
-    }
-
-    function test_WithOnlyLinearAndQuadratic() public view {
-        // Test with cubic=0
-        uint256 amount = 1000 * 1e18;
-        uint256 cost = BondingCurveMath.calculateCost(quadraticParams, 0, amount);
-
-        assertGt(cost, 0, "Quadratic cost should be positive");
-        // Should be more than pure linear
-        uint256 linearCost = BondingCurveMath.calculateCost(linearParams, 0, amount);
-        assertGt(cost, linearCost, "Quadratic should cost more than linear");
-    }
-
-    function test_WithFullPolynomial() public view {
-        // All coefficients non-zero
-        uint256 amount = 1000 * 1e18;
-        uint256 cost = BondingCurveMath.calculateCost(fullPolynomialParams, 0, amount);
-
-        assertGt(cost, 0, "Full polynomial cost should be positive");
-        // Should be significantly more than linear
-        uint256 linearCost = BondingCurveMath.calculateCost(linearParams, 0, amount);
-        assertGt(cost, linearCost * 2, "Full polynomial should be much more expensive");
-    }
-
-    function test_QuarticDominance() public view {
-        // At high supply, quartic term contributes
-        uint256 highSupply = 5_000_000 * 1e18; // 50% of normalization factor (scaled = 0.5)
-        uint256 amount = 100_000 * 1e18; // Larger amount to see effect
-
-        uint256 cost = BondingCurveMath.calculateCost(standardParams, highSupply, amount);
-
-        // Cost should include quartic term effects
-        // quarticCoeff = 3 gwei, at scaled 0.5, S^4 term contributes
-        assertGt(cost, 0.0001 ether, "Quartic effect contributes at high supply");
-    }
-
-    function test_CubicVsQuartic() public view {
-        // Compare impact of cubic vs quartic at meaningful scaled supply
-        BondingCurveMath.Params memory cubicOnly = standardParams;
-        cubicOnly.quarticCoeff = 0;
-
-        BondingCurveMath.Params memory quarticOnly = standardParams;
-        quarticOnly.cubicCoeff = 0;
-        quarticOnly.quadraticCoeff = 0;
-
-        uint256 highSupply = 5_000_000 * 1e18; // 50% scaled supply
-        uint256 amount = 100_000 * 1e18;
-
-        uint256 cubicCost = BondingCurveMath.calculateCost(cubicOnly, highSupply, amount);
-        uint256 quarticCost = BondingCurveMath.calculateCost(quarticOnly, highSupply, amount);
-
-        // At 0.5 scaled supply, S^4 vs S^3 difference becomes visible
-        assertGt(quarticCost, cubicCost * 95 / 100, "Both should contribute at high supply");
-    }
-
-    function test_CoefficientScaling() public view {
-        // Test with 10x larger coefficients
-        BondingCurveMath.Params memory scaled = standardParams;
-        scaled.quarticCoeff = standardParams.quarticCoeff * 10;
-        scaled.cubicCoeff = standardParams.cubicCoeff * 10;
-        scaled.quadraticCoeff = standardParams.quadraticCoeff * 10;
-
-        uint256 amount = 1000 * 1e18;
-        uint256 standardCost = BondingCurveMath.calculateCost(standardParams, 0, amount);
-        uint256 scaledCost = BondingCurveMath.calculateCost(scaled, 0, amount);
-
-        // Scaled cost should be significantly higher
-        assertGt(scaledCost, standardCost, "10x coefficients should increase cost");
-    }
-
-    function test_ZeroCoefficients() public view {
-        // All coefficients zero except initial price
-        BondingCurveMath.Params memory zeroCoeffs = BondingCurveMath.Params({
-            initialPrice: 0.025 ether, quarticCoeff: 0, cubicCoeff: 0, quadraticCoeff: 0, normalizationFactor: 1e7
-        });
-
-        uint256 amount = 1000 * 1e18;
-        uint256 cost = BondingCurveMath.calculateCost(zeroCoeffs, 0, amount);
-
-        // Cost = initialPrice * (scaledAmount) = initialPrice * (amount / normalizationFactor)
-        uint256 scaledAmount = amount / zeroCoeffs.normalizationFactor;
-        uint256 expected = (zeroCoeffs.initialPrice * scaledAmount) / 1e18;
-        assertEq(cost, expected, "Zero coefficients should give linear cost (scaled)");
-    }
-
-    function test_NegativeEffects() public view {
-        // Test edge case: very small initial price
-        BondingCurveMath.Params memory smallPrice = standardParams;
-        smallPrice.initialPrice = 1 wei;
-
-        uint256 amount = 1000 * 1e18;
-        uint256 cost = BondingCurveMath.calculateCost(smallPrice, 0, amount);
-
-        // Should still work, polynomial terms dominate
-        assertGt(cost, 0, "Small initial price should still work");
-    }
-
-    // ============================================
-    // 6. Normalization Factor Effects (4 tests)
-    // ============================================
-
-    function test_NormalizationFactor_10M() public view {
-        // Standard 10M normalization
-        uint256 amount = 100_000 * 1e18; // 1% of max supply
-        uint256 cost = BondingCurveMath.calculateCost(standardParams, 0, amount);
-
-        assertGt(cost, 0, "10M normalization should work");
-        assertLt(cost, 10000 ether, "Reasonable cost for 1% of supply");
-    }
-
-    function test_NormalizationFactor_1B() public view {
-        // 1B normalization (100x larger)
-        BondingCurveMath.Params memory largeNorm = standardParams;
-        largeNorm.normalizationFactor = 1e9;
-
-        uint256 amount = 100_000 * 1e18;
-        uint256 cost = BondingCurveMath.calculateCost(largeNorm, 0, amount);
-
-        // Should be much cheaper due to slower growth
-        uint256 standardCost = BondingCurveMath.calculateCost(standardParams, 0, amount);
-        assertLt(cost, standardCost, "Larger normalization should be cheaper");
-    }
-
-    function test_NormalizationFactor_Scaling() public view {
-        // Verify 10x normalization scales predictably
-        BondingCurveMath.Params memory norm10x = standardParams;
-        norm10x.normalizationFactor = 1e8; // 100M tokens
-
-        // Buy same absolute amount
-        uint256 amount = 100_000 * 1e18;
-
-        uint256 costStandard = BondingCurveMath.calculateCost(standardParams, 0, amount);
-        uint256 cost10x = BondingCurveMath.calculateCost(norm10x, 0, amount);
-
-        // 10x normalization means supply is 1/10th as far along the curve
-        assertLt(cost10x, costStandard, "10x normalization reduces cost");
-    }
-
-    function test_NormalizationFactor_ExtremeCases() public view {
-        // Very small normalization (fast price growth)
-        BondingCurveMath.Params memory tinyNorm = standardParams;
-        tinyNorm.normalizationFactor = 1e5; // 100k tokens (100x smaller)
-
-        // Very large normalization (slow price growth)
-        BondingCurveMath.Params memory hugeNorm = standardParams;
-        hugeNorm.normalizationFactor = 1e10; // 10B tokens (1000x larger)
-
-        uint256 amount = 1000 * 1e18;
-
-        uint256 costTiny = BondingCurveMath.calculateCost(tinyNorm, 0, amount);
-        uint256 costHuge = BondingCurveMath.calculateCost(hugeNorm, 0, amount);
-
-        assertGt(costTiny, costHuge, "Smaller normalization should be more expensive");
-    }
-
-    // ============================================
-    // 7. Edge Cases & Boundaries (6 tests)
-    // ============================================
-
-    function test_SupplyOverflow() public view {
-        // Test with very large supply (but not overflowing)
-        uint256 largeSupply = 1_000_000_000 * 1e18; // 1B tokens
-
-        // Should not revert, but cost will be astronomical
-        uint256 cost = BondingCurveMath.calculateCost(standardParams, largeSupply, 1e18);
-        assertGt(cost, 0, "Large supply should still calculate");
-    }
-
-    function test_PrecisionLoss() public view {
-        // Test with very small amounts (1 wei)
-        uint256 tinyAmount = 1;
-        uint256 cost = BondingCurveMath.calculateCost(standardParams, 0, tinyAmount);
-
-        // Should be effectively zero or very small
-        assertLt(cost, 1 gwei, "1 wei purchase should be tiny");
-    }
-
-    function test_BoundaryConditions() public {
-        // Test invalid bounds (upper < lower)
-        // Use try-catch to handle revert properly
-        try this.externalCalculateIntegral(standardParams, 100, 50) {
-            fail("Should have reverted with invalid bounds");
-        } catch (bytes memory reason) {
-            // Expected to revert
-            assertTrue(true);
-        }
-    }
-
-    // External wrapper for testing reverts
     function externalCalculateIntegral(BondingCurveMath.Params memory params, uint256 lower, uint256 upper)
         external
         pure
@@ -613,201 +146,271 @@ contract BondingCurveMathTest is Test {
         return BondingCurveMath.calculateIntegral(params, lower, upper);
     }
 
-    function test_VerySmallAmounts() public view {
-        // 1 wei purchase
-        uint256 cost = BondingCurveMath.calculateCost(standardParams, 0, 1);
-
-        // Should be calculable and tiny
-        assertLt(cost, 1 gwei, "1 wei should be very cheap");
+    function externalCalculateCost(BondingCurveMath.Params memory params, uint256 supply, uint256 amount)
+        external
+        pure
+        returns (uint256)
+    {
+        return BondingCurveMath.calculateCost(params, supply, amount);
     }
 
-    function test_VeryLargeAmounts() public view {
-        // Buy 1B tokens (100x normalization factor - scaled supply = 100)
-        uint256 hugeAmount = 1_000_000_000 * 1e18;
-        uint256 cost = BondingCurveMath.calculateCost(standardParams, 0, hugeAmount);
-
-        assertGt(cost, 0, "Huge amount should calculate");
-        // At scaled supply = 100, S^4 term = 100^4 = 100M, so cost is substantial
-        assertGt(cost, 1 ether, "1B tokens (scaled=100) should be expensive");
-    }
-
-    function test_GasOptimization() public {
-        // Measure gas for typical operations
-        uint256 amount = 1000 * 1e18;
-
-        uint256 gasBefore = gasleft();
-        BondingCurveMath.calculateCost(standardParams, 0, amount);
-        uint256 gasUsed = gasBefore - gasleft();
-
-        console2.log("Gas used for calculateCost:", gasUsed);
-
-        // Should be reasonably efficient (under 50k gas)
-        assertLt(gasUsed, 50000, "Gas usage should be reasonable");
+    function externalCalculateRefund(BondingCurveMath.Params memory params, uint256 supply, uint256 amount)
+        external
+        pure
+        returns (uint256)
+    {
+        return BondingCurveMath.calculateRefund(params, supply, amount);
     }
 
     // ============================================
-    // Additional Integration Tests (3 tests)
+    // 3. Domain — the pole is the edge of the world
     // ============================================
 
-    function test_Integration_BuyAndSellCycle() public view {
-        // Simulate a complete buy/sell cycle
-        uint256 buyAmount = 1000 * 1e18;
-
-        // Buy tokens
-        uint256 buyC = BondingCurveMath.calculateCost(standardParams, 0, buyAmount);
-
-        // Sell tokens
-        uint256 sellRefund = BondingCurveMath.calculateRefund(standardParams, buyAmount, buyAmount);
-
-        // Should break even
-        assertEq(buyC, sellRefund, "Buy/sell cycle should break even");
+    function test_Domain_AtPoleReverts() public {
+        uint256 atPole = POLE * NORM;
+        vm.expectRevert(BondingCurveMath.SupplyAtOrBeyondPole.selector);
+        this.externalCalculateCost(standardParams, atPole, 0);
     }
 
-    function test_Integration_MultipleUsers() public view {
-        // Simulate multiple users buying sequentially
-        uint256 user1Buy = 500 * 1e18;
-        uint256 user2Buy = 300 * 1e18;
-        uint256 user3Buy = 200 * 1e18;
-
-        uint256 user1Cost = BondingCurveMath.calculateCost(standardParams, 0, user1Buy);
-        uint256 user2Cost = BondingCurveMath.calculateCost(standardParams, user1Buy, user2Buy);
-        uint256 user3Cost = BondingCurveMath.calculateCost(standardParams, user1Buy + user2Buy, user3Buy);
-
-        // Total cost should equal buying all at once
-        uint256 totalCost = BondingCurveMath.calculateCost(standardParams, 0, user1Buy + user2Buy + user3Buy);
-
-        assertEq(user1Cost + user2Cost + user3Cost, totalCost, "Sequential buys should equal bulk buy");
+    function test_Domain_BeyondPoleReverts() public {
+        uint256 beyondPole = (POLE + 1e15) * NORM;
+        vm.expectRevert(BondingCurveMath.SupplyAtOrBeyondPole.selector);
+        this.externalCalculateCost(standardParams, beyondPole, 1e18);
     }
 
-    function test_Integration_PriceDiscovery() public view {
-        // Test price discovery at different supply points
-        uint256[] memory supplyPoints = new uint256[](5);
-        supplyPoints[0] = 100_000 * 1e18; // 1% of 10M
-        supplyPoints[1] = 500_000 * 1e18; // 5% of 10M
-        supplyPoints[2] = 1_000_000 * 1e18; // 10% of 10M
-        supplyPoints[3] = 5_000_000 * 1e18; // 50% of 10M
-        supplyPoints[4] = 9_000_000 * 1e18; // 90% of 10M
+    function test_Domain_JustInsidePoleIsFinite() public view {
+        uint256 justInside = POLE * NORM - NORM;
+        assertEq(
+            BondingCurveMath.calculateCost(standardParams, justInside, 0),
+            0,
+            "zero amount is zero cost even next to the pole"
+        );
+    }
 
-        console2.log("Price Discovery (cost of next 100 tokens):");
+    function test_Domain_CapIsStrictlyInsideThePole() public view {
+        // The whole bonding range evaluates without reverting, which is the property the pole band
+        // exists to preserve.
+        assertGt(BondingCurveMath.calculateCost(standardParams, 0, CAP), 0, "full range must price");
+    }
 
-        for (uint256 i = 0; i < supplyPoints.length; i++) {
-            uint256 cost = BondingCurveMath.calculateCost(standardParams, supplyPoints[i], 100 * 1e18);
-            console2.log("At", supplyPoints[i] / 1e18, "supply: ", cost);
+    function test_Domain_PathologicalPoleStillEvaluates() public view {
+        // At poleWad = 1e18 + 1e6 the library is perfectly well behaved — nothing reverts, nothing
+        // overflows — and the graduation price is astronomically high. The library cannot catch
+        // this; CurveParamsComputer's band does.
+        BondingCurveMath.Params memory pathological =
+            BondingCurveMath.Params({ kCoeff: 1 ether, poleWad: 1e18 + 1e6, normalizationFactor: NORM });
+        assertGt(BondingCurveMath.calculateCost(pathological, 0, CAP), 0, "pathological pole still prices");
+        uint256 first = _priceAt(pathological, 0);
+        uint256 last = _priceAt(pathological, 1e18 - 1e9);
+        assertGt(last / first, 1e9, "and produces an unreachable graduation price");
+    }
 
-            // Cost should increase monotonically
-            if (i > 0) {
-                uint256 prevCost = BondingCurveMath.calculateCost(standardParams, supplyPoints[i - 1], 100 * 1e18);
-                assertGt(cost, prevCost, "Price should increase with supply");
+    // ============================================
+    // 4. Cost
+    // ============================================
+
+    function test_calculateCost_ZeroAmount() public view {
+        assertEq(BondingCurveMath.calculateCost(standardParams, 0, 0), 0, "zero amount, zero cost");
+    }
+
+    function test_calculateCost_MonotonicIncreasing() public view {
+        uint256 supply = 0;
+        uint256 previousCost = 0;
+        uint256 step = CAP / 20;
+
+        for (uint256 i = 0; i < 10; i++) {
+            uint256 cost = BondingCurveMath.calculateCost(standardParams, supply, step);
+            assertGt(cost, previousCost, "each equal-size slice must cost strictly more");
+            previousCost = cost;
+            supply += step;
+        }
+    }
+
+    function test_calculateCost_SequentialEqualsBulk() public view {
+        uint256 a = CAP / 6;
+        uint256 b = CAP / 5;
+        uint256 c = CAP / 4;
+        uint256 sequential = BondingCurveMath.calculateCost(standardParams, 0, a)
+            + BondingCurveMath.calculateCost(standardParams, a, b)
+            + BondingCurveMath.calculateCost(standardParams, a + b, c);
+        assertEq(sequential, BondingCurveMath.calculateCost(standardParams, 0, a + b + c), "telescoping");
+    }
+
+    function test_calculateCost_SteeperPoleCostsMoreLate() public view {
+        uint256 lateSupply = (CAP * 9) / 10;
+        uint256 amount = CAP / 100;
+        uint256 gentle = BondingCurveMath.calculateCost(gentleParams, lateSupply, amount);
+        uint256 steep = BondingCurveMath.calculateCost(steepParams, lateSupply, amount);
+        assertGt(steep, gentle * 3, "a tighter pole must charge materially more at the top");
+    }
+
+    function test_calculateCost_SubQuantumRoundsToZero() public view {
+        // Purchases smaller than normalizationFactor BASE UNITS floor to zero normalized supply.
+        // ERC404BondingInstance guards this with PurchaseTooSmall.
+        assertEq(BondingCurveMath.calculateCost(standardParams, 0, NORM - 1), 0, "sub-quantum is free");
+        assertGt(BondingCurveMath.calculateCost(standardParams, 0, NORM * 1e6), 0, "a real purchase is not");
+    }
+
+    // ============================================
+    // 5. Refund and sell-side symmetry
+    // ============================================
+
+    function test_calculateRefund_ZeroAmount() public view {
+        assertEq(BondingCurveMath.calculateRefund(standardParams, CAP / 2, 0), 0, "zero refund");
+    }
+
+    function test_calculateRefund_ExceedsSupply() public {
+        vm.expectRevert(BondingCurveMath.AmountExceedsSupply.selector);
+        this.externalCalculateRefund(standardParams, 100, 101);
+    }
+
+    function test_SellSide_BuyThenSellNeverPaysOutMore_Boundaries() public view {
+        // Both boundaries and a range of window sizes. The refund is the same integral difference as
+        // the cost, so equality is the tight case and any drift must be downward.
+        uint256[5] memory supplies = [uint256(0), NORM, CAP / 2, CAP - NORM * 1e6, CAP - NORM];
+        uint256[3] memory amounts = [NORM, NORM * 1e6, CAP / 4];
+
+        for (uint256 i = 0; i < supplies.length; i++) {
+            for (uint256 j = 0; j < amounts.length; j++) {
+                uint256 supply = supplies[i];
+                uint256 amount = amounts[j];
+                if (supply + amount > CAP) continue;
+                uint256 cost = BondingCurveMath.calculateCost(standardParams, supply, amount);
+                uint256 refund = BondingCurveMath.calculateRefund(standardParams, supply + amount, amount);
+                assertLe(refund, cost, "a round trip must never pay out more than it took in");
             }
         }
     }
 
+    function test_SellSide_FirstAndLastUnit() public view {
+        uint256 quantum = NORM * 1e6;
+
+        uint256 firstCost = BondingCurveMath.calculateCost(standardParams, 0, quantum);
+        uint256 firstRefund = BondingCurveMath.calculateRefund(standardParams, quantum, quantum);
+        assertLe(firstRefund, firstCost, "first unit round trip");
+
+        uint256 lastCost = BondingCurveMath.calculateCost(standardParams, CAP - quantum, quantum);
+        uint256 lastRefund = BondingCurveMath.calculateRefund(standardParams, CAP, quantum);
+        assertLe(lastRefund, lastCost, "last unit round trip");
+        assertGt(lastCost, firstCost * 20, "and the last unit is more than an order of magnitude dearer");
+    }
+
+    function test_SellSide_SequentialSellsTelescope() public view {
+        uint256 supply = CAP / 2;
+        uint256 r1 = BondingCurveMath.calculateRefund(standardParams, supply, CAP / 20);
+        uint256 r2 = BondingCurveMath.calculateRefund(standardParams, supply - CAP / 20, CAP / 20);
+        uint256 total = BondingCurveMath.calculateRefund(standardParams, supply, CAP / 10);
+        assertEq(r1 + r2, total, "split sells telescope exactly");
+    }
+
     // ============================================
-    // Fuzz Tests (3 tests)
+    // 6. Normalization factor
+    // ============================================
+
+    function test_NormalizationFactor_LargerIsCheaperForTheSameAbsoluteAmount() public view {
+        BondingCurveMath.Params memory tenX = standardParams;
+        tenX.normalizationFactor = NORM * 10;
+
+        uint256 amount = CAP / 100;
+        assertLt(
+            BondingCurveMath.calculateCost(tenX, 0, amount),
+            BondingCurveMath.calculateCost(standardParams, 0, amount),
+            "10x normalization walks 1/10th as far along the curve"
+        );
+    }
+
+    function test_NormalizationFactor_ShapeIsScaleFree() public view {
+        // The dimensionless price ratio does not depend on the normalization factor.
+        BondingCurveMath.Params memory tenX = standardParams;
+        tenX.normalizationFactor = NORM * 10;
+
+        uint256 base = (_priceAt(standardParams, 1e18 - 1e9) * 1e18) / _priceAt(standardParams, 0);
+        uint256 scaled = (_priceAt(tenX, 1e18 - 1e9) * 1e18) / _priceAt(tenX, 0);
+        assertApproxEqRel(scaled, base, 0.0001e18, "ratio is scale-free in normalizationFactor");
+    }
+
+    // ============================================
+    // 7. Gas
+    // ============================================
+
+    function test_GasOptimization() public view {
+        uint256 gasBefore = gasleft();
+        BondingCurveMath.calculateCost(standardParams, CAP / 2, CAP / 100);
+        uint256 gasUsed = gasBefore - gasleft();
+        console2.log("Gas used for calculateCost:", gasUsed);
+        assertLt(gasUsed, 50000, "gas usage should be reasonable");
+    }
+
+    // ============================================
+    // 8. Fuzz
     // ============================================
 
     function testFuzz_CalculateCost(uint256 supply, uint256 amount) public view {
-        // Bound inputs to reasonable ranges
-        supply = bound(supply, 0, 10_000_000 * 1e18);
-        amount = bound(amount, 0, 1_000_000 * 1e18);
+        supply = bound(supply, 0, CAP);
+        amount = bound(amount, 0, CAP - supply);
 
         uint256 cost = BondingCurveMath.calculateCost(standardParams, supply, amount);
-
         if (amount == 0) {
-            assertEq(cost, 0, "Zero amount should have zero cost");
-        } else {
-            // At very small scaled amounts (< 10000 tokens = 0.001 scaled), cost might round to zero
-            // Due to normalization factor of 1e7, amounts under ~10k tokens can have zero cost
-            if (amount >= 10_000 * 1e18) {
-                assertGt(cost, 0, "Significant amounts should have positive cost");
-            } else {
-                // Small amounts may or may not have cost due to rounding
-                assertGe(cost, 0, "Cost should be non-negative");
-            }
-        }
-    }
-
-    function testFuzz_CalculateRefund(uint256 supply, uint256 amount) public view {
-        // Bound inputs to reasonable ranges
-        supply = bound(supply, 1000, 10_000_000 * 1e18); // Minimum 1000 to avoid rounding issues
-        amount = bound(amount, 0, supply); // Can't refund more than supply
-
-        uint256 refund = BondingCurveMath.calculateRefund(standardParams, supply, amount);
-
-        if (amount == 0) {
-            assertEq(refund, 0, "Zero refund should be zero");
-        } else {
-            // At very small scaled amounts, refund might round to zero
-            // Only assert positive refund for meaningful amounts
-            if (amount >= 1000) {
-                assertGe(refund, 0, "Non-zero refund should be non-negative");
-            }
+            assertEq(cost, 0, "zero amount, zero cost");
+        } else if (amount >= NORM * 1e6) {
+            assertGt(cost, 0, "any purchase of a real size costs something");
         }
     }
 
     function testFuzz_BuySellSymmetry(uint256 supply, uint256 amount) public view {
-        // refund(supply, amount) <= cost(supply - amount, amount) for all valid supply/amount
-        supply = bound(supply, 1, 10_000_000 * 1e18);
+        supply = bound(supply, 1, CAP);
         amount = bound(amount, 1, supply);
 
         uint256 refund = BondingCurveMath.calculateRefund(standardParams, supply, amount);
         uint256 cost = BondingCurveMath.calculateCost(standardParams, supply - amount, amount);
-
-        assertLe(refund, cost, "Refund should never exceed cost over same range");
+        assertLe(refund, cost, "refund never exceeds the cost over the same range");
     }
 
     function testFuzz_CostMonotonicity(uint256 s1, uint256 s2, uint256 amount) public view {
-        // cost increases with supply: calculateCost(s1, a) <= calculateCost(s2, a) when s2 > s1
-        // Allow small rounding tolerance: each calculateCost subtracts two _calculateIntegralFromZero
-        // calls, each with up to ~4 wei cumulative mulWad floor rounding per term (4 terms).
-        // Two independent cost calls can diverge by up to ~10 wei from rounding alone.
-        uint256 ROUNDING_TOLERANCE = 10;
-        amount = bound(amount, 1e18, 1_000_000 * 1e18);
-        s1 = bound(s1, 0, 8_000_000 * 1e18);
-        s2 = bound(s2, s1 + 1e18, 9_000_000 * 1e18);
+        // Below a few normalization quanta the integral difference is a handful of wei and the
+        // floor rounding in `divWad` can reorder two independent evaluations; size the window so
+        // the comparison is about the curve, not about the last wei.
+        amount = bound(amount, NORM * 1e6, CAP / 10);
+        s1 = bound(s1, 0, CAP / 2);
+        s2 = bound(s2, s1 + 1, CAP - amount);
 
+        // Each cost is a difference of two independently floored integrals, so two evaluations can
+        // disagree by a few wei on ordering when the two supplies are within one quantum.
+        uint256 ROUNDING_TOLERANCE = 8;
         uint256 cost1 = BondingCurveMath.calculateCost(standardParams, s1, amount);
         uint256 cost2 = BondingCurveMath.calculateCost(standardParams, s2, amount);
-
-        assertLe(cost1, cost2 + ROUNDING_TOLERANCE, "Cost should increase with supply (within rounding)");
+        assertLe(cost1, cost2 + ROUNDING_TOLERANCE, "cost rises with supply (within rounding)");
     }
 
     function testFuzz_RefundMonotonicity(uint256 s1, uint256 s2, uint256 amount) public view {
-        // refund increases with supply: calculateRefund(s1, a) <= calculateRefund(s2, a) when s2 > s1
-        // Same rounding tolerance as CostMonotonicity (see above).
-        uint256 ROUNDING_TOLERANCE = 10;
-        amount = bound(amount, 1e18, 1_000_000 * 1e18);
-        s1 = bound(s1, amount, 8_000_000 * 1e18);
-        s2 = bound(s2, s1 + 1e18, 9_000_000 * 1e18);
+        amount = bound(amount, NORM * 1e6, CAP / 10);
+        s1 = bound(s1, amount, CAP / 2);
+        s2 = bound(s2, s1 + 1, CAP);
 
+        uint256 ROUNDING_TOLERANCE = 8;
         uint256 refund1 = BondingCurveMath.calculateRefund(standardParams, s1, amount);
         uint256 refund2 = BondingCurveMath.calculateRefund(standardParams, s2, amount);
-
-        assertLe(refund1, refund2 + ROUNDING_TOLERANCE, "Refund should increase with supply (within rounding)");
+        assertLe(refund1, refund2 + ROUNDING_TOLERANCE, "refund rises with supply (within rounding)");
     }
 
-    function testFuzz_NonZeroCostAboveThreshold(uint256 supply, uint256 amount) public view {
-        // amount >= normalizationFactor tokens → cost > 0
-        // normalizationFactor is 1e7, so >= 1e7 tokens (1e25 wei) guarantees non-zero scaled delta
-        // Use >= 1 token as practical minimum where cost is reliably non-zero
-        supply = bound(supply, 0, 10_000_000 * 1e18);
-        amount = bound(amount, 1e18, 10_000_000 * 1e18);
-
-        uint256 cost = BondingCurveMath.calculateCost(standardParams, supply, amount);
-
-        assertGt(cost, 0, "Cost should be non-zero when amount >= 1 token");
-    }
-
-    function testFuzz_IntegralAdditivity(uint256 a, uint256 b) public view {
-        // Test that integral(a,b) + integral(b,c) = integral(a,c)
-        a = bound(a, 0, 1_000_000 * 1e18);
-        b = bound(b, a, 2_000_000 * 1e18);
-        uint256 c = b + 100_000 * 1e18;
+    function testFuzz_IntegralAdditivity(uint256 a, uint256 b, uint256 c) public view {
+        a = bound(a, 0, CAP / 2);
+        b = bound(b, a, (CAP * 3) / 4);
+        c = bound(c, b, CAP);
 
         uint256 int1 = BondingCurveMath.calculateIntegral(standardParams, a, b);
         uint256 int2 = BondingCurveMath.calculateIntegral(standardParams, b, c);
         uint256 intTotal = BondingCurveMath.calculateIntegral(standardParams, a, c);
+        assertEq(int1 + int2, intTotal, "integral additivity holds");
+    }
 
-        assertEq(int1 + int2, intTotal, "Integral additivity should hold");
+    function testFuzz_PriceRatioIsClosedForm(uint256 pole) public view {
+        pole = bound(pole, 1.02e18, 2e18);
+        BondingCurveMath.Params memory p =
+            BondingCurveMath.Params({ kCoeff: 1 ether, poleWad: pole, normalizationFactor: NORM });
+
+        uint256 ratio = (_priceAt(p, 1e18 - 1e9) * 1e18) / _priceAt(p, 0);
+        assertApproxEqRel(ratio, _expectedRatio(p), 0.001e18, "ratio tracks the closed form over the whole band");
+        assertGt(ratio, 1.9e18, "no pole in the band produces a flat curve");
     }
 }

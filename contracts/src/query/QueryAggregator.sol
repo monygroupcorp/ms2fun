@@ -77,16 +77,7 @@ interface IERC404Card {
     function bondingActive() external view returns (bool);
     function bondingOpenTime() external view returns (uint256);
     function graduated() external view returns (bool);
-    function curveParams()
-        external
-        view
-        returns (
-            uint256 initialPrice,
-            uint256 quarticCoeff,
-            uint256 cubicCoeff,
-            uint256 quadraticCoeff,
-            uint256 normalizationFactor
-        );
+    function curveParams() external view returns (uint256 kCoeff, uint256 poleWad, uint256 normalizationFactor);
 }
 
 /// @notice ERC721 auction-card reads.
@@ -519,8 +510,8 @@ contract QueryAggregator is SafeOwnableUUPS {
         active = c.bondingActive() && block.timestamp >= c.bondingOpenTime() && !c.graduated();
         uint256 unit_ = c.unit();
         if (unit_ > 0) {
-            (uint256 ip, uint256 q4, uint256 c3, uint256 q2, uint256 nf) = c.curveParams();
-            price = BondingCurveMath.calculateCost(BondingCurveMath.Params(ip, q4, c3, q2, nf), supply, unit_);
+            (uint256 k, uint256 pole, uint256 nf) = c.curveParams();
+            price = BondingCurveMath.calculateCost(BondingCurveMath.Params(k, pole, nf), supply, unit_);
         }
     }
 

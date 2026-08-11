@@ -2151,7 +2151,21 @@ export const curveParamsComputerAbi = [
   {
     type: 'function',
     inputs: [],
-    name: 'baseWeight',
+    name: 'MAX_POLE_WAD',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'MIN_POLE_WAD',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'PARITY_TOLERANCE_WAD',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
@@ -2163,10 +2177,8 @@ export const curveParamsComputerAbi = [
         internalType: 'struct BondingCurveMath.Params',
         type: 'tuple',
         components: [
-          { name: 'initialPrice', internalType: 'uint256', type: 'uint256' },
-          { name: 'quarticCoeff', internalType: 'uint256', type: 'uint256' },
-          { name: 'cubicCoeff', internalType: 'uint256', type: 'uint256' },
-          { name: 'quadraticCoeff', internalType: 'uint256', type: 'uint256' },
+          { name: 'kCoeff', internalType: 'uint256', type: 'uint256' },
+          { name: 'poleWad', internalType: 'uint256', type: 'uint256' },
           {
             name: 'normalizationFactor',
             internalType: 'uint256',
@@ -2189,10 +2201,8 @@ export const curveParamsComputerAbi = [
         internalType: 'struct BondingCurveMath.Params',
         type: 'tuple',
         components: [
-          { name: 'initialPrice', internalType: 'uint256', type: 'uint256' },
-          { name: 'quarticCoeff', internalType: 'uint256', type: 'uint256' },
-          { name: 'cubicCoeff', internalType: 'uint256', type: 'uint256' },
-          { name: 'quadraticCoeff', internalType: 'uint256', type: 'uint256' },
+          { name: 'kCoeff', internalType: 'uint256', type: 'uint256' },
+          { name: 'poleWad', internalType: 'uint256', type: 'uint256' },
           {
             name: 'normalizationFactor',
             internalType: 'uint256',
@@ -2238,10 +2248,8 @@ export const curveParamsComputerAbi = [
         internalType: 'struct BondingCurveMath.Params',
         type: 'tuple',
         components: [
-          { name: 'initialPrice', internalType: 'uint256', type: 'uint256' },
-          { name: 'quarticCoeff', internalType: 'uint256', type: 'uint256' },
-          { name: 'cubicCoeff', internalType: 'uint256', type: 'uint256' },
-          { name: 'quadraticCoeff', internalType: 'uint256', type: 'uint256' },
+          { name: 'kCoeff', internalType: 'uint256', type: 'uint256' },
+          { name: 'poleWad', internalType: 'uint256', type: 'uint256' },
           {
             name: 'normalizationFactor',
             internalType: 'uint256',
@@ -2254,8 +2262,15 @@ export const curveParamsComputerAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'poleWad_', internalType: 'uint256', type: 'uint256' }],
+    name: 'graduationMultipleAt',
+    outputs: [{ name: 'g', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
     inputs: [],
-    name: 'cubicWeight',
+    name: 'kWeight',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
@@ -2278,14 +2293,7 @@ export const curveParamsComputerAbi = [
   {
     type: 'function',
     inputs: [],
-    name: 'quadraticWeight',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    inputs: [],
-    name: 'quarticWeight',
+    name: 'poleWad',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
@@ -2306,14 +2314,28 @@ export const curveParamsComputerAbi = [
   {
     type: 'function',
     inputs: [
-      { name: '_quarticWeight', internalType: 'uint256', type: 'uint256' },
-      { name: '_cubicWeight', internalType: 'uint256', type: 'uint256' },
-      { name: '_quadraticWeight', internalType: 'uint256', type: 'uint256' },
-      { name: '_baseWeight', internalType: 'uint256', type: 'uint256' },
+      { name: '_kWeight', internalType: 'uint256', type: 'uint256' },
+      { name: '_poleWad', internalType: 'uint256', type: 'uint256' },
     ],
     name: 'setCurveWeights',
     outputs: [],
     stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'targetG', internalType: 'uint256', type: 'uint256' }],
+    name: 'solvePole',
+    outputs: [{ name: 'pole', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'liquidityReserveBps', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'targetGraduationMultiple',
+    outputs: [{ name: 'targetG', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'pure',
   },
   {
     type: 'function',
@@ -2372,10 +2394,15 @@ export const curveParamsComputerAbi = [
   { type: 'error', inputs: [], name: 'AmountExceedsSupply' },
   { type: 'error', inputs: [], name: 'InvalidAddress' },
   { type: 'error', inputs: [], name: 'InvalidBounds' },
+  { type: 'error', inputs: [], name: 'KWeightZero' },
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
   { type: 'error', inputs: [], name: 'NormalizationFactorZero' },
+  { type: 'error', inputs: [], name: 'ParityTargetUnreachable' },
+  { type: 'error', inputs: [], name: 'ParityToleranceExceeded' },
+  { type: 'error', inputs: [], name: 'PoleOutOfBand' },
   { type: 'error', inputs: [], name: 'ReferenceAreaZero' },
+  { type: 'error', inputs: [], name: 'SupplyAtOrBeyondPole' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
 ] as const
 
@@ -4683,10 +4710,8 @@ export const erc404BondingInstanceAbi = [
     inputs: [],
     name: 'curveParams',
     outputs: [
-      { name: 'initialPrice', internalType: 'uint256', type: 'uint256' },
-      { name: 'quarticCoeff', internalType: 'uint256', type: 'uint256' },
-      { name: 'cubicCoeff', internalType: 'uint256', type: 'uint256' },
-      { name: 'quadraticCoeff', internalType: 'uint256', type: 'uint256' },
+      { name: 'kCoeff', internalType: 'uint256', type: 'uint256' },
+      { name: 'poleWad', internalType: 'uint256', type: 'uint256' },
       { name: 'normalizationFactor', internalType: 'uint256', type: 'uint256' },
     ],
     stateMutability: 'view',
@@ -4847,22 +4872,8 @@ export const erc404BondingInstanceAbi = [
             internalType: 'struct BondingCurveMath.Params',
             type: 'tuple',
             components: [
-              {
-                name: 'initialPrice',
-                internalType: 'uint256',
-                type: 'uint256',
-              },
-              {
-                name: 'quarticCoeff',
-                internalType: 'uint256',
-                type: 'uint256',
-              },
-              { name: 'cubicCoeff', internalType: 'uint256', type: 'uint256' },
-              {
-                name: 'quadraticCoeff',
-                internalType: 'uint256',
-                type: 'uint256',
-              },
+              { name: 'kCoeff', internalType: 'uint256', type: 'uint256' },
+              { name: 'poleWad', internalType: 'uint256', type: 'uint256' },
               {
                 name: 'normalizationFactor',
                 internalType: 'uint256',
@@ -5845,6 +5856,7 @@ export const erc404BondingInstanceAbi = [
     name: 'SmartTransferFailed',
   },
   { type: 'error', inputs: [], name: 'StakeFailed' },
+  { type: 'error', inputs: [], name: 'SupplyAtOrBeyondPole' },
   { type: 'error', inputs: [], name: 'TierOpFailed' },
   { type: 'error', inputs: [], name: 'TokenDoesNotExist' },
   { type: 'error', inputs: [], name: 'TooEarly' },
@@ -9300,10 +9312,8 @@ export const ierc404CardAbi = [
     inputs: [],
     name: 'curveParams',
     outputs: [
-      { name: 'initialPrice', internalType: 'uint256', type: 'uint256' },
-      { name: 'quarticCoeff', internalType: 'uint256', type: 'uint256' },
-      { name: 'cubicCoeff', internalType: 'uint256', type: 'uint256' },
-      { name: 'quadraticCoeff', internalType: 'uint256', type: 'uint256' },
+      { name: 'kCoeff', internalType: 'uint256', type: 'uint256' },
+      { name: 'poleWad', internalType: 'uint256', type: 'uint256' },
       { name: 'normalizationFactor', internalType: 'uint256', type: 'uint256' },
     ],
     stateMutability: 'view',
@@ -12901,6 +12911,7 @@ export const queryAggregatorAbi = [
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
   { type: 'error', inputs: [], name: 'NormalizationFactorZero' },
   { type: 'error', inputs: [], name: 'RenounceDisabled' },
+  { type: 'error', inputs: [], name: 'SupplyAtOrBeyondPole' },
   { type: 'error', inputs: [], name: 'TooManyInstances' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
   { type: 'error', inputs: [], name: 'UnauthorizedCallContext' },
@@ -16436,12 +16447,30 @@ export const useReadCurveParamsComputer = /*#__PURE__*/ createUseReadContract({
 })
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"baseWeight"`
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"MAX_POLE_WAD"`
  */
-export const useReadCurveParamsComputerBaseWeight =
+export const useReadCurveParamsComputerMaxPoleWad =
   /*#__PURE__*/ createUseReadContract({
     abi: curveParamsComputerAbi,
-    functionName: 'baseWeight',
+    functionName: 'MAX_POLE_WAD',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"MIN_POLE_WAD"`
+ */
+export const useReadCurveParamsComputerMinPoleWad =
+  /*#__PURE__*/ createUseReadContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'MIN_POLE_WAD',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"PARITY_TOLERANCE_WAD"`
+ */
+export const useReadCurveParamsComputerParityToleranceWad =
+  /*#__PURE__*/ createUseReadContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'PARITY_TOLERANCE_WAD',
   })
 
 /**
@@ -16472,12 +16501,21 @@ export const useReadCurveParamsComputerComputeCurveParams =
   })
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"cubicWeight"`
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"graduationMultipleAt"`
  */
-export const useReadCurveParamsComputerCubicWeight =
+export const useReadCurveParamsComputerGraduationMultipleAt =
   /*#__PURE__*/ createUseReadContract({
     abi: curveParamsComputerAbi,
-    functionName: 'cubicWeight',
+    functionName: 'graduationMultipleAt',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"kWeight"`
+ */
+export const useReadCurveParamsComputerKWeight =
+  /*#__PURE__*/ createUseReadContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'kWeight',
   })
 
 /**
@@ -16499,21 +16537,30 @@ export const useReadCurveParamsComputerOwnershipHandoverExpiresAt =
   })
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"quadraticWeight"`
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"poleWad"`
  */
-export const useReadCurveParamsComputerQuadraticWeight =
+export const useReadCurveParamsComputerPoleWad =
   /*#__PURE__*/ createUseReadContract({
     abi: curveParamsComputerAbi,
-    functionName: 'quadraticWeight',
+    functionName: 'poleWad',
   })
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"quarticWeight"`
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"solvePole"`
  */
-export const useReadCurveParamsComputerQuarticWeight =
+export const useReadCurveParamsComputerSolvePole =
   /*#__PURE__*/ createUseReadContract({
     abi: curveParamsComputerAbi,
-    functionName: 'quarticWeight',
+    functionName: 'solvePole',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"targetGraduationMultiple"`
+ */
+export const useReadCurveParamsComputerTargetGraduationMultiple =
+  /*#__PURE__*/ createUseReadContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'targetGraduationMultiple',
   })
 
 /**

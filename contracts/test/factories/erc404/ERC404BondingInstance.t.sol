@@ -107,13 +107,7 @@ contract ERC404BondingInstanceTest is Test {
 
         passwordHash1 = keccak256("password1");
 
-        curveParams = BondingCurveMath.Params({
-            initialPrice: 0.025 ether,
-            quarticCoeff: 3 gwei,
-            cubicCoeff: 1333333333,
-            quadraticCoeff: 2 gwei,
-            normalizationFactor: 1e7
-        });
+        curveParams = BondingCurveMath.Params({ kCoeff: 0.025 ether, poleWad: 1.0438e18, normalizationFactor: 1e7 });
 
         ERC404BondingInstance impl = new ERC404BondingInstance(address(new ERC404BondingOps()));
         instance = ERC404BondingInstance(payable(LibClone.clone(address(impl))));
@@ -241,18 +235,14 @@ contract ERC404BondingInstanceTest is Test {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     function _getCost(ERC404BondingInstance inst, uint256 amount) internal view returns (uint256) {
-        (uint256 ip, uint256 qc, uint256 cc, uint256 qdc, uint256 nf) = inst.curveParams();
-        BondingCurveMath.Params memory p = BondingCurveMath.Params({
-            initialPrice: ip, quarticCoeff: qc, cubicCoeff: cc, quadraticCoeff: qdc, normalizationFactor: nf
-        });
+        (uint256 ip, uint256 qc, uint256 nf) = inst.curveParams();
+        BondingCurveMath.Params memory p = BondingCurveMath.Params({ kCoeff: ip, poleWad: qc, normalizationFactor: nf });
         return curveComputer.calculateCost(p, inst.totalBondingSupply(), amount);
     }
 
     function _getRefund(ERC404BondingInstance inst, uint256 amount) internal view returns (uint256) {
-        (uint256 ip, uint256 qc, uint256 cc, uint256 qdc, uint256 nf) = inst.curveParams();
-        BondingCurveMath.Params memory p = BondingCurveMath.Params({
-            initialPrice: ip, quarticCoeff: qc, cubicCoeff: cc, quadraticCoeff: qdc, normalizationFactor: nf
-        });
+        (uint256 ip, uint256 qc, uint256 nf) = inst.curveParams();
+        BondingCurveMath.Params memory p = BondingCurveMath.Params({ kCoeff: ip, poleWad: qc, normalizationFactor: nf });
         return curveComputer.calculateRefund(p, inst.totalBondingSupply(), amount);
     }
 
