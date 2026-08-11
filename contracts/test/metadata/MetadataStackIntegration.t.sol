@@ -240,10 +240,8 @@ contract MetadataStackIntegrationTest is Test {
     }
 
     function _buy(ERC404BondingInstance b, uint256 amount) internal {
-        (uint256 ip, uint256 q4, uint256 c3, uint256 q2, uint256 nf) = b.curveParams();
-        BondingCurveMath.Params memory p = BondingCurveMath.Params({
-            initialPrice: ip, quarticCoeff: q4, cubicCoeff: c3, quadraticCoeff: q2, normalizationFactor: nf
-        });
+        (uint256 ip, uint256 q4, uint256 nf) = b.curveParams();
+        BondingCurveMath.Params memory p = BondingCurveMath.Params({ kCoeff: ip, poleWad: q4, normalizationFactor: nf });
         uint256 cost = BondingCurveMath.calculateCost(p, b.totalBondingSupply(), amount);
         uint256 fee = (cost * b.bondingFeeBps()) / 10000;
         uint256 total = cost + fee;

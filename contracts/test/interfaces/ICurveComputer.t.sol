@@ -13,11 +13,7 @@ contract MockCurveComputer is ICurveComputer {
         returns (BondingCurveMath.Params memory)
     {
         return BondingCurveMath.Params({
-            initialPrice: targetETH / nftCount,
-            quarticCoeff: 3 gwei,
-            cubicCoeff: 1333333333,
-            quadraticCoeff: 2 gwei,
-            normalizationFactor: unitPerNFT * 1e7
+            kCoeff: targetETH / nftCount, poleWad: 1.0438e18, normalizationFactor: unitPerNFT * 1e7
         });
     }
 }
@@ -31,7 +27,8 @@ contract ICurveComputerTest is Test {
 
     function test_computeCurveParams_returnsParams() public {
         BondingCurveMath.Params memory p = computer.computeCurveParams(100, 15 ether, 1e6, 2000);
-        assertGt(p.initialPrice, 0);
+        assertGt(p.kCoeff, 0);
+        assertGt(p.poleWad, 1e18);
         assertGt(p.normalizationFactor, 0);
     }
 }

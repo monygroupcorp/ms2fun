@@ -18,8 +18,8 @@ import {
 import { useCollectionChainId } from '../useCollectionChain'
 import type { BondingView } from './bondingPhase'
 
-/** The 5-tuple `curveParams()` returns, in the order `CurveParamsComputer.calculateCost` expects. */
-export type CurveParamsTuple = readonly [bigint, bigint, bigint, bigint, bigint]
+/** The 3-tuple `curveParams()` returns, in the order `CurveParamsComputer.calculateCost` expects. */
+export type CurveParamsTuple = readonly [bigint, bigint, bigint]
 
 export interface BondingData {
   view: BondingView | undefined

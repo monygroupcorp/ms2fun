@@ -32,9 +32,8 @@ contract ERC404RerollTest is Test {
         curveComputer = new CurveParamsComputer(address(this));
 
         // Create bonding instance
-        BondingCurveMath.Params memory curveParams = BondingCurveMath.Params({
-            initialPrice: 0.0001 ether, quarticCoeff: 1, cubicCoeff: 1, quadraticCoeff: 1, normalizationFactor: 1e18
-        });
+        BondingCurveMath.Params memory curveParams =
+            BondingCurveMath.Params({ kCoeff: 0.0001 ether, poleWad: 1.0438e18, normalizationFactor: 1e18 });
 
         // Note: factory = msg.sender (address(this)) is set during initialize()
         // The externalized reroll body lives in a shared immutable Ops reached by a delegatecall
@@ -386,9 +385,8 @@ contract ERC404RerollTest is Test {
 
         RerollReentrancyProbe probe = new RerollReentrancyProbe(t);
 
-        BondingCurveMath.Params memory curveParams = BondingCurveMath.Params({
-            initialPrice: 0.0001 ether, quarticCoeff: 1, cubicCoeff: 1, quadraticCoeff: 1, normalizationFactor: 1e18
-        });
+        BondingCurveMath.Params memory curveParams =
+            BondingCurveMath.Params({ kCoeff: 0.0001 ether, poleWad: 1.0438e18, normalizationFactor: 1e18 });
         ERC404BondingInstance.BondingParams memory bonding = ERC404BondingInstance.BondingParams({
             maxSupply: MAX_SUPPLY,
             unit: UNIT,

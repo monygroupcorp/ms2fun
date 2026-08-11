@@ -6,7 +6,12 @@ import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 /**
  * @title BondingCurveMath
  * @notice Library for calculating bonding curve costs and refunds
- * @dev Uses configurable polynomial formula: P(s) = quarticCoeff * S^4 + cubicCoeff * S^3 + quadraticCoeff * S^2 + initialPrice
+ * @dev Hyperbolic price family: P(s) = kCoeff / (poleWad - s), integrated in closed form as
+ *      I(s) = -kCoeff * ln(1 - s / poleWad), where `s` is the WAD-normalized supply
+ *      `supply / normalizationFactor` and `poleWad` is the vertical asymptote, which sits strictly
+ *      beyond the top of the bonding range (s reaches ~1e18 at the bonding cap).
+ *      See docs/spec/BONDING_CURVE_ARITHMETIC.md for the derivation, the parity target the shape
+ *      is solved against, and the precision analysis.
  */
 library BondingCurveMath {
     using FixedPointMathLib for uint256;
@@ -14,26 +19,25 @@ library BondingCurveMath {
     error InvalidBounds();
     error NormalizationFactorZero();
     error AmountExceedsSupply();
+    error SupplyAtOrBeyondPole();
 
     /**
      * @notice Bonding curve parameters
-     * @param initialPrice Base price (e.g., 0.025 ether)
-     * @param quarticCoeff Coefficient for S^4 term (e.g., 12e-9 equivalent)
-     * @param cubicCoeff Coefficient for S^3 term (e.g., 4e-9 equivalent)
-     * @param quadraticCoeff Coefficient for S^2 term (e.g., 4e-9 equivalent)
-     * @param normalizationFactor Supply normalization factor (e.g., 10M tokens = 1e7)
+     * @param kCoeff Amplitude of the price function, in wei. Scaled at create so the integral over
+     *        the whole bonding range equals the preset's targetETH.
+     * @param poleWad Vertical asymptote in normalized-supply space, WAD. Strictly greater than the
+     *        normalized bonding cap (~1e18); the gap `poleWad - 1e18` is the shape parameter and is
+     *        solved from `liquidityReserveBps` at create (CurveParamsComputer).
+     * @param normalizationFactor Supply normalization factor: `s = supply / normalizationFactor`
      */
     struct Params {
-        uint256 initialPrice;
-        uint256 quarticCoeff;
-        uint256 cubicCoeff;
-        uint256 quadraticCoeff;
+        uint256 kCoeff;
+        uint256 poleWad;
         uint256 normalizationFactor;
     }
 
     /**
      * @notice Calculates the integral of the bonding curve price function
-     * @dev Uses numerical integration to find the area under the price curve
      * @param params Bonding curve parameters
      * @param lowerBound The lower bound of the supply range to integrate
      * @param upperBound The upper bound of the supply range to integrate
@@ -50,7 +54,6 @@ library BondingCurveMath {
 
     /**
      * @notice Calculates the integral of the bonding curve price function from zero to a given supply
-     * @dev Uses numerical integration to find the area under the price curve
      * @param params Bonding curve parameters
      * @param supply The upper bound of the supply range to integrate
      * @return integral The calculated integral value in ETH
@@ -58,30 +61,28 @@ library BondingCurveMath {
     function _calculateIntegralFromZero(Params memory params, uint256 supply) private pure returns (uint256) {
         if (params.normalizationFactor == 0) revert NormalizationFactorZero();
         // Scale down by normalization factor — rounds down (floor), loses sub-normFactor
-        // token fractions. Consequence: purchases < normalizationFactor tokens cost 0,
-        // which is guarded by ERC404BondingInstance (revert PurchaseTooSmall).
+        // base units. Consequence: purchases smaller than `normalizationFactor` BASE UNITS
+        // cost 0, which is guarded by ERC404BondingInstance (revert PurchaseTooSmall).
         uint256 scaledSupplyWad = supply / params.normalizationFactor;
 
-        // All mulWad calls below round down (floor). Each chained mulWad truncates
-        // independently, so compound rounding is cumulative. Worst case for the
-        // quartic chain (4 mulWad): ~4 wei undercount per term evaluation.
-        // Net effect: buyers pay slightly less than the theoretical curve price.
-        // See docs/BONDING_CURVE_ARITHMETIC.md for full precision analysis.
+        // The price function has a vertical asymptote at `poleWad`. On the shipped call path the
+        // buy cap keeps the supply at or below the bonding cap, which is strictly inside the pole,
+        // so this branch is unreachable there; the library still refuses to evaluate outside its
+        // domain rather than underflow.
+        if (scaledSupplyWad >= params.poleWad) revert SupplyAtOrBeyondPole();
 
-        // Base price integral — 1 mulWad, rounds down ≤1 wei
-        uint256 basePart = params.initialPrice.mulWad(scaledSupplyWad);
+        // Cancellation form: 1 - s/poleWad, evaluated once.
+        // `divWad` floors, so `arg` rounds UP, so ln(arg) rounds up (toward zero), so the integral
+        // rounds DOWN. Net effect, as before: buyers pay slightly less than the theoretical curve,
+        // which keeps the reserve on the safe side.
+        // `scaledSupplyWad < poleWad` above puts `arg` in [1, 1e18] — always strictly positive, so
+        // `lnWad` is never called in its revert domain.
+        uint256 arg = 1e18 - scaledSupplyWad.divWad(params.poleWad);
 
-        // Quartic term: coeff * S^4 — 4 chained mulWad, rounds down ≤4 wei cumulative
-        uint256 quarticTerm = params.quarticCoeff
-            .mulWad(scaledSupplyWad.mulWad(scaledSupplyWad.mulWad(scaledSupplyWad.mulWad(scaledSupplyWad))));
+        // ln(arg) <= 0 over [1, 1e18]; the integral is its negation, scaled by kCoeff.
+        uint256 negLn = uint256(-FixedPointMathLib.lnWad(int256(arg)));
 
-        // Cubic term: coeff * S^3 — 3 chained mulWad, rounds down ≤3 wei cumulative
-        uint256 cubicTerm = params.cubicCoeff.mulWad(scaledSupplyWad.mulWad(scaledSupplyWad.mulWad(scaledSupplyWad)));
-
-        // Quadratic term: coeff * S^2 — 2 chained mulWad, rounds down ≤2 wei cumulative
-        uint256 quadraticTerm = params.quadraticCoeff.mulWad(scaledSupplyWad.mulWad(scaledSupplyWad));
-
-        return basePart + quarticTerm + cubicTerm + quadraticTerm;
+        return params.kCoeff.mulWad(negLn);
     }
 
     /**
@@ -115,4 +116,3 @@ library BondingCurveMath {
         return calculateIntegral(params, currentSupply - amount, currentSupply);
     }
 }
-

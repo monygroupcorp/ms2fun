@@ -208,10 +208,8 @@ contract TierCreatePathTest is Test {
 
     /// @dev Buy `units` whole units on the live curve, with NFTs minted, for `who`.
     function _buy(ERC404BondingInstance b, address who, uint256 units) internal {
-        (uint256 ip, uint256 q4, uint256 c3, uint256 q2, uint256 nf) = b.curveParams();
-        BondingCurveMath.Params memory p = BondingCurveMath.Params({
-            initialPrice: ip, quarticCoeff: q4, cubicCoeff: c3, quadraticCoeff: q2, normalizationFactor: nf
-        });
+        (uint256 ip, uint256 q4, uint256 nf) = b.curveParams();
+        BondingCurveMath.Params memory p = BondingCurveMath.Params({ kCoeff: ip, poleWad: q4, normalizationFactor: nf });
         uint256 cost = BondingCurveMath.calculateCost(p, b.totalBondingSupply(), units * UNIT);
         uint256 total = cost + (cost * b.bondingFeeBps()) / 10000;
         vm.deal(who, total);
