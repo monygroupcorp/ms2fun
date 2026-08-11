@@ -14,7 +14,7 @@
  */
 import { useEffect, useState } from 'react'
 import { formatEther, formatUnits, parseUnits } from 'viem'
-import { useWaitForTransactionReceipt } from 'wagmi'
+import { useAccount, useWaitForTransactionReceipt } from 'wagmi'
 import {
   useWriteErc404BondingInstanceClaimStakingRewards,
   useWriteErc404BondingInstanceStake,
@@ -22,6 +22,8 @@ import {
 } from '../../../generated/contracts'
 import { useCollectionChainId } from '../useCollectionChain'
 import { useStaking } from './useStaking'
+import { useTierPosition } from './useTierPosition'
+import { previewBandBurn } from './bandBurnPreview'
 import bonding from './BondingSurface.module.css'
 import styles from './StakingPanel.module.css'
 
@@ -29,6 +31,9 @@ interface StakingPanelProps {
   instance: `0x${string}`
   /** Instance token decimals — passed in by the parent (already read for the swap surface). */
   decimals: number
+  /** `unit()` — coin per whole NFT, passed in by the parent (already read for the swap surface;
+   *  see noesis-173's spec for why this is threaded rather than re-read here). */
+  unit: bigint | undefined
 }
 
 /** Parse a token-unit amount string into base units; invalid/empty/<=0 → undefined. */
@@ -43,10 +48,15 @@ function parseAmount(input: string, decimals: number): bigint | undefined {
   }
 }
 
-export function StakingPanel({ instance, decimals }: StakingPanelProps) {
+export function StakingPanel({ instance, decimals, unit }: StakingPanelProps) {
   const chainId = useCollectionChainId()
+  const { address } = useAccount()
   const { stakingActive, tokenBalance, userStaked, globalTotalStaked, pendingRewards, refetch } =
     useStaking(instance)
+  // Tier awareness (noesis-173): `useStaking` resolves the holder itself and does not return the
+  // address, so it is read again here via `useAccount()` rather than changing `useStaking`'s shape
+  // (it has other consumers). Hooks run unconditionally, before the stakingActive early return.
+  const { tiered, bandPieces } = useTierPosition(instance, address)
 
   const [stakeStr, setStakeStr] = useState('')
   const [unstakeStr, setUnstakeStr] = useState('')
@@ -94,6 +104,16 @@ export function StakingPanel({ instance, decimals }: StakingPanelProps) {
     stakeAmount !== undefined && tokenBalance !== undefined && stakeAmount > tokenBalance
   const unstakeOverStaked =
     unstakeAmount !== undefined && userStaked !== undefined && unstakeAmount > userStaked
+
+  // Debit-burns-your-band preview (noesis-173): stake is a coin-path debit and DN404 reconciles it
+  // the same way a sell is reconciled — see bandBurnPreview.ts's module doc. Additive only: the
+  // existing `stakeOverBalance` guard is unchanged and still the only thing that disables submit.
+  const stakeBandBurn = previewBandBurn({
+    balance: tokenBalance,
+    amount: stakeAmount,
+    unit,
+    bandPieces,
+  })
 
   const hasRewards = pendingRewards !== undefined && pendingRewards > 0n
 
@@ -165,6 +185,26 @@ export function StakingPanel({ instance, decimals }: StakingPanelProps) {
         </button>
         {stake.isError && (
           <p className={`${bonding.txStatus} ${bonding.txError}`}>stake failed — try again</p>
+        )}
+        {/* Debit-burns-your-band warning: informational only — never blocks the stake. */}
+        {tiered && stakeAmount !== undefined && stakeBandBurn.bandsBurnedMax > 0 && (
+          <p className={bonding.note} data-testid="erc404-stake-band-burn-warning">
+            {stakeBandBurn.exact && stakeBandBurn.bandBurned !== undefined ? (
+              <>
+                This stake burns tier {stakeBandBurn.bandBurned.tierN} band #
+                {stakeBandBurn.bandBurned.id.toString()} and credits you{' '}
+                {formatEther(stakeBandBurn.escrowReleasedMax)} as claimable escrow. The NFT is gone;
+                the coin is not.
+              </>
+            ) : (
+              <>
+                This stake burns {stakeBandBurn.piecesBurned} of your NFTs, and up to{' '}
+                {stakeBandBurn.bandsBurnedMax} of them may be band NFTs — up to{' '}
+                {formatEther(stakeBandBurn.escrowReleasedMax)} credited to you as claimable escrow.
+                The coin is not lost; the NFTs are.
+              </>
+            )}
+          </p>
         )}
       </div>
 

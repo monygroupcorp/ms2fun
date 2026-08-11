@@ -30,6 +30,7 @@ import {
 } from '../../../generated/contracts'
 import { useCollectionChainId } from '../useCollectionChain'
 import { useTierPosition } from './useTierPosition'
+import { previewBandBurn } from './bandBurnPreview'
 import type { BondingView } from './bondingPhase'
 import { applyBuySlippage, applySellSlippage, formatBps } from './bondingFormat'
 import type { CurveParamsTuple } from './useBondingData'
@@ -249,7 +250,22 @@ export function SwapPanel({
   // Holdings readout (noesis-172): `balance` above stays the ONLY read used for the sell quote,
   // limit, and quick-fill presets (the balanceOf-primacy rule — see useTierPosition's docstring).
   // `tiered`/`holdings`/`pendingEscrowRelease` here drive display only.
-  const { tiered, holdings, pendingEscrowRelease } = useTierPosition(instance, address)
+  const {
+    tiered,
+    holdings,
+    pendingEscrowRelease,
+    bandPieces,
+    balance: tierBalance,
+  } = useTierPosition(instance, address)
+
+  // Debit-burns-your-band preview (noesis-173): fed `tierBalance` (balanceOf-primacy, never
+  // `holdings`) and the existing `unit` read above — SEE its own module doc for the arithmetic.
+  const bandBurnPreview = previewBandBurn({
+    balance: tierBalance,
+    amount: sellAmount,
+    unit: unit.data,
+    bandPieces,
+  })
 
   const buy = useWriteErc404BondingInstanceBuyBonding()
   const sell = useWriteErc404BondingInstanceSellBonding()
@@ -419,6 +435,28 @@ export function SwapPanel({
           <p className={styles.note} data-testid="erc404-pending-escrow-note">
             {formatEther(pendingEscrowRelease)} released from escrow and waiting to be claimed — not
             yet in your balance.
+          </p>
+        )}
+        {/* Debit-burns-your-band warning (noesis-173): informational only — never blocks the sell,
+            never implies the coin is at risk. Named exactly when the holder owns one band and the
+            debit empties the whole position; bounded otherwise. */}
+        {!isBuy && tiered && bandBurnPreview.bandsBurnedMax > 0 && (
+          <p className={styles.note} data-testid="erc404-band-burn-warning">
+            {bandBurnPreview.exact && bandBurnPreview.bandBurned !== undefined ? (
+              <>
+                This sell burns tier {bandBurnPreview.bandBurned.tierN} band #
+                {bandBurnPreview.bandBurned.id.toString()} and credits you{' '}
+                {formatEther(bandBurnPreview.escrowReleasedMax)} as claimable escrow. The NFT is
+                gone; the coin is not.
+              </>
+            ) : (
+              <>
+                This sell burns {bandBurnPreview.piecesBurned} of your NFTs, and up to{' '}
+                {bandBurnPreview.bandsBurnedMax} of them may be band NFTs — up to{' '}
+                {formatEther(bandBurnPreview.escrowReleasedMax)} credited to you as claimable
+                escrow. The coin is not lost; the NFTs are.
+              </>
+            )}
           </p>
         )}
       </div>
