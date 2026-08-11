@@ -187,7 +187,7 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
 
       {/* W-B7: staking panel (stake / unstake / claim rewards); self-hides when inactive. */}
       <div data-testid="erc404-staking-mount">
-        <StakingPanel instance={instance} decimals={decimals} />
+        <StakingPanel instance={instance} decimals={decimals} unit={unit} />
       </div>
 
       {curveComputer.address === undefined && !curveComputer.isPending && (
