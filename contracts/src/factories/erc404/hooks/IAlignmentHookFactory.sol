@@ -19,7 +19,11 @@ import { IAlignmentVault } from "../../../interfaces/IAlignmentVault.sol";
  */
 interface IAlignmentHookFactory {
     /**
-     * @notice Deploy a fresh alignment hook for a graduating pool at a permission-bit-valid address.
+     * @notice Deploy the alignment hook for a graduating pool at a permission-bit-valid address.
+     * @dev Deterministic and idempotent in its arguments: the hook address is derived from the factory and
+     *      the argument set, so a call for which the hook already exists at that address returns the
+     *      existing hook instead of reverting on the CREATE2 collision. Callers must read the return value
+     *      as "the hook for this argument set", not "a hook created by this call".
      * @param vault The alignment vault the hook forwards swap fees to.
      * @param benefactor The fixed identity credited for the pool's fee contributions.
      * @param hookFeeBips The hook fee in basis points (taken on the ETH side of swaps).

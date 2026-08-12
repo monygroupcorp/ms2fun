@@ -58,8 +58,15 @@ library HookAddressMiner {
     /// @notice Flags that must NOT be set for UniAlignmentV4Hook
     uint160 constant ULTRA_ALIGNMENT_FORBIDDEN_FLAGS = ALL_HOOK_FLAGS ^ ULTRA_ALIGNMENT_HOOK_FLAGS;
 
-    /// @notice Maximum iterations before giving up on finding a valid salt
-    uint256 constant MAX_ITERATIONS = 10_000_000;
+    /// @notice Maximum iterations before giving up on finding a valid salt.
+    /// @dev Sized against a LINEAR mine (see `mineSalt`). A 14-bit exact-flag constraint such as 0xCC is
+    ///      hit with probability 2^-14 per iteration, so the chance of no valid salt within 250,000
+    ///      iterations is (1 - 2^-14)^250000 ~= 2.3e-7. At the measured per-iteration cost the cap also
+    ///      sits past what a 30M-gas block can execute, so on such chains the block, not this bound, is
+    ///      what a pathological search runs into first; the bound's job is to stop a runaway loop with a
+    ///      named revert on chains whose limit is higher. A cap sized against the earlier quadratic cost
+    ///      is the wrong bound once the cost is linear.
+    uint256 constant MAX_ITERATIONS = 250_000;
 
     /// @notice Error when no valid salt found within iteration limit
     error NoValidSaltFound(uint256 iterations, uint160 requiredFlags);
@@ -82,15 +89,37 @@ library HookAddressMiner {
         pure
         returns (bytes32 salt, address predictedAddress)
     {
-        for (uint256 i = 0; i < MAX_ITERATIONS; i++) {
-            salt = bytes32(i);
-            predictedAddress = computeAddress(deployer, salt, initCodeHash);
+        uint256 required = requiredFlags;
+        uint256 forbidden = forbiddenFlags;
+        uint256 found;
 
-            if (hasExactFlags(predictedAddress, requiredFlags, forbiddenFlags)) {
-                return (salt, predictedAddress);
+        // The 85-byte CREATE2 preimage (0xff ++ deployer ++ salt ++ initCodeHash) is laid out ONCE in a
+        // fixed memory window above the free-memory pointer, and each iteration rewrites only the salt
+        // word before hashing in place. Nothing is allocated inside the loop and the free-memory pointer
+        // never moves, so the memory high-water mark is constant and the per-iteration cost is constant:
+        // the mine is O(n) in its iteration count. The search sequence, the salt values and the resulting
+        // addresses are identical to the straightforward `computeAddress(deployer, bytes32(i), ...)` form,
+        // which the tests assert directly.
+        assembly ("memory-safe") {
+            let ptr := mload(0x40)
+            mstore(add(ptr, 0x40), initCodeHash)
+            mstore(ptr, deployer) // right-aligned; the 12 preceding bytes are overwritten/ignored below
+            let start := add(ptr, 0x0b) // final garbage byte of the deployer word becomes the 0xff prefix
+            mstore8(start, 0xff)
+            let saltSlot := add(ptr, 0x20)
+            for { let i := 0 } lt(i, MAX_ITERATIONS) { i := add(i, 1) } {
+                mstore(saltSlot, i)
+                let addr := and(keccak256(start, 85), 0xffffffffffffffffffffffffffffffffffffffff)
+                if and(eq(and(addr, required), required), iszero(and(addr, forbidden))) {
+                    salt := i
+                    predictedAddress := addr
+                    found := 1
+                    break
+                }
             }
         }
-        revert NoValidSaltFound(MAX_ITERATIONS, requiredFlags);
+
+        if (found == 0) revert NoValidSaltFound(MAX_ITERATIONS, requiredFlags);
     }
 
     /**
@@ -116,8 +145,25 @@ library HookAddressMiner {
      * @param initCodeHash The keccak256 of the init code (creation code + constructor args)
      * @return The predicted deployment address
      */
-    function computeAddress(address deployer, bytes32 salt, bytes32 initCodeHash) internal pure returns (address) {
-        return address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), deployer, salt, initCodeHash)))));
+    /// @dev Derives the address in FIXED scratch memory: the 85-byte CREATE2 preimage
+    ///      (0xff ++ deployer ++ salt ++ initCodeHash) is written above the free-memory pointer and hashed
+    ///      in place, and the free-memory pointer is left untouched — so the allocation high-water mark
+    ///      does not move. This is what keeps `mineSalt` linear in its iteration count: `abi.encodePacked`
+    ///      allocates a fresh 85-byte buffer per call, and because EVM memory is never reclaimed, the
+    ///      expansion cost of a loop of such calls grows with the square of the iteration count.
+    ///      The derivation is byte-for-byte the same preimage and is asserted so by a differential test
+    ///      (`HookAddressMinerGas.t.sol`) against the `abi.encodePacked` form across a large sample of
+    ///      `(deployer, salt, initCodeHash)` triples, including zero and max values.
+    function computeAddress(address deployer, bytes32 salt, bytes32 initCodeHash) internal pure returns (address addr) {
+        assembly ("memory-safe") {
+            let ptr := mload(0x40)
+            mstore(add(ptr, 0x40), initCodeHash)
+            mstore(add(ptr, 0x20), salt)
+            mstore(ptr, deployer) // right-aligned; the 12 preceding bytes are overwritten/ignored below
+            let start := add(ptr, 0x0b) // final garbage byte of the deployer word becomes the 0xff prefix
+            mstore8(start, 0xff)
+            addr := and(keccak256(start, 85), 0xffffffffffffffffffffffffffffffffffffffff)
+        }
     }
 
     /**
