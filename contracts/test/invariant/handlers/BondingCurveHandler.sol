@@ -20,7 +20,7 @@ import { BondingCurveMath } from "../../../src/factories/erc404/libraries/Bondin
 ///      `invariant.fail_on_revert = false` (foundry default), so a revert inside a handler call — which
 ///      is what a failed `assertEq` is — would be SWALLOWED by the runner and the check would be
 ///      vacuous. Every in-call observation below is therefore recorded in a `ghost_*` counter that a
-///      real `invariant_*` function asserts on. See [[vacuity-check]].
+///      real `invariant_*` function asserts on.
 contract BondingCurveHandler is Test {
     ERC404BondingInstance public instance;
     BondingCurveMath.Params public curveParams;

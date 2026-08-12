@@ -25,8 +25,8 @@ import { MasterRegistryV1 } from "../../src/master/MasterRegistryV1.sol";
  *
  *         The constructor now rejects it. These tests pin that the guard is a CODE-LENGTH check and
  *         not a zero-address check (a non-zero EOA is exactly as broken, and a naive
- *         `implementation == address(0)` branch would wave it through), and — per [[vacuity-check]]
- *         — `test_Unguarded_*` proves the rejection tests are falsifiable by exhibiting the state the
+ *         `implementation == address(0)` branch would wave it through), and — so the rejection tests
+ *         cannot pass vacuously — `test_Unguarded_*` proves the rejection tests are falsifiable by exhibiting the state the
  *         guard removes: a byte-for-byte copy of the pre-noesis-151 constructor that deploys happily
  *         around `address(0)` and then reports success for everything.
  *
@@ -64,7 +64,7 @@ contract MasterRegistryImplGuardTest is Test {
         new MasterRegistry(eoa, _initData());
     }
 
-    // ────────────────── falsifiability control ([[vacuity-check]]) ──────────────────
+    // ────────────────── falsifiability control ──────────────────
 
     /// @dev The rejection tests above are only meaningful if an UNGUARDED constructor would visibly
     ///      SUCCEED on the same arguments. `UnguardedERC1967Proxy` is the pre-noesis-151 constructor

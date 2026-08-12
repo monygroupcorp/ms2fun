@@ -98,10 +98,14 @@ lowering the bar.
 | `docs/WAR_PATH.md` | Master plan, phases, victory condition | canonical |
 | `docs/OPERATIONS.md` | This — how we work | canonical |
 | `docs/ARCHITECTURE.md` | Technical constitution (stack, boundaries, rules) — Phase 0 deliverable | canonical |
-| `docs/phases/phase-N-*.md` | Living per-phase plan: scope, decisions, tasks, exit | canonical |
-| `docs/phases/_TEMPLATE.md` | The shape every phase doc takes | canonical |
-| `docs/plans/`, `docs/scratch/` | Spikes, agent outputs, working notes | gitignored scratch |
+| `docs/decisions/NNNN-*.md` | ADRs — one locked architectural choice each | canonical |
+| `docs/phases/` | Reference specs the source or a published doc cites | allowlist |
+| `docs/plans/`, `docs/scratch/`, planning + progress logs | Spikes, working notes, per-phase logs | local, untracked |
 
-**Living-doc rule:** phase docs are updated *as decisions land* — every locked choice goes in
-that phase's Decision Log; every unknown sits in Open Questions until resolved. A phase doc that
-disagrees with the code is a bug in the doc.
+**Docs are local by default.** `docs/*` is ignored; a doc is published by naming it back in
+`.gitignore`. Publish what helps someone read *the system as it stands* — planning and progress
+logs stay local. A published doc must never cite a path a reader cannot open.
+
+**Living-doc rule:** a doc is updated *as decisions land* — every locked choice goes to an ADR,
+every unknown sits in Open Questions until resolved. A doc that disagrees with the code is a bug
+in the doc.

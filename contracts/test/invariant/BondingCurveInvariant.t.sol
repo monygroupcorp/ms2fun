@@ -158,7 +158,7 @@ contract BondingCurveInvariantTest is StdInvariant, Test {
         // are trampolines through the same delegatecall seam, so a code-less Ops would no-op the seal
         // too — leaving an unsealed ladder on which every tier op reverts, every tier invariant below
         // holds on a permanently empty ladder, and the suite still prints PASS. Assert the SEALED SHAPE,
-        // field by field, not merely that something got stored ([[vacuity-check]]).
+        // field by field, not merely that something got stored.
         _assertLadderSealed();
 
         // Every coin bucket in this fixture, DETERMINED not assumed — the exact conservation identity in
@@ -388,7 +388,7 @@ contract BondingCurveInvariantTest is StdInvariant, Test {
     ///
     ///      (1) NON-VACUITY. Without this, every invariant this item adds passes vacuously the moment a
     ///          handler guard silently rejects every tier call — which is the single most likely way the
-    ///          work ships green and worthless ([[vacuity-check]]). A run that never landed a tier
+    ///          work ships green and worthless. A run that never landed a tier
     ///          op tested nothing about tiers.
     ///
     ///      (2) The EXACT identities, which walk each actor's `owned` array (`coinBalanceOf` is

@@ -1,7 +1,7 @@
 # ADR-0005 — Module-option schema (the creation-wizard's typed param model)
 
 **Status:** Accepted 2026-06-23 (Mony). Phase 2 / T3.
-**Related:** [ADR-0004](0004-metadata-model.md) (metadata), `docs/phases/phase-2-reconciliation.md` (the crux).
+**Related:** [ADR-0004](0004-metadata-model.md) (metadata).
 
 ## Context
 The platform creates collections through three factories, each with fixed `createInstance` params,

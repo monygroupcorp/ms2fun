@@ -5,8 +5,8 @@
 **Supersedes the retirement framing:** reverses the "retire the Uniswap-LP / alignment-vault model
 in favor of a simple Aave vault" direction. The LP vaults are **NOT** retired — they are a
 first-class vault family alongside the Aave endowment. See [ADR-0003](0003-aave-alignment-vault.md)
-(the Aave endowment economics — unchanged, now one family of two) and
-`docs/phases/phase-2-reconciliation.md` §"RETIRE" (the earlier framing this corrects). **Does NOT
+(the Aave endowment economics — unchanged, now one family of two). The earlier framing this
+corrects is restated in full under Context below. **Does NOT
 un-retire** DAO/governance — GrandCentral/Safe/Timelock voting stays retired; EXEC404 / Cult
 Executives stays grandfathered on its live deployment.
 

@@ -303,8 +303,8 @@ his state). Commits noted inline.
   `AuctionAction`, fed an ActiveAuction rebuilt from the page's getAuction read + useAuctions config).
   Edition-mint already existed inline on the 1155 edition page.
 - **N12 (SPEC/HANDOFF, `46908d5`)** — the "post-value threshold / spam lever" does NOT exist in this
-  tree (post() is nonpayable, MessagePosted has no value field). Full build spec written:
-  `docs/phases/spec-N12-post-value-threshold.md`. Someone else builds it (contract change + redeploy).
+  tree (post() is nonpayable, MessagePosted has no value field). Building it means a payable post()
+  plus a threshold the poster must clear — a contract change and a redeploy, not a frontend fix.
 
 - **N1 + N3-portfolio (feat, `f39b9af`)** — EXEC "Your position" panel. CORRECTION: my first pass
   wrongly said the fossil couldn't reroll or enumerate. Both work: reroll = `base.transfer(self,
@@ -397,7 +397,7 @@ art). Everything below is secondary polish Mony flagged while walking:
   (buyBonding messageData; new `encodeActionMessage`, unit-tested).
 - **S4 (feat, `1c15986`)** — swap quickfill: ETH-to-spend buy presets + %-of-balance sell presets on the
   graduated + EXEC cells; %-sell on the bonding cell. The bonding BUY spend-reframe (needs an on-chain
-  calculateCost inverse) is scoped in `docs/phases/spec-S4-bonding-buy-spend.md`, NOT approximated.
+  calculateCost inverse) is deferred to that contract-side inverse — it is NOT approximated here.
 - **S3 (feat, `2caf429`)** — DONE. New vaults surface: `/vaults` browse index (vault set derived from
   collections via pure `dedupeVaults`; honest TVL — real totalPrincipal for endowment, pool badge for
   LP; header sums endowment principal via one `useVaultsSummary` multicall) + `/vault/:address` detail
@@ -426,7 +426,7 @@ Mony: the ERC404 trading column was so tall (it carried the charts) it dwarfed t
   move; StakingPanel is now holder-only (stake/unstake/claim), returns null pre-activation.
 - **T3 (feat, `14b4a74`)** — deploy-liquidity (graduate) → creator admin menu; deleted the
   permissionless GraduateButton. **deployLiquidity() is STILL permissionless on-chain** — owner-gating
-  it is a contract change, specced in `docs/phases/spec-deploy-liquidity-admin.md`.
+  it is a contract change: the admin menu hides the button, it does not gate the call.
 - **T2 (feat, `8cd7f81`)** — reroll moved into a new holder `Erc404Portfolio` ("Your pieces", below the
   shell, self-hides when disconnected/empty). Owned ids via mirror Transfer-log replay
   (`useErc404OwnedPieces`, reuses the tested `ownedIdsFromTransfers`). Reroll is a shielded dropdown;
