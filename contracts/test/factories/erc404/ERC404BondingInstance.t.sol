@@ -9,6 +9,7 @@ import {
     MaxCostExceeded,
     BondingNotConfigured,
     NoReserve,
+    GraduationFailed,
     InvalidRefund,
     InvalidDeclaredMaxAllowance,
     InvalidMirror
@@ -524,10 +525,25 @@ contract ERC404BondingInstanceTest is Test {
 
     // ── deployLiquidity Tests ─────────────────────────────────────────────────
 
+    /// @dev `deployLiquidity`'s body lives in `ERC404BondingOps` (noesis-188), reached by the same
+    ///      discard-returndata trampoline the other externalized paths use, so Ops's specific
+    ///      `BondingNotConfigured()` reaches the caller as the entry point's generic
+    ///      `GraduationFailed()`. The specific error is still raised and still visible in traces;
+    ///      `_assertGraduationRefused` pins the observable state so the assertion is not merely
+    ///      "something reverted".
     function test_deployLiquidity_noParams() public {
-        vm.prank(owner);
-        vm.expectRevert(BondingNotConfigured.selector);
-        instance.deployLiquidity(0);
+        _assertGraduationRefused(instance, owner, 0);
+    }
+
+    /// @dev Falsifiable refusal: the call must revert AND leave the collection ungraduated with its
+    ///      reserve intact. A bare `expectRevert` would also pass if graduation half-completed.
+    function _assertGraduationRefused(ERC404BondingInstance inst, address caller, uint256 carveRequestBps) internal {
+        uint256 reserveBefore = inst.reserve();
+        vm.prank(caller);
+        vm.expectRevert(GraduationFailed.selector);
+        inst.deployLiquidity(carveRequestBps);
+        assertFalse(inst.graduated(), "refused graduation must leave the collection ungraduated");
+        assertEq(inst.reserve(), reserveBefore, "refused graduation must leave the reserve intact");
     }
 
     function test_deployLiquidity_revertsForNonOwner() public {
@@ -540,10 +556,12 @@ contract ERC404BondingInstanceTest is Test {
         uint256 fee = (cost * instance.bondingFeeBps()) / 10000;
         instance.buyBonding{ value: cost + fee }(buyAmount, cost + fee, false, bytes(""), bytes(""), 0);
 
-        // Graduation is a creator action: a non-owner is rejected even after buying into the curve.
-        vm.expectRevert(Ownable.Unauthorized.selector);
-        instance.deployLiquidity(0);
         vm.stopPrank();
+
+        // Graduation is a creator action: a non-owner is rejected even after buying into the curve.
+        // The gate is `_requireOwnerOrAgent` on the Ops side; its `Unauthorized` reaches the caller as
+        // the trampoline's generic error, and the state assertions below are what prove it was the gate.
+        _assertGraduationRefused(instance, user1, 0);
     }
 
     /// @notice The permissionless full/matured path is gone: a non-owner is rejected even once the
@@ -571,10 +589,7 @@ contract ERC404BondingInstanceTest is Test {
         // Warp past maturity — the condition that USED to make graduation permissionless.
         vm.warp(openTime + 1 days + 1);
 
-        vm.prank(user2);
-        vm.expectRevert(Ownable.Unauthorized.selector);
-        instance.deployLiquidity(0);
-
+        _assertGraduationRefused(instance, user2, 0);
         assertFalse(instance.graduated(), "matured curve must not graduate from a non-owner call");
     }
 
@@ -621,11 +636,10 @@ contract ERC404BondingInstanceTest is Test {
         assertTrue(mockDepl.called(), "liquidity deployer module must be invoked");
     }
 
+    /// @dev Ops raises `NoReserve()`; the trampoline surfaces it as `GraduationFailed()`.
     function test_deployLiquidity_requiresReserve() public {
         _activateBonding();
-        vm.prank(owner);
-        vm.expectRevert(NoReserve.selector);
-        instance.deployLiquidity(0);
+        _assertGraduationRefused(instance, owner, 0);
     }
 
     // ── Creator carve (graduation carve-out) ─────────────────────────────────
@@ -719,32 +733,58 @@ contract ERC404BondingInstanceTest is Test {
     /// @notice With a declared max and a nonzero request, the instance asks the factory's
     ///         effectiveCarveEth(raise, declaredMax, request) LIVE and forwards the resolved ETH
     ///         amount to the module untouched.
+    /// @dev The stop is a QUARTER of the curve, and the carve a tenth of the raise, deliberately: the
+    ///      module's `carveEth` leg carries the creator carve PLUS any LP-share ETH the parity clamp
+    ///      could not place (noesis-188), so the two are only separable where the clamp is out of the
+    ///      picture. A quarter-sold curve is far below the band where parity outruns the coin on hand,
+    ///      and the `GraduationEthDiverted` assertion below pins that the clamp really did stay out.
     function test_deployLiquidity_forwardsFactoryResolvedCarve() public {
         MockLiquidityDeployer depl = new MockLiquidityDeployer();
         ERC404BondingInstance inst = _freshCarveInstance(8000, depl);
 
-        uint256 amount = 1_000_000 ether;
+        uint256 amount = (MAX_SUPPLY - inst.liquidityReserve()) / 4;
         uint256 cost = _getCost(inst, amount);
         vm.deal(user1, cost);
         vm.prank(user1);
         inst.buyBonding{ value: cost }(amount, cost, false, bytes(""), "", 0);
 
         uint256 raise = inst.reserve();
+        uint256 carve = raise / 10;
         // The instance's factory is the owner EOA here — mock its carve-math endpoint with EXACT
         // calldata so the test also pins the (raise, declaredMax, request) argument wiring.
         vm.mockCall(
             owner,
             abi.encodeWithSelector(ICarveParamsSource.effectiveCarveEth.selector, raise, uint256(8000), uint256(4000)),
-            abi.encode(uint256(0.37 ether))
+            abi.encode(carve)
         );
-        assertEq(inst.previewCarve(4000), 0.37 ether, "previewCarve routes through the factory");
+        assertEq(inst.previewCarve(4000), carve, "previewCarve routes through the factory");
 
+        vm.recordLogs();
         vm.prank(owner);
         inst.deployLiquidity(4000);
 
         (,,,,,, address creatorArg, uint256 carveArg) = depl.lastParams();
         assertEq(creatorArg, owner, "creator must be owner()");
-        assertEq(carveArg, 0.37 ether, "resolved carve forwarded to the module");
+        assertEq(carveArg, carve, "resolved carve forwarded to the module");
+
+        (, uint256 excessEth, uint256 carveEth) = _graduationEthDiverted(vm.getRecordedLogs(), address(inst));
+        assertEq(excessEth, 0, "the clamp engaged, so the carve leg above is not carve alone");
+        assertEq(carveEth, carve, "the instance reported the creator carve separately");
+    }
+
+    /// @dev Decode `GraduationEthDiverted(ethToPool, excessEth, creatorCarveEth)`.
+    function _graduationEthDiverted(Vm.Log[] memory logs, address instance_)
+        internal
+        pure
+        returns (uint256 ethToPool, uint256 excessEth, uint256 carveEth)
+    {
+        bytes32 sig = keccak256("GraduationEthDiverted(uint256,uint256,uint256)");
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == instance_ && logs[i].topics[0] == sig) {
+                return abi.decode(logs[i].data, (uint256, uint256, uint256));
+            }
+        }
+        revert("no GraduationEthDiverted");
     }
 
     // ── Vault migration tests ─────────────────────────────────────────────────

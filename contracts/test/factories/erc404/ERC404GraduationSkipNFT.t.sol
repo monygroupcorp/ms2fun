@@ -16,6 +16,7 @@ import { ERC404BondingOps } from "../../../src/factories/erc404/ERC404BondingOps
 import { LiquidityDeployerModule } from "../../../src/factories/erc404/LiquidityDeployerModule.sol";
 import { CurveParamsComputer } from "../../../src/factories/erc404/CurveParamsComputer.sol";
 import { BondingCurveMath } from "../../../src/factories/erc404/libraries/BondingCurveMath.sol";
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 
 import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
 import { MockVault } from "../../mocks/MockVault.sol";
@@ -156,20 +157,40 @@ contract ERC404GraduationSkipNFTTest is Test {
         assertEq(instance.liquidityReserve(), RESERVED_IDS * UNIT, "reserve sizing");
     }
 
-    /// @dev One small buy is all graduation needs (`reserve != 0`); the reserve moved at graduation is
-    ///      sized by `maxSupply`, not by how much of the curve sold.
+    /// @dev SELL THE WHOLE CURVE. Graduation's coin side is derived from the price the curve actually
+    ///      reached (noesis-188), so the reserved-id count this file is about is only in play at a full
+    ///      sale — where the derived side reproduces `liquidityReserve`, i.e. the 20,000 ids' worth
+    ///      measured here. The buyer flags itself NFT-skipping first: its own 80,000 ids are not the
+    ///      subject, the graduation counterparties' are.
     function _seedReserve() internal {
-        vm.deal(buyer, 100 ether);
-        vm.prank(buyer);
-        instance.buyBonding{ value: 100 ether }(UNIT, type(uint256).max, true, bytes(""), bytes(""), 0);
+        vm.deal(buyer, 1000 ether);
+        vm.startPrank(buyer);
+        instance.setSkipNFT(true);
+        instance.buyBonding{ value: 1000 ether }(
+            MAX_SUPPLY - instance.liquidityReserve(), type(uint256).max, false, bytes(""), bytes(""), 0
+        );
+        vm.stopPrank();
         assertGt(instance.reserve(), 0, "the curve took ETH");
     }
 
-    /// @dev The mock pool reports the debt the real one would: the full LP side of the split.
+    /// @dev The coin side graduation will settle, recomputed here from the stored curve parameters
+    ///      rather than taken from the contract under test: `tokensForPool = ethForPool / p(S)`,
+    ///      capped by the coin the instance still holds.
+    function _poolCoinSide() internal view returns (uint256) {
+        (uint256 kCoeff, uint256 poleWad, uint256 normalizationFactor) = instance.curveParams();
+        uint256 sWad = instance.totalBondingSupply() / normalizationFactor;
+        uint256 raise = instance.reserve();
+        uint256 ethForPool = raise - raise / 100 - (raise * 19) / 100;
+        uint256 want = FixedPointMathLib.fullMulDiv(ethForPool, (poleWad - sWad) * normalizationFactor, kCoeff);
+        uint256 available = instance.balanceOf(address(instance));
+        return want > available ? available : want;
+    }
+
+    /// @dev The mock pool reports the debt the real one would on the coin leg. The ETH leg is left at
+    ///      zero — this file measures the id traffic the coin leg generates, not the ETH settlement.
     function _armPool() internal {
-        uint256 ethForPool = (instance.reserve() * 80) / 100;
         // ETH is currency0 (address(0) sorts below any token), so the coin is currency1.
-        poolManager.setOwed(int128(int256(ethForPool)), int128(int256(instance.liquidityReserve())));
+        poolManager.setOwed(int128(0), int128(int256(_poolCoinSide())));
     }
 
     function test_graduation_isGasBoundedAtALargeCollection() public {
@@ -193,8 +214,11 @@ contract ERC404GraduationSkipNFTTest is Test {
         instance.deployLiquidity(0);
 
         // The coin really did travel instance → module → pool. Without this the id assertions below
-        // would hold trivially.
-        assertEq(instance.balanceOf(address(poolManager)), RESERVED_IDS * UNIT, "the pool holds the reserve");
+        // would hold trivially. At a full sale the derived coin side is the create-time reserve to
+        // within a basis point — the pole is solved at create so the curve's end price IS the pool's.
+        uint256 delivered = instance.balanceOf(address(poolManager));
+        assertGt(delivered, 0, "the pool holds no coin");
+        assertApproxEqRel(delivered, RESERVED_IDS * UNIT, 1e14, "the pool holds the reserve");
         assertEq(instance.balanceOf(address(deployer)), 0, "the module passed the reserve on");
 
         assertEq(mirror.balanceOf(address(deployer)), 0, "the deployer module holds no id");

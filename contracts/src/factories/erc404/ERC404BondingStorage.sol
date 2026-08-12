@@ -49,8 +49,9 @@ error EscrowReleaseFailed();
 // `claimStakingRewards`) live in ERC404BondingOps and revert with these specific errors INTERNALLY;
 // the instance's discard-returndata trampoline surfaces one generic error per entry point (below).
 // Several of these are ALSO raised by bodies that STAYED in the instance — `BondingEnded` and
-// `GatingNotAllowed` in buyBonding, `TooEarly`/`BondingNotConfigured` in deployLiquidity —
-// and there they still surface verbatim.
+// `GatingNotAllowed` in buyBonding — and there they still surface verbatim.
+// (`TooEarly` / `BondingNotConfigured` were in that list until noesis-188 moved the `deployLiquidity`
+// body to Ops as well; on the graduation path they now surface as `GraduationFailed`.)
 error BondingEnded();
 error BondingNotConfigured();
 error TooEarly();
@@ -122,6 +123,18 @@ error SetBondingActiveFailed();
 error SetStyleFailed();
 error ActivateStakingFailed();
 
+// ── Graduation errors (raised on the Ops side; surfaced by the instance trampoline) ─────────────
+// The `deployLiquidity` body moved to `ERC404BondingOps` (noesis-188 D3 continuation), so the errors
+// it raises are declared here where BOTH sides compile them. `AlreadyDeployed` and `NoReserve` are
+// still importable FROM `ERC404BondingInstance.sol` by name (it re-imports them), so existing test
+// imports resolve unchanged. `NothingForPool` is new: the parity clamp resolves the pool's coin side
+// from live balances, and a graduation with no placeable coin has no pool to open.
+error AlreadyDeployed();
+error NoReserve();
+error NothingForPool();
+/// @dev Generic surfaced by the instance's discard-returndata `deployLiquidity` trampoline.
+error GraduationFailed();
+
 /// @notice `claimAllFees`'s single settle round-trip to the staking module. Returns the instance's
 ///         current `totalStaked` — the instance credits its staking-liability reserve only when the
 ///         module can distribute (`totalStaked > 0`), mirroring `recordFeesReceived`'s own guard — AND
@@ -133,6 +146,9 @@ error ActivateStakingFailed();
 ///         is unchanged.
 interface IStakingTotals {
     function settleAndReleaseLeak() external returns (uint256 totalStaked, uint256 leaked);
+    /// @notice Coin this instance currently custodies on behalf of stakers. Read at graduation to take
+    ///         staked coin out of the instance's placeable balance — it is a liability, not free supply.
+    function totalStaked(address instance) external view returns (uint256);
 }
 
 /**
@@ -308,6 +324,27 @@ abstract contract ERC404BondingStorage is DN404, Ownable, ReentrancyGuard {
     event Staked(address indexed user, uint256 amount);
     event Unstaked(address indexed user, uint256 amount, uint256 rewardPaid);
     event StakingRewardsClaimed(address indexed user, uint256 amount);
+
+    // ── Graduation events (emitted by Ops in the instance's context under delegatecall) ──────────
+    // `LiquidityDeployed` moved here from `ERC404BondingInstance` when the `deployLiquidity` body moved
+    // to Ops (noesis-188). Moving an event declaration does NOT change its topic0 — the signature is
+    // byte-identical, so every existing indexer/test filter keeps matching.
+    event LiquidityDeployed(address indexed deployer, uint256 amountToken, uint256 amountETH);
+
+    /// @notice How graduation sized the pool's coin side and what it did with the rest.
+    ///         `availableCoin - tokensToPool == burned`, always: every coin the instance was free to
+    ///         place either opened the pool or ceased to exist. `availableCoin` is read from live
+    ///         balances net of custodial liabilities (staking, tier escrow, unclaimed escrow release),
+    ///         so it covers the LP reserve, unsold bonding supply and unclaimed free-mint allocation
+    ///         together, whatever the split between them turned out to be.
+    event GraduationSupplyBurned(uint256 availableCoin, uint256 tokensToPool, uint256 burned);
+
+    /// @notice How graduation sized the pool's ETH side. `ethToPool` is exactly the coin side valued at
+    ///         the curve's marginal price at the moment of graduation. `excessEth` is LP-share ETH the
+    ///         clamp could not place at that price because the instance held no more coin; it rides the
+    ///         same 80/19/1 tithe rail as `creatorCarveEth` and is reported separately here so the
+    ///         creator's declared carve stays distinguishable from the clamp's residue.
+    event GraduationEthDiverted(uint256 ethToPool, uint256 excessEth, uint256 creatorCarveEth);
 
     // ── Config-path events (emitted by Ops in the instance's context under delegatecall) ─────────
     // Moved here from `ERC404BondingInstance` by noesis-149 (D2 diet) so the emitting bodies compile on

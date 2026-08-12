@@ -173,8 +173,20 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
 
     /**
      * @notice Deploy V4 liquidity on behalf of an ERC404BondingInstance.
-     * @dev Caller must have transferred liquidityReserve tokens to this contract before calling.
+     * @dev Caller must have transferred `p.tokenReserve` tokens to this contract before calling.
      *      ETH is sent as msg.value.
+     * @dev `p.tokenReserve` is the pool's coin side as the CALLER sized it, and for the ERC404 bonding
+     *      instance that is no longer necessarily the collection's create-time `liquidityReserve`: the
+     *      instance derives it from the curve's marginal price at the supply the curve actually
+     *      reached, so the pool opens at that price whether the curve sold out or stopped early
+     *      (noesis-188). This module's job is unchanged — it opens the pool at `ethForPool /
+     *      tokensForPool`, whatever those are.
+     * @dev `p.carveEth` is every wei the caller is diverting OUT of the LP 80: the creator's requested
+     *      carve, plus any LP-share ETH the caller's parity clamp could not place at the pool price.
+     *      Both legs are tithed 80/19/1 here, which is the intended treatment of each. The instance
+     *      emits `GraduationEthDiverted(ethToPool, excessEth, creatorCarveEth)` so the two stay
+     *      separable on-chain; `CreatorCarvePaid` reports the combined figure — all creator-directed
+     *      graduation ETH.
      * @param p Deployment parameters
      */
     // slither-disable-next-line reentrancy-events
