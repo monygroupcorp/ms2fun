@@ -3,8 +3,9 @@
 ## Status
 
 Slither is **NOT wired into CI**. `.github/workflows/contracts-ci.yml` (see #117)
-runs `forge fmt --check`, `forge build`, `forge test`, and the v4 `RealSettlement`
-regression only — no Slither job.
+runs `forge fmt --check`, `forge build`, the EIP-170 size/headroom + storage-layout
+gate (`test/factories/erc404/eip170-diet-gate.sh`), `forge test`, and the v4
+`RealSettlement` regression only — no Slither job.
 
 Reason: a **whole-tree** Slither pass **crashes** on this tree (a hard abort during
 IR construction, not a finding), on every release tested. However, Slither **does**

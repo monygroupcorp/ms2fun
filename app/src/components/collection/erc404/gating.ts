@@ -20,10 +20,14 @@
  * `encodeMerkleGatingData` below.
  */
 import { type Hex, encodeAbiParameters, keccak256, stringToBytes, toHex } from 'viem'
+import { ZERO_BYTES32 } from '../../../lib/hex'
 
-/** bytes32 zero — the "open tier" sentinel (no password) the password module treats as tier 0. */
-export const ZERO_BYTES32 =
-  '0x0000000000000000000000000000000000000000000000000000000000000000' as const
+/**
+ * bytes32 zero — the "open tier" sentinel (no password) the password module treats as tier 0.
+ * Defined in `lib/` (both layers need it) and re-exported here so this module stays the single
+ * import site for the ERC404 gating surface.
+ */
+export { ZERO_BYTES32 }
 
 /** Empty bytes — used as `messageData` for buy/sell when the user posts no comment. */
 export const EMPTY_BYTES = '0x' as const

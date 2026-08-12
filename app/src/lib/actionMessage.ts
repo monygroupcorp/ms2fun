@@ -9,7 +9,7 @@
  * plain top-level message (messageType 0 = POST, no refs/metadata).
  */
 import { encodeAbiParameters } from 'viem'
-import { ZERO_BYTES32 } from '../components/collection/erc404/gating'
+import { ZERO_BYTES32 } from './hex'
 
 const MESSAGE_TUPLE = [
   { name: 'messageType', type: 'uint8' },

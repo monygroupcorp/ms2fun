@@ -38,13 +38,33 @@ remappings = [
     "aave-address-book/=lib/aave-address-book/src/"
 ]
 
-# fuzz/invariant run counts live under their own tables (`[fuzz] runs` / `[invariant] runs`),
-# not as flat `fuzz_runs`/`invariant_runs` keys — the flat form is silently ignored (forge
-# emits an unknown-key warning), so CI was never actually running the elevated counts.
+# Run counts live under their own tables (`[fuzz] runs` / `[invariant] runs`), not as flat
+# `fuzz_runs`/`invariant_runs` keys — the flat form is silently ignored (forge emits an
+# unknown-key warning).
+#
+# TWO profiles, and each one is selected by something that actually runs:
+#
+#   `ci`   — selected by contracts-ci.yml's `Run tests` step (`FOUNDRY_PROFILE=ci forge test`).
+#            Elevated fuzz depth; invariant runs left at the default so the per-push job stays
+#            inside a per-push budget.
+#   `deep` — NOT selected by any workflow. Elevated invariant depth, run by hand:
+#              FOUNDRY_PROFILE=deep forge test
+#            Measured 2026-08-12 on the pinned forge 1.5.1-stable, 32 cores: the whole-tree run
+#            passed 61 min without finishing (six invariant suites completed, together ~7.9 CPU-
+#            hours; the heaviest, BondingCurveInvariant, was still running). Selecting these
+#            counts per push, or on a 4-core hosted runner, is not viable — hence a hand-run
+#            profile rather than a workflow step. The default-profile whole-tree run is ~2 min
+#            on the same host for comparison.
+#
+# A profile with no selector is not a gate. If a new profile is added here, wire it or say
+# where it is run by hand.
 [profile.ci.fuzz]
 runs = 1000
 
-[profile.ci.invariant]
+[profile.deep.fuzz]
+runs = 1000
+
+[profile.deep.invariant]
 runs = 10000
 
 [profile.fork]
