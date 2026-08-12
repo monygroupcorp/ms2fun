@@ -105,6 +105,9 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: git diff --exit-code app/src/generated/contracts.ts
 
-      # G8 (e2e) is added in a later task.
-      # - name: Hello-chain e2e (G8)
-      #   run: pnpm test:e2e
+      # The Playwright e2e suite (app/e2e/) is NOT part of this workflow. Most of its specs are
+      # tagged @fork and read an anvil mainnet-fork on :8545 with the platform contracts deployed,
+      # which needs a fork RPC endpoint this workflow does not have. It is documented as a local
+      # gate in docs/ARCHITECTURE.md §5 and run with:
+      #   cd app && pnpm chain:fork && pnpm chain:deploy && pnpm test:e2e
+      # Adding it here means providing that endpoint to the job first.
