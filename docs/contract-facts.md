@@ -41,7 +41,7 @@ building UI MUST read this**, then confirm exact arg/return shapes in `app/src/g
 ## Interface E — per-instance creator admin (all `onlyOwner`; gate with `useOwnerGate`)
 - **ERC404Bonding**: `setBondingActive(bool)`, `setBondingOpenTime(uint256)`,
   `setBondingMaturityTime(uint256)` (must be > openTime, both future), `setStyle(string)`,
-  `setMetadataUri(string)`, `migrateVault(address)`, `claimAllFees()`, `setAgentDelegation(bool)`.
+  `setMetadataURI(string)`, `migrateVault(address)`, `claimAllFees()`, `setAgentDelegation(bool)`.
   (`activateStaking()` already wired.)
 - **ERC1155**: `withdraw(uint256 amount)` (✅), `claimVaultFees()` (✅), `updateEditionMetadata(uint256,
   string)` (✅), `addEdition(...)` (✅), `setStyle(string)`, `migrateVault(address)`, `claimAllFees()`,
@@ -52,10 +52,15 @@ building UI MUST read this**, then confirm exact arg/return shapes in `app/src/g
   `claimAllFees()`, `setAgentDelegation(bool)`. (`settleAuction`/`reclaimUnsold` ✅.)
 
 ## Interface G — vault / yield (AlignmentEndowmentVault, the instance is the benefactor)
-- `harvest()` (✅, permissionless). `withdrawPrincipal(address benefactor)` — benefactor = the instance
-  address; gate the button on `calculateClaimableAmount(benefactor)` (returns 0 while locked, gross at
-  maturity). Reads: `principal(b)`/`getBenefactorShares(b)`, `depositTime(b)`, `accumulatedFees()`,
-  `MATURITY_DURATION` (365d). Split logic is on-chain (matured 80 creator/19 community/1 platform).
+- **Principal is a PERMANENT donation — there is no withdraw-principal path, ever.** The only
+  claimable amount is the benefactor's accrued creator-yield purse; `calculateClaimableAmount(b)`
+  reports that, not principal. Do not build a "withdraw principal" control.
+- `harvest()` (✅, permissionless) realizes yield. `vest(address benefactor)` (permissionless) realizes
+  a benefactor's vest once `depositTime(b) + VEST_DURATION` has elapsed — **`VEST_DURATION` is 26
+  weeks**, not a year. The payout path is `claimYieldPurse(address benefactor)`, gated on
+  `calculateClaimableAmount(benefactor) > 0`. Reads: `principalOf(b)`, `vestedOf(b)`,
+  `getBenefactorShares(b)`, `depositTime(b)`, `accumulatedFees()`. Split logic is on-chain (matured 80
+  creator/19 community/1 platform).
 
 ## Interface I — board (GlobalMessageRegistry)
 - `post(address instance, uint8 messageType, uint256 refId, bytes32 actionRef, bytes32 metadata,
