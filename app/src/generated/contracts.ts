@@ -12800,6 +12800,259 @@ export const queryAggregatorAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'readAllEditionIds',
+    outputs: [{ name: '', internalType: 'uint256[]', type: 'uint256[]' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'readContractURI',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'editionId', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'readEdition',
+    outputs: [
+      {
+        name: '',
+        internalType: 'struct IERC1155EditionReader.Edition',
+        type: 'tuple',
+        components: [
+          { name: 'id', internalType: 'uint256', type: 'uint256' },
+          { name: 'pieceTitle', internalType: 'string', type: 'string' },
+          { name: 'basePrice', internalType: 'uint256', type: 'uint256' },
+          { name: 'supply', internalType: 'uint256', type: 'uint256' },
+          { name: 'minted', internalType: 'uint256', type: 'uint256' },
+          { name: 'metadataURI', internalType: 'string', type: 'string' },
+          {
+            name: 'pricingModel',
+            internalType: 'enum IERC1155EditionReader.PricingModel',
+            type: 'uint8',
+          },
+          {
+            name: 'priceIncreaseRate',
+            internalType: 'uint256',
+            type: 'uint256',
+          },
+          { name: 'openTime', internalType: 'uint256', type: 'uint256' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'editionId', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'readEditionPrice',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'user', internalType: 'address', type: 'address' },
+      { name: 'editionId', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'readErc1155Balance',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'user', internalType: 'address', type: 'address' },
+    ],
+    name: 'readErc404Balance',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'readErc404Unit',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'factory', internalType: 'address', type: 'address' }],
+    name: 'readFactoryInfo',
+    outputs: [
+      {
+        name: '',
+        internalType: 'struct IMasterRegistry.FactoryInfo',
+        type: 'tuple',
+        components: [
+          { name: 'factoryAddress', internalType: 'address', type: 'address' },
+          { name: 'factoryId', internalType: 'uint256', type: 'uint256' },
+          { name: 'contractType', internalType: 'string', type: 'string' },
+          { name: 'title', internalType: 'string', type: 'string' },
+          { name: 'displayTitle', internalType: 'string', type: 'string' },
+          { name: 'metadataURI', internalType: 'string', type: 'string' },
+          { name: 'features', internalType: 'bytes32[]', type: 'bytes32[]' },
+          { name: 'creator', internalType: 'address', type: 'address' },
+          { name: 'active', internalType: 'bool', type: 'bool' },
+          { name: 'registeredAt', internalType: 'uint256', type: 'uint256' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'offset', internalType: 'uint256', type: 'uint256' },
+      { name: 'limit', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'readFeaturedInstances',
+    outputs: [
+      { name: 'instances', internalType: 'address[]', type: 'address[]' },
+      { name: 'total', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'readInstanceInfo',
+    outputs: [
+      {
+        name: '',
+        internalType: 'struct IMasterRegistry.InstanceInfo',
+        type: 'tuple',
+        components: [
+          { name: 'instance', internalType: 'address', type: 'address' },
+          { name: 'factory', internalType: 'address', type: 'address' },
+          { name: 'creator', internalType: 'address', type: 'address' },
+          { name: 'vaults', internalType: 'address[]', type: 'address[]' },
+          { name: 'name', internalType: 'string', type: 'string' },
+          { name: 'metadataURI', internalType: 'string', type: 'string' },
+          { name: 'nameHash', internalType: 'bytes32', type: 'bytes32' },
+          { name: 'registeredAt', internalType: 'uint256', type: 'uint256' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'readInstanceType',
+    outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'readNextEditionId',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'user', internalType: 'address', type: 'address' },
+    ],
+    name: 'readPendingRewards',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'readRentalInfo',
+    outputs: [
+      { name: 'renter', internalType: 'address', type: 'address' },
+      { name: 'effectiveRank', internalType: 'uint256', type: 'uint256' },
+      { name: 'expiresAt', internalType: 'uint256', type: 'uint256' },
+      { name: 'isActive', internalType: 'bool', type: 'bool' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'user', internalType: 'address', type: 'address' },
+    ],
+    name: 'readStakedBalance',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'readStakingEnabled',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'vault', internalType: 'address', type: 'address' },
+      { name: 'user', internalType: 'address', type: 'address' },
+    ],
+    name: 'readVaultClaimable',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'vault', internalType: 'address', type: 'address' },
+      { name: 'user', internalType: 'address', type: 'address' },
+    ],
+    name: 'readVaultContribution',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'vault', internalType: 'address', type: 'address' }],
+    name: 'readVaultInfo',
+    outputs: [
+      {
+        name: '',
+        internalType: 'struct IMasterRegistry.VaultInfo',
+        type: 'tuple',
+        components: [
+          { name: 'vault', internalType: 'address', type: 'address' },
+          { name: 'creator', internalType: 'address', type: 'address' },
+          { name: 'name', internalType: 'string', type: 'string' },
+          { name: 'metadataURI', internalType: 'string', type: 'string' },
+          { name: 'active', internalType: 'bool', type: 'bool' },
+          { name: 'registeredAt', internalType: 'uint256', type: 'uint256' },
+          { name: 'targetId', internalType: 'uint256', type: 'uint256' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'vault', internalType: 'address', type: 'address' },
+      { name: 'user', internalType: 'address', type: 'address' },
+    ],
+    name: 'readVaultShares',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'renounceOwnership',
     outputs: [],
@@ -27207,6 +27460,186 @@ export const useReadQueryAggregatorProxiableUuid =
   /*#__PURE__*/ createUseReadContract({
     abi: queryAggregatorAbi,
     functionName: 'proxiableUUID',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readAllEditionIds"`
+ */
+export const useReadQueryAggregatorReadAllEditionIds =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readAllEditionIds',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readContractURI"`
+ */
+export const useReadQueryAggregatorReadContractUri =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readContractURI',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readEdition"`
+ */
+export const useReadQueryAggregatorReadEdition =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readEdition',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readEditionPrice"`
+ */
+export const useReadQueryAggregatorReadEditionPrice =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readEditionPrice',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readErc1155Balance"`
+ */
+export const useReadQueryAggregatorReadErc1155Balance =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readErc1155Balance',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readErc404Balance"`
+ */
+export const useReadQueryAggregatorReadErc404Balance =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readErc404Balance',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readErc404Unit"`
+ */
+export const useReadQueryAggregatorReadErc404Unit =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readErc404Unit',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readFactoryInfo"`
+ */
+export const useReadQueryAggregatorReadFactoryInfo =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readFactoryInfo',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readFeaturedInstances"`
+ */
+export const useReadQueryAggregatorReadFeaturedInstances =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readFeaturedInstances',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readInstanceInfo"`
+ */
+export const useReadQueryAggregatorReadInstanceInfo =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readInstanceInfo',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readInstanceType"`
+ */
+export const useReadQueryAggregatorReadInstanceType =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readInstanceType',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readNextEditionId"`
+ */
+export const useReadQueryAggregatorReadNextEditionId =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readNextEditionId',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readPendingRewards"`
+ */
+export const useReadQueryAggregatorReadPendingRewards =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readPendingRewards',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readRentalInfo"`
+ */
+export const useReadQueryAggregatorReadRentalInfo =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readRentalInfo',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readStakedBalance"`
+ */
+export const useReadQueryAggregatorReadStakedBalance =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readStakedBalance',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readStakingEnabled"`
+ */
+export const useReadQueryAggregatorReadStakingEnabled =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readStakingEnabled',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readVaultClaimable"`
+ */
+export const useReadQueryAggregatorReadVaultClaimable =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readVaultClaimable',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readVaultContribution"`
+ */
+export const useReadQueryAggregatorReadVaultContribution =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readVaultContribution',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readVaultInfo"`
+ */
+export const useReadQueryAggregatorReadVaultInfo =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readVaultInfo',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readVaultShares"`
+ */
+export const useReadQueryAggregatorReadVaultShares =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readVaultShares',
   })
 
 /**

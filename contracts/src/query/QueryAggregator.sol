@@ -108,9 +108,21 @@ interface IERC721Card {
  *
  *      Vault leaderboards and instance enumeration are handled off-chain via EventIndexer.
  *
- *      FAILURE TOLERANCE: All external calls in hydration/portfolio methods use silent
- *      try/catch so that a single broken or upgraded contract never reverts the batch.
- *      Missing data surfaces as zero-values / empty strings in the returned structs.
+ *      FAILURE TOLERANCE: every external read reached from a hydration/portfolio method is issued
+ *      through an `external view` reader on this contract (the `read*` group below, joined by
+ *      `erc404CardData` / `erc721CardData`) and wrapped in `try/catch` at the call site, so a broken,
+ *      upgraded, or non-contract target never reverts the batch. Missing data surfaces as
+ *      zero-values / empty strings in the returned structs.
+ *
+ *      WHY THE SELF-CALL, AND NOT A BARE `try target.f() returns (T)`: since solc 0.8.10 a call with
+ *      return data omits the `extcodesize` check and relies on `returndatasize` instead, so a target
+ *      that is an EOA (zero bytes returned) or that returns fewer/differently-shaped bytes than `T`
+ *      fails to DECODE. That decode runs in the CALLER's frame, and `catch` does not cover it — the
+ *      revert escapes the `try`. Routing the call through an `external view` reader moves the decode
+ *      into the CHILD frame, where a decode failure is an ordinary revert of the child call and the
+ *      parent's `catch` does cover it. This holds for every return shape, including the
+ *      dynamically-framed ones (structs containing strings, `string`, `uint256[]`) that no
+ *      returndata-length check could validate.
  */
 contract QueryAggregator is SafeOwnableUUPS {
     // ============ Custom Errors ============
@@ -287,7 +299,7 @@ contract QueryAggregator is SafeOwnableUUPS {
         // whole homepage. A broken/upgraded FeaturedQueueManager yields an empty grid, not a revert —
         // this read lens has no server to paper over a revert, so it degrades to an empty result set.
         address[] memory featuredAddresses;
-        try featuredQueueManager.getFeaturedInstances(offset, limit) returns (address[] memory addrs, uint256 total_) {
+        try this.readFeaturedInstances(offset, limit) returns (address[] memory addrs, uint256 total_) {
             featuredAddresses = addrs;
             totalFeatured = total_;
         } catch {
@@ -370,8 +382,8 @@ contract QueryAggregator is SafeOwnableUUPS {
 
     // slither-disable-next-line calls-loop
     function _processPortfolioInstance(address instance, address user, PortfolioAccumulator memory acc) private view {
-        try IInstanceLifecycle(instance).instanceType() returns (bytes32 typeHash) {
-            try masterRegistry.getInstanceInfo(instance) returns (IMasterRegistry.InstanceInfo memory info) {
+        try this.readInstanceType(instance) returns (bytes32 typeHash) {
+            try this.readInstanceInfo(instance) returns (IMasterRegistry.InstanceInfo memory info) {
                 if (typeHash == TYPE_ERC404) {
                     ERC404Holding memory holding = _getERC404Holding(instance, user, info.name);
                     if (holding.tokenBalance > 0 || holding.stakedBalance > 0) {
@@ -400,7 +412,7 @@ contract QueryAggregator is SafeOwnableUUPS {
         card.instance = instance;
 
         // 1. Registry info (if this fails, we still populate what we can from other sources)
-        try masterRegistry.getInstanceInfo(instance) returns (IMasterRegistry.InstanceInfo memory info) {
+        try this.readInstanceInfo(instance) returns (IMasterRegistry.InstanceInfo memory info) {
             card.name = info.name;
             card.metadataURI = info.metadataURI;
             card.creator = info.creator;
@@ -426,8 +438,10 @@ contract QueryAggregator is SafeOwnableUUPS {
     ///      across all three known instance types since noesis-085 — ERC404 got its ERC-7572 getter, so
     ///      there is no longer a type that has to be trusted to the registry.
     /// @dev Two ways the registry copy SURVIVES, both deliberate:
-    ///      1. The call reverts (an unknown type, a non-instance address, a getter that is not there).
-    ///         Defensive try/catch, matching this file's never-brick read contract.
+    ///      1. The read does not produce a decodable answer — an unknown type, a non-contract address, a
+    ///         getter that is not there, a return value that does not decode. All of these arrive as a
+    ///         reverted `readInstanceType` / `readContractURI` child call and are caught here, matching
+    ///         this file's never-brick read contract (see the contract-level note on the self-call idiom).
     ///      2. The instance returns an EMPTY string. Every ERC404 instance deployed BEFORE noesis-085 —
     ///         and any instance created with an empty collection URI — reads back "". Overwriting
     ///         unconditionally would BLANK a card that the registry could still describe, which is a
@@ -435,14 +449,14 @@ contract QueryAggregator is SafeOwnableUUPS {
     // slither-disable-next-line calls-loop
     function _hydrateContractURI(ProjectCard memory card) private view {
         bytes32 typeHash;
-        try IInstanceLifecycle(card.instance).instanceType() returns (bytes32 t) {
+        try this.readInstanceType(card.instance) returns (bytes32 t) {
             typeHash = t;
         } catch {
             return; // no discriminator → keep the registry value
         }
 
         if (typeHash == TYPE_ERC404 || typeHash == TYPE_ERC1155 || typeHash == TYPE_ERC721) {
-            try IContractURI(card.instance).contractURI() returns (string memory u) {
+            try this.readContractURI(card.instance) returns (string memory u) {
                 if (bytes(u).length != 0) card.metadataURI = u;
             } catch { }
         }
@@ -452,7 +466,7 @@ contract QueryAggregator is SafeOwnableUUPS {
     // slither-disable-next-line calls-loop
     function _hydrateFactory(ProjectCard memory card) private view {
         if (card.factory == address(0)) return;
-        try masterRegistry.getFactoryInfoByAddress(card.factory) returns (IMasterRegistry.FactoryInfo memory info) {
+        try this.readFactoryInfo(card.factory) returns (IMasterRegistry.FactoryInfo memory info) {
             card.contractType = info.contractType;
             card.factoryTitle = info.title;
         } catch { }
@@ -461,7 +475,7 @@ contract QueryAggregator is SafeOwnableUUPS {
     // slither-disable-next-line calls-loop
     function _hydrateVault(ProjectCard memory card) private view {
         if (card.vault == address(0)) return;
-        try masterRegistry.getVaultInfo(card.vault) returns (IMasterRegistry.VaultInfo memory info) {
+        try this.readVaultInfo(card.vault) returns (IMasterRegistry.VaultInfo memory info) {
             card.vaultName = info.name;
         } catch { }
     }
@@ -473,7 +487,7 @@ contract QueryAggregator is SafeOwnableUUPS {
         //  ERC721 cards silently fell through to the ERC1155 path and rendered as blank/"Ended". Fixed by
         //  computing each type's card data lens-side, adding no code to the size-locked instances.)
         bytes32 typeHash;
-        try IInstanceLifecycle(card.instance).instanceType() returns (bytes32 t) {
+        try this.readInstanceType(card.instance) returns (bytes32 t) {
             typeHash = t;
         } catch {
             // No discriminator → fall through to the ERC1155 path below, which is itself fully guarded
@@ -547,9 +561,133 @@ contract QueryAggregator is SafeOwnableUUPS {
         }
     }
 
+    // ============ Guarded External Readers ============
+    //
+    // One `external view` reader per external read reached from a hydration/portfolio method, so the
+    // call site can `try this.readX(...) { } catch { }` and have the CHILD frame own the ABI decode.
+    // A target that is an EOA, that is missing the selector, that reverts, or that returns bytes which
+    // do not decode to the declared return type all surface identically: a reverted child call, caught
+    // by the caller, leaving the zero-value fallback in place.
+    //
+    // These are on the public ABI because `this.` self-calls require it. They are plain pass-throughs
+    // with no state access beyond the two registry pointers; calling one directly is equivalent to
+    // calling the underlying contract, and it is not the intended entry point for consumers.
+
+    /// @notice Guarded read of the featured queue window. Not for direct use.
+    function readFeaturedInstances(uint256 offset, uint256 limit)
+        external
+        view
+        returns (address[] memory instances, uint256 total)
+    {
+        return featuredQueueManager.getFeaturedInstances(offset, limit);
+    }
+
+    /// @notice Guarded read of an instance's featured-rental record. Not for direct use.
+    function readRentalInfo(address instance)
+        external
+        view
+        returns (address renter, uint256 effectiveRank, uint256 expiresAt, bool isActive)
+    {
+        return featuredQueueManager.getRentalInfo(instance);
+    }
+
+    /// @notice Guarded read of the registry's instance record. Not for direct use.
+    function readInstanceInfo(address instance) external view returns (IMasterRegistry.InstanceInfo memory) {
+        return masterRegistry.getInstanceInfo(instance);
+    }
+
+    /// @notice Guarded read of the registry's factory record. Not for direct use.
+    function readFactoryInfo(address factory) external view returns (IMasterRegistry.FactoryInfo memory) {
+        return masterRegistry.getFactoryInfoByAddress(factory);
+    }
+
+    /// @notice Guarded read of the registry's vault record. Not for direct use.
+    function readVaultInfo(address vault) external view returns (IMasterRegistry.VaultInfo memory) {
+        return masterRegistry.getVaultInfo(vault);
+    }
+
+    /// @notice Guarded read of an instance's type discriminator. Not for direct use.
+    function readInstanceType(address instance) external view returns (bytes32) {
+        return IInstanceLifecycle(instance).instanceType();
+    }
+
+    /// @notice Guarded read of an instance's ERC-7572 collection URI. Not for direct use.
+    function readContractURI(address instance) external view returns (string memory) {
+        return IContractURI(instance).contractURI();
+    }
+
+    /// @notice Guarded read of an ERC1155 instance's edition cursor. Not for direct use.
+    function readNextEditionId(address instance) external view returns (uint256) {
+        return IERC1155EditionReader(instance).nextEditionId();
+    }
+
+    /// @notice Guarded read of a single ERC1155 edition record. Not for direct use.
+    function readEdition(address instance, uint256 editionId)
+        external
+        view
+        returns (IERC1155EditionReader.Edition memory)
+    {
+        return IERC1155EditionReader(instance).getEdition(editionId);
+    }
+
+    /// @notice Guarded read of a single ERC1155 edition's live price. Not for direct use.
+    function readEditionPrice(address instance, uint256 editionId) external view returns (uint256) {
+        return IERC1155EditionReader(instance).getCurrentPrice(editionId);
+    }
+
+    /// @notice Guarded read of an ERC404 instance's token balance for a user. Not for direct use.
+    function readErc404Balance(address instance, address user) external view returns (uint256) {
+        return IERC404Balance(instance).balanceOf(user);
+    }
+
+    /// @notice Guarded read of an ERC404 instance's units-per-NFT divisor. Not for direct use.
+    function readErc404Unit(address instance) external view returns (uint256) {
+        return IERC404Balance(instance).unit();
+    }
+
+    /// @notice Guarded read of an ERC404 instance's staking switch. Not for direct use.
+    function readStakingEnabled(address instance) external view returns (bool) {
+        return IERC404Staking(instance).stakingEnabled();
+    }
+
+    /// @notice Guarded read of a user's staked balance on an ERC404 instance. Not for direct use.
+    function readStakedBalance(address instance, address user) external view returns (uint256) {
+        return IERC404Staking(instance).stakedBalance(user);
+    }
+
+    /// @notice Guarded read of a user's pending staking rewards on an ERC404 instance. Not for direct use.
+    function readPendingRewards(address instance, address user) external view returns (uint256) {
+        return IERC404Staking(instance).calculatePendingRewards(user);
+    }
+
+    /// @notice Guarded read of an ERC1155 instance's edition id set. Not for direct use.
+    function readAllEditionIds(address instance) external view returns (uint256[] memory) {
+        return IERC1155Balance(instance).getAllEditionIds();
+    }
+
+    /// @notice Guarded read of a user's balance of one ERC1155 edition. Not for direct use.
+    function readErc1155Balance(address instance, address user, uint256 editionId) external view returns (uint256) {
+        return IERC1155Balance(instance).balanceOf(user, editionId);
+    }
+
+    /// @notice Guarded read of a user's benefactor shares in a vault. Not for direct use.
+    function readVaultShares(address vault, address user) external view returns (uint256) {
+        return IAlignmentVault(payable(vault)).getBenefactorShares(user);
+    }
+
+    /// @notice Guarded read of a user's benefactor contribution to a vault. Not for direct use.
+    function readVaultContribution(address vault, address user) external view returns (uint256) {
+        return IAlignmentVault(payable(vault)).getBenefactorContribution(user);
+    }
+
+    /// @notice Guarded read of a user's claimable amount in a vault. Not for direct use.
+    function readVaultClaimable(address vault, address user) external view returns (uint256) {
+        return IAlignmentVault(payable(vault)).calculateClaimableAmount(user);
+    }
+
     // slither-disable-next-line calls-loop
     function _hydrateERC1155CardData(ProjectCard memory card) private view {
-        try IERC1155EditionReader(card.instance).nextEditionId() returns (uint256 nextId) {
+        try this.readNextEditionId(card.instance) returns (uint256 nextId) {
             uint256 count = nextId - 1;
             if (count == 0) return;
             if (count > MAX_EDITIONS_PER_CARD) count = MAX_EDITIONS_PER_CARD; // F-D: bound the loop, never OOG the batch
@@ -559,16 +697,14 @@ contract QueryAggregator is SafeOwnableUUPS {
             bool isActive;
             bool hasUnlimited;
             for (uint256 i = 1; i <= count; i++) {
-                try IERC1155EditionReader(card.instance).getEdition(i) returns (
-                    IERC1155EditionReader.Edition memory ed
-                ) {
+                try this.readEdition(card.instance, i) returns (IERC1155EditionReader.Edition memory ed) {
                     // F-F.3: card price is the floor of the LIVE per-edition prices, not the floor of
                     // static basePrice. A partway-minted LIMITED_DYNAMIC edition's live getCurrentPrice
                     // exceeds basePrice, so a basePrice floor understated the real buy price. Read the
                     // live price per edition (own try/catch, falling back to basePrice on revert to
                     // preserve the failure-tolerance doctrine) and take the min of that.
                     uint256 edPrice = ed.basePrice; // fallback = static floor if the live read reverts
-                    try IERC1155EditionReader(card.instance).getCurrentPrice(i) returns (uint256 p) {
+                    try this.readEditionPrice(card.instance, i) returns (uint256 p) {
                         edPrice = p;
                     } catch { }
                     if (edPrice < floorPrice) floorPrice = edPrice;
@@ -594,9 +730,7 @@ contract QueryAggregator is SafeOwnableUUPS {
 
     // slither-disable-next-line calls-loop,unused-return
     function _hydrateFeatured(ProjectCard memory card) private view {
-        try featuredQueueManager.getRentalInfo(card.instance) returns (
-            address, uint256 rank, uint256 expires, bool active
-        ) {
+        try this.readRentalInfo(card.instance) returns (address, uint256 rank, uint256 expires, bool active) {
             if (active) {
                 card.featuredRank = rank;
                 card.featuredExpires = expires;
@@ -617,13 +751,13 @@ contract QueryAggregator is SafeOwnableUUPS {
         holding.name = name_;
 
         // Get token balance
-        try IERC404Balance(instance).balanceOf(user) returns (uint256 balance) {
+        try this.readErc404Balance(instance, user) returns (uint256 balance) {
             holding.tokenBalance = balance;
             // NFT balance = tokenBalance / unit. Live-read the instance's actual units-per-NFT rather
             // than hardcoding 1e24 (1M tokens/NFT): the shared lens must not bake one instance's ratio,
             // and a per-instance override would silently mis-count NFTs. Guard against a zero/failed read
             // (leaves nftBalance = 0) so a broken instance never reverts the batch.
-            try IERC404Balance(instance).unit() returns (uint256 unit_) {
+            try this.readErc404Unit(instance) returns (uint256 unit_) {
                 if (unit_ > 0) {
                     holding.nftBalance = balance / unit_; // round down: standard integer NFT count
                 }
@@ -631,13 +765,13 @@ contract QueryAggregator is SafeOwnableUUPS {
         } catch { }
 
         // Get staking info
-        try IERC404Staking(instance).stakingEnabled() returns (bool enabled) {
+        try this.readStakingEnabled(instance) returns (bool enabled) {
             if (enabled) {
-                try IERC404Staking(instance).stakedBalance(user) returns (uint256 staked) {
+                try this.readStakedBalance(instance, user) returns (uint256 staked) {
                     holding.stakedBalance = staked;
                 } catch { }
 
-                try IERC404Staking(instance).calculatePendingRewards(user) returns (uint256 pending) {
+                try this.readPendingRewards(instance, user) returns (uint256 pending) {
                     holding.pendingRewards = pending;
                 } catch { }
             }
@@ -657,7 +791,7 @@ contract QueryAggregator is SafeOwnableUUPS {
         holding.name = name_;
 
         // Get all edition IDs
-        try IERC1155Balance(instance).getAllEditionIds() returns (uint256[] memory editionIds) {
+        try this.readAllEditionIds(instance) returns (uint256[] memory editionIds) {
             // Single pass: record the edition id alongside its balance for every non-zero holding,
             // then trim. Avoids a second balanceOf sweep over the same editions.
             uint256[] memory tempIds = new uint256[](editionIds.length);
@@ -665,7 +799,7 @@ contract QueryAggregator is SafeOwnableUUPS {
             uint256 nonZeroCount = 0;
 
             for (uint256 i = 0; i < editionIds.length; i++) {
-                try IERC1155Balance(instance).balanceOf(user, editionIds[i]) returns (uint256 balance) {
+                try this.readErc1155Balance(instance, user, editionIds[i]) returns (uint256 balance) {
                     if (balance > 0) {
                         tempIds[nonZeroCount] = editionIds[i];
                         tempBalances[nonZeroCount] = balance;
@@ -704,7 +838,7 @@ contract QueryAggregator is SafeOwnableUUPS {
         for (uint256 i = 0; i < vaultAddrs.length; i++) {
             address vaultAddr = vaultAddrs[i];
 
-            try IAlignmentVault(payable(vaultAddr)).getBenefactorShares(user) returns (uint256 shares) {
+            try this.readVaultShares(vaultAddr, user) returns (uint256 shares) {
                 if (shares > 0) {
                     // slither-disable-next-line uninitialized-local
                     VaultPosition memory pos;
@@ -712,19 +846,17 @@ contract QueryAggregator is SafeOwnableUUPS {
                     pos.shares = shares;
 
                     // Get vault name
-                    try masterRegistry.getVaultInfo(vaultAddr) returns (IMasterRegistry.VaultInfo memory info) {
+                    try this.readVaultInfo(vaultAddr) returns (IMasterRegistry.VaultInfo memory info) {
                         pos.name = info.name;
                     } catch { }
 
                     // Get contribution
-                    try IAlignmentVault(payable(vaultAddr)).getBenefactorContribution(user) returns (
-                        uint256 contribution
-                    ) {
+                    try this.readVaultContribution(vaultAddr, user) returns (uint256 contribution) {
                         pos.contribution = contribution;
                     } catch { }
 
                     // Get claimable
-                    try IAlignmentVault(payable(vaultAddr)).calculateClaimableAmount(user) returns (uint256 claimable) {
+                    try this.readVaultClaimable(vaultAddr, user) returns (uint256 claimable) {
                         pos.claimable = claimable;
                     } catch { }
 
@@ -775,10 +907,10 @@ contract QueryAggregator is SafeOwnableUUPS {
             // edition read yields a zero-valued entry (with its id preserved for mapping) instead of
             // reverting the whole batch.
             // slither-disable-next-line calls-loop
-            try reader.getEdition(editionId) returns (IERC1155EditionReader.Edition memory ed) {
+            try this.readEdition(instance, editionId) returns (IERC1155EditionReader.Edition memory ed) {
                 uint256 currentPrice;
                 // slither-disable-next-line calls-loop
-                try reader.getCurrentPrice(editionId) returns (uint256 price) {
+                try this.readEditionPrice(instance, editionId) returns (uint256 price) {
                     currentPrice = price;
                 } catch { }
                 result[i] = EditionView({
