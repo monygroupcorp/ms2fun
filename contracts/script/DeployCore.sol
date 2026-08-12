@@ -94,8 +94,8 @@ contract DeployCore is Script {
         // vaults acquire from the deepest venue instead of their fixed family pool. address(0) = best-route
         // DISABLED (fixed-pool fallback only) — the pre-noesis-063 default that silently shipped the
         // multi-venue purchase capability off. On mainnet set the canonical `zQuoterBase`; on a testnet
-        // with no canonical quoter, leave 0 (fallback-only) or point at a compatible quoter. OPERATOR INPUT
-        // — see docs/HUMAN_GATES.md.
+        // with no canonical quoter, leave 0 (fallback-only) or point at a compatible quoter.
+        // OPERATOR INPUT.
         address zQuoter;
 
         // CREATE3 salts for UUPS proxies
@@ -127,7 +127,7 @@ contract DeployCore is Script {
         // graduation Uni pool bakes in a hook taking `hookFeeBips` of the ETH swap leg as the perpetual
         // alignment tithe, with `lpFeeRate` as the dynamic LP fee. `hookFeeBips` is the IMMUTABLE tithe rate
         // per deployed hook. Leave 0 to defer (the safe inert default, mirroring `zQuoter`); set the real
-        // rate before enabling the tithe. OPERATOR INPUT / HUMAN_GATE — see docs/HUMAN_GATES.md.
+        // rate before enabling the tithe. OPERATOR INPUT.
         uint256 hookFeeBips;
         uint24 lpFeeRate;
 
@@ -327,7 +327,7 @@ contract DeployCore is Script {
             address(treasury),
             IVaultPriceValidator(address(priceValidator)),
             alignmentRegistry,
-            cfg.zQuoter // best-route quoter (address(0) = fixed-pool fallback only); OPERATOR INPUT, see HUMAN_GATES
+            cfg.zQuoter // best-route quoter (address(0) = fixed-pool fallback only); OPERATOR INPUT
         );
 
         if (cfg.cypherPositionManager != address(0)) {

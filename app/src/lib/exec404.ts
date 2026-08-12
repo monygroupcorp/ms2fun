@@ -9,7 +9,7 @@ import { forkChainId } from './addresses'
  * On-chain reality (verified by executing trades on an archive fork): the bonding curve is CLOSED
  * (`buyBonding` reverts "Presale ended"). It graduated to a **Uniswap V2** pool, where it trades
  * with fee-on-transfer swaps (~4% DN404 transfer tax). So this page is read-only — real market
- * price from V2 — and links out to Uniswap to trade (see docs/HUMAN_GATES.md G-D).
+ * price from V2 — and links out to Uniswap to trade.
  */
 export const EXEC404_ADDRESS = '0x185485bF2e26e0Da48149aee0A8032c8c2060Db2' as const
 

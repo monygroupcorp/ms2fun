@@ -43,7 +43,7 @@ contract SeedSepolia is Script {
     address constant PROTOCOL_TREASURY = 0x00001152e56eb45082De505e9E9be5DC158E4cfC;
     // On-chain best-route quoter wired into the seeded vault factory (enables multi-venue acquisition).
     // address(0) = best-route DISABLED (fixed-pool fallback only). Sepolia has no canonical zQuoter, so this
-    // is left 0 until an operator points it at a compatible quoter. OPERATOR INPUT — see docs/HUMAN_GATES.md.
+    // is left 0 until an operator points it at a compatible quoter. OPERATOR INPUT.
     address constant ZQUOTER = address(0);
 
     // Sepolia infrastructure
@@ -113,7 +113,7 @@ contract SeedSepolia is Script {
             PROTOCOL_TREASURY,
             IVaultPriceValidator(PRICE_VALIDATOR),
             ALIGNMENT_REGISTRY,
-            ZQUOTER // best-route quoter (address(0) = fixed-pool fallback only); OPERATOR INPUT, see HUMAN_GATES
+            ZQUOTER // best-route quoter (address(0) = fixed-pool fallback only); OPERATOR INPUT
         );
 
         // Index-based salts — consistent with DeployCore pattern (LINK was index 0)

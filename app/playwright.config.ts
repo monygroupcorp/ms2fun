@@ -7,7 +7,7 @@ import { defineConfig, devices } from '@playwright/test'
  *   LOCALLY-DEPLOYED contracts (MasterRegistry, QueryAggregator), so any fork works.
  * - `@archive`: additionally reads FORKED-MAINNET state (the EXEC404 fossil + its V2 pool). Requires
  *   an ARCHIVE-capable fork RPC — a non-archive public RPC 403s on cold mainnet storage as the fork
- *   ages (see docs/HUMAN_GATES.md). Run it with `pnpm test:e2e:archive`; the default `pnpm test:e2e`
+ *   ages. Run it with `pnpm test:e2e:archive`; the default `pnpm test:e2e`
  *   excludes it via `--grep-invert @archive` (set in package.json so opt-in isn't blocked here).
  */
 export default defineConfig({

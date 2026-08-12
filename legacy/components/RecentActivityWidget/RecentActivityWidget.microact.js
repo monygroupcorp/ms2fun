@@ -7,7 +7,6 @@
  * NOTE: This component fetches from GlobalMessageRegistry via adapters.
  * This is a candidate for EventIndexer migration - messages could be
  * derived from indexed events instead of contract storage.
- * See: docs/plans/2026-02-04-contract-event-migration.md
  */
 
 import { Component, h, eventBus } from '../../core/microact-setup.js';

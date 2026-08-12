@@ -112,7 +112,7 @@ Agent-runnable where noted; the wiring unit (T2) is lead-owned (drift-prone, lik
       Fork-gated (skips without `--fork-url`). Plus regression
       `test_ConvertAndAddLiquidity_acceptsZRouterDustRefund` (verified to fail pre-fix).
 - [x] **T6 — Docs.** ✅ New `ADR-0008 two-vault-families`; amended `ADR-0003`; un-retired the banners
-      in `contracts/README.md` + `ARCHITECTURE.md` + `contracts/CLAUDE.md`; annotated the
+      in `contracts/README.md` + `ARCHITECTURE.md`; annotated the
       `phase-2-reconciliation` "retire" history. No current "retire LP" guidance remains (exit #4).
 - [ ] **T7 — Audit scope (note, → Phase 4).** Fold the three LP vaults + the pool-key/validator
       wiring into the pre-mainnet vault review. Incremental (they were audited once) but the deeper
@@ -234,8 +234,7 @@ Cypher — the Algebra `_mint` to the instance does **not** revert (the instance
 `onERC721Received`; the graduation is safe only if Algebra's position manager uses a plain `_mint`, as
 a v3-periphery fork does — spike-confirmed 2026-07-21, must still be fork-exercised). Only the Uni
 carved-demo graduation is fork-verified today. This is an ops/human gate, not a code prerequisite —
-fork tests skip without an RPC. *(Also recorded in the local scratch `docs/HUMAN_GATES.md`, which is
-gitignored and does not ship in this PR.)*
+fork tests skip without an RPC.
 
 ## Open questions
 O1–O5 above. O1/O2/O3 are the load-bearing ones — they gate whether an LP vault is *safe to select*,

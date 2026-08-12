@@ -23,4 +23,4 @@ Frontend code, component logic, CSS, route handlers, adapters, or anything impor
 
 ## For Contract Workers
 
-See `CLAUDE.md` in this directory for architecture, build commands, and file layout.
+See `docs/ARCHITECTURE.md` for architecture and file layout, and the README for build commands.

@@ -37,8 +37,7 @@ interface IOwnable {
  *         target by `AlignmentEndowmentVaultFactory`. N benefactors (aligned collections) pool their
  *         pledged principal into ONE Aave `StaticATokenV2` position per target.
  *
- * @dev Money model (locked design session 2026-07-21 — see docs/plans/spec-endowment-vault-rework.md
- *      + spec-endowment-yield-accumulator.md; Part 0 of spec-alignment-vault-economics.md is the law):
+ * @dev Money model (locked design session 2026-07-21). The rules below are the law:
  *
  *      - **Principal is a PERMANENT donation.** There is NO refund path — a benefactor's pledged
  *        principal never returns to them. It is committed to the alignment target forever.

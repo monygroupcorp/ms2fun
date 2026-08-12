@@ -71,7 +71,7 @@ forge script script/DeployMaster.s.sol:DeployMaster \
   --broadcast
 ```
 
-See `docs/plans/launch-procedure.md` for full deployment order. After initial setup, deploy the Timelock (`script/DeployTimelock.s.sol`) and migrate ownership (`script/MigrateOwnership.s.sol`).
+After initial setup, deploy the Timelock (`script/DeployTimelock.s.sol`) and migrate ownership (`script/MigrateOwnership.s.sol`).
 
 ## Core Systems
 
@@ -148,8 +148,7 @@ Mol***-pattern DAO governing the protocol through a Gnosis Safe with a 48-hour t
 ## Documentation
 
 - **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** — Full system architecture (start here)
-- **[docs/plans/](./docs/plans/)** — Implementation plans and design documents
-- **[CLAUDE.md](./CLAUDE.md)** — Concise project context for AI-assisted development
+- **[ADRs](../docs/decisions/)** — One locked architectural decision each
 
 ## Development
 

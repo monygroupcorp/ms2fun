@@ -8,7 +8,6 @@
  * optional `gatingModule` address. A call site consults the module only when:
  *   - paid `mint`        → module set AND scope != FREE_MINT_ONLY
  *   - `claimFreeMint`    → module set AND scope != PAID_ONLY
- * (see contracts/docs/plans/2026-03-02-free-mints-gating-scope-design.md)
  *
  * Both entry points now take `bytes gatingData` and forward it UNCHANGED to
  * `IGatingModule.canMint(user, editionId, amount, openTime, data)`. `openTime` is an authoritative

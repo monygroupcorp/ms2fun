@@ -9,7 +9,7 @@ This guide explains how to run ms2fun locally with real contracts deployed to an
 - Forge is used only for compilation (`forge build`)
 - This approach avoids transaction broadcasting issues with `forge script`
 
-**Note:** MasterRegistryV1 is 60KB (exceeds 24KB mainnet limit). Anvil uses `--code-size-limit 100000` to allow local deployment. See `contracts/CONTRACT_SIZE_REFACTOR_TASK.md` for refactoring requirements before mainnet deployment.
+**Note:** MasterRegistryV1 is 60KB (exceeds 24KB mainnet limit). Anvil uses `--code-size-limit 100000` to allow local deployment.
 
 ## Quick Start
 
