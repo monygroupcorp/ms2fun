@@ -41,11 +41,16 @@ contract UniTitheHookFactory is IAlignmentHookFactory {
     uint160 public constant FORBIDDEN_FLAGS = HookAddressMiner.ULTRA_ALIGNMENT_FORBIDDEN_FLAGS;
 
     error InvalidAddress();
-    /// @notice No permission-bit-valid salt found within the miner's iteration cap (unreachable for 0xCC).
-    error HookSaltNotFound();
 
     /// @notice Emitted for every hook this factory deploys.
     event AlignmentHookDeployed(
+        address indexed hook, address indexed vault, address indexed benefactor, uint256 hookFeeBips, uint24 lpFeeRate
+    );
+
+    /// @notice Emitted when `deployHook` returns the hook already present at the deterministic address.
+    /// @dev Same shape as `AlignmentHookDeployed`, kept as a distinct topic so an adoption is
+    ///      distinguishable on-chain from a fresh deploy.
+    event AlignmentHookAdopted(
         address indexed hook, address indexed vault, address indexed benefactor, uint256 hookFeeBips, uint24 lpFeeRate
     );
 
@@ -84,14 +89,32 @@ contract UniTitheHookFactory is IAlignmentHookFactory {
         (bytes32 salt, address predicted) =
             HookAddressMiner.mineSalt(address(this), initCodeHash, REQUIRED_FLAGS, FORBIDDEN_FLAGS);
 
+        // Idempotent deploy: `deployHook` is callable by anyone, and its four arguments are derivable from
+        // public state, so the hook for a pending graduation can be deployed ahead of that graduation. The
+        // address is CREATE2-derived from (this factory, salt, initCodeHash), so ONLY this factory can
+        // occupy it, and only by running this same function with an init code hashing to `initCodeHash` —
+        // i.e. `type(UniAlignmentV4Hook).creationCode` with exactly the constructor arguments derived
+        // above. Code already at `predicted` is therefore this hook, with this parameterization: adopt it
+        // and let the graduation proceed, instead of reverting on the CREATE2 collision and leaving the
+        // pool un-graduatable. This mirrors `LiquidityDeployerModule._initOrValidatePool`, which accepts a
+        // pre-initialized pool rather than bricking on a benign front-run.
+        if (predicted.code.length != 0) {
+            emit AlignmentHookAdopted(predicted, address(vault), benefactor, hookFeeBips, lpFeeRate);
+            return predicted;
+        }
+
+        // `new C{salt}(args)` deploys at keccak256(0xff, address(this), salt, keccak256(creationCode ++
+        // abi.encode(args)))[12:], which is `predicted` by construction: the mine derived it from the same
+        // deployer, the same salt, and an init code hash built from this creation code and these seven
+        // arguments in this order. An equality check here could not fail, so the property is asserted in
+        // the tests (a hook deployed through this function lands on the independently derived address)
+        // rather than as an unreachable runtime branch. The hook constructor's `validateHookPermissions()`
+        // remains the on-chain guard that the address carries the required permission bits.
         hook = address(
             new UniAlignmentV4Hook{ salt: salt }(
                 poolManager, vault, weth, hookOwner, benefactor, hookFeeBips, lpFeeRate
             )
         );
-        // Belt-and-suspenders: the mined prediction must equal the deployed address (and the hook ctor's
-        // validateHookPermissions already reverted the deploy if the bits were wrong).
-        if (hook != predicted) revert HookSaltNotFound();
 
         emit AlignmentHookDeployed(hook, address(vault), benefactor, hookFeeBips, lpFeeRate);
     }
