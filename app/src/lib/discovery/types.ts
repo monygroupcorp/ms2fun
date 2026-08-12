@@ -1,10 +1,18 @@
 /**
  * Shared types for the event-indexed all-collections discovery layer (W-A2).
  *
- * `ProjectCard` is re-exported from `useCreatorCollections` — both hooks share ONE definition
- * derived from the ABI return type; there is no hand-written duplicate.
+ * `ProjectCard` is derived here directly from the QueryAggregator ABI return type and consumed by
+ * both the discovery hooks and `components/useCreatorCollections`; there is ONE definition and no
+ * hand-written duplicate.
  */
-export type { ProjectCard } from '../../components/useCreatorCollections'
+import type { ContractFunctionReturnType } from 'viem'
+import { queryAggregatorAbi } from '../../generated/contracts'
+
+export type ProjectCard = ContractFunctionReturnType<
+  typeof queryAggregatorAbi,
+  'view',
+  'getProjectCardsBatch'
+>[number]
 
 /**
  * Client-side filter/sort descriptor passed to `useAllCollections`.

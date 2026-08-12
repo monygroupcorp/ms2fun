@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { decodeAbiParameters } from 'viem'
 import { encodeActionMessage } from './actionMessage'
-import { ZERO_BYTES32 } from '../components/collection/erc404/gating'
+import { ZERO_BYTES32 } from './hex'
 
 const TUPLE = [
   { name: 'messageType', type: 'uint8' },

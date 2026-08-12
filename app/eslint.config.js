@@ -4,7 +4,11 @@ import tseslint from 'typescript-eslint'
 import prettier from 'eslint-config-prettier'
 
 export default tseslint.config(
-  { ignores: ['dist', 'coverage', 'playwright-report', 'test-results', 'src/generated'] },
+  // Global ignores. `src/generated` is deliberately NOT listed: a config object carrying only
+  // `ignores` is a GLOBAL ignore in flat config, so listing it here would exclude the tree from
+  // every block below — including the `src/generated/**` leaf rule at the bottom of this file.
+  // The generated tree lints clean under the shared rules as emitted, so it needs no exemption.
+  { ignores: ['dist', 'coverage', 'playwright-report', 'test-results'] },
 
   ...tseslint.configs.recommended,
 
@@ -43,7 +47,19 @@ export default tseslint.config(
           patterns: [
             { group: ['**/legacy/**'], message: 'Never import from legacy/.' },
             {
-              group: ['@/components/*', '@/components/**', '@/routes/*', '@/routes/**'],
+              // `patterns.group` is minimatched against the RAW specifier string, so an alias-only
+              // group cannot see the relative form the tree actually writes
+              // (`../components/…`, `../../routes/…`). Both forms are listed.
+              group: [
+                '@/components/*',
+                '@/components/**',
+                '@/routes/*',
+                '@/routes/**',
+                '**/components/*',
+                '**/components/**',
+                '**/routes/*',
+                '**/routes/**',
+              ],
               message: 'lib/ must not import components or routes (one-way deps).',
             },
           ],
@@ -53,6 +69,9 @@ export default tseslint.config(
   },
 
   // components/ may not reach up into routes/.
+  // NOTE: this group is still ALIAS-ONLY and therefore does not see the relative form. Widening it
+  // the way the `src/lib/**` group above was widened surfaces live violations in this layer, whose
+  // resolution is a separate change; tracked as follow-on work.
   {
     files: ['src/components/**/*.{ts,tsx}'],
     rules: {
@@ -80,7 +99,8 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['@/*', '@/**'],
+              // Alias form plus the relative form: anything reaching out of `src/generated/`.
+              group: ['@/*', '@/**', '../*', '../**'],
               message: 'generated/ is a leaf; it must not import app code.',
             },
           ],

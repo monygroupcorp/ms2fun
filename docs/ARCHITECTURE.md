@@ -49,23 +49,42 @@ app/src/
 
 ## 4. Import rules (the dependency direction — enforced by lint)
 
-- `generated/` imports **nothing** from the app (it's a leaf).
+- `generated/` imports **nothing** from the app (it's a leaf). *(lint: alias + relative)*
 - `lib/` may import `generated/` and external deps. **Not** `components/` or `routes/`.
+  *(lint: alias + relative)*
 - `components/` may import `lib/`, `generated/`, `styles/`. **Not** `routes/`.
+  *(lint: alias form only today — the relative form is not yet matched; see the note on that block
+  in `app/eslint.config.js`.)*
 - `routes/` may import everything below it.
 - **Nothing** anywhere imports from `legacy/`. (Invariant **G6**, lint + CI grep.)
 
 Direction is one-way: `routes → components → lib → generated`. No upward or cyclic imports.
+
+`no-restricted-imports` matches its `patterns.group` globs against the **raw specifier string**, so
+a rule must list both the `@/…` alias form and the relative form to see a violation. Each rule above
+states which forms it currently matches; a form that is not listed is not enforced.
 
 ---
 
 ## 5. Invariants & gates (always hold; CI enforces every one of them)
 
 G1 strict TS, 0 errors · G2 no `any`/unexplained `@ts-ignore` · G3 format clean · G4 unit tests
-green · G5 build succeeds · G6 no `legacy/` imports · G7 generated code deterministic & unedited
-· G8 hello-chain e2e passes on the fork.
+green · G5 build succeeds · G6 no `legacy/` imports · G7 generated code deterministic & unedited.
 
-A red gate blocks merge. A gate that can't catch its violation is a bug in the gate.
+Each of G1–G7 is a named step in `.github/workflows/app-ci.yml`. A red gate blocks merge. A gate
+that can't catch its violation is a bug in the gate — so this list carries only what CI runs.
+
+**Not CI-enforced — run locally:** the Playwright e2e suite (`app/e2e/`, incl. the hello-chain
+shell + connected-discovery specs). Most specs are tagged `@fork` and read an anvil mainnet-fork on
+`:8545` with the platform contracts deployed, which needs a fork RPC endpoint; no such endpoint is
+configured for CI, so the suite is a local gate:
+
+```
+cd app && pnpm chain:fork && pnpm chain:deploy && pnpm test:e2e
+```
+
+Wiring it into `app-ci.yml` requires a fork RPC available to the workflow; until that exists the
+suite is not in the enforced set above.
 
 ---
 
