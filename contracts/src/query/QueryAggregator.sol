@@ -194,9 +194,11 @@ contract QueryAggregator is SafeOwnableUUPS {
     /// @dev DEPRECATED (noesis-067): formerly `IGlobalMessageRegistry public globalMessageRegistry`.
     ///      The social feed is emit-only and read client-side via event logs (EventIndexer); this
     ///      aggregator serves contract-state snapshots, so the pointer was never read. Removed from the
-    ///      read path but the STORAGE SLOT is retained as a layout-safe placeholder — this is a deployed
-    ///      UUPS proxy, so the slot must not be reordered/removed (doing so would shift `_initialized`
-    ///      and every appended slot). Do not repurpose without a slot-map review.
+    ///      read path but the STORAGE SLOT is retained as a layout-safe placeholder. The aggregator is
+    ///      deployed directly (`new QueryAggregator()` in DeployCore), not behind a proxy today, but it is
+    ///      UUPS-upgradeable and the upgrade path preserves storage, so the slot must not be reordered or
+    ///      removed (doing so would shift `_initialized` and every appended slot). Do not repurpose
+    ///      without a slot-map review.
     // slither-disable-next-line constable-states,unused-state
     address private __deprecated_globalMessageRegistry;
 
@@ -232,6 +234,10 @@ contract QueryAggregator is SafeOwnableUUPS {
      * @param _owner Owner address
      * @dev The third positional argument is the DEPRECATED globalMessageRegistry pointer (noesis-067).
      *      It is ignored — accepted only to preserve the deployment call ABI — and never stored.
+     * @dev Restricted to the owner. The constructor makes the deploying account the owner from the moment
+     *      the CREATE lands, so the deployer's own `new` + `initialize` pair is unaffected, while a third
+     *      party cannot claim the uninitialized instance in the gap between the two transactions and set
+     *      `_owner` to an address of their choosing.
      */
     function initialize(
         address _masterRegistry,
@@ -240,6 +246,7 @@ contract QueryAggregator is SafeOwnableUUPS {
         address _owner
     )
         external
+        onlyOwner
     {
         if (_initialized) revert AlreadyInitialized();
         if (_masterRegistry == address(0)) revert InvalidAddress();
