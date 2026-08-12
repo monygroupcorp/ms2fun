@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import { Test } from "forge-std/Test.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 import { QueryAggregator, IERC1155EditionReader } from "../../src/query/QueryAggregator.sol";
 import { QueryAggregatorPreNoesis067 } from "./legacy/QueryAggregatorPreNoesis067.sol";
 
@@ -225,9 +226,12 @@ contract QueryAggregatorTest is Test {
         // owner (solady fixed slot) preserved
         assertEq(upgraded.owner(), owner, "owner preserved across upgrade");
 
-        // slot 3 (_initialized) preserved: re-initializing must still revert. If the deprecated slot 2
-        // had been REMOVED, _initialized would have shifted into old slot 2 and read false here.
-        vm.expectRevert(); // AlreadyInitialized
+        // slot 3 (_initialized) preserved: re-initializing must still revert with AlreadyInitialized. If
+        // the deprecated slot 2 had been REMOVED, _initialized would have shifted into old slot 2 and read
+        // false here. Called as the owner so the owner gate passes and the initialized check is the one
+        // actually under test.
+        vm.prank(owner);
+        vm.expectRevert(Ownable.AlreadyInitialized.selector);
         upgraded.initialize(seededMaster, seededFqm, address(0), owner);
     }
 }
