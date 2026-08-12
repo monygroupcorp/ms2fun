@@ -49,7 +49,7 @@
       }
     },
     {
-      "//": "Vendored NOESIS design system (~/projects/design). These DEFINE the brand layer — raw values are sanctioned, same as tokens.css. Do not hand-edit; re-vendor per styles/noesis/VENDORED.md.",
+      "//": "Vendored NOESIS design system. These DEFINE the brand layer — raw values are sanctioned, same as tokens.css. Do not hand-edit; re-vendor per src/styles/noesis/VENDORED.md.",
       "files": ["src/styles/noesis/**/*.css"],
       "rules": {
         "color-no-hex": null,

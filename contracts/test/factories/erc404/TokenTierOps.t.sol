@@ -1144,7 +1144,7 @@ contract TokenTierOpsTest is Test {
     ///         whole visible outcome is a dissolved tier NFT and a claim, and the claim leg below shows
     ///         the coin actually reaching the holder. The tier is re-attainable with that claim plus a
     ///         fresh `mintUp`.
-    /// @dev    KEEPING THIS BEHAVIOUR IS A RECORDED DECISION (`DECISIONS.md`, 2026-08-07), and it is
+    /// @dev    KEEPING THIS BEHAVIOUR IS A RECORDED DECISION (2026-08-07), and it is
     ///         the deliberate counterpart to the reroll carve-out in `ERC404BondingOps`: reroll is
     ///         exempted, a self-directed transfer is not. Mechanically it follows from the seal itself —
     ///         a sealed ladder overrides `_useDirectTransfersIfPossible()` to false, which makes DN404's

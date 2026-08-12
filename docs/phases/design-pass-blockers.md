@@ -436,4 +436,6 @@ Mony: the ERC404 trading column was so tall (it carried the charts) it dwarfed t
   creators (Ember/Vapor/Cinder/Molten/Prism, Gallery Relics, Live Salon), so the specimen-column
   description styling has content. **NEEDS A RE-SEED to show** (fresh anvil → `pnpm chain:deploy`).
 Verify: tsc + eslint clean; 440 unit green; forge build clean. T1–T4 + T2 are live via HMR; T5 needs a
-reseed. Two follow-up specs pending: `spec-deploy-liquidity-admin.md`, `spec-N12-post-value-threshold.md`.
+reseed. Two follow-ups stay pending because both are contract changes, not frontend work:
+owner-gating `deployLiquidity()` on-chain (the admin menu hides the button, it does not gate the
+call), and a payable `post()` with a value threshold the poster must clear.

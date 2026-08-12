@@ -59,7 +59,7 @@ Direction is one-way: `routes → components → lib → generated`. No upward o
 
 ---
 
-## 5. Invariants & gates (always hold; CI enforces — see `phases/phase-0-execution.md`)
+## 5. Invariants & gates (always hold; CI enforces every one of them)
 
 G1 strict TS, 0 errors · G2 no `any`/unexplained `@ts-ignore` · G3 format clean · G4 unit tests
 green · G5 build succeeds · G6 no `legacy/` imports · G7 generated code deterministic & unedited
