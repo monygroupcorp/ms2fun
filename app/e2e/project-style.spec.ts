@@ -1,7 +1,7 @@
 /**
  * @fork — proves the styleUri renderer: a collection created WITH a styleUri has that CSS applied to
  * its page (the `has-project-style` body flag + an injected <style data-project-style>). Drives the
- * REAL stepped launch wizard with the injected auto-signing wallet. See docs/testing-write-path-e2e.md.
+ * REAL stepped launch wizard with the injected auto-signing wallet.
  */
 import { test, expect, connectWallet, TEST_ACCOUNT } from './fixtures/anvilWallet'
 

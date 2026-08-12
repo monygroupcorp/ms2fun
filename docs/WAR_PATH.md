@@ -4,10 +4,9 @@
 re-platform that ends with **a collection deployed to a pristine, beautiful frontend on
 mainnet.** Canonical doc — keep it current.
 
-Companion docs: root `CLAUDE.md` (North Star + rules), `docs/OPERATIONS.md` (how we work —
-agent-driven, phase lifecycle, gates, branch strategy), `docs/ARCHITECTURE.md` (the technical
-constitution — written in Phase 0). Each phase has its own living doc in `docs/phases/`.
-Strategic background: `docs/plans/NEW_DIRECTION_HANDOFF.md`.
+Companion docs: `docs/OPERATIONS.md` (how we work — phase lifecycle, gates, branch strategy),
+`docs/ARCHITECTURE.md` (the technical constitution — written in Phase 0), and the ADRs under
+`docs/decisions/`.
 
 ---
 
@@ -111,7 +110,7 @@ Two intertwined problems:
 
    The plan must nail: where each scope is stored (onchain vs IPFS), how it is keyed and
    versioned, who can edit it, and how the typed domain layer + wizard read/write it
-   consistently. (Prior friction lives in `docs/plans/2026-03-28-metadata-uri-separation*.md`.)
+   consistently.
 
 **This is why Phase 2 exists and why it is a reconciliation, not a build.** The contracts can
 already *do* most of this. The win is designing the **contract↔frontend API** — a typed domain

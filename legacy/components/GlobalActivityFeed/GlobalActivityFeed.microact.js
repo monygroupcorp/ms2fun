@@ -3,7 +3,6 @@
  *
  * Full page view of protocol-wide messages with pagination and filtering.
  * Uses GlobalMessageRegistry - candidate for EventIndexer migration.
- * See: docs/plans/2026-02-04-contract-event-migration.md
  */
 
 import { Component, h } from '../../core/microact-setup.js';

@@ -17,7 +17,7 @@ test('the EXEC404 fossil page shows a Uniswap trade link-out', async ({ page }) 
  *
  * Tagged @archive (NOT @fork): EXEC404 and the V2 pool are forked-mainnet state, so reading them
  * needs an archive-capable fork RPC. A non-archive public RPC 403s on cold mainnet storage once the
- * fork ages — an environment limit, not a code issue (see docs/HUMAN_GATES.md). Run with an archive
+ * fork ages — an environment limit, not a code issue. Run with an archive
  * fork up: `cd app && pnpm exec playwright test --grep @archive`.
  */
 test('EXEC404 page reads the live V2 market price off the fork @archive', async ({ page }) => {

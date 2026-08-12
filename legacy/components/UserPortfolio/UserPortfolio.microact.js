@@ -10,7 +10,7 @@
  * NOTE: CANDIDATE FOR EventIndexer migration
  * This component currently performs a full scan of ALL instances to find user holdings.
  * This could be replaced by event indexing - watching Transfer events to build
- * a portfolio index. See docs/plans/2026-02-04-contract-event-migration.md Finding #6.
+ * a portfolio index.
  */
 
 import { Component, h } from '../../core/microact-setup.js';

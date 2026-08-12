@@ -1,7 +1,7 @@
 # ADR-0004 — Metadata model (3 scopes, backend-free, feature-rich)
 
 **Status:** Direction LOCKED 2026-06-23 (Mony). Implementation = Phase 2 (T2 spec → contract +
-typed domain layer). Builds on `docs/plans/2026-03-28-metadata-uri-separation*.md`.
+typed domain layer).
 
 ## The constraint that shapes everything
 **The app runs with no backend (statically hosted, walk-away-able) yet profiles/collections must be

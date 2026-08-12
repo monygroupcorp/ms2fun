@@ -24,7 +24,7 @@ import { IHooks } from "v4-core/interfaces/IHooks.sol";
  *         (test/vaults/BestRouteFallbackPin.t.sol), this pins the #65/#093 enablement so the
  *         multi-venue capability can never silently regress to fixed-pool-only.
  *
- * @dev Operator input (HUMAN_GATES), NOT hardcoded in this test:
+ * @dev Operator input, NOT hardcoded in this test:
  *        - ZQUOTER_ADDRESS  — the canonical zQuoter of the zRouter/zQuoter suite whose AMM enum
  *                             `BestRouteAcquirer.IBestRouteQuoter` mirrors (`zQuoterBase` on mainnet).
  *        - OFF_FAMILY_TOKEN — a token whose deepest ETH liquidity is on a non-V4 (off-family) venue.
