@@ -1,6 +1,6 @@
 # Contract Facts — the agent crib sheet
 
-Distilled from the 4-agent contract-surface audit (`phases/contract-surface-coverage.md`). **Agents
+Distilled from a 4-agent audit of the whole contract surface. **Agents
 building UI MUST read this**, then confirm exact arg/return shapes in `app/src/generated/contracts.ts`
 (the ABI is ground truth; this doc orients + records the non-obvious gotchas). `forkChainId` (from
 `lib/addresses`) goes on every read and write.
