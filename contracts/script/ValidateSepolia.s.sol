@@ -15,14 +15,24 @@ import { FeatureUtils } from "../src/master/libraries/FeatureUtils.sol";
 ///         forge script script/ValidateSepolia.s.sol --rpc-url $SEPOLIA_RPC_URL
 contract ValidateSepolia is Script {
     // ── Addresses ─────────────────────────────────────────────────────────
+    // The asymmetry below is deliberate.
+    //
+    // MasterRegistry and ComponentRegistry are CREATE3 proxies whose addresses are fixed by the
+    // vanity salts in `DeploySepolia.s.sol` — a redeploy with the same salt lands on the same
+    // address, so these are genuinely constants and stay pinned here.
     address constant MASTER_REGISTRY = 0x00001152CBa5fDB16A0FAE780fFebD5b9dF8e7cF;
     address constant COMPONENT_REGISTRY = 0x00001152Ed1bD8e76693cB775c79708275bBb2F3;
-    address constant LAUNCH_MANAGER = 0x354768153a0d3edC314D9f6baa2fd56a6961B449;
-    address constant ERC404_FACTORY = 0xE57B69D9e27C5559Ae632e1a7EE9a941262181ba;
 
-    ComponentRegistry cr = ComponentRegistry(COMPONENT_REGISTRY);
-    LaunchManager lm = LaunchManager(LAUNCH_MANAGER);
-    MasterRegistryV1 mr = MasterRegistryV1(MASTER_REGISTRY);
+    // LaunchManager and ERC404Factory are deployed with plain `new` in `DeployCore`, so their
+    // addresses are nonce-derived and move on every redeploy. Pinning them makes the validator
+    // interrogate a contract that is not the deployed one. They are read from the deployment
+    // record instead — the same source `_checkVaults` already reads.
+    string constant DEPLOYMENT_PATH = "./deployments/sepolia.json";
+
+    /// @dev The tag `ERC404Factory` requires of a preset's curve computer: the RAW literal bytes
+    ///      `bytes32("curve_computer")`, not a keccak hash. Mirrors `ERC404Factory` and the
+    ///      `approveComponent` call in `DeployCore` exactly.
+    bytes32 constant CURVE_COMPUTER_TAG = bytes32("curve_computer");
 
     /// @dev One `vaults` entry as emitted by DeployCore. Foundry maps JSON keys to struct fields in
     ///      ALPHABETICAL key order: address, alignmentToken, targetId, type.
@@ -33,15 +43,52 @@ contract ValidateSepolia is Script {
         string vaultType;
     }
 
+    /// @notice Every check below that gates `ERC404Factory.createInstance` is an assertion, not a
+    ///         log line: a misconfigured deployment must make this script exit non-zero. The logs
+    ///         stay because they are what an operator reads on deploy day.
     function run() public view {
         console.log("\n=== Sepolia Protocol Validation ===\n");
 
-        _checkFactory();
+        string memory json = _deploymentJson();
+        address factory = _recordAddress(json, ".factories.ERC404", "ERC404Factory");
+        address launchManagerAddr = _recordAddress(json, ".contracts.LaunchManager", "LaunchManager");
+
+        _checkFactory(factory);
         _checkComponentRegistry();
-        _checkLaunchManager();
-        _checkVaults();
+        _checkLaunchManager(launchManagerAddr);
+        _checkVaults(json);
 
         console.log("\n=== Done ===");
+    }
+
+    // ── Resolution seams ──────────────────────────────────────────────────
+    // `virtual` so a test can point the validator at a locally deployed protocol and at an
+    // in-memory deployment record. Production behaviour is the default implementation.
+
+    /// @dev The deployment record the nonce-derived addresses and the vault list are read from.
+    function _deploymentJson() internal view virtual returns (string memory) {
+        return vm.readFile(DEPLOYMENT_PATH);
+    }
+
+    function _masterRegistry() internal view virtual returns (MasterRegistryV1) {
+        return MasterRegistryV1(MASTER_REGISTRY);
+    }
+
+    function _componentRegistry() internal view virtual returns (ComponentRegistry) {
+        return ComponentRegistry(COMPONENT_REGISTRY);
+    }
+
+    /// @dev Read one address out of the deployment record. A missing key reverts inside
+    ///      `parseJsonAddress`; a zero or codeless entry is rejected here. All three are loud —
+    ///      a record that cannot supply an address must stop the run, not degrade it to a log line.
+    function _recordAddress(string memory json, string memory key, string memory label)
+        internal
+        view
+        returns (address addr)
+    {
+        addr = vm.parseJsonAddress(json, key);
+        require(addr != address(0), string.concat(label, ": deployment record holds the zero address"));
+        require(addr.code.length > 0, string.concat(label, ": no code at the address in the deployment record"));
     }
 
     /// @notice Assert every deployed alignment vault is registered, self-reports the expected
@@ -51,16 +98,15 @@ contract ValidateSepolia is Script {
     ///         today, and all four (Yield + Uni/ZAMM/Cypher LP) once Sepolia's config promotes them.
     /// @dev Targets the current DeployCore output where `.vaults` is a JSON-encoded STRING (mirrors
     ///      SeedAnvil). Run against a fresh `deployments/sepolia.json` from the current DeployCore.
-    function _checkVaults() internal view {
+    function _checkVaults(string memory json) internal view {
         console.log("-- Alignment vaults --");
-        string memory json = vm.readFile("./deployments/sepolia.json");
         string memory vaultsJson = vm.parseJsonString(json, ".vaults");
         VaultRecord[] memory vaults = abi.decode(vm.parseJson(vaultsJson), (VaultRecord[]));
         console.log("  total vaults:", vaults.length);
 
         for (uint256 i = 0; i < vaults.length; i++) {
             address v = vaults[i].vaultAddress;
-            require(mr.isVaultRegistered(v), "vault not registered");
+            require(_masterRegistry().isVaultRegistered(v), "vault not registered");
 
             string memory onchainType = _readString(v, "vaultType()");
             string memory expected = _expectedType(vaults[i].vaultType);
@@ -109,21 +155,27 @@ contract ValidateSepolia is Script {
         return ok && ret.length == 32;
     }
 
-    function _checkFactory() internal view {
+    /// @dev Registration and the active flag both gate instance creation through the MasterRegistry,
+    ///      so both are assertions.
+    function _checkFactory(address factory) internal view {
         console.log("-- ERC404Factory --");
-        bool registered = mr.isFactoryRegistered(ERC404_FACTORY);
+        console.log("  address:", factory);
+        MasterRegistryV1 mr = _masterRegistry();
+
+        bool registered = mr.isFactoryRegistered(factory);
         console.log("  registered in MasterRegistry:", registered);
-        if (registered) {
-            IMasterRegistry.FactoryInfo memory info =
-                MasterRegistryV1(MASTER_REGISTRY).getFactoryInfoByAddress(ERC404_FACTORY);
-            console.log("  active:", info.active);
-            console.log("  factoryId:", info.factoryId);
-        }
+        require(registered, "ERC404Factory in the deployment record is not registered in the MasterRegistry");
+
+        IMasterRegistry.FactoryInfo memory info = mr.getFactoryInfoByAddress(factory);
+        console.log("  active:", info.active);
+        console.log("  factoryId:", info.factoryId);
+        require(info.active, "ERC404Factory is registered but not active");
         console.log("");
     }
 
     function _checkComponentRegistry() internal view {
         console.log("-- ComponentRegistry --");
+        ComponentRegistry cr = _componentRegistry();
 
         address[] memory all = cr.getApprovedComponents();
         console.log("  total approved:", all.length);
@@ -133,18 +185,26 @@ contract ValidateSepolia is Script {
         for (uint256 i = 0; i < liquidityDeployers.length; i++) {
             console.log("    ", liquidityDeployers[i]);
         }
+        // Unconditional gate: `_createInstance` requires the supplied liquidity deployer be approved
+        // under this tag, with no address(0) opt-out. An empty set means no launch can succeed.
+        require(liquidityDeployers.length > 0, "no component approved under the LIQUIDITY_DEPLOYER tag");
 
+        // GATING and STAKING below are per-launch opt-ins — `_createInstance` only checks them when
+        // the creator selects a module, so an empty set is a valid deployment and stays a log line.
         address[] memory gatingModules = cr.getApprovedComponentsByTag(FeatureUtils.GATING);
         console.log("  gating modules:", gatingModules.length);
         for (uint256 i = 0; i < gatingModules.length; i++) {
             console.log("    ", gatingModules[i]);
         }
 
-        address[] memory curveComputers = cr.getApprovedComponentsByTag(bytes32("curve_computer"));
+        address[] memory curveComputers = cr.getApprovedComponentsByTag(CURVE_COMPUTER_TAG);
         console.log("  curve computers:", curveComputers.length);
         for (uint256 i = 0; i < curveComputers.length; i++) {
             console.log("    ", curveComputers[i]);
         }
+        // Unconditional gate: every create resolves a preset's curve computer through this tag.
+        // The per-preset binding is asserted in `_checkLaunchManager`.
+        require(curveComputers.length > 0, "no component approved under the curve_computer tag");
 
         address[] memory stakingModules = cr.getApprovedComponentsByTag(FeatureUtils.STAKING);
         console.log("  staking modules:", stakingModules.length);
@@ -178,16 +238,36 @@ contract ValidateSepolia is Script {
         console.log("");
     }
 
-    function _checkLaunchManager() internal view {
+    /// @dev `getPreset` reverts `PresetNotActive` on an inactive preset, so preset activity is already
+    ///      asserted by the read itself. What is asserted here is the curve-computer binding, and it
+    ///      uses `isApprovedForTag` — the predicate the factory actually gates on. `isApprovedComponent`
+    ///      is strictly weaker (`isApproved[c]` alone, without `componentTag[c] == tag`), so a component
+    ///      approved under some other tag satisfies it while every `createInstance` reverts
+    ///      `UnapprovedCurveComputer`.
+    function _checkLaunchManager(address launchManagerAddr) internal view {
         console.log("-- LaunchManager presets --");
+        console.log("  address:", launchManagerAddr);
+        LaunchManager lm = LaunchManager(launchManagerAddr);
+        ComponentRegistry cr = _componentRegistry();
+
         for (uint256 i = 0; i <= 2; i++) {
             LaunchManager.Preset memory preset = lm.getPreset(i);
             console.log("  preset", i);
             console.log("    active:", preset.active);
             console.log("    targetETH:", preset.targetETH);
             console.log("    curveComputer:", preset.curveComputer);
-            bool curveApproved = preset.curveComputer != address(0) && cr.isApprovedComponent(preset.curveComputer);
-            console.log("    curveComputer approved:", curveApproved);
+            require(
+                preset.curveComputer != address(0),
+                string.concat("preset ", vm.toString(i), ": curve computer is unset")
+            );
+            bool curveApproved = cr.isApprovedForTag(preset.curveComputer, CURVE_COMPUTER_TAG);
+            console.log("    curveComputer approved for curve_computer tag:", curveApproved);
+            require(
+                curveApproved,
+                string.concat(
+                    "preset ", vm.toString(i), ": curve computer is not approved under the curve_computer tag"
+                )
+            );
         }
         console.log("");
     }
