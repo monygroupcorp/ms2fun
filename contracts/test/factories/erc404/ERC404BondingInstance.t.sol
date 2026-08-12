@@ -11,7 +11,9 @@ import {
     NoReserve,
     InvalidRefund,
     InvalidDeclaredMaxAllowance,
-    InvalidMirror
+    InvalidMirror,
+    AlreadyInitialized,
+    OnlyFactory
 } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
 import { ERC404BondingOps } from "../../../src/factories/erc404/ERC404BondingOps.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
@@ -672,6 +674,24 @@ contract ERC404BondingInstanceTest is Test {
         vm.expectRevert(InvalidDeclaredMaxAllowance.selector);
         inst2.initialize(owner, address(0xBEEF), bp, mockLiquidityDeployer, address(0), mirror);
         vm.stopPrank();
+    }
+
+    /// @notice `initialize` is first-caller-wins: it records `factory = msg.sender` rather than
+    ///         checking it, so a second call is rejected on `_initialized`, never on caller identity.
+    function test_initialize_revertsOnSecondCall() public {
+        vm.startPrank(owner);
+        address mirror = address(new DN404Mirror(owner));
+        vm.expectRevert(AlreadyInitialized.selector);
+        instance.initialize(owner, address(0xBEEF), _bondingParams(), mockLiquidityDeployer, address(0), mirror);
+        vm.stopPrank();
+    }
+
+    /// @notice `initializeMetadata` is the ONLY revert site on this instance that raises
+    ///         `OnlyFactory` — `initialize` never does (see `test_initialize_revertsOnSecondCall`).
+    function test_initializeMetadata_revertsIfNotFactory() public {
+        vm.prank(user1);
+        vm.expectRevert(OnlyFactory.selector);
+        instance.initializeMetadata("T", "T", "", "", "");
     }
 
     /// @notice declaredMax == 0 short-circuits BEFORE the factory call: a nonzero request still

@@ -63,12 +63,14 @@ import { SafeResolverLib } from "../../metadata/SafeResolverLib.sol";
 // `FreeMintAlreadyClaimed`, `FreeMintExhausted`, `StakingModuleNotSet`, `NothingToWithdraw`,
 // `WithdrawFailed` — now live in `ERC404BondingStorage.sol` so BOTH sides compile them, alongside the
 // generic per-trampoline errors. The ones this contract still raises itself are imported above.
-// NOTE (noesis-149): the same treatment for the thirteen externalized CONFIG bodies. `NotInitialized`,
+// NOTE (noesis-149): the same treatment for the fourteen externalized CONFIG bodies. `NotInitialized`,
 // `InvalidGlobalMessageRegistry`, `ModuleAlreadySet`, `TimeMustBeInFuture`, `OpenTimeMustBeSetFirst`,
 // `MaturityMustBeAfterOpenTime`, `OpenTimeNotSet`, `CannotActivateAfterLiquidityDeployed` and
 // `StakingAlreadyActive` are now raised ONLY on the Ops side and are declared there (in the shared
 // base). `OnlyFactory`, `AlreadyInitialized` and `InvalidOwner` moved to the base too but are STILL
-// raised here — by `initialize` and `initializeMetadata` — so they are imported above and stay
+// raised here — `AlreadyInitialized`/`InvalidOwner` by `initialize`, `OnlyFactory` by
+// `initializeMetadata` (`initialize` is first-caller-wins and only RECORDS `factory = msg.sender`,
+// never checks it) — so they are imported above and stay
 // importable FROM this file by name, exactly as before.
 error AlreadyDeployed();
 error BondingNotActive();
@@ -235,7 +237,7 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
     }
 
     // ── Config trampolines (noesis-149 D2 diet) ───────────────────────────────────────────────────
-    // The thirteen init/admin/setter bodies below were externalized into the immutable
+    // The fourteen init/admin/setter bodies below were externalized into the immutable
     // `ERC404BondingOps` and are reached by the same discard-returndata `delegatecall` trampoline
     // noesis-091/-142/-148 established, so each runs in THIS instance's storage context. NO VALUE MOVES
     // on any of these paths — they configure, they do not transfer — which is why D2 was the lowest-risk
