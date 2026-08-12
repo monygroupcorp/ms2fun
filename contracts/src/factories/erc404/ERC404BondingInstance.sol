@@ -727,6 +727,7 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
 
         uint256 carveEth = _effectiveCarve(ethToSend, carveRequestBps);
 
+        _markGraduationCounterpartiesSkipNFT();
         _transfer(address(this), address(liquidityDeployer), liquidityReserve);
 
         liquidityDeployer.deployLiquidity{ value: ethToSend }(
@@ -745,6 +746,35 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
         graduated = true;
         emit LiquidityDeployed(address(liquidityDeployer), liquidityReserve, ethToSend);
         emit StateChanged(STATE_GRADUATED);
+    }
+
+    /// @dev Mark the graduation counterparties as NFT-skipping before `liquidityReserve` moves.
+    ///
+    ///      This instance overrides `_skipNFTDefault` to `false` for EVERY address, so a recipient that
+    ///      has never set the flag — including a contract — takes delivery of one NFT id per `unit` it
+    ///      receives. Graduation routes the whole reserve through two contracts in a single call: the
+    ///      instance sends it to the deployer module, and the module settles it on to the venue's pool.
+    ///      Without this, the module is minted `liquidityReserve / unit` ids and burns them again on the
+    ///      settle leg, and the pool is minted the same count and keeps them — a mint/burn/mint round
+    ///      trip whose cost scales linearly with the collection size and dominates the graduation
+    ///      transaction. Neither counterparty is a collector; neither has any use for an id.
+    ///
+    ///      The flag is set permanently rather than saved and restored (the `buyBonding` idiom), because
+    ///      the pool goes on holding and receiving the coin for the life of the market: a restored
+    ///      `false` would re-mint the same ids into the pool on the sell side of every subsequent swap.
+    ///
+    ///      The pool address is read from the wired deployer through a guarded `staticcall`, so a
+    ///      deployer that does not expose it degrades to the previous behavior instead of reverting
+    ///      graduation. Follow-on: the ZAMM and Cypher deployer modules do not expose an equivalent
+    ///      accessor, so their pools are not covered here.
+    function _markGraduationCounterpartiesSkipNFT() private {
+        address deployer = address(liquidityDeployer);
+        _setSkipNFT(deployer, true);
+        // `v4PoolManager()` on the Uniswap V4 deployer module.
+        (bool ok, bytes memory ret) = deployer.staticcall(abi.encodeWithSignature("v4PoolManager()"));
+        if (ok && ret.length == 32) {
+            _setSkipNFT(address(uint160(abi.decode(ret, (uint256)))), true);
+        }
     }
 
     /// @notice Effective carve ETH for a given raise + request. Exposed so the UI can cap the
