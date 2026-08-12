@@ -19,7 +19,7 @@ Treat contract changes with the care they deserve — tests, deliberate interfac
 
 ## What Does Not Belong Here
 
-Frontend code, component logic, CSS, route handlers, adapters, or anything imported by the browser app. Those live in `src/` at the repo root.
+Frontend code, component logic, CSS, route handlers, adapters, or anything imported by the browser app. Those live in `app/`.
 
 ## For Contract Workers
 
