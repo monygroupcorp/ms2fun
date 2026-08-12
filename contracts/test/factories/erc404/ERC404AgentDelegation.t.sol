@@ -21,7 +21,8 @@ import {
     SetAgentDelegationFromFactoryFailed,
     InitProtocolFailed,
     InitStakingFailed,
-    InitFreeMintFailed
+    InitFreeMintFailed,
+    GraduationFailed
 } from "../../../src/factories/erc404/ERC404BondingStorage.sol";
 import { BondingCurveMath } from "../../../src/factories/erc404/libraries/BondingCurveMath.sol";
 import { DN404Mirror } from "dn404/src/DN404Mirror.sol";
@@ -257,7 +258,7 @@ contract ERC404AgentDelegationTest is Test {
     }
 
     /// Assert the call was rejected with `Unauthorized` VERBATIM. Only for bodies that stayed in the
-    /// instance (`migrateVault`, `deployLiquidity`) — everything externalized collapses to a generic error.
+    /// instance (`migrateVault`) — everything externalized collapses to a generic error.
     function _assertUnauthorized(address inst, address caller, bytes memory data) internal {
         vm.prank(caller);
         (bool ok, bytes memory ret) = inst.call(data);
@@ -271,9 +272,10 @@ contract ERC404AgentDelegationTest is Test {
     ///      the same Ownable slot (`msg.sender` is preserved under `delegatecall`) — but the instance's
     ///      discard-returndata trampoline collapses `Unauthorized` into that entry point's generic
     ///      error. So the assertion is per-selector rather than blanket-`Unauthorized`. `deployLiquidity`
-    ///      KEPT its body (and its inline `_requireOwnerOrAgent`) in the instance, so it still surfaces
-    ///      `Unauthorized` verbatim — the CONTROL proving the collapse is a trampoline artifact and not
-    ///      a weakened gate, exactly the role `migrateVault` plays for the value paths.
+    ///      joined them in noesis-188, so every entry in this list is now a trampoline; the CONTROL
+    ///      proving the collapse is a trampoline artifact and not a weakened gate is `migrateVault`,
+    ///      which kept its body in the instance and still surfaces `Unauthorized` verbatim
+    ///      (`test_delegated_agent_cannot_call_value_fns`).
     function _delegableRejections() internal pure returns (bytes4[] memory sels) {
         sels = new bytes4[](8);
         sels[0] = SetMetadataURIFailed.selector;
@@ -282,7 +284,7 @@ contract ERC404AgentDelegationTest is Test {
         sels[3] = SetBondingActiveFailed.selector;
         sels[4] = SetStyleFailed.selector;
         sels[5] = ActivateStakingFailed.selector;
-        sels[6] = Ownable.Unauthorized.selector; // body stayed in the instance
+        sels[6] = GraduationFailed.selector; // body externalized by noesis-188
         sels[7] = SetContractURIFailed.selector;
     }
 

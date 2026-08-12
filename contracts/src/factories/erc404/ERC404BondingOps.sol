@@ -35,14 +35,29 @@ import {
     MaturityMustBeAfterOpenTime,
     OpenTimeNotSet,
     CannotActivateAfterLiquidityDeployed,
-    StakingAlreadyActive
+    StakingAlreadyActive,
+    AlreadyDeployed,
+    NoReserve,
+    NothingForPool
 } from "./ERC404BondingStorage.sol";
+// Interface-only import (no bytecode, no storage): `ICarveParamsSource` is declared alongside the
+// instance because that file is what the app's binding generator globs. See the note there.
+import { ICarveParamsSource } from "./ERC404BondingInstance.sol";
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { SmartTransferLib } from "../../libraries/SmartTransferLib.sol";
+import { BondingCurveMath } from "./libraries/BondingCurveMath.sol";
+import { RevenueSplitLib } from "../../shared/libraries/RevenueSplitLib.sol";
+import { ILiquidityDeployerModule } from "../../interfaces/ILiquidityDeployerModule.sol";
 import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
 import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
 import { IGlobalMessageRegistry } from "../../registry/interfaces/IGlobalMessageRegistry.sol";
 import { IERC404StakingModule } from "../../interfaces/IERC404StakingModule.sol";
-import { IInstanceLifecycle, STATE_BONDING, STATE_PAUSED } from "../../interfaces/IInstanceLifecycle.sol";
+import {
+    IInstanceLifecycle,
+    STATE_BONDING,
+    STATE_PAUSED,
+    STATE_GRADUATED
+} from "../../interfaces/IInstanceLifecycle.sol";
 import { GatingScope } from "../../gating/IGatingModule.sol";
 
 /**
@@ -548,6 +563,196 @@ contract ERC404BondingOps is ERC404BondingStorage {
         _debitStakingReserve(rewardAmount);
         SmartTransferLib.smartTransferETH(msg.sender, rewardAmount, weth);
         emit StakingRewardsClaimed(msg.sender, rewardAmount);
+    }
+
+    // ┌────────────────────────────────────────┐
+    // │  Graduation (delegatecall) — 188       │
+    // └────────────────────────────────────────┘
+    // `deployLiquidity` moved here from `ERC404BondingInstance` on the same discard-returndata
+    // trampoline the other value paths use. It carries the guards (`_requireOwnerOrAgent`, the bonding
+    // clock, `graduated`, `reserve != 0`) and `nonReentrant` on THIS side only, resolving against the
+    // same `msg.sender`, the same Ownable slot and the same shared reentrancy slot under delegatecall.
+
+    /**
+     * @notice Graduate the collection: open the venue pool at the curve's marginal price, settle the
+     *         raise, and burn whatever coin the pool did not take.
+     * @dev SIZING (noesis-188). The pool's coin side is no longer the create-time `liquidityReserve`.
+     *      `liquidityReserve` was sized on the assumption that the curve sold out; graduation is
+     *      permitted at any point past the bonding open time with a non-zero raise, and at a partial
+     *      raise a fixed coin side against a smaller ETH side opens the pool beneath the price the last
+     *      curve buyer paid. The coin side is therefore derived at graduation from the price the curve
+     *      actually reached:
+     *
+     *        p(S) = kCoeff / ((poleWad - s) * normalizationFactor),  s = totalBondingSupply / normFactor
+     *        tokensForPool = ethForPool / p(S)
+     *
+     *      which is the hyperbolic family's own marginal price at the supply the curve stopped at. At a
+     *      full sale this reproduces `liquidityReserve` exactly, because the pole is solved at create so
+     *      the curve's end price IS the pool's opening price (`CurveParamsComputer`).
+     * @dev THE CLAMP. Parity is not always affordable in coin: above roughly 85% sold (at the shipping
+     *      reserve preset) the coin the parity price calls for exceeds every coin the instance still
+     *      holds — LP reserve, unsold bonding supply and unclaimed free-mint allocation combined. The
+     *      ETH is clamped, never the parity: the pool takes `min(availableCoin, ethForPool / p)` coin
+     *      and exactly that coin valued at `p`. Parity therefore holds at EVERY stopping point on every
+     *      preset, and the pool never opens below the curve.
+     * @dev THE EXCESS. LP-share ETH the clamp could not place rides the module's existing 80/19/1 tithe
+     *      rail (`RevenueSplitLib.splitGraduation`) alongside the creator carve — 1% protocol, 19%
+     *      alignment vault, 80% creator — rather than being held here, where it would be a second
+     *      unowned overhang. `GraduationEthDiverted` reports the carve and the clamp residue separately
+     *      so the creator's declared carve stays distinguishable on-chain from the clamp's output.
+     * @dev THE BURN. Coin the pool did not take is burned, not stranded and not returned: after
+     *      `graduated` no path can move instance-held coin (`buyBonding`, `sellBonding` and
+     *      `claimFreeMint` all revert `BondingEnded`, and no deployer module has a withdrawal path), so
+     *      stranding it leaves a permanent unowned overhang in circulating supply; returning it to the
+     *      creator would pay them in proportion to how early they cut the sale. `availableCoin` is read
+     *      from live balances net of custodial liabilities, never from create-time arithmetic — a
+     *      create-time constant ceasing to describe reality is the defect this sizing removes.
+     * @param carveRequestBps Fraction (bps) of the protocol carve allowance the creator takes NOW, on
+     *        the same axis as `declaredMaxAllowanceBps`. Effective carve ETH = min(request,
+     *        allowance(raise) × declaredMaxAllowanceBps / 10000, headroom above the pool floor).
+     */
+    // slither-disable-next-line reentrancy-eth,timestamp,reentrancy-events
+    function deployLiquidity(uint256 carveRequestBps) external nonReentrant {
+        _requireOwnerOrAgent();
+        if (bondingOpenTime == 0) revert BondingNotConfigured();
+        if (block.timestamp < bondingOpenTime) revert TooEarly();
+        if (graduated) revert AlreadyDeployed();
+        if (reserve == 0) revert NoReserve();
+
+        // CEI: capture and zero reserve before external calls
+        uint256 ethToSend = reserve;
+        reserve = 0;
+        bondingActive = false;
+
+        // The LP share of the raise, from the SAME primitive the deployer module recomputes it with, so
+        // the two can never disagree about the pool's ETH. `splitGraduation(raise, carve, 0)` is this
+        // `split` plus the carve clamp on the next line — reproduced here rather than called so the
+        // clamp can be re-run against the combined carve below.
+        uint256 lp = RevenueSplitLib.split(ethToSend).remainder;
+        uint256 carveEth = _effectiveCarve(ethToSend, carveRequestBps);
+        if (carveEth > lp) carveEth = lp;
+
+        (uint256 tokensForPool, uint256 ethForPool) = _sizePoolAtCurvePrice(lp - carveEth);
+
+        // Excess LP-share ETH the clamp could not place at the parity price joins the carve on the
+        // module's 80/19/1 rail. `carveEth + excess == lp - ethForPool <= lp`, so the module's own
+        // headroom clamp never engages on the combined figure.
+        uint256 excessEth = lp - carveEth - ethForPool;
+
+        _markGraduationCounterpartiesSkipNFT();
+        _transfer(address(this), address(liquidityDeployer), tokensForPool);
+
+        liquidityDeployer.deployLiquidity{ value: ethToSend }(
+            ILiquidityDeployerModule.DeployParams({
+                ethReserve: ethToSend,
+                tokenReserve: tokensForPool,
+                protocolTreasury: protocolTreasury,
+                vault: address(vault),
+                token: address(this),
+                instance: address(this),
+                creator: owner(),
+                carveEth: carveEth + excessEth
+            })
+        );
+
+        graduated = true;
+        emit GraduationEthDiverted(ethForPool, excessEth, carveEth);
+        emit LiquidityDeployed(address(liquidityDeployer), tokensForPool, ethToSend);
+        emit IInstanceLifecycle.StateChanged(STATE_GRADUATED);
+    }
+
+    /// @dev The coin side of the pool and the ETH that buys it, both at the curve's marginal price at
+    ///      `totalBondingSupply`. Returns `(tokensForPool, ethToPool)` with
+    ///      `ethToPool / tokensForPool == p(S)` to within one wei of rounding, and `ethToPool <=
+    ///      ethForPool` always. Burns the residue as a side effect — it is the same walk, and splitting
+    ///      it costs the caller a second read of every term.
+    ///
+    ///      Rounding is deliberately asymmetric so neither branch can open the pool UNDER the curve:
+    ///      the token count rounds down (`fullMulDiv`) and, when the clamp engages, the ETH rounds up
+    ///      (`fullMulDivUp`). `ethToPool <= ethForPool` survives the round-up because the clamp branch
+    ///      only runs when `tokensForPool` is strictly the floor of `ethForPool / p`.
+    function _sizePoolAtCurvePrice(uint256 ethForPool) private returns (uint256 tokensForPool, uint256 ethToPool) {
+        BondingCurveMath.Params memory c = curveParams;
+        // The library's own floor: supply is normalized by truncating division everywhere it is read.
+        uint256 sWad = totalBondingSupply / c.normalizationFactor;
+        if (sWad >= c.poleWad) revert NothingForPool();
+        // 1 / p(S), scaled: tokens per wei = (poleWad - s) * normalizationFactor / kCoeff.
+        uint256 inversePriceNum = (c.poleWad - sWad) * c.normalizationFactor;
+
+        uint256 available = _placeableCoin();
+        uint256 want = FixedPointMathLib.fullMulDiv(ethForPool, inversePriceNum, c.kCoeff);
+
+        if (want <= available) {
+            // Parity is affordable: the pool takes the full LP-share ETH and the coin that price buys.
+            tokensForPool = want;
+            ethToPool = ethForPool;
+        } else {
+            // Parity costs more coin than the instance holds. Clamp the ETH, never the parity.
+            tokensForPool = available;
+            ethToPool = FixedPointMathLib.fullMulDivUp(available, c.kCoeff, inversePriceNum);
+        }
+
+        // Nothing to open a pool with — a raise too small to buy one base unit at the curve's price, or
+        // a carve that consumed the entire LP share. Refuse before any coin is destroyed.
+        if (tokensForPool == 0) revert NothingForPool();
+
+        uint256 burned = available - tokensForPool;
+        if (burned != 0) _burn(address(this), burned);
+        emit GraduationSupplyBurned(available, tokensForPool, burned);
+    }
+
+    /// @dev Every coin this instance holds and is FREE to place at graduation: the LP reserve, the
+    ///      unsold bonding supply and the unclaimed free-mint allocation, together, read off the live
+    ///      balance rather than reconstructed from create-time constants.
+    ///
+    ///      Three parts of the balance are custodial and are NOT placeable: coin staked through the
+    ///      staking module, coin escrowed behind outstanding tier-band NFTs, and escrow already
+    ///      released by a band burn but not yet pulled. Each is owed to a holder and each remains
+    ///      claimable after graduation, so placing or burning it would raid a holder's position.
+    function _placeableCoin() private view returns (uint256) {
+        uint256 custodial = totalTierEscrow + totalPendingEscrowRelease;
+        if (stakingActive) custodial += IStakingTotals(address(stakingModule)).totalStaked(address(this));
+        uint256 bal = balanceOf(address(this));
+        return bal > custodial ? bal - custodial : 0;
+    }
+
+    /// @dev Mark the graduation counterparties as NFT-skipping before the pool's coin side moves.
+    ///
+    ///      This instance overrides `_skipNFTDefault` to `false` for EVERY address, so a recipient that
+    ///      has never set the flag — including a contract — takes delivery of one NFT id per `unit` it
+    ///      receives. Graduation routes the coin through two contracts in a single call: the instance
+    ///      sends it to the deployer module, and the module settles it on to the venue's pool. Without
+    ///      this, the module is minted one id per unit and burns them again on the settle leg, and the
+    ///      pool is minted the same count and keeps them — a mint/burn/mint round trip whose cost scales
+    ///      linearly with the collection size and dominates the graduation transaction. Neither
+    ///      counterparty is a collector; neither has any use for an id.
+    ///
+    ///      The flag is set permanently rather than saved and restored (the `buyBonding` idiom), because
+    ///      the pool goes on holding and receiving the coin for the life of the market: a restored
+    ///      `false` would re-mint the same ids into the pool on the sell side of every subsequent swap.
+    ///
+    ///      The pool address is read from the wired deployer through a guarded `staticcall`, so a
+    ///      deployer that does not expose it degrades to the previous behavior instead of reverting
+    ///      graduation. Follow-on: the ZAMM and Cypher deployer modules do not expose an equivalent
+    ///      accessor, so their pools are not covered here.
+    // slither-disable-next-line low-level-calls
+    function _markGraduationCounterpartiesSkipNFT() private {
+        address deployer = address(liquidityDeployer);
+        _setSkipNFT(deployer, true);
+        // `v4PoolManager()` on the Uniswap V4 deployer module.
+        (bool ok, bytes memory ret) = deployer.staticcall(abi.encodeWithSignature("v4PoolManager()"));
+        if (ok && ret.length == 32) {
+            _setSkipNFT(address(uint160(abi.decode(ret, (uint256)))), true);
+        }
+    }
+
+    /// @dev Effective carve ETH for a raise + request. Zero-request / zero-declared short-circuits
+    ///      BEFORE touching the factory, so a plain `deployLiquidity(0)` never depends on the factory
+    ///      exposing carve math. Mirrors the instance's `previewCarve` seam exactly.
+    function _effectiveCarve(uint256 raise, uint256 carveRequestBps) private view returns (uint256) {
+        uint256 declared = declaredMaxAllowanceBps;
+        if (carveRequestBps == 0 || declared == 0 || raise == 0) return 0;
+        return ICarveParamsSource(factory).effectiveCarveEth(raise, declared, carveRequestBps);
     }
 
     // ┌────────────────────────────────────────┐

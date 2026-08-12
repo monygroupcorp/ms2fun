@@ -963,8 +963,13 @@ contract TokenTierOpsTest is Test {
         assertEq(token.balanceOf(user1), 10 * UNIT, "escrow still redeemable after a dust sweep");
     }
 
-    /// @notice Graduation with outstanding band ids: `deployLiquidity` moves exactly `liquidityReserve`
-    ///         (escrow never leaks into the LP leg) and the escrow stays redeemable afterwards.
+    /// @notice Graduation with outstanding band ids: escrow never leaks into the LP leg and stays
+    ///         redeemable afterwards.
+    /// @dev The LP leg is no longer `liquidityReserve` — it is the coin the curve's marginal price buys
+    ///      with the LP share of the raise, and everything else the instance was free to place is burned
+    ///      (noesis-188). That makes the escrow assertion STRONGER than the old equality: after
+    ///      graduation the instance's entire coin balance must be the escrow and nothing but the escrow,
+    ///      so escrow that had leaked into either the pool leg or the burn would show up here.
     function test_graduationWithOutstandingBandsIsUnaffected() public {
         _seal();
         _activateBonding();
@@ -980,11 +985,11 @@ contract TokenTierOpsTest is Test {
         vm.prank(owner);
         token.deployLiquidity(0);
 
-        assertEq(liquidityDeployer.tokenReserveSeen(), token.liquidityReserve(), "LP leg must be exactly the reserve");
-        assertEq(
-            token.balanceOf(address(liquidityDeployer)), token.liquidityReserve(), "deployer holds exactly the reserve"
-        );
+        uint256 lpLeg = liquidityDeployer.tokenReserveSeen();
+        assertGt(lpLeg, 0, "the LP leg took no coin");
+        assertEq(token.balanceOf(address(liquidityDeployer)), lpLeg, "deployer holds exactly the LP leg it was told");
         assertEq(token.totalTierEscrow(), escrowBefore, "escrow untouched by graduation");
+        assertEq(token.balanceOf(address(token)), escrowBefore, "the instance retains the escrow and nothing else");
 
         vm.prank(user1);
         token.mintDown(T1_START);
