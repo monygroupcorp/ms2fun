@@ -45,14 +45,23 @@ docs/*
 !docs/public/
 !docs/NAMING_CONVENTIONS.md
 !docs/DESIGN_SYSTEM_V2.md
-!docs/STYLING_PROTECTION_PLAN.md
 !docs/WAR_PATH.md
 !docs/OPERATIONS.md
 !docs/ARCHITECTURE.md
 !docs/contract-facts.md
-!docs/phases/
 !docs/decisions/
 !docs/_archive/
+
+# docs/phases/ is published by allowlist, not wholesale: the directory is
+# re-included, its contents re-excluded, and only the files that source code
+# or the README actually cites are named back in. Keep this two-step —
+# git cannot re-include a path whose parent directory is still excluded.
+!docs/phases/
+docs/phases/*
+!docs/phases/vault-flavors.md
+!docs/phases/alignment-target-requests.md
+!docs/phases/design-pass-blockers.md
+!docs/phases/tier-denomination-visibility.md
 
 # Root-level planning docs
 ABI_COVERAGE_REPORT.json

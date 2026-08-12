@@ -38,13 +38,8 @@ Other useful scripts (see `app/package.json` for the full list): `pnpm typecheck
 /app          Frontend — React 19 + TS + Vite + wagmi/viem (the only place new app code is written)
 /contracts    Foundry project — Solidity contracts, tests, deploy scripts
 /legacy       Retired original frontend — quarantined, never imported from app/
-/docs         Architecture, design system, phase plans, decisions
+/docs         Architecture, design system, decisions (ADRs), reference specs
 ```
-
-## Status
-
-For current development status, what's shipped, and what's next, see
-[`docs/phases/PROJECT_STATUS.md`](./docs/phases/PROJECT_STATUS.md).
 
 ## License
 
