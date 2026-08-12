@@ -83,8 +83,10 @@ error ClaimRewardsFailed();
 // INTERNALLY; the instance's discard-returndata trampoline surfaces one generic error per entry point
 // (below). Moved VERBATIM out of `ERC404BondingInstance.sol` so BOTH sides compile them. The three that
 // bodies STILL in the instance raise — `AlreadyInitialized` / `InvalidOwner` in `initialize`,
-// `OnlyFactory` in `initialize` and `initializeMetadata` — surface verbatim from those paths, exactly
-// as before, and stay importable from `ERC404BondingInstance.sol` (it re-exports them by name).
+// `OnlyFactory` in `initializeMetadata` — surface verbatim from those paths, exactly as before, and
+// stay importable from `ERC404BondingInstance.sol` (it re-exports them by name). `initialize` itself
+// is deliberately first-caller-wins: it RECORDS `factory = msg.sender` rather than checking it, so it
+// cannot raise `OnlyFactory`.
 // `StakingModuleNotSet` is declared above with the value-path errors: `activateStaking` shares it with
 // the staking trampolines.
 error OnlyFactory();
@@ -100,7 +102,7 @@ error OpenTimeNotSet();
 error CannotActivateAfterLiquidityDeployed();
 error StakingAlreadyActive();
 
-// ── Generic errors surfaced by the thirteen config trampolines (noesis-149) ─────────────────────
+// ── Generic errors surfaced by the fourteen config trampolines (noesis-149) ─────────────────────
 // One per entry point, on the same discard-returndata contract noesis-148 established for the value
 // paths. The four the FACTORY calls during `createInstance` — `InitProtocolFailed`,
 // `InitFreeMintFailed`, `InitModuleFailed`, `InitStakingFailed` — deliberately get their OWN selector
