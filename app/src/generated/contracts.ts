@@ -5545,6 +5545,56 @@ export const erc404BondingInstanceAbi = [
     anonymous: false,
     inputs: [
       {
+        name: 'ethToPool',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'excessEth',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'creatorCarveEth',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'GraduationEthDiverted',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'availableCoin',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'tokensToPool',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'burned',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'GraduationSupplyBurned',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
         name: 'deployer',
         internalType: 'address',
         type: 'address',
@@ -5827,13 +5877,11 @@ export const erc404BondingInstanceAbi = [
     name: 'Unstaked',
   },
   { type: 'error', inputs: [], name: 'ActivateStakingFailed' },
-  { type: 'error', inputs: [], name: 'AlreadyDeployed' },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'AmountExceedsSupply' },
   { type: 'error', inputs: [], name: 'ApprovalCallerNotOwnerNorApproved' },
   { type: 'error', inputs: [], name: 'BondingEnded' },
   { type: 'error', inputs: [], name: 'BondingNotActive' },
-  { type: 'error', inputs: [], name: 'BondingNotConfigured' },
   { type: 'error', inputs: [], name: 'ClaimFeesFailed' },
   { type: 'error', inputs: [], name: 'ClaimRewardsFailed' },
   { type: 'error', inputs: [], name: 'DNAlreadyInitialized' },
@@ -5843,6 +5891,7 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'FnSelectorNotRecognized' },
   { type: 'error', inputs: [], name: 'FreeMintFailed' },
   { type: 'error', inputs: [], name: 'GatingNotAllowed' },
+  { type: 'error', inputs: [], name: 'GraduationFailed' },
   { type: 'error', inputs: [], name: 'InitFreeMintFailed' },
   { type: 'error', inputs: [], name: 'InitModuleFailed' },
   { type: 'error', inputs: [], name: 'InitProtocolFailed' },
@@ -5868,7 +5917,6 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'MirrorAddressIsZero' },
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
-  { type: 'error', inputs: [], name: 'NoReserve' },
   { type: 'error', inputs: [], name: 'NormalizationFactorZero' },
   { type: 'error', inputs: [], name: 'NothingToClaim' },
   { type: 'error', inputs: [], name: 'OnlyFactory' },
@@ -5896,7 +5944,6 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'SupplyAtOrBeyondPole' },
   { type: 'error', inputs: [], name: 'TierOpFailed' },
   { type: 'error', inputs: [], name: 'TokenDoesNotExist' },
-  { type: 'error', inputs: [], name: 'TooEarly' },
   { type: 'error', inputs: [], name: 'TotalSupplyOverflow' },
   { type: 'error', inputs: [], name: 'TransactionExpired' },
   { type: 'error', inputs: [], name: 'TransferCallerNotOwnerNorApproved' },
@@ -20136,6 +20183,24 @@ export const useWatchErc404BondingInstanceFreeMintClaimedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc404BondingInstanceAbi,
     eventName: 'FreeMintClaimed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"GraduationEthDiverted"`
+ */
+export const useWatchErc404BondingInstanceGraduationEthDivertedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'GraduationEthDiverted',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"GraduationSupplyBurned"`
+ */
+export const useWatchErc404BondingInstanceGraduationSupplyBurnedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'GraduationSupplyBurned',
   })
 
 /**

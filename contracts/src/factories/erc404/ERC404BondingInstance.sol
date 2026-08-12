@@ -36,7 +36,13 @@ import {
     SetBondingMaturityTimeFailed,
     SetBondingActiveFailed,
     SetStyleFailed,
-    ActivateStakingFailed
+    ActivateStakingFailed,
+
+    // Graduation: the body lives on the Ops side (noesis-188), so these are declared in the shared
+    // base. They are imported here so they stay importable FROM this file by name, exactly as before.
+    AlreadyDeployed,
+    NoReserve,
+    GraduationFailed
 } from "./ERC404BondingStorage.sol";
 import { LibString } from "solady/utils/LibString.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
@@ -70,7 +76,6 @@ import { SafeResolverLib } from "../../metadata/SafeResolverLib.sol";
 // base). `OnlyFactory`, `AlreadyInitialized` and `InvalidOwner` moved to the base too but are STILL
 // raised here — by `initialize` and `initializeMetadata` — so they are imported above and stay
 // importable FROM this file by name, exactly as before.
-error AlreadyDeployed();
 error BondingNotActive();
 error ExceedsBonding();
 error InsufficientBalance();
@@ -87,7 +92,6 @@ error InvalidRefund();
 error InvalidVault();
 error LowETHValue();
 error MaxCostExceeded();
-error NoReserve();
 error TransactionExpired();
 error AmountMustBePositive();
 error FreeMintNotInitialized();
@@ -95,10 +99,14 @@ error PurchaseTooSmall();
 error MetadataAlreadySet();
 error InvalidDeclaredMaxAllowance();
 
-/// @notice Read-side of the ERC404Factory's graduation-carve math. The instance reads it LIVE at
-///         graduation (not snapshotted at create) so owner-tuned market-regime changes (brackets,
-///         pool floor) apply to every future graduation. The bracket/floor math itself lives in the
-///         factory (EIP-170 headroom: the DN404 instance has none to spare).
+/// @notice Read-side of the ERC404Factory's graduation-carve math. Read LIVE at graduation (not
+///         snapshotted at create) so owner-tuned market-regime changes (brackets, pool floor) apply to
+///         every future graduation. The bracket/floor math itself lives in the factory (EIP-170
+///         headroom: the DN404 instance has none to spare).
+/// @dev Declared HERE rather than in the shared base even though `ERC404BondingOps` also needs it (it
+///      carries the graduation body since noesis-188 and imports the name from this file). This file is
+///      what the app's binding generator globs, so moving the declaration would silently drop the
+///      generated `ICarveParamsSource` binding — an interface-only type costs no bytecode either way.
 interface ICarveParamsSource {
     function effectiveCarveEth(uint256 raise, uint256 declaredMaxBps, uint256 carveRequestBps)
         external
@@ -149,7 +157,6 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
 
     // ── Events ────────────────────────────────────────────────────────────────
     event BondingSale(address indexed user, uint256 amount, uint256 cost, bool isBuy);
-    event LiquidityDeployed(address indexed deployer, uint256 amountToken, uint256 amountETH);
     event BondingFeePaid(address indexed buyer, uint256 feeAmount);
 
     // `FreeMintClaimed` / `Staked` / `Unstaked` / `StakingRewardsClaimed` moved to
@@ -712,69 +719,24 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
      *        min(request, allowance(raise) × declaredMaxAllowanceBps / 10000, headroom above the
      *        pool floor). Passing 0 reproduces the historic no-carve graduation exactly.
      */
-    // slither-disable-next-line reentrancy-eth,timestamp
-    function deployLiquidity(uint256 carveRequestBps) external nonReentrant {
-        _requireOwnerOrAgent();
-        if (bondingOpenTime == 0) revert BondingNotConfigured();
-        if (block.timestamp < bondingOpenTime) revert TooEarly();
-        if (graduated) revert AlreadyDeployed();
-        if (reserve == 0) revert NoReserve();
-
-        // CEI: capture and zero reserve before external calls
-        uint256 ethToSend = reserve;
-        reserve = 0;
-        bondingActive = false;
-
-        uint256 carveEth = _effectiveCarve(ethToSend, carveRequestBps);
-
-        _markGraduationCounterpartiesSkipNFT();
-        _transfer(address(this), address(liquidityDeployer), liquidityReserve);
-
-        liquidityDeployer.deployLiquidity{ value: ethToSend }(
-            ILiquidityDeployerModule.DeployParams({
-                ethReserve: ethToSend,
-                tokenReserve: liquidityReserve,
-                protocolTreasury: protocolTreasury,
-                vault: address(vault),
-                token: address(this),
-                instance: address(this),
-                creator: owner(),
-                carveEth: carveEth
-            })
-        );
-
-        graduated = true;
-        emit LiquidityDeployed(address(liquidityDeployer), liquidityReserve, ethToSend);
-        emit StateChanged(STATE_GRADUATED);
-    }
-
-    /// @dev Mark the graduation counterparties as NFT-skipping before `liquidityReserve` moves.
-    ///
-    ///      This instance overrides `_skipNFTDefault` to `false` for EVERY address, so a recipient that
-    ///      has never set the flag — including a contract — takes delivery of one NFT id per `unit` it
-    ///      receives. Graduation routes the whole reserve through two contracts in a single call: the
-    ///      instance sends it to the deployer module, and the module settles it on to the venue's pool.
-    ///      Without this, the module is minted `liquidityReserve / unit` ids and burns them again on the
-    ///      settle leg, and the pool is minted the same count and keeps them — a mint/burn/mint round
-    ///      trip whose cost scales linearly with the collection size and dominates the graduation
-    ///      transaction. Neither counterparty is a collector; neither has any use for an id.
-    ///
-    ///      The flag is set permanently rather than saved and restored (the `buyBonding` idiom), because
-    ///      the pool goes on holding and receiving the coin for the life of the market: a restored
-    ///      `false` would re-mint the same ids into the pool on the sell side of every subsequent swap.
-    ///
-    ///      The pool address is read from the wired deployer through a guarded `staticcall`, so a
-    ///      deployer that does not expose it degrades to the previous behavior instead of reverting
-    ///      graduation. Follow-on: the ZAMM and Cypher deployer modules do not expose an equivalent
-    ///      accessor, so their pools are not covered here.
-    function _markGraduationCounterpartiesSkipNFT() private {
-        address deployer = address(liquidityDeployer);
-        _setSkipNFT(deployer, true);
-        // `v4PoolManager()` on the Uniswap V4 deployer module.
-        (bool ok, bytes memory ret) = deployer.staticcall(abi.encodeWithSignature("v4PoolManager()"));
-        if (ok && ret.length == 32) {
-            _setSkipNFT(address(uint160(abi.decode(ret, (uint256)))), true);
-        }
+    /// @dev Same discard-returndata trampoline as the other externalized value paths (noesis-091/-148):
+    ///      the body lives in the immutable `ERC404BondingOps` and runs in THIS instance's storage
+    ///      context under `delegatecall`, so the selector and parameter types MUST stay
+    ///      `deployLiquidity(uint256)` for raw `msg.data` to forward verbatim. It moved there when the
+    ///      parity clamp landed (noesis-188): sizing the pool from the curve's marginal price, resolving
+    ///      the placeable coin from live balances and burning the remainder does not fit in this
+    ///      contract's EIP-170 budget. NO guard sits on this side — `_requireOwnerOrAgent`, the bonding
+    ///      clock checks and `nonReentrant` all live on the Ops side and resolve against the same
+    ///      `msg.sender`, the same Ownable slot and the same shared reentrancy slot; guarding both ends
+    ///      would self-revert. Ops's specific reverts (`AlreadyDeployed`, `NoReserve`, `TooEarly`, …)
+    ///      surface here as the generic `GraduationFailed()` and stay visible in traces.
+    /// @dev The parameter is NAMED, unlike the other trampolines: the name is part of the published ABI
+    ///      the app's generated bindings carry, and dropping it would churn them for no gain. It is read
+    ///      on the Ops side out of the forwarded `msg.data`, never here.
+    // slither-disable-next-line low-level-calls,unused-return
+    function deployLiquidity(uint256 carveRequestBps) external {
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert GraduationFailed();
     }
 
     /// @notice Effective carve ETH for a given raise + request. Exposed so the UI can cap the
