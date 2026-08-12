@@ -63,11 +63,15 @@ jobs:
       - name: EIP-170 + storage-layout gate
         run: bash test/factories/erc404/eip170-diet-gate.sh
 
-      # Default profile. foundry.toml `skip=[…RealSettlement…]` keeps the exact-0.8.26
-      # v4 test out of this pinned-0.8.28 compile; the test/fork/** suites self-skip at
-      # runtime (vm.skip(true) when no fork URL), so no RPC secret is needed.
+      # `ci` profile (foundry.toml): elevated fuzz depth, default invariant depth. The profile
+      # MUST be named here — a profile table in foundry.toml that nothing selects has no effect
+      # on this step. Invariant depth deliberately stays at the default; see the `deep` profile
+      # note in foundry.toml for the measured cost of raising it.
+      # Everything else is inherited from `default`, so `skip=[…RealSettlement…]` still keeps the
+      # exact-0.8.26 v4 test out of this pinned-0.8.28 compile, and the test/fork/** suites still
+      # self-skip at runtime (vm.skip(true) when no fork URL), so no RPC secret is needed.
       - name: Run tests
-        run: forge test
+        run: FOUNDRY_PROFILE=ci forge test
 
       # Audit-#1 guard: the real-v4 RealSettlement regression. foundry.v4.toml enables
       # auto_detect_solc so forge selects 0.8.26 for v4-core's real PoolManager. It uses

@@ -1,15 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import type { ContractFunctionReturnType } from 'viem'
 import { usePublicClient } from 'wagmi'
 import { masterRegistryV1Abi, queryAggregatorAbi } from '../generated/contracts'
 import { deployBlock, forkAddresses, forkChainId } from '../lib/addresses'
 import { scanBackward } from '../lib/logScan'
+import type { ProjectCard } from '../lib/discovery/types'
 
-export type ProjectCard = ContractFunctionReturnType<
-  typeof queryAggregatorAbi,
-  'view',
-  'getProjectCardsBatch'
->[number]
+export type { ProjectCard }
 
 export function useCreatorCollections(creator: `0x${string}` | undefined): {
   data: ProjectCard[] | undefined
