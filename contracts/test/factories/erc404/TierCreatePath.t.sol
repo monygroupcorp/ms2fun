@@ -200,10 +200,13 @@ contract TierCreatePathTest is Test {
     }
 
     function _open(ERC404BondingInstance b) internal {
+        uint256 openAt = block.timestamp + 1 hours;
         vm.prank(creator);
-        b.setBondingOpenTime(block.timestamp + 1 hours);
+        b.setBondingOpenTime(openAt);
         vm.prank(creator);
         b.setBondingActive(true);
+        // Arming precedes the announced open; the curve only takes ETH from `openAt` on.
+        vm.warp(openAt);
     }
 
     /// @dev Buy `units` whole units on the live curve, with NFTs minted, for `who`.
