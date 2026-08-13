@@ -9,8 +9,8 @@ import { UniAlignmentV4Hook } from "./UniAlignmentV4Hook.sol";
 
 /**
  * @title UniTitheHookFactory
- * @notice Alignment-hook TYPE #1: deterministically deploys `UniAlignmentV4Hook` (the ETH swap-tithe
- *         hook fixed in #109) at a Uniswap v4 permission-bit-valid address, one per graduation.
+ * @notice Alignment-hook TYPE #1: deploys `UniAlignmentV4Hook` (the ETH swap-tithe hook fixed in #109)
+ *         at a Uniswap v4 permission-bit-valid address, one per graduation.
  * @dev Deploy primitive is RAW CREATE2 (`new UniAlignmentV4Hook{salt}(...)`, deployer = this factory) —
  *      NOT the house CreateX/CREATE3 pattern the ERC-x factories use. Uniswap v4 encodes hook
  *      permissions in the low 14 bits of the hook ADDRESS, and `HookAddressMiner.mineSalt` finds a salt
@@ -21,6 +21,11 @@ import { UniAlignmentV4Hook } from "./UniAlignmentV4Hook.sol";
  *      PoolManager, WETH and the hook owner are factory immutables (set at factory deploy by 117b /
  *      DeployCore); `deployHook` supplies only the per-graduation data (vault, benefactor, fees). The
  *      hook constructor's `validateHookPermissions()` is the on-chain guard against a bad address.
+ *
+ *      The mined ADDRESS is not fixed across attempts: the scan starts at a block-derived offset so that
+ *      a mine which does not fit in one block is retryable in the next rather than repeating itself. What
+ *      IS fixed is the hook's IDENTITY — the init-code hash over the creation code and all seven
+ *      constructor arguments — and `deployedHook` keys on that, so one parameterization yields one hook.
  *
  *      RE-AUDIT BEFORE DEPLOY: this contract deploys a fee-taking v4 hook via CREATE2 + on-chain mine.
  */
@@ -39,6 +44,15 @@ contract UniTitheHookFactory is IAlignmentHookFactory {
 
     /// @notice Forbidden permission bits (all other hook flags — the complement of REQUIRED_FLAGS).
     uint160 public constant FORBIDDEN_FLAGS = HookAddressMiner.ULTRA_ALIGNMENT_FORBIDDEN_FLAGS;
+
+    /// @notice The hook this factory has already deployed for a given init-code hash, if any.
+    /// @dev Adoption is keyed on IDENTITY, not on a mined address. `initCodeHash` commits to the hook's
+    ///      creation code and to all seven constructor arguments, so an entry here means exactly "this
+    ///      hook, with this parameterization, already exists" — whichever salt found it. That distinction
+    ///      is load-bearing now that the mine's starting offset varies per block: a second call mines a
+    ///      different salt and therefore a different candidate address, so an address-only check would
+    ///      find empty code there and deploy a duplicate hook instead of adopting the existing one.
+    mapping(bytes32 initCodeHash => address hook) public deployedHook;
 
     error InvalidAddress();
 
@@ -84,21 +98,48 @@ contract UniTitheHookFactory is IAlignmentHookFactory {
             lpFeeRate
         );
 
-        // On-chain mine a salt so the CREATE2 address carries EXACTLY the 0xCC permission bits. Capped at
-        // HookAddressMiner.MAX_ITERATIONS; for 0xCC the expected hit is ~2^14 iters, far under the cap.
-        (bytes32 salt, address predicted) =
-            HookAddressMiner.mineSalt(address(this), initCodeHash, REQUIRED_FLAGS, FORBIDDEN_FLAGS);
+        // Idempotent deploy, checked BEFORE the mine: `deployHook` is callable by anyone, and its four
+        // arguments are derivable from public state, so the hook for a pending graduation can be deployed
+        // ahead of that graduation. Adopt what is already there and let the graduation proceed, rather
+        // than reverting on a CREATE2 collision and leaving the pool un-graduatable — the same posture as
+        // `LiquidityDeployerModule._initOrValidatePool`, which accepts a pre-initialized pool.
+        //
+        // The key is the init-code hash, which commits to the creation code and to all seven constructor
+        // arguments, so a hit is precisely "this hook, this parameterization, already deployed by this
+        // factory". Reading it first also means an adoption pays no mining gas at all.
+        address adopted = deployedHook[initCodeHash];
+        if (adopted != address(0)) {
+            emit AlignmentHookAdopted(adopted, address(vault), benefactor, hookFeeBips, lpFeeRate);
+            return adopted;
+        }
 
-        // Idempotent deploy: `deployHook` is callable by anyone, and its four arguments are derivable from
-        // public state, so the hook for a pending graduation can be deployed ahead of that graduation. The
-        // address is CREATE2-derived from (this factory, salt, initCodeHash), so ONLY this factory can
-        // occupy it, and only by running this same function with an init code hashing to `initCodeHash` —
-        // i.e. `type(UniAlignmentV4Hook).creationCode` with exactly the constructor arguments derived
-        // above. Code already at `predicted` is therefore this hook, with this parameterization: adopt it
-        // and let the graduation proceed, instead of reverting on the CREATE2 collision and leaving the
-        // pool un-graduatable. This mirrors `LiquidityDeployerModule._initOrValidatePool`, which accepts a
-        // pre-initialized pool rather than bricking on a benign front-run.
+        // Start the salt scan at a block-derived offset. The mine's inputs — this factory, the init-code
+        // hash, and the flag masks — are all fixed for a given hook parameterization, so a scan that
+        // always began at zero would walk the identical salts and burn the identical gas on every call:
+        // if the search does not fit in one block, no retry ever would. A retry lands in a later block,
+        // draws a different `prevrandao` and `number`, and therefore scans a different window.
+        //
+        // MANIPULABILITY: `block.prevrandao` is influenceable at the margin by a proposer, and that does
+        // not matter here. Every salt whose address carries exactly the required bits is equally
+        // acceptable; there is no property of the resulting address an adversary gains from steering, and
+        // the offset changes only WHICH valid address is found, never WHETHER it is valid. The hook
+        // constructor's `validateHookPermissions()` remains the on-chain check on the permission bits.
+        uint256 startOffset = uint256(keccak256(abi.encode(block.prevrandao, block.number, initCodeHash)));
+
+        // Mine a salt so the CREATE2 address carries EXACTLY the 0xCC permission bits. The scan covers
+        // HookAddressMiner.SCAN_WINDOW salts, sized to fit in a 30M-gas block alongside the rest of a
+        // graduation; for 0xCC the expected hit is ~2^14 iterations, well inside the window. Exhausting
+        // the window reverts `NoValidSaltFound` — a cheap, named failure the next block can retry against
+        // a fresh window — instead of running the block out of gas.
+        (bytes32 salt, address predicted) =
+            HookAddressMiner.mineSalt(address(this), initCodeHash, REQUIRED_FLAGS, FORBIDDEN_FLAGS, startOffset);
+
+        // Belt and braces for a hook that reached this address by a path that did not write the mapping:
+        // the address is CREATE2-derived from (this factory, salt, initCodeHash), so only this factory can
+        // occupy it, and only with an init code hashing to `initCodeHash`. Code there is therefore this
+        // hook with this parameterization. Record it so later calls adopt without mining.
         if (predicted.code.length != 0) {
+            deployedHook[initCodeHash] = predicted;
             emit AlignmentHookAdopted(predicted, address(vault), benefactor, hookFeeBips, lpFeeRate);
             return predicted;
         }
@@ -116,6 +157,7 @@ contract UniTitheHookFactory is IAlignmentHookFactory {
             )
         );
 
+        deployedHook[initCodeHash] = hook;
         emit AlignmentHookDeployed(hook, address(vault), benefactor, hookFeeBips, lpFeeRate);
     }
 
