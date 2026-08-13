@@ -725,7 +725,7 @@ contract ERC404BondingInstanceTest is Test {
         inst.deployLiquidity(10000);
 
         assertTrue(inst.graduated());
-        (,,,,,, address creatorArg, uint256 carveArg) = depl.lastParams();
+        (,,,,,, address creatorArg, uint256 carveArg,) = depl.lastParams();
         assertEq(creatorArg, owner, "creator must be owner()");
         assertEq(carveArg, 0, "declaredMax 0 -> carve 0, no factory dependency");
     }
@@ -745,7 +745,7 @@ contract ERC404BondingInstanceTest is Test {
         inst.deployLiquidity(0);
 
         assertTrue(inst.graduated());
-        (,,,,,, address creatorArg, uint256 carveArg) = depl.lastParams();
+        (,,,,,, address creatorArg, uint256 carveArg,) = depl.lastParams();
         assertEq(creatorArg, owner, "creator must be owner()");
         assertEq(carveArg, 0, "request 0 -> carve 0");
     }
@@ -753,11 +753,11 @@ contract ERC404BondingInstanceTest is Test {
     /// @notice With a declared max and a nonzero request, the instance asks the factory's
     ///         effectiveCarveEth(raise, declaredMax, request) LIVE and forwards the resolved ETH
     ///         amount to the module untouched.
-    /// @dev The stop is a QUARTER of the curve, and the carve a tenth of the raise, deliberately: the
-    ///      module's `carveEth` leg carries the creator carve PLUS any LP-share ETH the parity clamp
-    ///      could not place (noesis-188), so the two are only separable where the clamp is out of the
-    ///      picture. A quarter-sold curve is far below the band where parity outruns the coin on hand,
-    ///      and the `GraduationEthDiverted` assertion below pins that the clamp really did stay out.
+    /// @dev The stop is a QUARTER of the curve, and the carve a tenth of the raise, deliberately: a
+    ///      quarter-sold curve is far below the band where parity outruns the coin on hand, so the
+    ///      parity clamp stays out of the picture and `carveEth` is the resolved carve and nothing
+    ///      else. The `GraduationEthDiverted` assertion below pins that the clamp really did stay out;
+    ///      the clamp residue now travels as its own `excessEth` leg either way.
     function test_deployLiquidity_forwardsFactoryResolvedCarve() public {
         MockLiquidityDeployer depl = new MockLiquidityDeployer();
         ERC404BondingInstance inst = _freshCarveInstance(8000, depl);
@@ -783,12 +783,12 @@ contract ERC404BondingInstanceTest is Test {
         vm.prank(owner);
         inst.deployLiquidity(4000);
 
-        (,,,,,, address creatorArg, uint256 carveArg) = depl.lastParams();
+        (,,,,,, address creatorArg, uint256 carveArg,) = depl.lastParams();
         assertEq(creatorArg, owner, "creator must be owner()");
         assertEq(carveArg, carve, "resolved carve forwarded to the module");
 
         (, uint256 excessEth, uint256 carveEth) = _graduationEthDiverted(vm.getRecordedLogs(), address(inst));
-        assertEq(excessEth, 0, "the clamp engaged, so the carve leg above is not carve alone");
+        assertEq(excessEth, 0, "the clamp must stay out at a quarter-sold curve");
         assertEq(carveEth, carve, "the instance reported the creator carve separately");
     }
 

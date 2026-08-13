@@ -84,7 +84,8 @@ contract LaunchDeployerGraduationForkTest is ForkTestBase {
                 token: address(token),
                 instance: address(this),
                 creator: address(0),
-                carveEth: 0
+                carveEth: 0,
+                excessEth: 0
             })
         );
 
@@ -135,7 +136,8 @@ contract LaunchDeployerGraduationForkTest is ForkTestBase {
                 token: address(token),
                 instance: address(this),
                 creator: address(0),
-                carveEth: 0
+                carveEth: 0,
+                excessEth: 0
             })
         );
 

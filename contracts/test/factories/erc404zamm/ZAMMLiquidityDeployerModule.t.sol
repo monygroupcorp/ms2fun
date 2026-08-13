@@ -50,7 +50,8 @@ contract ZAMMLiquidityDeployerModuleTest is Test {
             token: address(token),
             instance: instance,
             creator: address(0),
-            carveEth: 0
+            carveEth: 0,
+            excessEth: 0
         });
 
         vm.deal(address(this), ethReserve);
@@ -76,7 +77,8 @@ contract ZAMMLiquidityDeployerModuleTest is Test {
             token: address(token),
             instance: instance,
             creator: address(0),
-            carveEth: 0
+            carveEth: 0,
+            excessEth: 0
         });
 
         vm.deal(address(this), 5 ether);
@@ -99,7 +101,8 @@ contract ZAMMLiquidityDeployerModuleTest is Test {
             token: address(token),
             instance: instance,
             creator: creator,
-            carveEth: carveEth
+            carveEth: carveEth,
+            excessEth: 0
         });
     }
 
@@ -122,6 +125,36 @@ contract ZAMMLiquidityDeployerModuleTest is Test {
         assertEq(creator.balance, 0.8 ether, "creator = 80% of carve");
         // Pool ETH = LP80 - carve = 8 - 1 = 7 (held by MockZAMM after addLiquidity).
         assertEq(address(zamm).balance, 7 ether, "pool loses exactly the carve");
+    }
+
+    /// @notice The clamp residue rides the SAME rail as the carve and is reported apart from it. The
+    ///         payout literals are character-for-character those of
+    ///         `test_deployLiquidity_carve_paysCreatorVaultProtocol` above, whose single carve leg is
+    ///         this test's two legs summed: the split changes the reporting and nothing else.
+    /// @dev Must fail if the two legs are re-merged — `requested` would then be the sum, which is what
+    ///      the creator's declared allowance is measured against.
+    function test_deployLiquidity_carveAndExcess_titheTogetherReportApart() public {
+        address creator = makeAddr("creator");
+        uint256 ethReserve = 10 ether;
+        uint256 carve = 0.6 ether;
+        uint256 excess = 0.4 ether;
+        token.mint(address(module), 1000 ether);
+
+        ILiquidityDeployerModule.DeployParams memory p = _carveParams(ethReserve, creator, carve);
+        p.excessEth = excess;
+
+        vm.expectEmit(true, true, false, true);
+        emit ZAMMLiquidityDeployerModule.CreatorCarvePaid(instance, creator, carve, carve);
+        vm.expectEmit(true, false, false, true);
+        emit ZAMMLiquidityDeployerModule.GraduationExcessTithed(instance, excess);
+
+        vm.deal(address(this), ethReserve);
+        module.deployLiquidity{ value: ethReserve }(p);
+
+        assertEq(treasury.balance, 0.1 ether + 0.01 ether, "protocol = 1% raise + 1% of both legs");
+        assertEq(address(vault).balance, 1.9 ether + 0.19 ether, "vault = 19% raise + 19% of both legs");
+        assertEq(creator.balance, 0.8 ether, "creator = 80% of both legs");
+        assertEq(address(zamm).balance, 7 ether, "pool loses exactly the two legs");
     }
 
     /// @notice A carve that would consume the whole LP share leaves nothing for the pool — the
