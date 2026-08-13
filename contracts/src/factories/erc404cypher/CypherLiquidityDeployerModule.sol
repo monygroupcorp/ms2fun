@@ -8,7 +8,7 @@ import { IERC20 } from "../../shared/interfaces/IERC20.sol";
 import { IAlgebraFactory, IAlgebraPool, IAlgebraNFTPositionManager } from "../../interfaces/algebra/IAlgebra.sol";
 import { CypherAlignmentVault } from "../../vaults/cypher/CypherAlignmentVault.sol";
 import { Currency } from "v4-core/types/Currency.sol";
-import { ILiquidityDeployerModule } from "../../interfaces/ILiquidityDeployerModule.sol";
+import { ILiquidityDeployerModule, IGraduationSkipNFTTarget } from "../../interfaces/ILiquidityDeployerModule.sol";
 import { IFactoryInstance } from "../../interfaces/IFactoryInstance.sol";
 import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
 import { RevenueSplitLib } from "../../shared/libraries/RevenueSplitLib.sol";
@@ -161,6 +161,23 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
         // if still fresh, and if it was already initialized accept it only within price tolerance —
         // never mint LP into an attacker-skewed pool.
         r.pool = _createOrValidatePool(p.token, sqrtPriceX96);
+
+        // ── Name this venue's coin counterparties to the graduating instance ──
+        // BEFORE the approves below, which are what let the coin move. An ERC404 instance mints one
+        // NFT id per `unit` to an unflagged recipient, so an unflagged graduation counterparty takes
+        // delivery of the whole coin side in ids — and the pool re-mints them on the sell side of
+        // every later swap.
+        //
+        // This venue is why the mechanism is a callback rather than a getter on the module: the pool
+        // does not exist until the line above, so there is no address for the instance to read before
+        // the call. Both the pool and the position manager are flagged, because which of the two takes
+        // custody of the coin is an implementation detail of the Algebra periphery — production
+        // periphery pays payer→pool inside the mint callback, while this repo's in-tree Algebra double
+        // pulls both amounts to the position manager. Flagging both is correct under either, and the
+        // position manager holds no ids under either. The calls are hard, not fail-soft: an instance
+        // that cannot be told is one whose pool would silently take delivery.
+        IGraduationSkipNFTTarget(p.instance).markGraduationSkipNFT(r.pool);
+        IGraduationSkipNFTTarget(p.instance).markGraduationSkipNFT(positionManager);
 
         // ── Determine token ordering and amounts ──
         r.tokenIsZero = tokenIsZero;

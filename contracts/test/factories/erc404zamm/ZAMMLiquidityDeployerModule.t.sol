@@ -10,6 +10,11 @@ import { MockVault } from "../../mocks/MockVault.sol";
 import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
 
 contract ZAMMLiquidityDeployerModuleTest is Test {
+    /// @dev This contract stands in for the graduating ERC404 instance, so it must answer the
+    ///      deployer module's `IGraduationSkipNFTTarget` handshake. The real instance flags the
+    ///      counterparty NFT-skipping; nothing here holds ids, so recording is enough.
+    function markGraduationSkipNFT(address) external { }
+
     ZAMMLiquidityDeployerModule module;
     MockZAMM zamm;
     MockERC20 token;

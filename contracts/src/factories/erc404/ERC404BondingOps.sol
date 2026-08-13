@@ -716,34 +716,26 @@ contract ERC404BondingOps is ERC404BondingStorage {
         return bal > custodial ? bal - custodial : 0;
     }
 
-    /// @dev Mark the graduation counterparties as NFT-skipping before the pool's coin side moves.
+    /// @dev Mark the deployer module NFT-skipping before the pool's coin side moves.
     ///
     ///      This instance overrides `_skipNFTDefault` to `false` for EVERY address, so a recipient that
     ///      has never set the flag — including a contract — takes delivery of one NFT id per `unit` it
     ///      receives. Graduation routes the coin through two contracts in a single call: the instance
-    ///      sends it to the deployer module, and the module settles it on to the venue's pool. Without
-    ///      this, the module is minted one id per unit and burns them again on the settle leg, and the
-    ///      pool is minted the same count and keeps them — a mint/burn/mint round trip whose cost scales
-    ///      linearly with the collection size and dominates the graduation transaction. Neither
-    ///      counterparty is a collector; neither has any use for an id.
+    ///      sends it to the deployer module, and the module settles it on to the venue's counterparties.
+    ///      Without this, the module is minted one id per unit and burns them again on the settle leg —
+    ///      a round trip whose cost scales linearly with the collection size and dominates the
+    ///      graduation transaction. The module is not a collector and has no use for an id.
     ///
-    ///      The flag is set permanently rather than saved and restored (the `buyBonding` idiom), because
-    ///      the pool goes on holding and receiving the coin for the life of the market: a restored
-    ///      `false` would re-mint the same ids into the pool on the sell side of every subsequent swap.
+    ///      The flag is set permanently rather than saved and restored (the `buyBonding` idiom): the
+    ///      module keeps custody of nothing, but the same permanence rule applies to the venue-side
+    ///      counterparties it flags, which go on receiving coin for the life of the market.
     ///
-    ///      The pool address is read from the wired deployer through a guarded `staticcall`, so a
-    ///      deployer that does not expose it degrades to the previous behavior instead of reverting
-    ///      graduation. Follow-on: the ZAMM and Cypher deployer modules do not expose an equivalent
-    ///      accessor, so their pools are not covered here.
-    // slither-disable-next-line low-level-calls
+    ///      This leg is venue-independent — the deployer module is the one counterparty the instance
+    ///      always knows. The venue's own counterparties are named by the module through
+    ///      `markGraduationSkipNFT` (`IGraduationSkipNFTTarget`), which is the only mechanism that can
+    ///      cover a venue whose pool is created during graduation.
     function _markGraduationCounterpartiesSkipNFT() private {
-        address deployer = address(liquidityDeployer);
-        _setSkipNFT(deployer, true);
-        // `v4PoolManager()` on the Uniswap V4 deployer module.
-        (bool ok, bytes memory ret) = deployer.staticcall(abi.encodeWithSignature("v4PoolManager()"));
-        if (ok && ret.length == 32) {
-            _setSkipNFT(address(uint160(abi.decode(ret, (uint256)))), true);
-        }
+        _setSkipNFT(address(liquidityDeployer), true);
     }
 
     /// @dev Effective carve ETH for a raise + request. Zero-request / zero-declared short-circuits

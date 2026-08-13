@@ -463,6 +463,11 @@ contract UniTitheHookFactory_RealSettlement is Test {
  *         so the pinned-0.8.28 default profile never compiles the real PoolManager import).
  */
 contract LiquidityDeployerModuleGraduation_RealSettlement is Test {
+    /// @dev This contract stands in for the graduating ERC404 instance, so it must answer the
+    ///      deployer module's `IGraduationSkipNFTTarget` handshake. The real instance flags the
+    ///      counterparty NFT-skipping; nothing here holds ids, so accepting the call is enough.
+    function markGraduationSkipNFT(address) external { }
+
     using StateLibrary for IPoolManager;
     using PoolIdLibrary for PoolKey;
 

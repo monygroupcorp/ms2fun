@@ -15,6 +15,11 @@ import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
 ///         vaultCut send is isolated in try/catch; on failure the ETH is retained in the module and stashed
 ///         as pendingVaultCut, recoverable later via flushPendingVaultCut.
 contract CypherGraduationVaultCutDoSTest is Test {
+    /// @dev This contract stands in for the graduating ERC404 instance, so it must answer the
+    ///      deployer module's `IGraduationSkipNFTTarget` handshake. The real instance flags the
+    ///      counterparty NFT-skipping; nothing here holds ids, so recording is enough.
+    function markGraduationSkipNFT(address) external { }
+
     CypherLiquidityDeployerModule deployer;
     MockAlgebraFactory algebraFactory;
     MockAlgebraPositionManager positionManager;
