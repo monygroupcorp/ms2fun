@@ -157,6 +157,16 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
         return false;
     }
 
+    /// @notice Deactivate an approved alignment target. Owner only, and PERMANENT BY DESIGN.
+    /// @dev    `active` is set true once, at approval, and this is the only writer that clears it.
+    ///         There is deliberately no reactivate path: de-curation is meant to be a one-way decision,
+    ///         so a target that has been withdrawn cannot be quietly restored. Recovery is a NEW target
+    ///         approved for the same community, never a revived one.
+    ///         What `active = false` gates: `isAlignmentTargetActive` and `hasActiveTarget` (the reverse
+    ///         lookup the request registry's dup guard reads) both stop reporting this target, and the
+    ///         owner-only configuration writers that require an active target — `setCommunityPayout`,
+    ///         `setAcquireRoute`, `setReferencePool` — revert `TargetNotFound`. Already-stored config
+    ///         for the target is left in place; it is simply no longer reachable as active.
     function deactivateAlignmentTarget(uint256 targetId) external override onlyOwner {
         if (alignmentTargets[targetId].approvedAt == 0) revert TargetNotFound();
         alignmentTargets[targetId].active = false;

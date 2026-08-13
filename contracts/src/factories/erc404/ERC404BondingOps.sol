@@ -264,7 +264,14 @@ contract ERC404BondingOps is ERC404BondingStorage {
         //     `balance` and `totalNFTSupply` are all unchanged — one id leaves, one arrives.
         _swapOwnedId($, oo, msg.sender, holderAlias, tierZeroId, bandId);
 
-        // (d2) Move the band id to owned index 0, so a later debit's LIFO tail burn reaches it LAST.
+        // (d2) SWAP the band id into owned index 0, so a later debit's LIFO tail burn reaches it LAST.
+        //      This is a swap, not an insert: `_moveOwnedIdToFront` writes whatever id already sat at
+        //      index 0 into the slot the band id vacated. So the "reached LAST" protection covers the
+        //      MOST RECENTLY MOVED band only. With two or more bands, the earlier one is displaced to an
+        //      arbitrary interior slot and is burnable by a partial spend that never touches index 0.
+        //      No escrow value is lost when that happens — the burn-safety hook credits escrow off
+        //      `_bandOf` — but the band NFT itself is gone. Hence the naming contract: exact count
+        //      always, exact naming at one band, honest worst case at two or more.
         //      Must run AFTER the swap: the band id has to be installed in `owned` before it can move.
         //      Purely a reorder — no balance, `ownedLength` or escrow effect (see `_moveOwnedIdToFront`).
         _moveOwnedIdToFront($, oo, msg.sender, holderAlias, bandId);
