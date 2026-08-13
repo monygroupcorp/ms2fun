@@ -12,8 +12,9 @@ import { IAlignmentVault } from "../../../../src/interfaces/IAlignmentVault.sol"
  * @title UniTitheHookFactoryFrontRunTest
  * @notice `deployHook` is permissionless and its arguments are derivable from public state, so the hook
  *         for a pending graduation can be deployed before that graduation runs. These tests hold the line
- *         that such a pre-deploy does not stop the graduation: the second call adopts the hook already at
- *         the deterministic address and returns it, rather than reverting on the CREATE2 collision.
+ *         that such a pre-deploy does not stop the graduation: the second call adopts the hook already
+ *         deployed for that parameterization and returns it, rather than reverting on a CREATE2 collision
+ *         or mining a duplicate.
  * @dev No real PoolManager is needed: the hook constructor's `validateHookPermissions()` inspects the
  *      hook's own address bits, and nothing here calls into the manager.
  */
@@ -99,11 +100,16 @@ contract UniTitheHookFactoryFrontRunTest is Test {
             HOOK_FEE_BIPS,
             LP_FEE_RATE
         );
+        // The factory's own starting offset, reproduced here so this is the factory's search rather than
+        // a different one. Pinning the formula is deliberate: a change that "simplified" the factory's
+        // entropy back to a constant would break this assertion.
+        uint256 startOffset = uint256(keccak256(abi.encode(block.prevrandao, block.number, initCodeHash)));
         (bytes32 salt, address predicted) = HookAddressMiner.mineSalt(
             address(factory),
             initCodeHash,
             HookAddressMiner.ULTRA_ALIGNMENT_HOOK_FLAGS,
-            HookAddressMiner.ULTRA_ALIGNMENT_FORBIDDEN_FLAGS
+            HookAddressMiner.ULTRA_ALIGNMENT_FORBIDDEN_FLAGS,
+            startOffset
         );
         assertEq(
             predicted,
