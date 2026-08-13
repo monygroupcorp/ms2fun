@@ -240,22 +240,22 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
         view
         returns (address[] memory instances, uint256 total)
     {
-        // Pass 1: count active
+        // Pass 1: count visible (unexpired AND registry-live)
         uint256 activeCount = 0;
         for (uint256 i = 0; i < _featuredList.length; i++) {
-            if (block.timestamp < slots[_featuredList[i]].expiresAt) activeCount++;
+            if (_isFeaturedVisible(_featuredList[i])) activeCount++;
         }
         total = activeCount;
 
         if (offset >= activeCount || limit == 0) return (new address[](0), total);
 
-        // Pass 2: collect active addresses and their effective ranks
+        // Pass 2: collect visible addresses and their effective ranks
         address[] memory active = new address[](activeCount);
         uint256[] memory ranks = new uint256[](activeCount);
         uint256 idx = 0;
         for (uint256 i = 0; i < _featuredList.length; i++) {
             address inst = _featuredList[i];
-            if (block.timestamp < slots[inst].expiresAt) {
+            if (_isFeaturedVisible(inst)) {
                 active[idx] = inst;
                 ranks[idx] = _effectiveRank(slots[inst]);
                 idx++;
@@ -396,6 +396,42 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
 
         _inList[instance] = false;
         delete _featuredListIndex[instance];
+    }
+
+    /**
+     * @dev Curated-read predicate: a slot is visible only while it is BOTH unexpired AND live in the
+     *      master registry. Both passes of `getFeaturedInstances` call this, so the counted set and the
+     *      collected set can never diverge.
+     */
+    // slither-disable-next-line timestamp
+    function _isFeaturedVisible(address instance) internal view returns (bool) {
+        if (block.timestamp >= slots[instance].expiresAt) return false;
+        return _registrySaysLive(instance);
+    }
+
+    /**
+     * @dev Registry liveness for the read path, and it must never revert: `getFeaturedInstances` backs
+     *      the landing page, so a registry pointer that is unset, code-less, or answering with data that
+     *      does not decode must not take the whole grid down. Raw `staticcall` + a returndata-size guard
+     *      + an assembly word read, because a high-level call (even inside `try`/`catch`) reverts on a
+     *      malformed return frame rather than yielding control back.
+     *      Fallback is FAIL-OPEN — treat the slot as live — which is the pre-existing visibility
+     *      behaviour, strictly narrower a failure than hiding every featured instance at once.
+     */
+    function _registrySaysLive(address instance) internal view returns (bool) {
+        address registry = address(masterRegistry);
+        if (registry == address(0)) return true;
+
+        (bool ok, bytes memory data) =
+            registry.staticcall(abi.encodeWithSelector(IMasterRegistry.isRegisteredInstance.selector, instance));
+        if (!ok || data.length < 32) return true;
+
+        uint256 word;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            word := mload(add(data, 0x20))
+        }
+        return word != 0;
     }
 
     // slither-disable-next-line unused-return
