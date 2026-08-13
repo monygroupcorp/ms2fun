@@ -47,7 +47,8 @@ contract LiquidityDeployerGraduationVaultCutDoSTest is Test {
             token: address(0x4),
             instance: instance,
             creator: address(0), // skip creator send
-            carveEth: 0
+            carveEth: 0,
+            excessEth: 0
         });
     }
 
@@ -136,7 +137,8 @@ contract LiquidityDeployerGraduationVaultCutDoSTest is Test {
             token: address(0x4),
             instance: instance,
             creator: address(0),
-            carveEth: 0
+            carveEth: 0,
+            excessEth: 0
         });
 
         vm.expectEmit(true, true, false, true);
@@ -165,7 +167,8 @@ contract LiquidityDeployerGraduationVaultCutDoSTest is Test {
             token: address(0x4),
             instance: address(mi),
             creator: address(0),
-            carveEth: 0
+            carveEth: 0,
+            excessEth: 0
         });
         // Target still live at stash time: the broken vault reverts, the cut is stashed under the instance.
         harness.postUnlock(p, _amounts());
