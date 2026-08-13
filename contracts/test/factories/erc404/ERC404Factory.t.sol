@@ -895,7 +895,7 @@ contract ERC404FactoryTest is Test {
     }
 
     function _lastCarve() internal view returns (address creatorArg, uint256 carveArg) {
-        (,,,,,, creatorArg, carveArg) = mockDeployer.lastParams();
+        (,,,,,, creatorArg, carveArg,) = mockDeployer.lastParams();
     }
 
     function test_createInstance_declaredMaxOver10000Reverts() public {

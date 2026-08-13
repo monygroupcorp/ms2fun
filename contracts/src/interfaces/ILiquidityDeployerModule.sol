@@ -15,11 +15,18 @@ interface ILiquidityDeployerModule is IComponentModule {
         address token; // ERC404 token address
         address instance; // same as token; benefactor to register with vault
         address creator; // receives 80% of the carve (instance passes owner())
-        uint256 carveEth; // effective carve, resolved by the instance (0 = no carve)
+        uint256 carveEth; // effective creator carve, resolved by the instance (0 = no carve)
+        uint256 excessEth; // LP-share ETH the caller's parity clamp could not place at the pool price
     }
 
     /// @notice Deploy AMM liquidity. Caller must pre-transfer tokenReserve to this address.
     ///         ETH must equal p.ethReserve exactly via msg.value.
+    /// @dev TWO LEGS, ONE RAIL. `carveEth` and `excessEth` are both diverted out of the LP 80 and are
+    ///      both tithed 80/19/1 by the module — the arithmetic sees their sum and nothing else. They
+    ///      are carried apart so the module can REPORT them apart: `carveEth` is what the creator
+    ///      asked for and is the figure measured against the creator's declared allowance, while
+    ///      `excessEth` is an output of the caller's own pool sizing and says nothing about the
+    ///      creator. A caller with no clamp of its own passes `excessEth = 0`.
     function deployLiquidity(DeployParams calldata p) external payable;
 }
 

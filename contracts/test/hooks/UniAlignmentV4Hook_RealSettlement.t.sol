@@ -603,7 +603,8 @@ contract LiquidityDeployerModuleGraduation_RealSettlement is Test {
                 token: address(token),
                 instance: address(this),
                 creator: address(0),
-                carveEth: 0
+                carveEth: 0,
+                excessEth: 0
             })
         );
     }

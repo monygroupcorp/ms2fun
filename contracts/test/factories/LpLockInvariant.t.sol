@@ -100,7 +100,8 @@ contract ZammLpLockInvariantTest is Test {
                 token: address(token),
                 instance: instance,
                 creator: address(0),
-                carveEth: 0
+                carveEth: 0,
+                excessEth: 0
             })
         );
         // Reconstruct the poolId the module used: ETH (address(0)) is always token0.
@@ -202,7 +203,8 @@ contract CypherLpLockInvariantTest is Test {
                 vault: address(vault),
                 instance: instance,
                 creator: address(0),
-                carveEth: 0
+                carveEth: 0,
+                excessEth: 0
             })
         );
     }

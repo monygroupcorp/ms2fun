@@ -598,8 +598,9 @@ contract ERC404BondingOps is ERC404BondingStorage {
      * @dev THE EXCESS. LP-share ETH the clamp could not place rides the module's existing 80/19/1 tithe
      *      rail (`RevenueSplitLib.splitGraduation`) alongside the creator carve — 1% protocol, 19%
      *      alignment vault, 80% creator — rather than being held here, where it would be a second
-     *      unowned overhang. `GraduationEthDiverted` reports the carve and the clamp residue separately
-     *      so the creator's declared carve stays distinguishable on-chain from the clamp's output.
+     *      unowned overhang. The two legs travel to the module as separate `DeployParams` fields and
+     *      `GraduationEthDiverted` reports them separately here, so the creator's declared carve stays
+     *      distinguishable on-chain from the clamp's output on both sides of the call.
      * @dev THE BURN. Coin the pool did not take is burned, not stranded and not returned: after
      *      `graduated` no path can move instance-held coin (`buyBonding`, `sellBonding` and
      *      `claimFreeMint` all revert `BondingEnded`, and no deployer module has a withdrawal path), so
@@ -635,8 +636,12 @@ contract ERC404BondingOps is ERC404BondingStorage {
         (uint256 tokensForPool, uint256 ethForPool) = _sizePoolAtCurvePrice(lp - carveEth);
 
         // Excess LP-share ETH the clamp could not place at the parity price joins the carve on the
-        // module's 80/19/1 rail. `carveEth + excess == lp - ethForPool <= lp`, so the module's own
-        // headroom clamp never engages on the combined figure.
+        // module's 80/19/1 rail. It travels as its OWN `DeployParams` leg rather than folded into
+        // `carveEth`, so the module tithes the sum but reports the two apart — `CreatorCarvePaid`
+        // then states the creator's request alone, which is the figure `declaredMaxAllowanceBps`
+        // measures. The invariant the module's headroom clamp relies on is unchanged and is now a
+        // statement about the two fields: `carveEth + excessEth == lp - ethForPool <= lp`, so
+        // `splitGraduation`'s defensive re-clamp never engages on their sum.
         uint256 excessEth = lp - carveEth - ethForPool;
 
         _markGraduationCounterpartiesSkipNFT();
@@ -651,7 +656,8 @@ contract ERC404BondingOps is ERC404BondingStorage {
                 token: address(this),
                 instance: address(this),
                 creator: owner(),
-                carveEth: carveEth + excessEth
+                carveEth: carveEth,
+                excessEth: excessEth
             })
         );
 

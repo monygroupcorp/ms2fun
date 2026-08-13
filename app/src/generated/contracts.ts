@@ -2486,6 +2486,7 @@ export const cypherLiquidityDeployerModuleAbi = [
           { name: 'instance', internalType: 'address', type: 'address' },
           { name: 'creator', internalType: 'address', type: 'address' },
           { name: 'carveEth', internalType: 'uint256', type: 'uint256' },
+          { name: 'excessEth', internalType: 'uint256', type: 'uint256' },
         ],
       },
     ],
@@ -2614,6 +2615,25 @@ export const cypherLiquidityDeployerModuleAbi = [
       },
     ],
     name: 'CreatorCarvePaid',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'GraduationExcessTithed',
   },
   {
     type: 'event',
@@ -9899,6 +9919,7 @@ export const liquidityDeployerModuleAbi = [
           { name: 'instance', internalType: 'address', type: 'address' },
           { name: 'creator', internalType: 'address', type: 'address' },
           { name: 'carveEth', internalType: 'uint256', type: 'uint256' },
+          { name: 'excessEth', internalType: 'uint256', type: 'uint256' },
         ],
       },
     ],
@@ -10098,6 +10119,25 @@ export const liquidityDeployerModuleAbi = [
       },
     ],
     name: 'CreatorCarvePaid',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'GraduationExcessTithed',
   },
   {
     type: 'event',
@@ -13796,6 +13836,7 @@ export const zammLiquidityDeployerModuleAbi = [
           { name: 'instance', internalType: 'address', type: 'address' },
           { name: 'creator', internalType: 'address', type: 'address' },
           { name: 'carveEth', internalType: 'uint256', type: 'uint256' },
+          { name: 'excessEth', internalType: 'uint256', type: 'uint256' },
         ],
       },
     ],
@@ -13924,6 +13965,25 @@ export const zammLiquidityDeployerModuleAbi = [
       },
     ],
     name: 'CreatorCarvePaid',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'GraduationExcessTithed',
   },
   {
     type: 'event',
@@ -17353,6 +17413,15 @@ export const useWatchCypherLiquidityDeployerModuleCreatorCarvePaidEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: cypherLiquidityDeployerModuleAbi,
     eventName: 'CreatorCarvePaid',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"GraduationExcessTithed"`
+ */
+export const useWatchCypherLiquidityDeployerModuleGraduationExcessTithedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: cypherLiquidityDeployerModuleAbi,
+    eventName: 'GraduationExcessTithed',
   })
 
 /**
@@ -24996,6 +25065,15 @@ export const useWatchLiquidityDeployerModuleCreatorCarvePaidEvent =
   })
 
 /**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"GraduationExcessTithed"`
+ */
+export const useWatchLiquidityDeployerModuleGraduationExcessTithedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'GraduationExcessTithed',
+  })
+
+/**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"GraduationFeePaid"`
  */
 export const useWatchLiquidityDeployerModuleGraduationFeePaidEvent =
@@ -28736,6 +28814,15 @@ export const useWatchZammLiquidityDeployerModuleCreatorCarvePaidEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: zammLiquidityDeployerModuleAbi,
     eventName: 'CreatorCarvePaid',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `eventName` set to `"GraduationExcessTithed"`
+ */
+export const useWatchZammLiquidityDeployerModuleGraduationExcessTithedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: zammLiquidityDeployerModuleAbi,
+    eventName: 'GraduationExcessTithed',
   })
 
 /**

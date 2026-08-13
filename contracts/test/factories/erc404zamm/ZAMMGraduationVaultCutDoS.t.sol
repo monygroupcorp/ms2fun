@@ -54,7 +54,8 @@ contract ZAMMGraduationVaultCutDoSTest is Test {
             token: address(token),
             instance: instance,
             creator: address(0),
-            carveEth: 0
+            carveEth: 0,
+            excessEth: 0
         });
     }
 

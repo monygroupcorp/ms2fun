@@ -36,7 +36,8 @@ contract ILiquidityDeployerModuleTest is Test {
             token: address(0x3),
             instance: address(0x3),
             creator: address(0),
-            carveEth: 0
+            carveEth: 0,
+            excessEth: 0
         });
         deployer.deployLiquidity{ value: 1 ether }(p);
         assertTrue(deployer.called());

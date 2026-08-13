@@ -54,7 +54,8 @@ contract LiquidityDeployerModuleTest is Test {
             token: address(0x4),
             instance: address(0x4),
             creator: address(0),
-            carveEth: 0
+            carveEth: 0,
+            excessEth: 0
         });
     }
 
@@ -149,7 +150,8 @@ contract LiquidityDeployerModuleTest is Test {
             token: address(0x4),
             instance: address(0x4),
             creator: address(0),
-            carveEth: 0
+            carveEth: 0,
+            excessEth: 0
         });
         assertEq(p.ethReserve, 1 ether);
     }
