@@ -37,6 +37,11 @@ import { StateLibrary } from "v4-core/libraries/StateLibrary.sol";
  *             --match-path test/factories/erc404/LiquidityDeployerModuleGraduationFork.t.sol -vvvv
  */
 contract LiquidityDeployerModuleGraduationForkTest is ForkTestBase {
+    /// @dev This contract stands in for the graduating ERC404 instance, so it must answer the
+    ///      deployer module's `IGraduationSkipNFTTarget` handshake. The real instance flags the
+    ///      counterparty NFT-skipping; nothing here holds ids, so recording is enough.
+    function markGraduationSkipNFT(address) external { }
+
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
 

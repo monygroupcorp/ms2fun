@@ -5015,6 +5015,15 @@ export const erc404BondingInstanceAbi = [
   },
   {
     type: 'function',
+    inputs: [
+      { name: 'counterparty', internalType: 'address', type: 'address' },
+    ],
+    name: 'markGraduationSkipNFT',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'masterRegistry',
     outputs: [
@@ -5918,6 +5927,7 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
   { type: 'error', inputs: [], name: 'NormalizationFactorZero' },
+  { type: 'error', inputs: [], name: 'NotLiquidityDeployer' },
   { type: 'error', inputs: [], name: 'NothingToClaim' },
   { type: 'error', inputs: [], name: 'OnlyFactory' },
   { type: 'error', inputs: [], name: 'PurchaseTooSmall' },
@@ -19535,6 +19545,15 @@ export const useWriteErc404BondingInstanceInitializeStaking =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"markGraduationSkipNFT"`
+ */
+export const useWriteErc404BondingInstanceMarkGraduationSkipNft =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'markGraduationSkipNFT',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"migrateVault"`
  */
 export const useWriteErc404BondingInstanceMigrateVault =
@@ -19889,6 +19908,15 @@ export const useSimulateErc404BondingInstanceInitializeStaking =
   /*#__PURE__*/ createUseSimulateContract({
     abi: erc404BondingInstanceAbi,
     functionName: 'initializeStaking',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"markGraduationSkipNFT"`
+ */
+export const useSimulateErc404BondingInstanceMarkGraduationSkipNft =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'markGraduationSkipNFT',
   })
 
 /**
