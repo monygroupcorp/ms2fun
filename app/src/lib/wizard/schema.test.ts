@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { getConfigSchema } from './configTypes'
 import { isFieldVisible, validateField, validateFields } from './schema'
 import type { FieldSchema } from './schema'
 
@@ -301,11 +302,7 @@ describe('validateField', () => {
   describe('kind: list', () => {
     const f = field({ kind: 'list', validation: { min: 1, max: 3 } })
 
-    it('rejects empty array when min is 1', () => {
-      // empty array is treated as isEmpty → null unless required; but min check fires on non-empty
-      // with min:1 and non-empty check: an array of length 0 is isEmpty so it skips to null
-      // To test min, provide a non-empty array with fewer than min... min=1 means length>=1 required.
-      // Actually isEmpty means [] returns null (optional). Let's test with a non-empty but too-short list.
+    it('rejects an array shorter than min', () => {
       const f2 = field({ kind: 'list', validation: { min: 2, max: 5 } })
       expect(validateField(f2, ['one'])).not.toBeNull()
     })
@@ -316,6 +313,62 @@ describe('validateField', () => {
 
     it('rejects array exceeding max length', () => {
       expect(validateField(f, ['a', 'b', 'c', 'd'])).not.toBeNull()
+    })
+
+    it('rejects an empty array when min is 1', () => {
+      expect(validateField(f, [])).not.toBeNull()
+    })
+
+    // The wizard's values bag is flat: row VALUES at `${key}.N`, row COUNT at `${key}.length` as a
+    // string. `readValue(values, key)` finds neither, so `value` is undefined and the counter is the
+    // only evidence of how many rows exist.
+    describe('flat values bag (counter shape)', () => {
+      const list = field({ key: 'rows', label: 'Rows', kind: 'list', validation: { min: 1 } })
+
+      it('reports the min error when the counter says zero rows', () => {
+        expect(validateField(list, undefined, { 'rows.length': '0' })).not.toBeNull()
+      })
+
+      it('accepts a full list — counter of 2 with two row values', () => {
+        expect(
+          validateField(list, undefined, {
+            'rows.length': '2',
+            'rows.0': 'a',
+            'rows.1': 'b',
+          }),
+        ).toBeNull()
+      })
+
+      it('reports the max error when the counter exceeds max', () => {
+        const capped = field({ key: 'rows', label: 'Rows', kind: 'list', validation: { max: 3 } })
+        expect(validateField(capped, undefined, { 'rows.length': '4' })).not.toBeNull()
+      })
+
+      it('agrees with the renderer at exactly max rows', () => {
+        const capped = field({ key: 'rows', label: 'Rows', kind: 'list', validation: { max: 3 } })
+        expect(validateField(capped, undefined, { 'rows.length': '3' })).toBeNull()
+      })
+
+      it.each([
+        ['missing', {}],
+        ['empty', { 'rows.length': '' }],
+        ['non-numeric', { 'rows.length': 'abc' }],
+        ['negative', { 'rows.length': '-1' }],
+      ])('treats a %s counter as zero rows without throwing', (_label, values) => {
+        expect(() => validateField(list, undefined, values)).not.toThrow()
+        expect(validateField(list, undefined, values)).not.toBeNull()
+      })
+
+      it('counts zero rows as empty for a required list', () => {
+        const req = field({
+          key: 'rows',
+          label: 'Rows',
+          kind: 'list',
+          validation: { required: true },
+        })
+        expect(validateField(req, undefined, { 'rows.length': '0' })).not.toBeNull()
+        expect(validateField(req, undefined, { 'rows.length': '1', 'rows.0': 'a' })).toBeNull()
+      })
     })
   })
 })
@@ -418,5 +471,41 @@ describe('validateFields', () => {
     ]
     const errors = validateFields(fields, { mode: 'basic', x: '' })
     expect(errors['x']).toBeUndefined()
+  })
+
+  // The shipped config schemas are the real consumers of the list bounds: both declare `min: 1`
+  // and both are filled through the flat `${key}.length` bag.
+  describe('shipped config schemas', () => {
+    it('surfaces the allowlist min bound when the list is empty', () => {
+      const schema = getConfigSchema('merkle-allowlist-gating')
+      expect(schema).toBeDefined()
+      const errors = validateFields(schema!.fields, { 'addresses.length': '0' })
+      expect(errors['addresses']).toBeTruthy()
+    })
+
+    it('clears the allowlist min bound once a row exists', () => {
+      const schema = getConfigSchema('merkle-allowlist-gating')
+      const errors = validateFields(schema!.fields, {
+        'addresses.length': '1',
+        'addresses.0': '0x54efd4549ae44bd03b2ccc1c72492ca9a3219c86',
+      })
+      expect(errors['addresses']).toBeUndefined()
+    })
+
+    it('surfaces the tier-ladder min bound when the weights list is empty', () => {
+      const schema = getConfigSchema('metadata-tier')
+      expect(schema).toBeDefined()
+      const errors = validateFields(schema!.fields, { 'tierWeights.length': '0' })
+      expect(errors['tierWeights']).toBeTruthy()
+    })
+
+    it('clears the tier-ladder min bound once a weight row exists', () => {
+      const schema = getConfigSchema('metadata-tier')
+      const errors = validateFields(schema!.fields, {
+        'tierWeights.length': '1',
+        'tierWeights.0': '1',
+      })
+      expect(errors['tierWeights']).toBeUndefined()
+    })
   })
 })
