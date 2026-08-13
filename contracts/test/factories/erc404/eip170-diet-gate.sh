@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # EIP-170 + headroom-floor + storage-layout gate for the externalization diet (noesis-091, -142, -148).
 #
-# Three hard assertions, all must pass:
+# Four hard assertions, all must pass:
 #   1. The master ERC404BondingInstance runtime bytecode is < 24,576 (EIP-170). It is the deployable
 #      implementation behind every EIP-1167 clone, so its runtime is the EIP-170 subject.
 #   2. It keeps at least MIN_HEADROOM bytes of EIP-170 headroom. This is a FLOOR, not a line-ball:
@@ -11,7 +11,16 @@
 #      (2026-08-06) hard-codes a 2,000B floor here so the next three items cannot quietly eat it.
 #      Tripping this floor is a BLOCK: re-spec against the remaining budget, or take the next diet
 #      lever (D2, the 14 init/admin setters). It is NOT to be lowered to make a diff pass.
-#   3. ERC404BondingInstance and ERC404BondingOps have an IDENTICAL storage layout — i.e. Ops declares
+#   3. ERC404BondingOps runtime bytecode is < 24,576 (EIP-170) AND keeps at least MIN_OPS_HEADROOM
+#      bytes of headroom. Ops is the delegatecall target of the externalization diet, so every byte
+#      moved off the instance lands here: noesis-188 moved deployLiquidity's body out of the instance
+#      (22,459B -> 21,562B) and into Ops (20,895B -> 23,779B), taking Ops from ~3.7k of room to 797B
+#      in a single item while a ceiling-only check stayed green. rth's ruling (2026-08-12) sets a 500B
+#      floor here: a warning shot that leaves usable Ops budget rather than a freeze, but that trips
+#      before the next Ops-side item lands over EIP-170 with no prior signal. The Ops lever is the
+#      opposite of the instance's — move something BACK to the instance, which has the free bytes.
+#      It is NOT to be lowered to make a diff pass.
+#   4. ERC404BondingInstance and ERC404BondingOps have an IDENTICAL storage layout — i.e. Ops declares
 #      ZERO storage outside the shared ERC404BondingStorage base. A var added to Ops (or the instance)
 #      outside the base is a storage-collision bug across the delegatecall boundary; this catches it.
 #
@@ -20,6 +29,7 @@ set -euo pipefail
 
 LIMIT=24576
 MIN_HEADROOM=2000
+MIN_OPS_HEADROOM=500
 INST="src/factories/erc404/ERC404BondingInstance.sol:ERC404BondingInstance"
 OPS="src/factories/erc404/ERC404BondingOps.sol:ERC404BondingOps"
 
@@ -28,8 +38,9 @@ hexbytes() { local hx; hx="$(forge inspect "$1" deployedBytecode | tr -d '\n')";
 isize="$(hexbytes "$INST")"
 osize="$(hexbytes "$OPS")"
 headroom=$(( LIMIT - isize ))
+opsHeadroom=$(( LIMIT - osize ))
 echo "ERC404BondingInstance runtime: ${isize}B (limit ${LIMIT}, headroom ${headroom}B, floor ${MIN_HEADROOM}B)"
-echo "ERC404BondingOps          runtime: ${osize}B"
+echo "ERC404BondingOps          runtime: ${osize}B (limit ${LIMIT}, headroom ${opsHeadroom}B, floor ${MIN_OPS_HEADROOM}B)"
 
 if [ "$isize" -ge "$LIMIT" ]; then
   echo "FAIL: ERC404BondingInstance ${isize}B >= EIP-170 limit ${LIMIT}B" >&2
@@ -43,6 +54,12 @@ if [ "$headroom" -lt "$MIN_HEADROOM" ]; then
 fi
 if [ "$osize" -ge "$LIMIT" ]; then
   echo "FAIL: ERC404BondingOps ${osize}B >= EIP-170 limit ${LIMIT}B" >&2
+  exit 1
+fi
+if [ "$opsHeadroom" -lt "$MIN_OPS_HEADROOM" ]; then
+  echo "FAIL: ERC404BondingOps headroom ${opsHeadroom}B < floor ${MIN_OPS_HEADROOM}B (rth ruling 2026-08-12)." >&2
+  echo "      Do NOT lower this floor. The Ops lever runs the other way: move something back to" >&2
+  echo "      ERC404BondingInstance, which currently holds ${headroom}B of free budget." >&2
   exit 1
 fi
 
