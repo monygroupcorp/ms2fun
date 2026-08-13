@@ -1367,6 +1367,7 @@ export const alignmentRegistryV1Abi = [
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'AmbassadorAlreadyAssigned' },
   { type: 'error', inputs: [], name: 'InvalidAddress' },
+  { type: 'error', inputs: [], name: 'InvalidMetadataURI' },
   { type: 'error', inputs: [], name: 'InvalidReferenceKind' },
   { type: 'error', inputs: [], name: 'InvalidRoute' },
   { type: 'error', inputs: [], name: 'InvalidTitle' },

@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import { SafeOwnableUUPS } from "../shared/SafeOwnableUUPS.sol";
 import { IAlignmentRegistry } from "./interfaces/IAlignmentRegistry.sol";
+import { MetadataUtils } from "../shared/libraries/MetadataUtils.sol";
 import { IAlgebraPool, IVolatilityOracle } from "../interfaces/algebra/IAlgebra.sol";
 
 /// @notice Minimal Uniswap V3 pool surface the reference-pool setter probes. Hand-written (repo practice:
@@ -35,6 +36,7 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     error InvalidReferenceKind();
     error ReferencePoolUnusable();
     error ReferencePoolTokenMismatch();
+    error InvalidMetadataURI();
 
     /// @notice Default TWAP window (seconds) used when a `ReferencePool.twapWindow` is left at 0.
     uint32 internal constant DEFAULT_TWAP_WINDOW = 1800;
@@ -106,6 +108,10 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
         AlignmentAsset[] memory assets
     ) external override onlyOwner returns (uint256) {
         if (bytes(title).length == 0 || bytes(title).length > 256) revert InvalidTitle();
+        // An empty metadataURI is a legal alignment target (a metadata-less target stays representable),
+        // so the scheme allowlist applies only to a non-empty value. Deliberate divergence from
+        // MasterRegistryV1, which requires a URI outright — do not "align" the two.
+        if (bytes(metadataURI).length != 0 && !MetadataUtils.isValidURI(metadataURI)) revert InvalidMetadataURI();
         if (assets.length == 0) revert NoAssets();
 
         uint256 targetId = ++nextAlignmentTargetId;
@@ -171,6 +177,9 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
         onlyOwnerOrAmbassador(targetId)
     {
         if (alignmentTargets[targetId].approvedAt == 0) revert TargetNotFound();
+        // Empty clears the URI and is legal; a non-empty one must satisfy the scheme allowlist. Same
+        // deliberate divergence from MasterRegistryV1 as the registration path above.
+        if (bytes(metadataURI).length != 0 && !MetadataUtils.isValidURI(metadataURI)) revert InvalidMetadataURI();
 
         alignmentTargets[targetId].description = description;
         alignmentTargets[targetId].metadataURI = metadataURI;

@@ -65,7 +65,14 @@ contract ComponentRegistry is SafeOwnableUUPS, IComponentRegistry {
         isApproved[component] = true;
         componentTag[component] = tag;
         componentName[component] = name;
-        allComponents.push(component);
+        // `allComponents` enumerates every component ever approved (revoked ones included), so a
+        // re-approval after a revoke must not append a second entry for the same address: the
+        // enumeration views filter on `isApproved` alone and would otherwise return it twice. The
+        // membership scan is O(n) over a DAO-curated, small set and adds no storage slot, keeping the
+        // UUPS layout untouched.
+        if (!_isEnumerated(component)) {
+            allComponents.push(component);
+        }
         emit ComponentApproved(component, tag, name);
     }
 
@@ -74,6 +81,19 @@ contract ComponentRegistry is SafeOwnableUUPS, IComponentRegistry {
         if (!isApproved[component]) revert NotApproved();
         isApproved[component] = false;
         emit ComponentRevoked(component);
+    }
+
+    // ┌─────────────────────────┐
+    // │   Internal Helpers      │
+    // └─────────────────────────┘
+
+    /// @dev True iff `component` already has an entry in the `allComponents` enumeration array.
+    function _isEnumerated(address component) internal view returns (bool) {
+        uint256 len = allComponents.length;
+        for (uint256 i = 0; i < len; ++i) {
+            if (allComponents[i] == component) return true;
+        }
+        return false;
     }
 
     // ┌─────────────────────────┐
