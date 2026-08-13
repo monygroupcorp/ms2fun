@@ -10,13 +10,23 @@ import { IMasterRegistry } from "../../src/master/interfaces/IMasterRegistry.sol
 
 contract MockRegistry {
     mapping(address => bool) public registered;
+    mapping(address => bool) public revoked;
 
     function register(address instance) external {
         registered[instance] = true;
     }
 
+    /// @dev Mirrors MasterRegistryV1: a revoked instance is invisible to both registry reads.
+    function revoke(address instance) external {
+        revoked[instance] = true;
+    }
+
+    function isRegisteredInstance(address instance) external view returns (bool) {
+        return registered[instance] && !revoked[instance];
+    }
+
     function getInstanceInfo(address instance) external view returns (IMasterRegistry.InstanceInfo memory info) {
-        require(registered[instance], "Not registered");
+        require(registered[instance] && !revoked[instance], "Not registered");
         info.instance = instance;
     }
 }
@@ -529,6 +539,83 @@ contract MasterRegistryQueueTest is Test {
         (address[] memory result, uint256 total) = queue.getFeaturedInstances(5, 10);
         assertEq(total, 1);
         assertEq(result.length, 0);
+    }
+
+    // ── getFeaturedInstances honors registry revocation ───────────────────────
+
+    function test_getFeaturedInstances_excludesRevoked() public {
+        _rentBasic(inst1, alice, 0.05 ether);
+        _rentBasic(inst2, bob, 0.01 ether);
+
+        registry.revoke(inst1);
+
+        (address[] memory result, uint256 total) = queue.getFeaturedInstances(0, 10);
+        assertEq(total, 1);
+        assertEq(result.length, 1);
+        assertEq(result[0], inst2);
+    }
+
+    function test_getFeaturedInstances_keepsLiveWhileAnotherIsRevoked() public {
+        _rentBasic(inst1, alice, 0.05 ether);
+        _rentBasic(inst2, bob, 0.01 ether);
+
+        // Before revocation both are visible — the filter is not blanket.
+        (address[] memory before, uint256 totalBefore) = queue.getFeaturedInstances(0, 10);
+        assertEq(totalBefore, 2);
+        assertEq(before.length, 2);
+
+        registry.revoke(inst2);
+
+        (address[] memory result, uint256 total) = queue.getFeaturedInstances(0, 10);
+        assertEq(total, 1);
+        assertEq(result.length, 1);
+        assertEq(result[0], inst1);
+    }
+
+    /// @dev Both passes must apply the same predicate: revoking the top-ranked entry is the case where
+    ///      a count/collect mismatch would either overrun the result array or leave a zero-address hole.
+    function test_getFeaturedInstances_revokedTopRank_orderAndPaginationHold() public {
+        _rentBasic(inst1, alice, 0.05 ether); // rank 1
+        _rentBasic(inst2, bob, 0.03 ether); // rank 2
+        _rentBasic(inst3, charlie, 0.01 ether); // rank 3
+
+        registry.revoke(inst1);
+
+        (address[] memory all, uint256 total) = queue.getFeaturedInstances(0, 10);
+        assertEq(total, 2);
+        assertEq(all.length, 2);
+        assertEq(all[0], inst2);
+        assertEq(all[1], inst3);
+
+        (address[] memory page0, uint256 totalPage0) = queue.getFeaturedInstances(0, 1);
+        assertEq(totalPage0, 2);
+        assertEq(page0.length, 1);
+        assertEq(page0[0], inst2);
+
+        (address[] memory page1,) = queue.getFeaturedInstances(1, 1);
+        assertEq(page1.length, 1);
+        assertEq(page1[0], inst3);
+
+        // Offset past the post-filter total yields an empty page rather than a stale entry.
+        (address[] memory page2,) = queue.getFeaturedInstances(2, 1);
+        assertEq(page2.length, 0);
+    }
+
+    /// @dev Read-side filter only: the rental itself is untouched by revocation.
+    function test_getRentalInfo_unchangedByRevocation() public {
+        _rentBasic(inst1, alice, 0.02 ether);
+
+        (address renterBefore, uint256 rankBefore, uint256 expiresBefore, bool activeBefore) =
+            queue.getRentalInfo(inst1);
+
+        registry.revoke(inst1);
+
+        (address renterAfter, uint256 rankAfter, uint256 expiresAfter, bool activeAfter) = queue.getRentalInfo(inst1);
+        assertEq(renterAfter, renterBefore);
+        assertEq(rankAfter, rankBefore);
+        assertEq(expiresAfter, expiresBefore);
+        assertEq(activeAfter, activeBefore);
+        assertTrue(activeAfter);
     }
 
     // ── queueLength ──────────────────────────────────────────────────────────
