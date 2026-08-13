@@ -48,7 +48,7 @@ import { LibString } from "solady/utils/LibString.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { SmartTransferLib } from "../../libraries/SmartTransferLib.sol";
 import { BondingCurveMath } from "./libraries/BondingCurveMath.sol";
-import { ILiquidityDeployerModule } from "../../interfaces/ILiquidityDeployerModule.sol";
+import { ILiquidityDeployerModule, IGraduationSkipNFTTarget } from "../../interfaces/ILiquidityDeployerModule.sol";
 import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
 import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
 import { IGlobalMessageRegistry } from "../../registry/interfaces/IGlobalMessageRegistry.sol";
@@ -120,7 +120,7 @@ interface ICarveParamsSource {
  * @title ERC404BondingInstance
  * @notice AMM-agnostic ERC404 bonding token. Graduation delegates to an ILiquidityDeployerModule.
  */
-contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
+contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle, IGraduationSkipNFTTarget {
     // ┌─────────────────────────┐
     // │         Types           │
     // └─────────────────────────┘
@@ -739,6 +739,29 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
     function deployLiquidity(uint256 carveRequestBps) external {
         (bool ok,) = _ops.delegatecall(msg.data);
         if (!ok) revert GraduationFailed();
+    }
+
+    /// @inheritdoc IGraduationSkipNFTTarget
+    /// @dev THE VENUE HANDSHAKE. This instance overrides `_skipNFTDefault` to `false` for every
+    ///      address, so any recipient that has not set the flag — contract or not — is minted one NFT
+    ///      id per `unit` it receives. Graduation moves the pool's whole coin side through the deployer
+    ///      module and on to the venue's counterparties, so without the flag each of them is minted the
+    ///      pool's worth of ids, and the module burns its set again on the way out. The cost scales
+    ///      linearly with the collection size and dominates the graduation transaction.
+    ///
+    ///      The module names its own counterparties here because only it knows them, and on the Algebra
+    ///      venue the pool is created DURING graduation — there is nothing to read beforehand. Each
+    ///      module calls this before its coin moves; the deployer's own leg is flagged by the graduation
+    ///      body before the coin is transferred to it.
+    ///
+    /// @dev NO REENTRANCY GUARD, deliberately. `deployLiquidity`'s body is `nonReentrant` and it is the
+    ///      frame that calls into the module, which calls back in here. Solady's guard is a single
+    ///      shared lock, so a `nonReentrant` here would revert every graduation on every venue. The
+    ///      deployer-only check is the whole authorization: `liquidityDeployer` is set once at
+    ///      `initialize` and this function does nothing but set a DN404 flag.
+    function markGraduationSkipNFT(address counterparty) external {
+        if (msg.sender != address(liquidityDeployer)) revert NotLiquidityDeployer();
+        _setSkipNFT(counterparty, true);
     }
 
     /// @notice Effective carve ETH for a given raise + request. Exposed so the UI can cap the

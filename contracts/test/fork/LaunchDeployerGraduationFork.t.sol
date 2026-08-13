@@ -32,6 +32,11 @@ import { LibClone } from "solady/utils/LibClone.sol";
  *                --match-path test/fork/LaunchDeployerGraduationFork.t.sol -vvv
  */
 contract LaunchDeployerGraduationForkTest is ForkTestBase {
+    /// @dev This contract stands in for the graduating ERC404 instance, so it must answer the
+    ///      deployer module's `IGraduationSkipNFTTarget` handshake. The real instance flags the
+    ///      counterparty NFT-skipping; nothing here holds ids, so recording is enough.
+    function markGraduationSkipNFT(address) external { }
+
     // ── Canonical mainnet addresses (mirror DeployMainnet). ──
     address constant ZAMM_V1 = 0x000000000000040470635EB91b7CE4D132D616eD;
     address constant CYPHER_ALGEBRA_FACTORY = 0xfb8Ed3485EfA29a0e4bed93351dD51B59fC4b0f0;

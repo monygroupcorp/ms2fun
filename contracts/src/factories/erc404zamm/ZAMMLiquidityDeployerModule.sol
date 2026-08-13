@@ -5,7 +5,7 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { IERC20 } from "../../shared/interfaces/IERC20.sol";
 import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
 import { Currency } from "v4-core/types/Currency.sol";
-import { ILiquidityDeployerModule } from "../../interfaces/ILiquidityDeployerModule.sol";
+import { ILiquidityDeployerModule, IGraduationSkipNFTTarget } from "../../interfaces/ILiquidityDeployerModule.sol";
 import { IFactoryInstance } from "../../interfaces/IFactoryInstance.sol";
 import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
 import { RevenueSplitLib } from "../../shared/libraries/RevenueSplitLib.sol";
@@ -142,6 +142,16 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
             revert UnauthorizedCaller();
         }
         if (msg.value != p.ethReserve) revert ETHMismatch();
+
+        // Name this venue's coin counterparty to the graduating instance BEFORE any coin moves. ZAMM is
+        // a singleton AMM: `addLiquidity` pulls the pool's coin side out of this module and into
+        // `zamm`, which then holds it for the life of the market. An ERC404 instance mints one NFT id
+        // per `unit` to an unflagged recipient, so without this the AMM takes delivery of the whole
+        // coin side in ids and re-mints them on the sell side of every later swap. The call is hard,
+        // not fail-soft: an instance that cannot be told is one whose pool would silently take that
+        // delivery.
+        IGraduationSkipNFTTarget(p.instance).markGraduationSkipNFT(zamm);
+
         PoolResult memory r = _deployPool(p);
         _payFees(p, r);
     }

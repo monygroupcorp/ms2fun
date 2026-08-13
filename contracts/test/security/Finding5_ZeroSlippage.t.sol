@@ -62,6 +62,11 @@ contract StrictSlippageZAMM {
 }
 
 contract Finding5_ZeroSlippageGraduationTest is Test {
+    /// @dev This contract stands in for the graduating ERC404 instance, so it must answer the
+    ///      deployer module's `IGraduationSkipNFTTarget` handshake. The real instance flags the
+    ///      counterparty NFT-skipping; nothing here holds ids, so recording is enough.
+    function markGraduationSkipNFT(address) external { }
+
     ZAMMLiquidityDeployerModule public deployer;
     StrictSlippageZAMM public strictZamm;
     MockEXECToken public token;

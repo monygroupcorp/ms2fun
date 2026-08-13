@@ -22,3 +22,31 @@ interface ILiquidityDeployerModule is IComponentModule {
     ///         ETH must equal p.ethReserve exactly via msg.value.
     function deployLiquidity(DeployParams calldata p) external payable;
 }
+
+/// @notice The graduating instance's side of the deployer handshake: a deployer module names its
+///         venue's coin counterparties so the instance can flag them NFT-skipping before any coin
+///         reaches them.
+/// @dev WHY A CALLBACK AND NOT AN ACCESSOR. An ERC404 bonding instance mints one NFT id per `unit`
+///      to any recipient that has not set the skip flag, so a graduation pool takes delivery of one
+///      id per unit of the pool's coin side and the deployer module takes delivery of the same count
+///      on the way through. Only the module knows which address that is, and for at least one venue
+///      (Algebra/Cypher) the pool is created DURING graduation — there is no address to read before
+///      the call, so no getter on the module can name it. The module therefore tells the instance,
+///      at the moment it knows, and every venue is covered by the same mechanism.
+/// @dev The instance IMPLEMENTS this interface rather than being probed for it: a rename is then a
+///      compile error instead of a silently unflagged pool. Implementations must authorize the call
+///      to the wired deployer module and nothing else, and must NOT take a reentrancy guard — the
+///      graduation frame that calls into the module already holds the instance's shared lock.
+interface IGraduationSkipNFTTarget {
+    /// @dev The caller is not this instance's wired liquidity deployer module.
+    error NotLiquidityDeployer();
+
+    /// @notice Flag `counterparty` as NFT-skipping, permanently.
+    /// @dev Called by the wired deployer module during graduation, BEFORE any coin reaches
+    ///      `counterparty`. Permanent rather than saved-and-restored: a graduation pool goes on
+    ///      receiving coin on the sell side of every later swap, and a restored flag would re-mint
+    ///      the pool's worth of ids on the next one.
+    /// @param counterparty A coin recipient of this graduation — the venue's pool, or a periphery
+    ///        contract that takes custody of the coin on the way to it.
+    function markGraduationSkipNFT(address counterparty) external;
+}

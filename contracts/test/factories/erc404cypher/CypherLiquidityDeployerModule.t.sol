@@ -23,6 +23,11 @@ import { TickMath } from "v4-core/libraries/TickMath.sol";
 import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 
 contract CypherLiquidityDeployerModuleTest is Test {
+    /// @dev This contract stands in for the graduating ERC404 instance, so it must answer the
+    ///      deployer module's `IGraduationSkipNFTTarget` handshake. The real instance flags the
+    ///      counterparty NFT-skipping; nothing here holds ids, so recording is enough.
+    function markGraduationSkipNFT(address) external { }
+
     CypherLiquidityDeployerModule deployer;
     CypherAlignmentVault vault;
     MockAlgebraFactory algebraFactory;
