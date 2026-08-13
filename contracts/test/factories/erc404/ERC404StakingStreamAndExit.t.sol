@@ -176,6 +176,8 @@ contract StakingInvariantHandler is Test {
     uint256 public totalFeesStreamed; // fees that actually started a stream (totalStaked > 0)
     uint256 public totalClaimed; // ETH the module told the instance to pay out
     uint256 public totalLeakReleased; // un-accruable stream leak the module authorized for recovery (127)
+    uint256 public ghost_claimFailures; // a staker the module OWED could not claim — see `claim` below
+    uint256 public ghost_claimSuccesses; // standalone claims that actually PAID — proves the leg is live
 
     constructor(ERC404StakingModule _module, address _instance) {
         module = _module;
@@ -209,12 +211,31 @@ contract StakingInvariantHandler is Test {
         module.recordFeesReceived(amount);
     }
 
+    /// @dev `computeClaim` reads the caller as the instance (`ERC404StakingModule:229`), so this leg
+    ///      MUST prank like its three siblings. Without the prank `msg.sender` was this handler,
+    ///      `stakingEnabled[handler]` is false, and every call reverted `StakingNotEnabled()` into a
+    ///      bare `catch` — 5 calls, 5 reverts, 0 successes under `-vvvv`, with `fail_on_revert = false`
+    ///      keeping the campaign silent. The standalone claim path therefore had NO fuzz coverage, and
+    ///      because a swallowed leg cannot grow `totalClaimed`, its deadness made
+    ///      `Σclaims ≤ Σfees` strictly EASIER to satisfy (lane F finding F-1, 2026-08-10).
+    ///
+    ///      The two BENIGN reverts are excluded by reading state first rather than by swallowing: a
+    ///      zero stake and a zero pending reward are both legitimate fuzz states, and `computeClaim`
+    ///      reverts `NoStakedBalance` / `NoPendingRewards` on them. What survives that filter is a
+    ///      claim the module OWES and refused to pay — which is what `ghost_claimFailures` counts.
+    ///      Same shape as `BondingCurveHandler.sol:300-320`.
     function claim(uint256 seed) external {
         address u = _user(seed);
         if (module.stakedBalance(instance, u) == 0) return;
+        if (module.calculatePendingRewards(instance, u) == 0) return;
+
+        vm.prank(instance);
         try module.computeClaim(u) returns (uint256 paid) {
             totalClaimed += paid;
-        } catch { }
+            ghost_claimSuccesses++;
+        } catch {
+            ghost_claimFailures++;
+        }
     }
 
     function warp(uint256 secs) external {
@@ -249,7 +270,25 @@ contract ERC404StakingInvariantTest is Test {
         targetContract(address(handler));
     }
 
+    /// @dev The anti-vacuous pin, and the reason this campaign is not simply back where it started.
+    ///      F-1's defect was a claim leg that never executed while the suite reported `ok. 1 passed`;
+    ///      filtering the two benign reverts (zero stake, zero pending) could reintroduce exactly that
+    ///      silence by another route — a leg that always early-returns is as dead as one that always
+    ///      reverts, and `ghost_claimFailures == 0` would still hold. So assert the leg actually PAID.
+    ///      Measured at this budget: 42 standalone claims, ~3,026 ETH, 0 failures per campaign. The
+    ///      floor is deliberately `> 0` rather than a tuned count — the fuzz budget differs between the
+    ///      default and `ci` profiles, and a gate that has to be retuned per profile gets deleted.
+    ///      `afterInvariant` (not the invariant itself) because forge evaluates invariants once before
+    ///      the campaign, where a success count of zero is correct.
+    function afterInvariant() public view {
+        assertGt(handler.ghost_claimSuccesses(), 0, "the standalone claim leg never executed: vacuous campaign");
+    }
+
     function invariant_claimsNeverExceedFees() public view {
+        // A staker the module owed could not be paid. Asserted separately from the Σ bounds because a
+        // dead claim leg makes those bounds EASIER to hold — the failure mode this campaign shipped
+        // with for its whole life, silently, until lane F traced it (F-1).
+        assertEq(handler.ghost_claimFailures(), 0, "a staker with a pending reward could not claim it");
         assertLe(handler.totalClaimed(), handler.totalFeesStreamed(), "over-claim: Sum(claims) > Sum(fees)");
         assertLe(
             handler.totalClaimed() + handler.totalLeakReleased(),
