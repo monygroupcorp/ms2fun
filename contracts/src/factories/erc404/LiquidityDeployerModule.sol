@@ -120,7 +120,7 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
         uint256 protocolFee; // 1% of raise + 1% of carve → protocol treasury
         uint256 vaultCut; // 19% of raise + 19% of carve → alignment vault
         uint256 creatorCut; // 80% of carve → creator
-        uint256 carvePaid; // effective gross carve (for CreatorCarvePaid)
+        uint256 carvePaid; // effective gross diversion: carve + excess, post-clamp
         uint256 ethForPool; // remainder of the raise → LP
         uint256 tokensForPool;
     }
@@ -162,7 +162,13 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
     event LiquidityDeployed(address indexed pool, uint256 amountToken, uint256 amountETH);
     event GraduationFeePaid(address indexed treasury, uint256 amount);
     event GraduationVaultContribution(address indexed vault, uint256 amount);
+    /// @notice The creator's own carve. `requested` is `p.carveEth` — what the creator asked for, on the
+    ///         axis the collection's declared allowance is measured on — and never includes any other
+    ///         diverted leg.
     event CreatorCarvePaid(address indexed instance, address indexed creator, uint256 requested, uint256 paid);
+    /// @notice LP-share ETH the caller's parity clamp could not place at the pool price, tithed 80/19/1 on
+    ///         the same rail as the carve. Mirrors the instance's `GraduationEthDiverted.excessEth`.
+    event GraduationExcessTithed(address indexed instance, uint256 amount);
     /// @notice A graduation vault cut could not be delivered and was stashed for retry.
     event VaultContributionFailed(address indexed vault, address indexed instance, uint256 amount);
     /// @notice A previously-stashed graduation vault cut was successfully re-delivered.
@@ -181,12 +187,12 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
      *      reached, so the pool opens at that price whether the curve sold out or stopped early
      *      (noesis-188). This module's job is unchanged — it opens the pool at `ethForPool /
      *      tokensForPool`, whatever those are.
-     * @dev `p.carveEth` is every wei the caller is diverting OUT of the LP 80: the creator's requested
-     *      carve, plus any LP-share ETH the caller's parity clamp could not place at the pool price.
-     *      Both legs are tithed 80/19/1 here, which is the intended treatment of each. The instance
-     *      emits `GraduationEthDiverted(ethToPool, excessEth, creatorCarveEth)` so the two stay
-     *      separable on-chain; `CreatorCarvePaid` reports the combined figure — all creator-directed
-     *      graduation ETH.
+     * @dev `p.carveEth` and `p.excessEth` are the two legs the caller is diverting OUT of the LP 80:
+     *      the creator's requested carve, and any LP-share ETH the caller's parity clamp could not
+     *      place at the pool price. Both are tithed 80/19/1 here — the split arithmetic sees only
+     *      their sum, which is the intended treatment of each — and they are reported apart, so
+     *      `CreatorCarvePaid.requested` carries the creator's request alone and the residue gets its
+     *      own `GraduationExcessTithed`.
      * @param p Deployment parameters
      */
     // slither-disable-next-line reentrancy-events
@@ -317,8 +323,19 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
         if (r.creatorCut > 0) {
             SafeTransferLib.safeTransferETH(p.creator, r.creatorCut);
         }
+        // The two diverted legs, reported apart. `r.carvePaid` is the post-clamp figure for their SUM;
+        // attribution is CARVE-FIRST — the creator's request is met first and the clamp residue absorbs
+        // any squeeze — so the two emitted figures always sum to `r.carvePaid` exactly. A squeeze cannot
+        // arise on the ERC404 graduation path (the instance sizes the legs so their sum is
+        // `lp - ethForPool`, inside `splitGraduation`'s headroom), and for any caller where it can,
+        // carve-first keeps the creator-facing figure the one the creator actually asked for.
         if (p.carveEth > 0) {
-            emit CreatorCarvePaid(p.instance, p.creator, p.carveEth, r.carvePaid);
+            emit CreatorCarvePaid(
+                p.instance, p.creator, p.carveEth, r.carvePaid < p.carveEth ? r.carvePaid : p.carveEth
+            );
+        }
+        if (r.carvePaid > p.carveEth) {
+            emit GraduationExcessTithed(p.instance, r.carvePaid - p.carveEth);
         }
 
         emit LiquidityDeployed(address(v4PoolManager), r.tokensForPool, r.ethForPool);
@@ -378,11 +395,13 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
         pure
         returns (AmountsResult memory r)
     {
-        // 1/19/80 split of the raise + optional tithed creator carve (80/19/1) out of the LP 80.
-        // The instance resolves the effective carve (allowance × declaredMax, pool-floor clamp);
-        // splitGraduation defensively re-clamps to the LP share (minPoolEth = 0 here — the floor
-        // is instance policy, the module only guarantees the pool never goes negative).
-        uint256 carve = p.creator == address(0) ? 0 : p.carveEth;
+        // 1/19/80 split of the raise + the tithed diversions (80/19/1) out of the LP 80. Both diverted
+        // legs ride the same rail, so the split's input is their sum and every downstream figure is
+        // independent of how the caller apportioned them. The instance resolves the effective carve
+        // (allowance × declaredMax, pool-floor clamp); splitGraduation defensively re-clamps to the LP
+        // share (minPoolEth = 0 here — the floor is instance policy, the module only guarantees the
+        // pool never goes negative).
+        uint256 carve = p.creator == address(0) ? 0 : p.carveEth + p.excessEth;
         RevenueSplitLib.GraduationSplit memory g = RevenueSplitLib.splitGraduation(p.ethReserve, carve, 0);
         r.protocolFee = g.protocolCut;
         r.vaultCut = g.vaultCut;

@@ -201,7 +201,8 @@ contract CypherFrontRunGuardTest is Test {
             vault: address(vault),
             instance: instance,
             creator: address(0),
-            carveEth: 0
+            carveEth: 0,
+            excessEth: 0
         });
     }
 
@@ -286,7 +287,8 @@ contract ZAMMFrontRunGuardTest is Test {
             token: address(token),
             instance: instance,
             creator: address(0),
-            carveEth: 0
+            carveEth: 0,
+            excessEth: 0
         });
     }
 

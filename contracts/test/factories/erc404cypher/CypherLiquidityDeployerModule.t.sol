@@ -95,7 +95,8 @@ contract CypherLiquidityDeployerModuleTest is Test {
                 vault: address(vault),
                 instance: instance,
                 creator: address(0),
-                carveEth: 0
+                carveEth: 0,
+                excessEth: 0
             })
         );
 
@@ -139,7 +140,8 @@ contract CypherLiquidityDeployerModuleTest is Test {
                 vault: address(vault),
                 instance: instance,
                 creator: address(0),
-                carveEth: 0
+                carveEth: 0,
+                excessEth: 0
             })
         );
 
@@ -170,7 +172,8 @@ contract CypherLiquidityDeployerModuleTest is Test {
                 vault: address(vault),
                 instance: instance,
                 creator: address(0),
-                carveEth: 0
+                carveEth: 0,
+                excessEth: 0
             })
         );
 
@@ -209,7 +212,8 @@ contract CypherLiquidityDeployerModuleTest is Test {
                 vault: address(vault),
                 instance: instance,
                 creator: address(0),
-                carveEth: 0
+                carveEth: 0,
+                excessEth: 0
             })
         );
 
@@ -245,7 +249,8 @@ contract CypherLiquidityDeployerModuleTest is Test {
                 vault: address(vault),
                 instance: instance,
                 creator: creator,
-                carveEth: carve
+                carveEth: carve,
+                excessEth: 0
             })
         );
 
@@ -261,6 +266,51 @@ contract CypherLiquidityDeployerModuleTest is Test {
         assertEq(vault.benefactorContribution(instance), 0.209 ether, "contribution = vault cut only");
     }
 
+    /// @notice The clamp residue rides the SAME rail as the carve and is reported apart from it. The
+    ///         payout literals are character-for-character those of
+    ///         `test_deployLiquidity_carve_paysCreatorVaultProtocol` above, whose single carve leg is
+    ///         this test's two legs summed: the split changes the reporting and nothing else.
+    /// @dev Must fail if the two legs are re-merged — `requested` would then be the sum, which is what
+    ///      the creator's declared allowance is measured against.
+    function test_deployLiquidity_carveAndExcess_titheTogetherReportApart() public {
+        address creator = makeAddr("creator");
+        token.mint(address(deployer), 1000e18);
+        uint256 ethReserve = 1 ether;
+        uint256 carve = 0.06 ether;
+        uint256 excess = 0.04 ether;
+
+        vm.deal(address(this), ethReserve);
+        uint256 treasuryBefore = protocolTreasury.balance;
+        uint256 vaultBefore = address(vault).balance;
+
+        vm.expectEmit(true, true, false, true);
+        emit CypherLiquidityDeployerModule.CreatorCarvePaid(instance, creator, carve, carve);
+        vm.expectEmit(true, false, false, true);
+        emit CypherLiquidityDeployerModule.GraduationExcessTithed(instance, excess);
+
+        deployer.deployLiquidity{ value: ethReserve }(
+            ILiquidityDeployerModule.DeployParams({
+                ethReserve: ethReserve,
+                tokenReserve: 1000e18,
+                protocolTreasury: protocolTreasury,
+                token: address(token),
+                vault: address(vault),
+                instance: instance,
+                creator: creator,
+                carveEth: carve,
+                excessEth: excess
+            })
+        );
+
+        assertEq(
+            protocolTreasury.balance - treasuryBefore, 0.01 ether + 0.001 ether, "protocol = 1% raise + 1% both legs"
+        );
+        assertEq(address(vault).balance - vaultBefore, 0.19 ether + 0.019 ether, "vault = 19% raise + 19% both legs");
+        assertEq(creator.balance, 0.08 ether, "creator = 80% of both legs");
+        assertEq(weth.balanceOf(address(positionManager)), 0.7 ether, "LP leg loses exactly the two legs");
+        assertEq(vault.benefactorContribution(instance), 0.209 ether, "contribution = vault cut only");
+    }
+
     // ── Caller guard (strict, registry-checked) ───────────────────────────────
 
     function _guardParams() internal view returns (ILiquidityDeployerModule.DeployParams memory p) {
@@ -272,7 +322,8 @@ contract CypherLiquidityDeployerModuleTest is Test {
             vault: address(vault),
             instance: address(this),
             creator: address(0),
-            carveEth: 0
+            carveEth: 0,
+            excessEth: 0
         });
     }
 

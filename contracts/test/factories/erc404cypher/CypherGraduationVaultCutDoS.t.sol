@@ -60,7 +60,8 @@ contract CypherGraduationVaultCutDoSTest is Test {
                 vault: vault,
                 instance: instance,
                 creator: address(0),
-                carveEth: 0
+                carveEth: 0,
+                excessEth: 0
             })
         );
     }

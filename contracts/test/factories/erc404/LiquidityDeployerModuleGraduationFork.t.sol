@@ -93,7 +93,8 @@ contract LiquidityDeployerModuleGraduationForkTest is ForkTestBase {
                 token: address(token),
                 instance: address(this),
                 creator: address(0),
-                carveEth: 0
+                carveEth: 0,
+                excessEth: 0
             })
         );
 
@@ -171,7 +172,8 @@ contract LiquidityDeployerModuleGraduationForkTest is ForkTestBase {
                 token: address(token),
                 instance: address(this),
                 creator: creator,
-                carveEth: carve
+                carveEth: carve,
+                excessEth: 0
             })
         );
 
