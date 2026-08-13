@@ -63,6 +63,11 @@ library RemovalProbe {
 // ZAMM
 // ════════════════════════════════════════════════════════════════════════════════
 contract ZammLpLockInvariantTest is Test {
+    /// @dev This contract stands in for the graduating ERC404 instance, so it must answer the
+    ///      deployer module's `IGraduationSkipNFTTarget` handshake. The real instance flags the
+    ///      counterparty NFT-skipping; nothing here holds ids, so recording is enough.
+    function markGraduationSkipNFT(address) external { }
+
     ZAMMLiquidityDeployerModule module;
     MockZAMM zamm;
     MockERC20 token;
@@ -131,6 +136,11 @@ contract ZammLpLockInvariantTest is Test {
 // Cypher — also asserts the module still deploys liquidity correctly after the IERC20 import unify.
 // ════════════════════════════════════════════════════════════════════════════════
 contract CypherLpLockInvariantTest is Test {
+    /// @dev This contract stands in for the graduating ERC404 instance, so it must answer the
+    ///      deployer module's `IGraduationSkipNFTTarget` handshake. The real instance flags the
+    ///      counterparty NFT-skipping; nothing here holds ids, so recording is enough.
+    function markGraduationSkipNFT(address) external { }
+
     CypherLiquidityDeployerModule deployer;
     CypherAlignmentVault vault;
     MockAlgebraFactory algebraFactory;

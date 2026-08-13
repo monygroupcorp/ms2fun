@@ -16,7 +16,7 @@ import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { RevenueSplitLib } from "../../shared/libraries/RevenueSplitLib.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
-import { ILiquidityDeployerModule } from "../../interfaces/ILiquidityDeployerModule.sol";
+import { ILiquidityDeployerModule, IGraduationSkipNFTTarget } from "../../interfaces/ILiquidityDeployerModule.sol";
 import { IFactoryInstance } from "../../interfaces/IFactoryInstance.sol";
 import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
@@ -198,6 +198,15 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
             revert UnauthorizedCaller();
         }
         if (msg.value != p.ethReserve) revert ETHMismatch();
+
+        // Name this venue's coin counterparty to the graduating instance BEFORE any coin moves. The
+        // V4 pool manager is where the pool's coin side lands (settled inside the `unlock` below) and
+        // where it stays for the life of the market; an ERC404 instance mints one NFT id per `unit` to
+        // an unflagged recipient, so the pool would take delivery of the whole coin side in ids and
+        // re-mint them on the sell side of every later swap. The call is hard, not fail-soft: an
+        // instance that cannot be told is one whose pool would silently take that delivery.
+        IGraduationSkipNFTTarget(p.instance).markGraduationSkipNFT(address(v4PoolManager));
+
         AmountsResult memory r = _computeAmounts(p);
         _setupPoolAndUnlock(p, r);
         _postUnlock(p, r);
