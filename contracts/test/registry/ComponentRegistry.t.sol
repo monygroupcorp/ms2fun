@@ -197,6 +197,58 @@ contract ComponentRegistryTest is Test {
         assertEq(gating[0], module2);
     }
 
+    // ── Re-approval enumeration ───────────────────────────────────────────────
+
+    /// approve → revoke → approve must leave exactly ONE enumeration entry, so the component is
+    /// reported once, not twice.
+    function test_reapproveAfterRevoke_doesNotDuplicateInEnumeration() public {
+        vm.startPrank(owner);
+        registry.approveComponent(module1, GATING_TAG, "Gating1");
+        registry.revokeComponent(module1);
+        registry.approveComponent(module1, GATING_TAG, "Gating1");
+        vm.stopPrank();
+
+        address[] memory approved = registry.getApprovedComponents();
+        assertEq(approved.length, 1);
+        assertEq(approved[0], module1);
+
+        address[] memory gating = registry.getApprovedComponentsByTag(GATING_TAG);
+        assertEq(gating.length, 1);
+        assertEq(gating[0], module1);
+    }
+
+    /// The enumeration array itself gains no second entry across an approve → revoke → approve cycle.
+    function test_reapproveAfterRevoke_allComponentsHasSingleEntry() public {
+        vm.startPrank(owner);
+        registry.approveComponent(module1, GATING_TAG, "Gating1");
+        registry.revokeComponent(module1);
+        registry.approveComponent(module1, OTHER_TAG, "Gating1Again");
+        vm.stopPrank();
+
+        assertEq(registry.allComponents(0), module1);
+        vm.expectRevert();
+        registry.allComponents(1);
+
+        // The re-approval still refreshes the mutable fields.
+        assertEq(registry.componentTag(module1), OTHER_TAG);
+        assertEq(registry.componentName(module1), "Gating1Again");
+    }
+
+    /// Distinct components each keep their own entry; the membership guard is per-address.
+    function test_reapproveAfterRevoke_otherComponentsUnaffected() public {
+        vm.startPrank(owner);
+        registry.approveComponent(module1, GATING_TAG, "Gating1");
+        registry.approveComponent(module2, GATING_TAG, "Gating2");
+        registry.revokeComponent(module1);
+        registry.approveComponent(module1, GATING_TAG, "Gating1");
+        vm.stopPrank();
+
+        address[] memory approved = registry.getApprovedComponents();
+        assertEq(approved.length, 2);
+        assertEq(approved[0], module1);
+        assertEq(approved[1], module2);
+    }
+
     // ── Upgradeability ────────────────────────────────────────────────────────
 
     function test_upgradeAuthorization_revertsIfNotOwner() public {
