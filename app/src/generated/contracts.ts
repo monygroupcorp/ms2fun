@@ -5975,6 +5975,7 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'SupplyAtOrBeyondPole' },
   { type: 'error', inputs: [], name: 'TierOpFailed' },
   { type: 'error', inputs: [], name: 'TokenDoesNotExist' },
+  { type: 'error', inputs: [], name: 'TooEarly' },
   { type: 'error', inputs: [], name: 'TotalSupplyOverflow' },
   { type: 'error', inputs: [], name: 'TransactionExpired' },
   { type: 'error', inputs: [], name: 'TransferCallerNotOwnerNorApproved' },

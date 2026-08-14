@@ -14,7 +14,8 @@ import {
     InvalidDeclaredMaxAllowance,
     InvalidMirror,
     AlreadyInitialized,
-    OnlyFactory
+    OnlyFactory,
+    TooEarly
 } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
 import { ERC404BondingOps } from "../../../src/factories/erc404/ERC404BondingOps.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
@@ -55,6 +56,30 @@ contract PermanentGatingModule is IGatingModule {
         return (true, true);
     }
     function onMint(address, uint256, uint256) external override { }
+
+    function metadataURI() external view override returns (string memory) {
+        return "";
+    }
+    function setMetadataURI(string calldata) external override { }
+}
+
+/// @dev Admits every caller and counts `onMint`, so a test can prove the module's side effect never
+///      ran on a call the instance rejected.
+contract RecordingGatingModule is IGatingModule {
+    uint256 public onMintCalls;
+
+    function canMint(address, uint256, uint256, uint256, bytes calldata)
+        external
+        pure
+        override
+        returns (bool allowed, bool permanent)
+    {
+        return (true, false);
+    }
+
+    function onMint(address, uint256, uint256) external override {
+        ++onMintCalls;
+    }
 
     function metadataURI() external view override returns (string memory) {
         return "";
@@ -1085,5 +1110,103 @@ contract ERC404BondingInstanceTest is Test {
             owner, address(0xBEEF), _bondingParams(), mockLiquidityDeployer, address(0), address(strayMirror)
         );
         vm.stopPrank();
+    }
+
+    // ── bondingOpenTime is the floor for the paid path ────────────────────────
+
+    /// @dev Arm `inst` for an open one day out and return that open timestamp. Arming deliberately
+    ///      precedes the open — that is the designed launch flow.
+    function _armPreOpen(ERC404BondingInstance inst) internal returns (uint256 openAt) {
+        openAt = block.timestamp + 1 days;
+        vm.startPrank(owner);
+        inst.setBondingOpenTime(openAt);
+        inst.setBondingActive(true);
+        vm.stopPrank();
+    }
+
+    /// @notice An armed but not-yet-open ungated instance does not take ETH on the curve.
+    function test_buyBonding_revertsTooEarly_beforeOpenTime_ungated() public {
+        _armPreOpen(instance);
+        assertFalse(instance.gatingActive(), "setUp instance is ungated");
+
+        uint256 amount = 1000 * 1e18;
+        uint256 cost = _getCost(instance, amount);
+        uint256 fee = (cost * instance.bondingFeeBps()) / 10000;
+        vm.deal(user1, cost + fee);
+
+        vm.prank(user1);
+        vm.expectRevert(TooEarly.selector);
+        instance.buyBonding{ value: cost + fee }(amount, cost + fee, false, bytes(""), bytes(""), 0);
+
+        assertEq(instance.totalBondingSupply(), 0, "no supply may be minted before the open");
+        assertEq(user1.balance, cost + fee, "a pre-open buyer keeps their ETH");
+    }
+
+    /// @notice The same instance buys normally once the announced open time is reached.
+    function test_buyBonding_succeeds_atOpenTime() public {
+        uint256 openAt = _armPreOpen(instance);
+        vm.warp(openAt);
+
+        uint256 amount = 1000 * 1e18;
+        uint256 cost = _getCost(instance, amount);
+        uint256 fee = (cost * instance.bondingFeeBps()) / 10000;
+        vm.deal(user1, cost + fee);
+
+        vm.prank(user1);
+        instance.buyBonding{ value: cost + fee }(amount, cost + fee, false, bytes(""), bytes(""), 0);
+
+        assertEq(instance.balanceOf(user1), amount, "buy lands once the curve is open");
+    }
+
+    /// @notice `bondingOpenTime` is the floor for every cohort: a gating module that would admit the
+    ///         caller cannot open the paid path earlier than the instance's own open time, and its
+    ///         `onMint` side effect never fires on the rejected call.
+    function test_buyBonding_revertsTooEarly_beforeOpenTime_evenWhenGatingAdmits() public {
+        RecordingGatingModule gating = new RecordingGatingModule();
+
+        vm.startPrank(owner);
+        ERC404BondingInstance inst = _freshClone();
+        inst.initialize(
+            owner,
+            address(0xBEEF),
+            _bondingParams(),
+            mockLiquidityDeployer,
+            address(gating),
+            address(new DN404Mirror(owner))
+        );
+        inst.initializeProtocol(
+            ERC404BondingInstance.ProtocolParams({
+                globalMessageRegistry: mockGlobalMsgRegistry,
+                protocolTreasury: address(0xFEE),
+                masterRegistry: mockMasterRegistry,
+                bondingFeeBps: 100,
+                weth: address(0xBEEF)
+            })
+        );
+        inst.initializeMetadata("Gated", "GATE", "", "", "");
+        vm.stopPrank();
+
+        assertTrue(inst.gatingActive(), "module is wired and active");
+
+        uint256 openAt = _armPreOpen(inst);
+
+        uint256 amount = 1_000_000 ether; // 1 UNIT
+        uint256 cost = _getCost(inst, amount);
+        uint256 fee = (cost * inst.bondingFeeBps()) / 10000;
+        vm.deal(user1, 2 * (cost + fee));
+
+        vm.prank(user1);
+        vm.expectRevert(TooEarly.selector);
+        inst.buyBonding{ value: cost + fee }(amount, cost + fee, false, bytes(""), "", 0);
+
+        assertEq(gating.onMintCalls(), 0, "gating side effects must not fire before the open");
+        assertEq(inst.totalBondingSupply(), 0, "no supply may be minted before the open");
+
+        // The same admitting module lets the buy through once the instance's open time is reached.
+        vm.warp(openAt);
+        vm.prank(user1);
+        inst.buyBonding{ value: cost + fee }(amount, cost + fee, false, bytes(""), "", 0);
+        assertEq(gating.onMintCalls(), 1, "the admitted buy still runs the module at and after the open");
+        assertEq(inst.balanceOf(user1), amount, "gated buy lands once the curve is open");
     }
 }

@@ -256,10 +256,13 @@ contract MetadataStackIntegrationTest is Test {
     ///      so the ids passed in are the caller's LOWEST-index ones (1 then 2), which the tail burn
     ///      reaches last. After both ops the creator holds band ids 11 and 12 plus one ordinary id.
     function _openAndMintUpTwo(ERC404BondingInstance b) internal {
+        uint256 openAt = block.timestamp + 1 hours;
         vm.prank(creator);
-        b.setBondingOpenTime(block.timestamp + 1 hours);
+        b.setBondingOpenTime(openAt);
         vm.prank(creator);
         b.setBondingActive(true);
+        // Arming precedes the announced open; the curve only takes ETH from `openAt` on.
+        vm.warp(openAt);
         _buy(b, 5 * UNIT);
         assertEq(b.balanceOf(creator), 5 * UNIT, "5 whole units bought");
 
@@ -623,10 +626,13 @@ contract MetadataStackIntegrationTest is Test {
         assertEq(b.modules(keccak256("metadata.resolver")), address(hostile));
 
         // Mint: creator buys 2 whole units.
+        uint256 openAt = block.timestamp + 1 hours;
         vm.prank(creator);
-        b.setBondingOpenTime(block.timestamp + 1 hours);
+        b.setBondingOpenTime(openAt);
         vm.prank(creator);
         b.setBondingActive(true);
+        // Arming precedes the announced open; the curve only takes ETH from `openAt` on.
+        vm.warp(openAt);
         _buy(b, 2 * UNIT);
         assertEq(b.balanceOf(creator), 2 * UNIT);
 
