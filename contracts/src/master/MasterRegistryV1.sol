@@ -205,9 +205,19 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
         emit InstanceMetadataUpdated(instance, uri);
     }
 
-    /// @notice Revoke a registered instance, hiding it from getInstanceInfo.
-    ///         Owner only. TEMPORARY — intended for removal in the next upgrade cycle.
-    ///         Do not rely on this as a permanent censorship mechanism.
+    /// @notice Revoke a registered instance. Owner only, and PERMANENT: this is the protocol's only
+    ///         instance kill-switch, and there is no un-revoke path anywhere in this contract.
+    /// @dev    What the flag reaches, exactly:
+    ///         - HONORED: `getInstanceInfo` reverts `NotRegistered`; `isRegisteredInstance` and
+    ///           `isInstanceFromApprovedFactory` both return false. Those are the existence and
+    ///           legitimacy reads, so anything gating on them stops seeing the instance.
+    ///         - DELIBERATELY NOT HONORED: name resolution. `resolveName` still returns the instance's
+    ///           address so its slug stays reserved and cannot be squatted — see that function's own
+    ///           docstring, which is the authority on the exclusion. Resolution and display are
+    ///           separate concerns.
+    ///         Because the flag is a one-way storage write, revocation is not a reversible moderation
+    ///         action: recovery means registering a NEW instance, not reviving this one, and it needs a
+    ///         new name — the revoked instance's `nameHash` stays claimed in `nameHashes`.
     function revokeInstance(address instance) external override onlyOwner {
         if (instanceInfo[instance].instance == address(0)) revert NotRegistered();
         revokedInstances[instance] = true;
