@@ -44,3 +44,4 @@ deployments/anvil.json
 reports/
 CLAUDE.md
 STANDARDIZED_EVENTS_SPEC.md
+deployments/anvil-seed.json

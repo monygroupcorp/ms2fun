@@ -103,7 +103,14 @@ async function main(): Promise<void> {
   // 2b. Seed anvil-only sample data (collections + profiles) so discovery cards, images, and
   //     profile pages light up with real on-chain data. Backend-free (inline data: metadata).
   //     Anvil-only — never part of DeployCore / a production deploy.
-  console.log('\n▶ forge script SeedAnvil.s.sol --broadcast')
+  //
+  //     PHASE 1 ONLY: creates and ARMS every launch, and buys nothing. `buyBonding` reverts
+  //     TooEarly before bondingOpenTime while setBondingOpenTime rejects a non-future time, so a
+  //     single script cannot both arm a curve and buy into it — forge simulates a whole script
+  //     before broadcasting, and anvil timestamps follow the real clock, so a short arm offset is
+  //     raced by broadcast lag and a long one is never crossed. Only this orchestrator can advance
+  //     the chain in between, which is what step 2c does.
+  console.log('\n▶ forge script SeedAnvil.s.sol --broadcast   (phase 1: create + arm)')
   execSync(
     `forge script script/SeedAnvil.s.sol --rpc-url ${RPC} --broadcast --slow --chain-id ${CHAIN_ID} --code-size-limit 30000`,
     {
@@ -113,12 +120,38 @@ async function main(): Promise<void> {
     },
   )
 
-  // 2c. Advance the anvil clock +2h. The seed creates time-relative states (auctions with a 1h
-  //     duration, bonding open +1h, maturity +90m) but vm.warp is a no-op under --broadcast, so we
-  //     advance the LIVE chain here instead. After this: gallery auctions are ended (settle-ready +
-  //     no-bid), ember stays preopen, vapor is mid-curve, cinder is bonding + matured (graduate
-  //     unlocked), live-salon (1-day) stays active. The UI is chain-anchored (useNowSec reads
-  //     block.timestamp) so countdowns agree with the advanced chain.
+  // 2c. Cross every bondingOpenTime armed by phase 1 (all set at +1h) so the phase-2 buys land on
+  //     an OPEN curve. The slack is deliberate: it only has to exceed the wall-clock the phase-1
+  //     broadcast consumed, and overshooting costs nothing, whereas coming up short reverts every
+  //     buy with TooEarly at simulation. Ember's open time is +1 DAY and stays uncrossed here, and
+  //     the ready-to-graduate maturities are +90m so they remain ahead of the buys.
+  const ONE_HOUR = 60 * 60
+  const OPEN_CROSS = ONE_HOUR + 10 * 60 // +1h10m
+  await test.increaseTime({ seconds: OPEN_CROSS })
+  await test.mine({ blocks: 1 })
+  console.log(`✓ Advanced anvil clock +${OPEN_CROSS}s to cross every seeded bondingOpenTime`)
+
+  // 2d. PHASE 2: the buys, everything downstream of them (staking, overlay authoring), and the
+  //     ownership handover to ADMIN. Resolves instances by name from deployments/anvil-seed.json.
+  console.log('\n▶ forge script SeedAnvilBuys.s.sol --broadcast   (phase 2: buys + handover)')
+  execSync(
+    `forge script script/SeedAnvilBuys.s.sol --rpc-url ${RPC} --broadcast --slow --chain-id ${CHAIN_ID} --code-size-limit 30000`,
+    {
+      cwd: contractsDir,
+      stdio: 'inherit',
+      env: { ...process.env, PRIVATE_KEY: ANVIL_DEPLOYER_KEY },
+    },
+  )
+
+  // 2e. Advance the anvil clock a further +2h. The seed creates time-relative states (auctions with
+  //     a 1h duration, maturity +90m) but vm.warp is a no-op under --broadcast, so we advance the
+  //     LIVE chain here instead. After this (~3h10m of chain time in total): gallery auctions are
+  //     ended (settle-ready + no-bid), ember stays preopen, vapor is mid-curve, cinder/molten are
+  //     bonding + matured (graduate unlocked), live-salon (1-day) stays active. The UI is
+  //     chain-anchored (useNowSec reads block.timestamp) so countdowns agree with the advanced chain.
+  //
+  //     NOTE the gallery auction (1h duration) now ends during step 2c rather than here. It is
+  //     settle-ready + no-bid either way, and nothing in phase 2 touches it.
   const TWO_HOURS = 2 * 60 * 60
   await test.increaseTime({ seconds: TWO_HOURS })
   await test.mine({ blocks: 1 })
