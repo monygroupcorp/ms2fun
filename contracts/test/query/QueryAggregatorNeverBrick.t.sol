@@ -3,6 +3,8 @@ pragma solidity ^0.8.20;
 
 import { Test } from "forge-std/Test.sol";
 import { QueryAggregator } from "../../src/query/QueryAggregator.sol";
+import { FeaturedQueueManager } from "../../src/master/FeaturedQueueManager.sol";
+import { IMasterRegistry } from "../../src/master/interfaces/IMasterRegistry.sol";
 import { MockMasterRegistry } from "../mocks/MockMasterRegistry.sol";
 import { TYPE_ERC404, TYPE_ERC1155 } from "../../src/interfaces/IInstanceLifecycle.sol";
 
@@ -298,5 +300,114 @@ contract QueryAggregatorNeverBrickTest is Test {
             assertEq(views[i].basePrice, 0, "undecodable edition => zero entry");
             assertEq(bytes(views[i].pieceTitle).length, 0, "undecodable edition => empty title");
         }
+    }
+}
+
+// ── Featured grid: the registry read behind it must never brick the grid ──────────────────────
+
+/// @notice A registry that answers every rental-eligibility read, so slots can be created.
+contract LiveRegistry {
+    function isRegisteredInstance(address) external pure returns (bool) {
+        return true;
+    }
+
+    function getInstanceInfo(address instance) external pure returns (IMasterRegistry.InstanceInfo memory info) {
+        info.instance = instance;
+    }
+}
+
+/// @notice Answers four bytes for every selector — too short to hold a `bool`.
+contract ShortReturnRegistry {
+    fallback() external {
+        assembly {
+            mstore(0, 0xdeadbeef)
+            return(0, 4)
+        }
+    }
+}
+
+/// @notice Answers a full word that is not a canonical boolean, the shape a high-level `bool` decode
+///         rejects. Length alone cannot tell this from a valid answer.
+contract NonBooleanRegistry {
+    fallback() external {
+        assembly {
+            mstore(0, 0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef)
+            return(0, 32)
+        }
+    }
+}
+
+/// @notice Reverts on every call — a registry paused or upgraded out from under the pointer.
+contract RevertingRegistry {
+    fallback() external {
+        revert("registry down");
+    }
+}
+
+/**
+ * @notice `getFeaturedInstances` backs the landing page, so its registry read degrades rather than
+ *         reverting. The defined fallback is FAIL-OPEN: a registry that cannot be reached or cannot be
+ *         decoded leaves the slot visible, which is the pre-existing behaviour, instead of emptying the
+ *         grid for every instance at once.
+ *
+ * @dev Each test below is a live gate on the raw-staticcall routing: replace the guarded call with a
+ *      high-level `masterRegistry.isRegisteredInstance(...)` — with or without `try`/`catch` — and the
+ *      corresponding test reverts instead of asserting.
+ */
+contract FeaturedQueueRegistryNeverBrickTest is Test {
+    FeaturedQueueManager internal queue;
+    LiveRegistry internal live;
+
+    address internal renter = makeAddr("renter");
+    address internal treasury = makeAddr("treasury");
+    address internal inst1 = makeAddr("featuredInstance1");
+    address internal inst2 = makeAddr("featuredInstance2");
+
+    function setUp() public {
+        live = new LiveRegistry();
+        queue = new FeaturedQueueManager();
+        queue.initialize(address(live), address(this));
+        queue.setProtocolTreasury(treasury);
+
+        _rent(inst1, 0.02 ether);
+        _rent(inst2, 0.01 ether);
+    }
+
+    function _rent(address instance, uint256 rankBoost) internal {
+        uint256 duration = queue.minDuration();
+        uint256 total = queue.quoteDurationCost(duration) + rankBoost;
+        vm.deal(renter, renter.balance + total);
+        vm.prank(renter);
+        queue.rentFeatured{ value: total }(instance, duration, rankBoost);
+    }
+
+    function _assertFailOpen(string memory label) internal view {
+        (address[] memory result, uint256 total) = queue.getFeaturedInstances(0, 10);
+        assertEq(total, 2, string.concat(label, ": both slots counted"));
+        assertEq(result.length, 2, string.concat(label, ": both slots returned"));
+        assertEq(result[0], inst1, string.concat(label, ": rank order preserved"));
+        assertEq(result[1], inst2, string.concat(label, ": rank order preserved"));
+    }
+
+    function test_featured_grid_survives_registry_with_no_code() public {
+        address noCode = address(0xC0DE1E55);
+        assertEq(noCode.code.length, 0, "precondition: registry pointer is not a contract");
+        queue.setMasterRegistry(noCode);
+        _assertFailOpen("no-code registry");
+    }
+
+    function test_featured_grid_survives_short_return_registry() public {
+        queue.setMasterRegistry(address(new ShortReturnRegistry()));
+        _assertFailOpen("short-return registry");
+    }
+
+    function test_featured_grid_survives_non_boolean_registry() public {
+        queue.setMasterRegistry(address(new NonBooleanRegistry()));
+        _assertFailOpen("non-boolean registry");
+    }
+
+    function test_featured_grid_survives_reverting_registry() public {
+        queue.setMasterRegistry(address(new RevertingRegistry()));
+        _assertFailOpen("reverting registry");
     }
 }
