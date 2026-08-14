@@ -109,6 +109,84 @@ contract AlignmentRegistryAmbassadorMetadataWriteTest is Test {
         registry.updateAlignmentTarget(targetId, "stale", "ipfs://stale");
     }
 
+    // ── the boundary: metadataURI must satisfy the scheme allowlist ─────────────
+
+    /// An ambassador cannot store an executable `data:text/html,` URI.
+    function test_UpdateAlignmentTarget_RevertOnDataHtmlURI() public {
+        uint256 targetId = _registerTargetWithAmbassador();
+
+        vm.prank(ambassador);
+        vm.expectRevert(AlignmentRegistryV1.InvalidMetadataURI.selector);
+        registry.updateAlignmentTarget(targetId, "blurb", "data:text/html,<script>alert(1)</script>");
+    }
+
+    /// An ambassador cannot store a bare `javascript:` URI.
+    function test_UpdateAlignmentTarget_RevertOnJavascriptURI() public {
+        uint256 targetId = _registerTargetWithAmbassador();
+
+        vm.prank(ambassador);
+        vm.expectRevert(AlignmentRegistryV1.InvalidMetadataURI.selector);
+        registry.updateAlignmentTarget(targetId, "blurb", "javascript:alert(1)");
+    }
+
+    /// The owner is held to the same allowlist on update.
+    function test_UpdateAlignmentTarget_RevertOnInvalidURIFromOwner() public {
+        uint256 targetId = _registerTargetWithAmbassador();
+
+        vm.prank(daoOwner);
+        vm.expectRevert(AlignmentRegistryV1.InvalidMetadataURI.selector);
+        registry.updateAlignmentTarget(targetId, "blurb", "http://example.invalid/meta.json");
+    }
+
+    /// An allowlisted scheme still succeeds — the ambassador's legitimate power is intact.
+    function test_UpdateAlignmentTarget_AllowsValidSchemes() public {
+        uint256 targetId = _registerTargetWithAmbassador();
+
+        vm.prank(ambassador);
+        registry.updateAlignmentTarget(targetId, "blurb", "ipfs://valid");
+        assertEq(registry.getAlignmentTarget(targetId).metadataURI, "ipfs://valid");
+
+        vm.prank(ambassador);
+        registry.updateAlignmentTarget(targetId, "blurb", "data:application/json;base64,e30=");
+        assertEq(registry.getAlignmentTarget(targetId).metadataURI, "data:application/json;base64,e30=");
+    }
+
+    /// An EMPTY metadataURI stays legal — a metadata-less target remains representable.
+    function test_UpdateAlignmentTarget_AllowsEmptyURI() public {
+        uint256 targetId = _registerTargetWithAmbassador();
+
+        vm.prank(ambassador);
+        registry.updateAlignmentTarget(targetId, "blurb", "ipfs://valid");
+
+        vm.prank(ambassador);
+        registry.updateAlignmentTarget(targetId, "blurb", "");
+        assertEq(registry.getAlignmentTarget(targetId).metadataURI, "");
+    }
+
+    /// Target CREATION is gated by the same allowlist.
+    function test_RegisterAlignmentTarget_RevertOnInvalidURI() public {
+        IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);
+        assets[0] = IAlignmentRegistry.AlignmentAsset({ token: cultToken, symbol: "CULT", info: "", metadataURI: "" });
+
+        vm.prank(daoOwner);
+        vm.expectRevert(AlignmentRegistryV1.InvalidMetadataURI.selector);
+        registry.registerAlignmentTarget("Title", "", "data:text/html,<script>alert(1)</script>", assets);
+    }
+
+    /// Target creation with an allowlisted scheme, and with an empty URI, both succeed.
+    function test_RegisterAlignmentTarget_AllowsValidAndEmptyURI() public {
+        IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);
+        assets[0] = IAlignmentRegistry.AlignmentAsset({ token: cultToken, symbol: "CULT", info: "", metadataURI: "" });
+
+        vm.prank(daoOwner);
+        uint256 withURI = registry.registerAlignmentTarget("Title", "", "https://example.invalid/m.json", assets);
+        assertEq(registry.getAlignmentTarget(withURI).metadataURI, "https://example.invalid/m.json");
+
+        vm.prank(daoOwner);
+        uint256 withoutURI = registry.registerAlignmentTarget("Title2", "", "", assets);
+        assertEq(registry.getAlignmentTarget(withoutURI).metadataURI, "");
+    }
+
     // ── the boundary: ambassador has NO fund/price authority ────────────────────
 
     /// An ambassador CANNOT set the community payout (fund authority stays owner-only).
