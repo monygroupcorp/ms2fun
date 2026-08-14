@@ -1,27 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import { Script, console } from "forge-std/Script.sol";
+import { console } from "forge-std/Script.sol";
 import { ERC1155Factory } from "../src/factories/erc1155/ERC1155Factory.sol";
 import { ERC1155Instance } from "../src/factories/erc1155/ERC1155Instance.sol";
 import { ERC721AuctionFactory } from "../src/factories/erc721/ERC721AuctionFactory.sol";
 import { ERC721AuctionInstance } from "../src/factories/erc721/ERC721AuctionInstance.sol";
 import { ERC404Factory } from "../src/factories/erc404/ERC404Factory.sol";
 import { ERC404BondingInstance } from "../src/factories/erc404/ERC404BondingInstance.sol";
-import { BondingCurveMath } from "../src/factories/erc404/libraries/BondingCurveMath.sol";
-import { FeaturedQueueManager } from "../src/master/FeaturedQueueManager.sol";
 import { GlobalMessageRegistry } from "../src/registry/GlobalMessageRegistry.sol";
-import { ProfileRegistry } from "../src/registry/ProfileRegistry.sol";
 import { FreeMintParams } from "../src/interfaces/IFactoryTypes.sol";
 import { GatingScope } from "../src/gating/IGatingModule.sol";
 import { IAlignmentVault } from "../src/interfaces/IAlignmentVault.sol";
 import { MetadataOverlayModule } from "../src/metadata/MetadataOverlayModule.sol";
 import { Currency } from "v4-core/types/Currency.sol";
-
-/// @dev Minimal Solady-Ownable surface — instances + registries all expose this single-step transfer.
-interface IOwnable {
-    function transferOwnership(address newOwner) external payable;
-}
+import { SeedAnvilShared } from "./SeedAnvilShared.sol";
 
 /// @dev Minimal owner surface for enriching a seeded alignment target's description + logo metadata.
 interface IAlignmentTargetAdmin {
@@ -42,18 +35,30 @@ interface IAgentRegistry {
 ///         `data:` SVG images, so the seed needs no IPFS/network and renders offline. NEVER part of
 ///         a production deploy (DeployCore stays clean); this lives only in the local dev bridge.
 ///
-///         TIME MODEL: vm.warp is a NO-OP under --broadcast (it advances only the script's in-memory
-///         EVM, not the live chain), so this seed NEVER warps. Every instance is created with time
-///         OFFSETS relative to seed-time T0 (open +1h, gallery duration 1h, maturity +90m, etc.), and
-///         `deploy.ts` advances the anvil chain by +2h afterward (evm_increaseTime) so the
-///         ended/open/matured states materialize. The frontend countdown is chain-anchored (useNowSec
-///         reads block.timestamp) so the UI agrees with the advanced chain. Net result after +2h:
-///         gallery auctions ended (settle-ready + no-bid), live auctions active, ember preopen,
-///         vapor mid-curve (bonding + staking), cinder bonding + matured (graduate unlocked).
-contract SeedAnvil is Script {
-    // Well-known Anvil account #1 (public test key) — used to seed a second, non-deployer actor.
-    uint256 constant ACCOUNT_1_KEY = 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d;
-
+///         TIME MODEL — READ THIS BEFORE MOVING ANYTHING. vm.warp is a NO-OP under --broadcast (it
+///         advances only the script's in-memory EVM, not the live chain), so this seed NEVER warps.
+///         Every instance is created with time OFFSETS relative to seed-time T0 (open +1h, gallery
+///         duration 1h, maturity +90m), and `deploy.ts` advances the anvil chain AFTERWARD.
+///
+///         The seed is TWO SCRIPTS because `buyBonding` reverts `TooEarly` before `bondingOpenTime`
+///         while `setBondingOpenTime` reverts `TimeMustBeInFuture` on a non-future time — a single
+///         script cannot both arm a launch and buy into it (see SeedAnvilShared's header for the
+///         full derivation). THIS script only CREATES and ARMS. Every buy, and everything downstream
+///         of a buy, lives in SeedAnvilBuys.
+///
+///         deploy.ts drives the clock in two steps:
+///           SeedAnvil  →  +1h +slack  →  SeedAnvilBuys  →  +2h
+///         so ~3h of chain time passes in total. Net result at the end:
+///           · ember       preopen        (open +1 day — uncrossed by ~3h, deliberately)
+///           · vapor       bonding        (open crossed by the FIRST advance, then bought + staked)
+///           · cinder      bonding + MATURED (maturity +90m: after the buys, before the end)
+///           · molten      bonding + MATURED (same shape, ZAMM venue)
+///           · carve       bonding, reserve >= 3 ETH, matured — graduates in deploy.ts WITH a carve
+///           · stacked     bonding, ids 1-3 held, overlay authored
+///           · gallery auction (1h)  ENDED — note it now ends during the FIRST advance, not the
+///             second; it is settle-ready + no-bid either way, and nothing in phase 2 needs it live
+///           · live auction (1 day)  ACTIVE, with its phase-1 bid intact
+contract SeedAnvil is SeedAnvilShared {
     // Agent-delegation demo (pre-testnet confirmation): the AGENT is an authorized delegate that
     // creates a collection ON BEHALF OF the PERSON, who ends up owning it. Anvil accounts #3 (agent)
     // and #2 (person) — well-known public test keys.
@@ -61,40 +66,12 @@ contract SeedAnvil is Script {
     address constant AGENT = 0x90F79bf6EB2c4f870365E785982E1f101E93b906; // anvil #3
     address constant PERSON = 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC; // anvil #2
 
-    // The team's testing wallet. After the deployer finishes all owner-only seeding, ownership of
-    // every seeded instance + the platform registries is handed to ADMIN so it can drive the creator
-    // admin + (future) protocol-admin console from the UI. Anvil-only — DeployCore stays untouched.
-    address constant ADMIN = 0x54EfD4549AE44bD03B2cCC1C72492CA9A3219C86;
-
-    // Every seeded instance, accumulated as they're created, so _transferAdmin can hand them over.
+    // Every seeded instance, accumulated as they're created, so phase 2's _transferAdmin can hand
+    // them over. Persisted to anvil-seed.json at the end of run() — phase 2 cannot see this array.
     address[] private _instances;
 
-    // Deployed addresses (read from anvil.json in run()).
-    struct Deployed {
-        ERC1155Factory erc1155;
-        ERC721AuctionFactory erc721;
-        ERC404Factory erc404;
-        ProfileRegistry profiles;
-        FeaturedQueueManager queue;
-        GlobalMessageRegistry messages;
-        address vault; // first Uni LP vault — generic contract vault
-        address zammVault; // first ZAMM LP vault
-        address cypherVault; // first Cypher (Algebra) LP vault
-        address endowmentVault; // first Aave endowment vault
-        address stakingModule; // ERC404StakingModule (approved STAKING component)
-        address zammDeployer; // ModuleZAMMDeployer (approved LIQUIDITY_DEPLOYER)
-        address uniDeployer; // ModuleUniV4Deployer (approved LIQUIDITY_DEPLOYER)
-        address cypherDeployer; // ModuleCypherDeployer (approved LIQUIDITY_DEPLOYER)
-        address resolverRouter; // MetadataResolverRouter (approved RESOLVER)
-        address overlay; // MetadataOverlayModule (approved OVERLAY)
-        address tier; // TokenTierBandResolver (approved TIER)
-        address alignmentRegistry; // AlignmentRegistryV1 proxy (target curation)
-        address master; // MasterRegistryV1 proxy (agent authorization; deployer-owned pre-handover)
-    }
-
-    uint256 deployerKey;
-    address deployer;
-    address acct1;
+    // The ERC404 instances phase 2 resolves by name.
+    SeededErc404 private _seeded;
 
     function run() public {
         deployerKey = vm.envUint("PRIVATE_KEY");
@@ -108,10 +85,14 @@ contract SeedAnvil is Script {
 
         // TIME MODEL: vm.warp is a NO-OP under --broadcast (it advances only the script's in-memory
         // EVM, never the live chain). So this seed never warps — every instance is created with time
-        // OFFSETS relative to seed-time T0, and deploy.ts advances the anvil chain by +2h afterward
+        // OFFSETS relative to seed-time T0, and deploy.ts advances the anvil chain afterward
         // (evm_increaseTime) so the ended/open/matured states materialize. The UI's countdown is
         // chain-anchored (useNowSec reads block.timestamp), so it agrees with the advanced chain.
         // Order below is no longer time-sensitive.
+        //
+        // Nothing here BUYS. Arming a launch and buying into it cannot share one script (see the
+        // contract header) — the buys are in SeedAnvilBuys, which deploy.ts runs after advancing
+        // the clock past every open time set below.
 
         // ── ERC721 gallery (1h duration -> ENDED after the +2h advance: settle-ready + no-bid) ──
         _seedErc721Gallery(d);
@@ -144,68 +125,20 @@ contract SeedAnvil is Script {
         // Agent-delegation confirmation: an authorized agent creates a collection FOR a person.
         _seedAgentDemo(d);
 
-        // Hand everything to the team's testing wallet (LAST — after all owner-only seeding).
-        _transferAdmin(d);
+        // Ownership handover is NOT here: it must run after ALL owner-only seeding, and phase 2 still
+        // performs owner-only writes (staking activation, overlay authoring). _transferAdmin lives in
+        // SeedAnvilBuys and runs last there.
+        _writeSeedState(_seeded, _instances);
 
-        console.log("=== SeedAnvil complete ===");
+        console.log("=== SeedAnvil (phase 1: create + arm) complete ===");
         console.log("ERC1155: 3 collections (neon-drift, monolith, ghost-mint[free-claim]) w/ editions");
-        console.log("ERC721 : 2 auctions (gallery=settled+expired, live=active+bid)");
+        console.log("ERC721 : 2 auctions (gallery=1h duration, live=1-day + bid)");
         console.log(
-            "ERC404 : preopen(cypher) + mid-curve+staking(uniV4) + 2 ready-to-graduate (cinder=uniV4, molten=zamm) + stacked(zamm)"
+            "ERC404 : armed but UNBOUGHT - preopen(cypher) + mid-curve(uniV4) + 2 ready-to-graduate (cinder=uniV4, molten=zamm) + carve + stacked(zamm)"
         );
-        console.log("ERC404 : carved-demo (declaredMax=10000, reserve >= 3 ETH) awaits deploy.ts graduation WITH carve");
         console.log("Vaults : all 4 flavors used (aave/uni/zamm/cypher); AMMs: all 3 (uniV4/zamm/cypher)");
         console.log("Profiles: 2 (MS2 Labs, Vela) + activity. block.timestamp now:", block.timestamp);
-    }
-
-    /// @dev Hand ownership of every seeded INSTANCE to ADMIN (the testing wallet) + fund it, so it
-    ///      drives creator admin from the UI. Runs LAST, as the deployer, after all owner-only seeding
-    ///      (instances use Solady's single-step transferOwnership).
-    ///
-    ///      The platform REGISTRIES (MasterRegistry/Alignment/Component/FeaturedQueue) are UUPS proxies
-    ///      that override transferOwnership to force the 2-step `requestOwnershipHandover` flow — which
-    ///      the NEW owner must initiate, and we don't hold ADMIN's key here. So protocol-admin
-    ///      ownership is deferred to Phase 3 (handled via anvil impersonation in deploy.ts, or by ADMIN
-    ///      requesting the handover from the admin console). The deployer stays the protocol owner.
-    function _transferAdmin(Deployed memory) internal {
-        vm.startBroadcast(deployerKey);
-        // Fund ADMIN so it can pay gas + value actions (queuePiece deposit, bids, buys) immediately.
-        (bool funded,) = ADMIN.call{ value: 50 ether }("");
-        require(funded, "fund ADMIN failed");
-        for (uint256 i = 0; i < _instances.length; i++) {
-            IOwnable(_instances[i]).transferOwnership(ADMIN);
-        }
-        vm.stopBroadcast();
-        console.log("Handed", _instances.length, "instances (creator admin) + 50 ETH to ADMIN:");
-        console.log(ADMIN);
-    }
-
-    // ─────────────────────────── Address loading ───────────────────────────
-
-    function _readDeployed() internal view returns (Deployed memory d) {
-        string memory json = vm.readFile("./deployments/anvil.json");
-        d.erc1155 = ERC1155Factory(vm.parseJsonAddress(json, ".factories.ERC1155"));
-        d.erc721 = ERC721AuctionFactory(vm.parseJsonAddress(json, ".factories.ERC721"));
-        d.erc404 = ERC404Factory(payable(vm.parseJsonAddress(json, ".factories.ERC404")));
-        d.profiles = ProfileRegistry(vm.parseJsonAddress(json, ".contracts.ProfileRegistry"));
-        d.queue = FeaturedQueueManager(payable(vm.parseJsonAddress(json, ".contracts.FeaturedQueueManager")));
-        d.messages = GlobalMessageRegistry(vm.parseJsonAddress(json, ".contracts.GlobalMessageRegistry"));
-        d.stakingModule = vm.parseJsonAddress(json, ".contracts.ERC404StakingModule");
-        d.zammDeployer = vm.parseJsonAddress(json, ".contracts.ModuleZAMMDeployer");
-        d.uniDeployer = vm.parseJsonAddress(json, ".contracts.ModuleUniV4Deployer");
-        d.cypherDeployer = vm.parseJsonAddress(json, ".contracts.ModuleCypherDeployer");
-        d.resolverRouter = vm.parseJsonAddress(json, ".contracts.MetadataResolverRouter");
-        d.overlay = vm.parseJsonAddress(json, ".contracts.MetadataOverlayModule");
-        d.tier = vm.parseJsonAddress(json, ".contracts.TokenTierBandResolver");
-        // Resolve the seed's vaults by FAMILY via DeployCore's convenience pointers, not by index
-        // into the `vaults` array — that array's ordering shifts as LP families (ZAMM/Cypher) are
-        // enabled per network, so a fixed index silently binds to the wrong vault type.
-        d.vault = vm.parseJsonAddress(json, ".contracts.SeedUniVault");
-        d.zammVault = vm.parseJsonAddress(json, ".contracts.SeedZammVault");
-        d.cypherVault = vm.parseJsonAddress(json, ".contracts.SeedCypherVault");
-        d.endowmentVault = vm.parseJsonAddress(json, ".contracts.SeedAaveVault");
-        d.alignmentRegistry = vm.parseJsonAddress(json, ".contracts.AlignmentRegistry");
-        d.master = vm.parseJsonAddress(json, ".contracts.MasterRegistry");
+        console.log("NEXT   : deploy.ts advances the chain past every openTime, then runs SeedAnvilBuys");
     }
 
     /// @dev Enrich the two seeded alignment targets (registered by DeployCore with empty metadataURI)
@@ -525,15 +458,18 @@ contract SeedAnvil is Script {
             0
         );
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
-        b.setBondingOpenTime(block.timestamp + 1 days); // strictly future -> preopen
+        // +1 DAY, not +1h: this one must stay preopen through BOTH of deploy.ts's advances (~3h
+        // total). It is the only ERC404 the seed never buys into, which is the point of it.
+        b.setBondingOpenTime(block.timestamp + 1 days);
         b.setBondingActive(true);
         d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.06 ether);
         vm.stopBroadcast();
+        _seeded.ember = inst;
     }
 
-    /// @dev MID-CURVE: the main demo. Created WITH the staking module, opened just-ahead then crossed,
-    ///      several buys from deployer + acct1 (BondingSale events -> price history for candles), then
-    ///      staking activated and a position staked. No graduation.
+    /// @dev MID-CURVE: the main demo. Created WITH the staking module and armed here; the buys
+    ///      (BondingSale events -> price history for candles), staking activation and the ADMIN unit
+    ///      hand-off all happen in SeedAnvilBuys, after the chain crosses openTime. No graduation.
     function _seedErc404MidCurve(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
         // Uni-V4 LP venue + Uni LP vault (mid-curve; does not graduate).
@@ -550,44 +486,29 @@ contract SeedAnvil is Script {
             10000
         );
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
-        // openTime must be strictly future at broadcast; set it +1h so the seed never reverts on
-        // broadcast lag. The post-seed +2h chain advance (deploy.ts) crosses it -> derivePhase=bonding.
-        // buyBonding does NOT gate on openTime, so the seed buys land now regardless.
+        // openTime must be strictly future at broadcast; +1h clears any broadcast lag. deploy.ts
+        // crosses it with its FIRST advance, before SeedAnvilBuys runs -> derivePhase=bonding.
         b.setBondingOpenTime(block.timestamp + 1 hours);
         b.setBondingActive(true);
         d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.05 ether);
-
-        // Buy amount: >= normalizationFactor (else cost rounds to 0 -> PurchaseTooSmall) and well
-        // under maxBondingSupply (~9e24 for preset 1: maxSupply 1e25 - 10% reserve). unit = 1e24.
-        uint256 buyAmount = 1e23; // 0.1 NFT-equivalent worth of tokens per buy
         vm.stopBroadcast();
-
-        _buyBonding(b, deployerKey, buyAmount);
-        _buyBonding(b, ACCOUNT_1_KEY, buyAmount);
-        _buyBonding(b, deployerKey, buyAmount);
-        // One larger deployer buy so there's enough to seed ADMIN a whole NFT (unit = 1e24).
-        _buyBonding(b, deployerKey, 12e23);
-
-        // Activate staking + stake a slice, then hand ADMIN 1 unit (1 NFT + tokens) so the testing
-        // wallet's PORTFOLIO shows real ERC404 holdings. Deployer now holds 1e23+1e23+12e23 = 1.4e24.
-        vm.startBroadcast(deployerKey);
-        b.activateStaking();
-        b.stake(buyAmount / 2);
-        b.transfer(ADMIN, 1e24); // DN404: a whole-unit transfer mints the NFT to ADMIN
-        vm.stopBroadcast();
+        _seeded.vapor = inst;
     }
 
-    /// @dev READY-TO-GRADUATE: opened, one buy (reserve > 0 is required by deployLiquidity), maturity
-    ///      set so the post-seed +2h chain advance (deploy.ts) crosses it -> deployLiquidity's
-    ///      isMatured becomes true and the UI surfaces the graduate button. We do NOT call
-    ///      deployLiquidity (it hits an external AMM); the human graduates live. No vm.warp.
+    /// @dev READY-TO-GRADUATE: armed here; the single buy that gives it the reserve > 0 that
+    ///      deployLiquidity requires happens in SeedAnvilBuys. Maturity is set so that after BOTH of
+    ///      deploy.ts's advances it has passed -> deployLiquidity's isMatured becomes true and the UI
+    ///      surfaces the graduate button. Maturity +90m sits deliberately AFTER the first advance
+    ///      (+1h) so the buy lands on an open, un-matured curve, and before the ~3h total so it ends
+    ///      matured. We do NOT call deployLiquidity (it hits an external AMM); the human graduates
+    ///      live. No vm.warp.
     ///      Two graduate-ready instances are seeded — one per embedded-swap venue — so the
     ///      post-graduation swap surface can be exercised on both: cinder-ready (Uni-V4 -> swapV4)
     ///      and molten-ready (ZAMM -> swapVZ).
     function _seedErc404ReadyToGraduate(Deployed memory d) internal {
         // Uni-V4 LP venue + Uni LP vault — graduating stands up a real V4 pool (embedded swapV4).
         // Declared max 10000: the creator kept full carve rights (shown pre-buy on the primary surface).
-        _seedReadyToGraduate(
+        _seeded.cinder = _seedReadyToGraduate(
             d,
             "cinder-ready",
             "Cinder",
@@ -601,7 +522,7 @@ contract SeedAnvil is Script {
         );
         // ZAMM LP venue + ZAMM LP vault — graduating stands up a ZAMM pool (embedded swapVZ).
         // Declared max 2500: a partial-carve disclosure so the UI shows a non-round value too.
-        _seedReadyToGraduate(
+        _seeded.molten = _seedReadyToGraduate(
             d,
             "molten-ready",
             "Molten",
@@ -626,20 +547,18 @@ contract SeedAnvil is Script {
         address deployer_,
         uint256 rankBoost,
         uint16 declaredMaxBps
-    ) internal {
+    ) internal returns (address inst) {
         vm.startBroadcast(deployerKey);
-        address inst =
-            _createBonding(d, slug, name, description, symbol, image, address(0), vault, deployer_, declaredMaxBps);
+        inst = _createBonding(d, slug, name, description, symbol, image, address(0), vault, deployer_, declaredMaxBps);
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
-        // openTime +1h (safe future), maturity +90m (> openTime, < the +2h advance) so after the
-        // advance the curve is open (bonding) AND matured (graduate unlocked).
+        // openTime +1h (crossed by deploy.ts's FIRST advance, so the phase-2 buy lands on an open
+        // curve), maturity +90m (still ahead at buy time, crossed by the SECOND advance) so the
+        // curve ends bonding AND matured (graduate unlocked).
         b.setBondingOpenTime(block.timestamp + 1 hours);
         b.setBondingMaturityTime(block.timestamp + 90 minutes);
         b.setBondingActive(true);
         d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, rankBoost);
         vm.stopBroadcast();
-        // _buyBonding manages its own broadcast — call it OUTSIDE the block above (no nesting).
-        _buyBonding(b, deployerKey, 1e23);
     }
 
     /// @dev CARVE DEMO: an ERC404 that declared the FULL carve allowance (declaredMax = 10000) and
@@ -670,14 +589,9 @@ contract SeedAnvil is Script {
         b.setBondingActive(true);
         d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.041 ether);
         vm.stopBroadcast();
-
-        // Walk the curve until the reserve clears 3 ETH so the carve has real headroom above the
-        // 1 ETH pool floor. Bounded: preset 1 targets ~25 ETH over ~9e24 bondable tokens, so 3 ETH
-        // arrives well inside the iteration cap. buyBonding does not gate on openTime.
-        for (uint256 i = 0; i < 24 && b.reserve() < 3 ether; i++) {
-            _buyBonding(b, i % 2 == 0 ? ACCOUNT_1_KEY : deployerKey, 5e23);
-        }
-        require(b.reserve() >= 3 ether, "carve demo: reserve did not reach 3 ETH");
+        // The reserve-building buy walk is in SeedAnvilBuys, along with the assertion that it
+        // actually cleared 3 ETH.
+        _seeded.carve = inst;
     }
 
     /// @dev STACKED METADATA: an ERC404 created via the factory's metadata overload (NOT the gating
@@ -747,58 +661,15 @@ contract SeedAnvil is Script {
         b.setBondingActive(true);
         d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.035 ether);
         vm.stopBroadcast();
+        _seeded.stacked = inst;
 
-        // Deployer buys 3 whole units WITH NFTs minted → owns ids 1,2,3 (all below the band, as intended).
-        _buyBondingMint(b, deployerKey, 3e24);
-
-        // Artist (deployer) authoring + holder unlock — all owner/holder writes before _transferAdmin.
-        vm.startBroadcast(deployerKey);
-        MetadataOverlayModule ov = MetadataOverlayModule(d.overlay);
-        // An opt-in open event wave (holders select it; not auto because autoLatest=false).
-        ov.publishWave(inst, "event-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST);
-        // A paid commission on id 3 (outside the band range), then unlock+pin it as the holder.
-        ov.setCommission(
-            inst, 3, "commission-3", MetadataOverlayModule.CommCond.PAY, 0.01 ether, MetadataOverlayModule.Payout.ARTIST
-        );
-        ov.unlock{ value: 0.01 ether }(inst, 3);
-        vm.stopBroadcast();
+        // The buy-with-mint (ids 1,2,3) and the overlay authoring that depends on HOLDING id 3 are
+        // both in SeedAnvilBuys — the unlock is a holder write, so it cannot precede the buy.
 
         console.log("STACKED prism instance:", inst);
         console.log("  overlay:", d.overlay);
         console.log("  tier   :", d.tier);
         console.log("  router :", d.resolverRouter);
-    }
-
-    /// @dev Same exact-cost math as _buyBonding but mints NFTs (mintNFT=true) so the buyer owns ids.
-    function _buyBondingMint(ERC404BondingInstance b, uint256 key, uint256 amount) internal {
-        BondingCurveMath.Params memory params = _curveParams(b);
-        uint256 cost = BondingCurveMath.calculateCost(params, b.totalBondingSupply(), amount);
-        uint256 fee = (cost * b.bondingFeeBps()) / 10000;
-        uint256 total = cost + fee;
-        vm.startBroadcast(key);
-        b.buyBonding{ value: total }(amount, total, true, bytes(""), "", 0);
-        vm.stopBroadcast();
-    }
-
-    /// @dev Compute the EXACT cost the instance will charge and pay it, so buyBonding never reverts.
-    ///      The instance computes cost = BondingCurveMath.calculateCost(curveParams, supply, amount),
-    ///      then adds a fee = cost * bondingFeeBps / 10000. We reproduce both with the SAME library
-    ///      + the instance's public getters and set maxCost == value == cost + fee. (Excess, if any,
-    ///      is refunded by the contract.) mintNFT=false keeps tokens fungible for staking.
-    function _buyBonding(ERC404BondingInstance b, uint256 key, uint256 amount) internal {
-        BondingCurveMath.Params memory params = _curveParams(b);
-        uint256 cost = BondingCurveMath.calculateCost(params, b.totalBondingSupply(), amount);
-        uint256 fee = (cost * b.bondingFeeBps()) / 10000;
-        uint256 total = cost + fee;
-        vm.startBroadcast(key);
-        b.buyBonding{ value: total }(amount, total, false, bytes(""), "", 0);
-        vm.stopBroadcast();
-    }
-
-    /// @dev Reconstruct the curve Params struct from the public auto-getter (returns a 3-tuple).
-    function _curveParams(ERC404BondingInstance b) internal view returns (BondingCurveMath.Params memory p) {
-        (uint256 kCoeff, uint256 poleWad, uint256 normalizationFactor) = b.curveParams();
-        p = BondingCurveMath.Params({ kCoeff: kCoeff, poleWad: poleWad, normalizationFactor: normalizationFactor });
     }
 
     /// @param vault    the alignment/endowment vault the instance binds to (any of the 4 flavors)
