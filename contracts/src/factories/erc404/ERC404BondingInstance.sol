@@ -512,6 +512,10 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle, IGra
     ) external payable nonReentrant {
         if (deadline != 0 && block.timestamp > deadline) revert TransactionExpired();
         if (!bondingActive) revert BondingNotActive();
+        // bondingOpenTime is the authoritative open reference for every cohort: an armed instance does
+        // not take ETH before the announced open, gated or not. Written as a `<` comparison so an unset
+        // (zero) open time reads as open immediately.
+        if (block.timestamp < bondingOpenTime) revert TooEarly();
         if (graduated) revert BondingEnded();
         if (totalBondingSupply + amount > maxSupply - liquidityReserve - (freeMintAllocation * unit)) {
             revert ExceedsBonding();
