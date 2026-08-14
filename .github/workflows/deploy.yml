@@ -1,8 +1,17 @@
 name: Deploy to GitHub Pages
 
+# NOTE: the push trigger is intentionally disabled. This workflow still builds the RETIRED root
+# stack (root `index.html` -> `/src/index.js`, root `vite.config.js`), and root `src/` no longer
+# exists: a8ca295 moved it to `legacy/` and did not update the entry point. The build therefore
+# fails at `Failed to resolve /src/index.js` on every run and has never once succeeded, so firing
+# it on every push to main only produced a permanent red with nothing behind it.
+#
+# The frontend that should actually ship is `app/`, which app-ci already typechecks, tests and
+# builds (gate G5) on every commit. Rewriting this workflow to publish `app/dist` is deliberately
+# NOT part of this change: ms2.fun currently serves the old pre-quarantine artifact wired to the
+# old contracts, and swapping what the brand domain serves is gated on the testnet deploy landing.
+# Until then this stays manual-only via workflow_dispatch.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
