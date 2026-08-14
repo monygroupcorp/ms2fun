@@ -186,6 +186,20 @@ export function isFieldVisible(field: FieldSchema, values: Record<string, unknow
 
 const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/
 
+/**
+ * Row count of a `kind: 'list'` field, across BOTH representations the evaluator is handed:
+ *   - a genuine array as `value` (NOEMA and direct `validateField` callers);
+ *   - the wizard's flat bag, where row VALUES live at `${key}.N` and the row COUNT at
+ *     `${key}.length` as a string (see `SchemaForm`'s `ListField`). A `readValue(values, key)`
+ *     lookup finds neither, so `value` is `undefined` there and the counter is the only source.
+ * Missing, blank or non-numeric counter → 0 rows, matching the renderer's own `/^\d+$/` parse.
+ */
+function listLength(field: FieldSchema, value: unknown, values: Record<string, unknown>): number {
+  if (Array.isArray(value)) return value.length
+  const raw = readValue(values, `${field.key}.length`)
+  return typeof raw === 'string' && /^\d+$/.test(raw) ? Number(raw) : 0
+}
+
 /** Validate one field's value; returns an error string or null. Never throws. Skips hidden fields. */
 export function validateField(
   field: FieldSchema,
@@ -194,14 +208,18 @@ export function validateField(
 ): string | null {
   if (!isFieldVisible(field, values)) return null
   const rules = field.validation
-  const isEmpty =
-    value === undefined ||
-    value === null ||
-    value === '' ||
-    (Array.isArray(value) && value.length === 0)
+  // A list is empty when it has zero ROWS — which for a flat bag is a counter of 0, not an absent
+  // `value`. Bounds still run on an empty list: `min` is precisely the rule about having no rows.
+  const isList = field.kind === 'list'
+  const isEmpty = isList
+    ? listLength(field, value, values) === 0
+    : value === undefined ||
+      value === null ||
+      value === '' ||
+      (Array.isArray(value) && value.length === 0)
 
   if (rules?.required && isEmpty) return rules.message ?? `${field.label} is required`
-  if (isEmpty) return null // optional + empty → valid
+  if (isEmpty && !isList) return null // optional + empty → valid
 
   switch (field.kind) {
     case 'address': {
@@ -236,7 +254,7 @@ export function validateField(
       break
     }
     case 'list': {
-      const len = Array.isArray(value) ? value.length : 0
+      const len = listLength(field, value, values)
       if (rules?.min !== undefined && len < rules.min)
         return rules.message ?? `${field.label} needs at least ${rules.min}`
       if (rules?.max !== undefined && len > rules.max)
