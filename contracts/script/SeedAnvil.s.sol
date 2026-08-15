@@ -222,8 +222,7 @@ contract SeedAnvil is SeedAnvilShared {
             "neon-drift",
             "Neon Drift",
             "Generative monochrome fragments. An edition aligned to the MS2 community.",
-            ART_NEON_DRIFT,
-            0
+            ART_NEON_DRIFT
         );
         address c1 = _createCollection(
             d.erc1155,
@@ -232,11 +231,10 @@ contract SeedAnvil is SeedAnvilShared {
             "monolith",
             "Monolith",
             "One slab, many hands. A minimalist open edition.",
-            ART_MONOLITH,
-            0
+            ART_MONOLITH
         );
-        // c2: free-claim. allocation=5 reserved free mints, configured at creation by the factory
-        // (initializeFreeMint is onlyFactory — it is NOT called post-create from this script).
+        // c2: free-claim. The free-mint allocation is per edition and is set on the Ghost edition
+        // below, via addEdition's freeMintAlloc argument.
         address c2 = _createCollection(
             d.erc1155,
             d.vault,
@@ -244,8 +242,7 @@ contract SeedAnvil is SeedAnvilShared {
             "ghost-mint",
             "Ghost Mint",
             "Faint signals from the fossil layer. Free-claim editions.",
-            ART_GHOST_MINT,
-            5
+            ART_GHOST_MINT
         );
 
         // Editions. basePrice must be > 0 even for the free-claim collection (addEdition reverts on
@@ -287,7 +284,8 @@ contract SeedAnvil is SeedAnvilShared {
                 0
             );
 
-        // ghost-mint needs at least one edition so claimFreeMint has a target.
+        // ghost-mint needs at least one edition so claimFreeMint has a target. The last argument is
+        // the edition's free-mint allocation: 5 free claims reserved out of the supply of 100.
         ERC1155Instance(payable(c2))
             .addEdition(
                 "Ghost",
@@ -297,7 +295,7 @@ contract SeedAnvil is SeedAnvilShared {
                 ERC1155Instance.PricingModel.LIMITED_FIXED,
                 0,
                 0,
-                0
+                5
             );
 
         // Feature each (rentFeatured) so it surfaces in getHomePageData. rankBoost descends for a
@@ -336,8 +334,7 @@ contract SeedAnvil is SeedAnvilShared {
         string memory slug,
         string memory displayName,
         string memory description,
-        string memory image,
-        uint256 freeMintAllocation
+        string memory image
     ) internal returns (address instance) {
         ERC1155Factory.CreateParams memory params = ERC1155Factory.CreateParams({
             name: slug,
@@ -347,7 +344,8 @@ contract SeedAnvil is SeedAnvilShared {
             vault: vault,
             styleUri: "",
             gatingModule: address(0),
-            freeMint: FreeMintParams({ allocation: freeMintAllocation, scope: GatingScope.BOTH })
+            // allocation is per edition for ERC1155; the factory refuses a non-zero value here.
+            freeMint: FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         });
         bytes32 salt = keccak256(abi.encode(block.timestamp, index, slug));
         instance = factory.createInstance(salt, params);
