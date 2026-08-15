@@ -27,6 +27,11 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
     error VaultMustBeContract();
     error NameAlreadyTaken();
     error NotAuthorizedAgent();
+    /// @dev `FreeMintParams.allocation` has no meaning for an ERC1155 collection: free-mint allocation
+    ///      is per edition and editions are added after create, so there is no edition id a create-time
+    ///      allocation could key to. Pass 0 and set the allocation on each edition instead, via
+    ///      `ERC1155Instance.addEdition`'s `freeMintAlloc` argument or `setEditionFreeMintAllocation`.
+    error FreeMintAllocationIsPerEdition();
 
     IMasterRegistry public masterRegistry;
     address public immutable globalMessageRegistry;
@@ -93,6 +98,10 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
         if (params.creator == address(0)) revert InvalidAddress();
         if (params.vault == address(0)) revert InvalidAddress();
         if (params.vault.code.length == 0) revert VaultMustBeContract();
+        // Free-mint allocation is per edition for ERC1155 and editions are added after create, so a
+        // create-time allocation cannot be applied. Refuse it instead of accepting and discarding it;
+        // 0 stays valid, and `params.freeMint.scope` is still threaded to the instance below.
+        if (params.freeMint.allocation != 0) revert FreeMintAllocationIsPerEdition();
 
         bool agentCreated = false;
         if (msg.sender != params.creator) {
@@ -103,7 +112,7 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
         if (masterRegistry.isNameTaken(params.name)) revert NameAlreadyTaken();
 
         instance = _deployAndRegister(salt, params, agentCreated);
-        ERC1155Instance(payable(instance)).initializeFreeMint(params.freeMint.allocation, params.freeMint.scope);
+        ERC1155Instance(payable(instance)).initializeFreeMint(params.freeMint.scope);
 
         // Gating module is attached to the instance at deploy (params.gatingModule; address(0) = open).
         // Its config is authored post-create by the owner via the module's own typed setter — the

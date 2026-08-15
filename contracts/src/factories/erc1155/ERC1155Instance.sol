@@ -244,13 +244,15 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
 
     // ── Free mint ─────────────────────────────────────────────────────────────
 
-    /// @notice Set free mint params. Called by factory once after construction.
-    /// @dev Signature preserved for the shared factory path (`FreeMintParams` is shared with
-    ///      ERC404Factory, do-not-change). Free-mint allocation is now PER EDITION (noesis-135), set at
-    ///      edition creation via `addEdition` or adjusted via `setEditionFreeMintAllocation`, so the
-    ///      collection-wide `allocation` arg is intentionally UNUSED here; only the gating `scope`
-    ///      (collection-level, sub-decision 2) is stored.
-    function initializeFreeMint(uint256, GatingScope scope) external {
+    /// @notice Set the collection-level gating scope. Called by the factory once after construction.
+    /// @dev Free-mint allocation is PER EDITION (noesis-135): it is set at edition creation via
+    ///      `addEdition`'s `freeMintAlloc` argument, or adjusted later via
+    ///      `setEditionFreeMintAllocation`. Editions do not exist at create time, so there is no
+    ///      edition id for a collection-wide allocation to key to and this entry point takes none.
+    ///      `ERC1155Factory` rejects a non-zero `FreeMintParams.allocation` rather than accepting a
+    ///      value it cannot apply. Only the gating `scope` (collection-level, sub-decision 2) is
+    ///      stored here.
+    function initializeFreeMint(GatingScope scope) external {
         if (msg.sender != factory) revert OnlyFactory();
         if (_freeMintInitialized) revert AlreadyInitialized();
         _freeMintInitialized = true;

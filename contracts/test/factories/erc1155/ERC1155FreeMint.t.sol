@@ -31,8 +31,8 @@ contract MockVaultERC1155FM {
 /// @dev Free-mint is PER EDITION (noesis-135): each edition carries its own allocation, running claim
 ///      counter, and per-user claimed flag. Allocation is set at edition creation (`addEdition`'s
 ///      `freeMintAlloc` arg) or adjusted anytime by owner/agent (`setEditionFreeMintAllocation`). The
-///      collection-wide free-mint API is retired — the factory's `FreeMintParams.allocation` is ignored
-///      for ERC1155 (only the gating `scope` is still stored).
+///      collection-wide free-mint API is retired — the factory REFUSES a non-zero
+///      `FreeMintParams.allocation` for ERC1155 (only the gating `scope` is still threaded through).
 contract ERC1155FreeMintTest is Test {
     ERC1155Factory factory;
     MockMasterRegistry mockRegistry;
@@ -80,7 +80,7 @@ contract ERC1155FreeMintTest is Test {
             vault: address(mockVault),
             styleUri: "",
             gatingModule: address(0),
-            // allocation is intentionally IGNORED for ERC1155 (per-edition now); scope still applies.
+            // allocation must be 0 for ERC1155 (per-edition now); scope still applies.
             freeMint: FreeMintParams({ allocation: 0, scope: scope })
         });
     }
@@ -396,6 +396,74 @@ contract ERC1155FreeMintTest is Test {
     function test_erc1155_freeMint_openTimeZeroOpensImmediately() public {
         ERC1155Instance inst = _deploy(GatingScope.BOTH);
         uint256 editionId = _addEditionAt(inst, 100, 0, FREE_ALLOC);
+        vm.prank(user1);
+        inst.claimFreeMint(editionId, "");
+        assertEq(inst.balanceOf(user1, editionId), 1);
+    }
+
+    // ── create-time allocation is refused, not discarded ───────────────────────
+
+    /// A create-time `FreeMintParams.allocation` cannot be applied: allocation is keyed by edition and
+    /// editions are added after create. The factory rejects a non-zero value at create.
+    function test_erc1155_create_revertsOnNonZeroFreeMintAllocation() public {
+        ERC1155Factory.CreateParams memory params = _params(creator, GatingScope.BOTH);
+        params.freeMint = FreeMintParams({ allocation: FREE_ALLOC, scope: GatingScope.BOTH });
+
+        vm.prank(creator);
+        vm.expectRevert(ERC1155Factory.FreeMintAllocationIsPerEdition.selector);
+        factory.createInstance(_nextSalt(), params);
+    }
+
+    /// The refusal is on the allocation only: an allocation of 0 creates normally and the gating
+    /// `scope` half of `FreeMintParams` is still threaded through to the instance.
+    function test_erc1155_create_zeroAllocationStillSetsGatingScope() public {
+        ERC1155Instance freeMintOnly = _deploy(GatingScope.FREE_MINT_ONLY);
+        assertEq(uint8(freeMintOnly.gatingScope()), uint8(GatingScope.FREE_MINT_ONLY));
+
+        ERC1155Instance paidOnly = _deploy(GatingScope.PAID_ONLY);
+        assertEq(uint8(paidOnly.gatingScope()), uint8(GatingScope.PAID_ONLY));
+
+        ERC1155Instance both = _deploy(GatingScope.BOTH);
+        assertEq(uint8(both.gatingScope()), uint8(GatingScope.BOTH));
+    }
+
+    /// The supported path is unaffected by the create-time refusal: after a create with allocation 0,
+    /// `addEdition`'s `freeMintAlloc` still sets the allocation and the claim still works.
+    function test_erc1155_create_zeroAllocation_perEditionPathStillWorks() public {
+        ERC1155Instance inst = _deploy(GatingScope.BOTH);
+        uint256 editionId = _addEdition(inst, 100, FREE_ALLOC);
+
+        assertEq(inst.freeMintAllocation(editionId), FREE_ALLOC);
+
+        vm.prank(user1);
+        inst.claimFreeMint(editionId, "");
+        assertEq(inst.balanceOf(user1, editionId), 1);
+        assertEq(inst.freeMintsClaimed(editionId), 1);
+    }
+
+    /// Regression: a caller asking for a non-zero allocation must not end up with a created collection
+    /// whose free mint is initialized while every edition allocation is 0 — such a collection can
+    /// never be free-claimed, and the create returned no signal. The create now reverts, so no
+    /// instance is deployed and no name is registered; the same salt and name then create cleanly once
+    /// the allocation moves to the edition.
+    function test_erc1155_create_nonZeroAllocation_leavesNoUnclaimableCollection() public {
+        ERC1155Factory.CreateParams memory params = _params(creator, GatingScope.BOTH);
+        params.freeMint = FreeMintParams({ allocation: 1, scope: GatingScope.BOTH });
+        bytes32 salt = _nextSalt();
+
+        vm.prank(creator);
+        vm.expectRevert(ERC1155Factory.FreeMintAllocationIsPerEdition.selector);
+        factory.createInstance(salt, params);
+
+        // The same salt creating cleanly below is the proof that the refused create deployed nothing:
+        // CREATE3 reverts on a redeploy to an occupied deterministic address.
+        params.freeMint = FreeMintParams({ allocation: 0, scope: GatingScope.BOTH });
+        vm.prank(creator);
+        ERC1155Instance inst = ERC1155Instance(payable(factory.createInstance(salt, params)));
+
+        uint256 editionId = _addEdition(inst, 100, FREE_ALLOC);
+        assertEq(inst.freeMintAllocation(editionId), FREE_ALLOC);
+
         vm.prank(user1);
         inst.claimFreeMint(editionId, "");
         assertEq(inst.balanceOf(user1, editionId), 1);
