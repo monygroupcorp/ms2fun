@@ -18,6 +18,7 @@ import {
   useReadProtocolTreasuryV1GetBalance,
 } from '../../generated/contracts'
 import { forkAddresses, forkChainId } from '../../lib/addresses'
+import { truncateAddress } from '../../lib/format'
 import { AdminSection, ActionRow } from '../ui/AdminSection'
 import { AmountField } from '../ui/AmountField'
 import { parseAmount } from '../ui/parseAmount'
@@ -132,7 +133,14 @@ function WithdrawEthRow() {
           })
         }
         label="withdraw ETH"
-        successLabel="withdrawn — confirmed."
+        receipt={
+          wei !== undefined && isAddress(to.trim())
+            ? {
+                verb: 'withdrawn',
+                net: { label: `to ${truncateAddress(to.trim() as `0x${string}`)}`, wei },
+              }
+            : undefined
+        }
         onReset={tx.reset}
         disabled={!valid}
         testId="admin-treasury-withdraw-eth"
@@ -196,7 +204,11 @@ function WithdrawErc20Row() {
           })
         }
         label="withdraw ERC20"
-        successLabel="withdrawn — confirmed."
+        successLabel={
+          amt !== undefined && isAddress(token.trim())
+            ? `withdrawn ${amt.toString()} base units of ${truncateAddress(token.trim() as `0x${string}`)} to ${truncateAddress(to.trim() as `0x${string}`)}`
+            : 'withdrawn — confirmed.'
+        }
         onReset={tx.reset}
         disabled={!valid}
         className="btn btn-secondary"
@@ -260,7 +272,11 @@ function WithdrawErc721Row() {
           })
         }
         label="withdraw ERC721"
-        successLabel="withdrawn — confirmed."
+        successLabel={
+          id !== undefined && isAddress(token.trim())
+            ? `withdrawn token #${id.toString()} of ${truncateAddress(token.trim() as `0x${string}`)} to ${truncateAddress(to.trim() as `0x${string}`)}`
+            : 'withdrawn — confirmed.'
+        }
         onReset={tx.reset}
         disabled={!valid}
         className="btn btn-secondary"

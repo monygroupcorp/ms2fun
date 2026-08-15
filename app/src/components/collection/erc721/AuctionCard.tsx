@@ -9,14 +9,16 @@
 import { useState } from 'react'
 import { formatEther, parseEther } from 'viem'
 import { useQuery } from '@tanstack/react-query'
-import { useAccount, useWaitForTransactionReceipt } from 'wagmi'
+import { useAccount, useReadContract, useWaitForTransactionReceipt } from 'wagmi'
 import {
+  erc721AuctionInstanceAbi,
+  useReadErc721AuctionInstanceGenesisVault,
   useWriteErc721AuctionInstanceCreateBid,
-  useWriteErc721AuctionInstanceReclaimUnsold,
-  useWriteErc721AuctionInstanceSettleAuction,
 } from '../../../generated/contracts'
 import { useCollectionChainId } from '../useCollectionChain'
-import { txErrorReason } from '../../ui/useTxAction'
+import { txErrorReason, useTxAction } from '../../ui/useTxAction'
+import { TxButton } from '../../ui/TxButton'
+import { formatReceipt, type MoneyReceipt } from '../../ui/receipt'
 import { fetchJson } from '../../../lib/metadata'
 import { IpfsImage } from '../../ui/IpfsImage'
 import { truncateAddress } from '../../../lib/format'
@@ -25,6 +27,26 @@ import { minNextBid } from './bidMath'
 import { useBidHistory } from './useBidHistory'
 import type { ActiveAuction, AuctionConfig } from './useAuctions'
 import styles from './Erc721Auction.module.css'
+
+// Minimal ABI shared by every alignment vault flavor (Uni/ZAMM/Cypher/Aave) — enough to read the
+// self-reported family string used to pick the settlement split, without importing a
+// flavor-specific generated ABI here.
+const vaultTypeAbi = [
+  {
+    type: 'function',
+    name: 'vaultType',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'string' }],
+  },
+] as const
+
+// Liquidity-family vaults (RevenueSplitLib.isLiquidityFamily) split settlement 1% protocol / 19%
+// vault / 80% creator; the yield/endowment family flips vault and creator (1/80/19). Mirrored here
+// so the confirmation states the split that will actually apply — both legs are already knowable
+// pre-tx from public state (the bid amount and the vault's own family), so there's no drift risk
+// the way there is for the ERC404 carve (whose gross is set by chain-side clamping at tx time).
+const LIQUIDITY_FAMILY_VAULT_TYPES = new Set(['UniswapV4LP', 'ZAMMLP', 'CypherLP'])
 
 interface AuctionCardProps {
   instance: `0x${string}`
@@ -132,22 +154,57 @@ export function AuctionAction({ instance, auction, config, state, isOwner, refet
     case 'active':
       return <BidForm instance={instance} auction={auction} config={config} refetch={refetch} />
     case 'endedWithBids':
-      return <SettleButton instance={instance} tokenId={auction.tokenId} refetch={refetch} />
+      return <SettleButton instance={instance} auction={auction} refetch={refetch} />
     case 'endedNoBids':
       return isOwner ? (
-        <ReclaimButton instance={instance} tokenId={auction.tokenId} refetch={refetch} />
+        <ReclaimButton instance={instance} auction={auction} refetch={refetch} />
       ) : (
         <p className={styles.note}>auction ended — no bids</p>
       )
     case 'settled':
-      return (
-        <p className={styles.note} data-testid="erc721-sold">
-          sold for {formatEther(auction.highBid)} ETH to {truncateAddress(auction.highBidder)}
-        </p>
-      )
+      return <SoldSummary instance={instance} auction={auction} />
     default:
       return null
   }
+}
+
+/** Post-settle summary. The sale line (gross, to whoever won) stays — it's true and useful — but it
+ *  is no longer the only figure: the creator's actual net is shown alongside it, not just at the
+ *  moment of settling but every time this state re-renders (a fresh page load included). */
+function SoldSummary({ instance, auction }: { instance: `0x${string}`; auction: ActiveAuction }) {
+  const chainId = useCollectionChainId()
+  const liquidityFamily = useLiquidityFamily(instance, chainId)
+
+  const netLine = (() => {
+    if (liquidityFamily === undefined) return undefined
+    const protocolLeg = auction.highBid / 100n
+    const vaultLeg = liquidityFamily
+      ? (auction.highBid * 19n) / 100n
+      : (auction.highBid * 80n) / 100n
+    const creatorLeg = auction.highBid - protocolLeg - vaultLeg
+    const net = creatorLeg + auction.minBid
+    return formatReceipt({
+      verb: 'settled',
+      net: { label: 'creator received', wei: net },
+      legs: [
+        { label: 'protocol', wei: protocolLeg },
+        { label: 'vault', wei: vaultLeg },
+      ],
+    })
+  })()
+
+  return (
+    <div>
+      <p className={styles.note} data-testid="erc721-sold">
+        sold for {formatEther(auction.highBid)} ETH to {truncateAddress(auction.highBidder)}
+      </p>
+      {netLine !== undefined && (
+        <p className={styles.note} data-testid="erc721-sold-net">
+          {netLine}
+        </p>
+      )}
+    </div>
+  )
 }
 
 function BidForm({
@@ -259,130 +316,150 @@ function BidForm({
   )
 }
 
+/** True for a liquidity-family alignment vault (1% protocol / 19% vault / 80% creator settle
+ *  split); false for the yield/endowment family (1% / 80% / 19%, mirrored). Undefined while the
+ *  vault's self-reported type is still loading. */
+function useLiquidityFamily(
+  instance: `0x${string}`,
+  chainId: ReturnType<typeof useCollectionChainId>,
+): boolean | undefined {
+  const { data: genesisVault } = useReadErc721AuctionInstanceGenesisVault({
+    address: instance,
+    chainId,
+  })
+  const { data: vaultType } = useReadContract({
+    address: genesisVault,
+    abi: vaultTypeAbi,
+    functionName: 'vaultType',
+    chainId,
+    query: { enabled: genesisVault !== undefined },
+  })
+  if (vaultType === undefined) return undefined
+  return LIQUIDITY_FAMILY_VAULT_TYPES.has(vaultType)
+}
+
 function SettleButton({
   instance,
-  tokenId,
+  auction,
   refetch,
 }: {
   instance: `0x${string}`
-  tokenId: bigint
+  auction: ActiveAuction
   refetch: () => void
 }) {
-  const {
-    writeContract,
-    data: txHash,
-    isPending,
-    isError,
-    error: writeErrObj,
-    reset,
-  } = useWriteErc721AuctionInstanceSettleAuction()
   const chainId = useCollectionChainId()
-  const {
-    isLoading,
-    isSuccess,
-    isError: waitError,
-    error: waitErrObj,
-  } = useWaitForTransactionReceipt({ hash: txHash })
-  const failureReason = txErrorReason(writeErrObj ?? waitErrObj)
-  const isBusy = isPending || isLoading
+  const tx = useTxAction()
+  const liquidityFamily = useLiquidityFamily(instance, chainId)
 
-  if (isSuccess) {
-    return (
-      <div className={styles.action}>
-        <p className={styles.txStatus}>settled — confirmed.</p>
-        <button
-          className="btn btn-secondary"
-          onClick={() => {
-            reset()
-            refetch()
-          }}
-        >
-          ok
-        </button>
-      </div>
-    )
-  }
+  // Same split RevenueSplitLib.split() computes on-chain (1% protocol / 19% vault, floor
+  // division, remainder absorbs the rounding dust as the creator's 80%) or splitMint()'s mirror
+  // for a yield-family vault (1% / 80% vault / 19% creator) — both legs are knowable from public
+  // state (the bid amount, the vault's own family) before the tx, so there's no drift risk here
+  // the way there is for the ERC404 carve.
+  const receipt: MoneyReceipt | undefined =
+    liquidityFamily === undefined
+      ? undefined
+      : (() => {
+          const protocolLeg = auction.highBid / 100n
+          const vaultLeg = liquidityFamily
+            ? (auction.highBid * 19n) / 100n
+            : (auction.highBid * 80n) / 100n
+          const creatorLeg = auction.highBid - protocolLeg - vaultLeg
+          const net = creatorLeg + auction.minBid // creator's sale proceeds + returned deposit
+          return {
+            verb: 'settled',
+            net: { label: 'creator received', wei: net },
+            legs: [
+              { label: 'protocol', wei: protocolLeg },
+              { label: 'vault', wei: vaultLeg },
+            ],
+          }
+        })()
 
   return (
     <div className={styles.action}>
-      <p className={styles.note}>auction ended — ready to settle</p>
-      <button
-        className="btn btn-primary"
-        onClick={() => writeContract({ address: instance, chainId, args: [Number(tokenId)] })}
-        disabled={isBusy}
-        data-testid="erc721-settle"
-      >
-        {isPending ? 'confirm in wallet…' : isLoading ? 'settling…' : 'settle auction'}
-      </button>
-      {(isError || waitError) && (
-        <p className={`${styles.txStatus} ${styles.txError}`}>
-          {failureReason ?? 'settle failed — try again'}
-        </p>
-      )}
+      {tx.state !== 'success' && <p className={styles.note}>auction ended — ready to settle</p>}
+      <TxButton
+        state={tx.state}
+        onClick={() =>
+          tx.send({
+            address: instance,
+            abi: erc721AuctionInstanceAbi,
+            functionName: 'settleAuction',
+            args: [Number(auction.tokenId)],
+            chainId,
+          })
+        }
+        label="settle auction"
+        signingLabel="confirm in wallet…"
+        confirmingLabel="settling…"
+        receipt={receipt}
+        successLabel={receipt === undefined ? 'settled — confirmed.' : undefined}
+        onReset={() => {
+          tx.reset()
+          refetch()
+        }}
+        errorText={tx.reason ?? 'settle failed — try again'}
+        testId="erc721-settle"
+      />
     </div>
   )
 }
 
 function ReclaimButton({
   instance,
-  tokenId,
+  auction,
   refetch,
 }: {
   instance: `0x${string}`
-  tokenId: bigint
+  auction: ActiveAuction
   refetch: () => void
 }) {
-  const {
-    writeContract,
-    data: txHash,
-    isPending,
-    isError,
-    error: writeErrObj,
-    reset,
-  } = useWriteErc721AuctionInstanceReclaimUnsold()
   const chainId = useCollectionChainId()
-  const {
-    isLoading,
-    isSuccess,
-    isError: waitError,
-    error: waitErrObj,
-  } = useWaitForTransactionReceipt({ hash: txHash })
-  const failureReason = txErrorReason(writeErrObj ?? waitErrObj)
-  const isBusy = isPending || isLoading
+  const tx = useTxAction()
 
-  if (isSuccess) {
-    return (
-      <div className={styles.action}>
-        <p className={styles.txStatus}>reclaimed — confirmed.</p>
-        <button
-          className="btn btn-secondary"
-          onClick={() => {
-            reset()
-            refetch()
-          }}
-        >
-          ok
-        </button>
-      </div>
-    )
+  // Deposit reclaim is a flat 1% protocol cut, always — matches ERC721AuctionInstance.reclaimUnsold
+  // (`protocolCut = deposit / 100`) exactly, no chain-side clamp or family branch to drift from.
+  const protocolLeg = auction.minBid / 100n
+  const net: MoneyReceipt = {
+    verb: 'deposit reclaimed',
+    net: { label: 'you received', wei: auction.minBid - protocolLeg },
+    legs: [{ label: 'protocol', wei: protocolLeg }],
   }
 
   return (
     <div className={styles.action}>
-      <p className={styles.note}>ended with no bids — reclaim the piece</p>
-      <button
-        className="btn btn-secondary"
-        onClick={() => writeContract({ address: instance, chainId, args: [Number(tokenId)] })}
-        disabled={isBusy}
-        data-testid="erc721-reclaim"
-      >
-        {isPending ? 'confirm in wallet…' : isLoading ? 'reclaiming…' : 'reclaim unsold'}
-      </button>
-      {(isError || waitError) && (
-        <p className={`${styles.txStatus} ${styles.txError}`}>
-          {failureReason ?? 'reclaim failed — try again'}
+      {/* This is an ETH deposit refund, not an NFT — reclaimUnsold never mints. The 1% protocol
+          cut is stated here, before the action, not only in the confirmation after it. */}
+      {tx.state !== 'success' && (
+        <p className={styles.note}>
+          ended with no bids — reclaim your deposit ({formatEther(auction.minBid)} ETH, minus a 1%
+          protocol cut)
         </p>
       )}
+      <TxButton
+        state={tx.state}
+        onClick={() =>
+          tx.send({
+            address: instance,
+            abi: erc721AuctionInstanceAbi,
+            functionName: 'reclaimUnsold',
+            args: [Number(auction.tokenId)],
+            chainId,
+          })
+        }
+        label="reclaim deposit"
+        className="btn btn-secondary"
+        signingLabel="confirm in wallet…"
+        confirmingLabel="reclaiming…"
+        receipt={net}
+        onReset={() => {
+          tx.reset()
+          refetch()
+        }}
+        errorText={tx.reason ?? 'reclaim failed — try again'}
+        testId="erc721-reclaim"
+      />
     </div>
   )
 }
