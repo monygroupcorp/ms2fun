@@ -4,6 +4,7 @@
  * state (a message + "ok"/reset). Pairs with useTxAction so every action looks/behaves the same.
  */
 import type { TxState } from './useTxAction'
+import { formatReceipt, type MoneyReceipt } from './receipt'
 import styles from './TxButton.module.css'
 
 export interface TxButtonProps {
@@ -14,7 +15,18 @@ export interface TxButtonProps {
   signingLabel?: string
   confirmingLabel?: string
   /** When set (with the tx in success state), render this confirmation instead of the button. */
-  successLabel?: string
+  successLabel?: string | undefined
+  /**
+   * When set (with the tx in success state), render this MONEY receipt instead of `successLabel`.
+   * Use this for any action where ETH actually left or arrived at the acting wallet — `net` is
+   * required on `MoneyReceipt`, so a money action cannot compile a confirmation that omits the
+   * figure. Reserve `successLabel` for genuinely amountless actions (a config toggle, a delegation
+   * change). Takes precedence over `successLabel` when both are set. A money surface computing its
+   * receipt from data that may still be loading legitimately passes `undefined` here (falling back
+   * to `successLabel`, if any) — `exactOptionalPropertyTypes` is why this is spelled out explicitly
+   * rather than left as a bare optional.
+   */
+  receipt?: MoneyReceipt | undefined
   /** When provided, the success state shows an "ok" button that calls this (e.g. tx.reset). */
   onReset?: () => void
   disabled?: boolean
@@ -36,6 +48,7 @@ export function TxButton({
   signingLabel = 'confirm in wallet…',
   confirmingLabel = 'confirming…',
   successLabel,
+  receipt,
   onReset,
   disabled = false,
   className = 'btn btn-primary',
@@ -44,13 +57,14 @@ export function TxButton({
   testId,
 }: TxButtonProps) {
   const busy = state === 'signing' || state === 'confirming'
+  const successText = receipt !== undefined ? formatReceipt(receipt) : successLabel
 
-  if (state === 'success' && (successLabel !== undefined || onReset !== undefined)) {
+  if (state === 'success' && (successText !== undefined || onReset !== undefined)) {
     return (
       <div className={styles.result}>
-        {successLabel !== undefined && (
+        {successText !== undefined && (
           <p className={styles.status} data-testid={testId ? `${testId}-success` : undefined}>
-            {successLabel}
+            {successText}
           </p>
         )}
         {onReset !== undefined && (

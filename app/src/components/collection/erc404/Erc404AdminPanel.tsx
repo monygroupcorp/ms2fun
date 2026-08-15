@@ -11,12 +11,13 @@
  *
  * ABI note: the generated metadata setter is `setMetadataURI` (uppercase URI), not `setMetadataUri`.
  */
-import { useState } from 'react'
-import { formatEther } from 'viem'
-import { useBlock } from 'wagmi'
+import { useMemo, useState } from 'react'
+import { decodeEventLog, formatEther, type Log } from 'viem'
+import { useBlock, useWaitForTransactionReceipt } from 'wagmi'
 import {
   deployBondEscrowAbi,
   erc404BondingInstanceAbi,
+  liquidityDeployerModuleAbi,
   masterRegistryV1Abi,
   merkleGatingModuleAbi,
   useReadDeployBondEscrowBonds,
@@ -49,6 +50,7 @@ import { Disclosure } from '../../ui/Disclosure'
 import { TxButton } from '../../ui/TxButton'
 import { useOwnerGate } from '../../ui/useOwnerGate'
 import { useTxAction } from '../../ui/useTxAction'
+import type { MoneyReceipt } from '../../ui/receipt'
 import { MetadataArtistPanel } from './MetadataArtistPanel'
 import styles from './Erc404AdminPanel.module.css'
 
@@ -146,7 +148,7 @@ function SetBondingActiveRow({ instance }: { instance: `0x${string}` }) {
           })
         }
         label={next ? 'activate bonding' : 'deactivate bonding'}
-        successLabel="bonding state updated"
+        successLabel={'bonding state updated'}
         onReset={tx.reset}
         disabled={active === undefined}
         className="btn btn-secondary"
@@ -238,7 +240,7 @@ function SetTimeRow({
             })
           }}
           label="set time"
-          successLabel="time updated"
+          successLabel={'time updated'}
           onReset={() => {
             tx.reset()
             setValue('')
@@ -300,7 +302,7 @@ function SetUriRow({
             })
           }}
           label="update uri"
-          successLabel="uri updated"
+          successLabel={'uri updated'}
           onReset={() => {
             tx.reset()
             setUri('')
@@ -347,7 +349,7 @@ function ActivateStakingRow({ instance }: { instance: `0x${string}` }) {
           })
         }
         label="activate staking"
-        successLabel="staking activated"
+        successLabel={'staking activated'}
         onReset={tx.reset}
         disabled={active === undefined || active === true}
         className="btn btn-primary"
@@ -363,10 +365,52 @@ function ActivateStakingRow({ instance }: { instance: `0x${string}` }) {
 // declaredMaxAllowanceBps and the factory's live brackets + pool floor. The control below is capped
 // at the instance's declared max and previews the resolved ETH via the on-chain previewCarve view.
 
+// Reads `CreatorCarvePaid(instance, creator, requested, paid)` off the confirmed tx receipt — the
+// post-clamp `paid` figure the chain actually settled on, never a re-quote of the pre-tx preview
+// (a preview can drift from what deployLiquidity resolves to; see the module doc comment). The
+// event's `paid` is the gross carve; the 1% protocol / 19% vault / 80% creator split below mirrors
+// `RevenueSplitLib.split` exactly, applied to that authoritative gross. Every LiquidityDeployerModule
+// variant (default/zamm/cypher) declares this event with an identical signature, so decoding against
+// the default ABI resolves regardless of which module this instance's factory wired.
+function carveReceiptFromLogs(logs: readonly Log[]): MoneyReceipt | undefined {
+  for (const log of logs) {
+    try {
+      const decoded = decodeEventLog({
+        abi: liquidityDeployerModuleAbi,
+        data: log.data,
+        topics: log.topics,
+      })
+      if (decoded.eventName === 'CreatorCarvePaid') {
+        const paid = decoded.args.paid
+        const protocolLeg = paid / 100n
+        const vaultLeg = (paid * 19n) / 100n
+        const net = paid - protocolLeg - vaultLeg
+        return {
+          verb: 'graduated with a creator carve',
+          net: { label: 'you received', wei: net },
+          legs: [
+            { label: 'protocol', wei: protocolLeg },
+            { label: 'vault', wei: vaultLeg },
+          ],
+        }
+      }
+    } catch {
+      // Not a CreatorCarvePaid log (a different event, or a log from another contract in the
+      // same tx) — decodeEventLog throws on a topic0 mismatch; skip it and keep scanning.
+    }
+  }
+  return undefined
+}
+
 function DeployLiquidityRow({ instance }: { instance: `0x${string}` }) {
   const chainId = useCollectionChainId()
   const [carveInput, setCarveInput] = useState('0') // bps, default 0 = plain graduation
   const tx = useTxAction()
+  const { data: receipt } = useWaitForTransactionReceipt({ hash: tx.hash })
+  const carveReceipt = useMemo(
+    () => (receipt !== undefined ? carveReceiptFromLogs(receipt.logs) : undefined),
+    [receipt],
+  )
 
   const { data: declaredMax } = useReadErc404BondingInstanceDeclaredMaxAllowanceBps({
     address: instance,
@@ -427,7 +471,14 @@ function DeployLiquidityRow({ instance }: { instance: `0x${string}` }) {
             })
           }
           label={requestBps > 0 ? `graduate + carve ${requestBps} bps` : 'deploy liquidity'}
-          successLabel="liquidity deployed"
+          receipt={carveReceipt}
+          successLabel={
+            carveReceipt !== undefined
+              ? undefined
+              : requestBps > 0
+                ? 'graduated — carve details unavailable'
+                : 'graduated to the DEX — no creator carve requested'
+          }
           onReset={tx.reset}
           className="btn btn-primary btn-chromatic"
           testId="erc404-admin-deploy-liquidity"
@@ -489,7 +540,7 @@ function BondStatusRow({ instance }: { instance: `0x${string}` }) {
             })
           }
           label="reclaim deposit"
-          successLabel="deposit reclaimed — tx confirmed."
+          receipt={{ verb: 'deposit reclaimed', net: { label: 'you received', wei: amount } }}
           onReset={tx.reset}
           disabled={!canReclaim}
           errorText="reclaim failed — try again"
@@ -535,7 +586,7 @@ function MigrateVaultRow({ instance }: { instance: `0x${string}` }) {
             })
           }}
           label="migrate vault"
-          successLabel="vault migrated"
+          successLabel={'vault migrated'}
           onReset={() => {
             tx.reset()
             setAddr('')
@@ -556,7 +607,11 @@ function ClaimAllFeesRow({ instance }: { instance: `0x${string}` }) {
   const tx = useTxAction()
 
   return (
-    <ActionRow label="claim all fees" hint="sweep all accrued fees to the creator">
+    // claimAllFees pulls accrued vault fees into the INSTANCE's own balance (crediting the staking
+    // reserve when staking is active) — it does not send ETH to the caller's wallet directly, so
+    // there is no wallet-level amount to receipt here. The creator's own payout happens through a
+    // separate withdraw path, out of this row's scope.
+    <ActionRow label="claim all fees" hint="sweep accrued vault fees into the instance balance">
       <TxButton
         state={tx.state}
         onClick={() =>
@@ -569,7 +624,7 @@ function ClaimAllFeesRow({ instance }: { instance: `0x${string}` }) {
           })
         }
         label="claim all fees"
-        successLabel="fees claimed"
+        successLabel={'fees swept into instance balance'}
         onReset={tx.reset}
         className="btn btn-secondary"
         testId="erc404-admin-claim-all-fees"
@@ -610,7 +665,7 @@ function SetAgentDelegationRow({ instance }: { instance: `0x${string}` }) {
           })
         }
         label={next ? 'enable delegation' : 'disable delegation'}
-        successLabel="delegation updated"
+        successLabel={'delegation updated'}
         onReset={tx.reset}
         disabled={enabled === undefined}
         className="btn btn-secondary"
@@ -772,7 +827,7 @@ function AllowlistConfigRow({ instance }: { instance: `0x${string}` }) {
           onClick={handleSubmitRoot}
           onReset={configureTx.reset}
           label="1. submit root on-chain"
-          successLabel="root submitted — tx confirmed."
+          successLabel={'root submitted — tx confirmed.'}
           disabled={!canSubmit}
           errorText={configureTx.reason ?? 'submit failed — try again'}
           testId="erc404-allowlist-configure"
@@ -782,7 +837,7 @@ function AllowlistConfigRow({ instance }: { instance: `0x${string}` }) {
           onClick={handlePersistListUri}
           onReset={metadataTx.reset}
           label="2. persist listURI"
-          successLabel="listURI persisted — tx confirmed."
+          successLabel={'listURI persisted — tx confirmed.'}
           disabled={!canSubmit || metadata === undefined}
           errorText={
             metadataTx.reason ??
