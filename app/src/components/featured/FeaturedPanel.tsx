@@ -12,8 +12,9 @@
  *   renewDuration(instance, addSecs) → value = quoteDurationCost(addSecs)  (excess refunds)
  *   pruneExpired(instance) → non-payable, permissionless
  */
-import { useState } from 'react'
-import { formatEther } from 'viem'
+import { useMemo, useState } from 'react'
+import { decodeEventLog, formatEther, type Log } from 'viem'
+import { useWaitForTransactionReceipt } from 'wagmi'
 import {
   featuredQueueManagerAbi,
   useReadFeaturedQueueManagerGetRentalInfo,
@@ -40,6 +41,49 @@ function parseDays(raw: string): number | undefined {
   const days = Number(trimmed)
   if (days < MIN_DAYS || days > MAX_DAYS) return undefined
   return days
+}
+
+// Reads the authoritative amount actually paid off the confirmed tx receipt — `rentFeatured` and
+// `renewDuration` both refund `msg.value` in excess of the quoted cost
+// (`FeaturedQueueManager.sol`), so a snapshot of the wei sent at click time can overstate the
+// confirmation whenever that refund fires. `FeaturedRented.durationCost + rankBoost` and
+// `DurationRenewed.cost` are the amounts the module actually forwarded to `protocolTreasury`.
+function rentEventTotal(logs: readonly Log[]): bigint | undefined {
+  for (const log of logs) {
+    try {
+      const decoded = decodeEventLog({
+        abi: featuredQueueManagerAbi,
+        data: log.data,
+        topics: log.topics,
+      })
+      if (decoded.eventName === 'FeaturedRented') {
+        return decoded.args.durationCost + decoded.args.rankBoost
+      }
+    } catch {
+      // Not a FeaturedRented log (a different event, or a log from another contract in the same
+      // tx) — decodeEventLog throws on a topic0 mismatch; skip it and keep scanning.
+    }
+  }
+  return undefined
+}
+
+function renewEventTotal(logs: readonly Log[]): bigint | undefined {
+  for (const log of logs) {
+    try {
+      const decoded = decodeEventLog({
+        abi: featuredQueueManagerAbi,
+        data: log.data,
+        topics: log.topics,
+      })
+      if (decoded.eventName === 'DurationRenewed') {
+        return decoded.args.cost
+      }
+    } catch {
+      // Not a DurationRenewed log — decodeEventLog throws on a topic0 mismatch; skip and keep
+      // scanning.
+    }
+  }
+  return undefined
 }
 
 export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
@@ -80,14 +124,15 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
     rentQuote !== undefined && rentBoostWei !== undefined ? rentQuote + rentBoostWei : undefined
 
   const rentTx = useTxAction({ onSuccess: refetch })
-  // Snapshot the wei actually sent as `value` — the live quote can move between click and
-  // confirmation (dynamic duration pricing), so the confirmation must not re-read the live quote.
-  const [rentSentWei, setRentSentWei] = useState<bigint | undefined>(undefined)
+  const { data: rentReceiptData } = useWaitForTransactionReceipt({ hash: rentTx.hash })
+  const rentPaidWei = useMemo(
+    () => (rentReceiptData !== undefined ? rentEventTotal(rentReceiptData.logs) : undefined),
+    [rentReceiptData],
+  )
 
   function handleRent(): void {
     if (rentDurationSecs === undefined || rentBoostWei === undefined || rentValue === undefined)
       return
-    setRentSentWei(rentValue)
     rentTx.send({
       address: FQM,
       abi: featuredQueueManagerAbi,
@@ -130,11 +175,14 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
   })
 
   const renewTx = useTxAction({ onSuccess: refetch })
-  const [renewSentWei, setRenewSentWei] = useState<bigint | undefined>(undefined)
+  const { data: renewReceiptData } = useWaitForTransactionReceipt({ hash: renewTx.hash })
+  const renewPaidWei = useMemo(
+    () => (renewReceiptData !== undefined ? renewEventTotal(renewReceiptData.logs) : undefined),
+    [renewReceiptData],
+  )
 
   function handleRenew(): void {
     if (renewSecs === undefined || renewQuote === undefined) return
-    setRenewSentWei(renewQuote)
     renewTx.send({
       address: FQM,
       abi: featuredQueueManagerAbi,
@@ -251,10 +299,11 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
           disabledHint={`enter a duration (${MIN_DAYS}–${MAX_DAYS} days) above to rent`}
           onReset={rentTx.reset}
           receipt={
-            rentSentWei !== undefined
-              ? { verb: 'featured slot rented', net: { label: 'sent', wei: rentSentWei } }
+            rentPaidWei !== undefined
+              ? { verb: 'featured slot rented', net: { label: 'paid', wei: rentPaidWei } }
               : undefined
           }
+          successLabel={rentPaidWei === undefined ? 'featured slot rented — confirmed.' : undefined}
           testId="featured-rent"
         />
       </div>
@@ -327,10 +376,11 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
           disabledHint={`enter additional days (${MIN_DAYS}–${MAX_DAYS}) above to renew`}
           onReset={renewTx.reset}
           receipt={
-            renewSentWei !== undefined
-              ? { verb: 'duration renewed', net: { label: 'sent', wei: renewSentWei } }
+            renewPaidWei !== undefined
+              ? { verb: 'duration renewed', net: { label: 'paid', wei: renewPaidWei } }
               : undefined
           }
+          successLabel={renewPaidWei === undefined ? 'duration renewed — confirmed.' : undefined}
           testId="featured-renew"
         />
       </div>
