@@ -365,14 +365,27 @@ function ActivateStakingRow({ instance }: { instance: `0x${string}` }) {
 // declaredMaxAllowanceBps and the factory's live brackets + pool floor. The control below is capped
 // at the instance's declared max and previews the resolved ETH via the on-chain previewCarve view.
 
-// Reads `CreatorCarvePaid(instance, creator, requested, paid)` off the confirmed tx receipt — the
-// post-clamp `paid` figure the chain actually settled on, never a re-quote of the pre-tx preview
-// (a preview can drift from what deployLiquidity resolves to; see the module doc comment). The
-// event's `paid` is the gross carve; the 1% protocol / 19% vault / 80% creator split below mirrors
-// `RevenueSplitLib.split` exactly, applied to that authoritative gross. Every LiquidityDeployerModule
-// variant (default/zamm/cypher) declares this event with an identical signature, so decoding against
-// the default ABI resolves regardless of which module this instance's factory wired.
-function carveReceiptFromLogs(logs: readonly Log[]): MoneyReceipt | undefined {
+// Reads `CreatorCarvePaid(instance, creator, requested, paid)` AND `GraduationExcessTithed(instance,
+// amount)` off the confirmed tx receipt and sums them — the two authoritative figures the chain
+// actually settled on, never a re-quote of the pre-tx preview (a preview can drift from what
+// deployLiquidity resolves to; see the module doc comment).
+//
+// `CreatorCarvePaid.paid` is deliberately capped to the requested leg alone
+// (`min(r.carvePaid, p.carveEth)` at emit time); any LP-share ETH the parity clamp could not place at
+// pool price (`excessEth`) is tithed on the same rail but reported separately as
+// `GraduationExcessTithed`. The two always sum to the module's actual gross carve, and — critically —
+// `carveInput` defaults to `'0'`, so the common case is `carveEth == 0`: no `CreatorCarvePaid` at all,
+// even though `excessEth` can still be nonzero and ETH still lands in the creator's wallet. Summing
+// both events (treating an absent event as 0) is what makes the excess-only case produce a receipt
+// instead of falling through to "no creator carve requested".
+//
+// The summed gross is split 1% protocol / 19% vault / 80% creator below, mirroring
+// `RevenueSplitLib.split` exactly. Every LiquidityDeployerModule variant (default/zamm/cypher)
+// declares both events with an identical signature, so decoding against the default ABI resolves
+// regardless of which module this instance's factory wired.
+export function carveReceiptFromLogs(logs: readonly Log[]): MoneyReceipt | undefined {
+  let carvePaid = 0n
+  let excessTithed = 0n
   for (const log of logs) {
     try {
       const decoded = decodeEventLog({
@@ -381,25 +394,28 @@ function carveReceiptFromLogs(logs: readonly Log[]): MoneyReceipt | undefined {
         topics: log.topics,
       })
       if (decoded.eventName === 'CreatorCarvePaid') {
-        const paid = decoded.args.paid
-        const protocolLeg = paid / 100n
-        const vaultLeg = (paid * 19n) / 100n
-        const net = paid - protocolLeg - vaultLeg
-        return {
-          verb: 'graduated with a creator carve',
-          net: { label: 'you received', wei: net },
-          legs: [
-            { label: 'protocol', wei: protocolLeg },
-            { label: 'vault', wei: vaultLeg },
-          ],
-        }
+        carvePaid = decoded.args.paid
+      } else if (decoded.eventName === 'GraduationExcessTithed') {
+        excessTithed = decoded.args.amount
       }
     } catch {
-      // Not a CreatorCarvePaid log (a different event, or a log from another contract in the
+      // Not a log this ABI can decode (a different event, or a log from another contract in the
       // same tx) — decodeEventLog throws on a topic0 mismatch; skip it and keep scanning.
     }
   }
-  return undefined
+  const paid = carvePaid + excessTithed
+  if (paid === 0n) return undefined
+  const protocolLeg = paid / 100n
+  const vaultLeg = (paid * 19n) / 100n
+  const net = paid - protocolLeg - vaultLeg
+  return {
+    verb: 'graduated with a creator carve',
+    net: { label: 'you received', wei: net },
+    legs: [
+      { label: 'protocol', wei: protocolLeg },
+      { label: 'vault', wei: vaultLeg },
+    ],
+  }
 }
 
 function DeployLiquidityRow({ instance }: { instance: `0x${string}` }) {
@@ -624,7 +640,7 @@ function ClaimAllFeesRow({ instance }: { instance: `0x${string}` }) {
           })
         }
         label="claim all fees"
-        successLabel={'fees swept into instance balance'}
+        successLabel={'fee sweep confirmed'}
         onReset={tx.reset}
         className="btn btn-secondary"
         testId="erc404-admin-claim-all-fees"

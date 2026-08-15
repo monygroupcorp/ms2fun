@@ -6,13 +6,14 @@
  *   settled        → sold summary
  * Bid history (BidPlaced events) shows under the live/settle states.
  */
-import { useState } from 'react'
-import { formatEther, parseEther } from 'viem'
+import { useMemo, useState } from 'react'
+import { decodeEventLog, formatEther, parseEther, zeroAddress, type Log } from 'viem'
 import { useQuery } from '@tanstack/react-query'
 import { useAccount, useReadContract, useWaitForTransactionReceipt } from 'wagmi'
 import {
   erc721AuctionInstanceAbi,
   useReadErc721AuctionInstanceGenesisVault,
+  useReadErc721AuctionInstanceProtocolTreasury,
   useWriteErc721AuctionInstanceCreateBid,
 } from '../../../generated/contracts'
 import { useCollectionChainId } from '../useCollectionChain'
@@ -267,7 +268,11 @@ function BidForm({
   if (isSuccess) {
     return (
       <div className={styles.action}>
-        <p className={styles.txStatus}>bid placed — confirmed.</p>
+        <p className={styles.txStatus} data-testid="erc721-bid-success">
+          {amountWei !== undefined
+            ? formatReceipt({ verb: 'bid placed', net: { label: 'bid', wei: amountWei } })
+            : 'bid placed — confirmed.'}
+        </p>
         <button
           className="btn btn-secondary"
           onClick={() => {
@@ -406,6 +411,36 @@ function SettleButton({
   )
 }
 
+// Reads `UnsoldReclaimed(tokenId, creatorRefund, protocolCut)` off the confirmed tx receipt — the
+// authoritative post-clamp figures `reclaimUnsold` actually settled on, never a re-quote. The
+// contract takes a cut ONLY when `protocolCut > 0` (it floors to 0 for a tiny deposit) AND
+// `protocolTreasury != address(0)`; either condition failing means the full deposit is refunded and
+// `protocolCut` reads 0 in the event, so `legs` is omitted rather than showing a stale nonzero cut.
+function reclaimReceiptFromLogs(logs: readonly Log[]): MoneyReceipt | undefined {
+  for (const log of logs) {
+    try {
+      const decoded = decodeEventLog({
+        abi: erc721AuctionInstanceAbi,
+        data: log.data,
+        topics: log.topics,
+      })
+      if (decoded.eventName === 'UnsoldReclaimed') {
+        const { creatorRefund, protocolCut } = decoded.args
+        const receipt: MoneyReceipt = {
+          verb: 'deposit reclaimed',
+          net: { label: 'you received', wei: creatorRefund },
+        }
+        if (protocolCut > 0n) receipt.legs = [{ label: 'protocol', wei: protocolCut }]
+        return receipt
+      }
+    } catch {
+      // Not an UnsoldReclaimed log (a different event, or a log from another contract in the same
+      // tx) — decodeEventLog throws on a topic0 mismatch; skip it and keep scanning.
+    }
+  }
+  return undefined
+}
+
 function ReclaimButton({
   instance,
   auction,
@@ -417,24 +452,32 @@ function ReclaimButton({
 }) {
   const chainId = useCollectionChainId()
   const tx = useTxAction()
+  const { data: receiptData } = useWaitForTransactionReceipt({ hash: tx.hash })
+  const receipt = useMemo(
+    () => (receiptData !== undefined ? reclaimReceiptFromLogs(receiptData.logs) : undefined),
+    [receiptData],
+  )
 
-  // Deposit reclaim is a flat 1% protocol cut, always — matches ERC721AuctionInstance.reclaimUnsold
-  // (`protocolCut = deposit / 100`) exactly, no chain-side clamp or family branch to drift from.
-  const protocolLeg = auction.minBid / 100n
-  const net: MoneyReceipt = {
-    verb: 'deposit reclaimed',
-    net: { label: 'you received', wei: auction.minBid - protocolLeg },
-    legs: [{ label: 'protocol', wei: protocolLeg }],
-  }
+  // Pre-action disclosure: `protocolTreasury` is a constructor-set immutable, but a cut is still
+  // only taken when it's nonzero AND the flat 1% doesn't floor to 0 for this deposit — mirror both
+  // conditions here so the disclosure never promises a cut the contract won't actually take.
+  const { data: protocolTreasury } = useReadErc721AuctionInstanceProtocolTreasury({
+    address: instance,
+    chainId,
+  })
+  const estimatedProtocolCut = auction.minBid / 100n
+  const cutWillApply =
+    protocolTreasury !== undefined && protocolTreasury !== zeroAddress && estimatedProtocolCut > 0n
 
   return (
     <div className={styles.action}>
-      {/* This is an ETH deposit refund, not an NFT — reclaimUnsold never mints. The 1% protocol
-          cut is stated here, before the action, not only in the confirmation after it. */}
+      {/* This is an ETH deposit refund, not an NFT — reclaimUnsold never mints. Whether the 1%
+          protocol cut applies is stated here, before the action, not only in the confirmation
+          after it. */}
       {tx.state !== 'success' && (
         <p className={styles.note}>
-          ended with no bids — reclaim your deposit ({formatEther(auction.minBid)} ETH, minus a 1%
-          protocol cut)
+          ended with no bids — reclaim your deposit ({formatEther(auction.minBid)} ETH
+          {cutWillApply ? ', minus a 1% protocol cut' : ', refunded in full'})
         </p>
       )}
       <TxButton
@@ -452,7 +495,8 @@ function ReclaimButton({
         className="btn btn-secondary"
         signingLabel="confirm in wallet…"
         confirmingLabel="reclaiming…"
-        receipt={net}
+        receipt={receipt}
+        successLabel={receipt === undefined ? 'reclaimed — confirmed.' : undefined}
         onReset={() => {
           tx.reset()
           refetch()

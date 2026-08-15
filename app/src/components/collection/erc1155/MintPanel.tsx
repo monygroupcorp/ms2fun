@@ -3,10 +3,11 @@
  * write with real gating credential + optional message, and tx-status UX. Extracted from EditionList
  * (W-D1) so both the inline edition list AND the standalone edition detail page reuse one mint flow.
  */
-import { useState } from 'react'
-import { formatEther } from 'viem'
+import { useMemo, useState } from 'react'
+import { decodeEventLog, formatEther, type Log } from 'viem'
 import { useAccount, useWaitForTransactionReceipt } from 'wagmi'
 import {
+  erc1155InstanceAbi,
   useReadErc1155InstanceCalculateMintCost,
   useReadErc1155InstanceGatingModule,
   useReadErc1155InstanceGatingScope,
@@ -26,15 +27,32 @@ export interface MintPanelProps {
   refetch: () => void
 }
 
+// Reads `Minted(to, editionId, amount, totalCost)` off the confirmed tx receipt — the authoritative
+// figure the chain actually settled on. `mint` refunds `msg.value - totalCost` on an overpay
+// (`ERC1155Instance.sol`), so the wei sent at click time can exceed what was actually paid; a re-quote
+// of `value` would overstate the confirmation whenever that refund fires.
+function mintReceiptFromLogs(logs: readonly Log[]): bigint | undefined {
+  for (const log of logs) {
+    try {
+      const decoded = decodeEventLog({
+        abi: erc1155InstanceAbi,
+        data: log.data,
+        topics: log.topics,
+      })
+      if (decoded.eventName === 'Minted') return decoded.args.totalCost
+    } catch {
+      // Not a Minted log (a different event, or a log from another contract in the same tx) —
+      // decodeEventLog throws on a topic0 mismatch; skip it and keep scanning.
+    }
+  }
+  return undefined
+}
+
 export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
   const chainId = useCollectionChainId()
   const { isConnected } = useAccount()
   const [amount, setAmount] = useState(1)
   const [message, setMessage] = useState('')
-  // Snapshot the exact wei actually sent as `value` — costData is a live read keyed on `amount`,
-  // which resets after a successful mint, so the confirmation must not re-derive it from state
-  // that's already moved on.
-  const [paidWei, setPaidWei] = useState<bigint | undefined>(undefined)
 
   const { data: costData, isPending: costPending } = useReadErc1155InstanceCalculateMintCost({
     address: instance,
@@ -67,11 +85,17 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
   } = useWriteErc1155InstanceMint()
 
   const {
+    data: receiptData,
     isLoading: isConfirming,
     isSuccess,
     isError: waitError,
     error: waitErrObj,
   } = useWaitForTransactionReceipt({ hash: txHash })
+
+  const paidWei = useMemo(
+    () => (receiptData !== undefined ? mintReceiptFromLogs(receiptData.logs) : undefined),
+    [receiptData],
+  )
 
   const failureReason = txErrorReason(writeErrObj ?? waitErrObj)
 
@@ -88,7 +112,6 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
         : '0x'
     // Optional attached message, ABI-encoded to the registry's 5-field convention (else '0x').
     const messageData = encodeMintMessage(message)
-    setPaidWei(costData)
     writeContract({
       address: instance,
       chainId: chainId,
@@ -101,7 +124,6 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
     resetWrite()
     setAmount(1)
     setMessage('')
-    setPaidWei(undefined)
     refetch()
   }
 
@@ -120,7 +142,7 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
   if (isSuccess) {
     return (
       <div className={styles.mintPanel}>
-        <p className={styles.txStatus}>
+        <p className={styles.txStatus} data-testid="erc1155-mint-success">
           {paidWei !== undefined
             ? formatReceipt({ verb: 'minted', net: { label: 'paid', wei: paidWei } })
             : 'minted — tx confirmed.'}
