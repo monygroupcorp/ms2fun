@@ -111,7 +111,7 @@ contract ERC1155HardeningTest is Test {
     function test_F1_freeMintOnly_paidMintOpen_evenWhenModuleDenies() public {
         MockFamilyVault vault = new MockFamilyVault("UniswapV4LP");
         ERC1155Instance inst = _deploy(address(new DenyGatingModule()), address(vault), address(mr), address(0xFEE));
-        inst.initializeFreeMint(0, GatingScope.FREE_MINT_ONLY);
+        inst.initializeFreeMint(GatingScope.FREE_MINT_ONLY);
         uint256 ed = _addEdition(inst, 0.01 ether, 100);
 
         vm.deal(user1, 0.01 ether);
@@ -124,7 +124,7 @@ contract ERC1155HardeningTest is Test {
     function test_F1_bothScope_paidMintGated_bypassClosed() public {
         MockFamilyVault vault = new MockFamilyVault("UniswapV4LP");
         ERC1155Instance inst = _deploy(address(new DenyGatingModule()), address(vault), address(mr), address(0xFEE));
-        inst.initializeFreeMint(0, GatingScope.BOTH);
+        inst.initializeFreeMint(GatingScope.BOTH);
         uint256 ed = _addEdition(inst, 0.01 ether, 100);
 
         vm.deal(user1, 0.01 ether);
@@ -136,7 +136,7 @@ contract ERC1155HardeningTest is Test {
     function test_F1_paidOnlyScope_paidMintGated() public {
         MockFamilyVault vault = new MockFamilyVault("UniswapV4LP");
         ERC1155Instance inst = _deploy(address(new DenyGatingModule()), address(vault), address(mr), address(0xFEE));
-        inst.initializeFreeMint(0, GatingScope.PAID_ONLY);
+        inst.initializeFreeMint(GatingScope.PAID_ONLY);
         uint256 ed = _addEdition(inst, 0.01 ether, 100);
 
         vm.deal(user1, 0.01 ether);
@@ -150,7 +150,7 @@ contract ERC1155HardeningTest is Test {
     function test_transfer_toZeroAddress_reverts() public {
         MockFamilyVault vault = new MockFamilyVault("UniswapV4LP");
         ERC1155Instance inst = _deploy(address(0), address(vault), address(mr), address(0xFEE));
-        inst.initializeFreeMint(0, GatingScope.BOTH);
+        inst.initializeFreeMint(GatingScope.BOTH);
         uint256 ed = _addEdition(inst, 0.01 ether, 100);
 
         vm.deal(user1, 0.01 ether);
@@ -172,7 +172,7 @@ contract ERC1155HardeningTest is Test {
     function test_transfer_toNonZero_stillSucceeds() public {
         MockFamilyVault vault = new MockFamilyVault("UniswapV4LP");
         ERC1155Instance inst = _deploy(address(0), address(vault), address(mr), address(0xFEE));
-        inst.initializeFreeMint(0, GatingScope.BOTH);
+        inst.initializeFreeMint(GatingScope.BOTH);
         uint256 ed = _addEdition(inst, 0.01 ether, 100);
 
         vm.deal(user1, 0.01 ether);

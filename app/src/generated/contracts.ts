@@ -3582,6 +3582,7 @@ export const erc1155FactoryAbi = [
     name: 'ProtocolTreasuryUpdated',
   },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
+  { type: 'error', inputs: [], name: 'FreeMintAllocationIsPerEdition' },
   { type: 'error', inputs: [], name: 'InvalidAddress' },
   { type: 'error', inputs: [], name: 'InvalidName' },
   { type: 'error', inputs: [], name: 'NameAlreadyTaken' },
@@ -3920,7 +3921,6 @@ export const erc1155InstanceAbi = [
   {
     type: 'function',
     inputs: [
-      { name: '', internalType: 'uint256', type: 'uint256' },
       { name: 'scope', internalType: 'enum GatingScope', type: 'uint8' },
     ],
     name: 'initializeFreeMint',

@@ -1274,7 +1274,9 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
                 vault: address(vault),
                 styleUri: "",
                 gatingModule: merkle,
-                freeMint: FreeMintParams({ allocation: allocation, scope: scope })
+                // Allocation is per edition for ERC1155; the factory refuses a non-zero create-time
+                // value. The requested allocation is threaded into the edition below instead.
+                freeMint: FreeMintParams({ allocation: 0, scope: scope })
             })
         );
         // Edition 1: unlimited, fixed price 0.01 ETH, open immediately. Free-mint is per edition now
