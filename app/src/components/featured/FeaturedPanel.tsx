@@ -80,10 +80,14 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
     rentQuote !== undefined && rentBoostWei !== undefined ? rentQuote + rentBoostWei : undefined
 
   const rentTx = useTxAction({ onSuccess: refetch })
+  // Snapshot the wei actually sent as `value` — the live quote can move between click and
+  // confirmation (dynamic duration pricing), so the confirmation must not re-read the live quote.
+  const [rentSentWei, setRentSentWei] = useState<bigint | undefined>(undefined)
 
   function handleRent(): void {
     if (rentDurationSecs === undefined || rentBoostWei === undefined || rentValue === undefined)
       return
+    setRentSentWei(rentValue)
     rentTx.send({
       address: FQM,
       abi: featuredQueueManagerAbi,
@@ -98,9 +102,11 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
   const [boost, setBoost] = useState('')
   const boostWei = parseAmount(boost)
   const boostTx = useTxAction({ onSuccess: refetch })
+  const [boostSentWei, setBoostSentWei] = useState<bigint | undefined>(undefined)
 
   function handleBoost(): void {
     if (boostWei === undefined || boostWei === 0n) return
+    setBoostSentWei(boostWei)
     boostTx.send({
       address: FQM,
       abi: featuredQueueManagerAbi,
@@ -124,9 +130,11 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
   })
 
   const renewTx = useTxAction({ onSuccess: refetch })
+  const [renewSentWei, setRenewSentWei] = useState<bigint | undefined>(undefined)
 
   function handleRenew(): void {
     if (renewSecs === undefined || renewQuote === undefined) return
+    setRenewSentWei(renewQuote)
     renewTx.send({
       address: FQM,
       abi: featuredQueueManagerAbi,
@@ -242,7 +250,11 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
           disabled={rentDurationSecs === undefined || rentValue === undefined}
           disabledHint={`enter a duration (${MIN_DAYS}–${MAX_DAYS} days) above to rent`}
           onReset={rentTx.reset}
-          successLabel="featured slot rented ✓"
+          receipt={
+            rentSentWei !== undefined
+              ? { verb: 'featured slot rented', net: { label: 'sent', wei: rentSentWei } }
+              : undefined
+          }
           testId="featured-rent"
         />
       </div>
@@ -271,7 +283,11 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
           disabled={boostWei === undefined || boostWei === 0n}
           disabledHint="enter an ETH amount above to boost"
           onReset={boostTx.reset}
-          successLabel="rank boosted ✓"
+          receipt={
+            boostSentWei !== undefined
+              ? { verb: 'rank boosted', net: { label: 'sent', wei: boostSentWei } }
+              : undefined
+          }
           testId="featured-boost"
         />
       </div>
@@ -310,7 +326,11 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
           disabled={renewSecs === undefined || renewQuote === undefined}
           disabledHint={`enter additional days (${MIN_DAYS}–${MAX_DAYS}) above to renew`}
           onReset={renewTx.reset}
-          successLabel="duration renewed ✓"
+          receipt={
+            renewSentWei !== undefined
+              ? { verb: 'duration renewed', net: { label: 'sent', wei: renewSentWei } }
+              : undefined
+          }
           testId="featured-renew"
         />
       </div>
@@ -328,7 +348,7 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
             label="prune expired"
             className="btn btn-secondary"
             onReset={pruneTx.reset}
-            successLabel="slot pruned ✓"
+            successLabel={'slot pruned ✓'}
             testId="featured-prune"
           />
         </div>

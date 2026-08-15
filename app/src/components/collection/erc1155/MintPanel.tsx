@@ -14,6 +14,7 @@ import {
 } from '../../../generated/contracts'
 import { useCollectionChainId } from '../useCollectionChain'
 import { txErrorReason } from '../../ui/useTxAction'
+import { formatReceipt } from '../../ui/receipt'
 import { encodeMerkleGatingData, encodeMintMessage, isPaidMintGated } from './gatingMint'
 import { useMerkleAllowlistProof } from './useMerkleAllowlist'
 import type { EditionView } from '../useEditions'
@@ -30,6 +31,10 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
   const { isConnected } = useAccount()
   const [amount, setAmount] = useState(1)
   const [message, setMessage] = useState('')
+  // Snapshot the exact wei actually sent as `value` — costData is a live read keyed on `amount`,
+  // which resets after a successful mint, so the confirmation must not re-derive it from state
+  // that's already moved on.
+  const [paidWei, setPaidWei] = useState<bigint | undefined>(undefined)
 
   const { data: costData, isPending: costPending } = useReadErc1155InstanceCalculateMintCost({
     address: instance,
@@ -83,6 +88,7 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
         : '0x'
     // Optional attached message, ABI-encoded to the registry's 5-field convention (else '0x').
     const messageData = encodeMintMessage(message)
+    setPaidWei(costData)
     writeContract({
       address: instance,
       chainId: chainId,
@@ -95,6 +101,7 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
     resetWrite()
     setAmount(1)
     setMessage('')
+    setPaidWei(undefined)
     refetch()
   }
 
@@ -113,7 +120,11 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
   if (isSuccess) {
     return (
       <div className={styles.mintPanel}>
-        <p className={styles.txStatus}>minted — tx confirmed.</p>
+        <p className={styles.txStatus}>
+          {paidWei !== undefined
+            ? formatReceipt({ verb: 'minted', net: { label: 'paid', wei: paidWei } })
+            : 'minted — tx confirmed.'}
+        </p>
         <button className="btn btn-secondary" onClick={handleSuccess}>
           mint again
         </button>
