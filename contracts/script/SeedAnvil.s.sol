@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import { console } from "forge-std/Script.sol";
 import { ERC1155Factory } from "../src/factories/erc1155/ERC1155Factory.sol";
 import { ERC1155Instance } from "../src/factories/erc1155/ERC1155Instance.sol";
+import { IDynamicPricingModule } from "../src/factories/erc1155/interfaces/IDynamicPricingModule.sol";
 import { ERC721AuctionFactory } from "../src/factories/erc721/ERC721AuctionFactory.sol";
 import { ERC721AuctionInstance } from "../src/factories/erc721/ERC721AuctionInstance.sol";
 import { ERC404Factory } from "../src/factories/erc404/ERC404Factory.sol";
@@ -66,6 +67,21 @@ contract SeedAnvil is SeedAnvilShared {
     address constant AGENT = 0x90F79bf6EB2c4f870365E785982E1f101E93b906; // anvil #3
     address constant PERSON = 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC; // anvil #2
 
+    // ── LIMITED_DYNAMIC coverage (edition 3 on neon-drift) ──────────────────────────────────
+    // basePrice sits between the two fixed editions so the surface reads naturally; the rate is
+    // large enough that the exponential regime is visible by eye. See the addEdition call site.
+    uint256 constant DYN_BASE_PRICE = 0.004 ether;
+    uint256 constant DYN_RATE_BPS = 2000; // +20% per mint
+    /// @dev Mints to look ahead when checking that the dynamic price actually moves.
+    uint256 constant DYN_PROBE_MINTS = 5;
+    /// @dev The price at DYN_PROBE_MINTS must be at least this multiple of basePrice.
+    uint256 constant DYN_MIN_MULTIPLE = 2;
+
+    // The edition ids this phase creates, asserted by name rather than assumed. `nextEditionId`
+    // starts at 1 (ERC1155Instance.sol) and increments per addEdition on that instance.
+    uint256 constant NEON_DRIFT_DYNAMIC_EDITION = 3;
+    uint256 constant GHOST_MINT_EDITION = 1;
+
     // Every seeded instance, accumulated as they're created, so phase 2's _transferAdmin can hand
     // them over. Persisted to anvil-seed.json at the end of run() — phase 2 cannot see this array.
     address[] private _instances;
@@ -81,7 +97,7 @@ contract SeedAnvil is SeedAnvilShared {
         Deployed memory d = _readDeployed();
 
         // ── Phase A: ERC1155 editions + profiles + activity (the original seed, enriched) ──
-        address c0 = _seedErc1155(d);
+        (address c0, address c2) = _seedErc1155(d);
 
         // TIME MODEL: vm.warp is a NO-OP under --broadcast (it advances only the script's in-memory
         // EVM, never the live chain). So this seed never warps — every instance is created with time
@@ -125,13 +141,19 @@ contract SeedAnvil is SeedAnvilShared {
         // Agent-delegation confirmation: an authorized agent creates a collection FOR a person.
         _seedAgentDemo(d);
 
+        // Everything this phase claims, checked before the state file is written. See the function
+        // header for why these are `require`s rather than logs.
+        _assertPhase1(c0, c2);
+
         // Ownership handover is NOT here: it must run after ALL owner-only seeding, and phase 2 still
         // performs owner-only writes (staking activation, overlay authoring). _transferAdmin lives in
         // SeedAnvilBuys and runs last there.
         _writeSeedState(_seeded, _instances);
 
         console.log("=== SeedAnvil (phase 1: create + arm) complete ===");
-        console.log("ERC1155: 3 collections (neon-drift, monolith, ghost-mint[free-claim]) w/ editions");
+        console.log(
+            "ERC1155: 3 collections (neon-drift, monolith, ghost-mint[free-claim]) w/ editions incl. LIMITED_DYNAMIC"
+        );
         console.log("ERC721 : 2 auctions (gallery=1h duration, live=1-day + bid)");
         console.log(
             "ERC404 : armed but UNBOUGHT - preopen(cypher) + mid-curve(uniV4) + 2 ready-to-graduate (cinder=uniV4, molten=zamm) + carve + stacked(zamm)"
@@ -206,12 +228,74 @@ contract SeedAnvil is SeedAnvilShared {
         console.log("  agent:", AGENT, "person:", PERSON);
     }
 
+    // ─────────────────────── Phase 1 post-conditions ───────────────────────
+
+    /// @notice Assert, on-chain, every state PHASE 1 claims to have created.
+    ///
+    /// @dev WHY `require` AND NOT `console.log`. Forge simulates a whole script before broadcasting
+    ///      any of it, so a failed post-condition here leaves NO partial seed and names the assert
+    ///      that failed. A comment claiming an outcome is not an outcome — this seed carried such a
+    ///      comment about the free-claim configuration, and the state it described was never created.
+    ///      Do not soften an assertion to make a run pass: a failing post-condition is the tool
+    ///      working, and the seed refusing to complete is cheaper than a walk built on a false premise.
+    ///
+    ///      Each post-condition lives in the phase where the state it describes actually exists.
+    ///      Phase 1 creates and ARMS: nothing is bought, staked or ADMIN-held here, so the holder-side
+    ///      checks are in SeedAnvilBuys and the registry handover check is in deploy.ts. A
+    ///      post-condition in the wrong phase is vacuous, not merely misplaced.
+    ///
+    ///      NOT ASSERTED, deliberately: the staking reward stream. `rewardRate` is reachable only via
+    ///      `recordFeesReceived` <- `claimAllFees` <- a vault fee DELTA, and vaults receive nothing
+    ///      until graduation, while the staking instance (vapor-mid) deliberately never graduates. A
+    ///      direct ETH donation cannot substitute, because claimAllFees measures a delta across the
+    ///      vault loop. The stake/unstake surface is therefore seeded and walkable; the CLAIM surface
+    ///      is not, and there is nothing to claim for any address. That is a stated residual, not an
+    ///      oversight — reaching it needs a graduated instance with a staking module, which no seeded
+    ///      instance is.
+    ///
+    ///      NOT ASSERTED, deliberately: the deploy-bond escrow. `bondAmount` stays 0. Turning it on
+    ///      requires `setBondAmount` to run after the LAST create (every 404 create here sends
+    ///      msg.value 0 and the factory reverts InsufficientBond below the bond), and reading the
+    ///      escrow's address means widening the Deployed struct. The escrow stays inert and the walk
+    ///      records it as not-covered rather than half-covered.
+    function _assertPhase1(address c0, address c2) internal view {
+        // 1. FREE-CLAIM ALLOCATION. The free-claim collection must actually carry an allocation on
+        //    the edition claimFreeMint targets, or the whole free-claim surface is unwalkable and
+        //    claimFreeMint reverts for everyone.
+        uint256 alloc = ERC1155Instance(payable(c2)).freeMintAllocation(GHOST_MINT_EDITION);
+        require(alloc > 0, "phase1: ghost-mint free-claim allocation is 0 (nothing is claimable)");
+
+        // 2. LIMITED_DYNAMIC COVERAGE — asserted as a REGIME, not as a configuration. Checking only
+        //    that pricingModel is LIMITED_DYNAMIC and the rate is non-zero would pass with a rate too
+        //    small to see across a handful of mints, which is a flat curve wearing a dynamic label.
+        //    So: read the edition back, then ask the module what it will actually charge.
+        ERC1155Instance neonDrift = ERC1155Instance(payable(c0));
+        (,, uint256 basePrice,,,, ERC1155Instance.PricingModel model, uint256 rate,) =
+            neonDrift.editions(NEON_DRIFT_DYNAMIC_EDITION);
+        require(model == ERC1155Instance.PricingModel.LIMITED_DYNAMIC, "phase1: dynamic edition is not LIMITED_DYNAMIC");
+        require(basePrice > 0, "phase1: dynamic edition has no base price");
+
+        IDynamicPricingModule pricer = neonDrift.dynamicPricingModule();
+        require(address(pricer) != address(0), "phase1: no dynamic pricing module wired to the instance");
+        uint256 priceAfterProbe = pricer.calculatePrice(basePrice, rate, DYN_PROBE_MINTS);
+        require(
+            priceAfterProbe >= basePrice * DYN_MIN_MULTIPLE,
+            "phase1: dynamic price does not move enough to be visible across a handful of mints"
+        );
+
+        console.log("PHASE-1 post-conditions OK");
+        console.log("  ghost-mint free-claim allocation:", alloc);
+        console.log("  dynamic edition base price (wei):", basePrice);
+        console.log("  dynamic price after 5 mints (wei):", priceAfterProbe);
+    }
+
     // ─────────────────────────── Phase A: ERC1155 ───────────────────────────
 
     /// @dev Creates the 3 original collections, gives each real editions, makes ghost-mint a
     ///      free-claim collection, features them, seeds the endowment, and writes the deployer
-    ///      profile + activity. Returns c0 (used by later activity posts).
-    function _seedErc1155(Deployed memory d) internal returns (address c0) {
+    ///      profile + activity. Returns c0 (used by later activity posts) and c2 (the free-claim
+    ///      collection, checked in `_assertPhase1`).
+    function _seedErc1155(Deployed memory d) internal returns (address c0, address c2) {
         vm.startBroadcast(deployerKey);
 
         // c0 binds to the Aave ENDOWMENT vault so its collection page shows the endowment panel.
@@ -235,7 +319,7 @@ contract SeedAnvil is SeedAnvilShared {
         );
         // c2: free-claim. The free-mint allocation is per edition and is set on the Ghost edition
         // below, via addEdition's freeMintAlloc argument.
-        address c2 = _createCollection(
+        c2 = _createCollection(
             d.erc1155,
             d.vault,
             2,
@@ -268,6 +352,28 @@ contract SeedAnvil is SeedAnvilShared {
                 _pieceMeta("Drift Open", ART_DRIFT_OPEN, "neon-drift"),
                 ERC1155Instance.PricingModel.UNLIMITED,
                 0,
+                0,
+                0
+            );
+
+        // Edition 3 on c0: the LIMITED_DYNAMIC (exponential) pricing regime. Every other seeded
+        // edition is UNLIMITED or LIMITED_FIXED, so without this one DynamicPricingModule is never
+        // reached by anything a walker can click, and the exponential path ships unwalked.
+        //
+        // DYN_RATE_BPS is chosen so the rise is VISIBLE across a handful of mints rather than merely
+        // non-zero: calculatePrice compounds (10000 + rate)/10000 per mint, so 2000 bps doubles the
+        // price in under 4 mints (1.2^4 = 2.07). A rate small enough to need a spreadsheet to see is
+        // a flat curve wearing a dynamic label, which is the failure mode this edition exists to
+        // make observable — hence the assertion in _assertPhase1 is about PRICE MOVEMENT, not about
+        // the pricingModel field being set.
+        ERC1155Instance(payable(c0))
+            .addEdition(
+                "Aberration Rising",
+                DYN_BASE_PRICE,
+                50,
+                _pieceMeta("Aberration Rising", ART_ABERRATION, "neon-drift"),
+                ERC1155Instance.PricingModel.LIMITED_DYNAMIC,
+                DYN_RATE_BPS,
                 0,
                 0
             );
