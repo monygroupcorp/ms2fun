@@ -36,6 +36,7 @@ const appDir = resolve(here, '../..')
 const repoRoot = resolve(appDir, '..')
 const contractsDir = resolve(repoRoot, 'contracts')
 const anvilJsonPath = resolve(contractsDir, 'deployments/anvil.json')
+const seedStatePath = resolve(contractsDir, 'deployments/anvil-seed.json')
 const configPath = resolve(appDir, 'src/config/local-deployment.json')
 
 const RPC = 'http://127.0.0.1:8545'
@@ -165,6 +166,12 @@ async function main(): Promise<void> {
   const c = deployed.contracts
   const f = deployed.factories
 
+  const required = (record: Record<string, Address>, key: string): Address => {
+    const value = record[key]
+    if (!value) throw new Error(`anvil.json missing expected address: ${key}`)
+    return value
+  }
+
   // 3b. Hand the platform REGISTRIES to the testing wallet (ADMIN) so it can drive /admin. They're
   //     Solady-Ownable with the 2-STEP handover (direct transferOwnership reverts UseRequest…), and
   //     the incoming owner must initiate — so we anvil-impersonate ADMIN to requestOwnershipHandover,
@@ -186,6 +193,13 @@ async function main(): Promise<void> {
       outputs: [],
       stateMutability: 'payable',
     },
+    {
+      type: 'function',
+      name: 'owner',
+      inputs: [],
+      outputs: [{ type: 'address' }],
+      stateMutability: 'view',
+    },
   ] as const
   const deployerWallet = createWalletClient({
     account: privateKeyToAccount(ANVIL_DEPLOYER_KEY),
@@ -193,13 +207,18 @@ async function main(): Promise<void> {
     transport: http(RPC),
   })
   const adminWallet = createWalletClient({ account: ADMIN, chain: anvilFork, transport: http(RPC) })
-  for (const name of [
+  // Every registry the /admin screens drive. GlobalMessageRegistry is one of them — it owns the post
+  // threshold lever, which is onlyOwner, so an /admin session that does not own it cannot drive that
+  // control at all and a walk against it produces false findings rather than no findings.
+  const HANDOVER_REGISTRIES = [
     'MasterRegistry',
     'AlignmentRegistry',
     'ComponentRegistry',
     'FeaturedQueueManager',
     'AlignmentTargetRequestRegistry',
-  ]) {
+    'GlobalMessageRegistry',
+  ] as const
+  for (const name of HANDOVER_REGISTRIES) {
     const addr = c[name]
     if (!addr) continue
     try {
@@ -224,9 +243,97 @@ async function main(): Promise<void> {
       )
     }
   }
+  // Post-condition, not a log line. Each transfer above is deliberately wrapped in a try/catch so one
+  // odd registry cannot fail the deploy — which means the loop completing says nothing about who owns
+  // what. Read the owner back and THROW: an /admin screen the operator cannot drive is worse than one
+  // that is absent, because it produces findings that are about the seed and not about the app.
+  for (const name of HANDOVER_REGISTRIES) {
+    const addr = c[name]
+    if (!addr) throw new Error(`anvil.json missing registry ${name} — cannot verify its handover`)
+    const owner = await publicClient.readContract({
+      address: addr,
+      abi: handoverAbi,
+      functionName: 'owner',
+    })
+    if (owner.toLowerCase() !== ADMIN.toLowerCase()) {
+      throw new Error(
+        `${name} owner is ${owner}, expected ADMIN ${ADMIN} — /admin would be undrivable`,
+      )
+    }
+  }
   console.log(
     `✓ Handed platform registries to ADMIN (${ADMIN}) — /admin operable as the testing wallet`,
   )
+
+  // 3b-ii. Place ADMIN's stake on the mid-curve instance, then assert it.
+  //
+  //   The seed scripts cannot do this: `stake` is keyed to msg.sender and they hold no ADMIN key.
+  //   Only this orchestrator can act as ADMIN, via anvil impersonation — the same mechanism the
+  //   handover above and the graduation below already use. Phase 2 seeds ADMIN the token balance and
+  //   asserts it is large enough; this places the stake and asserts the result.
+  //
+  //   The deployer keeps its own stake, so the pool has two stakers and the pro-rata split is
+  //   exercised rather than collapsing to the identity.
+  //
+  //   RESIDUAL, stated so nobody reads more into this than it says: staking rewards are NOT seeded.
+  //   `rewardRate` is fed only by a vault fee delta, vaults receive nothing before graduation, and
+  //   the mid-curve instance deliberately never graduates — so pending rewards are 0 for every
+  //   address and the CLAIM surface is not walkable for anyone. Stake and unstake are.
+  const ADMIN_VAPOR_STAKE = 5n * 10n ** 23n // must match SeedAnvilBuys.ADMIN_VAPOR_STAKE
+  const stakeAbi = [
+    {
+      type: 'function',
+      name: 'stake',
+      inputs: [{ name: 'amount', type: 'uint256' }],
+      outputs: [],
+      stateMutability: 'nonpayable',
+    },
+  ] as const
+  const stakedBalanceAbi = [
+    {
+      type: 'function',
+      name: 'stakedBalance',
+      inputs: [
+        { name: 'instance', type: 'address' },
+        { name: 'user', type: 'address' },
+      ],
+      outputs: [{ type: 'uint256' }],
+      stateMutability: 'view',
+    },
+  ] as const
+  const seedState = JSON.parse(readFileSync(seedStatePath, 'utf8')) as {
+    chainId: number
+    instances: Record<string, Address>
+  }
+  if (seedState.chainId !== CHAIN_ID) {
+    throw new Error(
+      `anvil-seed.json chainId ${seedState.chainId} != expected ${CHAIN_ID} (stale file?)`,
+    )
+  }
+  const vapor = seedState.instances.vapor
+  if (!vapor) throw new Error('anvil-seed.json missing instances.vapor')
+  const stakingModule = required(c, 'ERC404StakingModule')
+  await test.impersonateAccount({ address: ADMIN })
+  const stakeHash = await adminWallet.writeContract({
+    address: vapor,
+    abi: stakeAbi,
+    functionName: 'stake',
+    args: [ADMIN_VAPOR_STAKE],
+  })
+  await publicClient.waitForTransactionReceipt({ hash: stakeHash })
+  await test.stopImpersonatingAccount({ address: ADMIN })
+  const adminStaked = await publicClient.readContract({
+    address: stakingModule,
+    abi: stakedBalanceAbi,
+    functionName: 'stakedBalance',
+    args: [vapor, ADMIN],
+  })
+  if (adminStaked === 0n) {
+    throw new Error(
+      `ADMIN staked balance on ${vapor} is 0 — the stake/unstake walk has no position`,
+    )
+  }
+  console.log(`✓ ADMIN staked ${adminStaked} on the mid-curve instance (${vapor})`)
 
   // 3c. Graduate the seeded `carved-demo` 404 WITH a nonzero creator carve. The seed creates it
   //     with declaredMaxAllowanceBps=10000 and a >=3 ETH reserve, but cannot graduate in-script
@@ -314,12 +421,6 @@ async function main(): Promise<void> {
     }
   } catch (err) {
     console.warn(`⚠ carved-demo graduation skipped: ${(err as Error).message.split('\n')[0]}`)
-  }
-
-  const required = (record: Record<string, Address>, key: string): Address => {
-    const value = record[key]
-    if (!value) throw new Error(`anvil.json missing expected address: ${key}`)
-    return value
   }
 
   // 4. Write the slim config the frontend consumes (src/lib/addresses.ts).
