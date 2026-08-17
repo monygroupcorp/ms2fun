@@ -12,6 +12,31 @@
       name="description"
       content="noesis — onchain alignment launchpad. Curated art/token releases bound, by contract, to the communities that inspired them."
     />
+    <!--
+      Share card tags (og:/twitter:). The origin below tracks launch/launch-runbook.md — update
+      both together if it changes. These are SITE-WIDE and STATIC on purpose: this is a serverless
+      SPA (no server render), scrapers do not execute JS, so every route serves this same card
+      regardless of what React sets after hydration. Do not move this into a component.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="noesis" />
+    <meta property="og:title" content="noesis — onchain alignment launchpad" />
+    <meta
+      property="og:description"
+      content="noesis — onchain alignment launchpad. Curated art/token releases bound, by contract, to the communities that inspired them."
+    />
+    <meta property="og:url" content="https://noesis.gwei.domains" />
+    <meta property="og:image" content="https://noesis.gwei.domains/icon-512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:image:alt" content="the noesis mark — a picture-frame lockup" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="noesis — onchain alignment launchpad" />
+    <meta
+      name="twitter:description"
+      content="noesis — onchain alignment launchpad. Curated art/token releases bound, by contract, to the communities that inspired them."
+    />
+    <meta name="twitter:image" content="https://noesis.gwei.domains/icon-512.png" />
     <link rel="stylesheet" href="/fonts/fonts.css" />
     <title>noesis</title>
   </head>

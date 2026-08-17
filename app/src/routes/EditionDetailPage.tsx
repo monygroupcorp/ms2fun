@@ -11,7 +11,6 @@
  * Note: the on-chain EditionView (QueryAggregator batch) does NOT expose `openTime`, so this page
  * does not render an "opens <when>" stat — it works only from the fields the aggregator returns.
  */
-import { useState } from 'react'
 import { Link, Redirect, useParams } from 'wouter'
 import { formatEther } from 'viem'
 import { useQuery } from '@tanstack/react-query'
@@ -23,6 +22,7 @@ import { fetchJson, isResolvableUri } from '../lib/metadata'
 import { IpfsImage } from '../components/ui/IpfsImage'
 import { StateBlock } from '../components/ui/StateBlock'
 import { MintBar } from '../components/ui/MintBar'
+import { ShareLink } from '../components/ui/ShareLink'
 import {
   CollectionChainProvider,
   useCollectionChainId,
@@ -156,18 +156,6 @@ function EditionDetail({ instance, id }: EditionDetailProps) {
 
   const meta = useEditionMetadata(edition?.metadataURI)
 
-  const [copied, setCopied] = useState(false)
-  function handleShare(): void {
-    const url = typeof window !== 'undefined' ? window.location.href : ''
-    void navigator.clipboard?.writeText(url).then(
-      () => {
-        setCopied(true)
-        window.setTimeout(() => setCopied(false), 2000)
-      },
-      () => setCopied(false),
-    )
-  }
-
   const crumb = (
     <nav className={styles.crumb}>
       <Link href={collectionRoutePath(chainId, slug)} className={styles.back}>
@@ -243,14 +231,7 @@ function EditionDetail({ instance, id }: EditionDetailProps) {
         <div className={styles.label}>
           <header className={styles.header}>
             <h1 className={`ed-title ${styles.title}`}>{title}</h1>
-            <button
-              type="button"
-              className={styles.share}
-              onClick={handleShare}
-              data-testid="edition-share"
-            >
-              {copied ? 'link copied' : 'copy link'}
-            </button>
+            <ShareLink />
           </header>
 
           {meta?.description && <p className={styles.description}>{meta.description}</p>}
