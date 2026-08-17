@@ -8,11 +8,13 @@
  * SCOPE: the curve/candle CHART (W-B5) and STAKING (W-B7) are intentionally NOT built here — their
  * mount points are marked below.
  */
+import { formatEther } from 'viem'
 import {
   useReadErc404BondingInstanceDecimals,
   useReadErc404BondingInstanceDeclaredMaxAllowanceBps,
   useReadErc404BondingInstanceGatingActive,
 } from '../../../generated/contracts'
+import { useCarveSettlement } from '../../../lib/carveReceipt'
 import { useCollectionChainId } from '../useCollectionChain'
 import { derivePhase } from './bondingPhase'
 import { formatCountdown, formatOpenTime } from './bondingFormat'
@@ -51,6 +53,48 @@ function CarveDisclosureNote({ instance }: { instance: `0x${string}` }) {
       {declaredMax === 0
         ? 'creator carve: waived — the creator takes nothing at graduation; the full LP share pools.'
         : `creator carve disclosure: at graduation the creator may take up to ${pct % 1 === 0 ? pct : pct.toFixed(2)}% of the protocol carve allowance (bracket-bounded, pool floor first, tithed 80/19/1). Set immutably at create.`}
+    </p>
+  )
+}
+
+/**
+ * Post-graduation carve receipt (noesis-220), read from chain history rather than from a transaction
+ * in flight — so it survives a reload and is visible to EVERY visitor, not only the wallet that
+ * clicked graduate. A buyer who priced the declared ceiling in before buying can see what actually
+ * left the pool. The zero case renders its own sentence: silence there is indistinguishable from a
+ * failed read, and a zero carve is a real choice the creator made.
+ */
+function GraduationCarveReceipt({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
+  const { data, isPending, isError } = useCarveSettlement(instance, chainId)
+
+  if (isError) {
+    return (
+      <p className={styles.note} data-testid="erc404-carve-receipt">
+        creator carve: the graduation record could not be read from chain history right now.
+      </p>
+    )
+  }
+  if (isPending || data === undefined) {
+    return (
+      <p className={styles.note} data-testid="erc404-carve-receipt">
+        creator carve: reading the graduation record…
+      </p>
+    )
+  }
+  if (data.gross === 0n) {
+    return (
+      <p className={styles.note} data-testid="erc404-carve-receipt">
+        graduated with no creator carve — the full LP share pooled.
+      </p>
+    )
+  }
+  return (
+    <p className={styles.note} data-testid="erc404-carve-receipt">
+      {`creator carve at graduation: ${formatEther(data.gross)} ETH gross left the LP share — ` +
+        `${formatEther(data.creatorNet)} ETH net to the creator, ` +
+        `${formatEther(data.vault)} ETH to the vault, ` +
+        `${formatEther(data.protocol)} ETH to the protocol.`}
     </p>
   )
 }
@@ -151,6 +195,10 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
             </a>
           </div>
         )}
+        {/* The immutable ceiling does not disappear the moment it becomes history, and the receipt
+            below says what was actually taken against it. Both are public. */}
+        <CarveDisclosureNote instance={instance} />
+        <GraduationCarveReceipt instance={instance} />
         {/* Charts (bonding history) render full-width below the shell — see Erc404Charts. */}
       </div>
     )
