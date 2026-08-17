@@ -556,6 +556,7 @@ contract SeedAnvil is SeedAnvilShared {
             "Ember hasn't caught yet. When the curve opens, each buy mints a glowing shard; ~20% of every trade binds to the alignment vault, by contract.",
             "EMBER",
             ART_EMBER,
+            ART_BASE_DOODLE,
             address(0),
             d.cypherVault,
             d.cypherDeployer,
@@ -584,6 +585,7 @@ contract SeedAnvil is SeedAnvilShared {
             "Vapor is live on the curve - trade the coin, hold the piece, stake for a cut of the flow. A DN404 where the token and the art are one asset.",
             "VAPOR",
             ART_VAPOR,
+            ART_BASE_ANIME,
             d.stakingModule,
             d.vault,
             d.uniDeployer,
@@ -619,6 +621,7 @@ contract SeedAnvil is SeedAnvilShared {
             "Cinder's curve is nearly spent - one push from graduating to a Uniswap V4 pool. Late embers, deep discounts.",
             "CINDER",
             ART_CINDER,
+            ART_BASE_ARCTIC,
             d.vault,
             d.uniDeployer,
             0.045 ether,
@@ -633,6 +636,7 @@ contract SeedAnvil is SeedAnvilShared {
             "Molten runs hot and ready to pour - matured and one call from a ZAMM pool. The curve's last stretch before the DEX.",
             "MOLTEN",
             ART_MOLTEN,
+            ART_BASE_SIMIAN,
             d.zammVault,
             d.zammDeployer,
             0.043 ether,
@@ -647,13 +651,16 @@ contract SeedAnvil is SeedAnvilShared {
         string memory description,
         string memory symbol,
         string memory image,
+        string memory pieceBase,
         address vault,
         address deployer_,
         uint256 rankBoost,
         uint16 declaredMaxBps
     ) internal returns (address inst) {
         vm.startBroadcast(deployerKey);
-        inst = _createBonding(d, slug, name, description, symbol, image, address(0), vault, deployer_, declaredMaxBps);
+        inst = _createBonding(
+            d, slug, name, description, symbol, image, pieceBase, address(0), vault, deployer_, declaredMaxBps
+        );
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         // openTime +1h (crossed by deploy.ts's FIRST advance, so the phase-2 buy lands on an open
         // curve), maturity +90m (still ahead at buy time, crossed by the SECOND advance) so the
@@ -682,6 +689,7 @@ contract SeedAnvil is SeedAnvilShared {
             "Carved declared its full creator carve up front - the maximum cut was on the label before the first buy. Graduated with the carve taken; the pool floor held.",
             "CARVE",
             ART_CARVED,
+            ART_BASE_ANIME,
             address(0),
             d.vault,
             d.uniDeployer,
@@ -709,13 +717,18 @@ contract SeedAnvil is SeedAnvilShared {
     ///      `mintUp` into it reverts `BandExhausted` until a holder mints down, and the demo shows a
     ///      capped tier rather than one that can never sell out.
     ///      Post-create the deployer (artist) publishes an opt-in event wave and a PAY commission on
-    ///      id 3, then — as the holder of id 3 — unlocks + pins it. Token URIs (tokenBaseURI "" → base
-    ///      is the bare id) demonstrate precedence: id3 → "commission-3", id 11 → "tier-11", else "N".
+    ///      id 3, then — as the holder of id 3 — unlocks + pins it. Precedence (overlay > tier > base)
+    ///      is demonstrated in ART: each of the three layers is a DIFFERENT collection, so id 3
+    ///      (commission), id 11 (band) and an ordinary id resolve to three visibly different images
+    ///      rather than three labels that only a diff can tell apart.
     function _seedErc404Stacked(Deployed memory d) internal {
         // The ladder the creator supplies; the factory derives the id range (11-11) and seals both the
         // instance's economic ladder and the resolver's art table from it.
         ERC404Factory.TierSpec[] memory tiers = new ERC404Factory.TierSpec[](1);
-        tiers[0] = ERC404Factory.TierSpec({ weight: 5, count: 1, baseURI: "tier-" });
+        // The band's own metadata base — a DIFFERENT collection from the instance's ordinary-piece
+        // base, so minting up into the band visibly changes the art rather than swapping one label
+        // for another. Composes as `base + 11`.
+        tiers[0] = ERC404Factory.TierSpec({ weight: 5, count: 1, baseURI: ART_BASE_ARCTIC });
 
         address[] memory children = new address[](2);
         children[0] = d.overlay; // precedence: holder pins/events win over...
@@ -737,7 +750,7 @@ contract SeedAnvil is SeedAnvilShared {
             name: "prism-stacked",
             symbol: "PRISM",
             styleUri: "",
-            tokenBaseURI: "", // base tokenURI is the bare id, so prefixes above read clearly
+            tokenBaseURI: ART_BASE_ANIME, // ordinary ids resolve to this collection's piece art
             owner: deployer,
             vault: d.zammVault, // ZAMM LP vault — pairs with the ZAMM deployer below
             nftCount: 10,
@@ -776,6 +789,10 @@ contract SeedAnvil is SeedAnvilShared {
         console.log("  router :", d.resolverRouter);
     }
 
+    /// @param image    the COLLECTION image (banner/card art) handed to the master registry at create.
+    /// @param pieceBase the per-PIECE metadata base. `_tokenURI` composes `pieceBase + tokenId`, so this
+    ///        must be a metadata directory ending in `/` — an empty base makes every `tokenURI` the bare
+    ///        id, which carries no art for the frontend to render. One collection per instance.
     /// @param vault    the alignment/endowment vault the instance binds to (any of the 4 flavors)
     /// @param deployer_ the LP deployer module (Uni-V4 / ZAMM / Cypher) the curve graduates through.
     ///        Vault flavor and LP venue are independent axes — the seed spreads instances across both
@@ -788,6 +805,7 @@ contract SeedAnvil is SeedAnvilShared {
         string memory description,
         string memory symbol,
         string memory image,
+        string memory pieceBase,
         address stakingModule,
         address vault,
         address deployer_,
@@ -798,7 +816,7 @@ contract SeedAnvil is SeedAnvilShared {
             name: slug,
             symbol: symbol,
             styleUri: "",
-            tokenBaseURI: "",
+            tokenBaseURI: pieceBase,
             owner: deployer,
             vault: vault,
             nftCount: 10,
