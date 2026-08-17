@@ -46,6 +46,7 @@ import {
   formatReport,
   type ContributionLog,
   type HazardLog,
+  type HazardScanCoverage,
 } from '../src/lib/tithe/aggregate'
 import {
   alignmentTargetIdAbi,
@@ -91,12 +92,22 @@ async function main(): Promise<void> {
   // omitted from the deployment (e.g. a network with no live AMM venue for that family — see
   // DeployCore's fallback-to-stub branches) means that family's redirects/pending simply aren't
   // scanned, not that the run fails.
-  const moduleAddresses = [
-    deployment.contracts.ModuleUniV4Deployer,
-    deployment.contracts.ModuleZAMMDeployer,
-    deployment.contracts.ModuleCypherDeployer,
-    deployment.contracts.MetadataOverlayModule,
-  ].filter((a): a is Address => Boolean(a))
+  // The omission is deliberate, but it has to reach the OUTPUT: an unscanned source and a
+  // scanned-and-empty one both render `redirected: 0`, so the report declares its own coverage.
+  const moduleKeys = [
+    'ModuleUniV4Deployer',
+    'ModuleZAMMDeployer',
+    'ModuleCypherDeployer',
+    'MetadataOverlayModule',
+  ] as const
+  const moduleEntries = moduleKeys.map((key) => [key, deployment.contracts[key]] as const)
+  const moduleAddresses = moduleEntries
+    .map(([, address]) => address)
+    .filter((a): a is Address => Boolean(a))
+  const hazardCoverage: HazardScanCoverage = {
+    scanned: moduleEntries.filter(([, address]) => Boolean(address)).map(([key]) => key),
+    skipped: moduleEntries.filter(([, address]) => !address).map(([key]) => key),
+  }
 
   const client = createPublicClient({
     chain: defineChain({
@@ -248,7 +259,7 @@ async function main(): Promise<void> {
     }),
   )
 
-  console.log(formatReport(report, new Map(targetTitleEntries)))
+  console.log(formatReport(report, new Map(targetTitleEntries), hazardCoverage))
 }
 
 main().catch((err: unknown) => {
