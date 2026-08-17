@@ -11,6 +11,7 @@ import {
   collectDefaults,
   validateFields,
   buildCreateInstance,
+  composePieceArtPreview,
   encodeMetadataConfig,
   validateMetadataConfig,
   type MetadataModuleSelection,
@@ -33,6 +34,7 @@ import { CarveDisclosure } from '../components/wizard/CarveDisclosure'
 import { BondNotice } from '../components/wizard/BondNotice'
 import { TierSupplyHelper } from '../components/wizard/TierSupplyHelper'
 import { SchemaForm } from '../components/wizard/SchemaForm'
+import { ImageSourceInput } from '../components/wizard/ImageSourceInput'
 import { ModuleSlotPicker } from '../components/wizard/ModuleSlotPicker'
 import { CollectionMetaForm } from '../components/wizard/CollectionMetaForm'
 import { StylePreviewControl } from '../components/wizard/StylePreviewControl'
@@ -381,6 +383,16 @@ export function WizardPage() {
   if (!projectType) return null
   const pt = projectType
 
+  // Piece art (noesis-211): `tokenBaseURI` composes as `<base><tokenId>`, so the FIRST piece is
+  // `<base>1` — exact concat, no inserted slash (a normalized preview would lie about the calldata).
+  // A resolver, when wired, overrides the base entirely (ADR-0006/0007 precedence), so a blank base
+  // with a resolver selected is not an art gap — only blank-base-with-no-resolver is.
+  const pieceArtField = pt.coreFields.find((f) => f.key === 'tokenBaseURI')
+  const rawTokenBaseURI = values['tokenBaseURI'] ?? ''
+  const pieceArtBlank = rawTokenBaseURI.trim() === ''
+  const pieceArtPreviewUri = composePieceArtPreview(rawTokenBaseURI)
+  const noPieceArt = typeKey === 'erc404' && pieceArtBlank && !modules.resolver
+
   function pickType(key: ProjectTypeSchema['key']) {
     setTypeKey(key)
     // Reset to the NEW type's defaults (not `{}`) — see the `values` state note above.
@@ -554,14 +566,40 @@ export function WizardPage() {
             </div>
             <div className={styles.formBlock}>
               <h3 className={styles.sectionTitle}>Details</h3>
-              {/* styleUri is a page concern (rendered on the Collection-page step) and freeMint is a
-                  distribution/gating concern (rendered on the Gating step) — both share `values` state. */}
+              {/* styleUri is a page concern (rendered on the Collection-page step), freeMint is a
+                  distribution/gating concern (rendered on the Gating step), and tokenBaseURI (ERC404
+                  piece art) is rendered bespoke below (composed-URI preview `ImageSourceInput` can't
+                  do through the generic text field) — all three share `values` state. */}
               <SchemaForm
-                fields={pt.coreFields.filter((f) => f.key !== 'styleUri' && f.key !== 'freeMint')}
+                fields={pt.coreFields.filter(
+                  (f) => f.key !== 'styleUri' && f.key !== 'freeMint' && f.key !== 'tokenBaseURI',
+                )}
                 values={values}
                 onChange={(key, value) => setValues((v) => ({ ...v, [key]: value }))}
                 errors={coreErrors}
               />
+              {/* ERC404 piece art: previews the COMPOSED first piece (`<base>1`), not the raw base —
+                  a raw-base preview would just fail to load (it isn't an image itself). Blank is
+                  legal (submit.ts passes it through unchanged, no invented default); the review step
+                  states the consequence explicitly when no resolver picks up the slack either. */}
+              {typeKey === 'erc404' && pieceArtField && (
+                <>
+                  <ImageSourceInput
+                    id="tokenBaseURI"
+                    label={pieceArtField.label}
+                    value={rawTokenBaseURI}
+                    onChange={(v) => setValues((vals) => ({ ...vals, tokenBaseURI: v }))}
+                    {...(pieceArtField.help ? { help: pieceArtField.help } : {})}
+                    {...(pieceArtPreviewUri ? { previewValue: pieceArtPreviewUri } : {})}
+                  />
+                  {pieceArtPreviewUri && (
+                    <p className={styles.help}>
+                      First piece renders as <code>{pieceArtPreviewUri}</code> — a missing trailing
+                      slash on the base is not added for you.
+                    </p>
+                  )}
+                </>
+              )}
               {/* The preset's supply ceiling, stated where both inputs are — not saved for Review.
                   `unitPerNFT` coin units per NFT against DN404's uint96 total supply is the whole
                   reason the bound exists, so the number is shown rather than asserted. */}
@@ -597,7 +635,9 @@ export function WizardPage() {
           <div className={styles.body}>
             <p className={styles.lede}>
               Compose optional modules — each states its effect. Everything here is part of the same
-              deploy.
+              deploy, and the metadata resolver below is wired once, permanently — it cannot be
+              added or swapped after deploy. It's how a piece's art can differ by tier band instead
+              of every piece looking identical.
             </p>
             {slots.map(renderSlot)}
           </div>
@@ -762,6 +802,13 @@ export function WizardPage() {
                 and the <b>~20% alignment</b> are fixed on-chain —{' '}
                 <b>they can&rsquo;t be undone.</b>
               </div>
+              {noPieceArt && (
+                <p className={styles.bindNote}>
+                  Your pieces will have no art — every id renders as a bare placeholder. You can add
+                  a base URI later from collection admin; a metadata resolver cannot be added after
+                  deploy, only wired now on the Modules step.
+                </p>
+              )}
               {!metadata.image.trim() && (
                 <p className={styles.bindNote}>
                   Launching without a cover image — you can add one anytime after.
