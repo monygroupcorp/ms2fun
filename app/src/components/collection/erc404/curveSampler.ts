@@ -64,16 +64,109 @@ export function curvePriceAt(params: CurveParams, supply: number): number {
 }
 
 /**
- * Sample the curve at `samples` evenly spaced supplies across [0, maxSupply].
- * `maxSupply` is in token base units (float). Returns `samples` points (>= 2).
+ * The top of the BONDING range (token base units, as a float) — the supply at which the normalized
+ * `s` reaches 1.0. This is strictly below `poleWad` (the pole sits beyond the top of the bonding
+ * range by construction), so it is always safe to price. Callers must sample/clamp against this, not
+ * against `maxSupply` — `maxSupply` is the token's full supply and can sit past the pole.
  */
-export function sampleCurve(params: CurveParams, maxSupply: number, samples: number): CurvePoint[] {
+export function bondingCap(params: CurveParams): number {
+  return Number(params.normalizationFactor) * WAD
+}
+
+/**
+ * Inverse of `curvePriceAt`: the supply (token base units, as a float) at which the marginal price
+ * equals `price`. Returns 0 for a non-positive price or a misconfigured (`normalizationFactor === 0`)
+ * instance.
+ */
+export function curveSupplyAt(params: CurveParams, price: number): number {
+  const norm = Number(params.normalizationFactor)
+  if (norm === 0 || price <= 0) return 0
+  const pole = Number(params.poleWad) / WAD
+  const k = Number(params.kCoeff) / WAD
+  const s = pole - k / price
+  return s * norm * WAD
+}
+
+function sampleRange(params: CurveParams, lo: number, hi: number, samples: number): CurvePoint[] {
   const n = Math.max(2, samples)
-  const top = maxSupply > 0 ? maxSupply : Number(params.normalizationFactor) * WAD
   const out: CurvePoint[] = []
   for (let i = 0; i < n; i++) {
-    const supply = (top * i) / (n - 1)
+    const supply = lo + ((hi - lo) * i) / (n - 1)
     out.push({ supply, price: curvePriceAt(params, supply) })
   }
   return out
+}
+
+/**
+ * Sample the curve at `samples` evenly spaced supplies across the whole bonding range
+ * `[0, bondingCap(params)]`. Never `[0, maxSupply]` — `maxSupply` can sit past the pole. Returns
+ * `samples` points (>= 2).
+ */
+export function sampleCurve(params: CurveParams, samples: number): CurvePoint[] {
+  return sampleRange(params, 0, bondingCap(params), samples)
+}
+
+/** Visible price ratio held constant across the window (rth's adaptive-viewport ruling, 2026-08-14). */
+export const VIEWPORT_SPAN = 3.0
+/** Where `here` sits across the window, in price-ratio terms. */
+const VIEWPORT_ANCHOR = 1 / 3
+
+/**
+ * The adaptive viewport around the live position `hereSupply`: a window that holds the visible price
+ * span constant (`VIEWPORT_SPAN`) and slides/pins as the sale fills, rather than a fixed crop.
+ *
+ * `loSupply`/`hiSupply` are the CLAMPED supply-domain edges (`0 <= loSupply <= hiSupply <= cap`).
+ * `loPrice`/`hiPrice` are the prices AT those clamped edges (`P(loSupply)`, `P(hiSupply)`) — not the
+ * unclamped `lo`/`hi` price targets that drove the domain solve. They are equal to the targets in the
+ * unpinned-middle and right-pin branches, but diverge in the left-pin branch, where the window is
+ * `[P(0), 3*P(0)]` by design (a low dot early is the specified behaviour — see `noesis-208`).
+ *
+ * `graduationPrice` (`P(cap)`) is always returned so the caller can label the graduation edge even
+ * when it is off-window. `graduationInView` is true only when the right edge is pinned to graduation
+ * (the window's upper price bound is `graduationPrice`).
+ */
+export interface Viewport {
+  loSupply: number
+  hiSupply: number
+  loPrice: number
+  hiPrice: number
+  graduationPrice: number
+  graduationInView: boolean
+}
+
+export function computeViewport(params: CurveParams, hereSupply: number): Viewport {
+  const cap = bondingCap(params)
+  const hereClamped = Math.min(Math.max(hereSupply, 0), cap)
+  const herePrice = curvePriceAt(params, hereClamped)
+  const graduationPrice = curvePriceAt(params, cap)
+
+  let lo = herePrice / Math.pow(VIEWPORT_SPAN, VIEWPORT_ANCHOR)
+  let hi = lo * VIEWPORT_SPAN
+  let graduationInView = false
+  if (hi >= graduationPrice) {
+    hi = graduationPrice
+    lo = hi / VIEWPORT_SPAN
+    graduationInView = true
+  }
+
+  let L = Math.max(0, curveSupplyAt(params, lo))
+  let U = Math.min(cap, curveSupplyAt(params, hi))
+  if (L <= 0) {
+    L = 0
+    U = Math.min(cap, curveSupplyAt(params, curvePriceAt(params, 0) * VIEWPORT_SPAN))
+  }
+
+  return {
+    loSupply: L,
+    hiSupply: U,
+    loPrice: curvePriceAt(params, L),
+    hiPrice: curvePriceAt(params, U),
+    graduationPrice,
+    graduationInView,
+  }
+}
+
+/** Sample the curve across a computed `Viewport`'s clamped supply domain. */
+export function sampleViewport(params: CurveParams, viewport: Viewport, samples: number): CurvePoint[] {
+  return sampleRange(params, viewport.loSupply, viewport.hiSupply, samples)
 }
