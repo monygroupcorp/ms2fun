@@ -52,6 +52,9 @@ import { useOwnerGate } from '../../ui/useOwnerGate'
 import { useTxAction } from '../../ui/useTxAction'
 import type { MoneyReceipt } from '../../ui/receipt'
 import { MetadataArtistPanel } from './MetadataArtistPanel'
+import { canDeployLiquidity, derivePhase } from './bondingPhase'
+import { useBondingData } from './useBondingData'
+import { useNowSec } from './useNowSec'
 import styles from './Erc404AdminPanel.module.css'
 
 interface Erc404AdminPanelProps {
@@ -69,28 +72,49 @@ function toUnixSeconds(value: string): bigint | undefined {
 
 export function Erc404AdminPanel({ instance }: Erc404AdminPanelProps) {
   const { isOwner } = useOwnerGate(instance)
+  const { view } = useBondingData(instance)
+  const nowSec = useNowSec()
+  // Phase gate (noesis-209): the panel's own reads were never consulted, so a graduated collection
+  // kept offering "activate bonding" / "deploy liquidity" / the bonding-time setters alongside the
+  // page's own "graduated to DEX" notice. `deployLiquidity` visibility is keyed on the PHASE alone
+  // (bonding), not on `canDeployLiquidity` — that helper is stricter than the contract (it also
+  // requires full-or-matured) and would hide the button on a sold-out curve or a deliberate early
+  // graduation; it is used below only to choose the hint text under a still-visible button.
+  const phase = view !== undefined ? derivePhase(view, nowSec) : undefined
+  const graduated = phase === 'graduated'
+  const bonding = phase === 'bonding'
+  const closesSaleEarly = bonding && view !== undefined && !canDeployLiquidity(view, nowSec)
+
   if (!isOwner) return null
 
   return (
     <Disclosure summary="CREATOR ADMIN" testId="erc404-creator-admin">
       <AdminSection title="creator admin" testId="erc404-admin">
-        <SetBondingActiveRow instance={instance} />
-        <SetTimeRow
-          instance={instance}
-          functionName="setBondingOpenTime"
-          label="bonding open time"
-          hint="when the bonding sale opens"
-          testId="erc404-admin-open-time"
-          kind="open"
-        />
-        <SetTimeRow
-          instance={instance}
-          functionName="setBondingMaturityTime"
-          label="bonding maturity time"
-          hint="must be after open time and in the future"
-          testId="erc404-admin-maturity"
-          kind="maturity"
-        />
+        {graduated ? (
+          <p className={styles.hint} data-testid="erc404-admin-graduated-note">
+            bonding is complete — this collection graduated
+          </p>
+        ) : (
+          <>
+            <SetBondingActiveRow instance={instance} />
+            <SetTimeRow
+              instance={instance}
+              functionName="setBondingOpenTime"
+              label="bonding open time"
+              hint="when the bonding sale opens"
+              testId="erc404-admin-open-time"
+              kind="open"
+            />
+            <SetTimeRow
+              instance={instance}
+              functionName="setBondingMaturityTime"
+              label="bonding maturity time"
+              hint="must be after open time and in the future"
+              testId="erc404-admin-maturity"
+              kind="maturity"
+            />
+          </>
+        )}
         <SetUriRow
           instance={instance}
           functionName="setStyle"
@@ -108,7 +132,7 @@ export function Erc404AdminPanel({ instance }: Erc404AdminPanelProps) {
           testId="erc404-admin-metadata"
         />
         <ActivateStakingRow instance={instance} />
-        <DeployLiquidityRow instance={instance} />
+        {bonding && <DeployLiquidityRow instance={instance} closesSaleEarly={closesSaleEarly} />}
         <BondStatusRow instance={instance} />
         <MetadataArtistPanel instance={instance} />
         <MigrateVaultRow instance={instance} />
@@ -418,7 +442,13 @@ export function carveReceiptFromLogs(logs: readonly Log[]): MoneyReceipt | undef
   }
 }
 
-function DeployLiquidityRow({ instance }: { instance: `0x${string}` }) {
+function DeployLiquidityRow({
+  instance,
+  closesSaleEarly,
+}: {
+  instance: `0x${string}`
+  closesSaleEarly: boolean
+}) {
   const chainId = useCollectionChainId()
   const [carveInput, setCarveInput] = useState('0') // bps, default 0 = plain graduation
   const tx = useTxAction()
@@ -450,13 +480,19 @@ function DeployLiquidityRow({ instance }: { instance: `0x${string}` }) {
   })
 
   const resolved = requestBps > 0 ? carveWei : 0n
-  const hint =
+  const baseHint =
     maxBps === 0
       ? 'graduate to the DEX — this collection declared no carve rights (carve is 0)'
       : `graduate to the DEX with an optional creator carve — declared max ${maxBps} bps, ` +
         `effective max ${maxCarveWei !== undefined ? formatEther(maxCarveWei) : '…'} ETH now; ` +
         `this request carves ${resolved !== undefined ? formatEther(resolved) : '…'} ETH ` +
         '(tithed 80/19/1 — you / vault / protocol)'
+  // The curve isn't full yet and hasn't matured — graduating now is a designed early-exit path, but
+  // it closes the sale to buyers immediately. Surface that as a heads-up, never as a reason to hide
+  // the button (see the panel-level comment on `closesSaleEarly`).
+  const hint = closesSaleEarly
+    ? `${baseHint} · curve not full yet — graduating now closes the sale early`
+    : baseHint
 
   return (
     <ActionRow label="deploy liquidity (graduate)" hint={hint}>
