@@ -197,7 +197,13 @@ contract SeedAnvil is SeedAnvilShared {
             name: "agent-commission",
             symbol: "COMM",
             styleUri: "",
-            tokenBaseURI: "",
+            // Per-piece art, same rule as every other seeded ERC404: `_tokenURI` composes
+            // `tokenBaseURI + tokenId`, so a metadata directory here is what makes the agent-created
+            // pieces resolve to art instead of a bare id. This instance is deliberately absent from
+            // `_instances`/`_seeded` (PERSON owns it, not ADMIN), so it carries its base explicitly
+            // rather than inheriting one from a list. ART_BASE_DOODLE is the base no neighbouring
+            // instance uses, so the commission reads as its own collection.
+            tokenBaseURI: ART_BASE_DOODLE,
             owner: PERSON,
             vault: d.vault,
             nftCount: 10,

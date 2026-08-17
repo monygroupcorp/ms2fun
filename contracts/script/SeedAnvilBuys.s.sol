@@ -232,7 +232,13 @@ contract SeedAnvilBuys is SeedAnvilShared {
         vm.startBroadcast(deployerKey);
         MetadataOverlayModule ov = MetadataOverlayModule(d.overlay);
         // An opt-in open event wave (holders select it; not auto because autoLatest=false).
-        ov.publishWave(inst, "event-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST);
+        // A wave's art is `wave.baseURI + id` (MetadataOverlayModule._resolve), the same composition
+        // the base and the band use — so the wave's payload is a metadata directory too. A FOURTH
+        // collection, distinct from the base, the band and the commissions: selecting the wave has to
+        // visibly change the piece, which is the only way an opt-in wave reads as a wave.
+        ov.publishWave(
+            inst, ART_BASE_DOODLE, MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST
+        );
         // A paid commission on id 3 (outside the band range), then unlock+pin it as the holder.
         // The payload is a real metadata URI, not a label: the overlay wins over both the band and the
         // base, so it has to carry an image of its own for the top of the precedence stack to show

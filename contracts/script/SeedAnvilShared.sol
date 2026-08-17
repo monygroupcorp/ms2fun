@@ -59,6 +59,11 @@ abstract contract SeedAnvilShared is Script {
     // ART_LIVE_SALON / ART_PRISM to ART_BASE_ARCTIC's.
     // A different collection per instance keeps each one visually its own drop rather than one image
     // repeated — and on the stacked instance it makes WHICH metadata layer is answering obvious by eye.
+    // The four bases are the whole roster; surfaces added later REUSE one rather than introduce a
+    // fifth, choosing whichever is not already answering next to them. Current reuse: ART_BASE_DOODLE
+    // backs both `ember-preopen`'s pieces and — on two surfaces that never sit beside it — the
+    // agent-created commission and `prism-stacked`'s opt-in wave, whose stack already spends the
+    // other three (base = ANIME, band = ARCTIC, commissions = SIMIAN).
     string internal constant ART_BASE_ANIME = "ipfs://QmZcH4YvBVVRJtdn4RdbaqgspFU8gH6P9vomDpBVpAL3u4/";
     string internal constant ART_BASE_ARCTIC = "ipfs://bafybeibc5sgo2plmjkq2tzmhrn54bk3crhnc23zd2msg4ea7a4pxrkgfna/";
     string internal constant ART_BASE_SIMIAN = "ipfs://QmeSjSinHpPnmXmspMjwiXyN6zS4E9zccariGR3jxcaWtq/";
