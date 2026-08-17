@@ -29,6 +29,17 @@ contract ValidateSepolia is Script {
     // record instead — the same source `_checkVaults` already reads.
     string constant DEPLOYMENT_PATH = "./deployments/sepolia.json";
 
+    /// @dev Sepolia. The external-dependency block below asserts against addresses that only exist
+    ///      on this chain, so it runs only when the script is pointed at a Sepolia RPC.
+    uint256 constant SEPOLIA_CHAIN_ID = 11155111;
+
+    /// @dev ZAMM V1. A CREATE2 singleton, so the address is chain-independent BY CONVENTION — which
+    ///      is a claim about the deployer's intent, not a guarantee that the deploy happened on any
+    ///      given chain. Single source: `DeploySepolia.s.sol` (`cfg.zamm`); `DeployCore` consumes it
+    ///      directly and does not write it to the deployment record, so it is mirrored here. zRouter
+    ///      IS written to the record (`.contracts.zRouter`) and is read from there instead.
+    address constant ZAMM_V1 = 0x000000000000040470635EB91b7CE4D132D616eD;
+
     /// @dev The tag `ERC404Factory` requires of a preset's curve computer: the RAW literal bytes
     ///      `bytes32("curve_computer")`, not a keccak hash. Mirrors `ERC404Factory` and the
     ///      `approveComponent` call in `DeployCore` exactly.
@@ -57,6 +68,7 @@ contract ValidateSepolia is Script {
         _checkComponentRegistry();
         _checkLaunchManager(launchManagerAddr);
         _checkVaults(json);
+        _checkExternalDependencies(json);
 
         console.log("\n=== Done ===");
     }
@@ -119,6 +131,41 @@ contract ValidateSepolia is Script {
             console.log("      type:", onchainType);
         }
         console.log("");
+    }
+
+    /// @notice Assert the two external singletons the deployment routes through — ZAMM and zRouter —
+    ///         actually carry code on the chain being validated.
+    /// @dev Everything else this script checks is protocol we deployed, so its existence is implied by
+    ///      the deployment record. ZAMM and zRouter are not: they are third-party CREATE2 singletons
+    ///      pinned by address. If either is codeless on the target chain, the call sites decode empty
+    ///      returndata and revert — every `BestRouteAcquirer` leg and the fixed-pool fallback for an
+    ///      alignment-vault acquisition, and every graduated ERC-404 swap. Fork tests inherit mainnet
+    ///      state, where both are populated by construction, so the condition is only observable
+    ///      against the live chain. Asserting it here turns it into a deploy-time refusal.
+    ///
+    ///      Chain-gated: these are Sepolia addresses, and this block is the only part of the script
+    ///      that reads state outside the deployment record. Off Sepolia (local EVM, unit tests) it
+    ///      logs that it did not run rather than asserting against addresses that cannot be there.
+    function _checkExternalDependencies(string memory json) internal view {
+        console.log("-- External dependencies --");
+        if (block.chainid != SEPOLIA_CHAIN_ID) {
+            console.log("  skipped: not running against Sepolia (chainid", block.chainid, ")");
+            console.log("");
+            return;
+        }
+
+        // zRouter comes from the record, so the check cannot drift from the address the deployment
+        // actually wired into the launch deployers and vault factories.
+        _checkExternalDep(_recordAddress(json, ".contracts.zRouter", "zRouter"), "zRouter");
+        _checkExternalDep(ZAMM_V1, "ZAMM V1");
+        console.log("");
+    }
+
+    /// @dev States what it checked: a passing run prints the address and its code size.
+    function _checkExternalDep(address dep, string memory label) internal view {
+        console.log(string.concat("  ", label, ":"), dep);
+        console.log("    code size:", dep.code.length);
+        require(dep.code.length > 0, string.concat(label, ": no code at the pinned address on this chain"));
     }
 
     /// @dev Map the deploy JSON's short vault tag to the on-chain vaultType() string.
