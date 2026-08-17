@@ -28,3 +28,8 @@ pnpm chain:deploy
 - **Seeding is intentionally not ported.** Task-zero ports only the deploy bridge. The demo
   collection world (the old `scenarios/*`) is rebuilt in Phase 3 on the typed viem domain layer
   - the real create flows.
+- **Port-ownership guard needs one of `lsof`, `ss`, or `fuser`.** `fork.sh` and `stop.sh` probe
+  `:8545` before starting or stopping the fork, so they never touch a process this repo did not
+  start. `ss` ships with `iproute2` and is present on most Linux boxes; `lsof` and `fuser` also
+  work if installed. With none of the three available, both scripts refuse to start or stop
+  rather than guess at the port's state.
