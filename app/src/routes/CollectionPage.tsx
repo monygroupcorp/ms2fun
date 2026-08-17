@@ -21,6 +21,7 @@ import { addressesForChain, forkChainId, type SupportedChainId } from '../lib/ad
 import { truncateAddress } from '../lib/format'
 import { StateBlock } from '../components/ui/StateBlock'
 import { MintBar } from '../components/ui/MintBar'
+import { ShareLink } from '../components/ui/ShareLink'
 import { txErrorReason } from '../components/ui/useTxAction'
 import styles from './CollectionPage.module.css'
 
@@ -215,6 +216,10 @@ function CollectionBody({ instance }: { instance: `0x${string}` }) {
   return (
     <div className={styles.page} data-testid="collection-detail">
       <CrumbBack />
+      {/* The collection's title lives in CollectionHero (its own module), so there is no header
+          slot in this file to place the share control inside of — it sits here, next to the crumb,
+          only once the collection has actually resolved. */}
+      {!isPending && !isError && card && card.instance !== ZERO_ADDRESS && <ShareLink />}
 
       {isPending && <StateBlock variant="loading">hanging the work…</StateBlock>}
       {isError && (
