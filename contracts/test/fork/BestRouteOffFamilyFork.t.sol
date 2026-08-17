@@ -7,6 +7,7 @@ import { UniAlignmentVaultFactory } from "src/vaults/uni/UniAlignmentVaultFactor
 import { UniswapVaultPriceValidator } from "src/peripherals/UniswapVaultPriceValidator.sol";
 import { IVaultPriceValidator } from "src/interfaces/IVaultPriceValidator.sol";
 import { zRouter } from "src/peripherals/zRouter.sol";
+import { CANONICAL_ZROUTER } from "./VaultUniGraduationFork.t.sol";
 import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
 import { IAlignmentRegistry } from "src/master/interfaces/IAlignmentRegistry.sol";
 import { CREATEX } from "src/shared/CreateXConstants.sol";
@@ -38,8 +39,6 @@ import { IHooks } from "v4-core/interfaces/IHooks.sol";
  *      so this is inert in the default `forge test` run.
  */
 contract BestRouteOffFamilyForkTest is ForkTestBase {
-    // Canonical mainnet zRouter (mirrors DeployMainnet.ZROUTER). Freshly deployed instances route to
-    // the real mainnet venues (matches VaultUniGraduationFork's `new zRouter()` pattern).
     uint24 constant FEE = 3000; // vault fixed-pool family fee (V4)
     int24 constant TICK_SPACING = 60;
     uint256 constant TARGET_ID = 1;
@@ -70,7 +69,9 @@ contract BestRouteOffFamilyForkTest is ForkTestBase {
         vm.etch(alice, "");
         vm.etch(CREATEX, CREATEX_BYTECODE); // factory CREATE3 path
 
-        router = new zRouter();
+        // The canonical deployed zRouter singleton production pins, not a local copy of it.
+        require(CANONICAL_ZROUTER.code.length > 0, "canonical zRouter has no code at this fork block");
+        router = zRouter(payable(CANONICAL_ZROUTER));
         UniswapVaultPriceValidator priceValidator = new UniswapVaultPriceValidator(
             WETH, UNISWAP_V2_FACTORY, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800
         );
