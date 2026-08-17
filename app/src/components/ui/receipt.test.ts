@@ -4,14 +4,17 @@ import { formatReceipt, type MoneyReceipt } from './receipt'
 import { carveReceiptFromLogs } from '../collection/erc404/Erc404AdminPanel'
 import { liquidityDeployerModuleAbi } from '../../generated/contracts'
 
-// Wei fixtures at the precision this item's audit measured on a live fork walk — no rounding
-// that would hide the last wei.
+// Wei fixtures at the precision a live fork walk measured — no rounding that would hide the last wei.
 //
-// CARVE_GROSS was corrected 2026-08-15 (noesis-215): the prior fixture (`1426376508000000000`) was
-// the recorded 9-decimal figure padded out, and the legs derived from it could not sum back to it —
-// the true gross truncates to `1.426376507`, not `…508` (round-half-up). Recovered by inverting the
-// contract's residual split (`RevenueSplitLib.sol`) over the unchanged, independently-measured net;
-// see `plans/noesis-212.md` Acceptance for the full derivation and its definitive-settlement caveat.
+// CARVE_GROSS was corrected: the prior fixture (`1426376508000000000`) was a recorded 9-decimal figure
+// padded out, and the legs derived from it could not sum back to it — the true gross truncates to
+// `1.426376507`, not `…508` (round-half-up). It was recovered by inverting the contract's residual
+// split (`RevenueSplitLib.sol`) over the unchanged, independently-measured net, which yields exactly
+// one candidate gross whose legs sum back bit-for-bit.
+//
+// That inversion is source-derived, not a fresh chain read. To settle it definitively: read
+// `GraduationEthDiverted` on the instance (confirming `excessEth == 0`) and `CreatorCarvePaid` on the
+// liquidity-deployer singleton filtered to that instance — its `paid` should equal CARVE_GROSS.
 const CARVE_GROSS = 1426376507829841544n
 const CARVE_NET = 1141101206263873236n
 const CARVE_PROTOCOL_LEG = 14263765078298415n
