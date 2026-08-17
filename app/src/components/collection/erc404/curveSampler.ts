@@ -106,7 +106,7 @@ export function sampleCurve(params: CurveParams, samples: number): CurvePoint[] 
   return sampleRange(params, 0, bondingCap(params), samples)
 }
 
-/** Visible price ratio held constant across the window (rth's adaptive-viewport ruling, 2026-08-14). */
+/** Visible price ratio held constant across the window — the adaptive viewport's governing constant. */
 export const VIEWPORT_SPAN = 3.0
 /** Where `here` sits across the window, in price-ratio terms. */
 const VIEWPORT_ANCHOR = 1 / 3
@@ -119,7 +119,7 @@ const VIEWPORT_ANCHOR = 1 / 3
  * `loPrice`/`hiPrice` are the prices AT those clamped edges (`P(loSupply)`, `P(hiSupply)`) — not the
  * unclamped `lo`/`hi` price targets that drove the domain solve. They are equal to the targets in the
  * unpinned-middle and right-pin branches, but diverge in the left-pin branch, where the window is
- * `[P(0), 3*P(0)]` by design (a low dot early is the specified behaviour — see `noesis-208`).
+ * `[P(0), 3*P(0)]` by design — a low dot early is the specified behaviour, not a bug.
  *
  * `graduationPrice` (`P(cap)`) is always returned so the caller can label the graduation edge even
  * when it is off-window. `graduationInView` is true only when the right edge is pinned to graduation
@@ -167,6 +167,10 @@ export function computeViewport(params: CurveParams, hereSupply: number): Viewpo
 }
 
 /** Sample the curve across a computed `Viewport`'s clamped supply domain. */
-export function sampleViewport(params: CurveParams, viewport: Viewport, samples: number): CurvePoint[] {
+export function sampleViewport(
+  params: CurveParams,
+  viewport: Viewport,
+  samples: number,
+): CurvePoint[] {
   return sampleRange(params, viewport.loSupply, viewport.hiSupply, samples)
 }

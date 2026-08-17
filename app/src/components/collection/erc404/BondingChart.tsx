@@ -237,8 +237,7 @@ function drawCurve(
   const maxP = viewport.hiPrice
   const spanS = maxS - minS || 1
 
-  const plotX = (supply: number): number =>
-    PAD + ((CANVAS_W - 2 * PAD) * (supply - minS)) / spanS
+  const plotX = (supply: number): number => PAD + ((CANVAS_W - 2 * PAD) * (supply - minS)) / spanS
 
   ctx.strokeStyle = ink.ink
   ctx.lineWidth = 2
