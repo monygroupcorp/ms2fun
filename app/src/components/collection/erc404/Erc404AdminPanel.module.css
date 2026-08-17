@@ -28,3 +28,15 @@
   color: var(--text-primary);
   font-weight: var(--font-weight-bold);
 }
+
+/* Carve permanence statement (noesis-220) — the graduation carve cannot be revisited, so the one
+   moment it can be set carries the consequence in words. A statement, never a guardrail: the
+   graduate button beside it stays enabled. */
+.warning {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--text-primary);
+  font-weight: var(--font-weight-bold);
+  max-width: 22rem;
+  text-align: right;
+}

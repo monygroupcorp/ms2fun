@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   carveAllowance,
+  carveCreatorNet,
   carveDisclosurePreview,
   DEFAULT_CARVE_BRACKETS,
   DEFAULT_MIN_POOL_ETH,
@@ -146,5 +147,54 @@ describe('parseBps', () => {
     expect(parseBps('', 10_000)).toBe(10_000)
     expect(parseBps('garbage', 10_000)).toBe(10_000)
     expect(parseBps(undefined)).toBe(0)
+  })
+})
+
+// noesis-220 acceptance leg 2. The admin panel names the creator's TAKE-HOME at the moment the carve
+// is committed, and it must be the same number `graduationPreview` reports — not a re-derivation that
+// can drift from it. `graduationPreview` calls `carveCreatorNet`, and this table is what keeps the
+// contract honest across the regimes that matter: zero, sub-floor, bracket boundaries, and the
+// pool-floor-clamped case where the requested carve is cut down before the tithe is applied.
+describe('carveCreatorNet (agrees with graduationPreview().creator, bit-for-bit)', () => {
+  const RAISES = [eth(0), eth(1), eth(1.25), eth(2), eth(4), eth(12), eth(20), eth(50)]
+  const REQUESTS = [0, 1, 250, 2500, 5000, 9999, 10_000]
+
+  it('matches graduationPreview across a raise x request table', () => {
+    for (const raise of RAISES) {
+      for (const request of REQUESTS) {
+        // The declared max is held at 10000 so the ONLY clamps in play are the protocol allowance
+        // and the pool floor — the regimes the panel actually shows a figure for.
+        const gross = effectiveCarveEth(raise, 10_000, request)
+        expect(carveCreatorNet(gross)).toBe(graduationPreview(raise, gross).creator)
+      }
+    }
+  })
+
+  it('a zero carve nets zero — the case the default request produces', () => {
+    expect(carveCreatorNet(0n)).toBe(0n)
+    expect(graduationPreview(eth(4), 0n).creator).toBe(0n)
+  })
+
+  it('the pool-floor-clamped case: the gross is already cut, and the net is 80% of the CUT gross', () => {
+    // At a 1.25 ETH raise the LP80 is 1 ETH, so headroom above the default 1 ETH pool floor is 0 —
+    // full-request carve resolves to nothing at all.
+    expect(lpShare(eth(1.25))).toBe(DEFAULT_MIN_POOL_ETH)
+    expect(effectiveCarveEth(eth(1.25), 10_000, 10_000)).toBe(0n)
+    expect(carveCreatorNet(effectiveCarveEth(eth(1.25), 10_000, 10_000))).toBe(0n)
+
+    // At 2 ETH the allowance (1 ETH) exceeds the headroom (0.6 ETH), so the clamp binds and the net
+    // is 80% of the CLAMPED gross. Re-clamping inside carveCreatorNet would understate this.
+    const clamped = effectiveCarveEth(eth(2), 10_000, 10_000)
+    expect(clamped).toBe(lpShare(eth(2)) - DEFAULT_MIN_POOL_ETH)
+    expect(carveCreatorNet(clamped)).toBe(graduationPreview(eth(2), clamped).creator)
+    expect(carveCreatorNet(clamped)).toBeLessThan(clamped)
+  })
+
+  it('is floor division in split order — the last wei goes to the creator residual, never lost', () => {
+    // 1 wei of gross: both tithe legs floor to 0 and the residual keeps the wei.
+    expect(carveCreatorNet(1n)).toBe(1n)
+    for (const gross of [1n, 99n, 100n, 101n, 12_345_678_901n]) {
+      expect(carveCreatorNet(gross) + gross / 100n + (gross * 19n) / 100n).toBe(gross)
+    }
   })
 })
