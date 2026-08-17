@@ -1,12 +1,36 @@
 /// <reference types="vitest/config" />
+import { copyFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+
+// GitHub Pages / static-host SPA fallback: mirrors the built index.html to 404.html so a host that
+// answers unknown paths with its own 404 page serves the app shell (and its og:/twitter: tags)
+// instead. Build-only — a dev server has no 404.html convention to satisfy. Copies the *emitted*
+// file (hashed asset URLs already rewritten), not the source, and resolves the output directory
+// from the resolved config rather than hardcoding `dist`.
+function spaFallback404(): Plugin {
+  let outDir = 'dist'
+  let root = process.cwd()
+  return {
+    name: 'spa-fallback-404',
+    apply: 'build',
+    configResolved(config) {
+      root = config.root
+      outDir = config.build.outDir
+    },
+    closeBundle() {
+      const resolvedOutDir = resolve(root, outDir)
+      copyFileSync(resolve(resolvedOutDir, 'index.html'), resolve(resolvedOutDir, '404.html'))
+    },
+  }
+}
 
 export default defineConfig({
   plugins: [
     react(),
+    spaFallback404(),
     // Service worker for the app shell (ADR-0010). A static/IPFS client reloads a lot; Workbox
     // precaches the built JS/CSS/HTML so repeat loads paint instantly (and work offline) instead of
     // re-fetching the bundle from a gateway. Content-addressed hosting makes this safe: a new deploy
