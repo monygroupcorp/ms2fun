@@ -23,6 +23,17 @@ import { hasMetadataConfig, type MetadataConfigValue } from './metadataConfig'
 
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as const
 
+/**
+ * The ERC404 piece-art preview: `_tokenURI` composes `metadataURI + tokenId` on-chain
+ * (`ERC404BondingInstance.sol`), so the first piece is exactly `<base>1` — plain concatenation, no
+ * inserted separator. A blank base has no preview (submit passes it through unchanged too — see
+ * `buildErc404Create`, `str(c.values.tokenBaseURI)`; no default is ever invented here or there).
+ * Exported so the wizard's preview and this file's own calldata stay proven to agree.
+ */
+export function composePieceArtPreview(rawTokenBaseURI: string): string | undefined {
+  return rawTokenBaseURI.trim() === '' ? undefined : rawTokenBaseURI + '1'
+}
+
 /** Module addresses chosen in the wizard's module slots (undefined → none → zero address). */
 export interface SelectedModules {
   vault: `0x${string}` // required slot

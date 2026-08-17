@@ -118,10 +118,19 @@ const erc404: ProjectTypeSchema = {
       validation: { required: true },
     },
     {
+      // Rendered bespoke in WizardPage (filtered out of the generic SchemaForm, beside
+      // CarveDisclosure) so it can preview the COMPOSED first-piece URI, not the raw base — see
+      // `ImageSourceInput`'s `previewValue`. `label`/`help` stay the single source of truth for
+      // that bespoke copy even though SchemaForm never renders them.
       key: 'tokenBaseURI',
-      label: 'Token base URI',
+      label: 'Piece art',
       kind: 'text',
-      help: 'NFT tokenURI base path',
+      help:
+        'This is the art on every individual piece: the base composes as `<this><tokenId>`, so ' +
+        '`ipfs://CID/` yields `ipfs://CID/1`, `ipfs://CID/2`, … one file per piece. Blank means ' +
+        'pieces have no art and render as a bare id. You can change it later from the creator ' +
+        'admin panel — but a metadata resolver, if you wire one on the Modules step, is fixed at ' +
+        'deploy and cannot be added afterward.',
     },
     {
       key: 'declaredMaxAllowanceBps',
