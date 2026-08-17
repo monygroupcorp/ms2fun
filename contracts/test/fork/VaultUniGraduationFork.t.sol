@@ -20,6 +20,12 @@ import { StateLibrary } from "v4-core/libraries/StateLibrary.sol";
 import { TickMath } from "v4-core/libraries/TickMath.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+// The canonical mainnet zRouter singleton that production pins (mirrors `DeployMainnet.ZROUTER`,
+// which `DeployCore` casts to the local `zRouter` type rather than deploying a copy). Declared once
+// here and imported by the rest of the fork suite so the fork tests exercise the deployed router
+// instead of a locally deployed copy of it.
+address constant CANONICAL_ZROUTER = 0x000000000000FB114709235f1ccBFfb925F600e4;
+
 /**
  * @title VaultUniGraduationFork
  * @notice Exit #2 of the vault-flavors task: prove a wired UniswapV4LP vault adds a REAL on-chain V4
@@ -60,8 +66,10 @@ contract VaultUniGraduationForkTest is ForkTestBase {
         // CreateX is needed by the factory's CREATE3 deploy path.
         vm.etch(CREATEX, CREATEX_BYTECODE);
 
-        // Real routing + price validator (as production deploys wire them).
-        router = new zRouter();
+        // Real routing + price validator (as production deploys wire them): the router is the
+        // canonical deployed singleton production pins, not a fresh local copy of it.
+        require(CANONICAL_ZROUTER.code.length > 0, "canonical zRouter has no code at this fork block");
+        router = zRouter(payable(CANONICAL_ZROUTER));
         UniswapVaultPriceValidator priceValidator = new UniswapVaultPriceValidator(
             WETH, UNISWAP_V2_FACTORY, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800
         );

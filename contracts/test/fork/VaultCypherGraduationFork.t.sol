@@ -5,6 +5,7 @@ import { ForkTestBase } from "./helpers/ForkTestBase.sol";
 import { CypherAlignmentVault } from "../../src/vaults/cypher/CypherAlignmentVault.sol";
 import { UniswapVaultPriceValidator } from "../../src/peripherals/UniswapVaultPriceValidator.sol";
 import { zRouter } from "../../src/peripherals/zRouter.sol";
+import { CANONICAL_ZROUTER } from "./VaultUniGraduationFork.t.sol";
 import { MockZQuoter } from "../mocks/MockZQuoter.sol";
 import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
 import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
@@ -59,8 +60,10 @@ contract VaultCypherGraduationForkTest is ForkTestBase {
         alignmentToken = USDC; // deep real Uni V3 WETH pool for the reference + the acquire
         benefactor = makeAddr("benefactor");
 
-        // Real routing (as production wires it) + a mocked quoter that SELECTS the real Uni V3 leg.
-        zRouter router = new zRouter();
+        // Real routing (as production wires it — the canonical deployed singleton, not a local copy)
+        // + a mocked quoter that SELECTS the real Uni V3 leg.
+        require(CANONICAL_ZROUTER.code.length > 0, "canonical zRouter has no code at this fork block");
+        zRouter router = zRouter(payable(CANONICAL_ZROUTER));
         quoter = new MockZQuoter();
 
         // Real price validator reading the real Uni V3 WETH/USDC pool TWAP for the reference (kind 0).
