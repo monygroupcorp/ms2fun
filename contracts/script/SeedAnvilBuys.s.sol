@@ -234,10 +234,14 @@ contract SeedAnvilBuys is SeedAnvilShared {
         // An opt-in open event wave (holders select it; not auto because autoLatest=false).
         ov.publishWave(inst, "event-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST);
         // A paid commission on id 3 (outside the band range), then unlock+pin it as the holder.
+        // The payload is a real metadata URI, not a label: the overlay wins over both the band and the
+        // base, so it has to carry an image of its own for the top of the precedence stack to show
+        // anything. A THIRD collection, distinct from the instance's base and from the band, so the
+        // three layers are told apart by eye.
         ov.setCommission(
             inst,
             ARTIST_COMMISSION_ID,
-            "commission-3",
+            string.concat(ART_BASE_SIMIAN, vm.toString(ARTIST_COMMISSION_ID)),
             MetadataOverlayModule.CommCond.PAY,
             0.01 ether,
             MetadataOverlayModule.Payout.ARTIST
@@ -254,12 +258,14 @@ contract SeedAnvilBuys is SeedAnvilShared {
         // Give ADMIN's set an UNPAID commission, so the holder-side pay-and-pin path is walkable as
         // a live action rather than arriving pre-consumed. setCommission is an ARTIST write, so the
         // deployer can author it on a piece it no longer holds; `unlock` is the holder's to call.
+        // Same commission collection as the artist-held piece, addressed to the id ADMIN actually got,
+        // so paying and pinning it swaps that piece's art for a visibly different one.
         uint256 adminId = _firstIdHeldBy(b, ADMIN);
         vm.startBroadcast(deployerKey);
         ov.setCommission(
             inst,
             adminId,
-            "commission-admin",
+            string.concat(ART_BASE_SIMIAN, vm.toString(adminId)),
             MetadataOverlayModule.CommCond.PAY,
             0.01 ether,
             MetadataOverlayModule.Payout.ARTIST

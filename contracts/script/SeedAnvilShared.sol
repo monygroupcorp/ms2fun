@@ -48,6 +48,22 @@ abstract contract SeedAnvilShared is Script {
 
     string internal constant SEED_STATE_PATH = "./deployments/anvil-seed.json";
 
+    // ── Per-piece art: METADATA directory bases (mainnet-harvested, gateway-verified) ────────────
+    // ERC404 piece art composes as `base + tokenId` with NO suffix (ERC404BondingInstance._tokenURI;
+    // TokenTierBandResolver and TierRevealModule concat the same way). So a base MUST point at a
+    // collection's METADATA directory, whose entries are extensionless numeric JSON — an IMAGE
+    // directory 404s for every id (`…/42.png` serves bytes, `…/42` does not). Each JSON carries the
+    // `image` the frontend renders after it resolves `tokenURI(id)`.
+    // These are the metadata layer of the same collections the seed already harvests images from:
+    // ART_NEON_DRIFT / ART_ABERRATION / ART_EMBER read back to ART_BASE_ANIME's image directory, and
+    // ART_LIVE_SALON / ART_PRISM to ART_BASE_ARCTIC's.
+    // A different collection per instance keeps each one visually its own drop rather than one image
+    // repeated — and on the stacked instance it makes WHICH metadata layer is answering obvious by eye.
+    string internal constant ART_BASE_ANIME = "ipfs://QmZcH4YvBVVRJtdn4RdbaqgspFU8gH6P9vomDpBVpAL3u4/";
+    string internal constant ART_BASE_ARCTIC = "ipfs://bafybeibc5sgo2plmjkq2tzmhrn54bk3crhnc23zd2msg4ea7a4pxrkgfna/";
+    string internal constant ART_BASE_SIMIAN = "ipfs://QmeSjSinHpPnmXmspMjwiXyN6zS4E9zccariGR3jxcaWtq/";
+    string internal constant ART_BASE_DOODLE = "ipfs://QmPMc4tcBsMqLRuCQtPmPe84bpSjrC3Ky7t3JWuHXYB4aS/";
+
     // Deployed addresses (read from anvil.json).
     struct Deployed {
         ERC1155Factory erc1155;
