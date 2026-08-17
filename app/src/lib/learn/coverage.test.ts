@@ -59,9 +59,13 @@ const EXEMPT: Record<string, string> = {
   'erc1155.creator': 'defaults to the connected wallet; see agent-delegation via the /learn index',
   'erc721.creator': 'defaults to the connected wallet; see agent-delegation via the /learn index',
   // Raw-URI fields — paste-a-link inputs, no decision to explain.
-  'erc404.tokenBaseURI': 'raw URI field',
   'erc404.styleUri': 'raw URI field',
   'erc1155.styleUri': 'raw URI field',
+  // Piece-art consequence (noesis-211): stated inline (field help + composed-URI preview on the
+  // bespoke render, plus the review-step no-art acknowledgement), mirroring how the carve field
+  // documents itself below — no dedicated concept.
+  'erc404.tokenBaseURI':
+    'consequence disclosed inline (piece-art help text, composed-preview, review-step acknowledgement); no dedicated concept',
   // Creator carve disclosure — documented inside bonding-curve-graduation (linked from the
   // liquidityDeployer slot in the same step) and by extensive inline help; no dedicated concept and
   // 049 adds none.

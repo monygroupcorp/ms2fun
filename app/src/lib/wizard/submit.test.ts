@@ -11,6 +11,7 @@ import {
   buildErc1155Create,
   buildErc404Create,
   buildErc721Create,
+  composePieceArtPreview,
 } from './submit'
 import type { CreateContext } from './submit'
 import { EMPTY_METADATA_CONFIG, encodeMetadataConfig } from './metadataConfig'
@@ -190,6 +191,37 @@ describe('buildErc404Create', () => {
     const call = buildErc404Create(baseCtx())
     if (call.type !== 'erc404') throw new Error('unexpected type')
     expect(call.args[0].stakingModule).toBe(STAKING)
+  })
+})
+
+// ── Piece art (noesis-211): tokenBaseURI passthrough + composed-preview invariant ──────────────
+// The wizard's confirm step warns when this is blank; the calldata contract must stay untouched by
+// that warning — no invented default, ever.
+describe('erc404 tokenBaseURI (piece art)', () => {
+  it('non-blank base passes through unchanged in the calldata', () => {
+    const call = buildErc404Create(baseCtx()) // baseCtx: tokenBaseURI: 'ipfs://QmBase/'
+    if (call.type !== 'erc404') throw new Error('unexpected type')
+    expect(call.args[0].tokenBaseURI).toBe('ipfs://QmBase/')
+  })
+
+  it('blank base submits blank — no invented default', () => {
+    const call = buildErc404Create(baseCtx({ values: { ...baseCtx().values, tokenBaseURI: '' } }))
+    if (call.type !== 'erc404') throw new Error('unexpected type')
+    expect(call.args[0].tokenBaseURI).toBe('')
+  })
+})
+
+describe('composePieceArtPreview', () => {
+  it('composes the first piece as exact concatenation, no inserted slash', () => {
+    // The likeliest creator mistake — a base missing its trailing slash — must show what it will
+    // REALLY produce, not a silently "fixed" (and therefore lying) preview.
+    expect(composePieceArtPreview('ipfs://QmBase')).toBe('ipfs://QmBase1')
+    expect(composePieceArtPreview('ipfs://QmBase/')).toBe('ipfs://QmBase/1')
+  })
+
+  it('blank/whitespace-only base has no preview', () => {
+    expect(composePieceArtPreview('')).toBeUndefined()
+    expect(composePieceArtPreview('   ')).toBeUndefined()
   })
 })
 
