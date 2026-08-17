@@ -102,3 +102,7 @@ playwright-report/
 # symlink got committed once (noesis-040). This anchored, slash-less rule ignores the path regardless of
 # type (dir OR symlink), so the landmine can never re-materialize into the index.
 contracts/lib
+
+# PID file for the local anvil dev fork (app/scripts/dev-chain/fork.sh), used to verify ownership
+# before a stop/restart is allowed to kill the process holding :8545.
+/.anvil.pid
