@@ -1,0 +1,37 @@
+/* Copy-link affordance — Gallery Brutalism: mono type, hard border, no radius/shadow/colour cue.
+   Two states share this module: the button (resting/confirmed) and the fallback (clipboard API
+   unavailable — insecure origin, some in-app browsers), which renders a selectable input instead. */
+
+.share {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-secondary);
+  background: transparent;
+  border: var(--border-width-thick) solid var(--border-primary);
+  border-radius: var(--radius-none);
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.share:hover {
+  color: var(--text-primary);
+  background: var(--state-hover-bg);
+}
+
+.fallback {
+  display: inline-flex;
+}
+
+.fallbackInput {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: var(--border-width-thick) solid var(--border-primary);
+  border-radius: var(--radius-none);
+  padding: var(--space-1) var(--space-2);
+  min-width: 14rem;
+}

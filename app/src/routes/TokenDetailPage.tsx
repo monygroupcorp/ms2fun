@@ -31,6 +31,7 @@ import { IpfsImage } from '../components/ui/IpfsImage'
 import { truncateAddress } from '../lib/format'
 import { StateBlock } from '../components/ui/StateBlock'
 import { MintBar } from '../components/ui/MintBar'
+import { ShareLink } from '../components/ui/ShareLink'
 import {
   CollectionChainProvider,
   useCollectionAddresses,
@@ -289,6 +290,7 @@ function Erc404Token({ instance, id, collectionName, creator, vaultName }: Token
         <h1 className={styles.title}>
           {collectionName} <span className={styles.tokenId}>#{id.toString()}</span>
         </h1>
+        <ShareLink />
 
         <dl className={styles.label}>
           <div className={styles.labelRow}>
@@ -398,6 +400,7 @@ function Erc721Token({ instance, id, collectionName, creator, vaultName }: Token
         <h1 className={styles.title}>
           {data.name || collectionName} <span className={styles.tokenId}>#{id.toString()}</span>
         </h1>
+        <ShareLink />
 
         <dl className={styles.label}>
           <div className={styles.labelRow}>
