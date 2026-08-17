@@ -10,7 +10,7 @@ import { test, expect, connectWallet } from './fixtures/anvilWallet'
 
 test('app shell loads', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('banner').getByRole('link', { name: 'ms2.fun' })).toBeVisible()
+  await expect(page.getByRole('banner').getByRole('link', { name: 'noesis' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'COLLECTIONS', exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: 'LAUNCH', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'CONNECT WALLET' }).first()).toBeVisible()
