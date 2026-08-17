@@ -72,6 +72,19 @@ export function effectiveCarveEth(
   return carve
 }
 
+/**
+ * The creator's TAKE-HOME from a gross carve: the carve is itself tithed 1% protocol / 19% vault, so
+ * the wallet receives 80% of it. Floor division, in the same order as `RevenueSplitLib.split`, which
+ * makes this bit-for-bit `graduationPreview(...).creator` for the same gross — `graduationPreview`
+ * calls it, so the two cannot drift.
+ *
+ * `carveWei` must already be the POST-CLAMP gross (what `previewCarve` / `effectiveCarveEth` return).
+ * Do not re-apply the pool-floor headroom clamp here — clamping twice understates the figure.
+ */
+export function carveCreatorNet(carveWei: bigint): bigint {
+  return carveWei - carveWei / 100n - (carveWei * 19n) / 100n
+}
+
 /** One graduation payout preview — all parts sum to the raise exactly (splitGraduation mirror). */
 export interface GraduationPreview {
   protocol: bigint // 1% raise + 1% carve
@@ -96,7 +109,7 @@ export function graduationPreview(
   return {
     protocol: protocolBase + carveProtocol,
     vault: vaultBase + carveVault,
-    creator: carve - carveProtocol - carveVault,
+    creator: carveCreatorNet(carve),
     pool: lp - carve,
     carve,
   }

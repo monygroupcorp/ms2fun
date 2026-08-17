@@ -12,12 +12,11 @@
  * ABI note: the generated metadata setter is `setMetadataURI` (uppercase URI), not `setMetadataUri`.
  */
 import { useMemo, useState } from 'react'
-import { decodeEventLog, formatEther, type Log } from 'viem'
+import { formatEther, type Log } from 'viem'
 import { useBlock, useWaitForTransactionReceipt } from 'wagmi'
 import {
   deployBondEscrowAbi,
   erc404BondingInstanceAbi,
-  liquidityDeployerModuleAbi,
   masterRegistryV1Abi,
   merkleGatingModuleAbi,
   useReadDeployBondEscrowBonds,
@@ -34,8 +33,10 @@ import {
 import { useCollection } from '../../useCollection'
 import { useCollectionMetadata } from '../../useCollectionMetadata'
 import { useCollectionAddresses, useCollectionChainId } from '../useCollectionChain'
-import { parseBps } from '../../../lib/carve'
+import { carveCreatorNet, parseBps } from '../../../lib/carve'
+import { carveSettlementFromLogs } from '../../../lib/carveReceipt'
 import { collectionToDataUri } from '../../../lib/metadata'
+import type { MoneyReceipt } from '../../ui/receipt'
 import {
   buildAllowlistFromPaste,
   buildAllowlistFromUri,
@@ -50,7 +51,6 @@ import { Disclosure } from '../../ui/Disclosure'
 import { TxButton } from '../../ui/TxButton'
 import { useOwnerGate } from '../../ui/useOwnerGate'
 import { useTxAction } from '../../ui/useTxAction'
-import type { MoneyReceipt } from '../../ui/receipt'
 import { MetadataArtistPanel } from './MetadataArtistPanel'
 import { canDeployLiquidity, derivePhase } from './bondingPhase'
 import { useBondingData } from './useBondingData'
@@ -389,55 +389,23 @@ function ActivateStakingRow({ instance }: { instance: `0x${string}` }) {
 // declaredMaxAllowanceBps and the factory's live brackets + pool floor. The control below is capped
 // at the instance's declared max and previews the resolved ETH via the on-chain previewCarve view.
 
-// Reads `CreatorCarvePaid(instance, creator, requested, paid)` AND `GraduationExcessTithed(instance,
-// amount)` off the confirmed tx receipt and sums them — the two authoritative figures the chain
-// actually settled on, never a re-quote of the pre-tx preview (a preview can drift from what
-// deployLiquidity resolves to; see the module doc comment).
+// The creator's in-session confirmation for a graduation tx, formatted from the settled figures.
+// The arithmetic underneath it — the union of `CreatorCarvePaid.paid` and
+// `GraduationExcessTithed.amount`, then the 1/19/80 split — lives in `lib/carveReceipt.ts` and is
+// shared with the public collection page, which reads the same settlement from chain history. One
+// implementation, two call sites: a second hand-rolled decode is how the capped-`paid` reading
+// (which understates whenever the parity clamp leaves excess) comes back.
 //
-// `CreatorCarvePaid.paid` is deliberately capped to the requested leg alone
-// (`min(r.carvePaid, p.carveEth)` at emit time); any LP-share ETH the parity clamp could not place at
-// pool price (`excessEth`) is tithed on the same rail but reported separately as
-// `GraduationExcessTithed`. The two always sum to the module's actual gross carve, and — critically —
-// `carveInput` defaults to `'0'`, so the common case is `carveEth == 0`: no `CreatorCarvePaid` at all,
-// even though `excessEth` can still be nonzero and ETH still lands in the creator's wallet. Summing
-// both events (treating an absent event as 0) is what makes the excess-only case produce a receipt
-// instead of falling through to "no creator carve requested".
-//
-// The summed gross is split 1% protocol / 19% vault / 80% creator below, mirroring
-// `RevenueSplitLib.split` exactly. Every LiquidityDeployerModule variant (default/zamm/cypher)
-// declares both events with an identical signature, so decoding against the default ABI resolves
-// regardless of which module this instance's factory wired.
+// `undefined` when nothing was carved, so the caller falls back to an amountless success label.
 export function carveReceiptFromLogs(logs: readonly Log[]): MoneyReceipt | undefined {
-  let carvePaid = 0n
-  let excessTithed = 0n
-  for (const log of logs) {
-    try {
-      const decoded = decodeEventLog({
-        abi: liquidityDeployerModuleAbi,
-        data: log.data,
-        topics: log.topics,
-      })
-      if (decoded.eventName === 'CreatorCarvePaid') {
-        carvePaid = decoded.args.paid
-      } else if (decoded.eventName === 'GraduationExcessTithed') {
-        excessTithed = decoded.args.amount
-      }
-    } catch {
-      // Not a log this ABI can decode (a different event, or a log from another contract in the
-      // same tx) — decodeEventLog throws on a topic0 mismatch; skip it and keep scanning.
-    }
-  }
-  const paid = carvePaid + excessTithed
-  if (paid === 0n) return undefined
-  const protocolLeg = paid / 100n
-  const vaultLeg = (paid * 19n) / 100n
-  const net = paid - protocolLeg - vaultLeg
+  const s = carveSettlementFromLogs(logs)
+  if (s.gross === 0n) return undefined
   return {
     verb: 'graduated with a creator carve',
-    net: { label: 'you received', wei: net },
+    net: { label: 'you received', wei: s.creatorNet },
     legs: [
-      { label: 'protocol', wei: protocolLeg },
-      { label: 'vault', wei: vaultLeg },
+      { label: 'protocol', wei: s.protocol },
+      { label: 'vault', wei: s.vault },
     ],
   }
 }
@@ -480,13 +448,23 @@ function DeployLiquidityRow({
   })
 
   const resolved = requestBps > 0 ? carveWei : 0n
+
+  // Every ETH figure below is labelled GROSS or NET. `previewCarve` returns the gross carve — the ETH
+  // that leaves the LP share — and the carve is itself tithed 1/19/80, so the wallet receives 80% of
+  // it. The create wizard's disclosure table has always shown the net column; the panel shows both,
+  // at the moment the choice is committed. Gross stays visible because it is what the pool loses, and
+  // hiding that would be the same omission wearing the other face.
+  const ethPair = (gross: bigint | undefined): string =>
+    gross === undefined
+      ? '… ETH'
+      : `${formatEther(gross)} ETH gross / ${formatEther(carveCreatorNet(gross))} ETH net to you`
   const baseHint =
     maxBps === 0
       ? 'graduate to the DEX — this collection declared no carve rights (carve is 0)'
-      : `graduate to the DEX with an optional creator carve — declared max ${maxBps} bps, ` +
-        `effective max ${maxCarveWei !== undefined ? formatEther(maxCarveWei) : '…'} ETH now; ` +
-        `this request carves ${resolved !== undefined ? formatEther(resolved) : '…'} ETH ` +
-        '(tithed 80/19/1 — you / vault / protocol)'
+      : `graduate to the DEX with an optional creator carve — declared max ${maxBps} bps; ` +
+        `effective max now ${ethPair(maxCarveWei)}; ` +
+        `this request carves ${ethPair(resolved)} ` +
+        '(the carve is tithed 80/19/1 — you / vault / protocol)'
   // The curve isn't full yet and hasn't matured — graduating now is a designed early-exit path, but
   // it closes the sale to buyers immediately. Surface that as a heads-up, never as a reason to hide
   // the button (see the panel-level comment on `closesSaleEarly`).
@@ -494,9 +472,35 @@ function DeployLiquidityRow({
     ? `${baseHint} · curve not full yet — graduating now closes the sale early`
     : baseHint
 
+  // Piece 1 (noesis-220): the permanence statement, at the ONE moment the carve can be chosen.
+  // Graduation happens once, `deployLiquidity` resolves the carve inside that same transaction, and
+  // there is no setter — so a request below the declared max forfeits the difference for good. The
+  // forfeited figure is named in NET terms (what the wallet would have received) so the sentence is
+  // priced rather than abstract. This is a STATEMENT, not a guardrail: 0 is a legal, defaulted choice
+  // and the button is never disabled, gated, or given a confirm step.
+  const forgoneNet =
+    maxCarveWei === undefined
+      ? undefined
+      : carveCreatorNet(maxCarveWei) - carveCreatorNet(resolved ?? 0n)
+  const forgoneText = forgoneNet === undefined ? '…' : formatEther(forgoneNet)
+  const permanence =
+    maxBps === 0 || requestBps >= maxBps
+      ? undefined
+      : 'this choice is permanent: a collection graduates once, deployLiquidity resolves the carve ' +
+        'inside that same transaction, and there is no setter and no second chance. ' +
+        (requestBps === 0
+          ? `leaving the request at 0 forfeits the entire carve — ${forgoneText} ETH net to you — forever.`
+          : `requesting ${requestBps} bps instead of the declared max ${maxBps} bps forfeits the ` +
+            `difference — ${forgoneText} ETH net to you — forever.`)
+
   return (
     <ActionRow label="deploy liquidity (graduate)" hint={hint}>
       <div className={styles.control}>
+        {permanence !== undefined && (
+          <p className={styles.warning} data-testid="erc404-admin-carve-permanence">
+            {permanence}
+          </p>
+        )}
         {maxBps > 0 && (
           <input
             className={styles.input}
