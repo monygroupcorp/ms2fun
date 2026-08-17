@@ -8,6 +8,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 PID_FILE="$REPO_ROOT/.anvil.pid"
 
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/port.sh"
+
 # Load MAINNET_RPC_URL from env or repo-root .env (value is never echoed).
 if [ -z "${MAINNET_RPC_URL:-}" ] && [ -f "$REPO_ROOT/.env" ]; then
   set -a
@@ -24,9 +27,13 @@ echo "✓ MAINNET_RPC_URL configured"
 
 # If port 8545 is already held, only free it when the holder is an anvil this script started
 # (tracked in PID_FILE). Refuse otherwise — killing whatever happens to hold the port can tear
-# down someone else's running fork with no way to recover it.
-if lsof -ti:8545 >/dev/null 2>&1; then
-  held_pid="$(lsof -ti:8545 | head -n1)"
+# down someone else's running fork with no way to recover it. A port state we cannot probe at all
+# (no lsof/ss/fuser installed) is treated as "not ours", never as "free".
+held_pid=""
+probe_rc=0
+held_pid="$(port_holder_pid 8545)" || probe_rc=$?
+
+if [ "$probe_rc" -eq 0 ]; then
   tracked_pid="$(cat "$PID_FILE" 2>/dev/null || true)"
   if [ -n "$tracked_pid" ] && [ "$held_pid" = "$tracked_pid" ] && kill -0 "$tracked_pid" 2>/dev/null; then
     echo "⚠️  Killing existing process on :8545 (PID $tracked_pid, started by this repo)"
@@ -37,7 +44,11 @@ if lsof -ti:8545 >/dev/null 2>&1; then
     echo "❌ :8545 is held by PID $held_pid, which this repo did not start — refusing to kill it" >&2
     exit 1
   fi
+elif [ "$probe_rc" -eq 2 ]; then
+  echo "❌ cannot determine what holds :8545 — none of lsof/ss/fuser is installed. Install one (e.g. iproute2 for ss) or free the port by hand; refusing to start blind." >&2
+  exit 1
 fi
+# probe_rc == 1: port verifiably free, proceed.
 
 echo "🌐 Starting anvil fork (chain id 1337, :8545)…"
 # NOTE: no `--block-time` on purpose — anvil defaults to AUTO-MINE (a block is produced only when a
