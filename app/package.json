@@ -22,6 +22,7 @@
     "wagmi:generate": "wagmi generate",
     "chain:fork": "bash scripts/dev-chain/fork.sh",
     "chain:deploy": "tsx scripts/dev-chain/deploy.ts",
+    "chain:check": "tsx scripts/dev-chain/check.ts",
     "chain:stop": "bash scripts/dev-chain/stop.sh",
     "tithe:report": "tsx scripts/tithe-report.ts"
   },
