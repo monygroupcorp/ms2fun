@@ -87,7 +87,7 @@ describe('sampleCurve', () => {
     expect(sampleCurve(params, 1)).toHaveLength(2)
   })
 
-  // Test #1/#2 (noesis-208): the shipped defect was sampling [0, maxSupply] — the token's full
+  // The shipped defect was sampling [0, maxSupply] — the token's full
   // supply, which sits past `poleWad` — instead of [0, bondingCap]. maxSupply is no longer even a
   // sampler input; assert the domain it derives is the bonding range, never touching/crossing the
   // pole, for a params set shaped like the vapor-mid defect report (maxSupply > poleWad * norm).
@@ -141,14 +141,17 @@ describe('computeViewport', () => {
   })
 
   // Test #4: the viewport always contains `here`, and never leaves the bonding domain.
-  it.each([0.001, 0.02, 0.5, 0.9, 0.999])('always contains `here` and stays within [0, cap] at %s sold', (frac) => {
-    const here = frac * cap
-    const vp = computeViewport(params, here)
-    expect(vp.loSupply).toBeGreaterThanOrEqual(0)
-    expect(vp.hiSupply).toBeLessThanOrEqual(cap)
-    expect(vp.loSupply).toBeLessThanOrEqual(here)
-    expect(vp.hiSupply).toBeGreaterThanOrEqual(here)
-  })
+  it.each([0.001, 0.02, 0.5, 0.9, 0.999])(
+    'always contains `here` and stays within [0, cap] at %s sold',
+    (frac) => {
+      const here = frac * cap
+      const vp = computeViewport(params, here)
+      expect(vp.loSupply).toBeGreaterThanOrEqual(0)
+      expect(vp.hiSupply).toBeLessThanOrEqual(cap)
+      expect(vp.loSupply).toBeLessThanOrEqual(here)
+      expect(vp.hiSupply).toBeGreaterThanOrEqual(here)
+    },
+  )
 
   // Test #5: graduation price is always reported, so the caller's edge label can't silently vanish
   // when graduation is off-window (early in the sale, per the left-pin regime below).
@@ -165,9 +168,9 @@ describe('computeViewport', () => {
     expect(vp.hiSupply).toBeCloseTo(cap, 0)
   })
 
-  // Test #6 (ruling-(a) acceptance criterion, noesis-208): early in the sale the window is pinned to
+  // Acceptance criterion. Early in the sale the window is pinned to
   // the left edge (`[P(0), 3*P(0)]`), so the dot's height is `(P(here)/P(0) - 1) / (SPAN - 1)` — a
-  // LOW dot early is the specified behaviour (rth ruled early should read as visibly early), not a
+  // LOW dot early is the specified behaviour (early should read as visibly early), not a
   // defect. This is what makes a future "fix" that lifts the dot toward the mid-window position fail
   // loudly instead of landing as an improvement.
   it.each([
