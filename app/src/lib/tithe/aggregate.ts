@@ -61,6 +61,21 @@ export interface TitheReport {
   totals: { delivered: bigint; redirected: bigint; pending: bigint }
 }
 
+/**
+ * Which module-routed hazard emitters the run actually scanned. Passed in as data by the runner —
+ * this module never reads a deployment file (see the module doc's purity note).
+ *
+ * A module absent from the deployment file is legitimately not scanned, but an unscanned source and
+ * a scanned-and-empty source both produce `redirected: 0` / `pending: 0`. Without this, the two are
+ * indistinguishable in the output, and an unscanned zero is publishable as a real one.
+ */
+export interface HazardScanCoverage {
+  /** Module keys present in the deployment file and scanned. */
+  scanned: readonly string[]
+  /** Module keys with no address in the deployment file, and therefore never scanned. */
+  skipped: readonly string[]
+}
+
 const UNATTRIBUTED_TARGET = 'unattributed-target'
 const UNATTRIBUTED_BENEFACTOR = 'unattributed-benefactor'
 
@@ -211,13 +226,42 @@ function benefactorLabel(benefactor: Address | null): string {
 }
 
 /**
+ * The coverage receipt. States what was scanned and what had no address in the deployment file, and
+ * says nothing about whether the unscanned figures would have been nonzero — that is unknown here.
+ */
+function coverageLines(coverage: HazardScanCoverage): string[] {
+  const { scanned, skipped } = coverage
+  const total = scanned.length + skipped.length
+
+  if (skipped.length === 0) {
+    return [
+      'HAZARD-SOURCE COVERAGE',
+      `  all ${total} module-routed hazard sources scanned: ${scanned.join(', ')}`,
+    ]
+  }
+
+  return [
+    'HAZARD-SOURCE COVERAGE — INCOMPLETE',
+    `  scanned ${scanned.length} of ${total} module-routed hazard sources` +
+      (scanned.length > 0 ? `: ${scanned.join(', ')}` : ''),
+    `  NOT scanned, no address in the deployment file: ${skipped.join(', ')}`,
+    '  The redirected and pending figures above therefore exclude anything emitted by those',
+    '  sources. They are not a statement that those sources emitted nothing.',
+  ]
+}
+
+/**
  * Render a `TitheReport` as printable text. `targetTitles` maps `targetId.toString()` →
  * `AlignmentTarget.title` (from `IAlignmentRegistry.getAlignmentTarget`). Every target block carries
  * the standing caveat for hazards 3 and 4 — this is not optional and not the operator's to remember.
+ *
+ * `coverage` states which module-routed hazard sources the run scanned. It renders with the TOTAL,
+ * not in a header, so a `redirected`/`pending` figure cannot be read — or screenshotted — without it.
  */
 export function formatReport(
   report: TitheReport,
   targetTitles: ReadonlyMap<string, string>,
+  coverage: HazardScanCoverage,
 ): string {
   const lines: string[] = []
   lines.push('Tithe report — ETH tithed on chain, by target')
@@ -250,6 +294,8 @@ export function formatReport(
   lines.push(`  delivered: ${formatEth(report.totals.delivered)}`)
   lines.push(`  redirected: ${formatEth(report.totals.redirected)}`)
   lines.push(`  pending: ${formatEth(report.totals.pending)}`)
+  lines.push('')
+  lines.push(...coverageLines(coverage))
 
   return lines.join('\n')
 }

@@ -1,8 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import { aggregateContributions, attributeVaults, formatReport } from './aggregate'
-import type { ContributionLog, HazardLog } from './aggregate'
+import type { ContributionLog, HazardLog, HazardScanCoverage, TitheReport } from './aggregate'
 
 const ETH = 1_000_000_000_000_000_000n
+
+const FULL_COVERAGE: HazardScanCoverage = {
+  scanned: [
+    'ModuleUniV4Deployer',
+    'ModuleZAMMDeployer',
+    'ModuleCypherDeployer',
+    'MetadataOverlayModule',
+  ],
+  skipped: [],
+}
+
+const emptyReport = (): TitheReport => ({
+  targets: [],
+  totals: { delivered: 0n, redirected: 0n, pending: 0n },
+})
 
 const UNI_VAULT = '0x0000000000000000000000000000000000a001' as const
 const ENDOWMENT_VAULT = '0x0000000000000000000000000000000000a002' as const
@@ -155,9 +170,32 @@ describe('formatReport', () => {
       [],
     )
 
-    const text = formatReport(report, new Map([['1', 'Sample Target']]))
+    const text = formatReport(report, new Map([['1', 'Sample Target']]), FULL_COVERAGE)
 
     expect(text).toContain('not a payout')
     expect(text).toContain('Sample Target')
+  })
+
+  it('names every skipped hazard source when coverage is incomplete', () => {
+    const text = formatReport(emptyReport(), new Map(), {
+      scanned: ['ModuleUniV4Deployer'],
+      skipped: ['ModuleZAMMDeployer', 'ModuleCypherDeployer', 'MetadataOverlayModule'],
+    })
+
+    expect(text).toContain('HAZARD-SOURCE COVERAGE — INCOMPLETE')
+    expect(text).toContain('scanned 1 of 4 module-routed hazard sources: ModuleUniV4Deployer')
+    expect(text).toContain(
+      'NOT scanned, no address in the deployment file: ModuleZAMMDeployer, ModuleCypherDeployer, MetadataOverlayModule',
+    )
+    // The coverage receipt renders with the TOTAL, so a figure cannot be read without it.
+    expect(text.indexOf('TOTAL')).toBeLessThan(text.indexOf('HAZARD-SOURCE COVERAGE'))
+  })
+
+  it('states completeness affirmatively when nothing was skipped', () => {
+    const text = formatReport(emptyReport(), new Map(), FULL_COVERAGE)
+
+    expect(text).toContain('all 4 module-routed hazard sources scanned')
+    expect(text).not.toContain('INCOMPLETE')
+    expect(text).not.toContain('NOT scanned')
   })
 })
