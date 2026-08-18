@@ -9541,6 +9541,13 @@ export const ierc721CardAbi = [
     outputs: [{ name: '', internalType: 'uint24', type: 'uint24' }],
     stateMutability: 'view',
   },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -12630,6 +12637,13 @@ export const queryAggregatorAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'MAX_AUCTION_LINES_PER_INSTANCE',
+    outputs: [{ name: '', internalType: 'uint8', type: 'uint8' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'MAX_EDITIONS_PER_CARD',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
@@ -12666,6 +12680,32 @@ export const queryAggregatorAbi = [
       { name: 'supply', internalType: 'uint256', type: 'uint256' },
       { name: 'max', internalType: 'uint256', type: 'uint256' },
       { name: 'active', internalType: 'bool', type: 'bool' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'user', internalType: 'address', type: 'address' },
+    ],
+    name: 'erc721AuctionPositions',
+    outputs: [
+      {
+        name: 'positions',
+        internalType: 'struct QueryAggregator.AuctionPosition[]',
+        type: 'tuple[]',
+        components: [
+          { name: 'instance', internalType: 'address', type: 'address' },
+          { name: 'name', internalType: 'string', type: 'string' },
+          { name: 'tokenId', internalType: 'uint256', type: 'uint256' },
+          { name: 'amount', internalType: 'uint256', type: 'uint256' },
+          { name: 'isCreatorDeposit', internalType: 'bool', type: 'bool' },
+          { name: 'endTime', internalType: 'uint256', type: 'uint256' },
+          { name: 'settleable', internalType: 'bool', type: 'bool' },
+          { name: 'reclaimable', internalType: 'bool', type: 'bool' },
+        ],
+      },
     ],
     stateMutability: 'view',
   },
@@ -12812,6 +12852,21 @@ export const queryAggregatorAbi = [
         ],
       },
       { name: 'totalClaimable', internalType: 'uint256', type: 'uint256' },
+      {
+        name: 'auctionPositions',
+        internalType: 'struct QueryAggregator.AuctionPosition[]',
+        type: 'tuple[]',
+        components: [
+          { name: 'instance', internalType: 'address', type: 'address' },
+          { name: 'name', internalType: 'string', type: 'string' },
+          { name: 'tokenId', internalType: 'uint256', type: 'uint256' },
+          { name: 'amount', internalType: 'uint256', type: 'uint256' },
+          { name: 'isCreatorDeposit', internalType: 'bool', type: 'bool' },
+          { name: 'endTime', internalType: 'uint256', type: 'uint256' },
+          { name: 'settleable', internalType: 'bool', type: 'bool' },
+          { name: 'reclaimable', internalType: 'bool', type: 'bool' },
+        ],
+      },
     ],
     stateMutability: 'view',
   },
@@ -24321,6 +24376,14 @@ export const useReadIerc721CardNextTokenId =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc721CardAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadIerc721CardOwner = /*#__PURE__*/ createUseReadContract({
+  abi: ierc721CardAbi,
+  functionName: 'owner',
+})
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link iFeaturedQueueManagerAbi}__
  */
 export const useReadIFeaturedQueueManager = /*#__PURE__*/ createUseReadContract(
@@ -27520,6 +27583,15 @@ export const useReadQueryAggregator = /*#__PURE__*/ createUseReadContract({
 })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"MAX_AUCTION_LINES_PER_INSTANCE"`
+ */
+export const useReadQueryAggregatorMaxAuctionLinesPerInstance =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'MAX_AUCTION_LINES_PER_INSTANCE',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"MAX_EDITIONS_PER_CARD"`
  */
 export const useReadQueryAggregatorMaxEditionsPerCard =
@@ -27544,6 +27616,15 @@ export const useReadQueryAggregatorErc404CardData =
   /*#__PURE__*/ createUseReadContract({
     abi: queryAggregatorAbi,
     functionName: 'erc404CardData',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"erc721AuctionPositions"`
+ */
+export const useReadQueryAggregatorErc721AuctionPositions =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'erc721AuctionPositions',
   })
 
 /**
