@@ -15,5 +15,5 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["vite.config.ts"]
+  "include": ["vite.config.ts", "precache.globs.ts"]
 }
