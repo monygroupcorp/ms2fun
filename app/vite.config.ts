@@ -63,6 +63,11 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,woff2,wasm,svg,png}'],
+        // The flagship card art is ~2 MB and is only ever drawn as a grid tile and a 180px banner.
+        // Precaching fetches it at SW-install time on EVERY first visit — including deep links to
+        // routes that never render it — which overrides the `loading="lazy"` on the element itself.
+        // Let it be an ordinary lazy image request instead. Excluded from the PRECACHE, not the build.
+        globIgnores: ['**/exec-executives.png'],
         navigateFallback: 'index.html', // SPA: unknown routes serve the cached shell (wouter routes client-side)
         cleanupOutdatedCaches: true,
       },
