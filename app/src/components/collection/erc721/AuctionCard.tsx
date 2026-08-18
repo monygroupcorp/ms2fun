@@ -6,7 +6,7 @@
  *   settled        → sold summary
  * Bid history (BidPlaced events) shows under the live/settle states.
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { decodeEventLog, formatEther, parseEther, zeroAddress, type Log } from 'viem'
 import { useQuery } from '@tanstack/react-query'
 import { useAccount, useReadContract, useWaitForTransactionReceipt } from 'wagmi'
@@ -227,7 +227,17 @@ function BidForm({
     highBidder: auction.highBidder,
     bidIncrement: config.bidIncrement,
   })
-  const [value, setValue] = useState('')
+  // Seeded at the minimum legal next bid (W-B3/noesis-353) rather than starting empty — the bidder
+  // never has to derive the floor by hand. `touched` tracks whether the bidder has diverged from the
+  // seed (typing, or the +/- stepper); while untouched the field re-seeds itself whenever `min` moves
+  // (another bid landing while the card is open), since a stale floor is a guaranteed revert. Once
+  // touched, typed input is left alone — typing stays a first-class way to bid — and the existing
+  // `tooLow` check below is what actually guards the tx if a typed/stale value falls under the floor.
+  const [value, setValue] = useState<string>(() => formatEther(min))
+  const [touched, setTouched] = useState(false)
+  useEffect(() => {
+    if (!touched) setValue(formatEther(min))
+  }, [min, touched])
   const {
     writeContract,
     data: txHash,
@@ -263,6 +273,17 @@ function BidForm({
     })
   }
 
+  /** Step the bid up/down by the auction's own `bidIncrement`, clamped so the field can never hold
+   *  a value the contract would reject. Steps from the current typed amount when it parses, or from
+   *  the seeded minimum otherwise (e.g. the field is empty or unparseable). */
+  function step(direction: 1n | -1n): void {
+    const base = amountWei ?? min
+    const stepped = base + direction * config.bidIncrement
+    const next = stepped > min ? stepped : min
+    setValue(formatEther(next))
+    setTouched(true)
+  }
+
   if (!isConnected) return <p className={styles.note}>connect wallet to bid</p>
 
   if (isSuccess) {
@@ -277,7 +298,7 @@ function BidForm({
           className="btn btn-secondary"
           onClick={() => {
             reset()
-            setValue('')
+            setTouched(false)
             refetch()
           }}
         >
@@ -290,17 +311,40 @@ function BidForm({
   return (
     <div className={styles.action}>
       <div className={styles.bidRow}>
+        <button
+          type="button"
+          className={`btn btn-secondary ${styles.stepperBtn}`}
+          onClick={() => step(-1n)}
+          disabled={isBusy}
+          aria-label="decrease bid by the increment"
+          data-testid="erc721-bid-decrement"
+        >
+          −
+        </button>
         <input
           className={styles.bidInput}
           type="text"
           inputMode="decimal"
           placeholder={`min ${formatEther(min)}`}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            setTouched(true)
+            setValue(e.target.value)
+          }}
           disabled={isBusy}
           aria-label="bid amount in ETH"
           data-testid="erc721-bid-input"
         />
+        <button
+          type="button"
+          className={`btn btn-secondary ${styles.stepperBtn}`}
+          onClick={() => step(1n)}
+          disabled={isBusy}
+          aria-label="increase bid by the increment"
+          data-testid="erc721-bid-increment"
+        >
+          +
+        </button>
         <button
           className="btn btn-primary btn-chromatic"
           onClick={handleBid}
