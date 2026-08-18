@@ -52,6 +52,15 @@ contract VaultMultiDepositTest is ForkTestBase {
         mockRegistry = new MockAlignmentRegistry();
         mockRegistry.setTargetActive(TARGET_ID, true);
         mockRegistry.setTokenInTarget(TARGET_ID, alignmentToken, true);
+        // Canonical reference pool (noesis-035/037): the vault's swap floor reads the pinned
+        // ReferencePool for (target, token) and reverts NoReferencePool when it is unset, so a fork run
+        // needs it wired to a real pool. The WETH/USDC V3 0.05% pool is the deepest mainnet reference
+        // for this alignment token and carries the observation history the TWAP path requires.
+        mockRegistry.setReferencePool(
+            TARGET_ID,
+            alignmentToken,
+            IAlignmentRegistry.ReferencePool({ pool: WETH_USDC_V3_005, kind: 0, twapWindow: 1800 })
+        );
 
         // FeeSeam subclass: the accrual seam only — the real V4 _addToLpPosition is kept.
         FeeSeamUniAlignmentVault vaultImpl = new FeeSeamUniAlignmentVault();
