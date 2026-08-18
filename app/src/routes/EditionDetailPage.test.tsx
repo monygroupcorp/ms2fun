@@ -3,9 +3,9 @@
  *
  * `ShareLink` is the app's only share mechanic and the whole propagation strategy depends on
  * someone posting the link it produces. Its own suite is a pure isolation suite: it proves the
- * component works, never that it is *used*. Deleting every call site left the app suite green
- * (measured, `AUDIT-2026-08-18.md` finding 1). This file gates one of the four call sites; the
- * collection route's is gated in `CollectionPage.test.tsx`.
+ * component works, never that it is *used*. Deleting every call site was measured to leave the
+ * app suite green. This file gates one of the four call sites; the collection route's is gated
+ * in `CollectionPage.test.tsx`.
  */
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'

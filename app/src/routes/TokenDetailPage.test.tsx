@@ -2,8 +2,8 @@
  * TokenDetailPage — the share control's two mounts, one per token body.
  *
  * Same reason as `EditionDetailPage.test.tsx`: `ShareLink` is the app's only share mechanic, its
- * own suite is a pure isolation suite, and deleting every call site left the app gate green
- * (`AUDIT-2026-08-18.md` finding 1). This page carries two of the four call sites — the ERC-404
+ * own suite is a pure isolation suite, and deleting every call site was measured to leave the
+ * app gate green. This page carries two of the four call sites — the ERC-404
  * body and the ERC-721 auction body — and they are separate renders, so one test cannot cover both.
  */
 import { cleanup, render, screen } from '@testing-library/react'
