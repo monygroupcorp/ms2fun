@@ -14,6 +14,9 @@ import { useAllCollections } from '../../lib/discovery'
  *  2. We collect the instance list + the DEDUPED set of non-zero vault addresses and feed them,
  *     with the connected `user`, to `QueryAggregator.getPortfolioData(user, instances, vaultAddrs)`.
  *
+ * The call returns five values: the ERC404, ERC1155 and vault legs, `totalClaimable`, and the ERC721
+ * auction-escrow leg (index 4). Read by INDEX, not by position-in-a-tuple-you-remember.
+ *
  * The aggregator caps each address-array at `MAX_QUERY_LIMIT` (50) on-chain; passing more reverts.
  * We therefore slice both arrays to MAX and set `truncated` when either was clipped, so the page
  * can warn that some holdings are not shown. (A paged variant is future work — not part of W-F.)
@@ -36,6 +39,12 @@ export type PortfolioData = ContractFunctionReturnType<
 export type Erc404Holding = PortfolioData[0][number]
 export type Erc1155Holding = PortfolioData[1][number]
 export type VaultPosition = PortfolioData[2][number]
+/**
+ * ETH the user has escrowed inside an ERC721 auction — a high bid, or a creator's queue deposit.
+ * Escrow is held by the auction until it settles or is reclaimed, so it is deliberately NOT part of
+ * `totalClaimable` (index 3) and must never be added to it here.
+ */
+export type AuctionPosition = PortfolioData[4][number]
 
 export interface PortfolioInputs {
   instances: `0x${string}`[]
@@ -75,7 +84,22 @@ export function derivePortfolioInputs(
   return { instances, vaultAddrs, truncated }
 }
 
-/** True when the portfolio has nothing worth showing (every section empty). */
+/** The user's auction escrow positions, ordered as the aggregator returned them. */
+export function auctionPositions(data: PortfolioData | undefined): readonly AuctionPosition[] {
+  return data?.[4] ?? []
+}
+
+/** True when the user has ETH escrowed in at least one auction. */
+export function hasAuctionEscrow(data: PortfolioData | undefined): boolean {
+  return auctionPositions(data).some((p) => p.amount > 0n)
+}
+
+/**
+ * True when the portfolio has nothing worth showing (every section empty).
+ *
+ * Auction escrow counts: ETH sitting in a bid or a queue deposit is the user's money, so a portfolio
+ * carrying one is not empty even when no token balance is held.
+ */
 export function isPortfolioEmpty(data: PortfolioData | undefined): boolean {
   if (!data) return true
   const [erc404, erc1155, vaults] = data
@@ -85,7 +109,7 @@ export function isPortfolioEmpty(data: PortfolioData | undefined): boolean {
   )
   const has1155 = erc1155.some((h) => h.balances.some((b) => b > 0n))
   const hasVault = vaults.some((v) => v.contribution > 0n || v.shares > 0n || v.claimable > 0n)
-  return !has404 && !has1155 && !hasVault
+  return !has404 && !has1155 && !hasVault && !hasAuctionEscrow(data)
 }
 
 export interface UsePortfolioResult {
