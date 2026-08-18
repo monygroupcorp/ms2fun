@@ -33,8 +33,8 @@ contract MockListRegistry {
 /// rendering until something tries to remove it, at which point the read is out of bounds.
 ///
 /// The featured-queue suite had no coverage of `pruneExpired` or of the auto-prune inside
-/// `_addToList` before this file. Written from `AUDIT-2026-08-18-O.md` S-O5, which found the surface
-/// sound — these tests pin that soundness, they do not assert a defect.
+/// `_addToList` before this file. A review of the surface found it sound — these tests pin that
+/// soundness, they do not assert a defect.
 contract FeaturedListIntegrityTest is Test {
     FeaturedQueueManager queue;
     MockListRegistry registry;
