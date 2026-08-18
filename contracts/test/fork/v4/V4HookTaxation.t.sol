@@ -17,6 +17,7 @@ import { TickMath } from "v4-core/libraries/TickMath.sol";
 import { CurrencySettler } from "../../../lib/v4-core/test/utils/CurrencySettler.sol";
 import { IERC20 } from "forge-std/interfaces/IERC20.sol";
 import { UniAlignmentV4Hook } from "../../../src/factories/erc404/hooks/UniAlignmentV4Hook.sol";
+import { IAlignmentVault } from "../../../src/interfaces/IAlignmentVault.sol";
 
 /**
  * @title V4HookTaxation
@@ -28,8 +29,15 @@ import { UniAlignmentV4Hook } from "../../../src/factories/erc404/hooks/UniAlign
  * - LP fee (dynamic) is overridden via beforeSwap
  * - Both directions produce ETH fees to vault
  *
- * IMPORTANT: V4 hooks require specific address prefixes matching their permissions.
- * This test uses vm.etch to deploy the hook at a valid address for testing purposes.
+ * IMPORTANT: V4 hooks require specific address prefixes matching their permissions. The REAL
+ * `UniAlignmentV4Hook` is therefore placed with `deployCodeTo` at an address whose low 14 bits carry
+ * exactly its permission flags (0xCC), so its constructor's `validateHookPermissions()` passes.
+ *
+ * This suite drives the production hook — never a hand-written mirror of it. A mirror cannot express the
+ * hook's swap-shape split (the ETH-input buy is taxed in `beforeSwap`, because an `afterSwap` return delta
+ * is applied by v4 to the UNSPECIFIED currency, which for that shape is the token) and a mirror that
+ * taxes in `afterSwap` on every shape charges the fee in token units on ETH-input buys. Same reasoning as
+ * `test/hooks/UniAlignmentV4Hook.t.sol`: stop mirroring, drive the real thing.
  */
 contract V4HookTaxationTest is ForkTestBase, IUnlockCallback {
     using PoolIdLibrary for PoolKey;
@@ -68,9 +76,13 @@ contract V4HookTaxationTest is ForkTestBase, IUnlockCallback {
     MockVault mockVault;
     bool v4Available;
 
-    // Hook address must have flags matching permissions
-    // beforeSwap (1 << 7 = 0x80) + afterSwap (1 << 6 = 0x40) + afterSwapReturnDelta (1 << 2 = 0x04) = 0xC4
-    address constant HOOK_ADDRESS = address(0x00000000000000000000000000000000000000C4);
+    // A hook's address must carry its permission flags in the low 14 bits, or `validateHookPermissions()`
+    // reverts in the constructor. The production hook declares beforeSwap (1 << 7 = 0x80) + afterSwap
+    // (1 << 6 = 0x40) + beforeSwapReturnDelta (1 << 3 = 0x08) + afterSwapReturnDelta (1 << 2 = 0x04) = 0xCC.
+    uint160 constant HOOK_FLAGS = 0x00CC;
+
+    /// @notice The fixed project instance the hook credits — distinct from any swapper/router address.
+    address constant BENEFACTOR = address(0x7777777777777777777777777777777777777777);
 
     uint256 constant DEFAULT_HOOK_FEE_BIPS = 100; // 1%
     uint24 constant DEFAULT_LP_FEE_RATE = 3000; // 0.3%
@@ -82,25 +94,11 @@ contract V4HookTaxationTest is ForkTestBase, IUnlockCallback {
         if (v4Available) {
             poolManager = IPoolManager(UNISWAP_V4_POOL_MANAGER);
 
-            // Deploy mock vault
+            // Deploy mock vault (the fee sink)
             mockVault = new MockVault();
 
-            // Deploy mock hook (test version without address validation)
-            MockFeeHook implementation = new MockFeeHook(
-                poolManager, address(mockVault), WETH, address(this), DEFAULT_HOOK_FEE_BIPS, DEFAULT_LP_FEE_RATE
-            );
-
-            // Copy bytecode to hook address with correct flags
-            vm.etch(HOOK_ADDRESS, address(implementation).code);
-            hook = UniAlignmentV4Hook(payable(HOOK_ADDRESS));
-
-            // Initialize owner using Solady's Ownable pattern
-            vm.prank(HOOK_ADDRESS);
-            MockFeeHook(payable(HOOK_ADDRESS)).initOwner(address(this));
-
-            // Set LP fee rate
-            vm.prank(address(this));
-            MockFeeHook(payable(HOOK_ADDRESS)).setLpFeeRate(DEFAULT_LP_FEE_RATE);
+            // The REAL hook, placed at a permission-carrying address so its constructor validates.
+            hook = _deployHook(0x4242, DEFAULT_HOOK_FEE_BIPS);
         }
     }
 
@@ -169,8 +167,8 @@ contract V4HookTaxationTest is ForkTestBase, IUnlockCallback {
 
         // Change LP fee rate to 0.5%
         vm.expectEmit(true, true, true, true, address(hook));
-        emit MockFeeHook.LpFeeRateUpdated(5000);
-        MockFeeHook(payable(address(hook))).setLpFeeRate(5000);
+        emit UniAlignmentV4Hook.LpFeeRateUpdated(5000);
+        hook.setLpFeeRate(5000);
 
         uint24 newRate = hook.lpFeeRate();
         emit log_named_uint("New LP fee rate", newRate);
@@ -178,7 +176,7 @@ contract V4HookTaxationTest is ForkTestBase, IUnlockCallback {
 
         // Verify max rate is enforced
         vm.expectRevert(UniAlignmentV4Hook.RateTooHigh.selector);
-        MockFeeHook(payable(address(hook))).setLpFeeRate(uint24(LPFeeLibrary.MAX_LP_FEE + 1));
+        hook.setLpFeeRate(uint24(LPFeeLibrary.MAX_LP_FEE + 1));
 
         emit log_string("");
         emit log_string("[SUCCESS] LP fee rate is configurable, hook fee is immutable!");
@@ -312,22 +310,8 @@ contract V4HookTaxationTest is ForkTestBase, IUnlockCallback {
         emit log_string("=== V4 Zero Hook Fee Test ===");
         emit log_string("");
 
-        // Deploy a hook with hookFeeBips=0
-        MockFeeHook zeroFeeImpl = new MockFeeHook(
-            poolManager,
-            address(mockVault),
-            WETH,
-            address(this),
-            0, // hookFeeBips = 0
-            DEFAULT_LP_FEE_RATE
-        );
-
-        vm.etch(HOOK_ADDRESS, address(zeroFeeImpl).code);
-        hook = UniAlignmentV4Hook(payable(HOOK_ADDRESS));
-
-        vm.prank(HOOK_ADDRESS);
-        MockFeeHook(payable(HOOK_ADDRESS)).initOwner(address(this));
-        MockFeeHook(payable(HOOK_ADDRESS)).setLpFeeRate(DEFAULT_LP_FEE_RATE);
+        // A second REAL hook, this one with hookFeeBips = 0 (its own address => its own pool).
+        hook = _deployHook(0x4243, 0);
 
         uint256 fee = hook.hookFeeBips();
         emit log_named_uint("Hook fee bips", fee);
@@ -535,6 +519,25 @@ contract V4HookTaxationTest is ForkTestBase, IUnlockCallback {
         });
     }
 
+    /// @notice Deploy the production hook at `seed`-derived, permission-carrying address.
+    function _deployHook(uint160 seed, uint256 hookFeeBips) internal returns (UniAlignmentV4Hook) {
+        address hookAddr = address((seed << 14) | HOOK_FLAGS);
+        deployCodeTo(
+            "UniAlignmentV4Hook.sol:UniAlignmentV4Hook",
+            abi.encode(
+                poolManager,
+                IAlignmentVault(payable(address(mockVault))),
+                WETH,
+                address(this), // owner
+                BENEFACTOR,
+                hookFeeBips,
+                DEFAULT_LP_FEE_RATE
+            ),
+            hookAddr
+        );
+        return UniAlignmentV4Hook(payable(hookAddr));
+    }
+
     // Realistic sqrtPriceX96 values accounting for token decimals
     // ETH/USDC: 1 ETH ≈ $2000 USDC. token0=ETH(18dec), token1=USDC(6dec)
     // price = 2000*1e6/1e18 = 2e-9, sqrt(2e-9)*2^96 ≈ 3.543e24
@@ -565,99 +568,3 @@ contract MockVault {
 
     receive() external payable { }
 }
-
-/**
- * @notice Mock hook for testing — skips address validation, implements fee model
- */
-contract MockFeeHook is BaseTestHooks {
-    using SafeCast for uint256;
-    using SafeCast for int128;
-
-    error Unauthorized();
-    error PoolCurrency0MustBeNativeETH();
-    error RateTooHigh();
-    error OnlyOwner();
-
-    IPoolManager public immutable poolManager;
-    address public immutable vault;
-    address public immutable weth;
-    uint256 public immutable hookFeeBips;
-    uint24 public lpFeeRate;
-    address public owner;
-
-    event AlignmentFeeCollected(uint256 ethAmount, address indexed benefactor);
-    event LpFeeRateUpdated(uint24 newRate);
-
-    constructor(
-        IPoolManager _poolManager,
-        address _vault,
-        address _weth,
-        address _owner,
-        uint256 _hookFeeBips,
-        uint24 _initialLpFeeRate
-    ) {
-        poolManager = _poolManager;
-        vault = _vault;
-        weth = _weth;
-        owner = _owner;
-        hookFeeBips = _hookFeeBips;
-        lpFeeRate = _initialLpFeeRate;
-    }
-
-    function initOwner(address _owner) external {
-        owner = _owner;
-    }
-
-    function beforeSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, bytes calldata)
-        external
-        view
-        override
-        returns (bytes4, BeforeSwapDelta, uint24)
-    {
-        return (
-            IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, lpFeeRate | LPFeeLibrary.OVERRIDE_FEE_FLAG
-        );
-    }
-
-    function afterSwap(
-        address sender,
-        PoolKey calldata key,
-        IPoolManager.SwapParams calldata,
-        BalanceDelta delta,
-        bytes calldata
-    ) external override returns (bytes4, int128) {
-        if (msg.sender != address(poolManager)) revert Unauthorized();
-
-        // Always tax the ETH movement (currency0 = native ETH)
-        if (Currency.unwrap(key.currency0) != address(0)) revert PoolCurrency0MustBeNativeETH();
-
-        int128 amount0 = delta.amount0();
-        uint256 ethMoved = amount0 < 0 ? uint256(uint128(-amount0)) : uint256(uint128(amount0));
-        uint256 feeAmount = (ethMoved * hookFeeBips) / 10000;
-
-        if (feeAmount > 0) {
-            poolManager.take(key.currency0, address(this), feeAmount);
-            MockVault(payable(vault)).receiveContribution{ value: feeAmount }(key.currency0, feeAmount, sender);
-            emit AlignmentFeeCollected(feeAmount, sender);
-            return (IHooks.afterSwap.selector, feeAmount.toInt128());
-        }
-
-        return (IHooks.afterSwap.selector, int128(0));
-    }
-
-    function setLpFeeRate(uint24 _rate) external {
-        if (msg.sender != owner && msg.sender != address(this)) revert OnlyOwner();
-        if (_rate > LPFeeLibrary.MAX_LP_FEE) revert RateTooHigh();
-        lpFeeRate = _rate;
-        emit LpFeeRateUpdated(_rate);
-    }
-
-    receive() external payable { }
-}
-
-/**
- * @notice Imports for types
- */
-import { UniAlignmentVault } from "../../../src/vaults/uni/UniAlignmentVault.sol";
-import { BaseTestHooks } from "v4-core/test/BaseTestHooks.sol";
-import { SafeCast } from "v4-core/libraries/SafeCast.sol";
