@@ -60,8 +60,20 @@ contract BestRouteOffFamilyForkTest is ForkTestBase {
         // Without a real quoter + off-family token (operator input) there is nothing real to route;
         // skip rather than assert against a placeholder. Combined with the no-fork skip above, this
         // test only executes in the RPC job with both env vars set.
-        if (zQuoter.code.length == 0 || offFamilyToken == address(0)) {
-            vm.skip(true);
+        //
+        // The skip carries its REASON. A bare `vm.skip(true)` reports as an unexplained "1 skipped" in the
+        // run summary, which reads like coverage that ran; naming the unmet precondition makes it legible
+        // in the summary line itself that this pin contributed no assertions and why.
+        if (zQuoter == address(0)) {
+            vm.skip(true, "ZQUOTER_ADDRESS unset - no real quoter to route through (operator input)");
+            return;
+        }
+        if (zQuoter.code.length == 0) {
+            vm.skip(true, "ZQUOTER_ADDRESS has no code at this fork block - not a live quoter");
+            return;
+        }
+        if (offFamilyToken == address(0)) {
+            vm.skip(true, "OFF_FAMILY_TOKEN unset - no off-family token to acquire (operator input)");
             return;
         }
 
