@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && tsx scripts/check-precache.ts",
+    "build": "tsc -b && vite build && tsx scripts/check-precache.ts && tsx scripts/check-share-card.ts",
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "lint": "eslint . && stylelint \"src/**/*.css\"",
