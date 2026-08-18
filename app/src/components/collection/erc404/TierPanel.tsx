@@ -17,6 +17,7 @@
 import { useEffect, useState } from 'react'
 import { formatUnits } from 'viem'
 import { useAccount, useWaitForTransactionReceipt } from 'wagmi'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   useReadErc404BondingInstanceDecimals,
   useWriteErc404BondingInstanceClaimReleasedEscrow,
@@ -24,7 +25,7 @@ import {
   useWriteErc404BondingInstanceMintUp,
 } from '../../../generated/contracts'
 import { useCollectionChainId } from '../useCollectionChain'
-import { txErrorReason } from '../../ui/useTxAction'
+import { invalidateInstanceQueries, txErrorReason } from '../../ui/useTxAction'
 import { tierErrorCopy } from './tierErrorCopy'
 import { useTierPosition } from './useTierPosition'
 import { useErc404OwnedPieces } from './useErc404OwnedPieces'
@@ -54,7 +55,12 @@ export function TierPanel({ instance }: { instance: `0x${string}` }) {
   const mintDownRx = useWaitForTransactionReceipt({ hash: mintDown.data })
   const claimRx = useWaitForTransactionReceipt({ hash: claim.data })
 
+  // Shared invalidation (noesis-352): mintUp/mintDown/claim move a band NFT and coin balance
+  // together — SwapPanel's balance/quote and Erc404Portfolio's piece grid read the same instance and
+  // must not keep showing the pre-mint position. See useTxAction's `instance` opt for the rationale.
+  const queryClient = useQueryClient()
   function refetchAll(): void {
+    invalidateInstanceQueries(queryClient, instance)
     position.refetch()
     owned.refetch()
   }

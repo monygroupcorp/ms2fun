@@ -152,7 +152,7 @@ function SetBondingActiveRow({ instance }: { instance: `0x${string}` }) {
     address: instance,
     chainId: chainId,
   })
-  const tx = useTxAction({ onSuccess: () => void refetch() })
+  const tx = useTxAction({ onSuccess: () => void refetch(), instance })
   const next = !active
 
   return (
@@ -213,6 +213,7 @@ function SetTimeRow({
       void refetchOpen()
       void refetchMaturity()
     },
+    instance,
   })
 
   const seconds = toUnixSeconds(value)
@@ -297,7 +298,7 @@ function SetUriRow({
 }) {
   const chainId = useCollectionChainId()
   const [uri, setUri] = useState('')
-  const tx = useTxAction()
+  const tx = useTxAction({ instance })
   const canSubmit = uri.trim() !== '' && !tx.isBusy
 
   return (
@@ -348,7 +349,7 @@ function ActivateStakingRow({ instance }: { instance: `0x${string}` }) {
     address: instance,
     chainId: chainId,
   })
-  const tx = useTxAction({ onSuccess: () => void refetch() })
+  const tx = useTxAction({ onSuccess: () => void refetch(), instance })
 
   return (
     <ActionRow
@@ -419,7 +420,7 @@ function DeployLiquidityRow({
 }) {
   const chainId = useCollectionChainId()
   const [carveInput, setCarveInput] = useState('0') // bps, default 0 = plain graduation
-  const tx = useTxAction()
+  const tx = useTxAction({ instance })
   const { data: receipt } = useWaitForTransactionReceipt({ hash: tx.hash })
   const carveReceipt = useMemo(
     () => (receipt !== undefined ? carveReceiptFromLogs(receipt.logs) : undefined),
@@ -561,7 +562,7 @@ function BondStatusRow({ instance }: { instance: `0x${string}` }) {
     address: instance,
     chainId: chainId,
   })
-  const tx = useTxAction({ onSuccess: () => void refetch() })
+  const tx = useTxAction({ onSuccess: () => void refetch(), instance })
 
   // bonds(instance) tuple: [creator, amount, createdAt, settled]
   const amount = bond?.[1] ?? 0n
@@ -612,7 +613,7 @@ function BondStatusRow({ instance }: { instance: `0x${string}` }) {
 function MigrateVaultRow({ instance }: { instance: `0x${string}` }) {
   const chainId = useCollectionChainId()
   const [addr, setAddr] = useState('')
-  const tx = useTxAction()
+  const tx = useTxAction({ instance })
   const isAddress = /^0x[0-9a-fA-F]{40}$/.test(addr.trim())
   const canSubmit = isAddress && !tx.isBusy
 
@@ -660,7 +661,7 @@ function MigrateVaultRow({ instance }: { instance: `0x${string}` }) {
 
 function ClaimAllFeesRow({ instance }: { instance: `0x${string}` }) {
   const chainId = useCollectionChainId()
-  const tx = useTxAction()
+  const tx = useTxAction({ instance })
 
   return (
     // claimAllFees pulls accrued vault fees into the INSTANCE's own balance (crediting the staking
@@ -697,7 +698,7 @@ function SetAgentDelegationRow({ instance }: { instance: `0x${string}` }) {
     address: instance,
     chainId: chainId,
   })
-  const tx = useTxAction({ onSuccess: () => void refetch() })
+  const tx = useTxAction({ onSuccess: () => void refetch(), instance })
   const next = !enabled
 
   return (
@@ -755,8 +756,8 @@ function AllowlistConfigRow({ instance }: { instance: `0x${string}` }) {
   const [build, setBuild] = useState<AllowlistBuildOutcome | undefined>(undefined)
   const [checking, setChecking] = useState(false)
 
-  const configureTx = useTxAction()
-  const metadataTx = useTxAction()
+  const configureTx = useTxAction({ instance })
+  const metadataTx = useTxAction({ instance })
 
   if (!hasGatingModule(gatingModule)) return null
 

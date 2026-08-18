@@ -13,9 +13,10 @@
  *  - ETH is the zRouter native sentinel `address(0)` (the router wraps/unwraps WETH internally);
  *  - token→ETH sells pull via `transferFrom`, so they're approve-then-swap (buys need no approval).
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { formatEther, formatUnits, maxUint256, parseUnits, zeroAddress } from 'viem'
 import { useAccount, useWaitForTransactionReceipt } from 'wagmi'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   useReadErc404BondingInstanceAllowance,
   useReadErc404BondingInstanceBalanceOf,
@@ -27,7 +28,7 @@ import {
   useWriteZRouterSwapVz,
 } from '../../../generated/contracts'
 import { useCollectionAddresses, useCollectionChainId } from '../useCollectionChain'
-import { txErrorReason } from '../../ui/useTxAction'
+import { invalidateInstanceQueries, txErrorReason } from '../../ui/useTxAction'
 import type { GraduatedVenue } from './useGraduatedVenue'
 import { SwapQuickFill } from './SwapQuickFill'
 import { buyEthPresets, sellPctPresets } from './swapPresets'
@@ -172,6 +173,20 @@ export function GraduatedSwapPanel({
     hash: approve.data,
   })
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: swap.data })
+
+  // Shared invalidation (noesis-352): a graduated buy/sell still moves the underlying DN404 token's
+  // coin balance AND NFT ids in the same transaction (the venue changed, the mint/burn-on-transfer
+  // mechanics didn't) — every cached read for this instance must invalidate the moment the receipt
+  // lands. See SwapPanel's twin effect / useTxAction's `instance` opt for the full rationale.
+  const queryClient = useQueryClient()
+  const invalidatedOnSuccess = useRef(false)
+  useEffect(() => {
+    if (isSuccess && !invalidatedOnSuccess.current) {
+      invalidatedOnSuccess.current = true
+      invalidateInstanceQueries(queryClient, instance)
+    }
+    if (!isSuccess) invalidatedOnSuccess.current = false
+  }, [isSuccess, queryClient, instance])
 
   // Re-read the allowance once the approval is MINED (not merely submitted) so `needsApproval` flips
   // and the quote + sell unlock. `refetch` is referentially stable (react-query), so this runs only
