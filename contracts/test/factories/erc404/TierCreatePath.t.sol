@@ -628,4 +628,49 @@ contract TierCreatePathTest is Test {
         assertEq(s0, 1001, "the ladder sealed: packed from idLimit + 1");
         assertEq(uint256(e0) - s0 + 1, 100, "1000 / 10 ids");
     }
+
+    // ┌───────────────────────────────────────────────────────────────────┐
+    // │  The ceiling MOVES; the band floor must not follow it (noesis-261)│
+    // └───────────────────────────────────────────────────────────────────┘
+
+    /// @notice Graduation BURNS the coin it could not place (`ERC404BondingOps._sizePoolAtCurvePrice`,
+    ///         `_burn(address(this), burned)`), so `totalSupply / unit` — the live ordinary id ceiling
+    ///         DN404 bounds its auto-mint with — is strictly SMALLER after graduation than the
+    ///         `maxSupply / unit` the ladder was sealed against. Three comments in
+    ///         `ERC404BondingOps.sol` (`:178`, `:423`, `:875`) state the opposite, that `totalSupply`
+    ///         is fixed at `maxSupply` for the instance's life. It is not, and this pins that.
+    ///
+    ///         The property that MUST hold is the one this asserts second: the band floor stays
+    ///         strictly above BOTH ceilings. It does today only because `initTierBands` seeds its
+    ///         ascending check with `maxSupply / unit` — the ceiling at its MAXIMUM. Anyone who
+    ///         "simplifies" that seal to read the live supply would seal a ladder that a later
+    ///         graduation cannot invalidate but a pre-graduation one can overlap, and this test is
+    ///         what goes red.
+    ///
+    ///         Non-vacuity: the first assertion is exactly the statement that a burn happened, so it
+    ///         fails if the burn is removed. Measured by perturbation, see the PR body.
+    function test_graduationBurnShrinksTheCeilingButNotTheBandFloor() public {
+        ERC404BondingInstance b = _create(_params("ceiling", 200), _meta(_tiers(4, 10, "t1-")));
+        _open(b);
+
+        uint256 sealedCeiling = b.maxSupply() / b.unit();
+        (uint32 floor_,,) = b.tierBands(0);
+        assertGt(floor_, sealedCeiling, "precondition: the ladder is sealed above the ceiling at create");
+
+        // A real buyer, so the curve has a reserve to graduate on and there are live ordinary ids.
+        _buy(b, holder, 60);
+
+        vm.prank(creator);
+        b.deployLiquidity(0);
+
+        uint256 liveCeiling = b.totalSupply() / b.unit();
+        assertLt(liveCeiling, sealedCeiling, "the graduation burn did not shrink the live id ceiling");
+        assertGt(floor_, liveCeiling, "the band floor must stay above the ceiling after the burn too");
+
+        // The seal is unmoved by graduation: the ladder describes the same ids it always did.
+        (uint32 floorAfter, uint32 endAfter, uint32 weightAfter) = b.tierBands(0);
+        assertEq(floorAfter, floor_, "graduation moved the band floor");
+        assertEq(endAfter, sealedCeiling + 10, "the band still spans the 10 ids the create asked for");
+        assertEq(weightAfter, 4, "graduation moved the band weight");
+    }
 }
