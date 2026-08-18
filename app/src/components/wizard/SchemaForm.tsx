@@ -278,6 +278,78 @@ function LeafField({ field, values, onChange, errors }: FieldRendererProps) {
   )
 }
 
+// ── Bounded-bps slider ────────────────────────────────────────────────────────
+
+/** `2500` bps → `"25%"`. Trims to whole percent unless the value needs fractional precision. */
+function formatBpsPercent(bps: number): string {
+  const pct = (bps / 100).toFixed(2).replace(/\.?0+$/, '')
+  return `${pct || '0'}%`
+}
+
+interface BpsSliderInputProps {
+  field: FieldSchema
+  inputId: string
+  value: string
+  onChange: (key: string, value: string) => void
+  hasError: boolean
+  describedBy?: string
+}
+
+/**
+ * A bounded bps field, e.g. `declaredMaxAllowanceBps` (0..10000). Slider and exact-entry input are
+ * two views of the SAME `field.key` value — either one's `onChange` writes the identical string the
+ * plain number input would have, so calldata encoding downstream is unaffected.
+ */
+function BpsSliderInput({
+  field,
+  inputId,
+  value,
+  onChange,
+  hasError,
+  describedBy,
+}: BpsSliderInputProps) {
+  const min = field.validation?.min ?? 0
+  const max = field.validation?.max ?? 10000
+  const clamp = (n: number) => Math.min(max, Math.max(min, n))
+
+  const parsed = Number(value)
+  const sliderValue = Number.isFinite(parsed) ? clamp(parsed) : min
+
+  return (
+    <div className={styles.bpsSlider}>
+      <div className={styles.bpsSliderRow}>
+        <input
+          type="range"
+          aria-label={`${field.label} (slider)`}
+          aria-invalid={hasError ? true : undefined}
+          min={min}
+          max={max}
+          step={1}
+          value={sliderValue}
+          className={styles.range}
+          // Native range inputs can't leave [min, max] in a real browser; clamp explicitly anyway so
+          // a synthetically-dispatched out-of-range value never reaches the shared field key.
+          onChange={(e) => onChange(field.key, String(clamp(Number(e.target.value))))}
+        />
+        <input
+          id={inputId}
+          type="number"
+          inputMode="numeric"
+          step={1}
+          min={min}
+          max={max}
+          aria-invalid={hasError ? true : undefined}
+          {...(describedBy !== undefined ? { 'aria-describedby': describedBy } : {})}
+          className={`${styles.input} ${styles.bpsNumber}${hasError ? ` ${styles.inputError}` : ''}`}
+          value={value}
+          onChange={(e) => onChange(field.key, e.target.value)}
+        />
+      </div>
+      <span className={styles.bpsPercent}>{formatBpsPercent(sliderValue)}</span>
+    </div>
+  )
+}
+
 // ── Per-kind input elements ───────────────────────────────────────────────────
 
 /** Leaf kinds only — `group` and `list` are handled before reaching `InputForKind`. */
@@ -334,6 +406,26 @@ function InputForKind({
 
     case 'number':
     case 'bigint': {
+      // A bounded `bps` field (a closed 0..max domain) gets a slider affordance: dragging states the
+      // domain visually, a paired exact-entry input keeps every value reachable, and a live percent
+      // readout translates bps into the units a buyer actually reads. Any bounded bps field on the
+      // create path inherits this the same way — it is not special-cased to one key.
+      if (
+        field.unit === 'bps' &&
+        field.validation?.min !== undefined &&
+        field.validation?.max !== undefined
+      ) {
+        return (
+          <BpsSliderInput
+            field={field}
+            inputId={inputId}
+            value={value}
+            onChange={onChange}
+            hasError={hasError}
+            {...(describedBy !== undefined ? { describedBy } : {})}
+          />
+        )
+      }
       // Amount units (ETH / tokens) are entered as HUMAN decimals and scaled to exact wei at encode;
       // integer units (bps / seconds / count) keep a whole-number step + keypad.
       const decimal = DECIMAL_UNITS.has(field.unit)
