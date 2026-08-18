@@ -98,6 +98,13 @@
   gap: var(--gap-sm);
 }
 
+.stepperBtn {
+  flex: 0 0 auto;
+  padding: var(--padding-sm);
+  min-width: 2.25em;
+  font-family: var(--font-mono);
+}
+
 .bidInput {
   flex: 1;
   /* Without this, the flex item's default min-width:auto keeps it at its intrinsic content width
