@@ -4,13 +4,16 @@
  * tier (noesis-080: the only deployed gating module is MerkleGatingModule) we resolve the connected
  * wallet's merkle proof and pass the encoded gatingData, else `0x`.
  */
+import { useEffect, useRef } from 'react'
 import { useAccount, useWaitForTransactionReceipt } from 'wagmi'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   useReadErc404BondingInstanceFreeMintAllocation,
   useReadErc404BondingInstanceFreeMintClaimed,
   useWriteErc404BondingInstanceClaimFreeMint,
 } from '../../../generated/contracts'
 import { useCollectionChainId } from '../useCollectionChain'
+import { invalidateInstanceQueries } from '../../ui/useTxAction'
 import { EMPTY_BYTES, encodeMerkleGatingData } from './gating'
 import { useMerkleAllowlistProof } from './useMerkleAllowlist'
 import styles from './BondingSurface.module.css'
@@ -40,6 +43,20 @@ export function FreeMintPanel({ instance, gatingActive, refetch }: FreeMintPanel
 
   const claim = useWriteErc404BondingInstanceClaimFreeMint()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: claim.data })
+
+  // Shared invalidation (noesis-352): a free-mint claim moves coin balance AND NFT ids in the same
+  // transaction, so every cached read for this instance — not just this panel's own — must
+  // invalidate the moment the receipt lands, not only when the holder clicks "reset". See
+  // useTxAction's `instance` opt for the rationale.
+  const queryClient = useQueryClient()
+  const invalidatedOnSuccess = useRef(false)
+  useEffect(() => {
+    if (isSuccess && !invalidatedOnSuccess.current) {
+      invalidatedOnSuccess.current = true
+      invalidateInstanceQueries(queryClient, instance)
+    }
+    if (!isSuccess) invalidatedOnSuccess.current = false
+  }, [isSuccess, queryClient, instance])
 
   // Hide entirely when there's no allocation, wallet disconnected, or already claimed.
   if (!isConnected) return null
