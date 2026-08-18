@@ -77,6 +77,15 @@ contract VaultUniGraduationForkTest is ForkTestBase {
         MockAlignmentRegistry registry = new MockAlignmentRegistry();
         registry.setTargetActive(TARGET_ID, true);
         registry.setTokenInTarget(TARGET_ID, alignmentToken, true);
+        // Canonical reference pool (noesis-035/037): the vault's swap floor reads the pinned
+        // ReferencePool for (target, token) and reverts NoReferencePool when it is unset, so a fork run
+        // needs it wired to a real pool. The WETH/USDC V3 0.05% pool is the deepest mainnet reference
+        // for this alignment token and carries the observation history the TWAP path requires.
+        registry.setReferencePool(
+            TARGET_ID,
+            alignmentToken,
+            IAlignmentRegistry.ReferencePool({ pool: WETH_USDC_V3_005, kind: 0, twapWindow: 1800 })
+        );
 
         // Deploy the vault through the real factory (matches DeployCore) and wire the pool key the way
         // DeployCore now does — via the factory (the factory owns the vault).
