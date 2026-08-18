@@ -171,16 +171,29 @@ contract AlignmentEndowmentVaultForkTest is Test {
         vm.deal(address(this), amount);
         vault.receiveContribution{ value: amount }(Currency.wrap(address(0)), amount, address(benefactor));
 
-        uint256 sharesBefore = _stataBalanceOf(address(vault));
+        uint256 principalBasisBefore = vault.totalEscrowedPrincipal() + vault.totalVestedDeployable();
 
         vm.warp(block.timestamp + VEST);
         vault.vest(address(benefactor)); // permissionless
 
-        // Accounting moved escrowed → vested; position (shares) UNCHANGED (mechanic b: no redeem).
+        // Accounting moved escrowed → vested, for exactly `amount`.
         assertEq(vault.escrowedPrincipal(address(benefactor)), 0, "escrow cleared");
         assertEq(vault.vestedPrincipal(address(benefactor)), amount, "vested set");
         assertEq(vault.totalVestedDeployable(), amount, "totalVested set");
-        assertEq(_stataBalanceOf(address(vault)), sharesBefore, "position stays in Aave (no redeem at vest)");
+
+        // Mechanic (b): the PRINCIPAL is not redeemed at vest — it is reclassified in place. The principal
+        // basis is conserved across the transition, and the Aave position still covers it.
+        //
+        // The share COUNT is not the right observable here: `vest()` crystallizes yield first
+        // (`AlignmentEndowmentVault._crystallizeYield`), which redeems the accrued YIELD from Aave and so
+        // legitimately reduces the share balance. What must not move is the principal.
+        assertEq(
+            vault.totalEscrowedPrincipal() + vault.totalVestedDeployable(),
+            principalBasisBefore,
+            "principal basis conserved across vest"
+        );
+        uint256 positionAfter = _stataConvertToAssets(_stataBalanceOf(address(vault)));
+        assertGe(positionAfter + 2, amount, "principal remains in the Aave position (only yield redeemed)");
     }
 
     // ────────────────────────────────────────────────────────────────────────
@@ -189,9 +202,9 @@ contract AlignmentEndowmentVaultForkTest is Test {
 
     /**
      * @notice Two benefactors escrowed; one vests. A subsequent harvest accrues the creator leg only to
-     *         the still-escrowed benefactor (the vested one earns nothing on their creator leg). Verified
-     *         end-to-end against real Aave. Directional on a fork (real yield magnitude is unknown), so we
-     *         assert the vested benefactor's creator accrual stays zero and the escrowed one's is ≥ it.
+     *         the still-escrowed benefactor — the vested one earns nothing further. Verified end-to-end
+     *         against real Aave. Directional on a fork (real yield magnitude is unknown), so we assert the
+     *         vested benefactor's claimable is FROZEN across the harvest while the escrowed one's grows.
      */
     function test_multiBenefactor_accrualAcrossVestBoundary() public {
         MockBenefactor benefactorB = new MockBenefactor(makeAddr("creatorB"));
@@ -206,18 +219,26 @@ contract AlignmentEndowmentVaultForkTest is Test {
         assertEq(vault.totalEscrowedPrincipal(), 1 ether, "only B remains escrowed");
         assertEq(vault.totalVestedDeployable(), 1 ether, "A vested");
 
+        // Snapshot both claimable balances the instant A's accrual stops.
+        uint256 pendingAAtVest = vault.pendingYieldOf(address(benefactor));
+        uint256 pendingBAtVest = vault.pendingYieldOf(address(benefactorB));
+
         // Let interest notionally accrue, then harvest.
         vm.warp(block.timestamp + 30 days);
         vault.harvest();
 
-        // The vested benefactor (A) accrues NO creator yield; the escrowed one (B) accrues ≥ 0 and never
-        // less than A. (On a fork with zero accrued interest both are 0 — still consistent.)
-        assertEq(vault.pendingYieldOf(address(benefactor)), 0, "vested benefactor accrues no creator yield");
-        assertGe(
-            vault.pendingYieldOf(address(benefactorB)),
-            vault.pendingYieldOf(address(benefactor)),
-            "escrowed benefactor accrues at least as much as the vested one"
-        );
+        uint256 pendingAAfterHarvest = vault.pendingYieldOf(address(benefactor));
+        uint256 pendingBAfterHarvest = vault.pendingYieldOf(address(benefactorB));
+
+        // The vested benefactor (A) accrues NO FURTHER creator yield: their claimable balance is frozen at
+        // the purse `vest()` settled for them (already-earned, pre-vest, booked by design) and does not move
+        // across a later harvest. The still-escrowed benefactor (B) keeps accruing.
+        //
+        // Asserting A's claimable is zero would be a different — and false — claim: `pendingYieldOf` is the
+        // settled purse plus the live accrual, and only the LIVE term is zeroed by vesting
+        // (`escrowedPrincipal[A] == 0`).
+        assertGt(pendingBAfterHarvest, pendingBAtVest, "escrowed benefactor keeps accruing across harvest");
+        assertEq(pendingAAfterHarvest, pendingAAtVest, "vested benefactor accrues no further creator yield");
     }
 
     // ────────────────────────────────────────────────────────────────────────
