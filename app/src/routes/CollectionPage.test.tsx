@@ -153,3 +153,34 @@ test('/1337/Foo — mixed-case slug — redirects to the lowercase form', async 
 
   await waitFor(() => expect(history.at(-1)).toBe('/1337/foo'))
 })
+
+// ── The share control ────────────────────────────────────────────────────────
+// `ShareLink` is the app's only share mechanic. It had five isolation tests and no test
+// anywhere asserted it is actually *mounted* on a route, so deleting all four call sites left
+// the suite at 837/837, typecheck clean and lint at 0 errors. These two assert the mount and
+// the gate it renders behind.
+
+test('a resolved collection offers the share control', async () => {
+  mockResolveName.mockReturnValue({ data: INSTANCE, isPending: false, isError: false })
+  mockUseCollection.mockReturnValue({ data: card(), isPending: false, isError: false })
+
+  renderAt('/1337/foo')
+
+  await screen.findByTestId('collection-detail')
+  // Either affordance counts: the button, or the read-only input it degrades to when
+  // `navigator.clipboard` is unavailable. What must not happen is neither.
+  expect(
+    screen.queryByTestId('share-link') ?? screen.queryByTestId('share-link-fallback'),
+  ).not.toBe(null)
+})
+
+test('a collection that failed to load does not offer a link to it', async () => {
+  mockResolveName.mockReturnValue({ data: INSTANCE, isPending: false, isError: false })
+  mockUseCollection.mockReturnValue({ data: undefined, isPending: false, isError: true })
+
+  renderAt('/1337/foo')
+
+  await screen.findByTestId('collection-detail')
+  expect(screen.queryByTestId('share-link')).toBe(null)
+  expect(screen.queryByTestId('share-link-fallback')).toBe(null)
+})
