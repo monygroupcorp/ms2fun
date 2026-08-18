@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { precacheGlobs } from './precache.globs'
 
 // GitHub Pages / static-host SPA fallback: mirrors the built index.html to 404.html so a host that
 // answers unknown paths with its own 404 page serves the app shell (and its og:/twitter: tags)
@@ -62,12 +63,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,woff2,wasm,svg,png}'],
-        // The flagship card art is ~2 MB and is only ever drawn as a grid tile and a 180px banner.
-        // Precaching fetches it at SW-install time on EVERY first visit — including deep links to
-        // routes that never render it — which overrides the `loading="lazy"` on the element itself.
-        // Let it be an ordinary lazy image request instead. Excluded from the PRECACHE, not the build.
-        globIgnores: ['**/exec-executives.png'],
+        ...precacheGlobs,
         navigateFallback: 'index.html', // SPA: unknown routes serve the cached shell (wouter routes client-side)
         cleanupOutdatedCaches: true,
       },
@@ -88,7 +84,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', 'scripts/**/*.test.{ts,tsx}'],
     css: true,
   },
 })
