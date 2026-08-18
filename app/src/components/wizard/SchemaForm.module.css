@@ -137,6 +137,66 @@
   padding-right: calc(var(--space-3) * 2 + 10px);
 }
 
+/* ── Bounded-bps slider ─────────────────────────────────────── */
+
+.bpsSlider {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.bpsSliderRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.range {
+  flex: 1;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 2px;
+  background: var(--border-secondary);
+  outline: none;
+  cursor: pointer;
+}
+
+.range::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-none);
+  background: var(--text-primary);
+  cursor: pointer;
+}
+
+.range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: var(--radius-none);
+  background: var(--text-primary);
+  cursor: pointer;
+}
+
+.range:focus-visible {
+  outline: 2px solid var(--state-focus-outline);
+  outline-offset: 2px;
+}
+
+.bpsNumber {
+  flex: 0 0 6.5rem;
+  width: 6.5rem;
+  text-align: right;
+}
+
+.bpsPercent {
+  font-size: var(--font-size-body-sm);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
 /* ── Checkbox ───────────────────────────────────────────────── */
 
 .checkboxLabel {
