@@ -177,6 +177,69 @@ test('uses field.default as initial value when key absent from values', () => {
   expect(input).toHaveValue(42)
 })
 
+const bpsSliderField: FieldSchema = {
+  key: 'declaredMaxAllowanceBps',
+  label: 'Creator carve — declared max',
+  kind: 'number',
+  unit: 'bps',
+  default: '10000',
+  validation: { min: 0, max: 10000 },
+}
+
+test('bounded bps field renders a slider paired with an exact-entry input and a percent readout', () => {
+  render(<SchemaForm fields={[bpsSliderField]} values={{}} onChange={vi.fn()} />)
+  const slider = screen.getByRole('slider')
+  const exact = screen.getByRole('spinbutton')
+  expect(slider).toHaveAttribute('min', '0')
+  expect(slider).toHaveAttribute('max', '10000')
+  // Untouched field: the default (10000) is what an untouched submit would carry.
+  expect(exact).toHaveValue(10000)
+  expect(slider).toHaveValue('10000')
+  expect(screen.getByText('100%')).toBeInTheDocument()
+})
+
+test('bps exact-entry input lets a creator land on a precise value', () => {
+  const onChange = vi.fn()
+  render(
+    <SchemaForm
+      fields={[bpsSliderField]}
+      values={{ declaredMaxAllowanceBps: '10000' }}
+      onChange={onChange}
+    />,
+  )
+  fireEvent.change(screen.getByRole('spinbutton'), {
+    target: { value: '2500' },
+  })
+  expect(onChange).toHaveBeenCalledWith('declaredMaxAllowanceBps', '2500')
+})
+
+test('bps slider percent readout tracks the current value', () => {
+  render(
+    <SchemaForm
+      fields={[bpsSliderField]}
+      values={{ declaredMaxAllowanceBps: '2500' }}
+      onChange={vi.fn()}
+    />,
+  )
+  expect(screen.getByText('25%')).toBeInTheDocument()
+})
+
+test('bps slider clamps at both ends', () => {
+  const onChange = vi.fn()
+  render(
+    <SchemaForm
+      fields={[bpsSliderField]}
+      values={{ declaredMaxAllowanceBps: '5000' }}
+      onChange={onChange}
+    />,
+  )
+  const slider = screen.getByRole('slider')
+  fireEvent.change(slider, { target: { value: '-500' } })
+  expect(onChange).toHaveBeenCalledWith('declaredMaxAllowanceBps', '0')
+  fireEvent.change(slider, { target: { value: '15000' } })
+  expect(onChange).toHaveBeenCalledWith('declaredMaxAllowanceBps', '10000')
+})
+
 test('help text is rendered and wired via aria-describedby', () => {
   const helpField: FieldSchema = {
     key: 'bio',
