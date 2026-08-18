@@ -15,13 +15,14 @@
 import { useEffect, useState } from 'react'
 import { formatEther, formatUnits, parseUnits } from 'viem'
 import { useAccount, useWaitForTransactionReceipt } from 'wagmi'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   useWriteErc404BondingInstanceClaimStakingRewards,
   useWriteErc404BondingInstanceStake,
   useWriteErc404BondingInstanceUnstake,
 } from '../../../generated/contracts'
 import { useCollectionChainId } from '../useCollectionChain'
-import { txErrorReason } from '../../ui/useTxAction'
+import { invalidateInstanceQueries, txErrorReason } from '../../ui/useTxAction'
 import { tierErrorCopy } from './tierErrorCopy'
 import { useStaking } from './useStaking'
 import { useTierPosition } from './useTierPosition'
@@ -77,21 +78,29 @@ export function StakingPanel({ instance, decimals, unit }: StakingPanelProps) {
 
   // Refetch reads once each write confirms; clear the corresponding input on stake/unstake.
   // Effects (not in-render side effects) keep this safe across re-renders / strict mode.
+  // Shared invalidation (noesis-352): stake/unstake move the token balance SwapPanel and TierPanel
+  // read for this same instance — see useTxAction's `instance` opt for the rationale.
+  const queryClient = useQueryClient()
   useEffect(() => {
     if (stakeRx.isSuccess) {
       setStakeStr('')
+      invalidateInstanceQueries(queryClient, instance)
       refetch()
     }
-  }, [stakeRx.isSuccess, refetch])
+  }, [stakeRx.isSuccess, refetch, queryClient, instance])
   useEffect(() => {
     if (unstakeRx.isSuccess) {
       setUnstakeStr('')
+      invalidateInstanceQueries(queryClient, instance)
       refetch()
     }
-  }, [unstakeRx.isSuccess, refetch])
+  }, [unstakeRx.isSuccess, refetch, queryClient, instance])
   useEffect(() => {
-    if (claimRx.isSuccess) refetch()
-  }, [claimRx.isSuccess, refetch])
+    if (claimRx.isSuccess) {
+      invalidateInstanceQueries(queryClient, instance)
+      refetch()
+    }
+  }, [claimRx.isSuccess, refetch, queryClient, instance])
 
   // ---- Visibility gates -------------------------------------------------
   // Pre-activation shows nothing here — ACTIVATE STAKING is a creator action, moved to the admin

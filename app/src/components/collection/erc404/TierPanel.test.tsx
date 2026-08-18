@@ -56,6 +56,13 @@ vi.mock('../../../generated/contracts', () => {
 
 vi.mock('../useCollectionChain', () => ({ useCollectionChainId: () => 1 }))
 
+// The shared invalidation seam (noesis-352) needs a QueryClient; these tests aren't exercising
+// caching, so a stub with a spy-able `invalidateQueries` is enough (no QueryClientProvider needed).
+const mockInvalidateQueries = vi.hoisted(() => vi.fn())
+vi.mock('@tanstack/react-query', () => ({
+  useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
+}))
+
 const INSTANCE = '0x2222222222222222222222222222222222222222' as const
 
 function ladder(weights: bigint[]): TierBand[] {

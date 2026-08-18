@@ -65,7 +65,7 @@ function PublishWaveRow({
   const [price, setPrice] = useState('')
   const [payout, setPayout] = useState<number>(PAYOUT.ARTIST)
 
-  const tx = useTxAction({ onSuccess: () => void refetch() })
+  const tx = useTxAction({ onSuccess: () => void refetch(), instance })
 
   const parsedPrice = cond === WAVE_COND.PAY ? parseAmount(price) : 0n
   const trimmedThreshold = threshold.trim()
@@ -203,7 +203,7 @@ function SetCommissionRow({
   const [cond, setCond] = useState<number>(COMM_COND.NONE)
   const [price, setPrice] = useState('')
   const [payout, setPayout] = useState<number>(PAYOUT.ARTIST)
-  const tx = useTxAction()
+  const tx = useTxAction({ instance })
 
   const parsedId = id.trim() !== '' && /^\d+$/.test(id.trim()) ? BigInt(id.trim()) : undefined
   const parsedPrice = cond === COMM_COND.PAY ? parseAmount(price) : 0n
@@ -335,7 +335,7 @@ function SetAutoLatestRow({
     chainId,
     args: [instance],
   })
-  const tx = useTxAction({ onSuccess: () => void refetch() })
+  const tx = useTxAction({ onSuccess: () => void refetch(), instance })
   const next = !autoLatest
 
   return (

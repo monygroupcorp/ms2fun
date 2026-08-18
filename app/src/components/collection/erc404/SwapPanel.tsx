@@ -15,9 +15,10 @@
  *   (post-#25 `gatingData` is `bytes` = abi.encode(bytes32 passwordHash); see gating.encodeBuyGatingData.)
  * sellBonding(amount, minRefund, passwordHash, messageData, deadline) — passwordHash still `bytes32`.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { formatEther, formatUnits, parseEther, parseUnits } from 'viem'
 import { useAccount, usePublicClient, useWaitForTransactionReceipt } from 'wagmi'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   curveParamsComputerAbi,
   useReadCurveParamsComputerCalculateRefund,
@@ -29,7 +30,7 @@ import {
   useWriteErc404BondingInstanceSellBonding,
 } from '../../../generated/contracts'
 import { useCollectionChainId } from '../useCollectionChain'
-import { txErrorReason } from '../../ui/useTxAction'
+import { invalidateInstanceQueries, txErrorReason } from '../../ui/useTxAction'
 import { tierErrorCopy } from './tierErrorCopy'
 import { useTierPosition } from './useTierPosition'
 import { previewBandBurn } from './bandBurnPreview'
@@ -272,6 +273,21 @@ export function SwapPanel({
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
     hash: activeWrite.data,
   })
+
+  // Shared invalidation (noesis-352): a buy/sell moves coin balance AND NFT ids in the same
+  // transaction, so every cached read for this instance — the piece grid, tier position, staking,
+  // not just this panel's own quote/balance — must invalidate the moment the receipt lands, not only
+  // when the holder happens to click "reset". Fires once per confirmed receipt, mirroring
+  // `useTxAction`'s own guard (this panel manages its write directly, so it can't inherit the seam).
+  const queryClient = useQueryClient()
+  const invalidatedOnSuccess = useRef(false)
+  useEffect(() => {
+    if (isSuccess && !invalidatedOnSuccess.current) {
+      invalidatedOnSuccess.current = true
+      invalidateInstanceQueries(queryClient, instance)
+    }
+    if (!isSuccess) invalidatedOnSuccess.current = false
+  }, [isSuccess, queryClient, instance])
 
   function handleSubmit(): void {
     const deadline = BigInt(Math.floor(Date.now() / 1000)) + DEADLINE_BUFFER_SEC

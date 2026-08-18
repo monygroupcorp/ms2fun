@@ -12,8 +12,18 @@
  *
  * `send` is wagmi's `writeContract` returned verbatim, so the call site keeps full type inference
  * over abi/functionName/args (pass `chainId: forkChainId` as the existing readers do).
+ *
+ * `instance` (noesis-352) — pass the collection instance a write acts on and every cached read
+ * touching that address is invalidated the moment the receipt lands, on top of `onSuccess`. This is
+ * the SHARED invalidation seam: a panel's own `onSuccess` only reaches that panel's own reads, but a
+ * write on an instance can move state multiple panels read independently — a bonding buy/sell moves
+ * coin balance AND NFT ids in the same transaction, for example. Without a shared invalidation, a
+ * sibling panel keeps rendering a position that no longer exists on-chain until it happens to refetch
+ * on its own. Pass `instance` on every write that mutates state a shared instance read observes;
+ * omit it only for actions with nothing else to invalidate.
  */
 import { useCallback, useEffect, useRef } from 'react'
+import { useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query'
 import { useWaitForTransactionReceipt, useWriteContract } from 'wagmi'
 
 export type TxState = 'idle' | 'signing' | 'confirming' | 'success' | 'error'
@@ -58,7 +68,50 @@ export function deriveTxState(flags: {
   return 'idle'
 }
 
-export function useTxAction(opts: { onSuccess?: () => void } = {}) {
+/**
+ * True when `address` (case-insensitively) appears anywhere in `queryKey` — as a bare string element
+ * (the shape of our own hand-written keys, e.g. `['erc404-owned-pieces', instance, ...]`) or nested
+ * inside an object/array (the shape of wagmi's generated read keys, e.g.
+ * `['readContract', { address, args: [instance, holder], ... }]`). This is a structural match, not a
+ * dependency on any one hook's key layout, so it keeps working as new reads are added for an
+ * instance without each one needing to be told about invalidation by name.
+ *
+ * Recursion is bounded by a plain cycle guard (`seen`) — query keys are small, JSON-serializable-ish
+ * data, never a real graph, so this is defensive rather than load-bearing.
+ */
+export function queryKeyIncludesAddress(
+  queryKey: readonly unknown[],
+  address: string,
+  seen: Set<unknown> = new Set(),
+): boolean {
+  const target = address.toLowerCase()
+  const matches = (value: unknown): boolean => {
+    if (value == null) return false
+    if (typeof value === 'string') return value.toLowerCase() === target
+    if (Array.isArray(value)) return value.some(matches)
+    if (typeof value === 'object') {
+      if (seen.has(value)) return false
+      seen.add(value)
+      return Object.values(value).some(matches)
+    }
+    return false
+  }
+  return queryKey.some(matches)
+}
+
+/**
+ * Invalidate every cached query touching `instance` — the shared-invalidation seam `useTxAction`
+ * fires on transaction success (see `instance` in its opts, above). Exported so panels that manage
+ * their own write hooks directly (not through `useTxAction`) can call it from their own success
+ * handler and get the same coverage.
+ */
+export function invalidateInstanceQueries(queryClient: QueryClient, instance: string): void {
+  void queryClient.invalidateQueries({
+    predicate: (query) => queryKeyIncludesAddress(query.queryKey as QueryKey, instance),
+  })
+}
+
+export function useTxAction(opts: { onSuccess?: () => void; instance?: `0x${string}` } = {}) {
   const {
     writeContract,
     data: hash,
@@ -79,16 +132,19 @@ export function useTxAction(opts: { onSuccess?: () => void } = {}) {
   // the inferred return, and the string is all any caller needs to render).
   const reason = txErrorReason(writeErrObj ?? waitErrObj)
 
-  // Fire onSuccess exactly once per confirmed receipt (not on every render while success is true).
-  const { onSuccess } = opts
+  // Fire the shared invalidation + onSuccess exactly once per confirmed receipt (not on every render
+  // while success is true).
+  const { onSuccess, instance } = opts
+  const queryClient = useQueryClient()
   const fired = useRef(false)
   useEffect(() => {
     if (success && !fired.current) {
       fired.current = true
+      if (instance) invalidateInstanceQueries(queryClient, instance)
       onSuccess?.()
     }
     if (!success) fired.current = false
-  }, [success, onSuccess])
+  }, [success, onSuccess, instance, queryClient])
 
   const reset = useCallback(() => {
     fired.current = false
