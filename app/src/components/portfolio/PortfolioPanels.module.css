@@ -153,3 +153,11 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Auction escrow: the sentence under the amounts that names the act releasing the money. */
+.escrowNote {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  margin: var(--space-3) 0 0;
+}

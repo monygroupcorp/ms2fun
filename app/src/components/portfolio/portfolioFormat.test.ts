@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { fmtEth, heldCount } from './portfolioFormat'
-import type { PortfolioData } from './usePortfolio'
+import { escrowNote, fmtEndTime, fmtEth, heldCount } from './portfolioFormat'
+import type { AuctionPosition, PortfolioData } from './usePortfolio'
 
 const addr = (n: number): `0x${string}` => `0x${n.toString(16).padStart(40, '0')}` as `0x${string}`
 
@@ -51,7 +51,7 @@ describe('heldCount', () => {
   })
 
   it('returns 0 when all balances are empty', () => {
-    const data: PortfolioData = [[], [], [], 0n]
+    const data: PortfolioData = [[], [], [], 0n, []]
     expect(heldCount(data)).toBe(0)
   })
 
@@ -70,6 +70,7 @@ describe('heldCount', () => {
       [],
       [],
       0n,
+      [],
     ]
     expect(heldCount(data)).toBe(1)
   })
@@ -89,6 +90,7 @@ describe('heldCount', () => {
       [],
       [],
       0n,
+      [],
     ]
     expect(heldCount(data)).toBe(1)
   })
@@ -108,6 +110,7 @@ describe('heldCount', () => {
       [],
       [],
       0n,
+      [],
     ]
     expect(heldCount(data)).toBe(1)
   })
@@ -127,6 +130,7 @@ describe('heldCount', () => {
       [],
       [],
       0n,
+      [],
     ]
     expect(heldCount(data)).toBe(1)
   })
@@ -144,6 +148,7 @@ describe('heldCount', () => {
       ],
       [],
       0n,
+      [],
     ]
     expect(heldCount(data)).toBe(1)
   })
@@ -170,6 +175,7 @@ describe('heldCount', () => {
       ],
       [],
       0n,
+      [],
     ]
     expect(heldCount(data)).toBe(2)
   })
@@ -189,6 +195,7 @@ describe('heldCount', () => {
       [],
       [],
       0n,
+      [],
     ]
     expect(heldCount(data)).toBe(0)
   })
@@ -206,6 +213,7 @@ describe('heldCount', () => {
       ],
       [],
       0n,
+      [],
     ]
     expect(heldCount(data)).toBe(0)
   })
@@ -233,6 +241,7 @@ describe('heldCount', () => {
       [],
       [],
       0n,
+      [],
     ]
     expect(heldCount(data)).toBe(2)
   })
@@ -256,7 +265,56 @@ describe('heldCount', () => {
       ],
       [],
       0n,
+      [],
     ]
     expect(heldCount(data)).toBe(2)
+  })
+})
+
+describe('fmtEndTime', () => {
+  it('renders a fixed UTC stamp', () => {
+    expect(fmtEndTime(1_700_000_000n)).toBe('2023-11-14 22:13 UTC')
+  })
+
+  it('renders an unset end time as a dash', () => {
+    expect(fmtEndTime(0n)).toBe('—')
+  })
+})
+
+describe('escrowNote', () => {
+  const position = (over: Partial<AuctionPosition> = {}): AuctionPosition => ({
+    instance: '0x0000000000000000000000000000000000000009',
+    name: 'Auction House',
+    tokenId: 1n,
+    amount: 1n,
+    isCreatorDeposit: false,
+    endTime: 1_700_000_000n,
+    settleable: false,
+    reclaimable: false,
+    ...over,
+  })
+
+  it('names the high bid as held, not as claimable', () => {
+    const note = escrowNote(position())
+    expect(note).toContain('high bidder')
+    expect(note).not.toContain('claim')
+  })
+
+  it('names settlement as the act that releases a won bid', () => {
+    expect(escrowNote(position({ settleable: true }))).toContain('settling')
+  })
+
+  it('names reclaim as the act that releases an unsold deposit', () => {
+    expect(escrowNote(position({ isCreatorDeposit: true, reclaimable: true }))).toContain(
+      'reclaiming',
+    )
+  })
+
+  it('names settlement as the act that releases a deposit on a bid auction', () => {
+    expect(escrowNote(position({ isCreatorDeposit: true, settleable: true }))).toContain('settling')
+  })
+
+  it('states a live deposit is simply held', () => {
+    expect(escrowNote(position({ isCreatorDeposit: true }))).toContain('until it settles')
   })
 })

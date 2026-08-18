@@ -185,12 +185,14 @@ contract QueryAggregatorTest is Test {
             QueryAggregator.ERC404Holding[] memory h404,
             QueryAggregator.ERC1155Holding[] memory h1155,
             QueryAggregator.VaultPosition[] memory vp,
-            uint256 claimable
+            uint256 claimable,
+            QueryAggregator.AuctionPosition[] memory ap
         ) = agg.getPortfolioData(makeAddr("user"), instances, vaults);
         assertEq(h404.length, 0);
         assertEq(h1155.length, 0);
         assertEq(vp.length, 0);
         assertEq(claimable, 0);
+        assertEq(ap.length, 0);
     }
 
     // ─────────────────────────── F3: UUPS slot-layout proof ───────────────────────────

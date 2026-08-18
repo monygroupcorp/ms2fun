@@ -1,12 +1,14 @@
 import { Link } from 'wouter'
 import {
+  auctionPositions,
   isPortfolioEmpty,
   type PortfolioData,
   type Erc404Holding,
   type Erc1155Holding,
   type VaultPosition,
+  type AuctionPosition,
 } from './usePortfolio'
-import { fmtEth } from './portfolioFormat'
+import { fmtEth, fmtEndTime, escrowNote } from './portfolioFormat'
 import { truncateAddress } from '../../lib/format'
 import { forkChainId } from '../../lib/addresses'
 import { StateBlock } from '../ui/StateBlock'
@@ -120,6 +122,50 @@ function Erc1155Cards({ holdings }: { holdings: readonly Erc1155Holding[] }) {
   )
 }
 
+/**
+ * Auction escrow — ETH the user has committed to an ERC721 auction and has NOT got back yet: a
+ * standing high bid, or a creator's queue deposit. It is money the portfolio has to be able to name,
+ * so each row states the amount, why it is held, and the act that releases it.
+ *
+ * Escrow is not claimable: it stays out of the Vaults tab's claimable figure by construction (the
+ * aggregator does not sum it into `totalClaimable`).
+ */
+function AuctionPositions({ positions }: { positions: readonly AuctionPosition[] }) {
+  const held = positions.filter((p) => p.amount > 0n)
+  if (held.length === 0) return null
+  return (
+    <section className={styles.section} data-testid="portfolio-auctions">
+      <p className={styles.sectionTitle}>Auction escrow</p>
+      <ul className={styles.list}>
+        {held.map((p) => (
+          <li
+            key={`${p.instance}-${p.tokenId.toString()}-${p.isCreatorDeposit ? 'd' : 'b'}`}
+            className={styles.card}
+          >
+            <div className={styles.cardHead}>
+              <Link href={holdingHref(p.instance, p.name)} className={styles.cardLink}>
+                {p.name || truncateAddress(p.instance)}
+              </Link>
+              <span className={styles.cardAddr}>#{p.tokenId.toString()}</span>
+            </div>
+            <dl className={styles.stats}>
+              <div className={styles.stat}>
+                <dt>{p.isCreatorDeposit ? 'deposit' : 'your bid'}</dt>
+                <dd>{fmtEth(p.amount)} ETH</dd>
+              </div>
+              <div className={styles.stat}>
+                <dt>ends</dt>
+                <dd>{fmtEndTime(p.endTime)}</dd>
+              </div>
+            </dl>
+            <p className={styles.escrowNote}>{escrowNote(p)}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 export function HeldPanel({ data, isPending, isError, truncated }: PanelProps) {
   if (isPending) return <StateBlock variant="loading">hanging the work…</StateBlock>
   if (isError)
@@ -139,6 +185,7 @@ export function HeldPanel({ data, isPending, isError, truncated }: PanelProps) {
       )}
       <Erc404Cards holdings={data?.[0] ?? []} />
       <Erc1155Cards holdings={data?.[1] ?? []} />
+      <AuctionPositions positions={auctionPositions(data)} />
     </div>
   )
 }

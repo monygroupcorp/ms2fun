@@ -247,7 +247,7 @@ contract QueryAggregatorNeverBrickTest is Test {
     function test_portfolio_with_eoa_instance_does_not_revert() public {
         address[] memory instances = new address[](1);
         instances[0] = address(0xE0A);
-        (QueryAggregator.ERC404Holding[] memory h404,,, uint256 claimable) =
+        (QueryAggregator.ERC404Holding[] memory h404,,, uint256 claimable,) =
             agg.getPortfolioData(address(this), instances, new address[](0));
         assertEq(h404.length, 0, "no holdings");
         assertEq(claimable, 0, "no claimable");
@@ -256,7 +256,7 @@ contract QueryAggregatorNeverBrickTest is Test {
     function test_portfolio_with_short_return_instance_does_not_revert() public {
         address[] memory instances = new address[](1);
         instances[0] = address(new ShortReturnInstance());
-        (QueryAggregator.ERC404Holding[] memory h404,,,) =
+        (QueryAggregator.ERC404Holding[] memory h404,,,,) =
             agg.getPortfolioData(address(this), instances, new address[](0));
         assertEq(h404.length, 0, "no holdings");
     }
@@ -264,7 +264,7 @@ contract QueryAggregatorNeverBrickTest is Test {
     function test_portfolio_with_malformed_edition_ids_does_not_revert() public {
         address[] memory instances = new address[](1);
         instances[0] = address(new BadDynamicEditionIdsInstance());
-        (, QueryAggregator.ERC1155Holding[] memory h1155,,) =
+        (, QueryAggregator.ERC1155Holding[] memory h1155,,,) =
             agg.getPortfolioData(address(this), instances, new address[](0));
         assertEq(h1155.length, 0, "undecodable edition id array => no holding");
     }
@@ -272,7 +272,7 @@ contract QueryAggregatorNeverBrickTest is Test {
     function test_portfolio_with_eoa_vault_does_not_revert() public {
         address[] memory vaults = new address[](1);
         vaults[0] = address(0xBEEF01);
-        (,, QueryAggregator.VaultPosition[] memory positions, uint256 claimable) =
+        (,, QueryAggregator.VaultPosition[] memory positions, uint256 claimable,) =
             agg.getPortfolioData(address(this), new address[](0), vaults);
         assertEq(positions.length, 0, "no positions");
         assertEq(claimable, 0, "no claimable");
@@ -281,7 +281,7 @@ contract QueryAggregatorNeverBrickTest is Test {
     function test_portfolio_with_short_return_vault_does_not_revert() public {
         address[] memory vaults = new address[](1);
         vaults[0] = address(new ShortReturnVault());
-        (,, QueryAggregator.VaultPosition[] memory positions,) =
+        (,, QueryAggregator.VaultPosition[] memory positions,,) =
             agg.getPortfolioData(address(this), new address[](0), vaults);
         assertEq(positions.length, 0, "no positions");
     }

@@ -96,6 +96,10 @@ interface IERC721Card {
     function nextTokenId() external view returns (uint24);
     function getActiveAuction(uint8 line) external view returns (uint24 tokenId);
     function getAuction(uint24 tokenId) external view returns (Auction memory);
+    /// @dev The address a creator deposit is refunded to (`settleAuction` / `reclaimUnsold`), i.e. who
+    ///      holds the deposit position. A delegated agent may queue a piece, but the deposit returns to
+    ///      the owner, so ownership — not the queueing caller — identifies that position.
+    function owner() external view returns (address);
 }
 
 /**
@@ -189,12 +193,36 @@ contract QueryAggregator is SafeOwnableUUPS {
         uint256 claimable;
     }
 
+    /// @notice A single ETH escrow a user holds inside an ERC721 auction instance.
+    /// @dev One entry per (auction, role) escrow: a user who is both the creator and the high bidder on
+    ///      the same piece holds two distinct amounts and gets two entries. `amount` is ESCROWED, never
+    ///      withdrawable-now, and is deliberately excluded from `totalClaimable` (see getPortfolioData).
+    struct AuctionPosition {
+        address instance;
+        string name;
+        uint256 tokenId;
+        /// @notice ETH held for this position: the user's high bid, or the creator's deposit.
+        uint256 amount;
+        /// @notice True when this entry is the creator's queue deposit; false when it is a high bid.
+        bool isCreatorDeposit;
+        /// @notice Auction end timestamp — when the escrow becomes actionable.
+        uint256 endTime;
+        /// @notice The auction has ended with bids: `settleAuction` releases this escrow (mints to the
+        ///         winner, refunds the creator deposit). Permissionless.
+        bool settleable;
+        /// @notice The auction has ended with no bids: `reclaimUnsold` returns the deposit (less the
+        ///         protocol cut when a treasury is set). Creator positions only.
+        bool reclaimable;
+    }
+
     /// @dev Internal accumulator for getPortfolioData loop — avoids stack-too-deep.
     struct PortfolioAccumulator {
         ERC404Holding[] tempERC404;
         ERC1155Holding[] tempERC1155;
+        AuctionPosition[] tempAuction;
         uint256 erc404Count;
         uint256 erc1155Count;
+        uint256 auctionCount;
         uint256 totalClaimable;
     }
 
@@ -219,6 +247,14 @@ contract QueryAggregator is SafeOwnableUUPS {
     /// @notice Hard cap on editions scanned per ERC1155 card. Bounds the per-card loop so a malicious
     ///         instance reporting a huge `nextEditionId` cannot OOG-revert the whole batch (spec F-D).
     uint256 public constant MAX_EDITIONS_PER_CARD = 100;
+
+    /// @notice Hard cap on auction lines scanned per ERC721 instance. `ERC721AuctionInstance` bounds its
+    ///         own `lines` to 1..3 at construction; this lens does not take that on trust, so an instance
+    ///         reporting a larger line count cannot expand the per-instance read loop.
+    uint8 public constant MAX_AUCTION_LINES_PER_INSTANCE = 3;
+
+    /// @notice Escrow roles a single auction can hold for one user: high bid and creator deposit.
+    uint256 private constant AUCTION_POSITIONS_PER_LINE = 2;
 
     bool private _initialized;
 
@@ -336,6 +372,11 @@ contract QueryAggregator is SafeOwnableUUPS {
      * @return erc1155Holdings All ERC1155 edition holdings with non-zero balance
      * @return vaultPositions All vault benefactor positions with non-zero shares
      * @return totalClaimable Sum of all claimable rewards (ETH)
+     * @return auctionPositions All ETH the user has escrowed in ERC721 auctions — high bids and creator
+     *         deposits — each flagged with the act that releases it
+     * @dev `auctionPositions` is deliberately NOT summed into `totalClaimable`. `totalClaimable` means
+     *      funds withdrawable now; auction escrow is held by the auction until it settles or is
+     *      reclaimed, so folding it in would overstate withdrawable funds on a money surface.
      */
     function getPortfolioData(address user, address[] calldata instances, address[] calldata vaultAddrs)
         external
@@ -344,7 +385,8 @@ contract QueryAggregator is SafeOwnableUUPS {
             ERC404Holding[] memory erc404Holdings,
             ERC1155Holding[] memory erc1155Holdings,
             VaultPosition[] memory vaultPositions,
-            uint256 totalClaimable
+            uint256 totalClaimable,
+            AuctionPosition[] memory auctionPositions
         )
     {
         // Bound both client-supplied arrays (mirrors getProjectCardsBatch) so a huge wallet cannot
@@ -357,6 +399,9 @@ contract QueryAggregator is SafeOwnableUUPS {
         PortfolioAccumulator memory acc;
         acc.tempERC404 = new ERC404Holding[](instances.length);
         acc.tempERC1155 = new ERC1155Holding[](instances.length);
+        // Worst case per ERC721 instance: every scanned line holds both a high bid and a creator deposit.
+        acc.tempAuction =
+            new AuctionPosition[](instances.length * MAX_AUCTION_LINES_PER_INSTANCE * AUCTION_POSITIONS_PER_LINE);
 
         for (uint256 i = 0; i < instances.length; i++) {
             _processPortfolioInstance(instances[i], user, acc);
@@ -370,6 +415,11 @@ contract QueryAggregator is SafeOwnableUUPS {
         erc1155Holdings = new ERC1155Holding[](acc.erc1155Count);
         for (uint256 i = 0; i < acc.erc1155Count; i++) {
             erc1155Holdings[i] = acc.tempERC1155[i];
+        }
+
+        auctionPositions = new AuctionPosition[](acc.auctionCount);
+        for (uint256 i = 0; i < acc.auctionCount; i++) {
+            auctionPositions[i] = acc.tempAuction[i];
         }
 
         vaultPositions = _getVaultPositions(user, vaultAddrs);
@@ -395,6 +445,14 @@ contract QueryAggregator is SafeOwnableUUPS {
                     if (holding.editionIds.length > 0) {
                         acc.tempERC1155[acc.erc1155Count++] = holding;
                     }
+                } else if (typeHash == TYPE_ERC721) {
+                    // Escrowed ETH, not a holding: it stays out of `acc.totalClaimable` by construction.
+                    try this.erc721AuctionPositions(instance, user) returns (AuctionPosition[] memory found) {
+                        for (uint256 p = 0; p < found.length; p++) {
+                            found[p].name = info.name;
+                            acc.tempAuction[acc.auctionCount++] = found[p];
+                        }
+                    } catch { }
                 }
             } catch { }
         } catch { }
@@ -558,6 +616,81 @@ contract QueryAggregator is SafeOwnableUUPS {
                 price = a.highBid > 0 ? a.highBid : a.minBid;
                 break; // first live line sets the card price
             }
+        }
+    }
+
+    /// @notice Atomic ERC721 auction-escrow reader: every ETH position `user` holds inside one auction
+    ///         instance. External so the caller can try/catch the whole group — a target that is not an
+    ///         auction instance, that reverts, or that returns undecodable data yields no positions
+    ///         instead of failing the portfolio read. Not for direct use.
+    /// @dev Enumeration is bounded and complete for escrow that is live or actionable. `lineQueueHead`
+    ///      advances only when an auction settles or is reclaimed, so the head of each line is the only
+    ///      auction on that line that can hold a bid, and `getActiveAuction` returns it whether it is
+    ///      live or ended-unsettled (it returns 0 once settled). Cost is at most
+    ///      `MAX_AUCTION_LINES_PER_INSTANCE` head reads per instance rather than a queue walk.
+    ///      Creator deposits on pieces still QUEUED BEHIND a head are escrowed but not yet actionable —
+    ///      those auctions have not started, so nothing can be settled or reclaimed on them. Surfacing
+    ///      them would require an unbounded queue walk; a follow-on can add a paged queue reader if the
+    ///      pre-start deposit needs its own line in the portfolio.
+    ///      `tokenId` 0 is the "no live auction" sentinel and is never a real piece — `nextTokenId`
+    ///      starts at 1 — so a 0 is skipped rather than passed to `getAuction` (which reverts on it).
+    // slither-disable-next-line calls-loop,timestamp
+    function erc721AuctionPositions(address instance, address user)
+        external
+        view
+        returns (AuctionPosition[] memory positions)
+    {
+        IERC721Card c = IERC721Card(instance);
+        address creator = c.owner();
+
+        uint8 lineCount = c.lines();
+        if (lineCount > MAX_AUCTION_LINES_PER_INSTANCE) lineCount = MAX_AUCTION_LINES_PER_INSTANCE;
+
+        AuctionPosition[] memory temp = new AuctionPosition[](uint256(lineCount) * AUCTION_POSITIONS_PER_LINE);
+        uint256 n;
+
+        for (uint8 i = 0; i < lineCount; i++) {
+            uint24 tokenId = c.getActiveAuction(i);
+            if (tokenId == 0) continue; // no unsettled auction at this line's head
+            IERC721Card.Auction memory a = c.getAuction(tokenId);
+            if (a.settled || a.startTime == 0) continue; // settled, or queued and not yet running
+
+            bool ended = block.timestamp >= a.endTime;
+            bool hasBids = a.highBidder != address(0);
+
+            // 1. High bidder — the bid is escrowed until settlement. Outbid bidders are refunded on the
+            //    bid path, so only the CURRENT high bidder has ETH held here; there is no refund to claim.
+            if (hasBids && a.highBidder == user) {
+                temp[n++] = AuctionPosition({
+                    instance: instance,
+                    name: "",
+                    tokenId: uint256(tokenId),
+                    amount: a.highBid,
+                    isCreatorDeposit: false,
+                    endTime: uint256(a.endTime),
+                    settleable: ended,
+                    reclaimable: false
+                });
+            }
+
+            // 2. Creator deposit — `minBid` is the queue deposit, refunded at settlement or reclaim.
+            if (creator == user && a.minBid > 0) {
+                temp[n++] = AuctionPosition({
+                    instance: instance,
+                    name: "",
+                    tokenId: uint256(tokenId),
+                    amount: a.minBid,
+                    isCreatorDeposit: true,
+                    endTime: uint256(a.endTime),
+                    settleable: ended && hasBids,
+                    reclaimable: ended && !hasBids
+                });
+            }
+        }
+
+        positions = new AuctionPosition[](n);
+        for (uint256 j = 0; j < n; j++) {
+            positions[j] = temp[j];
         }
     }
 
