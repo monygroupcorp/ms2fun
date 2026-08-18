@@ -5113,6 +5113,13 @@ export const erc404BondingInstanceAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'holder', internalType: 'address', type: 'address' }],
+    name: 'ownedIdsOf',
+    outputs: [{ name: 'ids', internalType: 'uint256[]', type: 'uint256[]' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'owner',
     outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
@@ -19582,6 +19589,15 @@ export const useReadErc404BondingInstanceName =
   /*#__PURE__*/ createUseReadContract({
     abi: erc404BondingInstanceAbi,
     functionName: 'name',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"ownedIdsOf"`
+ */
+export const useReadErc404BondingInstanceOwnedIdsOf =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'ownedIdsOf',
   })
 
 /**

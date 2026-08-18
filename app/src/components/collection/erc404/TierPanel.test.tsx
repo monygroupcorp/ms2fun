@@ -82,11 +82,19 @@ function mountPosition(opts: {
   pendingEscrowRelease?: bigint
   isPending?: boolean
   balance?: bigint
+  ownedOrder?: readonly bigint[] | undefined
+  orderPending?: boolean
 }) {
   mockTierPosition.mockReturnValue({
     tiered: opts.tiered,
     ladder: opts.ladder ?? [],
     bandPieces: opts.bandPieces ?? [],
+    // `ownedIdsOf` order (noesis-356). Ten entries by default, matching the ten-unit balance below:
+    // DN404 keeps `ownedLength == balance / unit`, so a mock that disagreed would model a position
+    // the chain cannot hold.
+    ownedOrder: opts.orderPending
+      ? undefined
+      : (opts.ownedOrder ?? [1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n, 9n, 10n]),
     balance: opts.balance ?? 10n * UNIT,
     holdings: 12n * UNIT,
     localHoldings: 12n * UNIT,
@@ -140,7 +148,7 @@ test('renders nothing while the ladder probe is still pending', () => {
 })
 
 test('mint-up id picker offers only non-band owned ids', () => {
-  mountPosition({ tiered: true, ladder: ladder([2n, 3n]) })
+  mountPosition({ tiered: true, ladder: ladder([2n, 3n]), ownedOrder: [1n, 2n, 5001n] })
   mountOwned([ordinary(1n), ordinary(2n), tier(5001n)])
 
   render(<TierPanel instance={INSTANCE} />)
@@ -207,4 +215,114 @@ test('mint up stays available when the balance covers the escrow', () => {
 
   expect(screen.queryByTestId('tier-panel-mint-up-short')).toBeNull()
   expect(screen.getByTestId('tier-panel-mint-up')).not.toBeDisabled()
+})
+
+// ── The sacrifice preview (noesis-356) ────────────────────────────────────────────────────────────
+
+const ORDER_8 = [1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n]
+const PIECES_8 = ORDER_8.map((id) => ({ id, image: `ipfs://art/${id}`, isTier: false }))
+
+function mountWeight5() {
+  // Weight 5 escrows 4 units, so the escrow leg burns the last 4 of the 8 owned pieces; ids 1-4 are
+  // outside that tail and therefore selectable.
+  mountPosition({ tiered: true, ladder: ladder([5n]), ownedOrder: ORDER_8, balance: 10n * UNIT })
+  mockOwnedPieces.mockReturnValue({
+    pieces: PIECES_8,
+    unit: UNIT,
+    idLimit: 5000n,
+    balance: 10n * UNIT,
+    isPending: false,
+    refetch: vi.fn(),
+  })
+}
+
+test('mint up names one id and shows all five pieces that leave, as art', () => {
+  mountWeight5()
+  render(<TierPanel instance={INSTANCE} />)
+  fireEvent.change(screen.getByTestId('tier-panel-tier-select'), { target: { value: '1' } })
+
+  const tiles = screen.getAllByTestId('tier-panel-sacrifice-tile')
+  expect(tiles).toHaveLength(5)
+  // The named id plus the burn tail, in owned-array order — not a set, and not a list of numbers.
+  expect(tiles.map((t) => t.textContent)).toEqual([
+    expect.stringContaining('#1'),
+    expect.stringContaining('#5'),
+    expect.stringContaining('#6'),
+    expect.stringContaining('#7'),
+    expect.stringContaining('#8'),
+  ])
+  expect(screen.getByTestId('tier-panel-sacrifice').querySelectorAll('img')).toHaveLength(5)
+})
+
+test('mint up defaults to a low-index id the burn tail cannot reach', () => {
+  mountWeight5()
+  render(<TierPanel instance={INSTANCE} />)
+  fireEvent.change(screen.getByTestId('tier-panel-tier-select'), { target: { value: '1' } })
+
+  expect(screen.getByTestId('tier-panel-zero-id-select')).toHaveValue('1')
+  expect(screen.getByTestId('tier-panel-mint-up')).not.toBeDisabled()
+})
+
+test('mint up refuses a tail id in words rather than letting it revert', () => {
+  mountWeight5()
+  render(<TierPanel instance={INSTANCE} />)
+  fireEvent.change(screen.getByTestId('tier-panel-tier-select'), { target: { value: '1' } })
+  fireEvent.change(screen.getByTestId('tier-panel-zero-id-select'), { target: { value: '8' } })
+
+  expect(screen.getByTestId('tier-panel-mint-up-tail-id')).toBeInTheDocument()
+  expect(screen.getByTestId('tier-panel-mint-up')).toBeDisabled()
+  expect(screen.queryByTestId('tier-panel-sacrifice')).toBeNull()
+})
+
+test('mint up refuses outright when every ordinary id sits in the burn tail', () => {
+  // Exactly `weight` pieces held: the tail is everything but index 0, and index 0 is a band.
+  mountPosition({
+    tiered: true,
+    ladder: ladder([5n]),
+    ownedOrder: [5001n, 2n, 3n, 4n, 5n],
+    balance: 10n * UNIT,
+  })
+  mockOwnedPieces.mockReturnValue({
+    pieces: [tier(5001n), ordinary(2n), ordinary(3n), ordinary(4n), ordinary(5n)],
+    unit: UNIT,
+    idLimit: 5000n,
+    balance: 10n * UNIT,
+    isPending: false,
+    refetch: vi.fn(),
+  })
+  render(<TierPanel instance={INSTANCE} />)
+  fireEvent.change(screen.getByTestId('tier-panel-tier-select'), { target: { value: '1' } })
+
+  expect(screen.getByTestId('tier-panel-mint-up-no-safe-id')).toBeInTheDocument()
+  expect(screen.getByTestId('tier-panel-mint-up')).toBeDisabled()
+})
+
+test('the sacrifice set states that pinned art travels with the id', () => {
+  mountWeight5()
+  render(<TierPanel instance={INSTANCE} />)
+  fireEvent.change(screen.getByTestId('tier-panel-tier-select'), { target: { value: '1' } })
+
+  expect(screen.getByTestId('tier-panel-sacrifice-fate')).toHaveTextContent(
+    /commission already paid for is not cleared/i,
+  )
+})
+
+test('band holding is disclosed as conditional before a band is ever minted', () => {
+  mountWeight5()
+  render(<TierPanel instance={INSTANCE} />)
+  fireEvent.change(screen.getByTestId('tier-panel-tier-select'), { target: { value: '1' } })
+
+  expect(screen.getByTestId('tier-panel-band-permanence')).toHaveTextContent(
+    /most recently minted one sits in the protected slot/i,
+  )
+})
+
+test('mint up waits for the owned-order read rather than offering a call it cannot describe', () => {
+  mountPosition({ tiered: true, ladder: ladder([2n]), balance: 10n * UNIT, orderPending: true })
+  mountOwned([ordinary(1n)])
+  render(<TierPanel instance={INSTANCE} />)
+  fireEvent.change(screen.getByTestId('tier-panel-tier-select'), { target: { value: '1' } })
+
+  expect(screen.getByTestId('tier-panel-order-pending')).toBeInTheDocument()
+  expect(screen.getByTestId('tier-panel-mint-up')).toBeDisabled()
 })

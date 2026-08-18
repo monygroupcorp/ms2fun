@@ -25,3 +25,69 @@
 .fullWidthBtn {
   width: 100%;
 }
+
+/* Mint-up sacrifice preview (noesis-356) — the pieces that leave, as art. Deliberately the same tile
+   language as the portfolio's keep-selection grid (Erc404Portfolio.module.css): a holder recognises
+   their own pieces there, and this is the same act read backwards. Presentational, never a control —
+   the set is decided by the tier's weight and the wallet's own order, not by clicking. */
+.sacrifice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sacrificeGrid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
+  gap: var(--space-2);
+}
+
+.sacrificeTile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 2px dashed var(--color-danger, var(--color-border));
+}
+
+.thumb {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  display: block;
+}
+
+.thumbGlyph {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+  background: var(--color-text);
+  color: var(--color-bg);
+  font-size: var(--font-size-h2);
+}
+
+.tileId {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--text-secondary);
+}
+
+.tileBadge {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary, var(--text-secondary));
+}
+
+.warn {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--color-danger, var(--text-secondary));
+  margin: 0;
+}

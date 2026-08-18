@@ -15,6 +15,7 @@ import { usePublicClient } from 'wagmi'
 import {
   erc404BondingInstanceAbi,
   useReadErc404BondingInstanceCoinBalanceOf,
+  useReadErc404BondingInstanceOwnedIdsOf,
   useReadErc404BondingInstancePendingEscrowRelease,
 } from '../../../generated/contracts'
 import { useCollectionChainId } from '../useCollectionChain'
@@ -40,6 +41,10 @@ export interface TierPosition {
   ladder: TierBand[]
   /** The holder's owned band pieces, with their tier and weight. Empty when untiered. */
   bandPieces: TierPositionBandPiece[]
+  /** The holder's ids IN OWNED-ARRAY ORDER (`ownedIdsOf`), index 0 first. `useErc404OwnedPieces`
+   *  reconstructs a SET off Transfer logs and carries no order; DN404 burns LIFO off the TAIL of
+   *  this array, so ORDER is what any burn prediction needs. Undefined until the read lands. */
+  ownedOrder: readonly bigint[] | undefined
   /** `balanceOf(holder)` — the transferable amount. See the module docstring: this is the read to
    *  use in a guard, a quote, or anything sent to a contract. Undefined until the read lands. */
   balance: bigint | undefined
@@ -77,6 +82,13 @@ export function useTierPosition(
   const owned = useErc404OwnedPieces(instance, holder)
 
   const { data: holdings } = useReadErc404BondingInstanceCoinBalanceOf({
+    address: instance,
+    chainId,
+    args: holder ? [holder] : undefined,
+    query: { enabled: !!holder },
+  })
+
+  const { data: ownedOrder, refetch: refetchOwnedOrder } = useReadErc404BondingInstanceOwnedIdsOf({
     address: instance,
     chainId,
     args: holder ? [holder] : undefined,
@@ -139,6 +151,7 @@ export function useTierPosition(
     tiered,
     ladder: ladder ?? [],
     bandPieces,
+    ownedOrder,
     balance: owned.balance,
     holdings,
     localHoldings,
@@ -147,6 +160,7 @@ export function useTierPosition(
     refetch: () => {
       owned.refetch()
       void refetchLadder()
+      void refetchOwnedOrder()
     },
   }
 }
