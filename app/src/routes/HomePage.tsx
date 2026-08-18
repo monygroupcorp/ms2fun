@@ -6,12 +6,14 @@ import { forkAddresses, forkChainId } from '../lib/addresses'
 import { CollectionCard, type HomePageCard } from '../components/CollectionCard'
 import { ActivityPreview } from '../components/home/ActivityPreview'
 import { StateBlock } from '../components/ui/StateBlock'
+import { orderFeatured } from '../lib/featuredOrder'
 import styles from './HomePage.module.css'
 
 /**
  * Landing surface. Composed from:
  *  - a featured grid (fast path: `getHomePageData`) with EXEC404 / CULT EXECUTIVES pinned first,
- *    remaining featured cards ordered by on-chain `featuredRank` (lower rank = higher placement),
+ *    remaining featured cards ordered by on-chain `featuredRank` (higher rank = higher placement,
+ *    because rank is what the slot paid),
  *  - a stats bar (featured count from the fast path; total collections from the full-registry scan,
  *    which fills in when ready — the page never blocks on it),
  *  - a read-only recent-activity preview (shares the board's global feed cache).
@@ -99,17 +101,11 @@ export function HomePage() {
 
   const featuredRaw = data?.[0] ?? null
 
-  // Featured ordering: ascending featuredRank (the queue's effective rank; lower = higher).
-  // Cards with rank 0 (unranked) sort to the end so genuinely-boosted entries lead.
+  // Featured ordering: DESCENDING featuredRank. Rank is a wei score (what the slot paid, less decay),
+  // not a position — the queue itself returns it highest-first. Unranked (0) entries land at the end.
   const featuredCards = useMemo((): readonly HomePageCard[] | null => {
     if (featuredRaw === null) return null
-    const rankKey = (c: HomePageCard) =>
-      c.featuredRank === 0n ? BigInt(Number.MAX_SAFE_INTEGER) : c.featuredRank
-    return [...featuredRaw].sort((a, b) => {
-      const ra = rankKey(a)
-      const rb = rankKey(b)
-      return ra < rb ? -1 : ra > rb ? 1 : 0
-    })
+    return orderFeatured(featuredRaw)
   }, [featuredRaw])
 
   // Pre-connect: the marketing hero leads. Connected: the discovery home (below).
