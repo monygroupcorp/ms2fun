@@ -44,14 +44,15 @@ const CANVAS_H = 260
 const PAD = 28
 const CURVE_SAMPLES = 80
 
-// Full-curve minimap inset, top-right of the plot — the "where am I" signal. A hyperbola zoomed at a
+// Full-curve minimap inset, top-left of the plot — the "where am I" signal. A hyperbola zoomed at a
 // constant price ratio is self-similar, so the main plot's shape alone looks much the same at 5% and
 // at 90% sold; the minimap is what actually distinguishes them, so it is sized as a first-class
-// element rather than decoration.
+// element rather than decoration. Every curve here rises monotonically toward the top-right, so the
+// inset sits top-left, the one quadrant guaranteed empty across the whole bonding domain.
 const MINI_W = 150
 const MINI_H = 66
 const MINI_PAD = 6
-const MINI_X = CANVAS_W - PAD - MINI_W
+const MINI_X = PAD
 const MINI_Y = PAD + 4
 
 interface Ink {
