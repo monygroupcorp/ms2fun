@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import {
+  auctionPositions,
   derivePortfolioInputs,
+  hasAuctionEscrow,
   isPortfolioEmpty,
   MAX_QUERY_LIMIT,
+  type AuctionPosition,
   type PortfolioData,
 } from './usePortfolio'
 
@@ -55,7 +58,7 @@ describe('derivePortfolioInputs', () => {
 })
 
 describe('isPortfolioEmpty', () => {
-  const empty: PortfolioData = [[], [], [], 0n]
+  const empty: PortfolioData = [[], [], [], 0n, []]
 
   it('is empty for undefined or all-empty sections', () => {
     expect(isPortfolioEmpty(undefined)).toBe(true)
@@ -77,6 +80,7 @@ describe('isPortfolioEmpty', () => {
       [{ instance: addr(2), name: 'B', editionIds: [1n], balances: [0n] }],
       [{ vault: addr(3), name: 'V', contribution: 0n, shares: 0n, claimable: 0n }],
       0n,
+      [],
     ]
     expect(isPortfolioEmpty(data)).toBe(true)
   })
@@ -96,6 +100,7 @@ describe('isPortfolioEmpty', () => {
       [],
       [],
       0n,
+      [],
     ]
     expect(isPortfolioEmpty(data)).toBe(false)
   })
@@ -106,6 +111,7 @@ describe('isPortfolioEmpty', () => {
       [{ instance: addr(2), name: 'B', editionIds: [1n], balances: [3n] }],
       [],
       0n,
+      [],
     ]
     expect(isPortfolioEmpty(data)).toBe(false)
   })
@@ -116,7 +122,47 @@ describe('isPortfolioEmpty', () => {
       [],
       [{ vault: addr(3), name: 'V', contribution: 1n, shares: 0n, claimable: 0n }],
       0n,
+      [],
     ]
     expect(isPortfolioEmpty(data)).toBe(false)
+  })
+})
+
+describe('auction escrow', () => {
+  const position = (over: Partial<AuctionPosition> = {}): AuctionPosition => ({
+    instance: addr(9),
+    name: 'Auction House',
+    tokenId: 1n,
+    amount: 2n * 10n ** 18n,
+    isCreatorDeposit: false,
+    endTime: 1_700_000_000n,
+    settleable: false,
+    reclaimable: false,
+    ...over,
+  })
+
+  const withPositions = (positions: AuctionPosition[]): PortfolioData => [[], [], [], 0n, positions]
+
+  it('reads the escrow leg by index, not by tuple position', () => {
+    const p = position()
+    expect(auctionPositions(withPositions([p]))).toEqual([p])
+    expect(auctionPositions(undefined)).toEqual([])
+  })
+
+  it('a standing high bid makes the portfolio non-empty', () => {
+    // The empty state invites the user to bid; it must not claim "nothing held" once they have.
+    expect(isPortfolioEmpty(withPositions([position()]))).toBe(false)
+    expect(hasAuctionEscrow(withPositions([position()]))).toBe(true)
+  })
+
+  it("a creator's queue deposit makes the portfolio non-empty", () => {
+    const data = withPositions([position({ isCreatorDeposit: true, amount: 5n * 10n ** 17n })])
+    expect(isPortfolioEmpty(data)).toBe(false)
+  })
+
+  it('a zero-amount position is not escrow', () => {
+    const data = withPositions([position({ amount: 0n })])
+    expect(hasAuctionEscrow(data)).toBe(false)
+    expect(isPortfolioEmpty(data)).toBe(true)
   })
 })
