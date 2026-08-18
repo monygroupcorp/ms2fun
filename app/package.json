@@ -24,7 +24,8 @@
     "chain:deploy": "tsx scripts/dev-chain/deploy.ts",
     "chain:check": "tsx scripts/dev-chain/check.ts",
     "chain:stop": "bash scripts/dev-chain/stop.sh",
-    "tithe:report": "tsx scripts/tithe-report.ts"
+    "tithe:report": "tsx scripts/tithe-report.ts",
+    "publish:preflight": "tsx scripts/assert-publishable.ts"
   },
   "dependencies": {
     "@tanstack/query-sync-storage-persister": "^5.101.2",
