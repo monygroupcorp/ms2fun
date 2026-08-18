@@ -17,6 +17,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { formatUnits, parseUnits } from 'viem'
 import { useAccount, useWaitForTransactionReceipt } from 'wagmi'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   useReadErc404BondingInstanceDecimals,
   useReadErc404BondingInstanceGetSkipNft,
@@ -24,7 +25,7 @@ import {
   useWriteErc404BondingInstanceSetSkipNft,
 } from '../../../generated/contracts'
 import { useCollectionChainId } from '../useCollectionChain'
-import { txErrorReason } from '../../ui/useTxAction'
+import { invalidateInstanceQueries, txErrorReason } from '../../ui/useTxAction'
 import { IpfsImage } from '../../ui/IpfsImage'
 import { LearnLink } from '../../wizard/LearnLink'
 import { useErc404OwnedPieces, type OwnedPiece } from './useErc404OwnedPieces'
@@ -190,6 +191,7 @@ function RerollDropdown({
   onDone: () => void
 }) {
   const chainId = useCollectionChainId()
+  const queryClient = useQueryClient()
   const [amountStr, setAmountStr] = useState('')
 
   const skipNft = useReadErc404BondingInstanceGetSkipNft({
@@ -213,6 +215,10 @@ function RerollDropdown({
     if (rerollRx.isSuccess) {
       reroll.reset()
       setAmountStr('')
+      // Shared invalidation (noesis-352): a reroll reassigns which ids this holder owns — TierPanel's
+      // band-piece read and any other instance-scoped read must not keep showing the pre-reroll ids.
+      // See useTxAction's `instance` opt for the rationale.
+      invalidateInstanceQueries(queryClient, instance)
       onDone()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset/onDone stable enough; guard on success

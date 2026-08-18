@@ -45,6 +45,13 @@ vi.mock('../useCollectionChain', () => ({
   }),
 }))
 
+// The shared invalidation seam (noesis-352) needs a QueryClient; these tests aren't exercising
+// caching, so a stub with a spy-able `invalidateQueries` is enough (no QueryClientProvider needed).
+const mockInvalidateQueries = vi.hoisted(() => vi.fn())
+vi.mock('@tanstack/react-query', () => ({
+  useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
+}))
+
 const mockWriteContract = vi.hoisted(() => vi.fn())
 
 // The carve controls are driven by two on-chain reads: the immutable declared max, and `previewCarve`
