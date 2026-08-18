@@ -18,5 +18,7 @@ export interface RankedCard {
  * equal ranks keep the order the chain returned them in — that tiebreak is already the chain's.
  */
 export function orderFeatured<T extends RankedCard>(cards: readonly T[]): readonly T[] {
-  return [...cards].sort((a, b) => (a.featuredRank > b.featuredRank ? -1 : a.featuredRank < b.featuredRank ? 1 : 0))
+  return [...cards].sort((a, b) =>
+    a.featuredRank > b.featuredRank ? -1 : a.featuredRank < b.featuredRank ? 1 : 0,
+  )
 }
