@@ -266,4 +266,40 @@ contract CurveParamsComputerTest is Test {
         assertLe(pole, computer.MAX_POLE_WAD(), "solved pole is inside the band");
         assertApproxEqRel(computer.graduationMultipleAt(pole), targetG, 0.000001e18, "solve hits its target");
     }
+
+    // ============================================
+    // The admissible reserve band (noesis-255)
+    // ============================================
+
+    /// @dev The shape constants MIN_POLE_WAD / MAX_POLE_WAD do not merely bound the pole — they decide
+    ///      which `liquidityReserveBps` a collection can be created at AT ALL, because the parity target
+    ///      G = 0.8 * (1 - r) / r must land inside [G(MAX_POLE), G(MIN_POLE)] or `solvePole` reverts.
+    ///      That band is 592..3567 bps and is written down nowhere else in the tree. `LaunchManager`
+    ///      accepts any bps in (0, 10000), so a preset outside this band is storable and every create
+    ///      against it reverts. These tests pin the edges so a change to either pole constant — which
+    ///      silently moves which presets are launchable — cannot land unannounced.
+    uint256 internal constant MIN_RESERVE_BPS = 592;
+    uint256 internal constant MAX_RESERVE_BPS = 3567;
+
+    function test_Reserve_AdmissibleBandEdgesSolve() public view {
+        computer.computeCurveParams(1000, STANDARD_TARGET, STANDARD_UNIT, MIN_RESERVE_BPS);
+        computer.computeCurveParams(1000, STANDARD_TARGET, STANDARD_UNIT, MAX_RESERVE_BPS);
+    }
+
+    function test_Reserve_JustOutsideTheBandReverts() public {
+        vm.expectRevert(CurveParamsComputer.ParityTargetUnreachable.selector);
+        computer.computeCurveParams(1000, STANDARD_TARGET, STANDARD_UNIT, MIN_RESERVE_BPS - 1);
+
+        vm.expectRevert(CurveParamsComputer.ParityTargetUnreachable.selector);
+        computer.computeCurveParams(1000, STANDARD_TARGET, STANDARD_UNIT, MAX_RESERVE_BPS + 1);
+    }
+
+    /// @dev The shipped presets (DeployCore, all at 1000 bps) sit strictly inside the band, with room
+    ///      on both sides. A retune that walks a preset to an edge is a launch outage, not a rounding
+    ///      difference, so the margin is asserted rather than assumed.
+    function test_Reserve_ShippedPresetIsInsideTheBandWithMargin() public view {
+        assertGt(RESERVE_BPS, MIN_RESERVE_BPS, "shipped reserve is above the low edge");
+        assertLt(RESERVE_BPS, MAX_RESERVE_BPS, "shipped reserve is below the high edge");
+        computer.computeCurveParams(1000, STANDARD_TARGET, STANDARD_UNIT, RESERVE_BPS);
+    }
 }
