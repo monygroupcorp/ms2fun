@@ -70,6 +70,9 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     /// @dev withdrawTargetFees: the registry has no per-target alignment sink pinned yet
     ///      (`getCommunityPayout == address(0)`). Accrual still happens; only the push is gated.
     error TargetSinkNotSet();
+    /// @dev withdrawProtocolFees: `protocolTreasury` is unset, so the 1% cut has no destination.
+    ///      Accrual still happens; only the push is gated.
+    error TreasuryNotSet();
 
     // ── Events ────────────────────────────────────────────────────────────
     event LiquidityAdded(uint256 ethSwapped, uint256 targetReceived, uint256 lpPositionValue, uint256 tokenId);
@@ -520,9 +523,13 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
     // ── Governance ────────────────────────────────────────────────────────
 
-    // slither-disable-next-line reentrancy-events
+    /// @notice Push the accrued 1% protocol cut to the vault's pinned protocol treasury.
+    /// @dev Permissionless, matching the ZAMM and Uni families. The destination is ALWAYS the stored
+    ///      `protocolTreasury`, never caller-supplied — an arbitrary caller can only pay gas to move
+    ///      the cut to its fixed sink. Reverts `TreasuryNotSet` when no sink is pinned.
+    // slither-disable-next-line arbitrary-send-eth,reentrancy-events
     function withdrawProtocolFees() external {
-        if (msg.sender != protocolTreasury) revert Unauthorized();
+        if (protocolTreasury == address(0)) revert TreasuryNotSet();
         uint256 amount = accumulatedProtocolFees;
         accumulatedProtocolFees = 0;
         (bool ok,) = protocolTreasury.call{ value: amount }("");
