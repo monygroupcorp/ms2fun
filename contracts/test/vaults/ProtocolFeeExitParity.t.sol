@@ -38,8 +38,15 @@ import { MockAlgebraPositionManager, MockAlgebraSwapRouter, MockAlgebraFactory }
  *                 loudly. It does not claim which shape is correct — whether Cypher and Uni should
  *                 gain a setter is a separate, unruled question.
  *
+ *        Axis 3 — SINK PINNED AT BIRTH. `initialize` refuses a zero `protocolTreasury` in every family.
+ *                 This is the half of the property that axis 1 cannot supply: because the sink is
+ *                 write-once for two of the three families, a vault born with a zero sink accrues the
+ *                 1% cut into a bucket that can never be withdrawn (axis 1 reverts, correctly) and can
+ *                 never be re-pointed (axis 2, for those families). The factories take the treasury as
+ *                 a caller-supplied argument, so init is the boundary where it has to be rejected.
+ *
  *      NAMED EXCLUSION: `AlignmentEndowmentVault` is a fourth vault family and is deliberately NOT in
- *      the axis-1/axis-2 table. It carries no `accumulatedProtocolFees` bucket and no fee exit, so
+ *      the axis-1/axis-2/axis-3 table. It carries no `accumulatedProtocolFees` bucket and no fee exit, so
  *      three families is the complete set for this property. That exclusion is asserted below
  *      (`test_endowment_isExcludedBecauseItHasNoProtocolFeeBucket`) rather than left as a silent
  *      omission — an omission that looks identical to a coverage gap is how this class returns.
@@ -105,8 +112,20 @@ contract ProtocolFeeExitParityTest is Test {
 
     // ── Family constructors ─────────────────────────────────────────────────
 
+    // Clone and init are split so axis 3 can arm `vm.expectRevert` on the `initialize` call alone —
+    // armed across the clone it would trip on the deployment instead — while both paths still drive
+    // the same argument list.
+
     function _newCypher(address treasury_) internal returns (CypherAlignmentVault v) {
-        v = CypherAlignmentVault(payable(LibClone.clone(address(cypherImpl))));
+        v = _cloneCypher();
+        _initCypher(v, treasury_);
+    }
+
+    function _cloneCypher() internal returns (CypherAlignmentVault) {
+        return CypherAlignmentVault(payable(LibClone.clone(address(cypherImpl))));
+    }
+
+    function _initCypher(CypherAlignmentVault v, address treasury_) internal {
         v.initialize(
             address(positionManager),
             address(swapRouter),
@@ -123,7 +142,15 @@ contract ProtocolFeeExitParityTest is Test {
     }
 
     function _newZamm(address treasury_) internal returns (ZAMMAlignmentVault v) {
-        v = ZAMMAlignmentVault(payable(LibClone.clone(address(zammImpl))));
+        v = _cloneZamm();
+        _initZamm(v, treasury_);
+    }
+
+    function _cloneZamm() internal returns (ZAMMAlignmentVault) {
+        return ZAMMAlignmentVault(payable(LibClone.clone(address(zammImpl))));
+    }
+
+    function _initZamm(ZAMMAlignmentVault v, address treasury_) internal {
         v.initialize(
             address(zamm),
             address(zRouter),
@@ -138,7 +165,15 @@ contract ProtocolFeeExitParityTest is Test {
     }
 
     function _newUni(address treasury_) internal returns (UniAlignmentVault v) {
-        v = UniAlignmentVault(payable(LibClone.clone(address(uniImpl))));
+        v = _cloneUni();
+        _initUni(v, treasury_);
+    }
+
+    function _cloneUni() internal returns (UniAlignmentVault) {
+        return UniAlignmentVault(payable(LibClone.clone(address(uniImpl))));
+    }
+
+    function _initUni(UniAlignmentVault v, address treasury_) internal {
         v.initialize(
             address(this),
             address(weth),
@@ -259,6 +294,39 @@ contract ProtocolFeeExitParityTest is Test {
         vm.prank(stranger);
         zammVault.withdrawProtocolFees();
         assertEq(newSink.balance, ACCRUED, "cut follows the re-pointed sink");
+    }
+
+    // ── Axis 3 — the sink is pinned at birth ────────────────────────────────
+
+    // A zero treasury is rejected at `initialize` in every family. Each leg drives the same helper the
+    // happy-path fixtures use, with `address(0)` in the treasury slot, so the assertion tracks the real
+    // constructor argument order rather than a hand-rolled copy of it.
+
+    function test_axis3_cypher_initializeRejectsZeroTreasury() public {
+        CypherAlignmentVault v = _cloneCypher();
+        vm.expectRevert(CypherAlignmentVault.TreasuryNotSet.selector);
+        _initCypher(v, address(0));
+    }
+
+    function test_axis3_zamm_initializeRejectsZeroTreasury() public {
+        ZAMMAlignmentVault v = _cloneZamm();
+        vm.expectRevert(ZAMMAlignmentVault.TreasuryNotSet.selector);
+        _initZamm(v, address(0));
+    }
+
+    function test_axis3_uni_initializeRejectsZeroTreasury() public {
+        UniAlignmentVault v = _cloneUni();
+        vm.expectRevert(UniAlignmentVault.TreasuryNotSet.selector);
+        _initUni(v, address(0));
+    }
+
+    /// @dev The happy-path counterpart: a non-zero treasury initializes and is pinned to exactly the
+    ///      argument supplied, so the axis-3 reverts above cannot be satisfied by an `initialize` that
+    ///      rejects everything.
+    function test_axis3_nonZeroTreasuryIsPinnedInEveryFamily() public view {
+        assertEq(cypher.protocolTreasury(), treasury, "Cypher pins the supplied sink");
+        assertEq(zammVault.protocolTreasury(), treasury, "ZAMM pins the supplied sink");
+        assertEq(uni.protocolTreasury(), treasury, "Uni pins the supplied sink");
     }
 
     // ── Named exclusion ─────────────────────────────────────────────────────
