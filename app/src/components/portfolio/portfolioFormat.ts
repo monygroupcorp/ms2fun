@@ -7,16 +7,27 @@ export function fmtEth(wei: bigint): string {
   return s.includes('.') ? s.replace(/0+$/, '').replace(/\.$/, '') : s
 }
 
-/** Count of collections with any non-zero holding — the plate's "held" standing figure. */
+/**
+ * Count of collections with any non-zero holding — the plate's "held" standing figure.
+ *
+ * A live ERC721 auction escrow counts: it is a collection the user holds a position in. A vault
+ * position does not — a vault is not a collection, so it is deliberately excluded here (it has its
+ * own claimable figure elsewhere on the page).
+ *
+ * `AuctionPosition` carries one entry per (instance, role) escrow, so a user who is both the
+ * creator and the high bidder on the same instance gets two entries; count distinct `instance`
+ * addresses, not entries, so that pair reads as one collection.
+ */
 export function heldCount(data: PortfolioData | undefined): number {
   if (!data) return 0
-  const [erc404, erc1155] = data
+  const [erc404, erc1155, , , auction] = data
   const a = erc404.filter(
     (h) =>
       h.tokenBalance > 0n || h.nftBalance > 0n || h.stakedBalance > 0n || h.pendingRewards > 0n,
   ).length
   const b = erc1155.filter((h) => h.balances.some((x) => x > 0n)).length
-  return a + b
+  const auctionInstances = new Set(auction.filter((p) => p.amount > 0n).map((p) => p.instance))
+  return a + b + auctionInstances.size
 }
 
 /** Auction end timestamp (unix seconds) as a fixed UTC stamp — `YYYY-MM-DD HH:MM UTC`. */
