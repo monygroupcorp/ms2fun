@@ -680,6 +680,22 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle, IGra
         }
     }
 
+    /// @notice The ids `holder` owns, IN OWNED-ARRAY ORDER — index 0 first, the tail last.
+    /// @dev The order is the whole point of this view, and it is load-bearing rather than cosmetic.
+    ///      DN404 reconciles `ownedLength == balance / unit` on every debit by burning ids LIFO off the
+    ///      TAIL of `owned[holder]` (see `ERC404BondingStorage`'s `_afterNFTTransfers` note). The mirror
+    ///      exposes no enumeration, and an owned SET reconstructed off Transfer logs carries no order, so
+    ///      without this view no caller can say which specific pieces a pending debit — including
+    ///      `mintUp`'s escrow leg — is about to burn. With it, the exact set is nameable before signing.
+    /// @dev Reads only state DN404 already maintains; adds no write path and no storage. Unbounded in
+    ///      `ownedLength`, so it is an OFF-CHAIN view (the DN404 helper it wraps is documented the same
+    ///      way) — never call it on a write path.
+    /// @param holder The address to enumerate.
+    /// @return ids `holder`'s ids, ordered by their index in `owned[holder]`.
+    function ownedIdsOf(address holder) external view returns (uint256[] memory ids) {
+        ids = _ownedIds(holder, 0, type(uint256).max);
+    }
+
     /// @notice Claim coin released by DN404 burning a band NFT you owned.
     /// @dev The counterpart to the `_afterNFTTransfers` burn-safety hook (noesis-143). The hook fires in
     ///      the middle of DN404's own accounting and therefore must never move value — it only records
