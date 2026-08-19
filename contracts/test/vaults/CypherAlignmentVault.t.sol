@@ -19,7 +19,6 @@ import { TestableCypherAlignmentVault } from "../helpers/TestableCypherAlignment
 import { CypherAlignmentVault } from "../../src/vaults/cypher/CypherAlignmentVault.sol";
 import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
 import { Currency } from "v4-core/types/Currency.sol";
-import { Ownable } from "solady/auth/Ownable.sol";
 
 contract CypherAlignmentVaultTest is Test {
     TestableCypherAlignmentVault vault;
@@ -565,10 +564,18 @@ contract CypherAlignmentVaultTest is Test {
         assertEq(vault.accumulatedProtocolFees(), 0);
     }
 
-    function test_withdrawProtocolFees_revertsIfNotTreasury() public {
+    /// @dev The protocol-fee exit is permissionless: any caller may push the accrued 1% cut, and it
+    ///      always lands at the pinned `protocolTreasury` (never a caller-supplied address).
+    function test_withdrawProtocolFees_permissionlessNonTreasuryCaller() public {
+        _contribute(alice, 1 ether);
+        _stageHarvest(0, 1 ether, true);
+        vault.harvest(0);
+
+        uint256 before = protocolTreasury.balance;
         vm.prank(alice);
-        vm.expectRevert(Ownable.Unauthorized.selector);
         vault.withdrawProtocolFees();
+        assertEq(protocolTreasury.balance - before, 0.01 ether, "cut lands at treasury, not the caller");
+        assertEq(vault.accumulatedProtocolFees(), 0, "protocol bucket cleared");
     }
 
     // ── 80/19/1 fee split + per-target sink (noesis-051) ──────────────────────
