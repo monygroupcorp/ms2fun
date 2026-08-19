@@ -154,7 +154,6 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         address _weth,
         // slither-disable-next-line missing-zero-check
         address _alignmentToken,
-        // slither-disable-next-line missing-zero-check
         address _protocolTreasury,
         // slither-disable-next-line missing-zero-check
         address _zRouter,
@@ -177,6 +176,11 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         // WETH must be a real contract: it is the fallback rail for benefactor yield when a smart-wallet
         // recipient rejects plain ETH (adoption-gap F1). A zero WETH would silently disable the fallback.
         if (_weth == address(0)) revert InvalidAddress();
+
+        // The 1% protocol cut accrues from the first fee collection onward, and the vault carries no
+        // setter for its destination — a zero treasury would accrue into a bucket with no exit, so it
+        // is refused here rather than at withdrawal time (mirrors ZAMMAlignmentVault.initialize).
+        if (_protocolTreasury == address(0)) revert TreasuryNotSet();
 
         positionManager = IAlgebraNFTPositionManager(_positionManager);
         swapRouter = IAlgebraSwapRouter(_swapRouter);
