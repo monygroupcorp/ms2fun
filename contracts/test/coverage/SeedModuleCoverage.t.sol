@@ -96,6 +96,7 @@ contract SeedModuleCoverageTest is Test {
     address internal vapor; // mid-curve: uni vault + uni deployer + staking module
     address internal cinder; // ready-to-graduate: uni vault + uni deployer
     address internal molten; // ready-to-graduate: zamm vault + zamm deployer
+    address internal quench; // ready-to-graduate: cypher vault + cypher deployer
     address internal prism; // stacked metadata: zamm vault + zamm deployer + resolver/overlay/tier
     address internal sigil; // gated (noesis-357)
 
@@ -153,7 +154,11 @@ contract SeedModuleCoverageTest is Test {
 
         vm.recordLogs();
         harness.seedErc404ReadyToGraduate(d);
-        (cinder, molten) = _twoInstances(address(d.erc404), ERC404_INSTANCE_CREATED);
+        // One graduate-ready instance per LP venue, in the seed's own creation order.
+        address[] memory ready = _instances(address(d.erc404), ERC404_INSTANCE_CREATED, 3);
+        cinder = ready[0];
+        molten = ready[1];
+        quench = ready[2];
 
         vm.recordLogs();
         harness.seedErc404Stacked(d);
@@ -168,12 +173,13 @@ contract SeedModuleCoverageTest is Test {
     function test_gatingModule_atLeastOneInstanceWiresAModule() public view {
         address[] memory ungatedErc1155 = new address[](1);
         ungatedErc1155[0] = c2;
-        address[] memory ungatedErc404 = new address[](5);
+        address[] memory ungatedErc404 = new address[](6);
         ungatedErc404[0] = ember;
         ungatedErc404[1] = vapor;
         ungatedErc404[2] = cinder;
         ungatedErc404[3] = molten;
-        ungatedErc404[4] = prism;
+        ungatedErc404[4] = quench;
+        ungatedErc404[5] = prism;
 
         uint256 total = ungatedErc1155.length + ungatedErc404.length + 2; // + veil, sigil
         uint256 wired;
@@ -188,7 +194,7 @@ contract SeedModuleCoverageTest is Test {
         if (address(ERC404BondingInstance(payable(sigil)).gatingModule()) != address(0)) wired++;
 
         assertGt(wired, 0, string.concat("gating: 0 of ", vm.toString(total), " instances wire a module"));
-        // The baseline family (c2, ember, vapor, cinder, molten, prism) must stay open — a gate that
+        // The baseline family (c2, ember, vapor, cinder, molten, quench, prism) must stay open — a gate that
         // is non-vacuous by accident (everything gated) would hide a regression the other way.
         assertLt(wired, total, "gating: every instance is gated - the ungated baseline is gone");
     }
@@ -226,6 +232,11 @@ contract SeedModuleCoverageTest is Test {
             d.zammDeployer,
             "liquidityDeployer: ZAMM deployer not found on molten-ready"
         );
+        assertEq(
+            address(ERC404BondingInstance(payable(quench)).liquidityDeployer()),
+            d.cypherDeployer,
+            "liquidityDeployer: cypher deployer not found on quench-ready"
+        );
     }
 
     // ── metadata resolver / overlay / tier: seeded on prism-stacked ──
@@ -262,6 +273,11 @@ contract SeedModuleCoverageTest is Test {
             address(ERC404BondingInstance(payable(molten)).vault()),
             d.zammVault,
             "vault: ZAMM vault not found on molten-ready"
+        );
+        assertEq(
+            address(ERC404BondingInstance(payable(quench)).vault()),
+            d.cypherVault,
+            "vault: cypher vault not found on quench-ready"
         );
     }
 
@@ -336,34 +352,37 @@ contract SeedModuleCoverageTest is Test {
         cfg.jsonOutputPath = "";
     }
 
-    /// @dev Pulls the single `InstanceCreated` log a phase call emitted from `factory`, by selector -
+    /// @dev Pulls the `InstanceCreated` logs a phase call emitted from `factory`, by selector -
     ///      never by counting all logs, so an unrelated event in the same call cannot be mistaken for
-    ///      the instance address.
-    function _oneInstance(address factory, bytes32 selector) internal returns (address instance) {
+    ///      an instance address. `expected` is exact: a phase that grows or loses an instance fails
+    ///      here rather than silently returning a short or mis-ordered set. Log order is preserved
+    ///      (first log = index 0), which is the seed's own creation order within the phase.
+    function _instances(address factory, bytes32 selector, uint256 expected)
+        internal
+        returns (address[] memory instances)
+    {
         Vm.Log[] memory logs = vm.getRecordedLogs();
+        instances = new address[](expected);
         uint256 found;
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].emitter == factory && logs[i].topics[0] == selector) {
-                instance = address(uint160(uint256(logs[i].topics[1])));
+                if (found < expected) instances[found] = address(uint160(uint256(logs[i].topics[1])));
                 found++;
             }
         }
-        require(found == 1, "coverage harness: expected exactly one InstanceCreated log");
+        require(
+            found == expected,
+            string.concat(
+                "coverage harness: expected exactly ",
+                vm.toString(expected),
+                " InstanceCreated logs, saw ",
+                vm.toString(found)
+            )
+        );
     }
 
-    /// @dev Same as `_oneInstance`, for a phase that creates two instances in one call - order
-    ///      preserved (first log = first return value).
-    function _twoInstances(address factory, bytes32 selector) internal returns (address first, address second) {
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        uint256 found;
-        for (uint256 i = 0; i < logs.length; i++) {
-            if (logs[i].emitter == factory && logs[i].topics[0] == selector) {
-                address instance = address(uint160(uint256(logs[i].topics[1])));
-                if (found == 0) first = instance;
-                else if (found == 1) second = instance;
-                found++;
-            }
-        }
-        require(found == 2, "coverage harness: expected exactly two InstanceCreated logs");
+    /// @dev Convenience wrapper for the single-instance phases.
+    function _oneInstance(address factory, bytes32 selector) internal returns (address instance) {
+        return _instances(factory, selector, 1)[0];
     }
 }
