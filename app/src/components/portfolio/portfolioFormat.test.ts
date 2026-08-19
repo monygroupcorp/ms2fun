@@ -269,6 +269,84 @@ describe('heldCount', () => {
     ]
     expect(heldCount(data)).toBe(2)
   })
+
+  const auctionPosition = (over: Partial<AuctionPosition> = {}): AuctionPosition => ({
+    instance: addr(9),
+    name: 'Auction House',
+    tokenId: 1n,
+    amount: 1n,
+    isCreatorDeposit: false,
+    endTime: 1_700_000_000n,
+    settleable: false,
+    reclaimable: false,
+    ...over,
+  })
+
+  it('counts a user whose only position is an auction escrow', () => {
+    const data: PortfolioData = [[], [], [], 0n, [auctionPosition()]]
+    expect(heldCount(data)).toBe(1)
+  })
+
+  it('counts auction escrow alongside an ERC-404 holding', () => {
+    const data: PortfolioData = [
+      [
+        {
+          instance: addr(1),
+          name: 'Token1',
+          tokenBalance: 100n,
+          nftBalance: 0n,
+          stakedBalance: 0n,
+          pendingRewards: 0n,
+        },
+      ],
+      [],
+      [],
+      0n,
+      [auctionPosition({ instance: addr(9) })],
+    ]
+    expect(heldCount(data)).toBe(2)
+  })
+
+  it('does not count an auction position with zero escrowed', () => {
+    const data: PortfolioData = [[], [], [], 0n, [auctionPosition({ amount: 0n })]]
+    expect(heldCount(data)).toBe(0)
+  })
+
+  it('counts a bid and a creator deposit on the same instance as one collection', () => {
+    const data: PortfolioData = [
+      [],
+      [],
+      [],
+      0n,
+      [
+        auctionPosition({ instance: addr(9), isCreatorDeposit: false }),
+        auctionPosition({ instance: addr(9), isCreatorDeposit: true, tokenId: 2n }),
+      ],
+    ]
+    expect(heldCount(data)).toBe(1)
+  })
+
+  it('counts escrow in two different auction instances as two collections', () => {
+    const data: PortfolioData = [
+      [],
+      [],
+      [],
+      0n,
+      [auctionPosition({ instance: addr(9) }), auctionPosition({ instance: addr(10) })],
+    ]
+    expect(heldCount(data)).toBe(2)
+  })
+
+  it('does not count a vault position — a vault is not a collection', () => {
+    const data: PortfolioData = [
+      [],
+      [],
+      [{ vault: addr(1), name: 'Vault1', contribution: 100n, shares: 100n, claimable: 0n }],
+      0n,
+      [],
+    ]
+    expect(heldCount(data)).toBe(0)
+  })
 })
 
 describe('fmtEndTime', () => {
