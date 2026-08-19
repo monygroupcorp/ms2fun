@@ -63,7 +63,8 @@ abstract contract SeedAnvilShared is Script {
     // fifth, choosing whichever is not already answering next to them. Current reuse: ART_BASE_DOODLE
     // backs both `ember-preopen`'s pieces and — on two surfaces that never sit beside it — the
     // agent-created commission and `prism-stacked`'s opt-in wave, whose stack already spends the
-    // other three (base = ANIME, band = ARCTIC, commissions = SIMIAN).
+    // other three (base = ANIME, band = ARCTIC, commissions = SIMIAN) — and `quench-ready`, which
+    // sits in the ready-to-graduate group where ARCTIC (cinder) and SIMIAN (molten) already answer.
     string internal constant ART_BASE_ANIME = "ipfs://QmZcH4YvBVVRJtdn4RdbaqgspFU8gH6P9vomDpBVpAL3u4/";
     string internal constant ART_BASE_ARCTIC = "ipfs://bafybeibc5sgo2plmjkq2tzmhrn54bk3crhnc23zd2msg4ea7a4pxrkgfna/";
     string internal constant ART_BASE_SIMIAN = "ipfs://QmeSjSinHpPnmXmspMjwiXyN6zS4E9zccariGR3jxcaWtq/";
@@ -98,6 +99,7 @@ abstract contract SeedAnvilShared is Script {
         address vapor; // MID-CURVE — several buys + staking
         address cinder; // READY-TO-GRADUATE (Uni-V4)
         address molten; // READY-TO-GRADUATE (ZAMM)
+        address quench; // READY-TO-GRADUATE (Cypher/Algebra)
         address carve; // CARVE DEMO — bought until reserve >= 3 ETH
         address stacked; // STACKED METADATA — buy-with-mint + overlay authoring
     }
@@ -147,6 +149,7 @@ abstract contract SeedAnvilShared is Script {
         vm.serializeAddress(inner, "vapor", s.vapor);
         vm.serializeAddress(inner, "cinder", s.cinder);
         vm.serializeAddress(inner, "molten", s.molten);
+        vm.serializeAddress(inner, "quench", s.quench);
         vm.serializeAddress(inner, "carve", s.carve);
         string memory instancesJson = vm.serializeAddress(inner, "stacked", s.stacked);
 
@@ -172,6 +175,7 @@ abstract contract SeedAnvilShared is Script {
         s.vapor = vm.parseJsonAddress(json, ".instances.vapor");
         s.cinder = vm.parseJsonAddress(json, ".instances.cinder");
         s.molten = vm.parseJsonAddress(json, ".instances.molten");
+        s.quench = vm.parseJsonAddress(json, ".instances.quench");
         s.carve = vm.parseJsonAddress(json, ".instances.carve");
         s.stacked = vm.parseJsonAddress(json, ".instances.stacked");
         all = vm.parseJsonAddressArray(json, ".all");
@@ -182,6 +186,7 @@ abstract contract SeedAnvilShared is Script {
         require(s.vapor != address(0), "seed state: vapor missing");
         require(s.cinder != address(0), "seed state: cinder missing");
         require(s.molten != address(0), "seed state: molten missing");
+        require(s.quench != address(0), "seed state: quench missing");
         require(s.carve != address(0), "seed state: carve missing");
         require(s.stacked != address(0), "seed state: stacked missing");
         require(all.length > 0, "seed state: no instances to hand over");

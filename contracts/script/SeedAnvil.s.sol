@@ -63,6 +63,7 @@ interface IAgentRegistry {
 ///           · vapor       bonding        (open crossed by the FIRST advance, then bought + staked)
 ///           · cinder      bonding + MATURED (maturity +90m: after the buys, before the end)
 ///           · molten      bonding + MATURED (same shape, ZAMM venue)
+///           · quench      bonding + MATURED (same shape, Cypher/Algebra venue)
 ///           · carve       bonding, reserve >= 3 ETH, matured — graduates in deploy.ts WITH a carve
 ///           · stacked     bonding, ids 1-3 held, overlay authored
 ///           · gallery auction (1h)  ENDED — note it now ends during the FIRST advance, not the
@@ -218,7 +219,7 @@ contract SeedAnvil is SeedAnvilShared {
         );
         console.log("ERC721 : 2 auctions (gallery=1h duration, live=1-day + bid)");
         console.log(
-            "ERC404 : armed but UNBOUGHT - preopen(cypher) + mid-curve(uniV4) + 2 ready-to-graduate (cinder=uniV4, molten=zamm) + carve + stacked(zamm)"
+            "ERC404 : armed but UNBOUGHT - preopen(cypher) + mid-curve(uniV4) + 3 ready-to-graduate (cinder=uniV4, molten=zamm, quench=cypher) + carve + stacked(zamm)"
         );
         console.log("Vaults : all 4 flavors used (aave/uni/zamm/cypher); AMMs: all 3 (uniV4/zamm/cypher)");
         console.log(
@@ -925,8 +926,9 @@ contract SeedAnvil is SeedAnvilShared {
     ///      (UI shows a countdown). No buys.
     function _seedErc404PreOpen(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
-        // Cypher LP venue + Cypher (Algebra) vault — covers the Cypher family (it stays preopen, so
-        // the Algebra pool is never actually deployed; the graduated-swap Cypher path is link-out anyway).
+        // Cypher LP venue + Cypher (Algebra) vault. This instance covers the PREOPEN phase only —
+        // it never opens, so no Algebra pool is deployed from here. Cypher's graduation rail is
+        // covered by `quench-ready` below, which is armed to graduate like its uniV4/ZAMM siblings.
         address inst = _createBonding(
             d,
             "ember-preopen",
@@ -986,9 +988,12 @@ contract SeedAnvil is SeedAnvilShared {
     ///      (+1h) so the buy lands on an open, un-matured curve, and before the ~3h total so it ends
     ///      matured. We do NOT call deployLiquidity (it hits an external AMM); the human graduates
     ///      live. No vm.warp.
-    ///      Two graduate-ready instances are seeded — one per embedded-swap venue — so the
-    ///      post-graduation swap surface can be exercised on both: cinder-ready (Uni-V4 -> swapV4)
-    ///      and molten-ready (ZAMM -> swapVZ).
+    ///      One graduate-ready instance is seeded per LP venue, so the graduation rail and the
+    ///      post-graduation surface can be exercised on each: cinder-ready (Uni-V4 -> swapV4),
+    ///      molten-ready (ZAMM -> swapVZ) and quench-ready (Cypher/Algebra). The Cypher sibling has
+    ///      no embedded swap surface — its post-graduation trade path is a link-out — so what it
+    ///      covers is the deployer module and the Algebra pool creation itself, which the Algebra
+    ///      stack on the mainnet fork can serve at the same addresses mainnet uses.
     function _seedErc404ReadyToGraduate(Deployed memory d) internal {
         // Uni-V4 LP venue + Uni LP vault — graduating stands up a real V4 pool (embedded swapV4).
         // Declared max 10000: the creator kept full carve rights (shown pre-buy on the primary surface).
@@ -1019,6 +1024,21 @@ contract SeedAnvil is SeedAnvilShared {
             d.zammDeployer,
             0.043 ether,
             2500
+        );
+        // Cypher LP venue + Cypher (Algebra) vault — graduating stands up a real Algebra pool via
+        // ModuleCypherDeployer. Declared max 5000: a third distinct disclosure value.
+        _seeded.quench = _seedReadyToGraduate(
+            d,
+            "quench-ready",
+            "Quench",
+            "Quench is matured and one call from an Algebra pool - the curve's last stretch before the DEX.",
+            "QUENCH",
+            ART_QUENCH,
+            ART_BASE_DOODLE,
+            d.cypherVault,
+            d.cypherDeployer,
+            0.042 ether,
+            5000
         );
     }
 
@@ -1255,6 +1275,8 @@ contract SeedAnvil is SeedAnvilShared {
     string constant ART_VAPOR = "ipfs://QmNg8FE8pgKSCjo54WDNEHaiaUcgW2eNUQ5iWzBYc7ZUKt";
     string constant ART_CINDER = "ipfs://QmbeHAw5nGwSQSZ8pQc8WSdbzxh3rLY8Pg2rqiS1wJRcvQ";
     string constant ART_MOLTEN = "ipfs://QmS3XQsKc1FRKV6Q9sn3kgwstdLmgM5sK9gFhiJtRLv7y1";
+    // Reuses a gateway-verified CID from the harvested set (same precedent as ART_CARVED).
+    string constant ART_QUENCH = "ipfs://QmNf1UsmdGaMbpatQ6toXSkzDpizaGmC9zfunCyoz1enD5/penguin/42.png";
     string constant ART_PRISM = "ipfs://QmNf1UsmdGaMbpatQ6toXSkzDpizaGmC9zfunCyoz1enD5/penguin/777.png";
     // Reuses a gateway-verified CID from the harvested set (512.png is NOT verified; 42.png is).
     string constant ART_CARVED = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/42.png";
