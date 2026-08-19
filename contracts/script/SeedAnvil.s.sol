@@ -12,14 +12,23 @@ import { ERC404BondingInstance } from "../src/factories/erc404/ERC404BondingInst
 import { GlobalMessageRegistry } from "../src/registry/GlobalMessageRegistry.sol";
 import { FreeMintParams } from "../src/interfaces/IFactoryTypes.sol";
 import { GatingScope } from "../src/gating/IGatingModule.sol";
+import { IMerkleGatingModule, MerkleConfig } from "../src/gating/IMerkleGatingModule.sol";
 import { IAlignmentVault } from "../src/interfaces/IAlignmentVault.sol";
 import { MetadataOverlayModule } from "../src/metadata/MetadataOverlayModule.sol";
 import { Currency } from "v4-core/types/Currency.sol";
+import { MerkleProofLib } from "solady/utils/MerkleProofLib.sol";
 import { SeedAnvilShared } from "./SeedAnvilShared.sol";
 
 /// @dev Minimal owner surface for enriching a seeded alignment target's description + logo metadata.
 interface IAlignmentTargetAdmin {
     function updateAlignmentTarget(uint256 targetId, string memory description, string memory metadataURI) external;
+}
+
+/// @dev Read-back surface of MerkleGatingModule. `IMerkleGatingModule` carries only `configureFor`;
+///      the views are what let the seed assert that what it installed is what is actually stored.
+interface IMerkleGatingView {
+    function getRoots(address instance, uint256 editionId) external view returns (bytes32[] memory);
+    function getTierOpenTimes(address instance, uint256 editionId) external view returns (uint256[] memory);
 }
 
 /// @dev Minimal MasterRegistry agent surface — setAgent is onlyOwner (the deployer, pre-handover).
@@ -82,12 +91,58 @@ contract SeedAnvil is SeedAnvilShared {
     uint256 constant NEON_DRIFT_DYNAMIC_EDITION = 3;
     uint256 constant GHOST_MINT_EDITION = 1;
 
+    // ── Merkle-allowlist fixture (noesis-357) ───────────────────────────────────────────────
+    // Two gated instances, one per instance family, because the families forward DIFFERENT
+    // editionIds to the module (ERC1155 forwards the real edition; ERC404 forwards 0) and a
+    // fixture that only proves one leaves the other unexercised.
+    //
+    // Allowlist membership, shared by both fixtures:
+    //   · ADMIN  (the team's testing wallet) — the wallet the walk mints WITH.
+    //   · PERSON (anvil #2)                  — a second member, so every proof has a real sibling
+    //                                          rather than degenerating to an empty proof.
+    //   · acct1  (anvil #1)                  — deliberately NOT on any list, so the refusal path
+    //                                          (`InvalidProof`) is walkable from a funded wallet.
+    //
+    // SCOPE ASSIGNMENT IS FORCED BY THE INSTANCES, not chosen for variety. Both free-mint paths are
+    // one-claim-per-address (`freeMintClaimed[.. ]` on both families), so a cumulative per-user cap
+    // can only be exceeded on a PAID path — which means the instance that must demonstrate
+    // `QtyCapExceeded` is the one whose scope includes paid buys. Hence: ERC1155 = BOTH (paid mint
+    // gated, cap reachable), ERC404 = FREE_MINT_ONLY (the free-claim path gated, buys open).
+    uint256 constant VEIL_EDITION = 1; // first addEdition on a fresh instance; asserted, not assumed
+    uint256 constant VEIL_TIER_COUNT = 2;
+    // Tier 0 (open now). ADMIN's cap is 2 so a second mint of 2 exceeds it — QtyCapExceeded is two
+    // clicks away, which is the part most likely to be wrong in a UI (it must read `claimed` before
+    // building the request).
+    uint256 constant VEIL_T0_ADMIN_QTY = 2;
+    uint256 constant VEIL_T0_MEMBER_QTY = 1;
+    // Tier 1 (opens +1 day, i.e. after both of deploy.ts's advances) — the later phase raises the
+    // caps, which is the module's documented re-allocation lever. Unopened, so `TierNotOpen` is
+    // reachable for the whole life of the seeded chain.
+    uint256 constant VEIL_T1_ADMIN_QTY = 5;
+    uint256 constant VEIL_T1_MEMBER_QTY = 5;
+    uint256 constant VEIL_TIER1_DELAY = 1 days;
+    uint256 constant VEIL_FREE_ALLOC = 3;
+
+    // ERC404 side. The module's `amount` on the free-claim path is `unit` (one NFT's worth of
+    // tokens), NOT an NFT count — so the cap encoded in the leaf is denominated in the same units.
+    // preset 1 is unitPerNFT = 1e6, and the created instance's `unit()` is asserted against this
+    // before the config is trusted, because the leaf (and therefore the root) is built BEFORE the
+    // instance exists.
+    uint256 constant SIGIL_UNIT = 1e6 * 1e18;
+    uint256 constant SIGIL_MAX_QTY = SIGIL_UNIT; // exactly one free claim's worth
+    uint256 constant SIGIL_FREE_ALLOC = 3;
+
     // Every seeded instance, accumulated as they're created, so phase 2's _transferAdmin can hand
     // them over. Persisted to anvil-seed.json at the end of run() — phase 2 cannot see this array.
     address[] private _instances;
 
     // The ERC404 instances phase 2 resolves by name.
     SeededErc404 private _seeded;
+
+    // The two merkle-gated fixtures (noesis-357), kept so the phase-1 post-conditions and the
+    // closing console block can name them.
+    address private _gatedErc1155;
+    address private _gatedErc404;
 
     function run() public {
         deployerKey = vm.envUint("PRIVATE_KEY");
@@ -125,6 +180,13 @@ contract SeedAnvil is SeedAnvilShared {
         // ── ERC721 live (1-day duration -> stays ACTIVE after the advance) ──
         _seedErc721Live(d);
 
+        // ── Merkle-gated fixtures — one per instance family (noesis-357) ──
+        // Added AFTER the ungated instances on purpose: the rest of the walk depends on those being
+        // open, so gating is introduced as NEW surfaces rather than by gating an existing one.
+        address merkleGating = _readMerkleGatingModule();
+        _gatedErc1155 = _seedGatedErc1155(d, merkleGating);
+        _gatedErc404 = _seedGatedErc404(d, merkleGating);
+
         // Second profile + activity (independent of the time model).
         vm.startBroadcast(ACCOUNT_1_KEY);
         d.profiles.setProfile(_profileMeta("Vela", "vela", "Collector. Aligned to the cult.", ART_AVATAR_2));
@@ -159,6 +221,9 @@ contract SeedAnvil is SeedAnvilShared {
             "ERC404 : armed but UNBOUGHT - preopen(cypher) + mid-curve(uniV4) + 2 ready-to-graduate (cinder=uniV4, molten=zamm) + carve + stacked(zamm)"
         );
         console.log("Vaults : all 4 flavors used (aave/uni/zamm/cypher); AMMs: all 3 (uniV4/zamm/cypher)");
+        console.log(
+            "Gating : 2 merkle-allowlisted instances (veil-list ERC1155 BOTH, sigil-gate ERC404 FREE_MINT_ONLY)"
+        );
         console.log("Profiles: 2 (MS2 Labs, Vela) + activity. block.timestamp now:", block.timestamp);
         console.log("NEXT   : deploy.ts advances the chain past every openTime, then runs SeedAnvilBuys");
     }
@@ -232,6 +297,313 @@ contract SeedAnvil is SeedAnvilShared {
         require(IAgentRegistry(d.master).isAgent(AGENT), "agent demo: agent must be authorized");
         console.log("Agent-created collection (owned by PERSON):", instance);
         console.log("  agent:", AGENT, "person:", PERSON);
+    }
+
+    // ─────────────────── Merkle-allowlist fixtures (noesis-357) ───────────────────
+
+    /// @dev The gating module is deployed by DeployCore and exported to anvil.json. It is read here
+    ///      rather than added to the shared `Deployed` struct: only this phase needs it, and every
+    ///      other seed phase would otherwise carry a field it never touches.
+    function _readMerkleGatingModule() internal view returns (address module) {
+        string memory json = vm.readFile("./deployments/anvil.json");
+        module = vm.parseJsonAddress(json, ".contracts.ModuleMerkleGating");
+        require(module != address(0), "gating: ModuleMerkleGating missing from anvil.json");
+        require(module.code.length > 0, "gating: ModuleMerkleGating address holds no code");
+    }
+
+    /// @dev Leaf construction, byte-identical to `MerkleGatingModule.canMint` AND to
+    ///      `app/src/lib/merkle.ts`: `keccak256(bytes.concat(keccak256(abi.encode(user, maxQty))))`.
+    ///      The cap is part of the leaf, which is what stops a listed wallet re-proving itself at a
+    ///      larger cap than it was listed with.
+    function _leaf(address user, uint256 maxQty) internal pure returns (bytes32) {
+        return keccak256(bytes.concat(keccak256(abi.encode(user, maxQty))));
+    }
+
+    /// @dev Solady commutative (sorted-pair) parent hash — the internal node the on-chain verifier
+    ///      and the off-chain builder must agree on.
+    function _hashPair(bytes32 a, bytes32 b) internal pure returns (bytes32) {
+        return uint256(a) <= uint256(b) ? keccak256(abi.encodePacked(a, b)) : keccak256(abi.encodePacked(b, a));
+    }
+
+    /// @dev Build the two-member tier both fixtures use, and PROVE IT BEFORE INSTALLING IT.
+    ///
+    ///      Two members rather than one on purpose: a single-leaf tree has root == leaf and an EMPTY
+    ///      proof, so it would verify without `MerkleProofLib` ever hashing a node. With two, every
+    ///      proof carries a real sibling.
+    ///
+    ///      The self-verification below is the check the item exists for. `IMerkleGatingModule`
+    ///      documents the leaf/root construction as byte-identical to `app/src/lib/merkle.ts`; a
+    ///      divergence between the two surfaces as an unexplained `InvalidProof` in the UI during a
+    ///      walk, with nothing to point at. Verifying the seed's own proof through the very library
+    ///      the module calls moves that failure to the SEED, where it names itself.
+    function _buildTier(address a, uint256 aQty, address b, uint256 bQty, address excluded)
+        internal
+        pure
+        returns (bytes32 root, bytes32[] memory proofA, bytes32[] memory proofB)
+    {
+        bytes32 leafA = _leaf(a, aQty);
+        bytes32 leafB = _leaf(b, bQty);
+        require(leafA != leafB, "gating: the two allowlist members collide to one leaf");
+
+        root = _hashPair(leafA, leafB);
+        require(root != bytes32(0), "gating: zero root (configureFor would revert ZeroRoot)");
+
+        proofA = new bytes32[](1);
+        proofA[0] = leafB;
+        proofB = new bytes32[](1);
+        proofB[0] = leafA;
+
+        // 1. Both members must verify against the root that is about to be installed.
+        require(MerkleProofLib.verify(proofA, root, leafA), "gating: member A's proof does not verify");
+        require(MerkleProofLib.verify(proofB, root, leafB), "gating: member B's proof does not verify");
+        // 2. The deliberately-excluded address must NOT verify at either listed cap — this is the
+        //    refusal the walk sees as `InvalidProof`, checked against the same library the module uses.
+        require(
+            !MerkleProofLib.verify(proofA, root, _leaf(excluded, aQty)),
+            "gating: the excluded address verifies at member A's cap"
+        );
+        require(
+            !MerkleProofLib.verify(proofB, root, _leaf(excluded, bQty)),
+            "gating: the excluded address verifies at member B's cap"
+        );
+        // 3. A cap the leaf did not commit to must not verify either.
+        require(
+            !MerkleProofLib.verify(proofA, root, _leaf(a, aQty + 1)),
+            "gating: member A verifies at a cap it was not listed with"
+        );
+    }
+
+    /// @dev The off-chain `{address,maxQty}[]` list the mint page fetches to rebuild a connected
+    ///      wallet's proof (`app/src/lib/collection/allowlistConfig.ts`). Self-hosted as a `data:`
+    ///      URI — the same shape the admin panel's paste path produces — so the seed needs no
+    ///      network and the fixture is walkable offline.
+    ///
+    ///      Two details that are load-bearing rather than stylistic:
+    ///        · the quotes are BACKSLASH-ESCAPED, because this string is embedded as a JSON string
+    ///          value inside the collection metadata, which is itself an unencoded `data:` JSON URI;
+    ///        · `maxQty` is a QUOTED integer. The ERC404 cap is a token amount (1e24) and a JSON
+    ///          number cannot carry it exactly; the parser accepts a numeric string for exactly this.
+    function _allowlistListUri(address a, uint256 aQty, address b, uint256 bQty) internal pure returns (string memory) {
+        return string.concat(
+            "data:application/json,[{\\\"address\\\":\\\"",
+            vm.toString(a),
+            "\\\",\\\"maxQty\\\":\\\"",
+            vm.toString(aQty),
+            "\\\"},{\\\"address\\\":\\\"",
+            vm.toString(b),
+            "\\\",\\\"maxQty\\\":\\\"",
+            vm.toString(bQty),
+            "\\\"}]"
+        );
+    }
+
+    /// @dev Collection metadata carrying an `allowlists` row, so the mint page can find the list for
+    ///      this (editionId, tierIndex) pair. `tierIndex` is 0: the app resolves tier 0 only today,
+    ///      which is why tier 0 is the OPEN tier on the multi-tier fixture below.
+    function _collectionMetaWithAllowlist(
+        string memory name,
+        string memory description,
+        string memory image,
+        uint256 editionId,
+        string memory escapedListUri
+    ) internal pure returns (string memory) {
+        return string.concat(
+            "data:application/json,{\"schemaVersion\":1,\"name\":\"",
+            name,
+            "\",\"description\":\"",
+            description,
+            "\",\"category\":\"edition\",\"image\":\"",
+            image,
+            "\",\"allowlists\":[{\"editionId\":",
+            vm.toString(editionId),
+            ",\"tierIndex\":0,\"listURI\":\"",
+            escapedListUri,
+            "\"}]}"
+        );
+    }
+
+    /// @dev GATED ERC-1155, scope BOTH — the paid path is gated, so the cumulative per-user cap is
+    ///      reachable: ADMIN is listed at 2, so a first mint of 2 succeeds and a second reverts
+    ///      `QtyCapExceeded`. TWO tiers, staggered: tier 0 is open immediately (and is the tier the
+    ///      app resolves), tier 1 opens +1 day — past both of deploy.ts's advances — so `TierNotOpen`
+    ///      stays reachable for the life of the seeded chain and the tier ladder is not a length-1
+    ///      degenerate case.
+    function _seedGatedErc1155(Deployed memory d, address merkleGating) internal returns (address instance) {
+        (bytes32 tier0Root,,) = _buildTier(ADMIN, VEIL_T0_ADMIN_QTY, PERSON, VEIL_T0_MEMBER_QTY, acct1);
+        (bytes32 tier1Root,,) = _buildTier(ADMIN, VEIL_T1_ADMIN_QTY, PERSON, VEIL_T1_MEMBER_QTY, acct1);
+
+        bytes32[] memory roots = new bytes32[](VEIL_TIER_COUNT);
+        roots[0] = tier0Root;
+        roots[1] = tier1Root;
+        uint256[] memory tierOpenTimes = new uint256[](VEIL_TIER_COUNT);
+        tierOpenTimes[0] = 0; // open immediately
+        tierOpenTimes[1] = block.timestamp + VEIL_TIER1_DELAY; // still closed after every advance
+
+        vm.startBroadcast(deployerKey);
+        ERC1155Factory.CreateParams memory params = ERC1155Factory.CreateParams({
+            name: "veil-list",
+            symbol: "VEIL",
+            metadataURI: _collectionMetaWithAllowlist(
+                "Veil List",
+                "An allowlisted edition. The list is the door - prove membership and the veil parts; everyone else is turned away by the contract.",
+                ART_VEIL,
+                VEIL_EDITION,
+                _allowlistListUri(ADMIN, VEIL_T0_ADMIN_QTY, PERSON, VEIL_T0_MEMBER_QTY)
+            ),
+            creator: deployer,
+            vault: d.vault,
+            styleUri: "",
+            gatingModule: merkleGating,
+            freeMint: FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
+        });
+        instance = d.erc1155.createInstance(keccak256(abi.encode(block.timestamp, "veil-list")), params);
+        _instances.push(instance); // tracked so _transferAdmin hands ownership to ADMIN
+
+        ERC1155Instance(payable(instance))
+            .addEdition(
+                "Veil Pass",
+                0.003 ether,
+                50,
+                _pieceMeta("Veil Pass", ART_VEIL_PIECE, "veil-list"),
+                ERC1155Instance.PricingModel.LIMITED_FIXED,
+                0,
+                0,
+                VEIL_FREE_ALLOC
+            );
+
+        // Post-create, by the instance owner — the factory threads no gating config (the generic
+        // slot bakes in no module's config shape), so this second tx is the intended path.
+        IMerkleGatingModule(merkleGating)
+            .configureFor(
+                instance, MerkleConfig({ editionId: VEIL_EDITION, roots: roots, tierOpenTimes: tierOpenTimes })
+            );
+
+        d.queue.rentFeatured{ value: 1 ether }(instance, 30 days, 0.032 ether);
+        vm.stopBroadcast();
+
+        _assertGatedErc1155(instance, merkleGating, roots, tierOpenTimes);
+
+        console.log("GATED ERC1155 veil-list:", instance);
+        console.log("  edition:", VEIL_EDITION, "scope: BOTH (paid mint + free claim are both gated)");
+        console.log("  tier 0 OPEN  - allowlisted:", ADMIN, "maxQty:", VEIL_T0_ADMIN_QTY);
+        console.log("                 allowlisted:", PERSON, "maxQty:", VEIL_T0_MEMBER_QTY);
+        console.log("  tier 1 CLOSED until unix:", tierOpenTimes[1]);
+        console.log("  NOT allowlisted (refusal path):", acct1);
+    }
+
+    /// @dev GATED ERC-404, scope FREE_MINT_ONLY — the free-claim path is gated and paid buys stay
+    ///      open, which is the half of `GatingScope` an all-`BOTH` fixture cannot distinguish from
+    ///      the scope being ignored. ERC404 has no editions, so the module is configured at
+    ///      editionId 0 with a single tier (the app resolves tier 0 only).
+    function _seedGatedErc404(Deployed memory d, address merkleGating) internal returns (address instance) {
+        (bytes32 root,,) = _buildTier(ADMIN, SIGIL_MAX_QTY, PERSON, SIGIL_MAX_QTY, acct1);
+
+        bytes32[] memory roots = new bytes32[](1);
+        roots[0] = root;
+        uint256[] memory tierOpenTimes = new uint256[](1);
+        tierOpenTimes[0] = 0;
+
+        vm.startBroadcast(deployerKey);
+        ERC404Factory.CreateParams memory params = ERC404Factory.CreateParams({
+            salt: keccak256(abi.encode(block.timestamp, "sigil-gate", "ERC404")),
+            name: "sigil-gate",
+            symbol: "SIGIL",
+            styleUri: "",
+            tokenBaseURI: ART_BASE_DOODLE,
+            owner: deployer,
+            vault: d.vault,
+            nftCount: 10,
+            presetId: 1,
+            stakingModule: address(0),
+            declaredMaxAllowanceBps: 0
+        });
+        instance = d.erc404
+            .createInstance(
+                params,
+                _collectionMetaWithAllowlist(
+                    "Sigil Gate",
+                    "A curve whose free claim is sigil-locked: the allowlist opens the claim, the open market opens to everyone.",
+                    ART_SIGIL,
+                    0,
+                    _allowlistListUri(ADMIN, SIGIL_MAX_QTY, PERSON, SIGIL_MAX_QTY)
+                ),
+                d.uniDeployer,
+                merkleGating,
+                FreeMintParams({ allocation: SIGIL_FREE_ALLOC, scope: GatingScope.FREE_MINT_ONLY })
+            );
+        _instances.push(instance); // tracked so _transferAdmin hands ownership to ADMIN
+
+        ERC404BondingInstance b = ERC404BondingInstance(payable(instance));
+        // The cap in the leaf is denominated in TOKENS (the free-claim path forwards `unit` as the
+        // amount), and the leaf was built before the instance existed. If the preset's unit is not
+        // what the leaf committed to, every claim would revert `QtyCapExceeded` on a valid proof —
+        // so the assumption is checked here, before the root is installed.
+        require(b.unit() == SIGIL_UNIT, "gating: sigil-gate unit differs from the cap encoded in the leaves");
+
+        // Free claims are part of the curve and revert `TooEarly` before it opens: +1h, crossed by
+        // deploy.ts's FIRST advance, same as every other armed instance in this phase.
+        b.setBondingOpenTime(block.timestamp + 1 hours);
+        b.setBondingActive(true);
+
+        IMerkleGatingModule(merkleGating)
+            .configureFor(instance, MerkleConfig({ editionId: 0, roots: roots, tierOpenTimes: tierOpenTimes }));
+
+        d.queue.rentFeatured{ value: 1 ether }(instance, 30 days, 0.031 ether);
+        vm.stopBroadcast();
+
+        _assertGatedErc404(instance, merkleGating, roots);
+
+        console.log("GATED ERC404 sigil-gate:", instance);
+        console.log("  scope: FREE_MINT_ONLY (claimFreeMint gated; buyBonding open)");
+        console.log("  allowlisted:", ADMIN, "maxQty (tokens):", SIGIL_MAX_QTY);
+        console.log("  allowlisted:", PERSON, "maxQty (tokens):", SIGIL_MAX_QTY);
+        console.log("  NOT allowlisted (refusal path):", acct1);
+    }
+
+    /// @dev Read the ERC1155 fixture back off-chain-state. Everything asserted here is something the
+    ///      walk depends on and nothing here restates a comment: the module must be ATTACHED (the
+    ///      factory silently accepts address(0)), the scope must be the one that gates the paid path,
+    ///      the edition id must be the one the config keyed to, and the installed roots must be the
+    ///      roots that were proven above.
+    function _assertGatedErc1155(
+        address instance,
+        address merkleGating,
+        bytes32[] memory roots,
+        uint256[] memory tierOpenTimes
+    ) internal view {
+        ERC1155Instance veil = ERC1155Instance(payable(instance));
+        require(address(veil.gatingModule()) == merkleGating, "gating: veil-list has no gating module attached");
+        require(veil.gatingScope() == GatingScope.BOTH, "gating: veil-list scope is not BOTH");
+        require(veil.nextEditionId() == VEIL_EDITION + 1, "gating: veil-list edition id is not the configured one");
+        require(veil.freeMintAllocation(VEIL_EDITION) > 0, "gating: veil-list free-claim allocation is 0");
+
+        bytes32[] memory installed = IMerkleGatingView(merkleGating).getRoots(instance, VEIL_EDITION);
+        uint256[] memory installedOpens = IMerkleGatingView(merkleGating).getTierOpenTimes(instance, VEIL_EDITION);
+        require(installed.length == VEIL_TIER_COUNT, "gating: veil-list did not install both tiers");
+        require(installedOpens.length == VEIL_TIER_COUNT, "gating: veil-list tier open times are not parallel");
+        for (uint256 i = 0; i < VEIL_TIER_COUNT; i++) {
+            require(installed[i] == roots[i], "gating: veil-list installed a root that was never proven");
+            require(installedOpens[i] == tierOpenTimes[i], "gating: veil-list tier open time drifted");
+        }
+        // The two tiers must actually be STAGGERED on the seeded chain, or `TierNotOpen` is unwalkable.
+        require(installedOpens[0] <= block.timestamp, "gating: veil-list tier 0 is not open");
+        require(installedOpens[1] > block.timestamp, "gating: veil-list tier 1 is not still closed");
+    }
+
+    /// @dev Same read-back for the ERC404 fixture. `gatingActive` is checked because the module is
+    ///      consulted only while it is true, and the buy path clears it on a `permanent` allow —
+    ///      an allowlist is deliberately never permanent, and a fixture that shipped with it already
+    ///      cleared would be an open collection wearing a gated label.
+    function _assertGatedErc404(address instance, address merkleGating, bytes32[] memory roots) internal view {
+        ERC404BondingInstance sigil = ERC404BondingInstance(payable(instance));
+        require(address(sigil.gatingModule()) == merkleGating, "gating: sigil-gate has no gating module attached");
+        require(sigil.gatingActive(), "gating: sigil-gate gating is not active");
+        require(sigil.gatingScope() == GatingScope.FREE_MINT_ONLY, "gating: sigil-gate scope is not FREE_MINT_ONLY");
+        require(sigil.freeMintAllocation() == SIGIL_FREE_ALLOC, "gating: sigil-gate has nothing to claim");
+
+        bytes32[] memory installed = IMerkleGatingView(merkleGating).getRoots(instance, 0);
+        require(installed.length == 1, "gating: sigil-gate did not install its tier");
+        require(installed[0] == roots[0], "gating: sigil-gate installed a root that was never proven");
     }
 
     // ─────────────────────── Phase 1 post-conditions ───────────────────────
@@ -886,6 +1258,12 @@ contract SeedAnvil is SeedAnvilShared {
     string constant ART_PRISM = "ipfs://QmNf1UsmdGaMbpatQ6toXSkzDpizaGmC9zfunCyoz1enD5/penguin/777.png";
     // Reuses a gateway-verified CID from the harvested set (512.png is NOT verified; 42.png is).
     string constant ART_CARVED = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/42.png";
+    // The two gated fixtures REUSE gateway-verified CIDs from the harvested set rather than
+    // introduce unverified ones (same precedent as ART_CARVED): veil-list takes the azuki 128, its
+    // piece the azuki 7, and sigil-gate the azuki 777.
+    string constant ART_VEIL = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/128.png";
+    string constant ART_VEIL_PIECE = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/7.png";
+    string constant ART_SIGIL = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/777.png";
     string constant ART_AVATAR_1 = "ipfs://QmNewNmsfGgvqptDDDeDC7nwWVM8ReXp5qmySNyBdyRw9M";
     string constant ART_AVATAR_2 = "ipfs://QmWZqi5xnTcnqa4k7UuzeLd3sm2mCci24wx1yQvKiDq1vm";
 
