@@ -84,6 +84,25 @@ export function derivePortfolioInputs(
   return { instances, vaultAddrs, truncated }
 }
 
+/**
+ * Pure: build the portfolio query key from its inputs.
+ *
+ * Keyed on the array CONTENTS (joined), not their lengths — two instance sets of equal size but
+ * different membership must produce different keys, or React Query treats distinct reads as the
+ * same cache entry. `instances`/`vaultAddrs` are already lowercase-normalised addresses in a
+ * deterministic order (see `derivePortfolioInputs`), so a plain `.join(',')` is stable.
+ *
+ * Extracted from the hook so it can be unit-tested without a chain.
+ */
+export function portfolioQueryKey(
+  chainId: number,
+  user: `0x${string}` | undefined,
+  instances: `0x${string}`[],
+  vaultAddrs: `0x${string}`[],
+): readonly unknown[] {
+  return ['portfolio', chainId, user ?? null, instances.join(','), vaultAddrs.join(',')]
+}
+
 /** The user's auction escrow positions, ordered as the aggregator returned them. */
 export function auctionPositions(data: PortfolioData | undefined): readonly AuctionPosition[] {
   return data?.[4] ?? []
@@ -137,7 +156,7 @@ export function usePortfolio(user: `0x${string}` | undefined): UsePortfolioResul
   }
 
   const { data, isPending, isError } = useQuery({
-    queryKey: ['portfolio', forkChainId, user ?? null, instances.length, vaultAddrs.length],
+    queryKey: portfolioQueryKey(forkChainId, user, instances, vaultAddrs),
     enabled,
     staleTime: 30_000,
     queryFn: async (): Promise<PortfolioData> => {
