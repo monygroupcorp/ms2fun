@@ -19,6 +19,7 @@ import { forkAddresses } from '../lib/addresses'
 import { formatTokenAmount } from '../lib/format'
 import { EXEC404_ADDRESS, EXEC404_CHAIN_ID, UNISWAP_SWAP_URL, exec404Abi } from '../lib/exec404'
 import { txErrorReason } from './ui/useTxAction'
+import { applySellSlippage } from './collection/erc404/bondingFormat'
 import { SwapQuickFill } from './collection/erc404/SwapQuickFill'
 import { buyEthPresets, sellPctPresets } from './collection/erc404/swapPresets'
 import cardStyles from './Exec404TradeLink.module.css'
@@ -30,7 +31,6 @@ const DEADLINE_BUFFER_SEC = 86_400n
 /** Stable far-future deadline for the quote SIMULATION only (see GraduatedSwapPanel) — keeps the sim
  *  query key from churning every second; finite so it never trips zRouter's Sushi-pool selector. */
 const QUOTE_DEADLINE = 9_999_999_999n
-const BPS_DENOMINATOR = 10_000n
 /** EXEC has a ~4% transfer tax, so a 1% default would revert most buys; start wider. */
 const DEFAULT_SLIPPAGE_PCT = '6'
 
@@ -54,7 +54,10 @@ export function Exec404SwapPanel() {
     amountIn = undefined
   }
 
-  const slippageBps = BigInt(Math.max(0, Math.round((Number(slippagePct) || 0) * 100)))
+  // Free-text box → bps; the value is not range-checked here. `applySellSlippage` does the
+  // clamping: a tolerance at or above 100% floors the min-out at 0n instead of going negative,
+  // and a non-finite or non-positive one is treated as zero tolerance.
+  const slippageBps = Math.round((Number(slippagePct) || 0) * 100)
 
   const allowanceRead = useReadContract({
     address: EXEC404_ADDRESS,
@@ -95,10 +98,7 @@ export function Exec404SwapPanel() {
     query: { enabled: quoteReady },
   })
   const quoteOut = sim.data?.result?.[1]
-  const minOut =
-    quoteOut !== undefined
-      ? (quoteOut * (BPS_DENOMINATOR - slippageBps)) / BPS_DENOMINATOR
-      : undefined
+  const minOut = quoteOut !== undefined ? applySellSlippage(quoteOut, slippageBps) : undefined
 
   const approve = useWriteContract()
   const swap = useWriteZRouterSwapV2()

@@ -30,6 +30,7 @@ import {
 import { useCollectionAddresses, useCollectionChainId } from '../useCollectionChain'
 import { invalidateInstanceQueries, txErrorReason } from '../../ui/useTxAction'
 import type { GraduatedVenue } from './useGraduatedVenue'
+import { applySellSlippage } from './bondingFormat'
 import { SwapQuickFill } from './SwapQuickFill'
 import { buyEthPresets, sellPctPresets } from './swapPresets'
 import styles from './BondingSurface.module.css'
@@ -43,7 +44,6 @@ const DEADLINE_BUFFER_SEC = 86_400n
  *  it never trips zRouter's `deadline==max` → Sushi-pool selector. The executed swap still uses a
  *  fresh now+buffer deadline. */
 const QUOTE_DEADLINE = 9_999_999_999n
-const BPS_DENOMINATOR = 10_000n
 
 interface GraduatedSwapPanelProps {
   instance: `0x${string}`
@@ -82,7 +82,10 @@ export function GraduatedSwapPanel({
     amountIn = undefined
   }
 
-  const slippageBps = BigInt(Math.max(0, Math.round((Number(slippagePct) || 0) * 100)))
+  // Free-text box → bps; the value is not range-checked here. `applySellSlippage` does the
+  // clamping: a tolerance at or above 100% floors the min-out at 0n instead of going negative,
+  // and a non-finite or non-positive one is treated as zero tolerance.
+  const slippageBps = Math.round((Number(slippagePct) || 0) * 100)
 
   // Sells pull tokens via transferFrom → need a zRouter allowance first (approve-then-swap). Buys
   // send native ETH, so no approval. The quote sim also reverts pre-approval on sells (it runs the
@@ -159,10 +162,7 @@ export function GraduatedSwapPanel({
   const sim = venue.kind === 'uniV4' ? v4Sim : vzSim
   // swapV4/swapVZ both return (amountIn, amountOut) — index 1 is what the user receives.
   const quoteOut = sim.data?.result?.[1]
-  const minOut =
-    quoteOut !== undefined
-      ? (quoteOut * (BPS_DENOMINATOR - slippageBps)) / BPS_DENOMINATOR
-      : undefined
+  const minOut = quoteOut !== undefined ? applySellSlippage(quoteOut, slippageBps) : undefined
 
   const approve = useWriteErc404BondingInstanceApprove()
   const v4Swap = useWriteZRouterSwapV4()
