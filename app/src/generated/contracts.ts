@@ -9513,23 +9513,43 @@ export const ierc404CardAbi = [
 export const ierc404StakingAbi = [
   {
     type: 'function',
-    inputs: [{ name: 'staker', internalType: 'address', type: 'address' }],
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'staker', internalType: 'address', type: 'address' },
+    ],
     name: 'calculatePendingRewards',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
   {
     type: 'function',
-    inputs: [{ name: 'user', internalType: 'address', type: 'address' }],
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'user', internalType: 'address', type: 'address' },
+    ],
     name: 'stakedBalance',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
   {
     type: 'function',
-    inputs: [],
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
     name: 'stakingEnabled',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IERC404StakingHost
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const ierc404StakingHostAbi = [
+  {
+    type: 'function',
+    inputs: [],
+    name: 'stakingModule',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
   },
 ] as const
@@ -13159,6 +13179,7 @@ export const queryAggregatorAbi = [
   {
     type: 'function',
     inputs: [
+      { name: 'module', internalType: 'address', type: 'address' },
       { name: 'instance', internalType: 'address', type: 'address' },
       { name: 'user', internalType: 'address', type: 'address' },
     ],
@@ -13181,6 +13202,7 @@ export const queryAggregatorAbi = [
   {
     type: 'function',
     inputs: [
+      { name: 'module', internalType: 'address', type: 'address' },
       { name: 'instance', internalType: 'address', type: 'address' },
       { name: 'user', internalType: 'address', type: 'address' },
     ],
@@ -13190,9 +13212,19 @@ export const queryAggregatorAbi = [
   },
   {
     type: 'function',
-    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    inputs: [
+      { name: 'module', internalType: 'address', type: 'address' },
+      { name: 'instance', internalType: 'address', type: 'address' },
+    ],
     name: 'readStakingEnabled',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'readStakingModule',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
   },
   {
@@ -24414,6 +24446,22 @@ export const useReadIerc404StakingStakingEnabled =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc404StakingHostAbi}__
+ */
+export const useReadIerc404StakingHost = /*#__PURE__*/ createUseReadContract({
+  abi: ierc404StakingHostAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc404StakingHostAbi}__ and `functionName` set to `"stakingModule"`
+ */
+export const useReadIerc404StakingHostStakingModule =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc404StakingHostAbi,
+    functionName: 'stakingModule',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc721CardAbi}__
  */
 export const useReadIerc721Card = /*#__PURE__*/ createUseReadContract({
@@ -27936,6 +27984,15 @@ export const useReadQueryAggregatorReadStakingEnabled =
   /*#__PURE__*/ createUseReadContract({
     abi: queryAggregatorAbi,
     functionName: 'readStakingEnabled',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readStakingModule"`
+ */
+export const useReadQueryAggregatorReadStakingModule =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readStakingModule',
   })
 
 /**
