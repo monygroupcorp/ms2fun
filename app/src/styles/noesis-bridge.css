@@ -20,6 +20,12 @@
    * (mono labels, Syne display) still override. */
   font-family: var(--brand-font-body);
 
+  /* Typefaces. The house namespace's `--font-primary` is a platform-dependent sans stack that
+   * this app does not self-host, so every file speaking that token resolved to whatever face the
+   * visitor's OS substituted — page titles on two routes, and `.btn` across the app. Point it at
+   * the self-hosted brand body face, the same one the shell above is pinned to. */
+  --font-primary: var(--brand-font-body);
+
   /* Backgrounds */
   --bg-primary: var(--color-bg);
   --bg-secondary: var(--color-surface);
@@ -31,9 +37,13 @@
   --text-tertiary: var(--color-text-subtle);
   --text-disabled: color-mix(in srgb, var(--color-text-subtle) 55%, var(--color-bg));
 
-  /* Borders */
+  /* Borders. The brand builds hierarchy through stroke weight, not through colour, so the
+   * secondary border resolves to ink like the primary one; component interiors that frame in
+   * 1px `--border-secondary` now read as a lighter stroke of the same ink as the 2px route
+   * shell around them rather than as a grey tint of it. `--border-tertiary` stays a tint —
+   * it carries the faintest rules, where a full-ink hairline would not be a hierarchy. */
   --border-primary: var(--color-border);
-  --border-secondary: color-mix(in srgb, var(--color-border) 16%, var(--color-bg));
+  --border-secondary: var(--color-border);
   --border-tertiary: color-mix(in srgb, var(--color-border) 10%, var(--color-bg));
 
   /* Semantic — mono, like the brand (ink is the accent). */
