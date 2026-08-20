@@ -1,4 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { createElement } from 'react'
+import { cleanup, render, screen } from '@testing-library/react'
+import { afterEach, describe, it, expect } from 'vitest'
 import {
   auctionPositions,
   derivePortfolioInputs,
@@ -8,6 +10,7 @@ import {
   type AuctionPosition,
   type PortfolioData,
 } from './usePortfolio'
+import { VaultsPanel } from './PortfolioPanels'
 
 const ZERO = '0x0000000000000000000000000000000000000000' as const
 const addr = (n: number): `0x${string}` => `0x${n.toString(16).padStart(40, '0')}` as `0x${string}`
@@ -164,5 +167,40 @@ describe('auction escrow', () => {
     const data = withPositions([position({ amount: 0n })])
     expect(hasAuctionEscrow(data)).toBe(false)
     expect(isPortfolioEmpty(data)).toBe(true)
+  })
+})
+
+// noesis-331: the vaults tab never mounted with `truncated` before this file — F-W2's window
+// notice was reachable only in HeldPanel. VaultsPanel is a .tsx component but this file stays
+// .ts (its established home per the plan), so the elements are built with `createElement` rather
+// than JSX.
+describe('VaultsPanel truncation notice', () => {
+  afterEach(cleanup)
+
+  const empty: PortfolioData = [[], [], [], 0n, []]
+
+  it('shows the truncation notice alongside the empty inbound state when truncated', () => {
+    render(
+      createElement(VaultsPanel, {
+        data: empty,
+        isPending: false,
+        isError: false,
+        truncated: true,
+      }),
+    )
+    expect(screen.getByTestId('vaults-truncated')).toBeInTheDocument()
+    expect(screen.getByText(/nothing aligns to you yet/)).toBeInTheDocument()
+  })
+
+  it('omits the notice when not truncated', () => {
+    render(
+      createElement(VaultsPanel, {
+        data: empty,
+        isPending: false,
+        isError: false,
+        truncated: false,
+      }),
+    )
+    expect(screen.queryByTestId('vaults-truncated')).not.toBeInTheDocument()
   })
 })
