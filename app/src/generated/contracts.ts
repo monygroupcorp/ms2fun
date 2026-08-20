@@ -36,6 +36,13 @@ export const alignmentEndowmentVaultAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'accumulatedTargetFees',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'alignmentToken',
     outputs: [{ name: '', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
@@ -149,6 +156,13 @@ export const alignmentEndowmentVaultAbi = [
     ],
     name: 'execute',
     outputs: [{ name: 'result', internalType: 'bytes', type: 'bytes' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'flushTargetFees',
+    outputs: [{ name: 'amount', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'nonpayable',
   },
   {
@@ -679,6 +693,44 @@ export const alignmentEndowmentVaultAbi = [
       },
     ],
     name: 'PrincipalVested',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'totalAccrued',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'TargetFeesAccrued',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'payout',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'TargetFeesFlushed',
   },
   {
     type: 'event',
@@ -14779,6 +14831,15 @@ export const useReadAlignmentEndowmentVaultAccumulatedFees =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"accumulatedTargetFees"`
+ */
+export const useReadAlignmentEndowmentVaultAccumulatedTargetFees =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'accumulatedTargetFees',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"alignmentToken"`
  */
 export const useReadAlignmentEndowmentVaultAlignmentToken =
@@ -15208,6 +15269,15 @@ export const useWriteAlignmentEndowmentVaultExecute =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"flushTargetFees"`
+ */
+export const useWriteAlignmentEndowmentVaultFlushTargetFees =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'flushTargetFees',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"harvest"`
  */
 export const useWriteAlignmentEndowmentVaultHarvest =
@@ -15328,6 +15398,15 @@ export const useSimulateAlignmentEndowmentVaultExecute =
   /*#__PURE__*/ createUseSimulateContract({
     abi: alignmentEndowmentVaultAbi,
     functionName: 'execute',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"flushTargetFees"`
+ */
+export const useSimulateAlignmentEndowmentVaultFlushTargetFees =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'flushTargetFees',
   })
 
 /**
@@ -15523,6 +15602,24 @@ export const useWatchAlignmentEndowmentVaultPrincipalVestedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: alignmentEndowmentVaultAbi,
     eventName: 'PrincipalVested',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"TargetFeesAccrued"`
+ */
+export const useWatchAlignmentEndowmentVaultTargetFeesAccruedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentEndowmentVaultAbi,
+    eventName: 'TargetFeesAccrued',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"TargetFeesFlushed"`
+ */
+export const useWatchAlignmentEndowmentVaultTargetFeesFlushedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentEndowmentVaultAbi,
+    eventName: 'TargetFeesFlushed',
   })
 
 /**
