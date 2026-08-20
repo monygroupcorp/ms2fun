@@ -6,7 +6,7 @@ import { IpfsImage } from '../ui/IpfsImage'
 import { StateBlock } from '../ui/StateBlock'
 import { groupVaultsByFamily, venueLabel, type VaultFamily } from '../../lib/wizard/vaultFlavor'
 import type { RegisteredVault } from './useRegisteredVaults'
-import { YieldVaultCreateCard } from './YieldVaultCreateCard'
+import { YieldVaultRequestCard } from './YieldVaultRequestCard'
 import { truncateAddress } from '../../lib/format'
 import { LearnLink } from './LearnLink'
 import styles from './AlignmentTargetPicker.module.css'
@@ -92,8 +92,8 @@ function TargetCard({
 
 /**
  * Target-first alignment picker: choose the COMMUNITY you align to, see its info, then pick one of its
- * vaults (venue). A venue that community doesn't have yet surfaces a "create it" affordance (inline
- * vault deployment is a follow-up — for now it points at the request flow).
+ * vaults (venue). A venue that community doesn't have yet surfaces a "request it" affordance — the
+ * protocol curates and deploys the vault itself.
  */
 export function AlignmentTargetPicker({
   vaults,
@@ -202,7 +202,7 @@ export function AlignmentTargetPicker({
           <h3 className={styles.sectionTitle}>Vault for {activeTarget.title}</h3>
           {groups.length === 0 && (
             <p className={styles.help}>
-              No vaults deployed for {activeTarget.title} yet — create one below.
+              No vaults deployed for {activeTarget.title} yet — request one below.
             </p>
           )}
           {groups.map((g) => (
@@ -235,20 +235,20 @@ export function AlignmentTargetPicker({
             </div>
           ))}
 
-          {/* Venues this community doesn't have — the "create it now" affordance. Yield (Aave endowment)
-              is permissionlessly deployable inline (noesis-077); the LP venues stay static "coming soon"
-              until their priceValidator/pool-config lockdown lands (spec §4.2). */}
+          {/* Venues this community doesn't have — the "request it" affordance. Yield (Aave endowment)
+              takes an on-chain request the protocol reviews and deploys (noesis-367); the LP venues stay
+              static "coming soon" until their priceValidator/pool-config lockdown lands (spec §4.2). */}
           {missingVenues.length > 0 && (
             <div className={styles.familyBlock}>
               <span className={styles.familyTag}>Not deployed</span>
               <div className={styles.venueGrid}>
                 {missingVenues.map((c) =>
                   c.family === 'yield' ? (
-                    <YieldVaultCreateCard
+                    <YieldVaultRequestCard
                       key={c.venue}
                       targetId={activeTarget.id}
                       targetTitle={activeTarget.title}
-                      onCreated={() => {}}
+                      onRequested={() => {}}
                     />
                   ) : (
                     <div key={c.venue} className={`${styles.venueCard} ${styles.venueCreate}`}>

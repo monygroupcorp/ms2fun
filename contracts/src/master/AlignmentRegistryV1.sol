@@ -38,6 +38,13 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     error ReferencePoolTokenMismatch();
     error InvalidMetadataURI();
 
+    // ── Events ──
+    /// @notice A caller asked the protocol to deploy a curated vault for `token` under `targetId`.
+    /// @dev Declared on the implementation rather than `IAlignmentRegistry` because the request surface is
+    ///      an ask, not part of the registry's consumed read/write contract (same placement as
+    ///      `hasActiveTarget`). Purely informational: it grants no authority and creates no vault.
+    event VaultRequested(uint256 indexed targetId, address indexed token, address indexed requester);
+
     /// @notice Default TWAP window (seconds) used when a `ReferencePool.twapWindow` is left at 0.
     uint32 internal constant DEFAULT_TWAP_WINDOW = 1800;
 
@@ -161,6 +168,24 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
             if (alignmentTargets[ids[i]].active) return true;
         }
         return false;
+    }
+
+    /// @notice Signal interest in a curated vault for `(targetId, token)`. Anyone may ask; only the owner deploys.
+    /// @dev    Curation is the product: a vault's family, price validator, pool and acquisition route are all
+    ///         chosen by the owner at deploy time, so a request carries an ASK and nothing else — no parameter
+    ///         reaches the chain from the requester. The pair is validated before the event so the feed stays
+    ///         plausible rather than arbitrary: the target must be active and `token` must already belong to it.
+    ///
+    ///         STATELESS BY DESIGN. `AlignmentRegistryV1` sits behind a UUPS proxy, and a pending-request mapping
+    ///         would extend the storage layout for a signal that log indexing already serves. Requests are
+    ///         therefore not deduplicated on-chain: a repeat ask costs the requester gas and the owner a filter.
+    /// @param targetId ID of the alignment target (must be active)
+    /// @param token    Token that must already belong to the target
+    function requestVault(uint256 targetId, address token) external {
+        if (!alignmentTargets[targetId].active) revert TargetNotFound();
+        if (!_isTokenInTarget(targetId, token)) revert TokenNotInTarget();
+
+        emit VaultRequested(targetId, token, msg.sender);
     }
 
     /// @notice Deactivate an approved alignment target. Owner only, and PERMANENT BY DESIGN.
