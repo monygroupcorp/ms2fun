@@ -55,7 +55,16 @@ contract ZAMMAlignmentVaultFactoryTest is Test {
         );
     }
 
+    /// @dev A vault binds itself to an alignment target and takes a caller-supplied pool key, so
+    ///      creation is owner-only. Any other wallet is rejected by solady `Ownable`.
+    function test_deployVault_nonOwnerReverts() public {
+        vm.prank(makeAddr("outsider"));
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        factory.deployVault(_nextSalt(), address(alignmentToken), TARGET_ID, poolKey);
+    }
+
     function test_deployVault_returnsAddress() public {
+        assertEq(factory.owner(), address(this), "positive path must run as the factory owner");
         address vault = factory.deployVault(_nextSalt(), address(alignmentToken), TARGET_ID, poolKey);
         assertTrue(vault != address(0));
     }

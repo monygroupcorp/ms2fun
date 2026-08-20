@@ -49,7 +49,17 @@ contract CypherAlignmentVaultFactoryTest is Test {
         );
     }
 
+    /// @dev A vault binds itself to an alignment target and takes caller-supplied venue wiring
+    ///      (positionManager / swapRouter), so creation is owner-only. Any other wallet is rejected by
+    ///      solady `Ownable`.
+    function test_createVault_nonOwnerReverts() public {
+        vm.prank(makeAddr("outsider"));
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        factory.createVault(_nextSalt(), positionManager, swapRouter, weth, alignmentToken, treasury, TARGET_ID);
+    }
+
     function test_createVault_deploysClone() public {
+        assertEq(factory.owner(), address(this), "positive path must run as the factory owner");
         CypherAlignmentVault vault =
             factory.createVault(_nextSalt(), positionManager, swapRouter, weth, alignmentToken, treasury, TARGET_ID);
         assertNotEq(address(vault), address(0));

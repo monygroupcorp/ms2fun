@@ -98,6 +98,9 @@ contract UniAlignmentVaultFactory is Ownable {
     }
 
     /// @notice Deploy a new vault clone via CREATE3
+    /// @dev onlyOwner. A vault binds itself to an alignment target and takes a caller-supplied price
+    ///      validator, so creation is a protocol act. `salt` stays bound to `msg.sender`, which under
+    ///      this gate is the owner.
     /// @param salt CREATE3 deployment salt for deterministic vanity address
     /// @param alignmentToken The token this vault aligns to
     /// @param alignmentTargetId The alignment target this vault is bound to
@@ -109,7 +112,7 @@ contract UniAlignmentVaultFactory is Ownable {
         address alignmentToken,
         uint256 alignmentTargetId,
         IVaultPriceValidator priceValidator
-    ) external returns (address vault) {
+    ) external onlyOwner returns (address vault) {
         bytes memory proxyCreationCode = abi.encodePacked(
             hex"3d602d80600a3d3981f3363d3d373d3d3d363d73", vaultImplementation, hex"5af43d82803e903d91602b57fd5bf3"
         );
