@@ -40,8 +40,10 @@ export function useAllCollections(filters?: CollectionFilters): {
       if (filters?.status === 'active' && !c.isActive) return false
       if (filters?.status === 'ended' && c.isActive) return false
 
-      // vault (exact address match)
-      if (filters?.vault !== undefined && c.vault !== filters.vault) return false
+      // vault (exact address match, case-insensitive — c.vault is EIP-55 checksummed from the
+      // contract read; filters.vault may arrive lowercase, e.g. from a route param)
+      if (filters?.vault !== undefined && c.vault?.toLowerCase() !== filters.vault.toLowerCase())
+        return false
 
       // search (name, case-insensitive substring)
       const q = filters?.search?.trim().toLowerCase() ?? ''
