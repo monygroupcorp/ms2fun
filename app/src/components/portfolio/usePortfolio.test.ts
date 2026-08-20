@@ -5,6 +5,7 @@ import {
   hasAuctionEscrow,
   isPortfolioEmpty,
   MAX_QUERY_LIMIT,
+  portfolioQueryKey,
   type AuctionPosition,
   type PortfolioData,
 } from './usePortfolio'
@@ -54,6 +55,31 @@ describe('derivePortfolioInputs', () => {
       vaultAddrs: [],
       truncated: false,
     })
+  })
+})
+
+describe('portfolioQueryKey', () => {
+  it('differs for two equal-length instance sets with different membership', () => {
+    const chainId = 31337
+    const user = addr(1)
+    const windowA = Array.from({ length: MAX_QUERY_LIMIT }, (_, i) => addr(i + 1))
+    const windowB = Array.from({ length: MAX_QUERY_LIMIT }, (_, i) => addr(i + 11))
+    const keyA = portfolioQueryKey(chainId, user, windowA, [])
+    const keyB = portfolioQueryKey(chainId, user, windowB, [])
+    expect(windowA).toHaveLength(windowB.length)
+    expect(keyA).not.toEqual(keyB)
+  })
+
+  it('matches for the same instances regardless of vault set', () => {
+    const chainId = 31337
+    const user = addr(1)
+    const instances = [addr(1), addr(2)]
+    expect(portfolioQueryKey(chainId, user, instances, [addr(9)])).not.toEqual(
+      portfolioQueryKey(chainId, user, instances, [addr(10)]),
+    )
+    expect(portfolioQueryKey(chainId, user, instances, [addr(9)])).toEqual(
+      portfolioQueryKey(chainId, user, [...instances], [addr(9)]),
+    )
   })
 })
 
