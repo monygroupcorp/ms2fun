@@ -207,7 +207,13 @@ function ClaimButton() {
   )
 }
 
-export function VaultsPanel({ data, isPending, isError, isOwn }: PanelProps & { isOwn?: boolean }) {
+export function VaultsPanel({
+  data,
+  isPending,
+  isError,
+  truncated,
+  isOwn,
+}: PanelProps & { isOwn?: boolean }) {
   if (isPending) return <StateBlock variant="loading">hanging the work…</StateBlock>
   if (isError)
     return <StateBlock variant="error">could not reach the aggregator — is the fork up?</StateBlock>
@@ -221,6 +227,11 @@ export function VaultsPanel({ data, isPending, isError, isOwn }: PanelProps & { 
 
   return (
     <div data-testid="portfolio-vaults">
+      {truncated && (
+        <p className={styles.warn} data-testid="vaults-truncated">
+          showing the first 50 collections only — some alignments may be hidden.
+        </p>
+      )}
       {/* Claimable hero — the bind grammar at the person level: aligned-to-you → claimable. */}
       <div className={`noesis-claimbox ${styles.claimbox}`}>
         <div className="cell">
