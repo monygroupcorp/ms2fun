@@ -17,7 +17,13 @@ gas_reports = ["*"]
 test = "test"
 script = "script"
 broadcast = "broadcast"
-fs_permissions = [{ access = "read-write", path = "./deployments/" }]
+fs_permissions = [
+    { access = "read-write", path = "./deployments/" },
+    # Read-only so the `test/audit` suppression census can enumerate and read `src/` in-process
+    # (`vm.readDir`/`vm.readFile`) instead of shelling out. All named profiles inherit
+    # `[profile.default]`, so `FOUNDRY_PROFILE=ci` picks this up unchanged.
+    { access = "read", path = "./src/" },
+]
 # The RealSettlement regression imports v4-core's real PoolManager (exact pragma 0.8.26),
 # which cannot compile under the pinned 0.8.28 default. Exclude it from the default compile
 # set; it is exercised via `FOUNDRY_CONFIG=foundry.v4.toml forge test --match-path ...`.
