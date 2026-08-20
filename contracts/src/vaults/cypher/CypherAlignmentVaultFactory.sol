@@ -67,6 +67,9 @@ contract CypherAlignmentVaultFactory is Ownable {
         CypherAlignmentVault(payable(vault)).setMaxPriceDeviationBps(bps);
     }
 
+    /// @notice Deploy a new Cypher-backed vault clone via CREATE3.
+    /// @dev onlyOwner. A vault binds itself to an alignment target, so creation is a protocol act.
+    ///      `salt` stays bound to `msg.sender`, which under this gate is the owner.
     // slither-disable-next-line reentrancy-events
     function createVault(
         bytes32 salt,
@@ -76,7 +79,7 @@ contract CypherAlignmentVaultFactory is Ownable {
         address alignmentToken,
         address protocolTreasury,
         uint256 alignmentTargetId
-    ) external returns (CypherAlignmentVault vault) {
+    ) external onlyOwner returns (CypherAlignmentVault vault) {
         bytes memory proxyCreationCode = abi.encodePacked(
             hex"3d602d80600a3d3981f3363d3d373d3d3d363d73", vaultImplementation, hex"5af43d82803e903d91602b57fd5bf3"
         );
