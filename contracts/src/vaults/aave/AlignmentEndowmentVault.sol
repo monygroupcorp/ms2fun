@@ -161,6 +161,9 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     uint256 public totalVestedDeployable; // Σ vested principal still in the position, awaiting deploy
     /// @notice Creator-yield-per-escrowed-principal accumulator, scaled by 1e18 (MasterChef).
     uint256 public accCreatorYieldPerPrincipal;
+    /// @notice Target-leg yield (native ETH wei) held by the vault because `communityPayout` is unset at
+    ///         crystallize time. Delivered by the permissionless `flushTargetFees()` once a sink exists.
+    uint256 public accumulatedTargetFees;
 
     // ── Cumulative stat counters (spec 2a §5) ─────────────────────────────────
     uint256 internal _totalPrincipalCommittedAllTime; // monotonic Σ of all principal ever deposited
@@ -180,6 +183,10 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     event ImpairmentRealized(uint256 shortfallBps, uint256 timestamp);
     event CommunityPayoutUpdated(address indexed payout);
     event Migrated(address indexed to, uint256 amount);
+    /// @notice Emitted when a crystallized target leg is held in the vault because `communityPayout` is unset.
+    event TargetFeesAccrued(uint256 amount, uint256 totalAccrued);
+    /// @notice Emitted when the accrued target leg is delivered to the community sink.
+    event TargetFeesFlushed(address indexed payout, uint256 amount);
     /// @notice Emitted when the alignment target (via an ambassador) deploys vested corpus capital.
     ///         `selector` = the first 4 bytes of `data` (0x00000000 for a plain value transfer).
     event CapitalDeployed(
@@ -216,7 +223,9 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         masterRegistry = IMasterRegistry(_masterRegistry);
         alignmentToken = _alignmentToken;
         targetId = _targetId;
-        communityPayout = _communityPayout; // may be set later via setCommunityPayout
+        // May be zero here and set later via `setCommunityPayout`; until then the target leg accrues into
+        // `accumulatedTargetFees` and is delivered by `flushTargetFees()`.
+        communityPayout = _communityPayout;
 
         // One-time max approval: the vault is the sole holder of its WETH, deposited each intake into
         // the stataToken. Cheaper + cleaner than re-approving per deposit.
@@ -396,10 +405,21 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
 
         // Target + protocol legs are pushed out now (creator leg stays as ETH for `claimYieldPurse`).
         if (targetLeg > 0) {
-            if (communityPayout == address(0)) revert CommunityPayoutNotSet();
+            // Booked at ACCRUAL, like its sibling legs: the counter means "routed to this class", and a
+            // flush is a pure delivery step.
             _totalYieldToTarget += targetLeg;
-            // force-send: a target sink that rejects ETH must not brick harvest for everyone else.
-            SafeTransferLib.forceSafeTransferETH(communityPayout, targetLeg);
+            address payout = communityPayout;
+            if (payout == address(0)) {
+                // No sink wired yet: hold the target leg in the vault instead of reverting. Crystallize is
+                // the first statement of deposit, vest, harvest and execute, so a revert here would close
+                // all four; accruing keeps them open and `flushTargetFees()` delivers the leg once a sink
+                // exists. No value is dropped.
+                accumulatedTargetFees += targetLeg;
+                emit TargetFeesAccrued(targetLeg, accumulatedTargetFees);
+            } else {
+                // force-send: a target sink that rejects ETH must not brick harvest for everyone else.
+                SafeTransferLib.forceSafeTransferETH(payout, targetLeg);
+            }
         }
         if (protocolLeg > 0) {
             _totalProtocolFees += protocolLeg;
@@ -431,6 +451,30 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         SafeTransferLib.forceSafeTransferETH(creator, amount);
         emit YieldClaimed(benefactor, creator, amount);
         emit FeesClaimed(benefactor, amount);
+        return amount;
+    }
+
+    // ┌─────────────────────────┐
+    // │   Target fee flush      │
+    // └─────────────────────────┘
+
+    /// @notice Deliver the target-leg yield accrued while `communityPayout` was unset to the current sink.
+    /// @dev    Permissionless — the destination is always this clone's `communityPayout`, never
+    ///         caller-supplied, so there is no redirect surface. Reverts `CommunityPayoutNotSet` while the
+    ///         sink is unset; the balance keeps accruing until then. `nonReentrant` + CEI: the accumulator
+    ///         is zeroed before the send, so a re-entrant call moves nothing. Force-send, so a sink that
+    ///         rejects ETH cannot make the balance unflushable.
+    /// @return amount The wei delivered (0 when nothing was accrued).
+    function flushTargetFees() external nonReentrant returns (uint256 amount) {
+        address payout = communityPayout;
+        if (payout == address(0)) revert CommunityPayoutNotSet();
+
+        amount = accumulatedTargetFees;
+        if (amount == 0) return 0;
+        accumulatedTargetFees = 0; // effect before interaction (CEI)
+
+        SafeTransferLib.forceSafeTransferETH(payout, amount);
+        emit TargetFeesFlushed(payout, amount);
         return amount;
     }
 
