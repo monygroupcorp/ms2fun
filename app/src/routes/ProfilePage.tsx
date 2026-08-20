@@ -237,6 +237,7 @@ export function ProfilePage() {
               <VaultsPanel
                 data={portfolio.data}
                 isPending={portfolio.isPending}
+                truncated={portfolio.truncated}
                 isError={portfolio.isError}
                 isOwn={isOwn}
               />
