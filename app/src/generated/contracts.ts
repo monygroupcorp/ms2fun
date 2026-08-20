@@ -1063,6 +1063,16 @@ export const alignmentRegistryV1Abi = [
     inputs: [
       { name: 'targetId', internalType: 'uint256', type: 'uint256' },
       { name: 'token', internalType: 'address', type: 'address' },
+    ],
+    name: 'requestVault',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'targetId', internalType: 'uint256', type: 'uint256' },
+      { name: 'token', internalType: 'address', type: 'address' },
       {
         name: 'route',
         internalType: 'struct IAlignmentRegistry.AcquireRoute',
@@ -1363,6 +1373,31 @@ export const alignmentRegistryV1Abi = [
       },
     ],
     name: 'Upgraded',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'targetId',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: true,
+      },
+      {
+        name: 'token',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'requester',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'VaultRequested',
   },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'AmbassadorAlreadyAssigned' },
@@ -15752,6 +15787,15 @@ export const useWriteAlignmentRegistryV1RequestOwnershipHandover =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"requestVault"`
+ */
+export const useWriteAlignmentRegistryV1RequestVault =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentRegistryV1Abi,
+    functionName: 'requestVault',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"setAcquireRoute"`
  */
 export const useWriteAlignmentRegistryV1SetAcquireRoute =
@@ -15890,6 +15934,15 @@ export const useSimulateAlignmentRegistryV1RequestOwnershipHandover =
   /*#__PURE__*/ createUseSimulateContract({
     abi: alignmentRegistryV1Abi,
     functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"requestVault"`
+ */
+export const useSimulateAlignmentRegistryV1RequestVault =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentRegistryV1Abi,
+    functionName: 'requestVault',
   })
 
 /**
@@ -16058,6 +16111,15 @@ export const useWatchAlignmentRegistryV1UpgradedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: alignmentRegistryV1Abi,
     eventName: 'Upgraded',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `eventName` set to `"VaultRequested"`
+ */
+export const useWatchAlignmentRegistryV1VaultRequestedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentRegistryV1Abi,
+    eventName: 'VaultRequested',
   })
 
 /**

@@ -1,18 +1,20 @@
 /**
- * YieldVaultCreateCard (noesis-077) — permissionless Aave endowment-vault creation from the wizard.
+ * YieldVaultRequestCard (noesis-367) — ask the protocol for a curated Aave endowment vault.
  *
- * When a community (alignment target) has no Yield vault yet, this replaces the static "coming soon"
- * card with a working Create affordance: any connected wallet paying its own gas can deploy the vault
- * for an approved token. The AlignmentEndowmentVaultFactory SELF-REGISTERS the new vault in the
- * MasterRegistry with an on-chain-derived name + hardcoded metadataURI (nothing caller-supplied), so
- * this UI never sends a name/URI. On success we invalidate the registered-vaults query so the
- * `VaultRegistered` re-scan surfaces the new Yield venue as selectable.
+ * When a community (alignment target) has no Yield vault yet, this card lets any connected wallet
+ * register an ASK: `AlignmentRegistryV1.requestVault(targetId, token)` emits `VaultRequested` and
+ * nothing more. Vault deployment is owner-only (noesis-366), because every parameter that defines a
+ * vault — its price validator, pool and acquisition route — is curated by the protocol rather than
+ * supplied by whoever asks for it. So the card sends a target and a token, and no vault parameters.
+ *
+ * A request creates no vault, so there is nothing to add to the roster on success: the card shows an
+ * "awaiting review" state instead of invalidating the registered-vaults query.
  *
  * LP venues (Uni/ZAMM/Cypher) stay "coming soon" — they need the priceValidator/pool-config lockdown
  * first (spec §4.2), and are intentionally NOT wired here.
  */
 import { useEffect, useMemo, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import {
   useAccount,
   usePublicClient,
@@ -26,54 +28,27 @@ import { humanEth, humanGas, REF_GWEI } from '../../lib/wizard/embedGas'
 import { truncateAddress } from '../../lib/format'
 import styles from './AlignmentTargetPicker.module.css'
 
-/**
- * Hand-written ABI fragment for the one factory method this card calls — mirrors the inline-ABI pattern
- * in `useRegisteredVaults` (avoids a wagmi regen just to reach a single function). The factory address
- * is exported to `forkAddresses.AaveEndowmentVaultFactory` by the deploy bridge.
- */
-const AAVE_FACTORY_ABI = [
-  {
-    type: 'function',
-    name: 'deployVault',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'salt', type: 'bytes32' },
-      { name: 'alignmentToken', type: 'address' },
-      { name: 'alignmentTargetId', type: 'uint256' },
-    ],
-    outputs: [{ name: 'vault', type: 'address' }],
-  },
-] as const
-
 interface TargetAsset {
   token: `0x${string}`
   symbol: string
 }
 
-/** A fresh 32-byte random salt — the factory binds it to msg.sender, so uniqueness per attempt is enough. */
-function randomSalt(): `0x${string}` {
-  const b = new Uint8Array(32)
-  crypto.getRandomValues(b)
-  return `0x${Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')}` as `0x${string}`
-}
-
-export function YieldVaultCreateCard({
+export function YieldVaultRequestCard({
   targetId,
   targetTitle,
-  onCreated,
+  onRequested,
 }: {
   targetId: bigint
   targetTitle: string
-  onCreated: () => void
+  onRequested: () => void
 }) {
-  const factory = forkAddresses.AaveEndowmentVaultFactory
+  const registry = forkAddresses.AlignmentRegistryV1
   const { address: account } = useAccount()
   const publicClient = usePublicClient({ chainId: forkChainId })
-  const queryClient = useQueryClient()
 
   // Resolve the approved token(s) for this target. Single asset auto-selects; multi renders a chooser.
   const { data: assetsRaw } = useReadContract({
-    address: forkAddresses.AlignmentRegistryV1,
+    address: registry,
     abi: alignmentRegistryV1Abi,
     functionName: 'getAlignmentTargetAssets',
     args: [targetId],
@@ -91,19 +66,20 @@ export function YieldVaultCreateCard({
   const [chosenToken, setChosenToken] = useState<`0x${string}` | undefined>(undefined)
   const token = assets.length === 1 ? assets[0]?.token : chosenToken
 
-  // Live gas estimate for the exact deployVault the button will send.
+  // Live gas estimate for the exact requestVault the button will send. A request is one validated
+  // event, so this is deliberately priced against that call and not against any deploy.
   const { data: gas } = useQuery({
-    queryKey: ['aave-deploy-gas', forkChainId, factory, targetId.toString(), token, account],
-    enabled: !!publicClient && !!account && !!token && factory !== undefined,
+    queryKey: ['vault-request-gas', forkChainId, registry, targetId.toString(), token, account],
+    enabled: !!publicClient && !!account && !!token,
     staleTime: 30_000,
     retry: false,
     queryFn: async (): Promise<bigint> => {
       if (!publicClient || !account || !token) throw new Error('not ready')
       return publicClient.estimateContractGas({
-        address: factory,
-        abi: AAVE_FACTORY_ABI,
-        functionName: 'deployVault',
-        args: [randomSalt(), token, targetId],
+        address: registry,
+        abi: alignmentRegistryV1Abi,
+        functionName: 'requestVault',
+        args: [targetId, token],
         account,
       })
     },
@@ -112,26 +88,24 @@ export function YieldVaultCreateCard({
   const { writeContract, data: hash, isPending, isError: writeError, reset } = useWriteContract()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
-  // When the deploy mines, re-scan the roster so the new Yield venue becomes selectable.
+  // The request mines. No vault exists yet, so there is nothing to re-scan — the roster is unchanged
+  // until the protocol deploys one. Notify the parent and leave the card in its "awaiting review" state.
   useEffect(() => {
-    if (isSuccess) {
-      void queryClient.invalidateQueries({ queryKey: ['registered-vaults'] })
-      onCreated()
-    }
+    if (isSuccess) onRequested()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSuccess])
 
   const busy = isPending || isConfirming
-  const canDeploy = !!account && !!token && !busy
+  const canRequest = !!account && !!token && !busy && !isSuccess
 
-  function deploy() {
+  function request() {
     if (!token) return
     reset()
     writeContract({
-      address: factory,
-      abi: AAVE_FACTORY_ABI,
-      functionName: 'deployVault',
-      args: [randomSalt(), token, targetId],
+      address: registry,
+      abi: alignmentRegistryV1Abi,
+      functionName: 'requestVault',
+      args: [targetId, token],
       chainId: forkChainId,
     })
   }
@@ -163,28 +137,28 @@ export function YieldVaultCreateCard({
 
       <span className={styles.venueNote}>
         {!account
-          ? `Yield · connect a wallet to create for ${targetTitle}`
+          ? `Yield · connect a wallet to request one for ${targetTitle}`
           : isSuccess
-            ? 'Vault created — now selectable above'
+            ? 'Requested — awaiting review. The protocol deploys curated vaults; a request is not a guarantee.'
             : busy
-              ? 'Deploying…'
+              ? 'Sending request…'
               : assets.length > 1 && !token
-                ? `Yield · pick a token to create for ${targetTitle}`
+                ? `Yield · pick a token to request for ${targetTitle}`
                 : writeError
-                  ? 'Deploy failed — try again'
+                  ? 'Request failed — try again'
                   : gasNote
-                    ? `Yield · deploy for ${targetTitle} · ${gasNote}`
-                    : `Yield · deploy for ${targetTitle}`}
+                    ? `Yield · request one for ${targetTitle} · ${gasNote}`
+                    : `Yield · request one for ${targetTitle}`}
       </span>
 
       <button
         type="button"
         className="btn btn-primary"
-        onClick={deploy}
-        disabled={!canDeploy}
-        data-testid="yield-vault-create"
+        onClick={request}
+        disabled={!canRequest}
+        data-testid="yield-vault-request"
       >
-        {busy ? 'Creating…' : 'Create vault'}
+        {busy ? 'Requesting…' : isSuccess ? 'Requested' : 'Request vault'}
       </button>
     </div>
   )
