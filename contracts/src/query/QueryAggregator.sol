@@ -61,11 +61,21 @@ interface IERC1155EditionReader {
     function nextEditionId() external view returns (uint256);
 }
 
-/// @notice Interface for ERC404 staking queries
+/// @notice The ERC404 instance's pointer at its staking singleton. `address(0)` = staking was never
+///         wired for this instance.
+interface IERC404StakingHost {
+    function stakingModule() external view returns (address);
+}
+
+/// @notice Interface for ERC404 staking queries.
+/// @dev Staking is a SINGLETON keyed by instance (`ERC404StakingModule`), not per-instance state, so
+///      every getter takes the instance as its first argument and none of them live on the instance
+///      itself. The singleton is reached through `IERC404StakingHost.stakingModule()`, the same routing
+///      `MetadataOverlayModule` and `TierRevealModule` use.
 interface IERC404Staking {
-    function stakingEnabled() external view returns (bool);
-    function stakedBalance(address user) external view returns (uint256);
-    function calculatePendingRewards(address staker) external view returns (uint256);
+    function stakingEnabled(address instance) external view returns (bool);
+    function stakedBalance(address instance, address user) external view returns (uint256);
+    function calculatePendingRewards(address instance, address staker) external view returns (uint256);
 }
 
 /// @notice ERC404 bonding-card reads (existing getters; the lens computes price/active from these,
@@ -778,19 +788,24 @@ contract QueryAggregator is SafeOwnableUUPS {
         return IERC404Balance(instance).unit();
     }
 
-    /// @notice Guarded read of an ERC404 instance's staking switch. Not for direct use.
-    function readStakingEnabled(address instance) external view returns (bool) {
-        return IERC404Staking(instance).stakingEnabled();
+    /// @notice Guarded read of the staking singleton an ERC404 instance is wired to. Not for direct use.
+    function readStakingModule(address instance) external view returns (address) {
+        return IERC404StakingHost(instance).stakingModule();
+    }
+
+    /// @notice Guarded read of the staking switch the singleton holds for `instance`. Not for direct use.
+    function readStakingEnabled(address module, address instance) external view returns (bool) {
+        return IERC404Staking(module).stakingEnabled(instance);
     }
 
     /// @notice Guarded read of a user's staked balance on an ERC404 instance. Not for direct use.
-    function readStakedBalance(address instance, address user) external view returns (uint256) {
-        return IERC404Staking(instance).stakedBalance(user);
+    function readStakedBalance(address module, address instance, address user) external view returns (uint256) {
+        return IERC404Staking(module).stakedBalance(instance, user);
     }
 
     /// @notice Guarded read of a user's pending staking rewards on an ERC404 instance. Not for direct use.
-    function readPendingRewards(address instance, address user) external view returns (uint256) {
-        return IERC404Staking(instance).calculatePendingRewards(user);
+    function readPendingRewards(address module, address instance, address user) external view returns (uint256) {
+        return IERC404Staking(module).calculatePendingRewards(instance, user);
     }
 
     /// @notice Guarded read of an ERC1155 instance's edition id set. Not for direct use.
@@ -897,15 +912,23 @@ contract QueryAggregator is SafeOwnableUUPS {
             } catch { }
         } catch { }
 
-        // Get staking info
-        try this.readStakingEnabled(instance) returns (bool enabled) {
-            if (enabled) {
-                try this.readStakedBalance(instance, user) returns (uint256 staked) {
-                    holding.stakedBalance = staked;
-                } catch { }
+        // Get staking info. Staking state lives in the `ERC404StakingModule` singleton keyed by
+        // instance, so the instance is asked for its module first and every getter is then addressed to
+        // the singleton with the instance as its first argument. An instance with no module wired
+        // (`address(0)`), or a module that reverts or returns undecodable data, leaves both staking
+        // fields at zero rather than failing the batch.
+        try this.readStakingModule(instance) returns (address module) {
+            if (module != address(0)) {
+                try this.readStakingEnabled(module, instance) returns (bool enabled) {
+                    if (enabled) {
+                        try this.readStakedBalance(module, instance, user) returns (uint256 staked) {
+                            holding.stakedBalance = staked;
+                        } catch { }
 
-                try this.readPendingRewards(instance, user) returns (uint256 pending) {
-                    holding.pendingRewards = pending;
+                        try this.readPendingRewards(module, instance, user) returns (uint256 pending) {
+                            holding.pendingRewards = pending;
+                        } catch { }
+                    }
                 } catch { }
             }
         } catch { }
