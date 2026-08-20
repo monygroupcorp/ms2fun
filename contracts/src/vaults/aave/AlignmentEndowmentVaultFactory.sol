@@ -14,8 +14,8 @@ import { Ownable } from "solady/auth/Ownable.sol";
 ///         updates must go through setVaultCommunityPayout (onlyOwner) rather than
 ///         calling the vault directly.
 ///
-///         Permissionless creation (noesis-077): any wallet paying its own gas may deploy a vault for
-///         an approved, active alignment target. The factory self-registers each vault in the
+///         Vault creation is owner-gated: only the protocol may deploy a vault for an approved,
+///         active alignment target. The factory self-registers each vault in the
 ///         MasterRegistry with an ON-CHAIN-DERIVED name (`<target.title> Aave Endowment Vault`) and a
 ///         factory-hardcoded metadataURI — neither is caller-supplied, closing the roster-phishing
 ///         vector. A per-`(targetId, token)` dedup rejects duplicate vaults. To self-register the
@@ -102,6 +102,9 @@ contract AlignmentEndowmentVaultFactory is Ownable, IFactory {
     }
 
     /// @notice Deploy a new vault clone via CREATE3
+    /// @dev onlyOwner. A vault binds itself to an alignment target and self-registers on the shared
+    ///      roster, so creation is a protocol act. `salt` stays bound to `msg.sender`, which under this
+    ///      gate is the owner.
     /// @param salt CREATE3 deployment salt for deterministic vanity address
     /// @param alignmentToken The token this vault aligns to
     /// @param alignmentTargetId The alignment target this vault is bound to
@@ -109,6 +112,7 @@ contract AlignmentEndowmentVaultFactory is Ownable, IFactory {
     // slither-disable-next-line reentrancy-events
     function deployVault(bytes32 salt, address alignmentToken, uint256 alignmentTargetId)
         external
+        onlyOwner
         returns (address vault)
     {
         // Dedup: one canonical vault per (target, token). The registry only dedups on vault address,
@@ -140,7 +144,8 @@ contract AlignmentEndowmentVaultFactory is Ownable, IFactory {
         canonicalVault[dedupKey] = vault;
 
         // Self-register in the MasterRegistry with an ON-CHAIN-DERIVED name (never caller-supplied) and
-        // the factory-hardcoded metadataURI. `msg.sender` is credited as the vault creator. The registry
+        // the factory-hardcoded metadataURI. `msg.sender` — the owner, under the gate above — is credited
+        // as the vault creator. The registry
         // enforces target-active + token-in-target, and requires this factory to be an active IFactory.
         string memory derivedName =
             string.concat(alignmentRegistry.getAlignmentTarget(alignmentTargetId).title, " Aave Endowment Vault");
