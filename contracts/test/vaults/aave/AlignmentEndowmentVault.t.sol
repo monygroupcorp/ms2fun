@@ -651,14 +651,71 @@ contract AlignmentEndowmentVaultTest is Test {
         assertEq(communityPayout.balance, communityBefore);
     }
 
-    function test_harvest_revertsIfCommunityPayoutNotSet() public {
+    /// @dev An unset community sink no longer stops a harvest: the target leg is held in
+    ///      `accumulatedTargetFees` and nothing is pushed. (Retargeted from the earlier
+    ///      revert-on-unset-sink assertion — the vault now accrues instead of reverting.)
+    function test_harvest_accruesTargetLegWhenCommunityPayoutNotSet() public {
         AlignmentEndowmentVault v2 = _deployVault(address(0));
         MockOwnable b2 = new MockOwnable(alice);
         vm.prank(alice);
         v2.receiveContribution{ value: ONE_ETH }(nativeCurrency, ONE_ETH, address(b2));
         _simulateYield(0.1 ether);
-        vm.expectRevert(AlignmentEndowmentVault.CommunityPayoutNotSet.selector);
+
+        uint256 communityBefore = communityPayout.balance;
+        uint256 treasuryBefore = treasury.balance;
+
+        v2.harvest(); // escrowed class → 0.08 creator / 0.019 target / 0.001 protocol
+
+        assertEq(v2.accumulatedTargetFees(), 0.019 ether, "target leg accrued in the vault");
+        assertEq(v2.totalYieldToTarget(), 0.019 ether, "target counter booked at accrual");
+        assertEq(v2.pendingYieldOf(address(b2)), 0.08 ether, "creator leg unaffected");
+        assertEq(treasury.balance - treasuryBefore, 0.001 ether, "protocol leg still pushed");
+        assertEq(communityPayout.balance, communityBefore, "no sink was paid");
+    }
+
+    /// @dev Round trip of the accrued target leg: flush reverts while the sink is unset, pays the full
+    ///      accrued balance exactly once after `setCommunityPayout`, and moves nothing on a second call.
+    function test_flushTargetFees_paysOnceAfterSinkIsSet() public {
+        AlignmentEndowmentVault v2 = _deployVault(address(0));
+        MockOwnable b2 = new MockOwnable(alice);
+        vm.prank(alice);
+        v2.receiveContribution{ value: ONE_ETH }(nativeCurrency, ONE_ETH, address(b2));
+        _simulateYield(0.1 ether);
         v2.harvest();
+        assertEq(v2.accumulatedTargetFees(), 0.019 ether);
+
+        vm.expectRevert(AlignmentEndowmentVault.CommunityPayoutNotSet.selector);
+        v2.flushTargetFees();
+
+        vm.prank(vaultOwner);
+        v2.setCommunityPayout(communityPayout);
+
+        uint256 communityBefore = communityPayout.balance;
+        assertEq(v2.flushTargetFees(), 0.019 ether, "full accrued balance delivered");
+        assertEq(communityPayout.balance - communityBefore, 0.019 ether, "sink received the accrued leg");
+        assertEq(v2.accumulatedTargetFees(), 0, "accumulator zeroed");
+
+        assertEq(v2.flushTargetFees(), 0, "second flush moves nothing");
+        assertEq(communityPayout.balance - communityBefore, 0.019 ether, "sink unchanged by the second flush");
+    }
+
+    /// @dev Once the sink is set, the target leg is pushed directly again — accrual is the unset-sink
+    ///      branch only, never the happy path.
+    function test_harvest_pushesDirectlyOnceSinkIsSet() public {
+        AlignmentEndowmentVault v2 = _deployVault(address(0));
+        vm.prank(vaultOwner);
+        v2.setCommunityPayout(communityPayout);
+
+        MockOwnable b2 = new MockOwnable(alice);
+        vm.prank(alice);
+        v2.receiveContribution{ value: ONE_ETH }(nativeCurrency, ONE_ETH, address(b2));
+        _simulateYield(0.1 ether);
+
+        uint256 communityBefore = communityPayout.balance;
+        v2.harvest();
+
+        assertEq(communityPayout.balance - communityBefore, 0.019 ether, "target leg pushed on harvest");
+        assertEq(v2.accumulatedTargetFees(), 0, "nothing accrued when the sink is set");
     }
 
     /// @dev harvest still succeeds when the target sink rejects ETH (force-send).

@@ -197,4 +197,70 @@ contract AlignmentEndowmentVaultHarvestFirstTest is Test {
         assertEq(vault.pendingYieldOf(address(b)), 0, "B captured none of the pre-join yield");
         assertEq(vault.totalYieldToCreators(), 0.8 ether);
     }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // unset community sink (noesis-339) — crystallize accrues, it never reverts
+    // ════════════════════════════════════════════════════════════════════════
+
+    /// @dev A clone whose `communityPayout` is unset at initialize. Crystallize is the first statement of
+    ///      `_deposit`, `vest`, `harvest` and `execute`, so a target leg with no sink must not revert:
+    ///      the leg accrues into `accumulatedTargetFees` and all four paths stay open. Asserts the whole
+    ///      sequence — a second deposit after yield, vest at maturity, harvest — succeeds with no sink, and
+    ///      that the accrued balance flushes once one is set.
+    function test_unsetPayout_depositVestHarvestAllRemainOpen() public {
+        AlignmentEndowmentVault v0 = _deployVaultWithPayout(address(0));
+
+        MockOwnable a = _newBenefactor(alice);
+        vm.prank(alice);
+        v0.receiveContribution{ value: 1 ether }(nativeCurrency, 1 ether, address(a));
+
+        _simulateYield(1 ether); // yield accrues → the target leg now has nowhere to go
+
+        // 1. A further deposit still lands (crystallizes first, accruing the target leg).
+        MockOwnable b = _newBenefactor(address(0xCAFE));
+        vm.deal(address(0xCAFE), 1 ether);
+        vm.prank(address(0xCAFE));
+        v0.receiveContribution{ value: 1 ether }(nativeCurrency, 1 ether, address(b));
+        assertEq(v0.getBenefactorShares(address(b)), 1 ether, "second benefactor accepted");
+        assertEq(v0.accumulatedTargetFees(), 0.19 ether, "escrowed target leg accrued (19% of Y)");
+        assertEq(v0.pendingYieldOf(address(a)), 0.8 ether, "A keeps the full pre-join creator leg");
+
+        // 2. Vest at maturity still runs.
+        vm.warp(block.timestamp + VEST);
+        v0.vest(address(a));
+        assertEq(v0.vestedOf(address(a)), 1 ether, "principal vested");
+
+        // 3. Harvest still runs.
+        v0.harvest();
+
+        // 4. The accrued leg is delivered once a sink exists, and only then.
+        vm.expectRevert(AlignmentEndowmentVault.CommunityPayoutNotSet.selector);
+        v0.flushTargetFees();
+
+        uint256 accrued = v0.accumulatedTargetFees();
+        assertEq(accrued, 0.19 ether, "nothing lost across deposit/vest/harvest");
+        vm.prank(vaultOwner);
+        v0.setCommunityPayout(communityPayout);
+
+        uint256 before = communityPayout.balance;
+        assertEq(v0.flushTargetFees(), accrued, "accrued leg delivered");
+        assertEq(communityPayout.balance - before, accrued, "sink received it");
+        assertEq(v0.accumulatedTargetFees(), 0, "accumulator zeroed");
+    }
+
+    /// @dev Clone the implementation with an explicit community payout (mirrors `setUp`).
+    function _deployVaultWithPayout(address payout) internal returns (AlignmentEndowmentVault v) {
+        address impl = address(new AlignmentEndowmentVault());
+        v = AlignmentEndowmentVault(payable(LibClone.clone(impl)));
+        v.initialize(
+            vaultOwner,
+            address(weth),
+            address(stata),
+            treasury,
+            address(masterRegistry),
+            alignmentToken,
+            TARGET_ID,
+            payout
+        );
+    }
 }
