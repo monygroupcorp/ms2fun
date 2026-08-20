@@ -137,7 +137,7 @@ export function usePortfolio(user: `0x${string}` | undefined): UsePortfolioResul
   }
 
   const { data, isPending, isError } = useQuery({
-    queryKey: ['portfolio', forkChainId, user ?? null, instances.length, vaultAddrs.length],
+    queryKey: ['portfolio', forkChainId, user ?? null, instances.join(','), vaultAddrs.join(',')],
     enabled,
     staleTime: 30_000,
     queryFn: async (): Promise<PortfolioData> => {
