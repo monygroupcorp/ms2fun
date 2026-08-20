@@ -6,6 +6,8 @@ import { LibClone } from "solady/utils/LibClone.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
 import { QueryAggregator, IERC1155EditionReader } from "../../src/query/QueryAggregator.sol";
 import { QueryAggregatorPreNoesis067 } from "./legacy/QueryAggregatorPreNoesis067.sol";
+import { IMasterRegistry } from "../../src/master/interfaces/IMasterRegistry.sol";
+import { TYPE_ERC404 } from "../../src/interfaces/IInstanceLifecycle.sol";
 
 /// @notice noesis-067 — QueryAggregator read-path correctness fixes.
 /// @dev Covers: F1 featured pagination window, F2 ERC1155 honest `isActive`, F4 portfolio length guard,
@@ -236,9 +238,218 @@ contract QueryAggregatorTest is Test {
         vm.expectRevert(Ownable.AlreadyInitialized.selector);
         upgraded.initialize(seededMaster, seededFqm, address(0), owner);
     }
+
+    // ───────────────── AB1: ERC404 staking is read off the singleton, not the instance ─────────────────
+    //
+    // Staking state for an ERC404 instance lives in the `ERC404StakingModule` singleton keyed by
+    // instance; the instance itself carries only a `stakingModule()` pointer. These tests stand up that
+    // real shape — an instance exposing `stakingModule()`, and a singleton exposing
+    // `stakingEnabled(address)` / `stakedBalance(address,address)` /
+    // `calculatePendingRewards(address,address)` — and pin the portfolio read against it.
+
+    /// Build an aggregator whose registry answers `getInstanceInfo`, so the portfolio path reaches the
+    /// ERC404 branch instead of being caught at the registry read.
+    function _aggWithRegistry(MockPortfolioRegistry registry) internal returns (QueryAggregator a) {
+        a = new QueryAggregator();
+        a.initialize(address(registry), address(fqm), address(0), owner);
+    }
+
+    function _one(address instance) internal pure returns (address[] memory instances) {
+        instances = new address[](1);
+        instances[0] = instance;
+    }
+
+    /// A holder whose entire position is staked holds ZERO transferable balance (`stake` moves the coin
+    /// into the module's custody), so the instance must still appear in the portfolio on the strength of
+    /// its staked balance alone, and its pending rewards must reach `totalClaimable`.
+    function test_AB1_fully_staked_holder_appears_with_staked_balance_and_rewards() public {
+        address user = makeAddr("stakerFull");
+        MockStakingSingleton module = new MockStakingSingleton();
+        MockERC404Instance instance = new MockERC404Instance(address(module), 1e24);
+        MockPortfolioRegistry registry = new MockPortfolioRegistry("Staked Project");
+        QueryAggregator a = _aggWithRegistry(registry);
+
+        module.setEnabled(address(instance), true);
+        module.setStaked(address(instance), user, 3_000_000e18);
+        module.setPending(address(instance), user, 0.42 ether);
+        // every coin is in the module's custody: the instance reports no balance for the holder
+        instance.setBalance(user, 0);
+
+        (QueryAggregator.ERC404Holding[] memory h404,,, uint256 claimable,) =
+            a.getPortfolioData(user, _one(address(instance)), new address[](0));
+
+        assertEq(h404.length, 1, "fully-staked holder must not be dropped from the portfolio");
+        assertEq(h404[0].instance, address(instance), "holding points at the instance");
+        assertEq(h404[0].name, "Staked Project", "holding carries the registry name");
+        assertEq(h404[0].tokenBalance, 0, "no transferable balance while fully staked");
+        assertEq(h404[0].stakedBalance, 3_000_000e18, "staked balance read off the singleton");
+        assertEq(h404[0].pendingRewards, 0.42 ether, "pending rewards read off the singleton");
+        assertEq(claimable, 0.42 ether, "pending staking rewards reach totalClaimable");
+    }
+
+    /// A partial staker reports both sides of the position independently.
+    function test_AB1_partial_staker_reports_both_balances() public {
+        address user = makeAddr("stakerPartial");
+        MockStakingSingleton module = new MockStakingSingleton();
+        MockERC404Instance instance = new MockERC404Instance(address(module), 1e24);
+        MockPortfolioRegistry registry = new MockPortfolioRegistry("Partial Project");
+        QueryAggregator a = _aggWithRegistry(registry);
+
+        module.setEnabled(address(instance), true);
+        module.setStaked(address(instance), user, 2_000_000e18);
+        module.setPending(address(instance), user, 0.1 ether);
+        instance.setBalance(user, 1_500_000e18);
+
+        (QueryAggregator.ERC404Holding[] memory h404,,, uint256 claimable,) =
+            a.getPortfolioData(user, _one(address(instance)), new address[](0));
+
+        assertEq(h404.length, 1);
+        assertEq(h404[0].tokenBalance, 1_500_000e18, "transferable balance unchanged by staking");
+        assertEq(h404[0].nftBalance, 1, "1.5M coin at a 1M unit rounds down to one whole NFT");
+        assertEq(h404[0].stakedBalance, 2_000_000e18, "staked balance read off the singleton");
+        assertEq(h404[0].pendingRewards, 0.1 ether);
+        assertEq(claimable, 0.1 ether);
+    }
+
+    /// Staking switched off in the singleton reports zero staking fields without reverting the batch.
+    function test_AB1_staking_disabled_reports_zero_without_reverting() public {
+        address user = makeAddr("unstakedHolder");
+        MockStakingSingleton module = new MockStakingSingleton();
+        MockERC404Instance instance = new MockERC404Instance(address(module), 1e24);
+        QueryAggregator a = _aggWithRegistry(new MockPortfolioRegistry("Quiet Project"));
+
+        module.setEnabled(address(instance), false);
+        module.setStaked(address(instance), user, 5_000_000e18); // stale state behind a closed switch
+        instance.setBalance(user, 1_000_000e18);
+
+        (QueryAggregator.ERC404Holding[] memory h404,,, uint256 claimable,) =
+            a.getPortfolioData(user, _one(address(instance)), new address[](0));
+
+        assertEq(h404.length, 1);
+        assertEq(h404[0].stakedBalance, 0, "a closed staking switch reports zero");
+        assertEq(h404[0].pendingRewards, 0);
+        assertEq(claimable, 0);
+    }
+
+    /// An instance that was never wired to a staking module degrades to zero-values; the never-brick
+    /// guarantee holds and the rest of the holding still reads.
+    function test_AB1_unset_staking_module_degrades_to_zero() public {
+        address user = makeAddr("noModuleHolder");
+        MockERC404Instance instance = new MockERC404Instance(address(0), 1e24);
+        QueryAggregator a = _aggWithRegistry(new MockPortfolioRegistry("No Staking Project"));
+        instance.setBalance(user, 2_000_000e18);
+
+        (QueryAggregator.ERC404Holding[] memory h404,,, uint256 claimable,) =
+            a.getPortfolioData(user, _one(address(instance)), new address[](0));
+
+        assertEq(h404.length, 1, "the holding still reads with no staking module wired");
+        assertEq(h404[0].tokenBalance, 2_000_000e18);
+        assertEq(h404[0].nftBalance, 2);
+        assertEq(h404[0].stakedBalance, 0);
+        assertEq(h404[0].pendingRewards, 0);
+        assertEq(claimable, 0);
+    }
+
+    /// A staking module that reverts on every read must not reach the batch: zero staking fields, and
+    /// the token side of the holding survives intact.
+    function test_AB1_reverting_staking_module_degrades_to_zero() public {
+        address user = makeAddr("brokenModuleHolder");
+        MockERC404Instance instance = new MockERC404Instance(address(reverter), 1e24);
+        QueryAggregator a = _aggWithRegistry(new MockPortfolioRegistry("Broken Module Project"));
+        instance.setBalance(user, 3_000_000e18);
+
+        (QueryAggregator.ERC404Holding[] memory h404,,, uint256 claimable,) =
+            a.getPortfolioData(user, _one(address(instance)), new address[](0));
+
+        assertEq(h404.length, 1, "a reverting staking module must not fail the portfolio read");
+        assertEq(h404[0].tokenBalance, 3_000_000e18);
+        assertEq(h404[0].stakedBalance, 0);
+        assertEq(h404[0].pendingRewards, 0);
+        assertEq(claimable, 0);
+    }
+
+    /// A `stakingModule()` pointer at an EOA returns no data at all — the decode must fail inside the
+    /// guarded reader's own frame, not the aggregator's, so the batch still completes.
+    function test_AB1_eoa_staking_module_degrades_to_zero() public {
+        address user = makeAddr("eoaModuleHolder");
+        MockERC404Instance instance = new MockERC404Instance(makeAddr("notAContract"), 1e24);
+        QueryAggregator a = _aggWithRegistry(new MockPortfolioRegistry("EOA Module Project"));
+        instance.setBalance(user, 1_000_000e18);
+
+        (QueryAggregator.ERC404Holding[] memory h404,,, uint256 claimable,) =
+            a.getPortfolioData(user, _one(address(instance)), new address[](0));
+
+        assertEq(h404.length, 1);
+        assertEq(h404[0].stakedBalance, 0);
+        assertEq(h404[0].pendingRewards, 0);
+        assertEq(claimable, 0);
+    }
 }
 
 // ───────────────────────────────────── Mocks ─────────────────────────────────────
+
+/// @dev The `ERC404StakingModule` singleton's read shape: state is keyed by instance, so every getter
+///      takes the instance as its first argument. Deliberately exposes NO one-argument staking getter —
+///      the instance is not where this state lives.
+contract MockStakingSingleton {
+    mapping(address => bool) public stakingEnabled;
+    mapping(address => mapping(address => uint256)) public stakedBalance;
+    mapping(address => mapping(address => uint256)) private pending;
+
+    function setEnabled(address instance, bool v) external {
+        stakingEnabled[instance] = v;
+    }
+
+    function setStaked(address instance, address user, uint256 amount) external {
+        stakedBalance[instance][user] = amount;
+    }
+
+    function setPending(address instance, address user, uint256 amount) external {
+        pending[instance][user] = amount;
+    }
+
+    function calculatePendingRewards(address instance, address user) external view returns (uint256) {
+        return pending[instance][user];
+    }
+}
+
+/// @dev An ERC404 bonding instance as it actually reads: a balance, a unit divisor, and a POINTER at the
+///      staking singleton. It has no fallback, so any call for a selector it does not carry reverts —
+///      which is what makes a lens reading staking off the instance visible here.
+contract MockERC404Instance {
+    address public immutable stakingModule;
+    uint256 public immutable unit;
+
+    mapping(address => uint256) public balanceOf;
+
+    constructor(address stakingModule_, uint256 unit_) {
+        stakingModule = stakingModule_;
+        unit = unit_;
+    }
+
+    function setBalance(address user, uint256 amount) external {
+        balanceOf[user] = amount;
+    }
+
+    function instanceType() external pure returns (bytes32) {
+        return TYPE_ERC404;
+    }
+}
+
+/// @dev Master registry stub that answers `getInstanceInfo` for any instance with a fixed name, so the
+///      portfolio path reaches the ERC404 branch.
+contract MockPortfolioRegistry {
+    string private name_;
+
+    constructor(string memory n) {
+        name_ = n;
+    }
+
+    function getInstanceInfo(address instance) external view returns (IMasterRegistry.InstanceInfo memory info) {
+        info.instance = instance;
+        info.name = name_;
+    }
+}
 
 /// @dev Reverts on every call so registry/instance reads exercise the lens's fail-tolerant try/catch.
 contract Reverter {
