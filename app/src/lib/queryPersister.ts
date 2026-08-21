@@ -17,8 +17,20 @@ import { deserialize, serialize } from 'wagmi'
 /** Bump to discard all previously-persisted cache (breaking read/schema change). */
 export const PERSIST_BUSTER = 'v1'
 
-/** How long a persisted cache entry is trusted on restore (staleTime still governs refetch). */
-export const PERSIST_MAX_AGE = 1000 * 60 * 60 // 1 hour
+/**
+ * How long a persisted cache entry is trusted on restore (staleTime still governs refetch).
+ *
+ * Content-addressed metadata (`ipfs://`, `ar://`, `data:`) is immutable — the pointer is a hash of
+ * the bytes — so an entry restored a week later is exactly as correct as one restored a second
+ * later, and re-fetching it spends the visitor's own public-gateway budget to receive bytes we
+ * already hold. Mutable reads (chain state, `http(s)://` metadata) are unaffected by the age: they
+ * carry a finite `staleTime` and revalidate on mount regardless of how long the entry was kept.
+ *
+ * A week is the working span this is sized for — a visitor who returns to the same collections over
+ * a few days pays for their bytes once — while staying short enough that the localStorage blob is
+ * bounded by recent browsing rather than accumulating indefinitely.
+ */
+export const PERSIST_MAX_AGE = 1000 * 60 * 60 * 24 * 7 // 7 days
 
 export const queryPersister = createSyncStoragePersister({
   storage: window.localStorage,
