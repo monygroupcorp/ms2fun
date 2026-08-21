@@ -1,3 +1,5 @@
+import { useEffect, useMemo, useState } from 'react'
+import { isResolvableUri, resolveCandidates } from '../../lib/metadata'
 import styles from './ImageSourceInput.module.css'
 
 export interface ImageSourceInputProps {
@@ -16,20 +18,24 @@ export interface ImageSourceInputProps {
   previewValue?: string
 }
 
-// Public gateway used ONLY to render a preview of an `ipfs://` link in this form. Not a runtime
-// dependency — the stored value stays `ipfs://…`. Kept generic + key-less on purpose.
-const IPFS_PREVIEW_GATEWAY = 'https://ipfs.io/ipfs/'
-
-/** Resolve a stored URI (`ipfs://`, `ar://`, `https://`, `data:`) to a fetchable preview `src`, or
- * `null` for a scheme this form can't preview. Exported so a caller previewing a DERIVED string (see
- * `previewValue`) can resolve it under the same rules. */
-export function toPreviewSrc(uri: string): string | null {
+/**
+ * Every URL worth spending a request on to preview a stored URI (`ipfs://`, `ar://`, `https://`,
+ * `data:`), best-first, or `[]` for a scheme this form can't preview.
+ *
+ * The list comes from the shared metadata resolver (`resolveCandidates`) — the same seam the app's
+ * art renderer uses: one gateway roster, health-ordered, with cooling gateways dropped. The form
+ * holds no gateway host of its own. A preview resolved through a different list than the renderer
+ * can report a working pointer as broken (or the reverse), and that preview is exactly the signal a
+ * creator reads when deciding whether their art link is good.
+ *
+ * `ipfs://` yields one URL per usable gateway so the caller can rotate on error instead of being
+ * pinned to whichever is listed first; `ar://`, `http(s)://` and `data:` resolve to a single URL.
+ * Exported so a caller previewing a DERIVED string (see `previewValue`) resolves under the same rules.
+ */
+export function toPreviewCandidates(uri: string): string[] {
   const v = uri.trim()
-  if (!v) return null
-  if (v.startsWith('ipfs://')) return IPFS_PREVIEW_GATEWAY + v.slice('ipfs://'.length)
-  if (v.startsWith('ar://')) return `https://arweave.net/${v.slice('ar://'.length)}`
-  if (v.startsWith('https://') || v.startsWith('http://') || v.startsWith('data:')) return v
-  return null
+  if (!isResolvableUri(v)) return []
+  return resolveCandidates(v).map((candidate) => candidate.url)
 }
 
 export function ImageSourceInput({
@@ -41,7 +47,19 @@ export function ImageSourceInput({
   help,
   previewValue,
 }: ImageSourceInputProps) {
-  const previewSrc = toPreviewSrc(previewValue ?? value)
+  const previewUri = (previewValue ?? value).trim()
+  const candidates = useMemo(() => toPreviewCandidates(previewUri), [previewUri])
+  // Which candidate is being shown. Rotation happens on `onError`: one refusing or hung gateway must
+  // not read as "your link is broken" when the next in the roster serves the same bytes.
+  const [idx, setIdx] = useState(0)
+  useEffect(() => {
+    setIdx(0)
+  }, [previewUri])
+
+  // The preview box is shown for any pointer this form can address, so the Remove control stays
+  // reachable while the image is still resolving or has exhausted its candidates.
+  const addressable = isResolvableUri(previewUri)
+  const previewSrc = candidates[idx]
 
   return (
     <div className={styles.field}>
@@ -62,17 +80,19 @@ export function ImageSourceInput({
         />
       </div>
 
-      {previewSrc && (
+      {addressable && (
         <div className={styles.previewWrap}>
           <div className={`${styles.preview} ${aspect === 'wide' ? styles.wide : styles.square}`}>
-            <img
-              src={previewSrc}
-              alt={`${label} preview`}
-              className={styles.previewImg}
-              onError={(e) => {
-                ;(e.currentTarget as HTMLImageElement).style.display = 'none'
-              }}
-            />
+            {previewSrc !== undefined && (
+              <img
+                src={previewSrc}
+                alt={`${label} preview`}
+                className={styles.previewImg}
+                referrerPolicy="no-referrer"
+                // Advance to the next candidate; past the end there is nothing left to try.
+                onError={() => setIdx((i) => i + 1)}
+              />
+            )}
           </div>
           <div className={styles.meta}>
             <span className={styles.ok}>Link preview</span>
