@@ -1,0 +1,37 @@
+name: alignment-census
+
+# The census's guard. A finding here means a record reached the repo that cannot say where its
+# numbers came from — which is the one failure this data set cannot absorb, because a figure with no
+# provenance behind it is indistinguishable from an invented one.
+#
+# Read-only, no network, no RPC key, no model in the loop. It checks schema shape, provenance
+# completeness, exact-wei fields and internal arithmetic. It does NOT check whether the numbers are
+# true; that is verify-record.mjs, which re-harvests and needs a key, and so runs from a seat.
+
+on:
+  push:
+    paths: ['data/alignment/**', 'tools/**', '.github/workflows/alignment-census-ci.yml']
+  pull_request:
+    paths: ['data/alignment/**', 'tools/**', '.github/workflows/alignment-census-ci.yml']
+
+jobs:
+  records:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Exit 1 on any invalid record. An empty census also fails: a gate that goes green over zero
+      # records is a statement about the gate and nothing about the data.
+      - name: Validate census records
+        run: node tools/validate-records.mjs
+
+      # The catalog is a generated artifact. If it does not match what the records render to, then
+      # someone hand-edited it and the numbers on the page no longer trace to a measurement.
+      - name: Catalog is in sync with the records
+        run: |
+          node tools/render-catalog.mjs --out /tmp/rendered.md
+          diff -u docs/ALIGNMENT-CATALOG.md /tmp/rendered.md \
+            || { echo "::error::docs/ALIGNMENT-CATALOG.md is stale or hand-edited — run: node tools/render-catalog.mjs"; exit 1; }
