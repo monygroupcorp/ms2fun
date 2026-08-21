@@ -22,6 +22,17 @@ import styles from './Erc721PieceGallery.module.css'
 /** Pragmatic cap on the id scan — galleries show a representative window, not the whole chain. */
 const MAX_SCAN = 100
 
+/**
+ * The window is capped, so the grid states the collection's TRUE piece count next to how many of
+ * them it is showing. Without it a collection in the thousands renders MAX_SCAN tiles and is
+ * indistinguishable from one that has exactly that many pieces. The line survives virtualization.
+ */
+function countLabel(total: number, shown: number): string {
+  const n = total.toLocaleString('en-US')
+  if (total <= MAX_SCAN) return `${n} ${total === 1 ? 'piece' : 'pieces'}`
+  return `showing the first ${shown.toLocaleString('en-US')} of ${n} pieces`
+}
+
 /** Raw auction fields cached by the query; the state BADGE is derived at render (per nowSec tick). */
 interface Piece {
   id: bigint
@@ -30,6 +41,12 @@ interface Piece {
   endTime: bigint
   highBidder: `0x${string}`
   settled: boolean
+}
+
+/** The scanned window PLUS the collection's true piece count, so the grid can state both. */
+interface GalleryData {
+  total: number
+  pieces: Piece[]
 }
 
 export function Erc721PieceGallery({ instance }: { instance: `0x${string}` }) {
@@ -48,10 +65,10 @@ export function Erc721PieceGallery({ instance }: { instance: `0x${string}` }) {
     queryKey: ['erc721-piece-gallery', instance, next?.toString() ?? null],
     enabled: !!client && next !== undefined,
     staleTime: 15_000,
-    queryFn: async (): Promise<Piece[]> => {
-      if (!client || next === undefined) return []
+    queryFn: async (): Promise<GalleryData> => {
+      if (!client || next === undefined) return { total: 0, pieces: [] }
       const count = Number(next) - 1
-      if (count <= 0) return []
+      if (count <= 0) return { total: 0, pieces: [] }
 
       const scan = Math.min(count, MAX_SCAN)
       const ids = Array.from({ length: scan }, (_, i) => BigInt(i + 1))
@@ -85,12 +102,13 @@ export function Erc721PieceGallery({ instance }: { instance: `0x${string}` }) {
       })
 
       // Resolve images in parallel; soft-fail to a glyph tile on any miss.
-      return Promise.all(
+      const pieces = await Promise.all(
         raw.map(async ({ tokenURI, piece }): Promise<Piece> => {
           const meta = tokenURI ? jsonOrNull(await fetchJson<{ image?: string }>(tokenURI)) : null
           return { ...piece, image: meta?.image }
         }),
       )
+      return { total: count, pieces }
     },
   })
 
@@ -110,7 +128,7 @@ export function Erc721PieceGallery({ instance }: { instance: `0x${string}` }) {
     )
   }
 
-  if (!data || data.length === 0) {
+  if (!data || data.pieces.length === 0) {
     return (
       <p className={styles.note} data-testid="erc721-piece-gallery">
         no pieces minted yet
@@ -119,26 +137,36 @@ export function Erc721PieceGallery({ instance }: { instance: `0x${string}` }) {
   }
 
   return (
-    <ul className={styles.grid} data-testid="erc721-piece-gallery">
-      {data.map((piece) => {
-        const state = deriveAuctionState(piece, nowSec)
-        return (
-          <li key={piece.id.toString()} className={styles.tile} data-state={state}>
-            <Link href={`/${chainId}/${slug}/token/${piece.id.toString()}`} className={styles.link}>
-              <IpfsImage
-                uri={piece.image ?? ''}
-                alt={`#${piece.id.toString()}`}
-                className={styles.thumb}
-                fallback={<div className={styles.thumbGlyph}>✦</div>}
-              />
-              <div className={styles.meta}>
-                <span className={styles.id}>#{piece.id.toString()}</span>
-                <span className={`badge ${state === 'active' ? 'badge-solid' : ''}`}>{state}</span>
-              </div>
-            </Link>
-          </li>
-        )
-      })}
-    </ul>
+    <>
+      <p className={styles.note} data-testid="erc721-piece-gallery-count">
+        {countLabel(data.total, data.pieces.length)}
+      </p>
+      <ul className={styles.grid} data-testid="erc721-piece-gallery">
+        {data.pieces.map((piece) => {
+          const state = deriveAuctionState(piece, nowSec)
+          return (
+            <li key={piece.id.toString()} className={styles.tile} data-state={state}>
+              <Link
+                href={`/${chainId}/${slug}/token/${piece.id.toString()}`}
+                className={styles.link}
+              >
+                <IpfsImage
+                  uri={piece.image ?? ''}
+                  alt={`#${piece.id.toString()}`}
+                  className={styles.thumb}
+                  fallback={<div className={styles.thumbGlyph}>✦</div>}
+                />
+                <div className={styles.meta}>
+                  <span className={styles.id}>#{piece.id.toString()}</span>
+                  <span className={`badge ${state === 'active' ? 'badge-solid' : ''}`}>
+                    {state}
+                  </span>
+                </div>
+              </Link>
+            </li>
+          )
+        })}
+      </ul>
+    </>
   )
 }
