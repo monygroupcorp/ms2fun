@@ -566,6 +566,143 @@ contract AlignmentEndowmentVaultTest is Test {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
+    // 4b. Paginated vest — the tranche array is unbounded and openly appendable
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// @dev `receiveContribution` is permissionless, so ANY address can append tranches to ANY benefactor's
+    ///      escrow array. These build that array from a third party at the minimum deposit size.
+    function _grindTranches(uint256 n) internal {
+        vm.deal(stranger, stranger.balance + n);
+        for (uint256 k; k < n; ++k) {
+            vm.prank(stranger);
+            vault.receiveContribution{ value: 1 }(nativeCurrency, 1, address(benefactorContract));
+        }
+    }
+
+    /// @dev Two batches with independent clocks: the first is matured at vest time, the second is not.
+    function _mixedMaturityTranches(uint256 maturedCount, uint256 unmaturedCount, uint256 unit) internal {
+        for (uint256 k; k < maturedCount; ++k) {
+            _contributeBenefactor(unit);
+        }
+        vm.warp(block.timestamp + VEST / 2);
+        for (uint256 k; k < unmaturedCount; ++k) {
+            _contributeBenefactor(unit);
+        }
+        vm.warp(block.timestamp + VEST / 2 + 1);
+    }
+
+    function test_vest_paginated_zeroMaxReverts() public {
+        _contributeBenefactor(ONE_ETH);
+        vm.warp(block.timestamp + VEST);
+        vm.expectRevert(AlignmentEndowmentVault.AmountMustBePositive.selector);
+        vault.vest(address(benefactorContract), 0);
+    }
+
+    /// @dev A page wide enough to cover the whole array is a full sweep and keeps the one-argument semantics.
+    function test_vest_paginated_fullPageMatchesUnbounded() public {
+        _contributeBenefactor(ONE_ETH);
+        vm.warp(block.timestamp + VEST);
+
+        vm.prank(stranger);
+        vault.vest(address(benefactorContract), 100);
+
+        assertEq(vault.vestedPrincipal(address(benefactorContract)), ONE_ETH, "vested");
+        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 0, "escrow cleared");
+    }
+
+    /// @dev Coverage decides `NotVested`: a full sweep with nothing matured reverts; a bounded page that
+    ///      has only seen a window of the array succeeds, moves no principal, and lets the caller page on.
+    function test_vest_paginated_pageWithoutMaturedTranche_doesNotRevert() public {
+        for (uint256 k; k < 6; ++k) {
+            _contributeBenefactor(0.1 ether);
+        }
+
+        vm.expectRevert(AlignmentEndowmentVault.NotVested.selector);
+        vault.vest(address(benefactorContract), 6); // covers the array → full-sweep semantics
+
+        vault.vest(address(benefactorContract), 2); // a window only → succeeds
+        assertEq(vault.vestedPrincipal(address(benefactorContract)), 0, "nothing vested by that page");
+        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 0.6 ether, "escrow untouched");
+    }
+
+    /// @dev The core of the bounded walk. Matured tranches are removed by swap-and-pop, which leaves
+    ///      unmatured entries sitting in the slots a page has already passed. With the narrowest possible
+    ///      page (one tranche per call) the walk must still reach every matured tranche.
+    function test_vest_paginated_narrowestPageReachesEveryMaturedTranche() public {
+        _mixedMaturityTranches(3, 3, ONE_ETH);
+
+        for (uint256 call; call < 12; ++call) {
+            vault.vest(address(benefactorContract), 1);
+        }
+
+        assertEq(vault.vestedPrincipal(address(benefactorContract)), 3 * ONE_ETH, "all matured principal vested");
+        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 3 * ONE_ETH, "unmatured principal untouched");
+        assertEq(vault.totalVestedDeployable(), 3 * ONE_ETH);
+    }
+
+    /// @dev N bounded calls must vest exactly what one unbounded call would have, over a mixed array.
+    function test_vest_paginated_multiCallEqualsUnbounded() public {
+        _mixedMaturityTranches(10, 10, 0.1 ether);
+
+        uint256 snap = vm.snapshotState();
+        vault.vest(address(benefactorContract));
+        uint256 vestedOnce = vault.vestedPrincipal(address(benefactorContract));
+        uint256 escrowOnce = vault.escrowedPrincipal(address(benefactorContract));
+        uint256 deployableOnce = vault.totalVestedDeployable();
+        uint256 totalEscrowOnce = vault.totalEscrowedPrincipal();
+        vm.revertToState(snap);
+
+        for (uint256 call; call < 30; ++call) {
+            vault.vest(address(benefactorContract), 3);
+        }
+
+        assertEq(vault.vestedPrincipal(address(benefactorContract)), vestedOnce, "vested total matches");
+        assertEq(vault.escrowedPrincipal(address(benefactorContract)), escrowOnce, "escrow remainder matches");
+        assertEq(vault.totalVestedDeployable(), deployableOnce, "deployable corpus matches");
+        assertEq(vault.totalEscrowedPrincipal(), totalEscrowOnce, "total escrow matches");
+    }
+
+    /// @dev The griefing case: a third party lengthens the array until a full walk no longer fits a block.
+    ///      The vest stays reachable because the caller chooses the walk length, and the cost of a page does
+    ///      not scale with the array — the walk a page performs is what the caller paid for, nothing more.
+    function test_vest_paginated_staysBoundedAsArrayGrows() public {
+        _contributeBenefactor(ONE_ETH);
+        vm.warp(block.timestamp + VEST);
+        uint256 base = vm.snapshotState();
+
+        _grindTranches(200);
+        uint256 small = vm.snapshotState();
+        uint256 unboundedSmall = _gasOfUnboundedVest();
+        vm.revertToState(small);
+        uint256 pagedSmall = _gasOfPagedVest(4);
+
+        vm.revertToState(base);
+
+        _grindTranches(800);
+        uint256 large = vm.snapshotState();
+        uint256 unboundedLarge = _gasOfUnboundedVest();
+        vm.revertToState(large);
+        uint256 pagedLarge = _gasOfPagedVest(4);
+
+        assertEq(vault.vestedPrincipal(address(benefactorContract)), ONE_ETH, "paged call vested the matured tranche");
+        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 800, "third-party tranches stay escrowed");
+        assertGt(unboundedLarge - unboundedSmall, 300_000, "a full walk's cost scales with third-party appends");
+        assertApproxEqAbs(pagedLarge, pagedSmall, 5000, "a page's cost does not");
+    }
+
+    function _gasOfUnboundedVest() internal returns (uint256 used) {
+        uint256 g = gasleft();
+        vault.vest(address(benefactorContract));
+        used = g - gasleft();
+    }
+
+    function _gasOfPagedVest(uint256 maxTranches) internal returns (uint256 used) {
+        uint256 g = gasleft();
+        vault.vest(address(benefactorContract), maxTranches);
+        used = g - gasleft();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
     // 5. harvest — two-class split (wei-exact)
     // ═══════════════════════════════════════════════════════════════════════
 
