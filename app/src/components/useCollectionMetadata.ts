@@ -3,6 +3,7 @@ import {
   fetchJson,
   isImmutableUri,
   isResolvableUri,
+  jsonOrNull,
   parseCollection,
   type CollectionMetadata,
 } from '../lib/metadata'
@@ -24,7 +25,8 @@ export function useCollectionMetadata(uri: string | undefined): CollectionMetada
     // public gateways, out of the visitor's own per-IP quota. http(s):// pointers are mutable and
     // keep a finite staleTime; immutability must not leak onto them.
     staleTime: isImmutableUri(uri) ? Infinity : MUTABLE_STALE_TIME,
-    queryFn: async ({ signal }) => parseCollection(await fetchJson(uri as string, signal)),
+    queryFn: async ({ signal }) =>
+      parseCollection(jsonOrNull(await fetchJson(uri as string, signal))),
   })
   return data
 }

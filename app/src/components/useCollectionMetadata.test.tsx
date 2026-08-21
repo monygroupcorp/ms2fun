@@ -32,7 +32,8 @@ beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   fetchJsonMock.mockReset()
-  fetchJsonMock.mockResolvedValue({ name: 'a collection' })
+  // fetchJson reports the REASON alongside the document; the hook unwraps it.
+  fetchJsonMock.mockResolvedValue({ status: 'found', data: { name: 'a collection' } })
 })
 
 afterEach(() => {
@@ -69,7 +70,9 @@ describe('useCollectionMetadata', () => {
   it('resolves a data: pointer without a network fetch', async () => {
     const dataUri = `data:application/json,${encodeURIComponent(JSON.stringify({ name: 'inline' }))}`
     fetchJsonMock.mockImplementation(async (uri: string) =>
-      uri.startsWith('data:') ? { name: 'inline' } : null,
+      uri.startsWith('data:')
+        ? { status: 'found', data: { name: 'inline' } }
+        : { status: 'not-found' },
     )
 
     const view = renderHook(() => useCollectionMetadata(dataUri), { wrapper })

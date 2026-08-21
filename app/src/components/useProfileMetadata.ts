@@ -1,5 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchJson, isResolvableUri, parseProfile, type ProfileMetadata } from '../lib/metadata'
+import {
+  fetchJson,
+  isResolvableUri,
+  jsonOrNull,
+  parseProfile,
+  type ProfileMetadata,
+} from '../lib/metadata'
 
 /**
  * React-Query wrapper over the (framework-agnostic) metadata layer: resolve a profile's on-chain
@@ -11,7 +17,7 @@ export function useProfileMetadata(uri: string | undefined): ProfileMetadata | u
     queryKey: ['profile-metadata', uri],
     enabled: isResolvableUri(uri),
     staleTime: 5 * 60_000,
-    queryFn: async ({ signal }) => parseProfile(await fetchJson(uri as string, signal)),
+    queryFn: async ({ signal }) => parseProfile(jsonOrNull(await fetchJson(uri as string, signal))),
   })
   return data
 }
