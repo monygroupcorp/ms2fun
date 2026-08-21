@@ -431,6 +431,16 @@ export const alignmentEndowmentVaultAbi = [
   },
   {
     type: 'function',
+    inputs: [
+      { name: 'benefactor', internalType: 'address', type: 'address' },
+      { name: 'maxTranches', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'vest',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'benefactor', internalType: 'address', type: 'address' }],
     name: 'vest',
     outputs: [],
