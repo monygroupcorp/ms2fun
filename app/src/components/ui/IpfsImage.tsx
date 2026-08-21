@@ -20,9 +20,25 @@
  * spend. Both paths honour it — the native path via the `loading` attribute, the shared path by not
  * fetching until the element approaches the viewport. Prefetching a screen ahead is intended;
  * prefetching a whole grid is what this avoids.
+ *
+ * SECURITY — art is rendered through `<img>` and ONLY through `<img>`, which does not execute
+ * script even when the bytes are an SVG. Gateway-supplied bytes must never be inlined into the DOM:
+ * no `dangerouslySetInnerHTML`, no `<object>`, no `<embed>`, no `<iframe>`, no inline `<svg>` built
+ * from a fetched document — each of those turns a hostile gateway response into script running on
+ * this origin. Inline SVG styling is the usual reason someone reaches for one of them; it is not
+ * worth that trade.
+ *
+ * The pointer is re-checked against the URI allowlist here as well as at parse time, so a caller
+ * that hands over a raw, unparsed metadata field is still bounded.
  */
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { isImmutableUri, loadArt, peekArt, resolveUriCandidates } from '../../lib/metadata'
+import {
+  isImmutableUri,
+  loadArt,
+  peekArt,
+  resolveUriCandidates,
+  sanitizeImageUri,
+} from '../../lib/metadata'
 
 /**
  * Session cache of the gateway URL that LOADED for a given pointer, for the native path. Every
@@ -68,38 +84,40 @@ export function IpfsImage({
   /** data-testid for the <img> (the fallback node carries its own if the caller needs one). */
   testId?: string | undefined
 }) {
-  const candidates = useMemo(() => (uri.trim() ? resolveUriCandidates(uri) : []), [uri])
+  // Allowlist FIRST: everything below operates on the sanitized pointer, never the raw one.
+  const safeUri = useMemo(() => sanitizeImageUri(uri), [uri])
+  const candidates = useMemo(() => (safeUri ? resolveUriCandidates(safeUri) : []), [safeUri])
   // The shared cache is only correct for immutable pointers, and only schedules lazily when there
   // is an IntersectionObserver to schedule with; otherwise the browser's own lazy loading is used.
   const shared = useMemo(
     () =>
-      isImmutableUri(uri) &&
+      isImmutableUri(safeUri) &&
       typeof fetch !== 'undefined' &&
       (loading === 'eager' || typeof IntersectionObserver !== 'undefined'),
-    [uri, loading],
+    [safeUri, loading],
   )
 
-  const [idx, setIdx] = useState(() => startSrc(uri, candidates))
+  const [idx, setIdx] = useState(() => startSrc(safeUri, candidates))
   // Seeded from the resolved-content cache so a second mount of a known CID renders with no request.
   const [artSrc, setArtSrc] = useState<string | undefined>(() =>
-    shared ? peekArt(uri) : undefined,
+    shared ? peekArt(safeUri) : undefined,
   )
   const [artFailed, setArtFailed] = useState(false)
   const imgRef = useRef<HTMLImageElement | null>(null)
 
   // Re-seed from the caches whenever the pointer changes (component instances are reused).
   useEffect(() => {
-    setIdx(startSrc(uri, candidates))
-    setArtSrc(shared ? peekArt(uri) : undefined)
+    setIdx(startSrc(safeUri, candidates))
+    setArtSrc(shared ? peekArt(safeUri) : undefined)
     setArtFailed(false)
-  }, [uri, candidates, shared])
+  }, [safeUri, candidates, shared])
 
   useEffect(() => {
     if (!shared || artSrc !== undefined) return
     let cancelled = false
 
     const start = () => {
-      loadArt(uri).then(
+      loadArt(safeUri).then(
         (url) => {
           if (!cancelled) setArtSrc(url)
         },
@@ -131,7 +149,7 @@ export function IpfsImage({
       cancelled = true
       observer.disconnect()
     }
-  }, [shared, artSrc, uri, loading])
+  }, [shared, artSrc, safeUri, loading])
 
   if (candidates.length === 0) return <>{fallback}</>
 
@@ -161,7 +179,7 @@ export function IpfsImage({
       loading={loading}
       data-testid={testId}
       // Pin the gateway that actually loaded so every other instance skips straight to it.
-      onLoad={() => loadedSrc.set(uri, src)}
+      onLoad={() => loadedSrc.set(safeUri, src)}
       // Advance to the next gateway; when they're exhausted idx passes the end → fallback renders.
       onError={() => setIdx((i) => i + 1)}
     />

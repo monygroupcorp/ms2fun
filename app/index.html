@@ -4,6 +4,35 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0a0a0a" />
+    <!--
+      Content-Security-Policy. This app renders two kinds of content it does not author: bytes a
+      public IPFS/Arweave gateway returns, and URIs whoever deployed a collection wrote into its
+      metadata. The policy is the browser-enforced backstop under the parse-time URI allowlist in
+      `src/lib/metadata/untrusted.ts`.
+
+      Deliberate choices, with their costs:
+      * `img-src` / `connect-src` admit `https:` as a whole rather than naming the gateway roster.
+        A user may point the app at their own IPFS gateway (a pasted URL, kept in local storage),
+        and an RPC endpoint is configuration too — an enumerated roster would break both the day it
+        was used, silently and only for that user. The cost is that this directive does not itself
+        constrain WHICH host an image comes from; the URI allowlist is what does that, by refusing
+        author-chosen remote pointers before they ever reach an `<img>`.
+      * `script-src` keeps `'unsafe-inline'`. This meta policy is served in development too, where
+        the React refresh preamble is an inline script; without it the dev server does not run. What
+        the directive still buys is that no THIRD-PARTY script origin can execute here. Dropping
+        `'unsafe-inline'` needs the policy to move to a response header or a build-only transform,
+        which is where it should end up.
+      * `object-src`/`frame-src` are `'none'`: gateway bytes must never reach a plugin or a frame,
+        and nothing in the app uses either. `base-uri`/`form-action` are pinned to `'self'`.
+      * `style-src` keeps `'unsafe-inline'` because a collection's `styleUri` CSS is injected as a
+        <style> element (see ProjectStyle) and CSS modules inline styles in development.
+      `frame-ancestors` is deliberately absent: it is ignored in a meta policy and belongs on a
+      response header.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-src 'none'; manifest-src 'self'; worker-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src 'self' data: https: wss:"
+    />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon-32.png" sizes="32x32" />
     <link rel="icon" href="/favicon-16.png" sizes="16x16" />

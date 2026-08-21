@@ -86,7 +86,7 @@ describe('buildProfileJson', () => {
       handle: 'alice.eth',
       bio: 'DeFi builder',
       avatar: 'ipfs://QmAvatar',
-      banner: 'https://example.com/banner.png',
+      banner: 'ar://bannerTx',
       links: [{ label: 'GitHub', url: 'https://github.com/alice' }],
       socials: { x: 'aliceonx', farcaster: 'alice' },
     }
@@ -173,8 +173,8 @@ describe('buildCollectionJson', () => {
   })
 
   it('reads back a pre-rename `banner` key', () => {
-    const parsed = parseCollection({ name: 'Old', banner: 'https://example.com/old.png' })
-    expect(parsed.banner).toBe('https://example.com/old.png')
+    const parsed = parseCollection({ name: 'Old', banner: 'ipfs://QmOldBanner' })
+    expect(parsed.banner).toBe('ipfs://QmOldBanner')
   })
 
   it('promotes a third-party `external_link` to a labelled link', () => {
@@ -188,7 +188,7 @@ describe('buildCollectionJson', () => {
       name: 'My Drop',
       description: 'An NFT drop',
       image: 'ipfs://QmImage',
-      banner: 'https://example.com/banner.png',
+      banner: 'ar://bannerTx',
       category: 'art',
       links: [{ label: 'Docs', url: 'https://docs.example.com' }],
     }

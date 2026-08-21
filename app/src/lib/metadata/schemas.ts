@@ -3,7 +3,13 @@
  * NOEMA API surface (build once, serve frontend + agents). Parsers are LENIENT: untrusted,
  * user/agent-authored JSON from IPFS is coerced to a safe typed shape with defaults, never thrown
  * on. Each shape carries a `schemaVersion` so content can evolve without on-chain changes.
+ *
+ * Coercion is also where the URI scheme allowlist is applied (`untrusted.ts`): image pointers are
+ * author-chosen strings, so a disallowed scheme is blanked here, once, rather than at each of the
+ * render sites that consume the parsed shape.
  */
+
+import { sanitizeImageUri } from './untrusted'
 
 export interface ProfileLink {
   label: string
@@ -87,8 +93,8 @@ export function parseProfile(json: unknown): ProfileMetadata {
     name: str(o.name),
     handle: str(o.handle),
     bio: str(o.bio),
-    avatar: str(o.avatar) || str(o.image),
-    banner: str(o.banner),
+    avatar: sanitizeImageUri(str(o.avatar) || str(o.image)),
+    banner: sanitizeImageUri(str(o.banner)),
     links: links(o.links),
     socials: record(o.socials),
   }
@@ -102,10 +108,10 @@ export function parseCollection(json: unknown): CollectionMetadata {
     schemaVersion: num(o.schemaVersion, 1),
     name: str(o.name),
     description: str(o.description),
-    image: str(o.image),
+    image: sanitizeImageUri(str(o.image)),
     // ERC-7572 spells it `banner_image`; `banner` is our pre-7572 key, still read so collections
     // written before the rename (and any third-party JSON) keep rendering.
-    banner: str(o.banner_image) || str(o.banner),
+    banner: sanitizeImageUri(str(o.banner_image) || str(o.banner)),
     category: str(o.category),
     // `external_link` is derived from links[0] on write, so it needs no read-back — but a
     // third-party collection may carry only `external_link`. Surface it as the sole link.

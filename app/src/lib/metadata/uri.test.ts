@@ -295,10 +295,20 @@ describe('getIpfsGateways', () => {
 
 type MockFetch = ReturnType<typeof vi.fn>
 
-function makeMockResponse(ok: boolean, json: unknown): Response {
+function makeMockResponse(ok: boolean, json: unknown, contentType = 'application/json'): Response {
+  const body = JSON.stringify(json)
   return {
     ok,
+    headers: {
+      get: (name: string) =>
+        name.toLowerCase() === 'content-type'
+          ? contentType
+          : name.toLowerCase() === 'content-length'
+            ? String(body.length)
+            : null,
+    },
     json: () => Promise.resolve(json),
+    text: () => Promise.resolve(body),
   } as unknown as Response
 }
 
@@ -440,5 +450,42 @@ describe('contentKey', () => {
   it('passes other schemes through, trimmed', () => {
     expect(contentKey(' ar://tx1 ')).toBe('ar://tx1')
     expect(contentKey('https://example.test/a.png')).toBe('https://example.test/a.png')
+  })
+})
+
+// ── hostile gateway responses ─────────────────────────────────────────────────
+
+describe('fetchJson against a gateway that answers with a document', () => {
+  let mockFetch: MockFetch
+
+  beforeEach(() => {
+    mockFetch = vi.fn()
+    vi.stubGlobal('fetch', mockFetch)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('rejects an HTML interstitial served for an ipfs:// CID and lets another gateway win', async () => {
+    const data = { name: 'real' }
+    mockFetch.mockImplementation((url: string) =>
+      Promise.resolve(
+        url.startsWith(IPFS_GATEWAYS[0])
+          ? makeMockResponse(true, { title: 'Just a moment' }, 'text/html')
+          : makeMockResponse(true, data),
+      ),
+    )
+    await expect(fetchJson('ipfs://QmFoo')).resolves.toEqual(data)
+  })
+
+  it('returns null when every gateway answers with a document', async () => {
+    mockFetch.mockResolvedValue(makeMockResponse(true, { title: 'Just a moment' }, 'text/html'))
+    expect(await fetchJson('ipfs://QmFoo')).toBeNull()
+  })
+
+  it('returns null for a document served on a single-URL (non-ipfs) pointer', async () => {
+    mockFetch.mockResolvedValueOnce(makeMockResponse(true, { a: 1 }, 'text/html'))
+    expect(await fetchJson('ar://tx1')).toBeNull()
   })
 })
