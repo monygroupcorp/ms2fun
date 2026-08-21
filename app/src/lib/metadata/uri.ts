@@ -53,6 +53,30 @@ export function isResolvableUri(uri: string | undefined | null): uri is string {
   return /^(ipfs:\/\/|ar:\/\/|https?:\/\/|data:)/.test(t)
 }
 
+/**
+ * True for pointers whose bytes are fixed for all time, so a cached response can never go stale:
+ *
+ *  - `ipfs://` and `ar://` are content-addressed — the identifier IS a hash of the content, so
+ *    different bytes are necessarily a different pointer.
+ *  - `data:` carries its bytes inline; there is nothing to re-fetch.
+ *
+ * `http(s)://` is deliberately excluded: a server may serve different bytes tomorrow under the same
+ * URL, so those pointers keep a finite staleTime and a normal revalidation cycle.
+ */
+export function isImmutableUri(uri: string | undefined | null): uri is string {
+  if (!isResolvableUri(uri)) return false
+  return /^(ipfs:\/\/|ar:\/\/|data:)/.test(uri.trim())
+}
+
+/**
+ * Stable cache key for a pointer's CONTENT, independent of which gateway serves it: `ipfs://QmX`
+ * and `ipfs://ipfs/QmX` are one entry. Non-ipfs pointers key on the trimmed pointer itself.
+ */
+export function contentKey(uri: string): string {
+  const trimmed = uri.trim()
+  return trimmed.startsWith('ipfs://') ? `ipfs://${ipfsPath(trimmed)}` : trimmed
+}
+
 /** ipfs://CID[/path] (and ipfs://ipfs/CID) → `CID[/path]`. */
 function ipfsPath(uri: string): string {
   return uri

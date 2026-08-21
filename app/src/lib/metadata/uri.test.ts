@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  contentKey,
   fetchJson,
   getIpfsGateways,
   IPFS_GATEWAYS,
+  isImmutableUri,
   isResolvableUri,
   resolveUri,
   resolveUriCandidates,
@@ -273,5 +275,40 @@ describe('fetchJson', () => {
         signal: controller.signal,
       })
     })
+  })
+})
+
+// ── isImmutableUri / contentKey ───────────────────────────────────────────────
+
+describe('isImmutableUri', () => {
+  it('is true for content-addressed and inline pointers', () => {
+    expect(isImmutableUri('ipfs://QmFoo')).toBe(true)
+    expect(isImmutableUri('  ipfs://QmFoo/a.png  ')).toBe(true)
+    expect(isImmutableUri('ar://tx1')).toBe(true)
+    expect(isImmutableUri('data:application/json,{}')).toBe(true)
+  })
+
+  it('is false for http(s), which a server may re-point at different bytes', () => {
+    expect(isImmutableUri('https://example.test/a.json')).toBe(false)
+    expect(isImmutableUri('http://example.test/a.json')).toBe(false)
+  })
+
+  it('is false for pointers we cannot resolve at all', () => {
+    expect(isImmutableUri('')).toBe(false)
+    expect(isImmutableUri(undefined)).toBe(false)
+    expect(isImmutableUri('QmFoo')).toBe(false)
+  })
+})
+
+describe('contentKey', () => {
+  it('collapses the two ipfs spellings of one CID onto one key', () => {
+    expect(contentKey('ipfs://QmFoo/a.png')).toBe('ipfs://QmFoo/a.png')
+    expect(contentKey('ipfs://ipfs/QmFoo/a.png')).toBe('ipfs://QmFoo/a.png')
+    expect(contentKey('  ipfs://QmFoo  ')).toBe('ipfs://QmFoo')
+  })
+
+  it('passes other schemes through, trimmed', () => {
+    expect(contentKey(' ar://tx1 ')).toBe('ar://tx1')
+    expect(contentKey('https://example.test/a.png')).toBe('https://example.test/a.png')
   })
 })
