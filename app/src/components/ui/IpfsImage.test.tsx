@@ -10,7 +10,13 @@
  */
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { resetArtMemoryCache } from '../../lib/metadata'
+import {
+  gatewayKey,
+  IPFS_GATEWAYS,
+  noteThrottled,
+  resetArtMemoryCache,
+  resetGatewayHealth,
+} from '../../lib/metadata'
 import { IpfsImage } from './IpfsImage'
 
 const CID = 'ipfs://QmArtOne'
@@ -40,14 +46,21 @@ beforeEach(() => {
   URL.createObjectURL = vi.fn(() => 'blob:art')
   URL.revokeObjectURL = vi.fn()
   resetArtMemoryCache()
+  resetGatewayHealth()
   fetchMock.mockReset()
   fetchMock.mockResolvedValue({ ok: true, status: 200, blob: async () => new Blob(['art']) })
 })
 
 afterEach(() => {
   cleanup()
+  resetGatewayHealth()
   vi.unstubAllGlobals()
 })
+
+/** Park every public gateway, i.e. the state a rate-limited viewer is in. */
+function coolEveryGateway(): void {
+  for (const gateway of IPFS_GATEWAYS) noteThrottled(gatewayKey(gateway))
+}
 
 describe('IpfsImage', () => {
   it('issues one request when N components share one CID', async () => {
@@ -116,5 +129,44 @@ describe('IpfsImage', () => {
     render(<IpfsImage uri="" alt="art" testId="art" fallback={<span>no art</span>} />)
 
     expect(screen.getByText('no art')).toBeInTheDocument()
+  })
+
+  it('shows a throttled state — NOT the missing-art fallback — while gateways are cooling', () => {
+    coolEveryGateway()
+
+    render(<IpfsImage uri={CID} alt="art" testId="art" fallback={<span>no art</span>} />)
+
+    expect(screen.getByTestId('art')).toHaveAttribute('data-state', 'throttled')
+    expect(screen.queryByText('no art')).not.toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('distinguishes throttled from missing when the load itself is refused', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 429,
+      headers: { get: () => null },
+      blob: async () => new Blob([]),
+    })
+
+    render(<IpfsImage uri={CID} alt="art" testId="art" fallback={<span>no art</span>} />)
+
+    await waitFor(() =>
+      expect(screen.getByTestId('art')).toHaveAttribute('data-state', 'throttled'),
+    )
+    expect(screen.queryByText('no art')).not.toBeInTheDocument()
+  })
+
+  it('still shows the plain fallback when the content is genuinely absent', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 404,
+      headers: { get: () => null },
+      blob: async () => new Blob([]),
+    })
+
+    render(<IpfsImage uri={CID} alt="art" testId="art" fallback={<span>no art</span>} />)
+
+    await waitFor(() => expect(screen.getByText('no art')).toBeInTheDocument())
   })
 })

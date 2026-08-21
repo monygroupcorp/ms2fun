@@ -14,7 +14,7 @@ import { Link } from 'wouter'
 import { usePublicClient } from 'wagmi'
 import { useReadErc404BondingInstanceMirrorErc721 } from '../../../generated/contracts'
 import { useCollectionChainId, useCollectionSlug } from '../useCollectionChain'
-import { fetchJson } from '../../../lib/metadata'
+import { fetchJson, jsonOrNull } from '../../../lib/metadata'
 import { IpfsImage } from '../../ui/IpfsImage'
 import styles from './Erc404NftGallery.module.css'
 
@@ -97,7 +97,7 @@ export function Erc404NftGallery({ instance }: { instance: `0x${string}` }) {
       // Resolve metadata images in parallel; soft-fail to a glyph tile on any miss.
       const resolved = await Promise.all(
         pieces.map(async ({ id, tokenURI }): Promise<NftPiece> => {
-          const meta = await fetchJson<{ image?: string }>(tokenURI)
+          const meta = jsonOrNull(await fetchJson<{ image?: string }>(tokenURI))
           return { id, image: meta?.image }
         }),
       )

@@ -10,7 +10,7 @@ import { FreeMintClaimPanel } from './erc1155/FreeMintClaimPanel'
 import { MintPanel } from './erc1155/MintPanel'
 import { useEditions, type EditionView } from './useEditions'
 import { useCollectionChainId, useCollectionSlug } from './useCollectionChain'
-import { fetchJson, isResolvableUri } from '../../lib/metadata'
+import { fetchJson, isResolvableUri, jsonOrNull } from '../../lib/metadata'
 import { IpfsImage } from '../ui/IpfsImage'
 import styles from './EditionList.module.css'
 
@@ -21,7 +21,7 @@ function useEditionArt(uri: string | undefined): string | undefined {
     enabled: isResolvableUri(uri),
     staleTime: 5 * 60_000,
     queryFn: async ({ signal }) =>
-      (await fetchJson<{ image?: string }>(uri as string, signal))?.image ?? '',
+      jsonOrNull(await fetchJson<{ image?: string }>(uri as string, signal))?.image ?? '',
   })
   return data || undefined
 }
