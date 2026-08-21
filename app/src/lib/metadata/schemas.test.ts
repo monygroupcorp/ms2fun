@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { ALLOW_REMOTE_HTTP_URIS } from './untrusted'
 import { parseCollection, parseProfile } from './schemas'
 
 // ── parseProfile ──────────────────────────────────────────────────────────────
@@ -46,7 +47,7 @@ describe('parseProfile', () => {
         handle: 'alice.eth',
         bio: 'DeFi builder',
         avatar: 'ipfs://QmAvatar',
-        banner: 'https://example.com/banner.png',
+        banner: 'ar://bannerTx',
       }
       const result = parseProfile(input)
       expect(result.schemaVersion).toBe(2)
@@ -54,7 +55,7 @@ describe('parseProfile', () => {
       expect(result.handle).toBe('alice.eth')
       expect(result.bio).toBe('DeFi builder')
       expect(result.avatar).toBe('ipfs://QmAvatar')
-      expect(result.banner).toBe('https://example.com/banner.png')
+      expect(result.banner).toBe('ar://bannerTx')
     })
 
     it('passes through valid links array', () => {
@@ -250,7 +251,7 @@ describe('parseCollection', () => {
         name: 'My Collection',
         description: 'A test collection',
         image: 'ipfs://QmImage',
-        banner: 'https://example.com/banner.png',
+        banner: 'ar://bannerTx',
         category: 'art',
       }
       const result = parseCollection(input)
@@ -258,7 +259,7 @@ describe('parseCollection', () => {
       expect(result.name).toBe('My Collection')
       expect(result.description).toBe('A test collection')
       expect(result.image).toBe('ipfs://QmImage')
-      expect(result.banner).toBe('https://example.com/banner.png')
+      expect(result.banner).toBe('ar://bannerTx')
       expect(result.category).toBe('art')
     })
 
@@ -304,5 +305,34 @@ describe('parseCollection', () => {
       })
       expect(result.links).toHaveLength(1)
     })
+  })
+})
+
+describe('untrusted URI allowlist at parse time', () => {
+  it('blanks a collection image whose scheme is not allowlisted', () => {
+    expect(parseCollection({ image: 'javascript:alert(1)' }).image).toBe('')
+    expect(parseCollection({ image: 'data:text/html,<script>alert(1)</script>' }).image).toBe('')
+    expect(parseCollection({ image: 'blob:https://x.example/abc' }).image).toBe('')
+  })
+
+  it('keeps content-addressed and inline image pointers', () => {
+    expect(parseCollection({ image: 'ipfs://QmImage' }).image).toBe('ipfs://QmImage')
+    expect(parseCollection({ image: 'data:image/png;base64,AAAA' }).image).toBe(
+      'data:image/png;base64,AAAA',
+    )
+    expect(parseCollection({ banner_image: 'ar://tx1' }).banner).toBe('ar://tx1')
+  })
+
+  it('applies the same allowlist to profile avatar and banner', () => {
+    expect(parseProfile({ avatar: 'javascript:alert(1)' }).avatar).toBe('')
+    expect(parseProfile({ avatar: 'data:text/html,x', image: 'ipfs://QmB' }).avatar).toBe('')
+    expect(parseProfile({ banner: 'data:image/webp;base64,AA' }).banner).toBe(
+      'data:image/webp;base64,AA',
+    )
+  })
+
+  it('treats a remote http(s) image per the ALLOW_REMOTE_HTTP_URIS ruling', () => {
+    const remote = 'https://tracker.example/pixel.png'
+    expect(parseCollection({ image: remote }).image).toBe(ALLOW_REMOTE_HTTP_URIS ? remote : '')
   })
 })

@@ -6,6 +6,17 @@
  * NOEMA can reuse it; the only dep is the pure, SSR-safe custom-gateway store (W-A3/A4).
  */
 import { customGatewayStore } from '../storage/keys'
+import { isDocumentResponse, readCappedText } from './untrusted'
+
+/**
+ * Copy shown beside the custom-gateway input: a gateway a user pastes sees every CID they browse.
+ * For someone running their own node that is the point; for someone pasting a URL a stranger
+ * recommended it is a surveillance channel they did not know they opened, so it is stated plainly
+ * at the input rather than in a tooltip.
+ */
+export const CUSTOM_GATEWAY_PRIVACY_NOTICE =
+  'A custom gateway sees every piece of art and metadata you load, along with your IP address. ' +
+  'Only use a gateway you run or trust.'
 
 /** How a gateway addresses a CID. */
 export type GatewayForm = 'path' | 'subdomain'
@@ -186,7 +197,11 @@ async function fetchOne<T>(url: string, parentSignal: AbortSignal): Promise<T> {
   try {
     const res = await fetch(url, { signal: ctrl.signal })
     if (!res.ok) throw new Error(`gateway responded ${res.status}`)
-    return (await res.json()) as T
+    // A gateway can answer 200 with an HTML challenge/error page instead of the CID's bytes.
+    // That is this gateway failing, not the content being absent, so it must reject and let the
+    // race fall through to the others rather than resolve as a parsed document.
+    if (isDocumentResponse(res)) throw new Error('gateway returned a document, not the content')
+    return JSON.parse(await readCappedText(res)) as T
   } finally {
     clearTimeout(timer)
     parentSignal.removeEventListener('abort', onParent)
@@ -207,7 +222,8 @@ export async function fetchJson<T = unknown>(uri: string, signal?: AbortSignal):
     try {
       const res = await fetch(resolveUri(trimmed), signal ? { signal } : {})
       if (!res.ok) return null
-      return (await res.json()) as T
+      if (isDocumentResponse(res)) return null
+      return JSON.parse(await readCappedText(res)) as T
     } catch (err) {
       if (signal?.aborted) throw err
       return null
