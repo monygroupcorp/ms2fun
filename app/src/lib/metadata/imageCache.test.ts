@@ -6,7 +6,7 @@
  * none at all, and an `http(s)://` URL must never be admitted to a permanent cache.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { IPFS_GATEWAYS } from './uri'
+import { resolveUriCandidates } from './uri'
 import { loadArt, peekArt, resetArtMemoryCache } from './imageCache'
 
 const CID = 'ipfs://QmArtOne'
@@ -78,16 +78,21 @@ describe('loadArt', () => {
 
     await loadArt(CID)
 
+    // The roster carries per-entry URL FORM (noesis-372), so a candidate URL is built by the
+    // resolver, not by concatenating a base. A CIDv0 is also skipped by subdomain-form entries,
+    // which is why the expected order comes from resolveUriCandidates rather than the roster.
+    const candidates = resolveUriCandidates(CID)
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(fetchMock.mock.calls[0]?.[0]).toBe(`${IPFS_GATEWAYS[0]}QmArtOne`)
-    expect(fetchMock.mock.calls[1]?.[0]).toBe(`${IPFS_GATEWAYS[1]}QmArtOne`)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(candidates[0])
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(candidates[1])
   })
 
   it('rejects only once every candidate has failed, and retries on a later call', async () => {
     fetchMock.mockRejectedValue(new Error('gateway down'))
 
     await expect(loadArt(CID)).rejects.toThrow()
-    expect(fetchMock).toHaveBeenCalledTimes(IPFS_GATEWAYS.length)
+    // Not the roster length: subdomain-form entries cannot serve this CIDv0 and are skipped.
+    expect(fetchMock).toHaveBeenCalledTimes(resolveUriCandidates(CID).length)
 
     // A failure is not cached: the next caller is allowed to try again.
     fetchMock.mockClear()
