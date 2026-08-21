@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "address": "0x8a45fb65311ac8434aad5b8a93d1eba6ac4e813b",
+  "label": "Milady333",
+  "provenance": null,
+  "mint": {
+    "label": "Milady333",
+    "method": "transfer-from-zero",
+    "total": 333,
+    "free": 333,
+    "paid": 0,
+    "mintTxs": 322,
+    "freeTxs": 322,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 147,
+    "uniqueSenders": 147,
+    "grossWei": "0",
+    "firstBlock": "13169078",
+    "lastBlock": "13169779",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Milady333",
+      "symbol": "ML3",
+      "totalSupply": "333"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "https://miladymaker.net/bitch/json/1",
+      "host": "centralized (miladymaker.net)",
+      "contentMutable": true,
+      "erc404BaseReusable": true,
+      "erc404Base": "https://miladymaker.net/bitch/json/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "13169073",
+      "toBlock": "25805084",
+      "chainHead": "25805084",
+      "harvestedAt": "2026-08-21T17:44:20.586Z",
+      "complete": true
+    }
+  },
+  "secondary": {
+    "label": "Milady333",
+    "sales": 480,
+    "pages": 5,
+    "volumeWei": "264869356974051851853",
+    "royaltiesPaidWei": "7895145317592592613",
+    "protocolFeesWei": "7690380313851296317",
+    "salesWithRoyalty": 380,
+    "byMarketplace": {
+      "wyvern": 271,
+      "seaport": 163,
+      "blur": 38,
+      "looksrare": 6,
+      "x2y2": 2
+    },
+    "nonEth": {
+      "volume": {},
+      "royalties": {}
+    },
+    "harvest": {
+      "tool": "harvest-secondary.mjs",
+      "toolVersion": 2,
+      "fromBlock": "0",
+      "toBlock": "25805085",
+      "chainHead": "25805085",
+      "harvestedAt": "2026-08-21T17:44:21.372Z",
+      "complete": true
+    }
+  }
+}

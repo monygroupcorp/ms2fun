@@ -1,0 +1,1013 @@
+{
+  "_what": "The alignment-census item list. One entry per collection, with its state. This is the finite work list the census dispatches from, and it is also what render-catalog.mjs joins the harvest records against. A record with no entry here is not in the census.",
+  "_states": {
+    "needs-address": "Label known, mainnet address not. Re-resolve, then harvest.",
+    "needs-harvest": "Address known. No schema-valid v2 record exists yet.",
+    "harvested": "A schema-valid record exists at data/alignment/collections/<address>.json.",
+    "verified": "Harvested AND reproduced exactly by an independent re-harvest (verify-record.mjs).",
+    "unresolved-slug": "Slug does not resolve to a mainnet contract. A legitimate result, not a failure.",
+    "out-of-scope-chain": "Not on Ethereum mainnet. Out of scope for a mainnet-fork seed."
+  },
+  "_scope": {
+    "closed": true,
+    "ruling": "rth, 2026-08-21: the Milady/Remilia tranche IS the catalog. BAYC->APE, Azuki->ANIME, Doodles->DOOD, Pepe->PEPE and mfers->MFER are dropped — those families have no real alignment need and the point is already made. Recorded so a later seat does not re-open it as an oversight.",
+    "outOfScopeChainCount": 9,
+    "outOfScopeChainNote": "9 of the 83 listed collections are on Avalanche, Polygon or chain 900. Not individually enumerated by the source seat; enumerate on the next pass over miladyderivatives.com/api/data.json."
+  },
+  "families": {
+    "milady": {
+      "source": "miladyderivatives.com/api/data.json (83 collections)",
+      "firstPartySlugs": [
+        "banners-nft",
+        "bonkler",
+        "fruits-milady",
+        "kagami-academy",
+        "milady-fumo",
+        "milady-maker",
+        "milady-maker-party",
+        "remilio-babies"
+      ],
+      "firstPartyNote": "A first-party collection is the TARGET side of alignment, never the aligned side. Shown for scale, never counted as owing. Adjudicated by rth 2026-08-21; see tools/provenance.json for the contested rulings.",
+      "alignmentTarget": {
+        "symbol": "CULT",
+        "name": "Milady Cult Coin",
+        "address": "0x0000000000c5dc95539589fbD24BE07c6C14eCa4",
+        "acquireRoute": {
+          "venue": "UNI_V4",
+          "fee": 10000,
+          "tickSpacing": 200,
+          "hookless": true
+        },
+        "referencePool": {
+          "kind": 0,
+          "address": "0xC4ce8E63921b8B6cBdB8fCB6Bd64cC701Fb926f2",
+          "tier": "1%"
+        },
+        "note": "Both registry legs measured on a mainnet fork 2026-08-21. LADYS is OUT (rth): a Solana-launched extractive grift coin, out of jurisprudence — the objection is to what it is, not to how deep it trades. Do not re-propose it.",
+        "residual": "The scan covered the four standard fee tiers only. A non-standard tier, a hooked V4 pool, or a ZAMM pool under an unprobed fee selector is still invisible."
+      }
+    }
+  },
+  "collections": [
+    {
+      "label": "SchizoPosters",
+      "address": "0xbfe47d6d4090940d1c7a0066b63d23875e3e2ac5",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 320.17,
+        "freeMints": 984,
+        "paidMints": 4571,
+        "totalSupply": "5555"
+      }
+    },
+    {
+      "label": "Cigawrettes",
+      "address": "0xeed41d06ae195ca8f5cacace4cd691ee75f0683f",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 259.27,
+        "freeMints": 975,
+        "paidMints": 9023,
+        "totalSupply": "9998"
+      }
+    },
+    {
+      "label": "BoredMilady",
+      "address": "0xafe12842e3703a3cc3a71d9463389b1bf2c5bc1c",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 223.08,
+        "freeMints": 151,
+        "paidMints": 6760,
+        "totalSupply": "6911"
+      }
+    },
+    {
+      "label": "Radbro Webring V2",
+      "address": "0xabcdb5710b88f456fed1e99025379e2969f29610",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 185.16,
+        "freeMints": 2193,
+        "paidMints": 2807,
+        "totalSupply": "5000"
+      }
+    },
+    {
+      "label": "Pixelady Maker",
+      "address": "0x8fc0d90f2c45a5e7f94904075c952e0943cfccfd",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 106,
+        "freeMints": 685,
+        "paidMints": 9315,
+        "totalSupply": "10000"
+      }
+    },
+    {
+      "label": "milady mfers",
+      "address": null,
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-address",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 80.14,
+        "freeMints": 0,
+        "paidMints": 10000,
+        "totalSupply": "10000"
+      }
+    },
+    {
+      "label": "Milad Maker",
+      "address": null,
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-address",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 72.6,
+        "freeMints": 2798,
+        "paidMints": 7202,
+        "totalSupply": "10000"
+      }
+    },
+    {
+      "label": "MiladyAura",
+      "address": "0x2fc722c1c77170a61f17962cc4d039692f033b43",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 61.1,
+        "freeMints": 39,
+        "paidMints": 1849,
+        "totalSupply": "1888"
+      }
+    },
+    {
+      "label": "Streets of Milady",
+      "address": "0x94fe1d5de3a4208c7411ae21968e044abc17be48",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 34.42,
+        "freeMints": 508,
+        "paidMints": 1613,
+        "totalSupply": "2121"
+      }
+    },
+    {
+      "label": "Oekaki Maker",
+      "address": "0x8f7a232af2347cc5c9c3a245c2f163d248178eaa",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 32.21,
+        "freeMints": 4134,
+        "paidMints": 1421,
+        "totalSupply": "5555"
+      }
+    },
+    {
+      "label": "Milady Colombia",
+      "address": "0xed37c99f3000d751c460c5e386f02a6de7581407",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 31.49,
+        "freeMints": 1,
+        "paidMints": 999,
+        "totalSupply": "1000"
+      }
+    },
+    {
+      "label": "ELITE MAKER",
+      "address": "0x61b0e552a3f2844b9a1c41bfd894255f37a269bc",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 30.46,
+        "freeMints": 15,
+        "paidMints": 762,
+        "totalSupply": "777"
+      }
+    },
+    {
+      "label": "Azuki Milady",
+      "address": "0x4a519d24a9d03e51e6da5732b16420b68943bc32",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 27.83,
+        "freeMints": 20,
+        "paidMints": 1131,
+        "totalSupply": "1151"
+      }
+    },
+    {
+      "label": "Ghiblady Maker",
+      "address": "0x186e74ad45bf81fb3712e9657560f8f6361cbbef",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 24.76,
+        "freeMints": 1460,
+        "paidMints": 1140,
+        "totalSupply": "2600"
+      }
+    },
+    {
+      "label": "NotOkayMiladys",
+      "address": "0xa5f1fc0501e7737e2f48bee930b77cd86940a293",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 22.18,
+        "freeMints": 1300,
+        "paidMints": 790,
+        "totalSupply": "2090"
+      }
+    },
+    {
+      "label": "Mifairy Maker",
+      "address": null,
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-address",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 12.77,
+        "freeMints": 1923,
+        "paidMints": 1410,
+        "totalSupply": "3333"
+      }
+    },
+    {
+      "label": "Matrix Milady",
+      "address": "0x4246200d62072cf8836f1062a115927555b9c497",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 12.43,
+        "freeMints": 407,
+        "paidMints": 930,
+        "totalSupply": "1337"
+      }
+    },
+    {
+      "label": "milAIdy",
+      "address": "0x0d8a3359182dca59ccaf36f5c6c6008b83ceb4a6",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 10.99,
+        "freeMints": 0,
+        "paidMints": 333,
+        "totalSupply": "333"
+      }
+    },
+    {
+      "label": "spring miaura",
+      "address": "0x3a007afa2dff13c9dc5020acae1bcb502d4312e2",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 10.89,
+        "freeMints": 13,
+        "paidMints": 320,
+        "totalSupply": "333"
+      }
+    },
+    {
+      "label": "water mililys",
+      "address": "0x71481a928c24c32e4d9a4394fab3168a3a1cfd11",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 9.6,
+        "freeMints": 42,
+        "paidMints": 291,
+        "totalSupply": "333"
+      }
+    },
+    {
+      "label": "Tubby Milady Maker",
+      "address": "0xc0f820c8414e8b43737311b1227de4cad70335b6",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 9.53,
+        "freeMints": 48,
+        "paidMints": 1085,
+        "totalSupply": "1133"
+      }
+    },
+    {
+      "label": "MiladyCola",
+      "address": "0xe0c839d60f15dd0b939e93d9eeab5ecda9affe57",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 7.95,
+        "freeMints": 15,
+        "paidMints": 829,
+        "totalSupply": "360"
+      }
+    },
+    {
+      "label": "MiladyRave",
+      "address": "0x880a965fae95f72fe3a3c8e87ed2c9478c8e0a29",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 7.75,
+        "freeMints": 2282,
+        "paidMints": 218,
+        "totalSupply": "2500"
+      }
+    },
+    {
+      "label": "Pixeladies",
+      "address": "0xe96f3ac4b352aafd8eb9d476c05e23b4aaef650e",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 5.98,
+        "freeMints": 69,
+        "paidMints": 264,
+        "totalSupply": "333"
+      }
+    },
+    {
+      "label": "lawbsters",
+      "address": "0x0ef7ba09c38624b8e9cc4985790a2f5dbfc1dc42",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 5.96,
+        "freeMints": 112,
+        "paidMints": 308,
+        "totalSupply": "420"
+      }
+    },
+    {
+      "label": "Milady Pocket",
+      "address": "0x3c9eab7168443e4c962a2bcfa983501b8894547e",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 5.65,
+        "freeMints": 661,
+        "paidMints": 450,
+        "totalSupply": "1111"
+      }
+    },
+    {
+      "label": "MiladyStation",
+      "address": "0xb24bab1732d34cad0a7c7035c3539aec553bf3a0",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 5.59,
+        "freeMints": 519,
+        "paidMints": 693,
+        "totalSupply": "1212"
+      }
+    },
+    {
+      "label": "Midenza Maker",
+      "address": null,
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-address",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 5.09,
+        "freeMints": 52,
+        "paidMints": 192,
+        "totalSupply": "244"
+      }
+    },
+    {
+      "label": "Meowlady Maker",
+      "address": null,
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-address",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 4.87,
+        "freeMints": 587,
+        "paidMints": 493,
+        "totalSupply": "1080"
+      }
+    },
+    {
+      "label": "Anti-Miladies",
+      "address": "0x2a071ec9714249d68eec015d3aaf998ba448a5ba",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 4.01,
+        "freeMints": 9732,
+        "paidMints": 268,
+        "totalSupply": "10000"
+      }
+    },
+    {
+      "label": "coolmiladys",
+      "address": "0x3ac0cb8af565cff4f9bed41c4de698f1f852619e",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 3.87,
+        "freeMints": 10,
+        "paidMints": 382,
+        "totalSupply": "392"
+      }
+    },
+    {
+      "label": "Zlady Maker",
+      "address": null,
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-address",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 2.82,
+        "freeMints": 72,
+        "paidMints": 79,
+        "totalSupply": "151"
+      }
+    },
+    {
+      "label": "McLady Maker",
+      "address": "0x36691812a21758fb684122664faba9b3c41afb48",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 2.79,
+        "freeMints": 10,
+        "paidMints": 118,
+        "totalSupply": "128"
+      }
+    },
+    {
+      "label": "Rorita Maker",
+      "address": "0x7a3d2f1cc953e937f0a689d516e144a19b7c8512",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 2.55,
+        "freeMints": 484,
+        "paidMints": 1461,
+        "totalSupply": "1945"
+      }
+    },
+    {
+      "label": "Strawberry Juice",
+      "address": "0xdc71c729e6adf29fd1dbfd1d79e3e7558271a177",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 2.45,
+        "freeMints": 2,
+        "paidMints": 98,
+        "totalSupply": "100"
+      }
+    },
+    {
+      "label": "Mosaiclady Maker",
+      "address": "0xe70a7bf7b3bc42fa7fd1ccb8493f643bd8128d37",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 2.39,
+        "freeMints": 1649,
+        "paidMints": 1245,
+        "totalSupply": "2894"
+      }
+    },
+    {
+      "label": "Milady Christmas",
+      "address": "0x57282f0053c25e47710e511ba7bfa0739444b543",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 2.35,
+        "freeMints": 114,
+        "paidMints": 109,
+        "totalSupply": "223"
+      }
+    },
+    {
+      "label": "R3DBRO",
+      "address": null,
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-address",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 1.87,
+        "freeMints": 51,
+        "paidMints": 118,
+        "totalSupply": "169"
+      }
+    },
+    {
+      "label": "BEETLE GAME",
+      "address": "0x9a2abacd20885c1645d2d4e86e41493c73e0c5cb",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 1.24,
+        "freeMints": 6,
+        "paidMints": 155,
+        "totalSupply": "161"
+      }
+    },
+    {
+      "label": "Pixel Miladies",
+      "address": "0xa2059400f50100c5950f5f121ce5d576fe1ec39a",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 0.84,
+        "freeMints": 6557,
+        "paidMints": 412,
+        "totalSupply": "6969"
+      }
+    },
+    {
+      "label": "mimories",
+      "address": "0xa393b125b7a7047f27d2ce2c6606edec5122e3a5",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 0.82,
+        "freeMints": 1522,
+        "paidMints": 164,
+        "totalSupply": "1686"
+      }
+    },
+    {
+      "label": "Milady Maker X LITE",
+      "address": null,
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-address",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 0.2,
+        "freeMints": 980,
+        "paidMints": 20,
+        "totalSupply": "1000"
+      }
+    },
+    {
+      "label": "KARDLADY",
+      "address": "0xcbaa32f436e00069d9e13fbb16086836c4ace3f9",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 0,
+        "freeMints": 87,
+        "paidMints": 0,
+        "totalSupply": "87"
+      }
+    },
+    {
+      "label": "Merikuri",
+      "address": "0x0b121ccefc74f350b1e6cc8d5f9e2223e0859d85",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 0,
+        "freeMints": 125,
+        "paidMints": 0,
+        "totalSupply": "125"
+      }
+    },
+    {
+      "label": "Milady Christmas Pets",
+      "address": "0xf664504b43fd2aec5055508c691a33d96dae97bf",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 0,
+        "freeMints": 121,
+        "paidMints": 0,
+        "totalSupply": "121"
+      }
+    },
+    {
+      "label": "Milady Rainbow Zorb",
+      "address": "0xf00efb98fdb9844b4edc701e0aa02e83570012a7",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 0,
+        "freeMints": 91,
+        "paidMints": 0,
+        "totalSupply": "91"
+      }
+    },
+    {
+      "label": "Milady333",
+      "address": "0x8a45fb65311ac8434aad5b8a93d1eba6ac4e813b",
+      "family": "milady",
+      "class": "derivative",
+      "state": "harvested",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 0,
+        "freeMints": 333,
+        "paidMints": 0,
+        "totalSupply": "333"
+      }
+    },
+    {
+      "label": "Pixelady Maker BC",
+      "address": null,
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-address",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 0,
+        "freeMints": 1000,
+        "paidMints": 0,
+        "totalSupply": "1000"
+      }
+    },
+    {
+      "label": "Pixelady Maker: Radbro",
+      "address": "0xb2619d1aed8390af6d7056b0d312557d3d4d419a",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 0,
+        "freeMints": 100,
+        "paidMints": 0,
+        "totalSupply": "100"
+      }
+    },
+    {
+      "label": "Pixelady Maker WOTLK",
+      "address": null,
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-address",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 0,
+        "freeMints": 150,
+        "paidMints": 0,
+        "totalSupply": "150"
+      }
+    },
+    {
+      "label": "Rainbow Zorblady Maker",
+      "address": "0x43316b3ed6b76c14c150e2e6d5a74bc7d80effc5",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 0,
+        "freeMints": 69,
+        "paidMints": 0,
+        "totalSupply": "69"
+      }
+    },
+    {
+      "label": "Sonora222",
+      "address": null,
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-address",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 0,
+        "freeMints": 108,
+        "paidMints": 0,
+        "totalSupply": "108"
+      }
+    },
+    {
+      "label": "SonoraMaker",
+      "address": "0x9a051c1794c2f0ed9518fcb68973da84f756e29e",
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 0,
+        "freeMints": 444,
+        "paidMints": 0,
+        "totalSupply": "444"
+      }
+    },
+    {
+      "label": "Sudo Bastard Miladys",
+      "address": null,
+      "family": "milady",
+      "class": "derivative",
+      "state": "needs-address",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 0,
+        "freeMints": 1666,
+        "paidMints": 0,
+        "totalSupply": "None"
+      }
+    },
+    {
+      "label": "Yona Honorary Service",
+      "address": "0x283d7a44eb3c8f4155a149d4ad5c3eb58ff3c4e4",
+      "family": "milady",
+      "class": "derivative",
+      "state": "harvested",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 0,
+        "freeMints": 11,
+        "paidMints": 0,
+        "totalSupply": "11"
+      }
+    },
+    {
+      "label": "TEST NFT",
+      "address": "0xd3d9ddd0cf0a5f0bfb8f7fceae075df687eaebab",
+      "family": "milady",
+      "class": "first-party",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 862.37,
+        "freeMints": 2153,
+        "paidMints": 7847,
+        "totalSupply": "10000"
+      }
+    },
+    {
+      "label": "Milady Maker Party",
+      "address": "0x05c63282c87f620af5a658cbb53548257f3a6186",
+      "family": "milady",
+      "class": "first-party",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 77.62,
+        "freeMints": 1446,
+        "paidMints": 1554,
+        "totalSupply": "3000"
+      }
+    },
+    {
+      "label": "This User... Banners",
+      "address": "0x1352149cd78d686043b504e7e7d96c5946b0c39c",
+      "family": "milady",
+      "class": "first-party",
+      "state": "needs-harvest",
+      "note": null,
+      "priorCatalog": {
+        "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
+        "mintEth": 43.6,
+        "freeMints": 1564,
+        "paidMints": 436,
+        "totalSupply": "2000"
+      }
+    },
+    {
+      "label": "hero-768880944",
+      "address": null,
+      "family": "milady",
+      "class": "unknown",
+      "state": "unresolved-slug",
+      "slug": "hero-768880944",
+      "note": "OpenSea page renders no collection and the scraper's on-chain name() check refused it rather than guessing. Likely delisted; needs a hand check.",
+      "priorCatalog": null
+    },
+    {
+      "label": "misketti",
+      "address": null,
+      "family": "milady",
+      "class": "unknown",
+      "state": "unresolved-slug",
+      "slug": "misketti",
+      "note": "OpenSea page renders no collection and the scraper's on-chain name() check refused it rather than guessing. Likely delisted; needs a hand check.",
+      "priorCatalog": null
+    },
+    {
+      "label": "custom-milady-tcg",
+      "address": null,
+      "family": "milady",
+      "class": "unknown",
+      "state": "unresolved-slug",
+      "slug": "custom-milady-tcg",
+      "note": "OpenSea page renders no collection and the scraper's on-chain name() check refused it rather than guessing. Likely delisted; needs a hand check.",
+      "priorCatalog": null
+    },
+    {
+      "label": "basedmiladymaker",
+      "address": null,
+      "family": "milady",
+      "class": "unknown",
+      "state": "unresolved-slug",
+      "slug": "basedmiladymaker",
+      "note": "OpenSea page renders no collection and the scraper's on-chain name() check refused it rather than guessing. Likely delisted; needs a hand check.",
+      "priorCatalog": null
+    },
+    {
+      "label": "mccustoms",
+      "address": null,
+      "family": "milady",
+      "class": "unknown",
+      "state": "unresolved-slug",
+      "slug": "mccustoms",
+      "note": "OpenSea page renders no collection and the scraper's on-chain name() check refused it rather than guessing. Likely delisted; needs a hand check.",
+      "priorCatalog": null
+    },
+    {
+      "label": "ascii-milady-2",
+      "address": null,
+      "family": "milady",
+      "class": "unknown",
+      "state": "unresolved-slug",
+      "slug": "ascii-milady-2",
+      "note": "OpenSea page renders no collection and the scraper's on-chain name() check refused it rather than guessing. Likely delisted; needs a hand check.",
+      "priorCatalog": null
+    },
+    {
+      "label": "dollady-1",
+      "address": null,
+      "family": "milady",
+      "class": "unknown",
+      "state": "unresolved-slug",
+      "slug": "dollady-1",
+      "note": "OpenSea page renders no collection and the scraper's on-chain name() check refused it rather than guessing. Likely delisted; needs a hand check.",
+      "priorCatalog": null
+    },
+    {
+      "label": "remilio64-1",
+      "address": null,
+      "family": "milady",
+      "class": "unknown",
+      "state": "unresolved-slug",
+      "slug": "remilio64-1",
+      "note": "OpenSea page renders no collection and the scraper's on-chain name() check refused it rather than guessing. Likely delisted; needs a hand check.",
+      "priorCatalog": null
+    },
+    {
+      "label": "banenrs-2-shadow-operative-unit",
+      "address": null,
+      "family": "milady",
+      "class": "unknown",
+      "state": "unresolved-slug",
+      "slug": "banenrs-2-shadow-operative-unit",
+      "note": "OpenSea page renders no collection and the scraper's on-chain name() check refused it rather than guessing. Likely delisted; needs a hand check.",
+      "priorCatalog": null
+    }
+  ]
+}
