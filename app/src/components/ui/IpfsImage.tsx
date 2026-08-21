@@ -13,7 +13,13 @@
  *    turn — a single hung/timing-out gateway must not leave art blank. Mutable URLs are never
  *    resolved through the immutable cache.
  *
- * `fallback` renders only once every candidate has failed (or the pointer is unusable).
+ * `fallback` renders once the content is genuinely unavailable (or the pointer is unusable). A
+ * THROTTLED pointer is not that: the gateways are refusing this browser for a while and the art
+ * exists. Those two states render differently — a card that shows the same glyph for "this piece
+ * has no art" and "come back in ten minutes" is telling the viewer something untrue about the work.
+ *
+ * Gateway ORDER comes from the health module: a gateway in cooldown is not asked at all, here or in
+ * the art cache, because asking it is what keeps the cooldown from clearing.
  *
  * LAZY BY DEFAULT, and deliberately so: a 1000-item grid is survivable because the viewer scrolls
  * past a thousand thumbnails and actually looks at a few dozen, so that is the number of requests we
@@ -38,12 +44,17 @@
  */
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  artFailureReason,
   isImmutableUri,
   loadArt,
   peekArt,
+  resolveCandidates,
   resolveUriCandidates,
+  retryAtFor,
   sanitizeImageUri,
+  type ArtFailureReason,
 } from '../../lib/metadata'
+import styles from './IpfsImage.module.css'
 
 /**
  * Session cache of the gateway URL that LOADED for a given pointer, for the native path. Every
@@ -59,6 +70,30 @@ const PREFETCH_MARGIN = '600px'
 
 /** 1×1 transparent GIF: gives the element a real box to observe before its bytes exist. */
 const BLANK_PIXEL = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+
+/** Renders in place of the art while gateways are refusing this browser — never the plain fallback. */
+function ThrottledArt({
+  className,
+  testId,
+}: {
+  className?: string | undefined
+  testId?: string | undefined
+}) {
+  return (
+    <span
+      className={[styles.throttled, className].filter(Boolean).join(' ')}
+      role="img"
+      aria-label="art temporarily unavailable — gateways are rate-limiting this browser"
+      title="Public IPFS gateways are rate-limiting this browser. The art will load once the limit clears."
+      data-testid={testId}
+      data-state="throttled"
+    >
+      <span aria-hidden className={styles.throttledMark}>
+        ⏳
+      </span>
+    </span>
+  )
+}
 
 /** Best starting URL for `uri`: the cached known-good one if present, else the first candidate. */
 function startSrc(uri: string, candidates: string[]): number {
@@ -91,7 +126,13 @@ export function IpfsImage({
 }) {
   // Allowlist FIRST: everything below operates on the sanitized pointer, never the raw one.
   const safeUri = useMemo(() => sanitizeImageUri(uri), [uri])
-  const candidates = useMemo(() => (safeUri ? resolveUriCandidates(safeUri) : []), [safeUri])
+  // EVERY URL this pointer could ever be served from — the test for "addressable at all".
+  const addressable = useMemo(() => (safeUri ? resolveUriCandidates(safeUri) : []), [safeUri])
+  // The URLs it is worth spending a request on right now: health-ordered, cooling gateways dropped.
+  const candidates = useMemo(
+    () => (safeUri ? resolveCandidates(safeUri).map((c) => c.url) : []),
+    [safeUri],
+  )
   // The shared cache is only correct for immutable pointers, and only schedules lazily when there
   // is an IntersectionObserver to schedule with; otherwise the browser's own lazy loading is used.
   const shared = useMemo(
@@ -107,14 +148,14 @@ export function IpfsImage({
   const [artSrc, setArtSrc] = useState<string | undefined>(() =>
     shared ? peekArt(safeUri) : undefined,
   )
-  const [artFailed, setArtFailed] = useState(false)
+  const [artFailure, setArtFailure] = useState<ArtFailureReason | null>(null)
   const imgRef = useRef<HTMLImageElement | null>(null)
 
   // Re-seed from the caches whenever the pointer changes (component instances are reused).
   useEffect(() => {
     setIdx(startSrc(safeUri, candidates))
     setArtSrc(shared ? peekArt(safeUri) : undefined)
-    setArtFailed(false)
+    setArtFailure(null)
   }, [safeUri, candidates, shared])
 
   useEffect(() => {
@@ -126,8 +167,8 @@ export function IpfsImage({
         (url) => {
           if (!cancelled) setArtSrc(url)
         },
-        () => {
-          if (!cancelled) setArtFailed(true)
+        (err: unknown) => {
+          if (!cancelled) setArtFailure(artFailureReason(err))
         },
       )
     }
@@ -156,10 +197,16 @@ export function IpfsImage({
     }
   }, [shared, artSrc, safeUri, loading])
 
-  if (candidates.length === 0) return <>{fallback}</>
+  // Unusable pointer: nothing addresses it, so there is nothing to wait for.
+  if (addressable.length === 0) return <>{fallback}</>
+  // Addressable, but every gateway that could serve it is cooling: temporary, and it must say so.
+  if (candidates.length === 0 && retryAtFor(safeUri) > 0) {
+    return <ThrottledArt className={className} testId={testId} />
+  }
 
   if (shared) {
-    if (artFailed) return <>{fallback}</>
+    if (artFailure === 'throttled') return <ThrottledArt className={className} testId={testId} />
+    if (artFailure !== null) return <>{fallback}</>
     return (
       <img
         ref={imgRef}
@@ -175,7 +222,15 @@ export function IpfsImage({
   }
 
   const src = candidates[idx]
-  if (src === undefined) return <>{fallback}</>
+  // Every candidate errored. An <img> reports no status, so the health map is what distinguishes a
+  // rate limit from art that is simply not there.
+  if (src === undefined) {
+    return retryAtFor(safeUri) > 0 ? (
+      <ThrottledArt className={className} testId={testId} />
+    ) : (
+      <>{fallback}</>
+    )
+  }
 
   return (
     <img

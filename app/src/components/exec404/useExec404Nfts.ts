@@ -21,7 +21,7 @@ import {
   type MirrorTransfer,
 } from '../../lib/exec404'
 import { scanBackward } from '../../lib/logScan'
-import { fetchJson } from '../../lib/metadata'
+import { fetchJson, jsonOrNull } from '../../lib/metadata'
 
 export interface Exec404Trait {
   trait_type: string
@@ -145,12 +145,14 @@ export function useExec404NftPage(ids: readonly bigint[]): UseExec404NftPageResu
           const uriRes = uris[i]
           const uri = uriRes && uriRes.status === 'success' ? uriRes.result : ''
           const meta = uri
-            ? await fetchJson<{
-                image?: string
-                name?: string
-                description?: string
-                attributes?: unknown
-              }>(uri)
+            ? jsonOrNull(
+                await fetchJson<{
+                  image?: string
+                  name?: string
+                  description?: string
+                  attributes?: unknown
+                }>(uri),
+              )
             : null
           return {
             id,

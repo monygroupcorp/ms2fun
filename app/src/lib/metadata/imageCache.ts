@@ -17,10 +17,12 @@
  * Where the Cache API is unavailable (private modes, SSR, test environments) every persistent step
  * degrades to a no-op and the in-memory dedup layer still applies.
  *
- * Gateway ORDER is not this module's business: candidate URLs come from `resolveUriCandidates` and
- * are tried in the order given.
+ * Gateway ORDER is not this module's business: candidate URLs come from `resolveCandidates`, which
+ * is health-ordered, and are tried in the order given. What this module DOES owe the health module
+ * is the outcome of each attempt, so a gateway that refuses an image is parked for metadata too.
  */
-import { contentKey, isImmutableUri, resolveUriCandidates } from './uri'
+import { classifyStatus, noteOutcome, parseRetryAfter } from './gatewayHealth'
+import { contentKey, isImmutableUri, resolveCandidates, retryAtFor } from './uri'
 
 /** Cache API bucket. Bump the suffix to discard every stored object (breaking format change). */
 export const ART_CACHE_NAME = 'noesis-art-v1'
@@ -158,14 +160,58 @@ async function matchArt(key: string): Promise<Blob | null> {
   }
 }
 
-/** Fetch one candidate URL with its own timeout. Rejects on timeout, network error, or non-2xx. */
-async function fetchCandidate(url: string): Promise<Blob> {
+/**
+ * Why an art pointer could not be resolved. `throttled` and `missing` must not render the same
+ * thing: one is temporary and about the viewer, the other is permanent and about the content.
+ */
+export type ArtFailureReason = 'throttled' | 'missing' | 'offline'
+
+/** Rejection carrying the reason, so the render layer can show the right state. */
+export class ArtUnavailableError extends Error {
+  readonly reason: ArtFailureReason
+  /** Epoch ms the earliest gateway can be asked again (0 when not throttled/unknown). */
+  readonly retryAt: number
+
+  constructor(reason: ArtFailureReason, retryAt = 0) {
+    super(`art unavailable: ${reason}`)
+    this.name = 'ArtUnavailableError'
+    this.reason = reason
+    this.retryAt = retryAt
+  }
+}
+
+/** The reason an art load failed; anything unrecognised reads as `offline`. */
+export function artFailureReason(err: unknown): ArtFailureReason {
+  return err instanceof ArtUnavailableError ? err.reason : 'offline'
+}
+
+/** `Retry-After` in ms, or null. Tolerates a response object that exposes no headers at all. */
+function retryAfterOf(res: Response): number | null {
+  try {
+    return parseRetryAfter(res.headers?.get('retry-after'))
+  } catch {
+    return null
+  }
+}
+
+/** Fetch one candidate URL with its own timeout, reporting the outcome to the health module. */
+async function fetchCandidate(url: string, gatewayKey: string | null): Promise<Blob> {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), ART_TIMEOUT_MS)
   try {
     const res = await fetch(url, { signal: ctrl.signal })
-    if (!res.ok) throw new Error(`gateway responded ${res.status}`)
+    const outcome = classifyStatus(typeof res.status === 'number' ? res.status : res.ok ? 200 : 0)
+    if (gatewayKey) noteOutcome(gatewayKey, outcome, retryAfterOf(res))
+    if (outcome === 'throttled') throw new ArtUnavailableError('throttled')
+    if (outcome === 'missing') throw new ArtUnavailableError('missing')
+    // Any other non-2xx: this gateway did not deliver, but the content may still exist elsewhere.
+    if (outcome !== 'ok') throw new ArtUnavailableError('offline')
     return await res.blob()
+  } catch (err) {
+    if (err instanceof ArtUnavailableError) throw err
+    // Timeout or network error: the gateway did not deliver, so it is demoted like any other fault.
+    if (gatewayKey) noteOutcome(gatewayKey, 'fault')
+    throw new ArtUnavailableError('offline')
   } finally {
     clearTimeout(timer)
   }
@@ -177,17 +223,29 @@ async function fetchArt(uri: string, key: string): Promise<string> {
     touchArt(key)
     return URL.createObjectURL(stored)
   }
-  let lastError: unknown = new Error('no candidate URL')
-  for (const url of resolveUriCandidates(uri)) {
+  const candidates = resolveCandidates(uri)
+  if (candidates.length === 0) {
+    // Addressable, but every gateway that could serve it is cooling. Asking anyway is what keeps
+    // the window from clearing, so nothing is spent and the state is reported as what it is.
+    throw new ArtUnavailableError('throttled', retryAtFor(uri))
+  }
+  let sawThrottle = false
+  let sawMissing = false
+  for (const candidate of candidates) {
     try {
-      const blob = await fetchCandidate(url)
+      const blob = await fetchCandidate(candidate.url, candidate.gatewayKey)
       void storeArt(key, blob)
       return URL.createObjectURL(blob)
     } catch (err) {
-      lastError = err // this candidate failed; try the next in the order we were given
+      const reason = artFailureReason(err)
+      if (reason === 'throttled') sawThrottle = true
+      else if (reason === 'missing') sawMissing = true
+      // this candidate failed; try the next in the order we were given
     }
   }
-  throw lastError instanceof Error ? lastError : new Error('art fetch failed')
+  if (sawThrottle) throw new ArtUnavailableError('throttled', retryAtFor(uri))
+  if (sawMissing) throw new ArtUnavailableError('missing')
+  throw new ArtUnavailableError('offline')
 }
 
 /** Already-resolved URL for a pointer, or undefined. A hit means a re-mount costs no request. */
