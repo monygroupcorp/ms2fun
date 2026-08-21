@@ -30,6 +30,11 @@
  *
  * The pointer is re-checked against the URI allowlist here as well as at parse time, so a caller
  * that hands over a raw, unparsed metadata field is still bounded.
+ *
+ * `referrerPolicy="no-referrer"` on both render paths: remote art is permitted (see
+ * ALLOW_REMOTE_HTTP_URIS), and a host the collection's author chose is fetched automatically as a
+ * card scrolls into view. It cannot be denied the viewer's IP without a proxy we do not run, but it
+ * has no business also learning WHICH collection page was being viewed.
  */
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -162,6 +167,7 @@ export function IpfsImage({
         alt={alt}
         className={className}
         loading={loading}
+        referrerPolicy="no-referrer"
         data-testid={testId}
         data-pending={artSrc === undefined ? '' : undefined}
       />
@@ -177,6 +183,7 @@ export function IpfsImage({
       alt={alt}
       className={className}
       loading={loading}
+      referrerPolicy="no-referrer"
       data-testid={testId}
       // Pin the gateway that actually loaded so every other instance skips straight to it.
       onLoad={() => loadedSrc.set(safeUri, src)}

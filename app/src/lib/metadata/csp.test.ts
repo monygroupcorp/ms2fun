@@ -4,7 +4,10 @@
  */
 import { describe, expect, it } from 'vitest'
 import indexHtml from '../../../index.html?raw'
-import { IPFS_GATEWAYS } from './uri'
+import { gatewayUrl, IPFS_GATEWAYS } from './uri'
+
+/** base32 CIDv1 — survives a DNS label, so every roster form can build a URL for it. */
+const PROBE_CID = 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi'
 
 function policy(): Record<string, string[]> {
   const meta = /<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]+)"/i.exec(indexHtml)
@@ -45,10 +48,13 @@ describe('Content-Security-Policy', () => {
     expect(csp['img-src']).toBeDefined()
     expect(csp['connect-src']).toBeDefined()
     for (const gateway of IPFS_GATEWAYS) {
-      expect(permits(csp['img-src'] ?? [], gateway), `img-src permits ${gateway}`).toBe(true)
-      expect(permits(csp['connect-src'] ?? [], gateway), `connect-src permits ${gateway}`).toBe(
-        true,
-      )
+      const url = gatewayUrl(gateway, PROBE_CID)
+      expect(url, `${gateway.operator} builds a URL for a CIDv1`).not.toBeNull()
+      expect(permits(csp['img-src'] ?? [], url ?? ''), `img-src permits ${gateway.base}`).toBe(true)
+      expect(
+        permits(csp['connect-src'] ?? [], url ?? ''),
+        `connect-src permits ${gateway.base}`,
+      ).toBe(true)
     }
     // Inline art (`data:`) renders; the ar:// resolver host is reached over https like the rest.
     expect(csp['img-src']).toContain('data:')
