@@ -4,6 +4,7 @@ import { Link, Route, Switch } from 'wouter'
 import { WagmiProvider } from 'wagmi'
 import { WalletButton } from './components/WalletButton'
 import { WrongNetworkBanner } from './components/ui/WrongNetworkBanner'
+import { GatewayNotice } from './components/ui/GatewayNotice'
 import { BoardCartProvider } from './components/board/BoardCartProvider'
 import { BoardCartBar } from './components/board/BoardCartBar'
 import { config } from './lib/wagmi'
@@ -169,6 +170,9 @@ export function App() {
               </button>
             </header>
             <WrongNetworkBanner />
+            {/* Renders only while every IPFS gateway is inside a rate-limit window — see the
+                component for why that is a thing a person needs told rather than a grey box. */}
+            <GatewayNotice />
             {menuOpen && (
               <div className={styles.overlay} role="dialog" aria-modal="true" aria-label="menu">
                 <div className={styles.overlayBar}>

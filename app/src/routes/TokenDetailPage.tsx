@@ -26,7 +26,7 @@ import { deriveAuctionState } from '../components/collection/erc721/auctionState
 import { MetadataHolderPanel } from '../components/collection/erc404/MetadataHolderPanel'
 import { useOwnerGate } from '../components/ui/useOwnerGate'
 import { forkChainId } from '../lib/addresses'
-import { fetchJson } from '../lib/metadata'
+import { fetchJson, metadataOrNull } from '../lib/metadata'
 import { IpfsImage } from '../components/ui/IpfsImage'
 import { truncateAddress } from '../lib/format'
 import { StateBlock } from '../components/ui/StateBlock'
@@ -273,7 +273,9 @@ function Erc404Token({ instance, id, collectionName, creator, vaultName }: Token
       })
       const tokenURI = uriRes.status === 'success' ? uriRes.result : ''
       const owner = ownerRes.status === 'success' ? ownerRes.result : undefined
-      const meta = tokenURI ? await fetchJson<{ image?: string; name?: string }>(tokenURI) : null
+      const meta = tokenURI
+        ? metadataOrNull(await fetchJson<{ image?: string; name?: string }>(tokenURI))
+        : null
       return { image: meta?.image, owner }
     },
   })
@@ -349,7 +351,7 @@ function Erc721Token({ instance, id, collectionName, creator, vaultName }: Token
         args: [Number(id)],
       })
       const meta = auction.tokenURI
-        ? await fetchJson<{ image?: string; name?: string }>(auction.tokenURI)
+        ? metadataOrNull(await fetchJson<{ image?: string; name?: string }>(auction.tokenURI))
         : null
       return { auction, image: meta?.image, name: meta?.name }
     },

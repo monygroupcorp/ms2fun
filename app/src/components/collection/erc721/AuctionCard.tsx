@@ -20,7 +20,7 @@ import { useCollectionChainId } from '../useCollectionChain'
 import { txErrorReason, useTxAction } from '../../ui/useTxAction'
 import { TxButton } from '../../ui/TxButton'
 import { formatReceipt, type MoneyReceipt } from '../../ui/receipt'
-import { fetchJson } from '../../../lib/metadata'
+import { fetchJson, metadataOrNull } from '../../../lib/metadata'
 import { IpfsImage } from '../../ui/IpfsImage'
 import { truncateAddress } from '../../../lib/format'
 import { deriveAuctionState } from './auctionState'
@@ -83,7 +83,8 @@ export function AuctionCard({
     queryKey: ['erc721-token-meta', auction.tokenURI],
     enabled: !!auction.tokenURI,
     staleTime: 60_000,
-    queryFn: () => fetchJson<{ name?: string; image?: string }>(auction.tokenURI),
+    queryFn: async () =>
+      metadataOrNull(await fetchJson<{ name?: string; image?: string }>(auction.tokenURI)),
   })
 
   const title = meta?.name || `#${auction.tokenId.toString()}`
