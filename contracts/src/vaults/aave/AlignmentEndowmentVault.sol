@@ -140,6 +140,15 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     /// @notice A benefactor's live escrow tranches (per-deposit vesting clocks). Vested tranches are removed.
     mapping(address => DepositTranche[]) internal _escrowTranches;
 
+    /// @notice Where the next BOUNDED vest walk resumes in `_escrowTranches[benefactor]`. Persisted so a
+    ///         paged caller advances through the array across calls instead of re-examining the same prefix
+    ///         forever: the walk removes matured tranches by swap-and-pop, which leaves unmatured entries in
+    ///         place, so a cursor-less bounded walk starting at index 0 could never reach a matured tranche
+    ///         sitting behind `maxTranches` unmatured ones. Normalized to 0 whenever it is out of range (the
+    ///         array shrank, or the walk wrapped). A full sweep (`maxTranches >= tranches.length`) ignores
+    ///         and resets it — it examines every tranche anyway.
+    mapping(address => uint256) internal _vestCursor;
+
     /// @notice Set once by `migratePosition`: the vault is escrow-decommissioned. Intake and vesting close
     ///         permanently so a post-migrate deposit cannot re-open a dead position and a stale-basis vest
     ///         cannot desync harvest/execute into RedeemShortfall (RE-B2).
@@ -305,7 +314,30 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     ///         creator-yield accrual, then moves their principal from the escrowed class to the target's
     ///         deployable class. Mechanic (b): the principal STAYS in the Aave position (no redeem) and
     ///         from here earns 0 creator / 99 target / 1 protocol until the target deploys it.
+    ///         Walks the benefactor's whole tranche array in one call. A benefactor whose array has grown
+    ///         large enough that a full walk no longer fits in a block uses `vest(address,uint256)` instead.
     function vest(address benefactor) external nonReentrant {
+        _vest(benefactor, type(uint256).max);
+    }
+
+    /// @notice Paginated `vest`: same accounting, but examines at most `maxTranches` of the benefactor's
+    ///         escrow tranches per call. `_escrowTranches[benefactor]` is appended to by every deposit and
+    ///         `receiveContribution` is permissionless, so any address can lengthen any benefactor's array;
+    ///         a bound that the caller chooses keeps the vest reachable at any array length, and repeated
+    ///         calls vest exactly the total that one unbounded call would have.
+    /// @param maxTranches Number of tranches to examine in this call. Must be non-zero. A value at or above
+    ///        the benefactor's live tranche count performs a full sweep, identical to `vest(address)`.
+    /// @dev `NotVested` semantics: a FULL sweep that finds nothing matured reverts `NotVested`, as before —
+    ///      it has seen every tranche, so "nothing matured" is a statement about the benefactor. A BOUNDED
+    ///      page that finds nothing matured SUCCEEDS and moves the resume cursor: the page has only seen a
+    ///      window, and reverting would roll the cursor back and leave a caller unable to page forward past
+    ///      unmatured entries. Such a call moves no principal and emits no `PrincipalVested`.
+    function vest(address benefactor, uint256 maxTranches) external nonReentrant {
+        if (maxTranches == 0) revert AmountMustBePositive(); // a walk of zero tranches cannot make progress
+        _vest(benefactor, maxTranches);
+    }
+
+    function _vest(address benefactor, uint256 maxTranches) internal {
         if (migrated) revert VaultMigrated(); // escrow is decommissioned post-migrate (RE-B2)
         if (escrowedPrincipal[benefactor] == 0) revert NoPrincipal();
 
@@ -315,6 +347,8 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         // harvest at the post-vest weight (0 creator / 99 target / 1 protocol), stripping the creator leg to
         // `communityPayout` and diluting every still-escrowed benefactor. Mirrors `migratePosition`'s
         // guards→crystallize→mutate order; inlined (not `this.harvest()`) because both are `nonReentrant`.
+        // Under pagination this runs once per page; it is idempotent at a given position value (the second
+        // call reads zero pending yield and returns), so the ordering invariant holds on every page.
         _crystallizeYield();
 
         // RE-B3: vest only the tranches whose OWN clock has elapsed. Each deposit vests independently at
@@ -322,17 +356,52 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         // tranches are removed (swap-and-pop — order is irrelevant, only the maturity of each amount matters).
         DepositTranche[] storage tranches = _escrowTranches[benefactor];
         uint256 matured;
-        uint256 i;
-        while (i < tranches.length) {
-            if (block.timestamp >= tranches[i].depositTs + VEST_DURATION) {
-                matured += tranches[i].amount;
-                tranches[i] = tranches[tranches.length - 1];
-                tranches.pop();
-            } else {
-                i++;
+        bool fullSweep = maxTranches >= tranches.length;
+
+        if (fullSweep) {
+            uint256 i;
+            while (i < tranches.length) {
+                if (block.timestamp >= tranches[i].depositTs + VEST_DURATION) {
+                    matured += tranches[i].amount;
+                    tranches[i] = tranches[tranches.length - 1];
+                    tranches.pop();
+                } else {
+                    i++;
+                }
             }
+            // The sweep saw every tranche, so any stored resume position is spent.
+            if (_vestCursor[benefactor] != 0) _vestCursor[benefactor] = 0;
+            if (matured == 0) revert NotVested();
+        } else {
+            // Bounded walk. It resumes at the stored cursor and wraps at the end of the array, so successive
+            // pages advance around the whole array instead of re-examining the same prefix: unmatured entries
+            // stay where they are, and a walk that always started at index 0 could never see past the first
+            // `maxTranches` of them. A pop moves the LAST entry into the current slot; that entry sits ahead
+            // of the cursor and is examined on the next step, so nothing is skipped and nothing is examined
+            // twice within one circuit — which is what makes N bounded calls total exactly what one
+            // unbounded call would have vested.
+            uint256 c = _vestCursor[benefactor];
+            for (uint256 s; s < maxTranches; ++s) {
+                uint256 len = tranches.length;
+                if (len == 0) {
+                    c = 0;
+                    break;
+                }
+                if (c >= len) c = 0;
+                if (block.timestamp >= tranches[c].depositTs + VEST_DURATION) {
+                    matured += tranches[c].amount;
+                    tranches[c] = tranches[len - 1];
+                    tranches.pop();
+                } else {
+                    unchecked {
+                        ++c;
+                    }
+                }
+            }
+            if (c >= tranches.length) c = 0;
+            _vestCursor[benefactor] = c;
+            if (matured == 0) return; // page held no matured tranche; the cursor moved, so paging progresses
         }
-        if (matured == 0) revert NotVested();
 
         // Settle at the current (full) escrow weight — the creator purse is already-earned ETH, untouched
         // here — then shrink the accumulator weight by the matured amount and re-baseline `rewardDebt` so the
