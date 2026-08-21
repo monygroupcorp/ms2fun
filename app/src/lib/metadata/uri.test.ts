@@ -471,12 +471,12 @@ describe('fetchJson against a gateway that answers with a document', () => {
     const data = { name: 'real' }
     mockFetch.mockImplementation((url: string) =>
       Promise.resolve(
-        url.startsWith(IPFS_GATEWAYS[0])
+        url === publicUrls(CID_V0)[0]
           ? makeMockResponse(true, { title: 'Just a moment' }, 'text/html')
           : makeMockResponse(true, data),
       ),
     )
-    await expect(fetchJson('ipfs://QmFoo')).resolves.toEqual(data)
+    await expect(fetchJson(`ipfs://${CID_V0}`)).resolves.toEqual(data)
   })
 
   it('returns null when every gateway answers with a document', async () => {

@@ -17,18 +17,32 @@
 /**
  * Whether a collection-authored URI may point at an arbitrary `http(s)` host.
  *
- * `false` (the default): only content-addressed (`ipfs:`, `ar:`) and inline (`data:`) pointers are
- * accepted, so browsing a collection cannot cause a request to a server its author controls.
+ * `true` (RULED BY rth 2026-08-21): accept `https://…` / `http://…` alongside the content-addressed
+ * and inline schemes.
  *
- * `true`: also accept `https://…` / `http://…`. This preserves collections that legitimately host
- * their art on their own domain, and it hands every collection author a tracking channel — the
- * pointer is fetched automatically as a card scrolls into view, with no click, exposing the
- * viewer's IP address, User-Agent and browsing time to that host.
+ * The tracking channel is real — the pointer is fetched automatically as a card scrolls into view,
+ * with no click, exposing the viewer's IP address, User-Agent and browsing time to a host the
+ * collection's author chose. It is also the ordinary behaviour of every third-party `<img>` on the
+ * web, and of every NFT marketplace. Marketplaces neutralise it by proxying art through a CDN they
+ * own; that is precisely the infrastructure this platform refuses to run, so the choice here is
+ * allow-or-break rather than allow-or-proxy.
  *
- * The two positions are mutually exclusive and the choice is a product ruling, not a code detail;
- * it is a single constant so the ruling is one edit.
+ * `false` breaks collections that legitimately host their own art, and strands `IpfsImage`'s native
+ * loading path entirely — every remaining scheme is immutable and routes through the art cache, so
+ * the mutable path becomes unreachable code.
+ *
+ * What we DO mitigate: `IpfsImage` sets `referrerPolicy="no-referrer"`, so a remote host learns that
+ * someone fetched an image, not which collection page they were viewing. The IP cannot be hidden
+ * without a proxy.
+ *
+ * If a stricter posture is ever wanted, the lever is CURATION — permit remote art for collections
+ * that pass the alignment gate, reject it for arbitrary ones — not a warning banner the viewer
+ * cannot act on.
+ *
+ * The choice is a product ruling, not a code detail; it is a single constant so the ruling is one
+ * edit.
  */
-export const ALLOW_REMOTE_HTTP_URIS = false
+export const ALLOW_REMOTE_HTTP_URIS = true
 
 /** Content-addressed / inline schemes, always permitted. */
 const CONTENT_ADDRESSED_RE = /^(ipfs:\/\/|ar:\/\/)/i
