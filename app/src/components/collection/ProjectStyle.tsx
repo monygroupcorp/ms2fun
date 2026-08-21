@@ -7,16 +7,26 @@
  * `public/styles/test-project-style.css` was written against (creator CSS scopes its rules under
  * `body.has-project-style …`). Renders nothing; cleans up on unmount / route change.
  *
- * Trust + safety: CSS cannot execute JS, but it can fetch external resources (privacy) and override
- * layout, so we (a) bound the injected size, (b) only ever inject as a <style> element (never a
- * <link> or innerHTML on app DOM), and (c) scope authors to `body.has-project-style`. This is the
- * creator-supplied-style trade-off we accept for the boutique launchpad; revisit hardening for
- * untrusted creators before a permissionless testnet phase.
+ * Trust + safety: `styleUri` is an author-chosen string on a path that is not an `<img>`, so it
+ * carries the same hostile-input treatment as an image pointer: (a) the pointer goes through the
+ * URI scheme allowlist (`untrusted.ts`), so it can only be content-addressed, inline `text/css`, or
+ * same-origin; (b) a gateway that answers with an HTML document is treated as a gateway failure and
+ * nothing is injected; (c) the body is read through the shared size cap and then bounded again at
+ * MAX_CSS; (d) `@import` rules are stripped, since they would re-open the automatic-request channel
+ * the allowlist closes; (e) the CSS is assigned as `textContent` on a <style> element — never a
+ * <link>, never innerHTML — so it cannot introduce markup; and (f) authors scope their rules under
+ * `body.has-project-style`.
  */
 import { useEffect } from 'react'
 import { useReadContract } from 'wagmi'
 import { useCollectionChainId } from './useCollectionChain'
-import { resolveUri } from '../../lib/metadata'
+import {
+  isDocumentResponse,
+  readCappedText,
+  resolveUri,
+  sanitizeStyleUri,
+  stripCssImports,
+} from '../../lib/metadata'
 
 const STYLE_ABI = [
   {
@@ -50,7 +60,7 @@ export function ProjectStyle({ instance }: { instance: `0x${string}` }) {
   })
 
   useEffect(() => {
-    const uri = (styleUri ?? '').trim()
+    const uri = sanitizeStyleUri(styleUri)
     if (!uri) return
 
     let cancelled = false
@@ -63,16 +73,19 @@ export function ProjectStyle({ instance }: { instance: `0x${string}` }) {
         if (uri.startsWith('data:text/css')) {
           css = decodeDataCss(uri)
         } else {
-          // resolveUri passes http(s)/ar/ipfs through (root-relative /seed-art paths too); fetch
-          // resolves relative URLs against the page origin.
+          // The pointer is already allowlisted above; resolveUri maps ipfs://ar:// onto a gateway
+          // URL and passes same-origin paths through, which fetch resolves against the page origin.
           const res = await fetch(resolveUri(uri))
           if (!res.ok) return
-          css = await res.text()
+          // An HTML challenge/error page is a gateway failure, not a stylesheet.
+          if (isDocumentResponse(res)) return
+          css = await readCappedText(res)
         }
       } catch {
         return // unreachable / blocked — fall back to the default monochrome look
       }
-      if (cancelled || css === '') return
+      css = stripCssImports(css)
+      if (cancelled || css.trim() === '') return
       styleEl.textContent = css.slice(0, MAX_CSS)
       document.head.appendChild(styleEl)
       document.body.classList.add('has-project-style')
