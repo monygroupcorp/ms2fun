@@ -21,6 +21,17 @@ import styles from './Erc404NftGallery.module.css'
 /** Pragmatic cap on the sequential id scan — galleries show a representative window, not the chain. */
 const MAX_SCAN = 100
 
+/**
+ * The window is capped, so the grid states the collection's TRUE piece count next to how many of
+ * them it is showing. Without it a 10,000-piece collection renders MAX_SCAN tiles and is
+ * indistinguishable from one that has exactly that many pieces. The line survives virtualization.
+ */
+function countLabel(total: number, shown: number): string {
+  const n = total.toLocaleString('en-US')
+  if (total <= MAX_SCAN) return `${n} ${total === 1 ? 'piece' : 'pieces'}`
+  return `showing the first ${shown.toLocaleString('en-US')} of ${n} pieces`
+}
+
 /** Minimal standard-ERC721 read surface of the DN404 mirror (not in generated bindings). */
 const mirrorErc721Abi = [
   {
@@ -51,6 +62,12 @@ interface NftPiece {
   image: string | undefined
 }
 
+/** The scanned window PLUS the collection's true piece count, so the grid can state both. */
+interface GalleryData {
+  total: number
+  pieces: NftPiece[]
+}
+
 export function Erc404NftGallery({ instance }: { instance: `0x${string}` }) {
   const chainId = useCollectionChainId()
   const slug = useCollectionSlug()
@@ -64,13 +81,13 @@ export function Erc404NftGallery({ instance }: { instance: `0x${string}` }) {
     queryKey: ['erc404-nft-gallery', mirror ?? null],
     enabled: !!client && !!mirror,
     staleTime: 30_000,
-    queryFn: async (): Promise<NftPiece[]> => {
-      if (!client || !mirror) return []
+    queryFn: async (): Promise<GalleryData> => {
+      if (!client || !mirror) return { total: 0, pieces: [] }
       const base = { address: mirror, abi: mirrorErc721Abi } as const
 
       const total = await client.readContract({ ...base, functionName: 'totalSupply' })
       const count = Number(total)
-      if (count <= 0) return []
+      if (count <= 0) return { total: 0, pieces: [] }
 
       const scan = Math.min(count, MAX_SCAN)
       const ids = Array.from({ length: scan }, (_, i) => BigInt(i + 1))
@@ -101,7 +118,7 @@ export function Erc404NftGallery({ instance }: { instance: `0x${string}` }) {
           return { id, image: meta?.image }
         }),
       )
-      return resolved
+      return { total: count, pieces: resolved }
     },
   })
 
@@ -121,7 +138,7 @@ export function Erc404NftGallery({ instance }: { instance: `0x${string}` }) {
     )
   }
 
-  if (!data || data.length === 0) {
+  if (!data || data.pieces.length === 0) {
     return (
       <p className={styles.note} data-testid="erc404-nft-gallery">
         no NFTs minted yet
@@ -130,20 +147,25 @@ export function Erc404NftGallery({ instance }: { instance: `0x${string}` }) {
   }
 
   return (
-    <ul className={styles.grid} data-testid="erc404-nft-gallery">
-      {data.map((piece) => (
-        <li key={piece.id.toString()} className={styles.tile}>
-          <Link href={`/${chainId}/${slug}/token/${piece.id.toString()}`} className={styles.link}>
-            <IpfsImage
-              uri={piece.image ?? ''}
-              alt={`#${piece.id.toString()}`}
-              className={styles.thumb}
-              fallback={<div className={styles.thumbGlyph}>✦</div>}
-            />
-            <span className={styles.id}>#{piece.id.toString()}</span>
-          </Link>
-        </li>
-      ))}
-    </ul>
+    <>
+      <p className={styles.note} data-testid="erc404-nft-gallery-count">
+        {countLabel(data.total, data.pieces.length)}
+      </p>
+      <ul className={styles.grid} data-testid="erc404-nft-gallery">
+        {data.pieces.map((piece) => (
+          <li key={piece.id.toString()} className={styles.tile}>
+            <Link href={`/${chainId}/${slug}/token/${piece.id.toString()}`} className={styles.link}>
+              <IpfsImage
+                uri={piece.image ?? ''}
+                alt={`#${piece.id.toString()}`}
+                className={styles.thumb}
+                fallback={<div className={styles.thumbGlyph}>✦</div>}
+              />
+              <span className={styles.id}>#{piece.id.toString()}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </>
   )
 }
