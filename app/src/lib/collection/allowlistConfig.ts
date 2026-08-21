@@ -14,7 +14,7 @@
  *     on-chain via `MasterRegistry.updateInstanceMetadata`).
  */
 import { getAddress, isAddress, type Hex } from 'viem'
-import { fetchJson, type CollectionMetadata, type AllowlistRow } from '../metadata'
+import { fetchJson, jsonOrNull, type CollectionMetadata, type AllowlistRow } from '../metadata'
 import { buildMerkleRoot, getProof, parseAllowlist, type AllowlistEntry } from '../merkle'
 
 /** The `MerkleConfig` shape `MerkleGatingModule.configureFor` expects (uint256 fields → bigint). */
@@ -78,7 +78,7 @@ export async function buildAllowlistFromUri(
 ): Promise<AllowlistBuildOutcome> {
   const trimmed = uri.trim()
   if (trimmed === '') return { error: 'enter a listURI', invalid: [] }
-  const json = await fetchJson(trimmed, signal)
+  const json = jsonOrNull(await fetchJson(trimmed, signal))
   if (json === null) return { error: `could not fetch or parse ${trimmed}`, invalid: [] }
   return fromParsed(parseAllowlist(json), trimmed)
 }
@@ -153,7 +153,7 @@ export async function resolveMemberProof(
   signal?: AbortSignal,
 ): Promise<{ proof: Hex[]; maxQty: bigint } | null> {
   if (!isAddress(address, { strict: false })) return null
-  const json = await fetchJson(listURI, signal)
+  const json = jsonOrNull(await fetchJson(listURI, signal))
   if (json === null) return null
   const { entries } = parseAllowlist(json)
   if (entries.length === 0) return null

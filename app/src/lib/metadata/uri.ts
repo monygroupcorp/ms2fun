@@ -1,11 +1,28 @@
 /**
  * URI resolution for the backend-free metadata model (ADR-0004): every metadata pointer is an
  * on-chain URI; the content lives on IPFS / Arweave / inline data-URI. This resolves a pointer to a
- * fetchable URL and fetches+parses JSON. For ipfs:// it RACES all gateways (first healthy response
- * wins, losers aborted) so one dead gateway can't add tail latency. Pure TS (no React/wagmi) so
- * NOEMA can reuse it; the only dep is the pure, SSR-safe custom-gateway store (W-A3/A4).
+ * fetchable URL and fetches+parses JSON.
+ *
+ * For ipfs:// the gateways are tried ONE AT A TIME, in health order, and rotation happens only on
+ * failure. Public gateways meter by client IP, so asking all of them for the same bytes spends the
+ * viewer's own quota once per gateway for every item they browse; a grid of a thousand items is the
+ * difference between a thousand requests and several thousand. The gateway that answers becomes
+ * last-known-good, so the next item starts there and costs one request.
+ *
+ * Pure TS (no React/wagmi) so NOEMA can reuse it; the deps are the pure, SSR-safe custom-gateway
+ * store (W-A3/A4) and the gateway-health module that owns the ordering.
  */
 import { customGatewayStore } from '../storage/keys'
+import {
+  classifyStatus,
+  gatewayKey,
+  nextAvailableAt,
+  noteOutcome,
+  orderGateways,
+  parseRetryAfter,
+  THROTTLE_BASE_MS,
+  type AttemptOutcome,
+} from './gatewayHealth'
 import { isDocumentResponse, readCappedText } from './untrusted'
 
 /**
@@ -38,7 +55,7 @@ export interface IpfsGateway {
 }
 
 /**
- * Public IPFS gateways, raced in parallel. No backend, account, API key or dashboard of ours —
+ * Public IPFS gateways, tried in sequence. No backend, account, API key or dashboard of ours —
  * public endpoints only, so the list stays walkawayable.
  *
  * Deliberately spans three independent operators. Ordered by observed retrieval reliability, and
@@ -59,7 +76,7 @@ export const IPFS_GATEWAYS: readonly IpfsGateway[] = [
   { operator: '4EVERLAND', form: 'subdomain', base: '4everland.io' },
 ] as const
 
-/** Per-gateway request timeout — a hung gateway is aborted and the others still race. */
+/** Per-gateway request timeout — a hung gateway is aborted and the next one is tried. */
 const GATEWAY_TIMEOUT_MS = 8_000
 
 /**
@@ -102,10 +119,10 @@ export function resolveUri(uri: string, gatewayIndex = 0): string {
 }
 
 /**
- * Ordered list of fetchable URLs to try for a pointer, best-first. For ipfs:// this is EVERY gateway
- * that can address the CID (custom override first, then the public set) so an `<img>` can rotate to
- * the next on a load error/timeout instead of dying on gateway 0 — the image analogue of fetchJson's
- * gateway race. ar:/http/data resolve to a single URL.
+ * EVERY fetchable URL for a pointer, in roster order and ignoring health. For ipfs:// this is every
+ * gateway that can address the CID (custom override first, then the public set); ar:/http/data
+ * resolve to a single URL. Callers use this to answer "is this pointer addressable at all" —
+ * to actually spend a request, use {@link resolveCandidates}, which is health-ordered.
  */
 export function resolveUriCandidates(uri: string): string[] {
   const trimmed = uri.trim()
@@ -168,7 +185,7 @@ function ipfsUrls(path: string, gateways: readonly IpfsGateway[]): string[] {
  * Normalize a custom gateway base (any form) to end with `/ipfs/`. A user-supplied gateway is
  * treated as path form: an arbitrary host cannot be assumed to serve subdomain requests.
  */
-function normalizeGateway(base: string): string {
+export function normalizeGateway(base: string): string {
   const g = base.trim().replace(/\/+$/, '')
   return g.endsWith('/ipfs') ? `${g}/` : `${g}/ipfs/`
 }
@@ -188,20 +205,125 @@ export function getIpfsGateways(
   return list
 }
 
-/** One gateway attempt with its own timeout-abort, linked to the parent (winner/caller) signal. */
-async function fetchOne<T>(url: string, parentSignal: AbortSignal): Promise<T> {
+/**
+ * The health-ordered URLs to try for a pointer, best-first, each tagged with the gateway identity
+ * whose health it reports to.
+ *
+ * For ipfs://: the viewer's custom gateway (if set) first, then every public gateway that can
+ * address this CID and is NOT in cooldown, most-recently-good first. A cooling gateway is DROPPED,
+ * not appended — asking it anyway is what keeps a rate-limit window from clearing. An empty result
+ * for an otherwise-addressable pointer therefore means "every gateway is cooling", which callers
+ * must report as throttled rather than as missing content.
+ *
+ * ar:/http/data resolve to a single URL with no gateway identity — there is nothing to rotate to
+ * and no shared bucket to protect.
+ */
+export function resolveCandidates(uri: string): UriCandidate[] {
+  const trimmed = uri.trim()
+  if (!trimmed.startsWith('ipfs://')) return [{ url: resolveUri(trimmed), gatewayKey: null }]
+  const path = ipfsPath(trimmed)
+  const candidates: UriCandidate[] = []
+  for (const gateway of orderGateways(usableGateways(path))) {
+    const url = gatewayUrl(gateway, path)
+    if (url) candidates.push({ url, gatewayKey: gatewayKey(gateway) })
+  }
+  return candidates
+}
+
+/** One URL to try, and the gateway whose health an attempt at it reports to (null = not a gateway). */
+export interface UriCandidate {
+  url: string
+  gatewayKey: string | null
+}
+
+/** Every gateway that can address this path at all, regardless of health. */
+function usableGateways(path: string): IpfsGateway[] {
+  return getIpfsGateways().filter((gateway) => gatewayUrl(gateway, path) !== null)
+}
+
+/**
+ * When a pointer is addressable but every gateway for it is cooling, the epoch ms at which the
+ * first one can be asked again. 0 when at least one is askable now.
+ */
+export function retryAtFor(uri: string): number {
+  const trimmed = uri.trim()
+  if (!trimmed.startsWith('ipfs://')) return 0
+  return nextAvailableAt(usableGateways(ipfsPath(trimmed)))
+}
+
+/**
+ * The outcome of a metadata fetch, with the REASON preserved.
+ *
+ * A rate limit, an absent CID and a dead network are three different situations that want three
+ * different responses from the UI: wait and retry, fall back to on-chain fields, and try again
+ * later respectively. Collapsing them into one empty value makes every one of those indistinguishable
+ * by the time a component renders, so the reason is carried instead.
+ */
+export type MetadataResult<T> =
+  /** The document was retrieved and parsed. */
+  | { status: 'found'; data: T }
+  /** The pointer is unusable, or a gateway answered that the content is not there. */
+  | { status: 'not-found' }
+  /** Gateways are refusing us. `retryAt` is epoch ms of the earliest retry (0 when unknown). */
+  | { status: 'throttled'; retryAt: number }
+  /** Nothing answered: network failure, timeouts, or misbehaving gateways. */
+  | { status: 'offline' }
+
+const NOT_FOUND: MetadataResult<never> = { status: 'not-found' }
+const OFFLINE: MetadataResult<never> = { status: 'offline' }
+
+/**
+ * The document, or null for every non-success. For call sites whose behaviour on a miss is already
+ * "fall back to on-chain fields" and which do not render a throttle state themselves — the throttle
+ * notice is app-level and reads gateway health directly, so those call sites stay one line.
+ */
+export function jsonOrNull<T>(result: MetadataResult<T>): T | null {
+  return result.status === 'found' ? result.data : null
+}
+
+/** What one attempt learned: how it ended, the parsed body if it succeeded, and any `Retry-After`. */
+interface Attempt<T> {
+  outcome: AttemptOutcome
+  data?: T
+  retryAfterMs: number | null
+}
+
+/**
+ * Classify a response. Falls back to `ok` when a response exposes no numeric status, so a minimal
+ * response object is still read as success/failure rather than as a parse accident.
+ */
+function classifyResponse(res: Response): AttemptOutcome {
+  const status = typeof res.status === 'number' && res.status > 0 ? res.status : res.ok ? 200 : 0
+  return classifyStatus(status)
+}
+
+function retryAfterOf(res: Response): number | null {
+  try {
+    return parseRetryAfter(res.headers.get('retry-after'))
+  } catch {
+    return null
+  }
+}
+
+/** One gateway attempt with its own timeout-abort, linked to the caller's signal. */
+async function fetchOne<T>(url: string, parentSignal: AbortSignal): Promise<Attempt<T>> {
   const ctrl = new AbortController()
   const onParent = () => ctrl.abort()
   parentSignal.addEventListener('abort', onParent, { once: true })
   const timer = setTimeout(() => ctrl.abort(), GATEWAY_TIMEOUT_MS)
   try {
     const res = await fetch(url, { signal: ctrl.signal })
-    if (!res.ok) throw new Error(`gateway responded ${res.status}`)
+    const outcome = classifyResponse(res)
+    if (outcome !== 'ok') return { outcome, retryAfterMs: retryAfterOf(res) }
     // A gateway can answer 200 with an HTML challenge/error page instead of the CID's bytes.
-    // That is this gateway failing, not the content being absent, so it must reject and let the
-    // race fall through to the others rather than resolve as a parsed document.
-    if (isDocumentResponse(res)) throw new Error('gateway returned a document, not the content')
-    return JSON.parse(await readCappedText(res)) as T
+    // That is this gateway failing, not the content being absent, so it demotes the gateway and
+    // rotation continues rather than reporting the content as missing.
+    if (isDocumentResponse(res)) return { outcome: 'fault', retryAfterMs: null }
+    return { outcome: 'ok', data: JSON.parse(await readCappedText(res)) as T, retryAfterMs: null }
+  } catch (err) {
+    if (parentSignal.aborted) throw err
+    // Network error, timeout, oversized body, or unparseable JSON — this gateway did not deliver.
+    return { outcome: 'fault', retryAfterMs: null }
   } finally {
     clearTimeout(timer)
     parentSignal.removeEventListener('abort', onParent)
@@ -209,45 +331,150 @@ async function fetchOne<T>(url: string, parentSignal: AbortSignal): Promise<T> {
 }
 
 /**
- * Fetch + JSON-parse a metadata URI. ipfs:// RACES every gateway (first 2xx-JSON wins, losers
- * aborted); data:/http/ar resolve once. Returns null on any failure (unreachable, non-JSON, bad
- * pointer) — callers fall back to on-chain fields. `signal` lets React Query cancel in-flight work.
+ * Fetch + JSON-parse a metadata URI, returning the reason on failure.
+ *
+ * ipfs:// walks the health-ordered gateway list one at a time and stops at the first that answers:
+ * N items cost N requests, not N x roster. A gateway that refuses is parked (see `gatewayHealth`)
+ * so later items skip it entirely instead of re-spending the viewer's quota against a closed door.
+ * data:/http/ar resolve once. `signal` lets React Query cancel in-flight work; cancellation
+ * propagates exactly as before.
  */
-export async function fetchJson<T = unknown>(uri: string, signal?: AbortSignal): Promise<T | null> {
-  if (!isResolvableUri(uri)) return null
+export async function fetchJson<T = unknown>(
+  uri: string,
+  signal?: AbortSignal,
+): Promise<MetadataResult<T>> {
+  if (!isResolvableUri(uri)) return NOT_FOUND
   const trimmed = uri.trim()
 
-  // Non-ipfs: a single resolve + fetch.
+  // Non-ipfs: a single resolve + fetch. No gateway roster, so nothing to rotate or to cool.
   if (!trimmed.startsWith('ipfs://')) {
     try {
       const res = await fetch(resolveUri(trimmed), signal ? { signal } : {})
-      if (!res.ok) return null
-      if (isDocumentResponse(res)) return null
-      return JSON.parse(await readCappedText(res)) as T
+      const outcome = classifyResponse(res)
+      if (outcome === 'missing') return NOT_FOUND
+      if (outcome === 'throttled') {
+        return {
+          status: 'throttled',
+          retryAt: Date.now() + (retryAfterOf(res) ?? THROTTLE_BASE_MS),
+        }
+      }
+      if (outcome !== 'ok') return OFFLINE
+      if (isDocumentResponse(res)) return OFFLINE
+      return { status: 'found', data: JSON.parse(await readCappedText(res)) as T }
     } catch (err) {
       if (signal?.aborted) throw err
-      return null
+      return OFFLINE
     }
   }
 
   // Already-cancelled callers shouldn't fire any requests.
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
 
-  const urls = ipfsUrls(ipfsPath(trimmed), getIpfsGateways())
-  if (urls.length === 0) return null
-  // Shared "stop everyone" signal: fires when a winner is found (finally) or the caller aborts.
+  const path = ipfsPath(trimmed)
+  const addressable = usableGateways(path)
+  if (addressable.length === 0) return NOT_FOUND
+  const candidates = resolveCandidates(trimmed)
+  if (candidates.length === 0) {
+    // Every gateway that could serve this CID is in cooldown. Firing at them anyway is precisely
+    // what keeps the window from clearing, so we report the state instead of spending the request.
+    return { status: 'throttled', retryAt: nextAvailableAt(addressable) }
+  }
+
+  // Shared "stop" signal: fires when the caller aborts or when we are done.
   const stop = new AbortController()
   const onCallerAbort = () => stop.abort()
   signal?.addEventListener('abort', onCallerAbort, { once: true })
 
+  let sawThrottle = false
+  let sawMissing = false
   try {
-    return await Promise.any(urls.map((url) => fetchOne<T>(url, stop.signal)))
-  } catch {
-    // AggregateError: every gateway failed. Surface a caller-abort as such; else soft-fail.
+    for (const candidate of candidates) {
+      const attempt = await fetchOne<T>(candidate.url, stop.signal)
+      if (candidate.gatewayKey) {
+        noteOutcome(candidate.gatewayKey, attempt.outcome, attempt.retryAfterMs)
+      }
+      if (attempt.outcome === 'ok') return { status: 'found', data: attempt.data as T }
+      if (attempt.outcome === 'throttled') sawThrottle = true
+      else if (attempt.outcome === 'missing') sawMissing = true
+    }
+  } catch (err) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
-    return null
+    throw err
   } finally {
-    stop.abort() // cancel any losers still in flight
+    stop.abort()
     signal?.removeEventListener('abort', onCallerAbort)
+  }
+
+  if (sawThrottle) return { status: 'throttled', retryAt: nextAvailableAt(addressable) }
+  if (sawMissing) return NOT_FOUND
+  // Some gateways may have been skipped as cooling; if so this is a throttle, not a dead network.
+  const retryAt = candidates.length < addressable.length ? nextAvailableAt(addressable) : 0
+  return retryAt > 0 ? { status: 'throttled', retryAt } : OFFLINE
+}
+
+/**
+ * The CID used to prove a pasted gateway actually serves IPFS content: the canonical zero-byte
+ * UnixFS file. It is the most widely pinned object on the network and costs nothing to transfer, so
+ * a gateway that cannot serve it cannot serve anything. CIDv0 is fine here — a custom gateway is
+ * always addressed in path form.
+ */
+export const GATEWAY_PROBE_CID = 'QmbFMke1KXqnYyBBWxB74N4c5SBnJMVAiMNRcGu6x1AwQH'
+
+/** How long to wait for a pasted gateway to prove itself before calling it unusable. */
+const PROBE_TIMEOUT_MS = 10_000
+
+/** Outcome of validating a pasted gateway: the normalized base, or why it was rejected. */
+export type GatewayProbeResult = { ok: true; base: string } | { ok: false; reason: string }
+
+/**
+ * Validate and probe a viewer-supplied gateway before it is saved.
+ *
+ * A typo'd gateway that is stored and silently fails is worse than no custom gateway at all: it
+ * takes priority over the public set, so every subsequent load starts by failing. The shape is
+ * checked first (an https/http URL), then the gateway is asked for a known-good CID and must answer
+ * with content rather than a challenge document.
+ */
+export async function probeGateway(input: string): Promise<GatewayProbeResult> {
+  const trimmed = input.trim()
+  if (trimmed === '') return { ok: false, reason: 'Enter a gateway URL.' }
+  let parsed: URL
+  try {
+    parsed = new URL(trimmed)
+  } catch {
+    return {
+      ok: false,
+      reason: 'That is not a URL. It should look like https://your-gateway.example.',
+    }
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    return {
+      ok: false,
+      reason: 'A gateway URL must start with https:// (or http:// on a local node).',
+    }
+  }
+
+  const base = normalizeGateway(trimmed)
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS)
+  try {
+    const res = await fetch(`${base}${GATEWAY_PROBE_CID}`, { signal: ctrl.signal })
+    const outcome = classifyResponse(res)
+    if (outcome === 'throttled') {
+      return { ok: false, reason: 'That gateway is rate-limiting this browser right now.' }
+    }
+    if (outcome !== 'ok') {
+      return {
+        ok: false,
+        reason: 'That gateway did not serve a test CID, so it would not serve art.',
+      }
+    }
+    if (isDocumentResponse(res)) {
+      return { ok: false, reason: 'That URL answered with a web page instead of IPFS content.' }
+    }
+    return { ok: true, base }
+  } catch {
+    return { ok: false, reason: 'Could not reach that gateway. Check the URL and try again.' }
+  } finally {
+    clearTimeout(timer)
   }
 }

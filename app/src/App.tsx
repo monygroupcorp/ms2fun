@@ -4,6 +4,7 @@ import { Link, Route, Switch } from 'wouter'
 import { WagmiProvider } from 'wagmi'
 import { WalletButton } from './components/WalletButton'
 import { WrongNetworkBanner } from './components/ui/WrongNetworkBanner'
+import { GatewayThrottleNotice } from './components/ui/GatewayThrottleNotice'
 import { BoardCartProvider } from './components/board/BoardCartProvider'
 import { BoardCartBar } from './components/board/BoardCartBar'
 import { config } from './lib/wagmi'
@@ -169,6 +170,9 @@ export function App() {
               </button>
             </header>
             <WrongNetworkBanner />
+            {/* Renders only while every gateway is in cooldown. Non-blocking by construction: it
+                sits above the routes and never unmounts them, so cached art stays on screen. */}
+            <GatewayThrottleNotice />
             {menuOpen && (
               <div className={styles.overlay} role="dialog" aria-modal="true" aria-label="menu">
                 <div className={styles.overlayBar}>

@@ -13,7 +13,7 @@ import {
   useReadErc721AuctionInstanceNextTokenId,
 } from '../../../generated/contracts'
 import { useCollectionChainId, useCollectionSlug } from '../useCollectionChain'
-import { fetchJson } from '../../../lib/metadata'
+import { fetchJson, jsonOrNull } from '../../../lib/metadata'
 import { IpfsImage } from '../../ui/IpfsImage'
 import { deriveAuctionState } from './auctionState'
 import { useNowSec } from './useNowSec'
@@ -87,7 +87,7 @@ export function Erc721PieceGallery({ instance }: { instance: `0x${string}` }) {
       // Resolve images in parallel; soft-fail to a glyph tile on any miss.
       return Promise.all(
         raw.map(async ({ tokenURI, piece }): Promise<Piece> => {
-          const meta = tokenURI ? await fetchJson<{ image?: string }>(tokenURI) : null
+          const meta = tokenURI ? jsonOrNull(await fetchJson<{ image?: string }>(tokenURI)) : null
           return { ...piece, image: meta?.image }
         }),
       )

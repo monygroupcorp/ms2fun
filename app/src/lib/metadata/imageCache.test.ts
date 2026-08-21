@@ -7,7 +7,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveUriCandidates } from './uri'
-import { loadArt, peekArt, resetArtMemoryCache } from './imageCache'
+import { resetGatewayHealth } from './gatewayHealth'
+import { artFailureReason, loadArt, peekArt, resetArtMemoryCache } from './imageCache'
 
 const CID = 'ipfs://QmArtOne'
 const PIXEL = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
@@ -25,6 +26,8 @@ beforeEach(() => {
   URL.createObjectURL = vi.fn(() => `blob:art-${++blobUrls}`)
   URL.revokeObjectURL = vi.fn()
   resetArtMemoryCache()
+  // Gateway health outlives a single load by design, so each case starts from an unjudged roster.
+  resetGatewayHealth()
   fetchMock.mockReset()
   fetchMock.mockResolvedValue(okResponse())
 })
@@ -87,16 +90,61 @@ describe('loadArt', () => {
     expect(fetchMock.mock.calls[1]?.[0]).toBe(candidates[1])
   })
 
-  it('rejects only once every candidate has failed, and retries on a later call', async () => {
+  it('rejects only once every candidate has failed', async () => {
     fetchMock.mockRejectedValue(new Error('gateway down'))
 
     await expect(loadArt(CID)).rejects.toThrow()
     // Not the roster length: subdomain-form entries cannot serve this CIDv0 and are skipped.
     expect(fetchMock).toHaveBeenCalledTimes(resolveUriCandidates(CID).length)
+  })
 
-    // A failure is not cached: the next caller is allowed to try again.
+  it('does not cache the failure itself — a healthy roster is tried again', async () => {
+    fetchMock.mockRejectedValue(new Error('gateway down'))
+    await expect(loadArt(CID)).rejects.toThrow()
+
+    // The failure is not remembered as content; only the GATEWAYS were judged, and clearing that
+    // judgement is enough for the next caller to be served.
+    resetGatewayHealth()
     fetchMock.mockClear()
     fetchMock.mockResolvedValue(okResponse())
     await expect(loadArt(CID)).resolves.toMatch(/^blob:/)
+  })
+
+  it('does not re-ask a gateway that just refused, and says so', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 429,
+      headers: { get: () => null },
+      blob: async () => new Blob([]),
+    })
+
+    await expect(loadArt(CID)).rejects.toThrow()
+    const spent = fetchMock.mock.calls.length
+    expect(spent).toBe(resolveUriCandidates(CID).length)
+
+    // Every gateway is now cooling, so the next load spends NOTHING and reports the reason.
+    fetchMock.mockClear()
+    await expect(loadArt(CID)).rejects.toSatisfy(
+      (err: unknown) => artFailureReason(err) === 'throttled',
+    )
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('reports missing — not throttled — when a gateway says the CID is not there', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 404,
+      headers: { get: () => null },
+      blob: async () => new Blob([]),
+    })
+
+    await expect(loadArt(CID)).rejects.toSatisfy(
+      (err: unknown) => artFailureReason(err) === 'missing',
+    )
+    // A dead CID must not cool a healthy gateway: the next pointer is tried from the top.
+    fetchMock.mockClear()
+    fetchMock.mockResolvedValue(okResponse())
+    await expect(loadArt('ipfs://QmArtTwo')).resolves.toMatch(/^blob:/)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })

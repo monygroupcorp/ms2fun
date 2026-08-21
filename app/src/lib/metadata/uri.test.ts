@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   contentKey,
   fetchJson,
+  jsonOrNull,
+  resolveCandidates,
   gatewayUrl,
   getIpfsGateways,
   IPFS_GATEWAYS,
@@ -12,10 +14,41 @@ import {
   resolveUriCandidates,
   type IpfsGateway,
 } from './uri'
+import { gatewayKey, noteThrottled, resetGatewayHealth } from './gatewayHealth'
+import { customGatewayStore } from '../storage/keys'
 
 // A base32 CIDv1 is case-insensitive, so it survives a DNS label; a CIDv0 is base58btc and does not.
 const CID_V1 = 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi'
 const CID_V0 = 'QmFoo'
+
+/**
+ * Vitest 4's jsdom environment exposes a Node-native `localStorage` that is not actually available,
+ * so every persisted read/write silently no-ops. The same Map-backed stub `storage.test.ts` installs
+ * is used here, since the gateway roster and the health map are both persisted surfaces.
+ */
+function makeLocalStorageMock(): Storage {
+  const store = new Map<string, string>()
+  return {
+    get length() {
+      return store.size
+    },
+    key: (index: number) => [...store.keys()][index] ?? null,
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      store.set(key, value)
+    },
+    removeItem: (key: string) => {
+      store.delete(key)
+    },
+    clear: () => {
+      store.clear()
+    },
+  }
+}
+
+/** True when `url` is served by the FIRST roster entry, whatever sub-path is being asked for. */
+const isFirstGateway = (url: string): boolean =>
+  url.startsWith(String((IPFS_GATEWAYS[0] as IpfsGateway).base))
 
 /** The URLs the public roster can actually serve a path from (subdomain entries drop CIDv0). */
 const publicUrls = (path: string): string[] =>
@@ -295,107 +328,267 @@ describe('getIpfsGateways', () => {
 
 type MockFetch = ReturnType<typeof vi.fn>
 
-function makeMockResponse(ok: boolean, json: unknown, contentType = 'application/json'): Response {
+function makeMockResponse(
+  ok: boolean,
+  json: unknown,
+  contentType = 'application/json',
+  status = ok ? 200 : 500,
+  extraHeaders: Record<string, string> = {},
+): Response {
   const body = JSON.stringify(json)
+  const headers: Record<string, string> = {
+    'content-type': contentType,
+    'content-length': String(body.length),
+    ...extraHeaders,
+  }
   return {
     ok,
-    headers: {
-      get: (name: string) =>
-        name.toLowerCase() === 'content-type'
-          ? contentType
-          : name.toLowerCase() === 'content-length'
-            ? String(body.length)
-            : null,
-    },
+    status,
+    headers: { get: (name: string) => headers[name.toLowerCase()] ?? null },
     json: () => Promise.resolve(json),
     text: () => Promise.resolve(body),
   } as unknown as Response
 }
 
+/** A gateway response that means "you are asking too often". */
+const throttledResponse = (retryAfter?: string): Response =>
+  makeMockResponse(
+    false,
+    { error: 'rate limited' },
+    'application/json',
+    429,
+    retryAfter === undefined ? {} : { 'retry-after': retryAfter },
+  )
+
+/** A gateway response that means "this CID is not here" — the gateway itself is healthy. */
+const missingResponse = (): Response =>
+  makeMockResponse(false, { error: 'not found' }, 'application/json', 404)
+
 describe('fetchJson', () => {
   let mockFetch: MockFetch
 
   beforeEach(() => {
+    vi.stubGlobal('localStorage', makeLocalStorageMock())
+    resetGatewayHealth()
+    customGatewayStore.remove()
     mockFetch = vi.fn()
     vi.stubGlobal('fetch', mockFetch)
   })
 
   afterEach(() => {
+    resetGatewayHealth()
+    customGatewayStore.remove()
     vi.unstubAllGlobals()
   })
 
   // Non-ipfs: a single resolve + fetch.
-  it('returns parsed JSON for a resolvable http URI that responds ok', async () => {
+  it('returns the parsed document for a resolvable http URI that responds ok', async () => {
     const data = { name: 'test' }
     mockFetch.mockResolvedValueOnce(makeMockResponse(true, data))
     const result = await fetchJson('https://example.com/meta.json')
-    expect(result).toEqual(data)
+    expect(result).toEqual({ status: 'found', data })
     expect(mockFetch).toHaveBeenCalledTimes(1)
     expect(mockFetch).toHaveBeenCalledWith('https://example.com/meta.json', { signal: undefined })
   })
 
-  it('returns null for a non-resolvable URI without calling fetch', async () => {
-    expect(await fetchJson('hello')).toBeNull()
+  it('reports not-found for a non-resolvable URI without calling fetch', async () => {
+    expect(await fetchJson('hello')).toEqual({ status: 'not-found' })
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
-  it('returns null for an empty string without calling fetch', async () => {
-    expect(await fetchJson('')).toBeNull()
+  it('reports not-found for an empty string without calling fetch', async () => {
+    expect(await fetchJson('')).toEqual({ status: 'not-found' })
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
-  it('returns null when a non-ipfs fetch returns !ok', async () => {
+  it('reports offline when a non-ipfs fetch returns a server error', async () => {
     mockFetch.mockResolvedValueOnce(makeMockResponse(false, null))
-    expect(await fetchJson('https://example.com/meta.json')).toBeNull()
+    expect(await fetchJson('https://example.com/meta.json')).toEqual({ status: 'offline' })
     expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 
-  // ipfs: race across all gateways, first healthy response wins.
-  describe('ipfs:// gateway race', () => {
-    it('fires all gateways in parallel and returns the first healthy response', async () => {
+  it('reports not-found when a non-ipfs fetch 404s — the host answered, the content is gone', async () => {
+    mockFetch.mockResolvedValueOnce(missingResponse())
+    expect(await fetchJson('https://example.com/meta.json')).toEqual({ status: 'not-found' })
+  })
+
+  it('reports throttled when a non-ipfs fetch is rate limited', async () => {
+    mockFetch.mockResolvedValueOnce(throttledResponse())
+    const result = await fetchJson('https://example.com/meta.json')
+    expect(result.status).toBe('throttled')
+  })
+
+  it('jsonOrNull collapses every non-success back to null for callers that only need the document', async () => {
+    mockFetch.mockResolvedValueOnce(missingResponse())
+    expect(jsonOrNull(await fetchJson('https://example.com/meta.json'))).toBeNull()
+    mockFetch.mockResolvedValueOnce(makeMockResponse(true, { a: 1 }))
+    expect(jsonOrNull(await fetchJson('https://example.com/meta.json'))).toEqual({ a: 1 })
+  })
+
+  // ipfs: sequential rotation over a health-ordered list.
+  describe('ipfs:// sequential rotation', () => {
+    it('spends ONE request when the first gateway answers', async () => {
       const data = { schema: 1 }
-      // gateway 0 ok; the others get the default undefined mock and reject
-      mockFetch.mockResolvedValueOnce(makeMockResponse(true, data))
-      const result = await fetchJson(`ipfs://${CID_V1}`)
-      expect(result).toEqual(data)
-      expect(mockFetch).toHaveBeenCalledTimes(publicUrls(CID_V1).length)
+      mockFetch.mockResolvedValue(makeMockResponse(true, data))
+      expect(await fetchJson(`ipfs://${CID_V1}`)).toEqual({ status: 'found', data })
+      expect(mockFetch).toHaveBeenCalledTimes(1)
     })
 
-    it('still wins when an earlier gateway rejects', async () => {
+    it('N metadata fetches on a healthy roster cost N requests, not N x roster', async () => {
+      // The whole point of the item: public gateways meter per client IP, so a parallel race
+      // multiplies the viewer's own spend by the roster length on every single item.
+      mockFetch.mockResolvedValue(makeMockResponse(true, { schema: 1 }))
+      const items = 8
+      for (let i = 0; i < items; i += 1) {
+        await fetchJson(`ipfs://${CID_V1}/${i}.json`)
+      }
+      expect(mockFetch).toHaveBeenCalledTimes(items)
+      expect(publicUrls(CID_V1).length).toBeGreaterThan(1) // the race would have cost more
+    })
+
+    it('rotates to the next gateway only when one fails', async () => {
       const data = { schema: 1 }
       mockFetch
         .mockRejectedValueOnce(new Error('gw0 down'))
         .mockResolvedValueOnce(makeMockResponse(true, data))
-      const result = await fetchJson(`ipfs://${CID_V1}`)
-      expect(result).toEqual(data)
-      expect(mockFetch).toHaveBeenCalledTimes(publicUrls(CID_V1).length)
+      expect(await fetchJson(`ipfs://${CID_V1}`)).toEqual({ status: 'found', data })
+      expect(mockFetch).toHaveBeenCalledTimes(2)
     })
 
-    it('hits each gateway at its CID-resolved URL', async () => {
+    it('hits the first gateway at its CID-resolved URL', async () => {
       mockFetch.mockResolvedValue(makeMockResponse(true, { ok: 1 }))
       await fetchJson(`ipfs://${CID_V1}/meta.json`)
-      const calledUrls = mockFetch.mock.calls.map((c) => c[0])
-      expect(calledUrls).toEqual(publicUrls(`${CID_V1}/meta.json`))
+      expect(mockFetch.mock.calls.map((c) => c[0])).toEqual([publicUrls(`${CID_V1}/meta.json`)[0]])
     })
 
-    it('skips subdomain-only gateways for a CIDv0 pointer', async () => {
-      mockFetch.mockResolvedValue(makeMockResponse(true, { ok: 1 }))
+    it('never emits a CIDv0 to a subdomain-only gateway while rotating', async () => {
+      mockFetch.mockResolvedValue(makeMockResponse(false, null))
       await fetchJson(`ipfs://${CID_V0}`)
       const calledUrls = mockFetch.mock.calls.map((c) => c[0]) as string[]
       expect(calledUrls).toEqual(publicUrls(CID_V0))
       for (const url of calledUrls) expect(url).toContain(`/ipfs/${CID_V0}`)
     })
 
-    it('returns null when all gateways reject', async () => {
+    it('walks every gateway before giving up, and reports offline when none answered', async () => {
       mockFetch.mockRejectedValue(new Error('all down'))
-      expect(await fetchJson(`ipfs://${CID_V1}`)).toBeNull()
+      expect(await fetchJson(`ipfs://${CID_V1}`)).toEqual({ status: 'offline' })
       expect(mockFetch).toHaveBeenCalledTimes(publicUrls(CID_V1).length)
     })
 
-    it('returns null when all gateways return !ok', async () => {
-      mockFetch.mockResolvedValue(makeMockResponse(false, null))
-      expect(await fetchJson(`ipfs://${CID_V1}`)).toBeNull()
-      expect(mockFetch).toHaveBeenCalledTimes(publicUrls(CID_V1).length)
+    it('reports not-found when a gateway says the CID is not there', async () => {
+      mockFetch.mockResolvedValue(missingResponse())
+      expect(await fetchJson(`ipfs://${CID_V1}`)).toEqual({ status: 'not-found' })
+    })
+  })
+
+  // ── quota-aware rotation: what a refusal costs the NEXT item ────────────────
+  describe('rate-limit awareness', () => {
+    it('cools a gateway that returns 429 and does not ask it again on the next item', async () => {
+      mockFetch.mockImplementation((url: string) =>
+        Promise.resolve(
+          isFirstGateway(url) ? throttledResponse() : makeMockResponse(true, { a: 1 }),
+        ),
+      )
+
+      await fetchJson(`ipfs://${CID_V1}/one.json`)
+      mockFetch.mockClear()
+      await fetchJson(`ipfs://${CID_V1}/two.json`)
+
+      const urls = mockFetch.mock.calls.map((c) => c[0]) as string[]
+      expect(urls).not.toContain(publicUrls(`${CID_V1}/two.json`)[0])
+      expect(urls).toHaveLength(1)
+    })
+
+    it('treats a 503 as a refusal too — the CDN shape of the same signal', async () => {
+      mockFetch.mockImplementation((url: string) =>
+        Promise.resolve(
+          isFirstGateway(url)
+            ? makeMockResponse(false, null, 'application/json', 503)
+            : makeMockResponse(true, { a: 1 }),
+        ),
+      )
+      await fetchJson(`ipfs://${CID_V1}/one.json`)
+      mockFetch.mockClear()
+      await fetchJson(`ipfs://${CID_V1}/two.json`)
+      expect(mockFetch.mock.calls.map((c) => c[0])).not.toContain(
+        publicUrls(`${CID_V1}/two.json`)[0],
+      )
+    })
+
+    it('does NOT cool a gateway for a 404 — a dead CID must not cost every other item', async () => {
+      mockFetch.mockResolvedValue(missingResponse())
+      await fetchJson(`ipfs://${CID_V1}/gone.json`)
+      mockFetch.mockClear()
+      mockFetch.mockResolvedValue(makeMockResponse(true, { a: 1 }))
+
+      await fetchJson(`ipfs://${CID_V1}/here.json`)
+      expect(mockFetch.mock.calls[0]?.[0]).toBe(publicUrls(`${CID_V1}/here.json`)[0])
+    })
+
+    it('reports throttled — never not-found — when every gateway is cooling, and fires nothing', async () => {
+      for (const gateway of IPFS_GATEWAYS) noteThrottled(gatewayKey(gateway))
+      const result = await fetchJson(`ipfs://${CID_V1}`)
+      expect(result.status).toBe('throttled')
+      expect(result.status === 'throttled' && result.retryAt).toBeGreaterThan(Date.now())
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('starts the next item at the gateway that last worked', async () => {
+      const urls = publicUrls(CID_V1)
+      expect(urls.length).toBeGreaterThan(1)
+      const second = urls[1] as string
+      mockFetch.mockImplementation((url: string) =>
+        Promise.resolve(url === second ? makeMockResponse(true, { a: 1 }) : throttledResponse()),
+      )
+      await fetchJson(`ipfs://${CID_V1}`)
+      mockFetch.mockClear()
+
+      mockFetch.mockResolvedValue(makeMockResponse(true, { a: 1 }))
+      await fetchJson(`ipfs://${CID_V1}/next.json`)
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+      expect(mockFetch.mock.calls[0]?.[0]).toBe(publicUrls(`${CID_V1}/next.json`)[1])
+    })
+
+    it('always tries a custom gateway first, ahead of the whole public set', async () => {
+      customGatewayStore.set('https://my.gw')
+      mockFetch.mockResolvedValue(makeMockResponse(true, { a: 1 }))
+      await fetchJson(`ipfs://${CID_V1}`)
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+      expect(mockFetch.mock.calls[0]?.[0]).toBe(`https://my.gw/ipfs/${CID_V1}`)
+    })
+
+    it('keeps trying a custom gateway even while every public gateway is cooling', async () => {
+      for (const gateway of IPFS_GATEWAYS) noteThrottled(gatewayKey(gateway))
+      customGatewayStore.set('https://my.gw')
+      mockFetch.mockResolvedValue(makeMockResponse(true, { a: 1 }))
+      expect(await fetchJson(`ipfs://${CID_V1}`)).toEqual({ status: 'found', data: { a: 1 } })
+      expect(mockFetch.mock.calls.map((c) => c[0])).toEqual([`https://my.gw/ipfs/${CID_V1}`])
+    })
+  })
+
+  describe('resolveCandidates', () => {
+    it('drops cooling gateways rather than appending them', () => {
+      const firstKey = gatewayKey(IPFS_GATEWAYS[0] as IpfsGateway)
+      noteThrottled(firstKey)
+      const urls = resolveCandidates(`ipfs://${CID_V1}`).map((c) => c.url)
+      expect(urls).not.toContain(publicUrls(CID_V1)[0])
+      expect(urls).toHaveLength(publicUrls(CID_V1).length - 1)
+    })
+
+    it('is empty when every gateway is cooling — the caller must report that as throttled', () => {
+      for (const gateway of IPFS_GATEWAYS) noteThrottled(gatewayKey(gateway))
+      expect(resolveCandidates(`ipfs://${CID_V1}`)).toEqual([])
+    })
+
+    it('tags each ipfs candidate with the gateway it reports health to', () => {
+      const candidates = resolveCandidates(`ipfs://${CID_V1}`)
+      expect(candidates.every((c) => typeof c.gatewayKey === 'string')).toBe(true)
+    })
+
+    it('gives a non-ipfs pointer a single untagged candidate', () => {
+      expect(resolveCandidates('ar://tx1')).toEqual([
+        { url: 'https://arweave.net/tx1', gatewayKey: null },
+      ])
     })
   })
 
@@ -459,15 +652,18 @@ describe('fetchJson against a gateway that answers with a document', () => {
   let mockFetch: MockFetch
 
   beforeEach(() => {
+    vi.stubGlobal('localStorage', makeLocalStorageMock())
+    resetGatewayHealth()
     mockFetch = vi.fn()
     vi.stubGlobal('fetch', mockFetch)
   })
 
   afterEach(() => {
+    resetGatewayHealth()
     vi.unstubAllGlobals()
   })
 
-  it('rejects an HTML interstitial served for an ipfs:// CID and lets another gateway win', async () => {
+  it('rejects an HTML interstitial served for an ipfs:// CID and rotates to the next gateway', async () => {
     const data = { name: 'real' }
     mockFetch.mockImplementation((url: string) =>
       Promise.resolve(
@@ -476,16 +672,30 @@ describe('fetchJson against a gateway that answers with a document', () => {
           : makeMockResponse(true, data),
       ),
     )
-    await expect(fetchJson(`ipfs://${CID_V0}`)).resolves.toEqual(data)
+    await expect(fetchJson(`ipfs://${CID_V0}`)).resolves.toEqual({ status: 'found', data })
   })
 
-  it('returns null when every gateway answers with a document', async () => {
+  it('reports offline — not not-found — when every gateway answers with a document', async () => {
     mockFetch.mockResolvedValue(makeMockResponse(true, { title: 'Just a moment' }, 'text/html'))
-    expect(await fetchJson('ipfs://QmFoo')).toBeNull()
+    expect(await fetchJson('ipfs://QmFoo')).toEqual({ status: 'offline' })
   })
 
-  it('returns null for a document served on a single-URL (non-ipfs) pointer', async () => {
+  it('reports offline for a document served on a single-URL (non-ipfs) pointer', async () => {
     mockFetch.mockResolvedValueOnce(makeMockResponse(true, { a: 1 }, 'text/html'))
-    expect(await fetchJson('ar://tx1')).toBeNull()
+    expect(await fetchJson('ar://tx1')).toEqual({ status: 'offline' })
+  })
+
+  it('demotes a gateway that serves a document, so the next item skips it', async () => {
+    mockFetch.mockImplementation((url: string) =>
+      Promise.resolve(
+        isFirstGateway(url)
+          ? makeMockResponse(true, { title: 'Just a moment' }, 'text/html')
+          : makeMockResponse(true, { a: 1 }),
+      ),
+    )
+    await fetchJson(`ipfs://${CID_V1}/one.json`)
+    mockFetch.mockClear()
+    await fetchJson(`ipfs://${CID_V1}/two.json`)
+    expect(mockFetch.mock.calls.map((c) => c[0])).not.toContain(publicUrls(`${CID_V1}/two.json`)[0])
   })
 })
