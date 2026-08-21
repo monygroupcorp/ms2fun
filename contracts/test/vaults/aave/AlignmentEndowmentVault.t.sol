@@ -1574,4 +1574,110 @@ contract AlignmentEndowmentVaultTest is Test {
         assertEq(vault.deployableCorpus(), dust);
         assertEq(vault.totalDeployedByTarget(), 1 ether - dust, "deploy counter tracks got");
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 17. noesis-343 — deployableCorpus() is clamped to what the position can redeem
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// @dev Mixed position under a solvency haircut: A vested 10 ETH, B escrowed 10 ETH (basis 20), position
+    ///      value taken to 16 ETH by a 20% haircut. The vested tranche's pro-rata claim on that value is
+    ///      16·10/20 = 8 ETH, so `deployableCorpus()` must report 8 while the nominal `totalVestedDeployable`
+    ///      stays 10.
+    function _impairedMixedPosition() internal {
+        _contributeBenefactor(10 ether); // A → will vest
+        _contributeNewBenefactor(address(0xCAFE), 10 ether); // B → stays escrowed
+        vm.warp(block.timestamp + VEST);
+        vault.vest(address(benefactorContract));
+        assertEq(vault.totalVestedDeployable(), 10 ether, "vested tranche before the haircut");
+        assertEq(vault.totalEscrowedPrincipal(), 10 ether, "escrowed tranche before the haircut");
+
+        stata.simulateLoss(4 ether); // 20% solvency haircut: 20 → 16
+        vm.deal(address(weth), 100 ether); // ensure redemptions settle in ETH
+        assertEq(vault.currentPositionValue(), 16 ether, "position value after the haircut");
+    }
+
+    /// @dev The clamp: the reported corpus is the vested tranche's pro-rata claim on the live position value,
+    ///      not the nominal basis. The nominal tranche is untouched — this is an accounting bound on what is
+    ///      redeemable, not a socialization of the loss onto the vested class.
+    function test_deployableCorpus_impaired_clampsToRealizableProRata() public {
+        _impairedMixedPosition();
+
+        assertEq(vault.deployableCorpus(), 8 ether, "corpus clamped to value(16)*vested(10)/basis(20)");
+        assertEq(vault.totalVestedDeployable(), 10 ether, "nominal vested tranche is not written down");
+    }
+
+    /// @dev THE HEADLINE. Deploying the nominal (un-clamped) corpus on an impaired position must be rejected
+    ///      by the corpus bound. Before the clamp this call succeeded and paid out 100% of nominal from a
+    ///      position that could not back it; it must now revert `ExceedsDeployableCorpus` — and specifically
+    ///      NOT `RedeemShortfall`, which would leave the request half-processed against a stale bound.
+    function test_execute_impaired_nominalCorpusRevertsExceedsDeployableCorpus() public {
+        _impairedMixedPosition();
+
+        vm.prank(ambassador);
+        vm.expectRevert(AlignmentEndowmentVault.ExceedsDeployableCorpus.selector);
+        vault.execute(makeAddr("sink"), 10 ether, "");
+
+        // Nothing moved: the whole position is still in place behind the rejected request.
+        assertEq(vault.currentPositionValue(), 16 ether, "position untouched by the rejected deploy");
+        assertEq(vault.totalVestedDeployable(), 10 ether, "corpus basis untouched by the rejected deploy");
+    }
+
+    /// @dev The clamped figure is deployable in full and settles without a shortfall.
+    function test_execute_impaired_clampedCorpusDeploysCleanly() public {
+        _impairedMixedPosition();
+
+        address sink = makeAddr("sink");
+        uint256 corpus = vault.deployableCorpus(); // cache: a call in the arg would consume the prank
+        vm.prank(ambassador);
+        vault.execute(sink, corpus, "");
+
+        assertEq(sink.balance, 8 ether, "the full clamped corpus reached the sink");
+        assertEq(vault.totalVestedDeployable(), 2 ether, "nominal tranche debited by what actually left");
+        assertEq(vault.totalDeployedByTarget(), 8 ether, "deploy counter tracks what left");
+        assertEq(vault.currentPositionValue(), 8 ether, "the escrowed tranche's value remains in the position");
+    }
+
+    /// @dev Idempotency — the property the view shape exists for. At an unchanged position value the answer
+    ///      never moves, however many times it is read and however many permissionless `harvest()` calls are
+    ///      interleaved. A write-down applied on a permissionless path would instead converge downward on
+    ///      each call; a view has no state to re-apply.
+    function test_deployableCorpus_impaired_isIdempotentAcrossReadsAndHarvests() public {
+        _impairedMixedPosition();
+
+        uint256 first = vault.deployableCorpus();
+        assertEq(first, 8 ether, "clamped corpus");
+
+        for (uint256 i = 0; i < 5; i++) {
+            vault.harvest(); // permissionless, and a no-op while the position is below basis
+            assertEq(vault.deployableCorpus(), first, "corpus unchanged by a harvest at an unchanged value");
+            assertEq(vault.deployableCorpus(), first, "corpus unchanged by a repeated read");
+        }
+
+        assertEq(vault.totalVestedDeployable(), 10 ether, "nominal tranche never written down by a read");
+    }
+
+    /// @dev Healthy position: the clamp is a strict no-op. Unharvested yield above the basis does NOT raise
+    ///      the corpus either — the `min(...)` floor keeps the yield legs out of `execute`'s reach.
+    function test_deployableCorpus_healthy_clampIsNoOp() public {
+        _contributeBenefactor(10 ether);
+        _contributeNewBenefactor(address(0xCAFE), 10 ether);
+        vm.warp(block.timestamp + VEST);
+        vault.vest(address(benefactorContract));
+
+        assertEq(vault.deployableCorpus(), vault.totalVestedDeployable(), "no-op at value == basis");
+        assertEq(vault.deployableCorpus(), 10 ether);
+
+        _simulateYield(2 ether); // position 22 vs basis 20 — all of it is yield, none of it is corpus
+        assertEq(vault.deployableCorpus(), 10 ether, "unharvested yield does not raise the corpus");
+        assertEq(vault.deployableCorpus(), vault.totalVestedDeployable(), "still exactly the nominal tranche");
+    }
+
+    /// @dev An empty vault has a zero basis: the clamp's divisor guard returns 0 rather than reverting.
+    function test_deployableCorpus_zeroBasis_returnsZeroAndDoesNotRevert() public {
+        AlignmentEndowmentVault fresh = _deployVault(communityPayout);
+
+        assertEq(fresh.totalEscrowedPrincipal(), 0, "no escrowed principal");
+        assertEq(fresh.totalVestedDeployable(), 0, "no vested principal");
+        assertEq(fresh.deployableCorpus(), 0, "zero basis reports zero corpus");
+    }
 }
