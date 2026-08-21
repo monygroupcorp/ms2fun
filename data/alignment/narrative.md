@@ -199,8 +199,8 @@ The V3 0.3% pool (`0x044d1610e600D041229407Fb6e514D259276e3b3`) is likewise empt
 `ScanAlignmentPools.s.sol` reported "NO native-ETH V4 pool found for this token across standard
 tiers" — which is FALSE, and false by construction. An unconditional `continue` outside its `if`
 makes every statement after it dead code, so `best.found` can never be set and an initialized tier
-logs nothing at all. The output shows only the empty tiers and reads like a complete scan. Filed as
-`plans/noesis-379.md`; the numbers above come from `extsload` against the PoolManager
+logs nothing at all. The output shows only the empty tiers and reads like a complete scan. The
+numbers above come from `extsload` against the PoolManager
 (`keccak256(abi.encode(poolId, 6))` for slot0, `+3` for liquidity) and `getPool`/`liquidity` on the
 V3 factory.
 
