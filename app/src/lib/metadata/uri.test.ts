@@ -1,22 +1,131 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   fetchJson,
+  gatewayUrl,
   getIpfsGateways,
   IPFS_GATEWAYS,
   isResolvableUri,
+  isSubdomainSafeCid,
   resolveUri,
   resolveUriCandidates,
+  type IpfsGateway,
 } from './uri'
 
-describe('resolveUriCandidates', () => {
-  it('ipfs:// → every public gateway, in order', () => {
-    expect(resolveUriCandidates('ipfs://QmFoo/a.png')).toEqual(
-      IPFS_GATEWAYS.map((g) => `${g}QmFoo/a.png`),
+// A base32 CIDv1 is case-insensitive, so it survives a DNS label; a CIDv0 is base58btc and does not.
+const CID_V1 = 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi'
+const CID_V0 = 'QmFoo'
+
+/** The URLs the public roster can actually serve a path from (subdomain entries drop CIDv0). */
+const publicUrls = (path: string): string[] =>
+  IPFS_GATEWAYS.map((g) => gatewayUrl(g, path)).filter((u): u is string => u !== null)
+
+// ── the roster ────────────────────────────────────────────────────────────────
+
+describe('IPFS_GATEWAYS roster', () => {
+  it('spans at least two distinct operators', () => {
+    const operators = new Set(IPFS_GATEWAYS.map((g) => g.operator))
+    expect(operators.size).toBeGreaterThanOrEqual(2)
+  })
+
+  it('never lists the same operator twice (two hostnames, one failure domain)', () => {
+    const operators = IPFS_GATEWAYS.map((g) => g.operator)
+    expect(new Set(operators).size).toBe(operators.length)
+  })
+
+  it('declares an operator and a form for every entry', () => {
+    for (const gateway of IPFS_GATEWAYS) {
+      expect(gateway.operator.trim()).not.toBe('')
+      expect(['path', 'subdomain']).toContain(gateway.form)
+    }
+  })
+
+  it('serves every entry over https', () => {
+    for (const gateway of IPFS_GATEWAYS) {
+      const url = gatewayUrl(gateway, CID_V1)
+      expect(url).not.toBeNull()
+      expect(url).toMatch(/^https:\/\//)
+    }
+  })
+})
+
+// ── gatewayUrl / URL form ─────────────────────────────────────────────────────
+
+describe('gatewayUrl', () => {
+  const pathGw: IpfsGateway = { operator: 'test-path', form: 'path', base: 'https://gw.test/ipfs/' }
+  const subGw: IpfsGateway = { operator: 'test-sub', form: 'subdomain', base: 'gw.test' }
+
+  it('builds path form as https://<host>/ipfs/<cid>', () => {
+    expect(gatewayUrl(pathGw, CID_V1)).toBe(`https://gw.test/ipfs/${CID_V1}`)
+  })
+
+  it('builds subdomain form as https://<cid>.ipfs.<host>/', () => {
+    expect(gatewayUrl(subGw, CID_V1)).toBe(`https://${CID_V1}.ipfs.gw.test/`)
+  })
+
+  it('keeps the sub-path after the CID in both forms', () => {
+    expect(gatewayUrl(pathGw, `${CID_V1}/a.png`)).toBe(`https://gw.test/ipfs/${CID_V1}/a.png`)
+    expect(gatewayUrl(subGw, `${CID_V1}/a.png`)).toBe(`https://${CID_V1}.ipfs.gw.test/a.png`)
+  })
+
+  it('returns null rather than emitting a CIDv0 into subdomain form', () => {
+    expect(gatewayUrl(subGw, CID_V0)).toBeNull()
+    expect(gatewayUrl(subGw, `${CID_V0}/a.png`)).toBeNull()
+  })
+
+  it('still serves a CIDv0 over path form', () => {
+    expect(gatewayUrl(pathGw, CID_V0)).toBe(`https://gw.test/ipfs/${CID_V0}`)
+  })
+})
+
+describe('isSubdomainSafeCid', () => {
+  it('accepts a base32 CIDv1', () => {
+    expect(isSubdomainSafeCid(CID_V1)).toBe(true)
+  })
+
+  it('accepts a base36 CIDv1', () => {
+    expect(isSubdomainSafeCid('k2jmtxx8tc9pv6b9sj3hyeuvxvwog1lppr8xfsyhagj9m0ni9pmxj0dg')).toBe(
+      true,
     )
   })
-  it('strips the redundant ipfs/ prefix across all gateways', () => {
-    expect(resolveUriCandidates('ipfs://ipfs/QmBar')).toEqual(IPFS_GATEWAYS.map((g) => `${g}QmBar`))
+
+  it('rejects a CIDv0 (case-sensitive base58btc)', () => {
+    expect(isSubdomainSafeCid(CID_V0)).toBe(false)
+    expect(isSubdomainSafeCid('QmXnnyufdzAWL5CqZ2RnSNgPbvCc1ALT73s6epPrRnZ1Xy')).toBe(false)
   })
+
+  it('rejects an upper-cased base32 CID (a DNS label would fold it)', () => {
+    expect(isSubdomainSafeCid(CID_V1.toUpperCase())).toBe(false)
+  })
+})
+
+// ── resolveUriCandidates ──────────────────────────────────────────────────────
+
+describe('resolveUriCandidates', () => {
+  it('ipfs:// → every gateway that can address the CID, in order', () => {
+    expect(resolveUriCandidates(`ipfs://${CID_V1}/a.png`)).toEqual(publicUrls(`${CID_V1}/a.png`))
+  })
+
+  it('strips the redundant ipfs/ prefix across all gateways', () => {
+    expect(resolveUriCandidates(`ipfs://ipfs/${CID_V1}`)).toEqual(publicUrls(CID_V1))
+  })
+
+  it('never emits a CIDv0 in subdomain form', () => {
+    const candidates = resolveUriCandidates(`ipfs://${CID_V0}/a.png`)
+    expect(candidates.length).toBeGreaterThan(0)
+    for (const url of candidates) {
+      expect(url).toContain(`/ipfs/${CID_V0}/a.png`)
+      expect(url).not.toContain(`${CID_V0.toLowerCase()}.ipfs.`)
+    }
+  })
+
+  it('uses subdomain form for a CIDv1 wherever an operator supports it', () => {
+    const subdomainOperators = IPFS_GATEWAYS.filter((g) => g.form === 'subdomain')
+    const candidates = resolveUriCandidates(`ipfs://${CID_V1}`)
+    for (const gateway of subdomainOperators) {
+      expect(candidates).toContain(`https://${CID_V1}.ipfs.${gateway.base}/`)
+    }
+  })
+
   it('non-ipfs resolves to a single URL', () => {
     expect(resolveUriCandidates('https://x.com/a.png')).toEqual(['https://x.com/a.png'])
     expect(resolveUriCandidates('ar://tx1')).toEqual(['https://arweave.net/tx1'])
@@ -28,33 +137,37 @@ describe('resolveUriCandidates', () => {
 describe('resolveUri', () => {
   describe('ipfs:// URIs', () => {
     it('resolves ipfs://CID to gateway 0 by default', () => {
-      expect(resolveUri('ipfs://QmFoo')).toBe(`${IPFS_GATEWAYS[0]}QmFoo`)
+      expect(resolveUri(`ipfs://${CID_V0}`)).toBe(publicUrls(CID_V0)[0])
     })
 
     it('resolves ipfs://CID/path to gateway 0', () => {
-      expect(resolveUri('ipfs://QmFoo/metadata.json')).toBe(
-        `${IPFS_GATEWAYS[0]}QmFoo/metadata.json`,
+      expect(resolveUri(`ipfs://${CID_V0}/metadata.json`)).toBe(
+        publicUrls(`${CID_V0}/metadata.json`)[0],
       )
     })
 
     it('selects gateway 1 when gatewayIndex is 1', () => {
-      expect(resolveUri('ipfs://QmFoo', 1)).toBe(`${IPFS_GATEWAYS[1]}QmFoo`)
+      expect(resolveUri(`ipfs://${CID_V0}`, 1)).toBe(publicUrls(CID_V0)[1])
     })
 
-    it('selects gateway 2 when gatewayIndex is 2', () => {
-      expect(resolveUri('ipfs://QmFoo', 2)).toBe(`${IPFS_GATEWAYS[2]}QmFoo`)
+    it('wraps around via modulo when gatewayIndex >= the usable gateway count', () => {
+      const urls = publicUrls(CID_V0)
+      expect(resolveUri(`ipfs://${CID_V0}`, urls.length)).toBe(urls[0])
     })
 
-    it('wraps around via modulo when gatewayIndex >= gateways length', () => {
-      expect(resolveUri('ipfs://QmFoo', IPFS_GATEWAYS.length)).toBe(`${IPFS_GATEWAYS[0]}QmFoo`)
+    it('walks every usable gateway across increasing indices', () => {
+      const urls = publicUrls(CID_V1)
+      expect(urls.map((_, i) => resolveUri(`ipfs://${CID_V1}`, i))).toEqual(urls)
     })
 
     it('strips redundant ipfs/ prefix from ipfs://ipfs/CID', () => {
-      expect(resolveUri('ipfs://ipfs/QmBar')).toBe(`${IPFS_GATEWAYS[0]}QmBar`)
+      expect(resolveUri(`ipfs://ipfs/${CID_V0}`)).toBe(publicUrls(CID_V0)[0])
     })
 
     it('strips redundant ipfs/ prefix with a sub-path', () => {
-      expect(resolveUri('ipfs://ipfs/QmBar/file.json')).toBe(`${IPFS_GATEWAYS[0]}QmBar/file.json`)
+      expect(resolveUri(`ipfs://ipfs/${CID_V0}/file.json`)).toBe(
+        publicUrls(`${CID_V0}/file.json`)[0],
+      )
     })
   })
 
@@ -83,11 +196,11 @@ describe('resolveUri', () => {
 
   describe('whitespace trimming', () => {
     it('trims leading whitespace', () => {
-      expect(resolveUri('  ipfs://QmFoo')).toBe(`${IPFS_GATEWAYS[0]}QmFoo`)
+      expect(resolveUri(`  ipfs://${CID_V0}`)).toBe(publicUrls(CID_V0)[0])
     })
 
     it('trims trailing whitespace', () => {
-      expect(resolveUri('ipfs://QmFoo   ')).toBe(`${IPFS_GATEWAYS[0]}QmFoo`)
+      expect(resolveUri(`ipfs://${CID_V0}   `)).toBe(publicUrls(CID_V0)[0])
     })
 
     it('trims both leading and trailing whitespace from https URIs', () => {
@@ -143,23 +256,32 @@ describe('isResolvableUri', () => {
 // ── getIpfsGateways ───────────────────────────────────────────────────────────
 
 describe('getIpfsGateways', () => {
-  it('returns the public gateways when there is no custom gateway', () => {
+  it('returns the public roster when there is no custom gateway', () => {
     expect(getIpfsGateways(null)).toEqual([...IPFS_GATEWAYS])
   })
 
   it('prepends a normalized custom gateway (bare host)', () => {
-    expect(getIpfsGateways('https://my.gw')).toEqual(['https://my.gw/ipfs/', ...IPFS_GATEWAYS])
+    expect(getIpfsGateways('https://my.gw')[0]).toEqual({
+      operator: 'custom',
+      form: 'path',
+      base: 'https://my.gw/ipfs/',
+    })
+    expect(getIpfsGateways('https://my.gw').slice(1)).toEqual([...IPFS_GATEWAYS])
   })
 
   it('normalizes a custom gateway that already ends in /ipfs', () => {
-    expect(getIpfsGateways('https://my.gw/ipfs')).toEqual(['https://my.gw/ipfs/', ...IPFS_GATEWAYS])
+    expect(getIpfsGateways('https://my.gw/ipfs')[0]?.base).toBe('https://my.gw/ipfs/')
   })
 
   it('strips trailing slashes before normalizing', () => {
-    expect(getIpfsGateways('https://my.gw/ipfs/')).toEqual([
-      'https://my.gw/ipfs/',
-      ...IPFS_GATEWAYS,
-    ])
+    expect(getIpfsGateways('https://my.gw/ipfs/')[0]?.base).toBe('https://my.gw/ipfs/')
+  })
+
+  it('keeps a custom gateway in path form (subdomain support cannot be assumed)', () => {
+    expect(getIpfsGateways('https://my.gw')[0]?.form).toBe('path')
+    expect(gatewayUrl(getIpfsGateways('https://my.gw')[0]!, CID_V0)).toBe(
+      `https://my.gw/ipfs/${CID_V0}`,
+    )
   })
 
   it('ignores a blank custom gateway', () => {
@@ -220,11 +342,11 @@ describe('fetchJson', () => {
   describe('ipfs:// gateway race', () => {
     it('fires all gateways in parallel and returns the first healthy response', async () => {
       const data = { schema: 1 }
-      // gateway 0 ok; the other two get the default undefined mock and reject
+      // gateway 0 ok; the others get the default undefined mock and reject
       mockFetch.mockResolvedValueOnce(makeMockResponse(true, data))
-      const result = await fetchJson('ipfs://QmFoo')
+      const result = await fetchJson(`ipfs://${CID_V1}`)
       expect(result).toEqual(data)
-      expect(mockFetch).toHaveBeenCalledTimes(IPFS_GATEWAYS.length)
+      expect(mockFetch).toHaveBeenCalledTimes(publicUrls(CID_V1).length)
     })
 
     it('still wins when an earlier gateway rejects', async () => {
@@ -232,28 +354,36 @@ describe('fetchJson', () => {
       mockFetch
         .mockRejectedValueOnce(new Error('gw0 down'))
         .mockResolvedValueOnce(makeMockResponse(true, data))
-      const result = await fetchJson('ipfs://QmFoo')
+      const result = await fetchJson(`ipfs://${CID_V1}`)
       expect(result).toEqual(data)
-      expect(mockFetch).toHaveBeenCalledTimes(IPFS_GATEWAYS.length)
+      expect(mockFetch).toHaveBeenCalledTimes(publicUrls(CID_V1).length)
     })
 
     it('hits each gateway at its CID-resolved URL', async () => {
       mockFetch.mockResolvedValue(makeMockResponse(true, { ok: 1 }))
-      await fetchJson('ipfs://QmFoo/meta.json')
+      await fetchJson(`ipfs://${CID_V1}/meta.json`)
       const calledUrls = mockFetch.mock.calls.map((c) => c[0])
-      expect(calledUrls).toEqual(IPFS_GATEWAYS.map((g) => `${g}QmFoo/meta.json`))
+      expect(calledUrls).toEqual(publicUrls(`${CID_V1}/meta.json`))
+    })
+
+    it('skips subdomain-only gateways for a CIDv0 pointer', async () => {
+      mockFetch.mockResolvedValue(makeMockResponse(true, { ok: 1 }))
+      await fetchJson(`ipfs://${CID_V0}`)
+      const calledUrls = mockFetch.mock.calls.map((c) => c[0]) as string[]
+      expect(calledUrls).toEqual(publicUrls(CID_V0))
+      for (const url of calledUrls) expect(url).toContain(`/ipfs/${CID_V0}`)
     })
 
     it('returns null when all gateways reject', async () => {
       mockFetch.mockRejectedValue(new Error('all down'))
-      expect(await fetchJson('ipfs://QmFoo')).toBeNull()
-      expect(mockFetch).toHaveBeenCalledTimes(IPFS_GATEWAYS.length)
+      expect(await fetchJson(`ipfs://${CID_V1}`)).toBeNull()
+      expect(mockFetch).toHaveBeenCalledTimes(publicUrls(CID_V1).length)
     })
 
     it('returns null when all gateways return !ok', async () => {
       mockFetch.mockResolvedValue(makeMockResponse(false, null))
-      expect(await fetchJson('ipfs://QmFoo')).toBeNull()
-      expect(mockFetch).toHaveBeenCalledTimes(IPFS_GATEWAYS.length)
+      expect(await fetchJson(`ipfs://${CID_V1}`)).toBeNull()
+      expect(mockFetch).toHaveBeenCalledTimes(publicUrls(CID_V1).length)
     })
   })
 
@@ -261,7 +391,7 @@ describe('fetchJson', () => {
     it('throws and fires no requests when the signal is already aborted (ipfs)', async () => {
       const controller = new AbortController()
       controller.abort()
-      await expect(fetchJson('ipfs://QmFoo', controller.signal)).rejects.toThrow()
+      await expect(fetchJson(`ipfs://${CID_V1}`, controller.signal)).rejects.toThrow()
       expect(mockFetch).not.toHaveBeenCalled()
     })
 
