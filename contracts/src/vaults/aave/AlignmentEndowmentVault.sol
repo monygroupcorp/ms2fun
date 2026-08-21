@@ -668,14 +668,39 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     // └─────────────────────────────────────────┘
 
     /// @notice The ETH-equivalent of the deployable (vested) corpus an ambassador may `execute` against.
-    /// @dev    This is the VESTED principal tranche (`totalVestedDeployable`), tracked 1:1 in WETH (== ETH).
-    ///         It is deliberately NOT the vested tranche's proportional share of the live position value:
-    ///         any position value above the principal basis is UNHARVESTED yield, which belongs to the
-    ///         yield legs (99 target / 1 protocol on the vested class, realized by `harvest()`), NOT to the
-    ///         deployable principal corpus. Deployment is principal-corpus only (spec 2c §2), so the bound
-    ///         is the principal, keeping the protocol's 1% yield leg out of reach of `execute`.
+    /// @dev    The base figure is the VESTED principal tranche (`totalVestedDeployable`), tracked 1:1 in
+    ///         WETH (== ETH). On the UPSIDE it is deliberately NOT the vested tranche's proportional share
+    ///         of the live position value: any position value above the principal basis is UNHARVESTED
+    ///         yield, which belongs to the yield legs (99 target / 1 protocol on the vested class, realized
+    ///         by `harvest()`), NOT to the deployable principal corpus. Deployment is principal-corpus only
+    ///         (spec 2c §2), so the bound is the principal, keeping the protocol's 1% yield leg out of reach
+    ///         of `execute`.
+    ///
+    ///         On the DOWNSIDE the nominal basis is not fully redeemable, so the figure is clamped to the
+    ///         vested tranche's pro-rata claim on the live position value:
+    ///
+    ///             min(totalVestedDeployable, value * totalVestedDeployable / basis)
+    ///
+    ///         with `value = _stataValue()` and `basis = totalEscrowedPrincipal + totalVestedDeployable`
+    ///         (`basis == 0` → 0). Reporting the nominal basis while the position is impaired lets
+    ///         `execute(nominal)` pass the `ExceedsDeployableCorpus` bound and then hit `RedeemShortfall`,
+    ///         stranding the residual — the failure `migratePosition`'s write-down describes. The `min(...)`
+    ///         floor keeps the clamp a strict no-op on a healthy position (`value >= basis` makes the second
+    ///         term >= the first), so it moves no loss between the escrowed and vested classes: this is an
+    ///         ACCOUNTING bound on what the position can actually redeem, not impairment socialization (the
+    ///         money model reserves that for escrowed principal on the `migratePosition` path).
+    ///
+    ///         Being a view it holds no state to re-apply, so it is idempotent by construction: repeated
+    ///         reads — and any number of intervening `harvest()` calls — return the same answer at an
+    ///         unchanged position value. `execute` calls `_crystallizeYield()` before reading this, so the
+    ///         clamp is computed against a freshly-harvested position value; that ordering is load-bearing.
     function deployableCorpus() public view returns (uint256) {
-        return totalVestedDeployable;
+        uint256 vested = totalVestedDeployable;
+        uint256 basis = totalEscrowedPrincipal + vested;
+        if (basis == 0) return 0;
+
+        uint256 realizable = (_stataValue() * vested) / basis;
+        return realizable < vested ? realizable : vested;
     }
 
     /// @notice Target-sovereign deployment of vested capital. The alignment target — acting through any of
@@ -741,8 +766,11 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         // Debit the corpus by `got` — what ACTUALLY left the position — not the requested `value`. The dust
         // (`value − got`) stays in the vested tranche as still-deployable principal; debiting `value` would
         // instead orphan it into position-value-above-basis, leaking that sliver of vested principal into the
-        // next harvest's 99/1 yield legs. `got ≤ value ≤ deployableCorpus() == totalVestedDeployable`, so no
-        // underflow.
+        // next harvest's 99/1 yield legs. `deployableCorpus()` is the pro-rata clamp of
+        // `totalVestedDeployable` on an impaired position, so it can be strictly LESS than the nominal
+        // tranche; the chain that matters here is `got ≤ value ≤ deployableCorpus() ≤ totalVestedDeployable`,
+        // so no underflow. Do not restore the old `deployableCorpus() == totalVestedDeployable` identity —
+        // it is what let an impaired `execute` pass the bound and then hit `RedeemShortfall`.
         totalVestedDeployable -= got;
         _totalDeployedByTarget += got;
 
