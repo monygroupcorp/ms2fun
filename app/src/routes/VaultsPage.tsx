@@ -6,26 +6,39 @@
  * a fabricated number. The header total sums ONLY endowment principals, labelled as such.
  */
 import { Link } from 'wouter'
-import { formatEther } from 'viem'
 import { truncateAddress } from '../lib/format'
 import { useAllVaults } from '../lib/vaults/useAllVaults'
 import { useVaultsSummary } from '../lib/vaults/useVaultsSummary'
 import { type AlignmentTargetRow, useAlignmentTargets } from '../lib/vaults/useAlignmentTargets'
+import {
+  ethCompact as eth,
+  rollUpByTarget,
+  rollupsByTargetKey,
+  targetFigureLabel,
+  targetFigureNote,
+  vaultTargetLabel,
+  type TargetRollup,
+} from '../lib/vaults/targetRollup'
 import { vaultFamilyLabel } from '../components/vault/useVaultOverview'
 import { useCollectionMetadata } from '../components/useCollectionMetadata'
 import { IpfsImage } from '../components/ui/IpfsImage'
 import { StateBlock } from '../components/ui/StateBlock'
 import styles from './VaultsPage.module.css'
 
-/** Trim an ETH string to 4 fraction digits for a compact figure. */
-function eth(value: bigint): string {
-  const s = formatEther(value)
-  const [whole, frac] = s.split('.')
-  return frac ? `${whole}.${frac.slice(0, 4).replace(/0+$/, '') || '0'}` : (whole ?? s)
-}
-
-/** One alignment-target card: logo (from the target's metadataURI) + title + description. */
-function TargetCard({ target }: { target: AlignmentTargetRow }) {
+/**
+ * One alignment-target card: logo (from the target's metadataURI) + title + description + the ETH
+ * bound to that target. The figure is always shown with its scope stated — a bare number here is a
+ * claim a visitor cannot check, and checking it is the whole point of the page.
+ */
+function TargetCard({
+  target,
+  rollup,
+  pending,
+}: {
+  target: AlignmentTargetRow
+  rollup: TargetRollup | undefined
+  pending: boolean
+}) {
   const meta = useCollectionMetadata(target.metadataURI)
   return (
     <li className={styles.targetCard} data-testid="alignment-target">
@@ -44,6 +57,33 @@ function TargetCard({ target }: { target: AlignmentTargetRow }) {
       <div className={styles.targetBody}>
         <p className={styles.targetName}>{target.title}</p>
         {target.description && <p className={styles.targetDesc}>{target.description}</p>}
+        <p className={styles.tvlValue} data-testid="target-figure">
+          {targetFigureLabel(rollup, pending)}
+        </p>
+        <p className={styles.tvlNote}>{targetFigureNote(rollup, pending)}</p>
+      </div>
+    </li>
+  )
+}
+
+/**
+ * Vaults whose target could not be placed on a card above — the target read failed, or it names a
+ * target that is not currently active. Rendered as its own line rather than dropped: the per-target
+ * figures plus this one sum to the header's Endowment TVL, and a total that quietly omitted what it
+ * could not attribute would fall apart the moment someone added the rows up.
+ */
+function UnattributedCard({ rollup, pending }: { rollup: TargetRollup; pending: boolean }) {
+  return (
+    <li className={styles.targetCard} data-testid="unattributed-target">
+      <div className={styles.targetBody}>
+        <p className={styles.targetName}>Unattributed</p>
+        <p className={styles.targetDesc}>
+          vaults whose alignment target did not resolve to an active target
+        </p>
+        <p className={styles.tvlValue} data-testid="target-figure">
+          {targetFigureLabel(rollup, pending)}
+        </p>
+        <p className={styles.tvlNote}>{targetFigureNote(rollup, pending)}</p>
       </div>
     </li>
   )
@@ -54,6 +94,25 @@ export function VaultsPage() {
   const addresses = vaults.map((v) => v.address)
   const { byAddress, endowmentTvl, isPending: summaryPending } = useVaultsSummary(addresses)
   const { targets } = useAlignmentTargets()
+
+  const rollups = rollUpByTarget(
+    vaults.map((v) => {
+      const s = byAddress.get(v.address.toLowerCase())
+      return {
+        address: v.address,
+        collectionCount: v.collectionCount,
+        vaultType: s?.vaultType,
+        totalPrincipal: s?.totalPrincipal,
+        accumulatedFees: s?.accumulatedFees,
+        targetId: s?.targetId ?? null,
+      }
+    }),
+    targets.map((t) => t.id),
+  )
+  const rollupByKey = rollupsByTargetKey(rollups)
+  const unattributed = rollupByKey.get('unattributed')
+  /** target id → title, so each vault row can name the target its ETH is counted under. */
+  const targetTitles = new Map(targets.map((t) => [t.id.toString(), t.title]))
 
   return (
     <div className={styles.page}>
@@ -81,7 +140,7 @@ export function VaultsPage() {
       </header>
 
       {/* The communities vaults align TO. Descriptions + logos come from each target's metadataURI. */}
-      {targets.length > 0 && (
+      {(targets.length > 0 || unattributed !== undefined) && (
         <section className={styles.targets} data-testid="alignment-targets">
           <h2 className={styles.sectionTitle}>Alignment targets</h2>
           <p className={styles.sectionSub}>
@@ -89,8 +148,14 @@ export function VaultsPage() {
           </p>
           <ul className={styles.targetGrid}>
             {targets.map((t) => (
-              <TargetCard key={t.id.toString()} target={t} />
+              <TargetCard
+                key={t.id.toString()}
+                target={t}
+                rollup={rollupByKey.get(t.id.toString())}
+                pending={summaryPending}
+              />
             ))}
+            {unattributed && <UnattributedCard rollup={unattributed} pending={summaryPending} />}
           </ul>
         </section>
       )}
@@ -122,6 +187,9 @@ export function VaultsPage() {
                   <span className={styles.rowName}>
                     {v.name || truncateAddress(v.address)}
                     <span className={styles.rowAddr}>{truncateAddress(v.address)}</span>
+                    <span className={styles.rowAddr} data-testid="vault-row-target">
+                      → {vaultTargetLabel(s?.targetId, targetTitles)}
+                    </span>
                   </span>
                   <span className={styles.rowBadge}>{vaultFamilyLabel(s?.vaultType)}</span>
                   <span className={styles.rowTvl}>
