@@ -19,7 +19,7 @@ import { keccak256, toBytes } from 'viem'
 import { usePublicClient } from 'wagmi'
 import { useReadComponentRegistryGetApprovedComponentsByTag } from '../../generated/contracts'
 import { forkAddresses, forkChainId } from '../addresses'
-import { fetchJson } from '../metadata'
+import { fetchJson, metadataOrNull } from '../metadata'
 import { parseComponentMeta, type ComponentModuleMeta } from './configTypes'
 import type { ComponentTag } from './schema'
 
@@ -108,7 +108,7 @@ export function useApprovedModules(tag: ComponentTag): {
                   abi: COMPONENT_META_ABI,
                   functionName: 'metadataURI',
                 })
-                return parseComponentMeta(uri ? await fetchJson(uri) : null)
+                return parseComponentMeta(uri ? metadataOrNull(await fetchJson(uri)) : null)
               } catch {
                 // Unreachable module or bad ABI — empty meta so the option is not silently dropped.
                 return parseComponentMeta(null)

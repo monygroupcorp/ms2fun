@@ -1,0 +1,17 @@
+/* The throttled marker — deliberately NOT the same treatment as a missing-art fallback. A hairline
+   frame with the waiting glyph reads as "paused", where the missing-art glyph reads as "nothing
+   here". Monochrome, tokens only, per the design system. */
+.throttled {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-width: var(--space-6);
+  min-height: var(--space-6);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px dashed var(--color-text);
+  opacity: 0.7;
+}

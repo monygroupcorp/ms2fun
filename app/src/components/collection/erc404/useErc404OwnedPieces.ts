@@ -17,7 +17,7 @@ import { deployBlock } from '../../../lib/addresses'
 import { useCollectionChainId } from '../useCollectionChain'
 import { exec404MirrorAbi, ownedIdsFromTransfers, type MirrorTransfer } from '../../../lib/exec404'
 import { scanBackward } from '../../../lib/logScan'
-import { fetchJson } from '../../../lib/metadata'
+import { fetchJson, metadataOrNull } from '../../../lib/metadata'
 
 /** Minimal `tokenURI` read on the DN404 mirror (exec404MirrorAbi carries the Transfer event + reads,
  *  but not tokenURI). */
@@ -145,7 +145,7 @@ export function useErc404OwnedPieces(
         ids.map(async (id, i): Promise<OwnedPiece> => {
           const res = uris[i]
           const uri = res && res.status === 'success' ? res.result : ''
-          const meta = uri ? await fetchJson<{ image?: string }>(uri) : null
+          const meta = uri ? metadataOrNull(await fetchJson<{ image?: string }>(uri)) : null
           return { id, image: meta?.image, isTier: id > idLimit }
         }),
       )

@@ -18,7 +18,7 @@ import { useCollection } from '../components/useCollection'
 import { useEditions, type EditionView } from '../components/collection/useEditions'
 import { MintPanel } from '../components/collection/erc1155/MintPanel'
 import { editionThemeStyle, type EditionTheme } from '../components/collection/erc1155/editionTheme'
-import { fetchJson, isResolvableUri } from '../lib/metadata'
+import { fetchJson, isResolvableUri, metadataOrNull } from '../lib/metadata'
 import { IpfsImage } from '../components/ui/IpfsImage'
 import { StateBlock } from '../components/ui/StateBlock'
 import { MintBar } from '../components/ui/MintBar'
@@ -60,7 +60,8 @@ function useEditionMetadata(uri: string | undefined): EditionMetadata | undefine
     queryKey: ['edition-metadata', uri],
     enabled: isResolvableUri(uri),
     staleTime: 5 * 60_000,
-    queryFn: async ({ signal }) => (await fetchJson<EditionMetadata>(uri as string, signal)) ?? {},
+    queryFn: async ({ signal }) =>
+      metadataOrNull(await fetchJson<EditionMetadata>(uri as string, signal)) ?? {},
   })
   return data
 }

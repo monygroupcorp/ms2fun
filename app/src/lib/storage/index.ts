@@ -1,4 +1,5 @@
 export { storage } from './storage'
 export type { StorageEntry, StorageOptions } from './storage'
 export { useLocalStorage } from './useLocalStorage'
-export { favoritesStore, customGatewayStore, themeStore } from './keys'
+export { favoritesStore, customGatewayStore, themeStore, gatewayHealthStore } from './keys'
+export type { GatewayHealthRecord } from './keys'
