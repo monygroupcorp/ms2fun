@@ -3,10 +3,19 @@ pragma solidity ^0.8.24;
 
 import { console } from "forge-std/Script.sol";
 import { ERC404BondingInstance } from "../src/factories/erc404/ERC404BondingInstance.sol";
+import { ERC721AuctionInstance } from "../src/factories/erc721/ERC721AuctionInstance.sol";
+import { LaunchManager } from "../src/factories/erc404/LaunchManager.sol";
 import { MetadataOverlayModule } from "../src/metadata/MetadataOverlayModule.sol";
 import { SeedAnvilShared, IOwnable } from "./SeedAnvilShared.sol";
 
 /// @dev The DN404 mirror's ERC-721 surface — NFT counts and ownership live here, not on the token.
+/// @dev The endowment vault's principal accounting. Read as a DELTA across the settlements rather
+///      than as an absolute, because another seeded collection is bound to a sibling endowment vault
+///      and an absolute reading could be satisfied by that one instead.
+interface IEndowmentPrincipal {
+    function totalPrincipalCommittedAllTime() external view returns (uint256);
+}
+
 interface IDN404Mirror {
     function balanceOf(address nftOwner) external view returns (uint256);
     function ownerOf(uint256 id) external view returns (address);
@@ -42,13 +51,46 @@ contract SeedAnvilBuys is SeedAnvilShared {
     ///      is created with nftCount 10 and one reserved band id (11), so 12 covers the space.
     uint256 internal constant PRISM_ID_SCAN_LIMIT = 12;
 
+    // ── The alignment catalog roster ───────────────────────────────────────────────────────────
+    //
+    // WHY THE BIG CURVES ARE BOUGHT IN TWO PARTS, AND WHY THE ORDER IS NOT NEGOTIABLE. These
+    // instances carry their real collections' supplies — thousands of pieces, not ten — and DN404
+    // reconciles a recipient's id count to `balance / unit` on EVERY credit. Buying a five-thousand
+    // piece curve out with the NFT flag on would therefore try to mint thousands of ids in a single
+    // transaction. So the curve is bought as a SMALL NFT-MINTING TAIL FIRST and a large silent
+    // remainder second. Reversing the two does not merely fail to help — the flag is read at credit
+    // time, so a silent bulk followed by a minting buy would mint the ENTIRE backlog at once, which
+    // is the very transaction being avoided.
+    /// @dev Pieces the flagship curve actually mints. Deliberately above the 100-tile gallery window
+    ///      so the truncated-grid case has a live subject on the seeded chain rather than only in
+    ///      theory; the piece count each instance reaches is reported with the seed.
+    uint256 internal constant SCHIZO_PIECES = 120;
+    /// @dev Mid-curve piece split across the three actors, so the holder surface has more than one
+    ///      holder and the testing wallet's portfolio has real pieces in it.
+    uint256 internal constant PIXELADY_PIECES_DEPLOYER = 20;
+    uint256 internal constant PIXELADY_PIECES_ACCT1 = 15;
+    uint256 internal constant PIXELADY_PIECES_ADMIN = 10;
+    /// @dev Share of the mid-curve instance's bondable supply to buy, in bps. Far enough along that
+    ///      the curve, the holder surface and the vault panel all render something real, and nowhere
+    ///      near the end — this instance has no maturity time and must never look close to finishing.
+    uint256 internal constant PIXELADY_FILL_BPS = 2500;
+
+    /// @dev The opening auctions phase 1 armed, settled here. Settlement is the ONLY way principal
+    ///      reaches the endowment through the 80% leg rather than through a donation, which is the
+    ///      entire reason this collection is in the roster.
+    uint24 internal constant FIGMATA_OPENING_AUCTIONS = 3;
+    /// @dev Bids placed on the auctions that settlement starts, so the collection boots with a
+    ///      settle-ready line rather than an empty one.
+    uint256 internal constant FIGMATA_FOLLOW_BID = 0.25 ether;
+    uint256 internal constant PERSON_KEY = 0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a;
+
     function run() public {
         deployerKey = vm.envUint("PRIVATE_KEY");
         deployer = vm.addr(deployerKey);
         acct1 = vm.addr(ACCOUNT_1_KEY);
 
         Deployed memory d = _readDeployed();
-        (SeededErc404 memory s, address[] memory all) = _readSeedState();
+        (SeededErc404 memory s, SeededCatalog memory k, address[] memory all) = _readSeedState();
 
         // EMBER is deliberately absent from everything below: it is the PREOPEN demo, its open time
         // is +1 day, and buying into it would both revert and destroy the state it exists to show.
@@ -59,16 +101,23 @@ contract SeedAnvilBuys is SeedAnvilShared {
         _buysCarveDemo(s.carve);
         _buysStacked(d, s.stacked);
 
+        // ── The alignment catalog roster ──
+        _buysCatalogFlagship(d, s.schizo);
+        _buysCatalogMidCurve(d, s.pixelady);
+        _settleCatalogAuction(d, k.figmata);
+
         // Hand everything to the team's testing wallet (LAST — after all owner-only seeding, which
         // includes this phase's staking activation and overlay authoring).
         _transferAdmin(all);
 
         // Everything this phase claims, checked on-chain. See the function header.
         _assertPhase2(s);
+        _assertCatalogPhase2(d, s, k);
 
         console.log("=== SeedAnvilBuys (phase 2: buys + handover) complete ===");
         console.log("ERC404 : vapor mid-curve + staked; cinder/molten/quench bought (reserve > 0, graduate-ready)");
         console.log("ERC404 : carve reserve >= 3 ETH; stacked NFTs held by ADMIN + overlay authored");
+        console.log("CATALOG: flagship curve bought out, mid-curve filled, auction settlements endowed");
         console.log("block.timestamp now:", block.timestamp);
     }
 
@@ -295,6 +344,207 @@ contract SeedAnvilBuys is SeedAnvilShared {
             }
         }
         revert("prism: no minted id is held by the expected address");
+    }
+
+    // ───────────────── THE ALIGNMENT CATALOG ROSTER (phase 2: buys + settlements) ─────────────────
+
+    /// @dev FLAGSHIP — buy the curve out, so the reserve reads the collection's REAL raise and the
+    ///      graduation a human performs next splits that exact figure. The instance declares no
+    ///      creator carve, so the split is the unmodified 1/19/80 and the aligned share is checkable
+    ///      by arithmetic on a number the page already shows.
+    ///
+    ///      Graduation itself is deliberately NOT performed. The row's argument is what the split
+    ///      WOULD have returned, and a visitor watching it happen is worth more than finding it
+    ///      already done.
+    function _buysCatalogFlagship(Deployed memory d, address inst) internal {
+        ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
+        uint256 unit_ = b.unit();
+        uint256 bondable = b.maxSupply() - b.liquidityReserve() - (b.freeMintAllocation() * unit_);
+        uint256 tail = SCHIZO_PIECES * unit_;
+        require(bondable > tail, "catalog: flagship bondable supply is smaller than its piece tail");
+
+        // 1. The minting tail, FIRST — see the constant's header for why the order is load-bearing.
+        _buyBonding(b, deployerKey, tail);
+
+        // 2. The silent remainder. `setSkipNFT` only suppresses FUTURE id reconciliation; the ids
+        //    already minted above are untouched by it.
+        vm.startBroadcast(deployerKey);
+        b.setSkipNFT(true);
+        vm.stopBroadcast();
+        _buyBonding(b, deployerKey, bondable - tail);
+
+        // The reserve IS the claim: a curve armed at the real raise, bought out, holds that raise, and
+        // the band is kept tight because this is the number the page invites a visitor to check. The
+        // raise is read from the PRESET the instance was created against rather than from a literal
+        // restated here, so the two cannot drift the first time the roster's figure is corrected.
+        uint256 target = LaunchManager(d.launchManager).getPreset(PRESET_SCHIZO).targetETH;
+        uint256 reserve = b.reserve();
+        require(reserve * 1000 >= target * 999, "catalog: flagship reserve fell short of the armed raise");
+        require(reserve * 1000 <= target * 1001, "catalog: flagship reserve overshot the armed raise");
+
+        console.log("CATALOG flagship bought out:", inst);
+        console.log("  reserve (wei):", reserve, "of armed raise (wei):", target);
+    }
+
+    /// @dev MID-CURVE — three holders and a partial fill. Each actor buys its OWN pieces before the
+    ///      silent bulk, so the ids are minted by a real purchase rather than manufactured by a
+    ///      transfer, and the testing wallet ends up holding a set it can act on from the UI.
+    function _buysCatalogMidCurve(Deployed memory d, address inst) internal {
+        ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
+        uint256 unit_ = b.unit();
+        uint256 bondable = b.maxSupply() - b.liquidityReserve() - (b.freeMintAllocation() * unit_);
+        uint256 fill = (bondable * PIXELADY_FILL_BPS) / 10000;
+
+        uint256 minted = (PIXELADY_PIECES_DEPLOYER + PIXELADY_PIECES_ACCT1) * unit_;
+        require(
+            fill > minted + PIXELADY_PIECES_ADMIN * unit_,
+            "catalog: mid-curve fill is smaller than the pieces it must mint"
+        );
+
+        // Minting buys first (see SCHIZO_PIECES' header), one per actor, so each holder's ids come
+        // from a purchase it actually made.
+        _buyBonding(b, deployerKey, PIXELADY_PIECES_DEPLOYER * unit_);
+        _buyBonding(b, ACCOUNT_1_KEY, PIXELADY_PIECES_ACCT1 * unit_);
+
+        vm.startBroadcast(deployerKey);
+        b.setSkipNFT(true);
+        vm.stopBroadcast();
+        _buyBonding(b, deployerKey, fill - minted);
+
+        // ADMIN holds no key in this process, so its pieces are bought silently above and moved here.
+        // A whole-unit credit mints the RECIPIENT's ids, so ADMIN's pieces are minted to ADMIN rather
+        // than carried across — and the sender's own ids survive, because the flag it now carries
+        // stops DN404 reconciling its (much larger) remaining balance back down to an id count.
+        vm.startBroadcast(deployerKey);
+        b.transfer(ADMIN, PIXELADY_PIECES_ADMIN * unit_);
+        vm.stopBroadcast();
+
+        console.log("CATALOG mid-curve filled:", inst);
+        console.log(
+            "  reserve (wei):",
+            b.reserve(),
+            "of armed raise (wei):",
+            LaunchManager(d.launchManager).getPreset(PRESET_PIXELADY).targetETH
+        );
+    }
+
+    /// @dev THE 80% ENDOWMENT — settle the opening auctions, which is what moves 80% of each real
+    ///      winning bid into the endowment as permanent principal, then bid on the auctions those
+    ///      settlements start so the line boots settle-ready rather than empty.
+    ///
+    ///      Settlement is permissionless, so the deployer performing it is a convenience and not an
+    ///      authority: the piece is minted to the WINNER either way, and the winners here are the two
+    ///      non-deployer actors.
+    function _settleCatalogAuction(Deployed memory d, address inst) internal {
+        ERC721AuctionInstance a = ERC721AuctionInstance(payable(inst));
+        uint256 before = IEndowmentPrincipal(d.cultAaveVault).totalPrincipalCommittedAllTime();
+
+        vm.startBroadcast(deployerKey);
+        for (uint24 id = 1; id <= FIGMATA_OPENING_AUCTIONS; id++) {
+            a.settleAuction(id);
+        }
+        vm.stopBroadcast();
+
+        // Each settlement advanced its line to the next queued piece, which is live from now. Bid on
+        // all of them so nothing in the collection reads as abandoned.
+        vm.startBroadcast(ACCOUNT_1_KEY);
+        a.createBid{ value: FIGMATA_FOLLOW_BID }(FIGMATA_OPENING_AUCTIONS + 1, "");
+        a.createBid{ value: FIGMATA_FOLLOW_BID }(FIGMATA_OPENING_AUCTIONS + 3, "");
+        vm.stopBroadcast();
+        vm.startBroadcast(PERSON_KEY);
+        a.createBid{ value: FIGMATA_FOLLOW_BID }(FIGMATA_OPENING_AUCTIONS + 2, "");
+        vm.stopBroadcast();
+
+        // A settlement that failed to endow is the one failure this collection cannot survive: the
+        // whole reason it is in the roster is that it is the only family that CAN express the 80%
+        // leg, and an endowment holding nothing demonstrates the opposite of that.
+        uint256 endowed = IEndowmentPrincipal(d.cultAaveVault).totalPrincipalCommittedAllTime() - before;
+        require(endowed > 0, "catalog: settling the auctions committed no endowment principal");
+
+        console.log("CATALOG auction settled:", inst);
+        console.log("  endowment principal committed by settlement (wei):", endowed);
+    }
+
+    /// @dev Post-conditions for the catalog roster, read back off chain state.
+    ///
+    ///      NOT ASSERTED, deliberately: that the flagship's graduation returns the aligned share.
+    ///      Graduation is a human action left for the demo, and asserting a `previewCarve`-style
+    ///      projection here would restate the split library rather than test the seed. What IS
+    ///      asserted is the input that projection is computed from — the reserve, checked against
+    ///      the armed raise in `_buysCatalogFlagship`.
+    ///
+    ///      NOT ASSERTED, deliberately: the acquisition swap the vault performs on a convert. It
+    ///      needs pending ETH in the vault, and the liquidity-family vault receives nothing until a
+    ///      collection bound to it graduates — which no seeded instance does. The route is curated
+    ///      and read back in phase 1; the swap along it is a live action, not a seeded state.
+    function _assertCatalogPhase2(Deployed memory d, SeededErc404 memory s, SeededCatalog memory k) internal view {
+        // 1. THE MID-CURVE HOLDER SURFACE. Three distinct holders, and the testing wallet among them
+        //    — a single-holder collection cannot exercise anything the surface exists to show.
+        ERC404BondingInstance pixelady = ERC404BondingInstance(payable(s.pixelady));
+        IDN404Mirror mirror = IDN404Mirror(pixelady.mirrorERC721());
+        require(
+            mirror.balanceOf(ADMIN) == PIXELADY_PIECES_ADMIN,
+            "catalog: the testing wallet does not hold the expected mid-curve piece count"
+        );
+        require(mirror.balanceOf(acct1) == PIXELADY_PIECES_ACCT1, "catalog: the second actor holds no mid-curve pieces");
+        require(
+            mirror.balanceOf(deployer) == PIXELADY_PIECES_DEPLOYER,
+            "catalog: the creator does not hold the expected mid-curve piece count"
+        );
+
+        // 2. THE MID-CURVE MUST STILL BE MID-CURVE. A fill that crept up to the cap would leave the
+        //    instance the live features are demonstrated on unable to take another buy.
+        uint256 bondable =
+            pixelady.maxSupply() - pixelady.liquidityReserve() - (pixelady.freeMintAllocation() * pixelady.unit());
+        require(pixelady.totalBondingSupply() < bondable, "catalog: the mid-curve instance has no curve left");
+        require(pixelady.reserve() > 0, "catalog: the mid-curve instance took no ETH");
+
+        // 3. THE FLAGSHIP'S PIECES EXIST. The reserve is asserted at buy time; this is the other half
+        //    — a curve bought out silently would hold the raise and render an empty gallery.
+        ERC404BondingInstance schizo = ERC404BondingInstance(payable(s.schizo));
+        uint256 flagshipPieces = IDN404Mirror(schizo.mirrorERC721()).balanceOf(deployer);
+        require(flagshipPieces == SCHIZO_PIECES, "catalog: the flagship minted a different piece count than intended");
+
+        // 4. THE ENDOWMENT HOLDS PRINCIPAL, and it arrived through settlement rather than a donation
+        //    (the delta is asserted at settle time; this is the standing balance).
+        uint256 principal = IEndowmentPrincipal(d.cultAaveVault).totalPrincipalCommittedAllTime();
+        require(principal > 0, "catalog: the endowment vault holds no principal");
+
+        // 5. THE AUCTION LINE IS NOT DEAD. Every opening auction is settled and every follow-on
+        //    carries a bid, so the collection boots with a settleable line rather than a stalled one.
+        ERC721AuctionInstance figmata = ERC721AuctionInstance(payable(k.figmata));
+        for (uint24 id = 1; id <= FIGMATA_OPENING_AUCTIONS; id++) {
+            (,,,,,, bool settled) = _auction(figmata, id);
+            require(settled, "catalog: an opening auction is still unsettled");
+        }
+        for (uint24 id = FIGMATA_OPENING_AUCTIONS + 1; id <= FIGMATA_OPENING_AUCTIONS * 2; id++) {
+            (,, address highBidder,,,,) = _auction(figmata, id);
+            require(highBidder != address(0), "catalog: a follow-on auction carries no bid");
+        }
+
+        console.log("CATALOG post-conditions OK");
+        console.log("  flagship pieces minted:", flagshipPieces);
+        console.log("  mid-curve pieces held by the testing wallet:", PIXELADY_PIECES_ADMIN);
+        console.log("  endowment principal committed all-time (wei):", principal);
+    }
+
+    /// @dev The auction record WITHOUT its token URI. The public mapping getter returns the URI
+    ///      inline, and a caller that only wants the bid state would otherwise have to name a string
+    ///      slot it never reads — which is also the slot most likely to move.
+    function _auction(ERC721AuctionInstance a, uint24 id)
+        internal
+        view
+        returns (
+            uint24 tokenId,
+            uint256 minBid,
+            address highBidder,
+            uint256 highBid,
+            uint40 startTime,
+            uint40 endTime,
+            bool settled
+        )
+    {
+        (tokenId,, minBid, highBidder, highBid, startTime, endTime, settled) = a.auctions(id);
     }
 
     /// @dev Hand ownership of every seeded INSTANCE to ADMIN (the testing wallet) + fund it, so it
