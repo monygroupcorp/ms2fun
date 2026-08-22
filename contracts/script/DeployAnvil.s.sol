@@ -2,6 +2,10 @@
 pragma solidity ^0.8.20;
 
 import { DeployCore } from "./DeployCore.sol";
+// The quoter lives in the shared anvil-seed surface rather than here: `forge script` resolves a
+// script by its FILE, and a second concrete contract in this one makes that resolution ambiguous —
+// the orchestrator's invocation names the path, not the contract.
+import { AnvilFixedRouteQuoter } from "./SeedAnvilShared.sol";
 
 /// @notice Deploys the full protocol to a local Anvil chain.
 ///         Called by deploy.mjs: forge script script/DeployAnvil.s.sol --broadcast
@@ -31,11 +35,17 @@ contract DeployAnvil is DeployCore {
         uint256 pk = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(pk);
         vm.startBroadcast(pk);
-        deploy(deployer, _anvilConfig());
+        // The best-route quoter is OPERATOR INPUT and there is no canonical one on a local fork, so the
+        // fork supplies its own. It must exist before `deploy` runs: every vault factory takes the
+        // quoter as a CONSTRUCTOR immutable and threads it into each vault at deployVault time, and the
+        // vault's own `setZQuoter` is owned by the factory, which exposes no passthrough — so this is
+        // the only point in the lifecycle at which the acquisition venue is settable at all.
+        address quoter = address(new AnvilFixedRouteQuoter(CULT_TOKEN));
+        deploy(deployer, _anvilConfig(quoter));
         vm.stopBroadcast();
     }
 
-    function _anvilConfig() internal view returns (NetworkConfig memory cfg) {
+    function _anvilConfig(address quoter) internal view returns (NetworkConfig memory cfg) {
         AlignmentTargetConfig[] memory targets = new AlignmentTargetConfig[](2);
         targets[0] = AlignmentTargetConfig({
             token: MS2_TOKEN,
@@ -51,8 +61,12 @@ contract DeployAnvil is DeployCore {
         targets[1] = AlignmentTargetConfig({
             token: CULT_TOKEN,
             symbol: "CULT",
-            name: "Cult-DAO",
-            description: "Cult DAO community alignment target",
+            // CULT_TOKEN answers `name()` with "Milady Cult Coin" and `symbol()` with "CULT" — the
+            // token is Remilia Corporation's own ERC20, not the unrelated token that shares the
+            // symbol. `registerAlignmentTarget` seals the title at registration (`updateAlignmentTarget`
+            // can change only the description and the metadata URI), so the label has to be right here.
+            name: "Milady Cult Coin",
+            description: "Remilia / Milady community alignment target",
             deployUniVault: true,
             deployCypherVault: true,
             deployZAMMVault: true,
@@ -71,6 +85,10 @@ contract DeployAnvil is DeployCore {
         cfg.zamm = ZAMM; // ZAMM LP family — live on the mainnet fork
         cfg.aaveStataToken = WETH_STATA_TOKEN; // waEthWETH (mainnet fork)
         cfg.zrouter = address(0);
+        // Best-route acquisition, pinned to the alignment token's deepest native-ETH V4 pool. Scoped to
+        // that one token (see AnvilFixedRouteQuoter) — every other vault keeps the fixed-tier fallback
+        // it has today, so this addition is inert for them.
+        cfg.zQuoter = quoter;
         cfg.safe = address(0);
         // Sequential salts — unguarded so any address can call CreateX on local chain
         cfg.saltMasterRegistry = bytes32(uint256(keccak256(abi.encode(block.timestamp, "master"))));
