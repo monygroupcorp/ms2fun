@@ -6,6 +6,7 @@ import { useReadMasterRegistryV1IsAgent } from '../generated/contracts'
 import { forkAddresses } from '../lib/addresses'
 import {
   PROJECT_TYPES,
+  artPointerError,
   getProjectType,
   getConfigSchema,
   collectDefaults,
@@ -131,6 +132,11 @@ export interface DeployBlockerInput {
   coreErrors: Record<string, string>
   /** `validateMetadataConfig(...)` — ungated; empty when no metadata module is selected. */
   metaErrors: Record<string, string>
+  /** Creator-authored art pointers (cover, banner, piece-art base) with the step that owns each
+   *  input. Judged by `artPointerError`, i.e. by the SAME allowlist the renderer applies when it
+   *  reads the collection back — a pointer that would be blanked there is refused here instead of
+   *  reaching the chain. A BLANK pointer is not an error (art stays optional throughout). */
+  artPointers?: { label: string; uri: string; step: StepKey }[]
   /** `supplyCeilingError(...)` — ERC-404 only: `nftCount` above what the chosen preset's unit size
    *  admits under DN404's uint96 total supply. Null when it fits, or while the ceiling is unread. */
   supplyCeilingError?: string | null
@@ -169,6 +175,12 @@ export function buildDeployBlockers(input: DeployBlockerInput): DeployBlocker[] 
   // from the selected preset's on-chain `unitPerNFT` — but it blocks deploy exactly like one, and it
   // belongs to the Contract step where both inputs live.
   if (input.supplyCeilingError) out.push({ message: input.supplyCeilingError, step: 'contract' })
+  // Art pointers the app would refuse to render. Only an ENTERED pointer can fail — an empty one
+  // returns no error, so an art-less launch stays deployable.
+  for (const pointer of input.artPointers ?? []) {
+    const message = artPointerError(pointer.uri)
+    if (message) out.push({ message: `${pointer.label}: ${message}`, step: pointer.step })
+  }
   // Expand each metadata-stack error (tier rows, router wiring…) — all owned by the Modules step.
   for (const message of Object.values(input.metaErrors)) {
     out.push({ message, step: 'modules' })
@@ -338,6 +350,15 @@ export function WizardPage() {
     coreErrors: deployCoreErrors,
     metaErrors: deployMetaErrors,
     supplyCeilingError: supplyError,
+    artPointers: [
+      { label: 'Cover image', uri: metadata.image, step: 'page' },
+      { label: 'Banner image', uri: metadata.banner, step: 'page' },
+      // ERC-404 piece art is a BASE that composes as `<base><tokenId>`; appending an id cannot
+      // change the scheme, so judging the base is the same verdict the composed URI gets.
+      ...(typeKey === 'erc404'
+        ? [{ label: 'Piece art', uri: values['tokenBaseURI'] ?? '', step: 'contract' as StepKey }]
+        : []),
+    ],
   })
 
   // Assemble the exact `createInstance` call from current wizard state. Shared by the deploy submit

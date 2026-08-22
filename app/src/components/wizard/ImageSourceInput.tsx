@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { isResolvableUri, resolveCandidates } from '../../lib/metadata'
+import { artPointerError } from '../../lib/wizard/artPointer'
 import styles from './ImageSourceInput.module.css'
 
 export interface ImageSourceInputProps {
@@ -47,6 +48,11 @@ export function ImageSourceInput({
   help,
   previewValue,
 }: ImageSourceInputProps) {
+  // Authoring-time allowlist. `value` is what gets written on-chain, so `value` is what is judged —
+  // a derived `previewValue` is not the string a viewer's renderer will later be handed. The verdict
+  // comes from the shared sanitizer, never from a scheme list kept here (see `artPointer.ts`).
+  const error = artPointerError(value)
+  const errorId = `${id}-art-error`
   const previewUri = (previewValue ?? value).trim()
   const candidates = useMemo(() => toPreviewCandidates(previewUri), [previewUri])
   // Which candidate is being shown. Rotation happens on `onError`: one refusing or hung gateway must
@@ -58,7 +64,9 @@ export function ImageSourceInput({
 
   // The preview box is shown for any pointer this form can address, so the Remove control stays
   // reachable while the image is still resolving or has exhausted its candidates.
-  const addressable = isResolvableUri(previewUri)
+  // A refused pointer gets no preview: showing art for a link the app will blank is the exact
+  // disagreement this validation exists to remove.
+  const addressable = !error && isResolvableUri(previewUri)
   const previewSrc = candidates[idx]
 
   return (
@@ -77,8 +85,16 @@ export function ImageSourceInput({
           onChange={(e) => onChange(e.target.value)}
           placeholder="Paste a link — ipfs://, ar://, or https://"
           aria-label={`${label} link`}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
         />
       </div>
+
+      {error && (
+        <p id={errorId} className={styles.error} role="alert">
+          {`${label}: ${error}`}
+        </p>
+      )}
 
       {addressable && (
         <div className={styles.previewWrap}>

@@ -99,3 +99,14 @@
 .ok {
   color: var(--text-tertiary);
 }
+
+/* Refused pointer: the same left-accent treatment SchemaForm gives a field error, so a rejected art
+   link reads as an error rather than as help text. */
+.error {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  border-left: 2px solid var(--text-primary);
+  padding-left: var(--space-2);
+}
