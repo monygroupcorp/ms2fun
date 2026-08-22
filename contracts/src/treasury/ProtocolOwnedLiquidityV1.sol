@@ -26,8 +26,11 @@ import { IMasterRegistry } from "../master/interfaces/IMasterRegistry.sol";
  *      is wired yet; wiring POL-at-graduation is a separate follow-up. `claimPOLFees` stays
  *      permissionless (censorship-resistant fee collection). The V4 `unlock`/callback is this
  *      contract's only external interaction surface, so it is guarded explicitly with `nonReentrant`
- *      (the treasury previously relied on slither-disable comments only). Owner sweeps collected
- *      funds out via `withdrawETH` / `withdrawERC20`.
+ *      (the treasury previously relied on slither-disable comments only). `withdrawPOL` is the
+ *      owner-gated exit for the LP principal: it routes a negative `liquidityDelta` through the same
+ *      `unlock` callback the deposit uses, returning principal (plus anything accrued on it) to this
+ *      contract. Owner sweeps recovered principal and collected fees out via `withdrawETH` /
+ *      `withdrawERC20`.
  */
 // slither-disable-next-line missing-inheritance
 contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCallback {
@@ -48,6 +51,8 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
     error NoPOLPosition();
     error InvalidRecipient();
     error InsufficientBalance();
+    /// @notice `withdrawPOL` was asked for zero liquidity, or for more than the position holds.
+    error InvalidLiquidityAmount();
     /// @notice `msg.value` did not equal the native-currency leg the caller must escrow for this deploy.
     error NativeValueMismatch();
 
@@ -58,6 +63,7 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
     event MasterRegistryUpdated(address indexed newRegistry);
     event POLPositionDeployed(address indexed instance, uint128 liquidity, bytes32 salt);
     event POLFeesCollected(address indexed instance, uint256 amount0, uint256 amount1);
+    event POLPositionWithdrawn(address indexed instance, uint128 liquidity, uint256 amount0, uint256 amount1);
     event ETHWithdrawn(address indexed to, uint256 amount);
     event ERC20Withdrawn(address indexed token, address indexed to, uint256 amount);
 
@@ -91,7 +97,8 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
 
     enum CallbackOperation {
         DEPLOY_POL,
-        COLLECT_FEES
+        COLLECT_FEES,
+        WITHDRAW_POL
     }
 
     struct CallbackData {
@@ -113,6 +120,14 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
         int24 tickLower;
         int24 tickUpper;
         bytes32 salt;
+    }
+
+    struct WithdrawPOLCallbackData {
+        PoolKey poolKey;
+        int24 tickLower;
+        int24 tickUpper;
+        bytes32 salt;
+        uint128 liquidity;
     }
 
     function initialize(address _owner) external {
@@ -265,6 +280,54 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
         emit POLFeesCollected(instance, amount0, amount1);
     }
 
+    /// @notice Owner-gated exit for a protocol-owned LP position: burn `liquidity` from the position and
+    ///         bring the underlying principal back to this contract.
+    /// @dev Mirrors the deposit seam exactly — the same `unlock` callback, the same `_settleDelta`, with a
+    ///      NEGATIVE `liquidityDelta`. The amounts credited by the burn (principal, plus any fees the
+    ///      position had accrued on the burnt share) are `take`n to this contract, where the existing
+    ///      `withdrawETH` / `withdrawERC20` sweeps move them on. Partial withdrawal is supported: the
+    ///      tracked liquidity is reduced by `liquidity` and the position stays readable via
+    ///      `getPolPosition`. `receivePOL`'s guards are untouched.
+    /// @param instance The registered instance whose position is being exited.
+    /// @param liquidity Amount of position liquidity to burn; must be non-zero and at most the tracked amount.
+    // slither-disable-next-line reentrancy-benign,reentrancy-events
+    function withdrawPOL(address instance, uint128 liquidity)
+        external
+        onlyOwner
+        nonReentrant
+        returns (uint256 amount0, uint256 amount1)
+    {
+        POLPosition storage pos = _polPositions[instance];
+        if (pos.liquidity == 0) revert NoPOLPosition();
+        if (liquidity == 0 || liquidity > pos.liquidity) revert InvalidLiquidityAmount();
+
+        CallbackData memory cbData = CallbackData({
+            operation: CallbackOperation.WITHDRAW_POL,
+            data: abi.encode(
+                WithdrawPOLCallbackData({
+                    poolKey: pos.poolKey,
+                    tickLower: pos.tickLower,
+                    tickUpper: pos.tickUpper,
+                    salt: pos.salt,
+                    liquidity: liquidity
+                })
+            )
+        });
+
+        // Reduce the tracked position before the external call (the callback never reads it).
+        unchecked {
+            pos.liquidity -= liquidity;
+        }
+
+        bytes memory result = IPoolManager(v4PoolManager).unlock(abi.encode(cbData));
+        BalanceDelta delta = abi.decode(result, (BalanceDelta));
+
+        amount0 = delta.amount0() > 0 ? uint256(int256(delta.amount0())) : 0;
+        amount1 = delta.amount1() > 0 ? uint256(int256(delta.amount1())) : 0;
+
+        emit POLPositionWithdrawn(instance, liquidity, amount0, amount1);
+    }
+
     // ============ V4 Callback ============
 
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
@@ -274,6 +337,8 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
 
         if (cbData.operation == CallbackOperation.DEPLOY_POL) {
             return _handleDeployPOL(cbData.data);
+        } else if (cbData.operation == CallbackOperation.WITHDRAW_POL) {
+            return _handleWithdrawPOL(cbData.data);
         } else {
             return _handleCollectFees(cbData.data);
         }
@@ -310,6 +375,23 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
         uint256 used1 = d1 < 0 ? uint256(uint128(-d1)) : 0;
 
         return abi.encode(liquidity, used0, used1);
+    }
+
+    // slither-disable-next-line unused-return
+    function _handleWithdrawPOL(bytes memory data) internal returns (bytes memory) {
+        WithdrawPOLCallbackData memory params = abi.decode(data, (WithdrawPOLCallbackData));
+
+        IPoolManager.ModifyLiquidityParams memory modifyParams = IPoolManager.ModifyLiquidityParams({
+            tickLower: params.tickLower,
+            tickUpper: params.tickUpper,
+            liquidityDelta: -int256(uint256(params.liquidity)),
+            salt: params.salt
+        });
+
+        (BalanceDelta delta,) = IPoolManager(v4PoolManager).modifyLiquidity(params.poolKey, modifyParams, "");
+        _settleDelta(params.poolKey, delta);
+
+        return abi.encode(delta);
     }
 
     // slither-disable-next-line unused-return

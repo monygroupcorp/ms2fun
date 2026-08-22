@@ -53,16 +53,22 @@ contract MockPoolManagerV4 {
         returns (BalanceDelta callerDelta, BalanceDelta feesAccrued)
     {
         int256 liqDelta = params.liquidityDelta;
-        if (liqDelta <= 0) {
-            return (toBalanceDelta(0, 0), toBalanceDelta(0, 0));
+        feesAccrued = toBalanceDelta(0, 0);
+        if (liqDelta == 0) {
+            return (toBalanceDelta(0, 0), feesAccrued);
         }
         uint160 sqrtA = TickMath.getSqrtPriceAtTick(params.tickLower);
         uint160 sqrtB = TickMath.getSqrtPriceAtTick(params.tickUpper);
+        uint256 magnitude = liqDelta > 0 ? uint256(liqDelta) : uint256(-liqDelta);
         (uint256 amt0, uint256 amt1) =
-            LiquidityAmounts.getAmountsForLiquidity(SQRT_PRICE_1_1, sqrtA, sqrtB, uint128(uint256(liqDelta)));
-        // Amounts owed by the LP are negative deltas (debts to settle).
-        callerDelta = toBalanceDelta(-int128(int256(amt0)), -int128(int256(amt1)));
-        feesAccrued = toBalanceDelta(0, 0);
+            LiquidityAmounts.getAmountsForLiquidity(SQRT_PRICE_1_1, sqrtA, sqrtB, uint128(magnitude));
+        if (liqDelta > 0) {
+            // Amounts owed by the LP are negative deltas (debts to settle).
+            callerDelta = toBalanceDelta(-int128(int256(amt0)), -int128(int256(amt1)));
+        } else {
+            // A burn credits the LP: positive deltas the LP may `take`.
+            callerDelta = toBalanceDelta(int128(int256(amt0)), int128(int256(amt1)));
+        }
     }
 
     function sync(Currency) external { }
@@ -72,7 +78,16 @@ contract MockPoolManagerV4 {
         return msg.value;
     }
 
-    function take(Currency, address, uint256) external { }
+    /// @dev A real `take`: pay the credited amount out of this manager's own holdings, so a burn's
+    ///      principal is observable on the recipient's balance rather than assumed.
+    function take(Currency currency, address to, uint256 amount) external {
+        if (Currency.unwrap(currency) == address(0)) {
+            (bool ok,) = to.call{ value: amount }("");
+            require(ok, "take native failed");
+        } else {
+            MockERC20(Currency.unwrap(currency)).transfer(to, amount);
+        }
+    }
 }
 
 contract ProtocolOwnedLiquidityTest is Test {
@@ -363,6 +378,134 @@ contract ProtocolOwnedLiquidityTest is Test {
         vm.prank(alice);
         vm.expectRevert(ProtocolOwnedLiquidityV1.POLAlreadyDeployed.selector);
         pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+    }
+
+    // ========== withdrawPOL — the principal exit (noesis-303) ==========
+    //
+    // The deposit seam has a matching exit: an owner-gated negative `liquidityDelta` through the same
+    // `unlock` callback. These assert the principal actually comes back and that partial exits keep the
+    // remainder live.
+
+    /// @notice A deployed position can be fully exited: the principal lands on this contract and the
+    ///         existing owner sweep moves it out.
+    function test_withdrawPOL_ReturnsPrincipalToTreasury() public {
+        PoolKey memory key = _setUpLivePool();
+
+        vm.prank(alice);
+        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+
+        (,,, uint128 liquidity) = pol.getPolPosition(alice);
+        assertGt(liquidity, 0, "liquidity deployed");
+        // Every wei of the principal is inside the position before the exit.
+        assertEq(address(pol).balance, 0, "no loose native before exit");
+        assertEq(token.balanceOf(address(pol)), 0, "no loose token before exit");
+
+        vm.prank(owner);
+        (uint256 amount0, uint256 amount1) = pol.withdrawPOL(alice, liquidity);
+
+        assertGt(amount0, 0, "native principal returned");
+        assertGt(amount1, 0, "token principal returned");
+        assertEq(address(pol).balance, amount0, "native principal credited to POL");
+        assertEq(token.balanceOf(address(pol)), amount1, "token principal credited to POL");
+
+        (,,, uint128 liquidityAfter) = pol.getPolPosition(alice);
+        assertEq(liquidityAfter, 0, "position fully burnt");
+
+        // The existing sweeps now have something to sweep — before the exit they had nothing.
+        uint256 bobBefore = bob.balance;
+        vm.prank(owner);
+        pol.withdrawETH(bob, amount0);
+        assertEq(bob.balance, bobBefore + amount0, "recovered native swept to recipient");
+
+        vm.prank(owner);
+        pol.withdrawERC20(address(token), bob, amount1);
+        assertEq(token.balanceOf(bob), amount1, "recovered token swept to recipient");
+    }
+
+    /// @notice The exit is owner-gated: no one else can move the protocol's liquidity.
+    function test_withdrawPOL_RevertNonOwner() public {
+        PoolKey memory key = _setUpLivePool();
+
+        vm.prank(alice);
+        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+
+        (,,, uint128 liquidity) = pol.getPolPosition(alice);
+
+        // alice is the registered instance that funded the position, bob is unrelated — neither may exit it.
+        vm.prank(alice);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        pol.withdrawPOL(alice, liquidity);
+
+        vm.prank(bob);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        pol.withdrawPOL(alice, liquidity);
+
+        (,,, uint128 liquidityAfter) = pol.getPolPosition(alice);
+        assertEq(liquidityAfter, liquidity, "position untouched by unauthorized calls");
+    }
+
+    /// @notice A partial exit returns part of the principal and leaves the remainder live and readable.
+    function test_withdrawPOL_PartialLeavesRemainderIntact() public {
+        PoolKey memory key = _setUpLivePool();
+
+        vm.prank(alice);
+        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+
+        (int24 tickLower, int24 tickUpper, bytes32 salt, uint128 liquidity) = pol.getPolPosition(alice);
+        uint128 half = liquidity / 2;
+
+        vm.prank(owner);
+        (uint256 amount0, uint256 amount1) = pol.withdrawPOL(alice, half);
+        assertGt(amount0, 0, "partial native returned");
+        assertGt(amount1, 0, "partial token returned");
+
+        (int24 tickLowerAfter, int24 tickUpperAfter, bytes32 saltAfter, uint128 liquidityAfter) =
+            pol.getPolPosition(alice);
+        assertEq(liquidityAfter, liquidity - half, "remaining liquidity tracked");
+        assertGt(liquidityAfter, 0, "remainder still live");
+        assertEq(tickLowerAfter, tickLower, "range unchanged");
+        assertEq(tickUpperAfter, tickUpper, "range unchanged");
+        assertEq(saltAfter, salt, "salt unchanged");
+
+        // The remainder is still a real position: fee collection still routes to it.
+        vm.prank(bob);
+        pol.claimPOLFees(alice);
+
+        // And the rest can be exited afterwards.
+        vm.prank(owner);
+        pol.withdrawPOL(alice, liquidityAfter);
+        (,,, uint128 liquidityFinal) = pol.getPolPosition(alice);
+        assertEq(liquidityFinal, 0, "remainder exited");
+    }
+
+    function test_withdrawPOL_RevertNoPosition() public {
+        vm.prank(owner);
+        vm.expectRevert(ProtocolOwnedLiquidityV1.NoPOLPosition.selector);
+        pol.withdrawPOL(address(0xDEAD), 1);
+    }
+
+    function test_withdrawPOL_RevertZeroLiquidity() public {
+        PoolKey memory key = _setUpLivePool();
+
+        vm.prank(alice);
+        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+
+        vm.prank(owner);
+        vm.expectRevert(ProtocolOwnedLiquidityV1.InvalidLiquidityAmount.selector);
+        pol.withdrawPOL(alice, 0);
+    }
+
+    function test_withdrawPOL_RevertExceedsPosition() public {
+        PoolKey memory key = _setUpLivePool();
+
+        vm.prank(alice);
+        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+
+        (,,, uint128 liquidity) = pol.getPolPosition(alice);
+
+        vm.prank(owner);
+        vm.expectRevert(ProtocolOwnedLiquidityV1.InvalidLiquidityAmount.selector);
+        pol.withdrawPOL(alice, liquidity + 1);
     }
 
     // ========== claimPOLFees ==========
