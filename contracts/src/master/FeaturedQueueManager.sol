@@ -180,11 +180,14 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
      * @notice Add to an instance's rank score. Anyone can boost.
      *         Crystallises decay accrued since lastBoostTime, then adds the new amount.
      *         All ETH forwarded directly to protocolTreasury.
+     * @dev    Requires the instance to still be registered: a revoked instance is not visible to
+     *         `getFeaturedInstances`, so its rank cannot be sold.
      * @param instance  Active featured instance to boost
      */
     // slither-disable-next-line timestamp
     function boostRank(address instance) external payable nonReentrant {
         if (protocolTreasury == address(0)) revert TreasuryNotSet();
+        if (!_isInstanceRegistered(instance)) revert InstanceNotRegistered();
         if (msg.value == 0) revert MustSendETH();
         if (block.timestamp >= slots[instance].expiresAt) revert SlotNotActive();
 
@@ -201,12 +204,15 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
      * @notice Extend an active slot's duration. Anyone can renew — fans can keep
      *         their favourite project visible. Zero effect on rank.
      *         ETH forwarded directly to protocolTreasury.
+     * @dev    Requires the instance to still be registered: a revoked instance is not visible to
+     *         `getFeaturedInstances`, so its placement cannot be extended.
      * @param instance           Active featured instance
      * @param additionalDuration Extra seconds to add to expiresAt
      */
     // slither-disable-next-line timestamp
     function renewDuration(address instance, uint256 additionalDuration) external payable nonReentrant {
         if (protocolTreasury == address(0)) revert TreasuryNotSet();
+        if (!_isInstanceRegistered(instance)) revert InstanceNotRegistered();
         if (block.timestamp >= slots[instance].expiresAt) revert SlotExpired();
         if (additionalDuration < minDuration) revert DurationTooShort();
         if (additionalDuration > maxDuration) revert DurationTooLong();
