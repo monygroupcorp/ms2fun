@@ -16,6 +16,81 @@ interface IOwnable {
     function transferOwnership(address newOwner) external payable;
 }
 
+/// @notice ROUTE PIN, not a price oracle. Anvil-only stand-in for the canonical on-chain best-route
+///         quoter that `DeployCore.NetworkConfig.zQuoter` expects (OPERATOR INPUT — the canonical one
+///         is deployed per network and there is none to point at on a local fork).
+///
+///         WHY THIS EXISTS AT ALL. A vault's ETH -> alignment-token acquisition tier comes from the
+///         factory's `zRouterFee`/`zRouterTickSpacing` immutables, which are network-wide and carry no
+///         setter, so a single target whose deepest pool sits elsewhere cannot be routed there by
+///         configuration. `BestRouteAcquirer` already has the seam for it: a non-zero quoter picks the
+///         venue, and only an unset/reverting/empty quote degrades to the fixed tier. This contract
+///         fills that seam for ONE token.
+///
+///         WHY THE PINNED VENUE IS THE ONE IT IS, AND NOT THE VAULT'S LP POOL. These are two different
+///         questions and they have two different answers on this fork. The vault LPs into the deepest
+///         native-ETH V4 pool for its token; the vault ACQUIRES wherever the token is cheapest to buy
+///         without breaching its own oracle floor, and that is the deepest pool of any kind. Measured
+///         on the fork: the V4 tier prices a tenth-of-an-ETH buy ~31% under the reference TWAP and the
+///         V3 tier of the same fee prices a whole-ETH buy ~1% under it — three orders of magnitude of
+///         depth apart. Pinning the acquire leg to the V4 pool would make every demo-sized convert
+///         revert on the vault's slippage floor, which is the floor doing its job against a pool that
+///         cannot serve the size. Buying deep and providing liquidity where the alignment is committed
+///         is what a best-route acquirer is FOR; it is not a workaround.
+///
+///         WHY THE ANSWER IS SCOPED TO ONE TOKEN. Every other `(tokenIn, tokenOut)` pair — including
+///         the other alignment target's — is answered with an EMPTY route, which `BestRouteAcquirer`
+///         reads as "no viable route" and falls back to the vault's fixed pool. So wiring this quoter
+///         changes the acquisition path of exactly one token and leaves every other vault byte-identical
+///         to a deployment with no quoter at all. That scoping is the whole point; do not widen it into
+///         a catch-all without re-reading which vaults it would silently re-route.
+///
+///         `amountOut` IS A FLAG, NOT A PRICE. `BestRouteAcquirer` consumes it only as a non-zero
+///         "route exists" test; the slippage bound the swap actually executes against is the vault's
+///         own oracle-derived floor (`_floorTokenOut`, from the DAO-pinned reference pool), which this
+///         contract cannot influence. Reading a price out of this return value would be wrong.
+contract AnvilFixedRouteQuoter {
+    /// @dev Must match `BestRouteAcquirer.IBestRouteQuoter.AMM` ordering for ABI decoding.
+    enum AMM {
+        UNI_V2,
+        SUSHI,
+        ZAMM,
+        UNI_V3,
+        UNI_V4
+    }
+
+    struct Quote {
+        AMM source;
+        uint256 feeBps;
+        uint256 amountIn;
+        uint256 amountOut;
+    }
+
+    /// @notice The one token this quoter answers for.
+    address public immutable pinnedToken;
+    /// @notice Fee tier in the quoter ABI's BPS units; the acquirer multiplies by 100 for the pool fee.
+    uint256 public constant PINNED_FEE_BPS = 100;
+
+    constructor(address token) {
+        pinnedToken = token;
+    }
+
+    function getQuotes(bool, address tokenIn, address tokenOut, uint256 swapAmount)
+        external
+        view
+        returns (Quote memory best, Quote[] memory quotes)
+    {
+        // ETH in only, pinned token out. Anything else returns a zeroed best + an empty list, which
+        // is the caller's "no viable route" signal and leaves its fixed-pool fallback in charge.
+        if (tokenIn != address(0) || tokenOut != pinnedToken || swapAmount == 0) {
+            return (best, new Quote[](0));
+        }
+        best = Quote({ source: AMM.UNI_V3, feeBps: PINNED_FEE_BPS, amountIn: swapAmount, amountOut: 1 });
+        quotes = new Quote[](1);
+        quotes[0] = best;
+    }
+}
+
 /// @notice Shared surface for the two-phase anvil seed: the deployed-address struct, the exact-cost
 ///         buy helpers, and the phase-1 → phase-2 hand-off file.
 ///
@@ -41,6 +116,14 @@ abstract contract SeedAnvilShared is Script {
     // every seeded instance + the platform registries is handed to ADMIN so it can drive the creator
     // admin + (future) protocol-admin console from the UI. Anvil-only — DeployCore stays untouched.
     address internal constant ADMIN = 0x54EfD4549AE44bD03B2cCC1C72492CA9A3219C86;
+
+    // ── The alignment target the catalog roster binds to ─────────────────────────────────────────
+    // Milady Cult Coin, the Remilia-issued ERC20 (`name()` = "Milady Cult Coin", `symbol()` = "CULT",
+    // 18 decimals). Present on the mainnet fork because the fork is mainnet. Kept here rather than in
+    // DeployAnvil because the seed resolves CULT's OWN per-target vaults out of `anvil.json` by
+    // matching this address — `contracts.SeedUniVault` / `contracts.SeedAaveVault` are the FIRST
+    // target's vaults (MS2), and binding a catalog instance to those would tithe the wrong community.
+    address internal constant CULT_TOKEN = 0x0000000000c5dc95539589fbD24BE07c6C14eCa4;
 
     /// @dev The local fork's chain id. Asserted when reading the hand-off file so a seed-state file
     ///      left behind by a PREVIOUS fork cannot be replayed against dead addresses on a new one.
@@ -70,6 +153,57 @@ abstract contract SeedAnvilShared is Script {
     string internal constant ART_BASE_SIMIAN = "ipfs://QmeSjSinHpPnmXmspMjwiXyN6zS4E9zccariGR3jxcaWtq/";
     string internal constant ART_BASE_DOODLE = "ipfs://QmPMc4tcBsMqLRuCQtPmPe84bpSjrC3Ky7t3JWuHXYB4aS/";
 
+    // ── Catalog-instance art bases ───────────────────────────────────────────────────────────────
+    // The two bases below are the REAL metadata directories of the collections the catalog instances
+    // stand in for, reused verbatim. Both are immutable IPFS and both address their entries by the
+    // bare token id, which is exactly the `base + tokenId` concatenation the instances perform — so
+    // the seeded pieces resolve to the actual art with no re-hosting and no third-party server.
+    string internal constant ART_BASE_PIXELADY = "ipfs://bafybeigd7557iwardhnwg5kbmg2s7tmuxqkstjeoixu7wunooiywbb3jqq/";
+    string internal constant ART_BASE_FIGMATA = "ipfs://bafybeigibcocisl3d4oirx5bivemr6iwtdnbswxbpd57zb4ekf64lch5dm/";
+    // NO real base for the flagship curve or the free-mint editions, DELIBERATELY. Those collections
+    // serve their metadata from a live third-party domain rather than from content-addressed storage.
+    // Wiring a domain here would make the local fork's art depend on somebody else's uptime and would
+    // point our traffic at their host, so those instances take one of the ART_BASE_* constants above
+    // and the substitution is stated in their on-chain description. Do not "improve" this back.
+
+    // ── THE ALIGNMENT CATALOG ROSTER ────────────────────────────────────────────────────────
+    //
+    // READ THIS BEFORE CHANGING A NUMBER BELOW. Several seeded collections are not inventions: each
+    // one restates a real, MEASURED derivative collection — its supply, its revenue, and the share
+    // that would have returned to the community it derived from had it launched aligned. A visitor
+    // is meant to check the arithmetic, so the figures are the product, not decoration.
+    //
+    // THE INFRASTRUCTURE IS OURS TO INVENT; THE NUMBERS ARE NOT. Pools, quoters, presets, clocks and
+    // truncated edition sizes are all fabricated to fit a local fork, and every fabrication is stated
+    // on chain in the instance's own metadata. Rounding a raise because it is inconvenient is not the
+    // same kind of act and is never in scope. If a figure below cannot be honoured, STOP — do not
+    // quietly move it to one that can.
+    //
+    // Revenue is mint revenue except on the auction collection, where it is the sum of WINNING BIDS
+    // read from settlement events. A mint-transaction total undercounts an auction by an order of
+    // magnitude, because the winner's ETH arrives as bids and the settlement transaction carries
+    // none. Do not "correct" the auction figure back to a mint-transaction number.
+
+    // Flagship curve — ready-to-graduate, aligned at 19%.
+    uint256 constant SCHIZO_REAL_SUPPLY = 5555;
+    uint256 constant SCHIZO_REAL_RAISE = 320.1691 ether;
+    // Mid-curve exemplar — the instance the site's live features are demonstrated on.
+    uint256 constant PIXELADY_REAL_SUPPLY = 10_000;
+    uint256 constant PIXELADY_REAL_RAISE = 106 ether;
+    // Auction collection — the ONLY roster member that can express the 80% endowment (the 80/19/1
+    // leg is `splitMintFor(amount, liquidityFamily = false)`, reachable from the ERC-1155 and
+    // ERC-721 settlement paths only; ERC404 graduation has no family branch and cannot express it).
+    uint256 constant FIGMATA_REAL_SUPPLY = 180;
+
+    // Curve presets. `LaunchManager` accepts ANY `targetETH` — the 5/25/50 ETH menu is three
+    // registered presets, not a protocol ceiling — so a catalog-sized raise needs no contract change,
+    // only its own preset. Ids start at 10 to leave the protocol's 0-2 (and room to grow) untouched;
+    // everything except `targetETH` is carried over from the STANDARD preset so a seeded curve
+    // differs from a production one in SIZE ONLY.
+    uint8 constant PRESET_SOURCE = 1; // STANDARD — the preset every other seeded instance uses
+    uint8 constant PRESET_SCHIZO = 10;
+    uint8 constant PRESET_PIXELADY = 11;
+
     // Deployed addresses (read from anvil.json).
     struct Deployed {
         ERC1155Factory erc1155;
@@ -91,6 +225,11 @@ abstract contract SeedAnvilShared is Script {
         address tier; // TokenTierBandResolver (approved TIER)
         address alignmentRegistry; // AlignmentRegistryV1 proxy (target curation)
         address master; // MasterRegistryV1 proxy (agent authorization; deployer-owned pre-handover)
+        address launchManager; // LaunchManager (curve presets; deployer-owned pre-handover)
+        address uniVaultFactory; // UniAlignmentVaultFactory — owns every Uni vault, so per-vault setters route here
+        address cultUniVault; // CULT's OWN UniswapV4LP vault (NOT SeedUniVault, which is the first target's)
+        address cultAaveVault; // CULT's OWN Aave endowment vault (NOT SeedAaveVault)
+        uint256 cultTargetId; // alignment target id the CULT vaults were deployed under
     }
 
     /// @dev The ERC404 instances phase 1 arms, resolved BY NAME in phase 2.
@@ -102,6 +241,15 @@ abstract contract SeedAnvilShared is Script {
         address quench; // READY-TO-GRADUATE (Cypher/Algebra)
         address carve; // CARVE DEMO — bought until reserve >= 3 ETH
         address stacked; // STACKED METADATA — buy-with-mint + overlay authoring
+        address schizo; // CATALOG flagship — READY-TO-GRADUATE, catalog-sized curve, CULT UniV4 vault
+        address pixelady; // CATALOG mid-curve — the instance the live features are demonstrated on
+    }
+
+    /// @dev The non-ERC404 catalog instances phase 2 still has work to do on. The ERC-1155 tranche is
+    ///      absent on purpose: those are created, editioned and featured entirely in phase 1 and phase 2
+    ///      owes them nothing but the ownership handover, which rides the `all` array.
+    struct SeededCatalog {
+        address figmata; // ERC721 AUCTION bound to CULT's Aave endowment vault (the 80% endowment leg)
     }
 
     uint256 internal deployerKey;
@@ -134,6 +282,52 @@ abstract contract SeedAnvilShared is Script {
         d.endowmentVault = vm.parseJsonAddress(json, ".contracts.SeedAaveVault");
         d.alignmentRegistry = vm.parseJsonAddress(json, ".contracts.AlignmentRegistry");
         d.master = vm.parseJsonAddress(json, ".contracts.MasterRegistry");
+        d.launchManager = vm.parseJsonAddress(json, ".contracts.LaunchManager");
+        d.uniVaultFactory = vm.parseJsonAddress(json, ".factories.UNI");
+        (d.cultUniVault, d.cultAaveVault, d.cultTargetId) = _readCultVaults(json);
+    }
+
+    /// @dev Resolve the vaults belonging to the CULT alignment target out of `anvil.json`'s `vaults`
+    ///      array, by MATCHING THE ALIGNMENT TOKEN — never by index and never via the `Seed*Vault`
+    ///      convenience pointers, which are the FIRST target's vaults. DeployCore deploys one vault of
+    ///      each configured family PER TARGET, so both a CULT UniswapV4LP vault and a CULT Aave
+    ///      endowment vault already exist by the time the seed runs; the seed only has to find them.
+    ///      Binding a catalog instance to the wrong target's vault is silent — the collection would
+    ///      still trade, still tithe, and still render, while routing every aligned fee to a community
+    ///      it has nothing to do with. Hence the requires rather than a zero return.
+    function _readCultVaults(string memory json)
+        internal
+        view
+        returns (address uniVault, address aaveVault, uint256 targetId)
+    {
+        bytes32 uniType = keccak256(bytes("UNIv4"));
+        bytes32 aaveType = keccak256(bytes("AaveEndowment"));
+
+        // TWO THINGS ABOUT THIS READ, BOTH LEARNED THE HARD WAY.
+        //  · `vaults` is serialized as a STRING holding JSON, not as a JSON array, so it has to be
+        //    lifted out and queried as its own document — a path through the outer file never
+        //    descends into it.
+        //  · The entries are read ONE INDEX AT A TIME rather than through a wildcard: a wildcard path
+        //    resolves to many values and the array parsers accept exactly one, so it fails outright.
+        // The loop bound guards a malformed file; the loop really ends at the first missing index.
+        string memory vaults = vm.parseJsonString(json, ".vaults");
+        for (uint256 i = 0; i < 64; i++) {
+            string memory at = string.concat("[", vm.toString(i), "]");
+            if (!vm.keyExistsJson(vaults, at)) break;
+            if (vm.parseJsonAddress(vaults, string.concat(at, ".alignmentToken")) != CULT_TOKEN) continue;
+
+            bytes32 t = keccak256(bytes(vm.parseJsonString(vaults, string.concat(at, ".type"))));
+            if (t == uniType && uniVault == address(0)) {
+                uniVault = vm.parseJsonAddress(vaults, string.concat(at, ".address"));
+                targetId = vm.parseJsonUint(vaults, string.concat(at, ".targetId"));
+            } else if (t == aaveType && aaveVault == address(0)) {
+                aaveVault = vm.parseJsonAddress(vaults, string.concat(at, ".address"));
+                targetId = vm.parseJsonUint(vaults, string.concat(at, ".targetId"));
+            }
+        }
+        require(uniVault != address(0), "anvil.json: no UNIv4 vault is bound to the CULT alignment token");
+        require(aaveVault != address(0), "anvil.json: no Aave endowment vault is bound to the CULT alignment token");
+        require(targetId != 0, "anvil.json: CULT vaults carry no alignment target id");
     }
 
     // ─────────────────────── Phase 1 → phase 2 hand-off ───────────────────────
@@ -143,7 +337,7 @@ abstract contract SeedAnvilShared is Script {
     ///      above carries the same lesson for vaults, and a change in seed ORDER must not silently
     ///      rebind `carve` to `stacked`. `all` is the ownership-handover list and MAY be reordered
     ///      freely — nothing resolves a role out of it.
-    function _writeSeedState(SeededErc404 memory s, address[] memory all) internal {
+    function _writeSeedState(SeededErc404 memory s, SeededCatalog memory k, address[] memory all) internal {
         string memory inner = "anvilSeedInstances";
         vm.serializeAddress(inner, "ember", s.ember);
         vm.serializeAddress(inner, "vapor", s.vapor);
@@ -151,6 +345,9 @@ abstract contract SeedAnvilShared is Script {
         vm.serializeAddress(inner, "molten", s.molten);
         vm.serializeAddress(inner, "quench", s.quench);
         vm.serializeAddress(inner, "carve", s.carve);
+        vm.serializeAddress(inner, "schizo", s.schizo);
+        vm.serializeAddress(inner, "pixelady", s.pixelady);
+        vm.serializeAddress(inner, "figmata", k.figmata);
         string memory instancesJson = vm.serializeAddress(inner, "stacked", s.stacked);
 
         string memory root = "anvilSeedState";
@@ -162,7 +359,11 @@ abstract contract SeedAnvilShared is Script {
         console.log("Wrote seed state:", SEED_STATE_PATH);
     }
 
-    function _readSeedState() internal view returns (SeededErc404 memory s, address[] memory all) {
+    function _readSeedState()
+        internal
+        view
+        returns (SeededErc404 memory s, SeededCatalog memory k, address[] memory all)
+    {
         string memory json = vm.readFile(SEED_STATE_PATH);
         uint256 chainId = vm.parseJsonUint(json, ".chainId");
         // A seed-state file from a PREVIOUS fork points at addresses that no longer hold code. Fail
@@ -178,6 +379,9 @@ abstract contract SeedAnvilShared is Script {
         s.quench = vm.parseJsonAddress(json, ".instances.quench");
         s.carve = vm.parseJsonAddress(json, ".instances.carve");
         s.stacked = vm.parseJsonAddress(json, ".instances.stacked");
+        s.schizo = vm.parseJsonAddress(json, ".instances.schizo");
+        s.pixelady = vm.parseJsonAddress(json, ".instances.pixelady");
+        k.figmata = vm.parseJsonAddress(json, ".instances.figmata");
         all = vm.parseJsonAddressArray(json, ".all");
 
         // A phase-1 that silently failed to record an instance would otherwise show up much later as
@@ -189,6 +393,9 @@ abstract contract SeedAnvilShared is Script {
         require(s.quench != address(0), "seed state: quench missing");
         require(s.carve != address(0), "seed state: carve missing");
         require(s.stacked != address(0), "seed state: stacked missing");
+        require(s.schizo != address(0), "seed state: schizo missing");
+        require(s.pixelady != address(0), "seed state: pixelady missing");
+        require(k.figmata != address(0), "seed state: figmata missing");
         require(all.length > 0, "seed state: no instances to hand over");
     }
 

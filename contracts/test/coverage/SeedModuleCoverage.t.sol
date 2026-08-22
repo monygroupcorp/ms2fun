@@ -11,7 +11,41 @@ import { SeedAnvilShared } from "../../script/SeedAnvilShared.sol";
 import { ERC1155Instance } from "../../src/factories/erc1155/ERC1155Instance.sol";
 import { ERC404BondingInstance } from "../../src/factories/erc404/ERC404BondingInstance.sol";
 import { MetadataResolverRouter } from "../../src/metadata/MetadataResolverRouter.sol";
+import { ERC721AuctionInstance } from "../../src/factories/erc721/ERC721AuctionInstance.sol";
+import { IAlignmentVault } from "../../src/interfaces/IAlignmentVault.sol";
+import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
+import { AlignmentRegistryV1 } from "../../src/master/AlignmentRegistryV1.sol";
+import { LaunchManager } from "../../src/factories/erc404/LaunchManager.sol";
+import { UniAlignmentVault } from "../../src/vaults/uni/UniAlignmentVault.sol";
+import { UniAlignmentVaultFactory } from "../../src/vaults/uni/UniAlignmentVaultFactory.sol";
+import { RevenueSplitLib } from "../../src/shared/libraries/RevenueSplitLib.sol";
+import { Currency } from "v4-core/types/Currency.sol";
+import { AnvilFixedRouteQuoter } from "../../script/SeedAnvilShared.sol";
 import { MockWETH, MockStataToken } from "../vaults/aave/AlignmentEndowmentVault.t.sol";
+
+/// @dev The narrowest thing `AlignmentRegistryV1.setReferencePool` will accept as a Uniswap V3 price
+///      authority: the pair it reports must be exactly `{token, weth}`, and `observe` must serve two
+///      cumulatives over the requested window. Nothing reads the VALUES here — the registry probes
+///      only that the pool answers — so this stands in for a real pool without pretending to price
+///      anything. It exists because the reference-pool leg is a real precondition of the seed and a
+///      suite that skipped it would leave the seed's only price authority unasserted.
+contract MockV3ReferencePool {
+    address public token0;
+    address public token1;
+
+    constructor(address a, address b) {
+        (token0, token1) = a < b ? (a, b) : (b, a);
+    }
+
+    function observe(uint32[] calldata secondsAgos)
+        external
+        pure
+        returns (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidity)
+    {
+        tickCumulatives = new int56[](secondsAgos.length);
+        secondsPerLiquidity = new uint160[](secondsAgos.length);
+    }
+}
 
 /// @dev Exposes SeedAnvil's own phase functions (unmodified, `internal`) to a test caller. Every
 ///      function here is a one-line forward — no seed logic is reproduced or re-derived. The two
@@ -52,6 +86,65 @@ contract SeedModuleCoverageHarness is SeedAnvil {
 
     function seedGatedErc404(Deployed memory d, address merkleGating) external returns (address instance) {
         return _seedGatedErc404(d, merkleGating);
+    }
+
+    function seedCultAlignmentLegs(Deployed memory d, address referencePool) external {
+        _seedCultAlignmentLegs(d, referencePool);
+    }
+
+    function registerCatalogPresets(Deployed memory d) external {
+        _registerCatalogPresets(d);
+    }
+
+    function seedCatalogFlagship(Deployed memory d) external {
+        _seedCatalogFlagship(d);
+    }
+
+    function seedCatalogMidCurve(Deployed memory d) external {
+        _seedCatalogMidCurve(d);
+    }
+
+    function seedCatalogAuction(Deployed memory d) external {
+        _seedCatalogAuction(d);
+    }
+
+    function seedCatalogEditions(Deployed memory d) external {
+        _seedCatalogEditions(d);
+    }
+
+    /// @dev The seed's own pins, exposed so the suite reads them instead of restating them. A test
+    ///      that hardcoded the token or the preset ids would keep passing while the seed moved.
+    function alignmentTokenPin() external pure returns (address) {
+        return CULT_TOKEN;
+    }
+
+    function catalogPresetIds() external pure returns (uint8 source, uint8 flagship, uint8 midCurve) {
+        return (PRESET_SOURCE, PRESET_SCHIZO, PRESET_PIXELADY);
+    }
+
+    function catalogRaises() external pure returns (uint256 flagship, uint256 midCurve) {
+        return (SCHIZO_REAL_RAISE, PIXELADY_REAL_RAISE);
+    }
+
+    function catalogSupplies() external pure returns (uint256 flagship, uint256 midCurve, uint256 auction) {
+        return (SCHIZO_REAL_SUPPLY, PIXELADY_REAL_SUPPLY, FIGMATA_REAL_SUPPLY);
+    }
+
+    function catalogEditionSizes()
+        external
+        pure
+        returns (uint256[3] memory supplies, uint256[3] memory freeAllocations)
+    {
+        supplies = [ANTI_SEEDED_SUPPLY, OEKAKI_SEEDED_SUPPLY, MILADY333_SEEDED_SUPPLY];
+        freeAllocations = [ANTI_FREE_ALLOC, OEKAKI_FREE_ALLOC, MILADY333_FREE_ALLOC];
+    }
+
+    function catalogAcquireRoute() external pure returns (uint24 fee, int24 tickSpacing) {
+        return (CULT_ACQUIRE_FEE, CULT_ACQUIRE_TICK_SPACING);
+    }
+
+    function catalogActors() external view returns (address second, address third) {
+        return (acct1, vm.addr(PERSON_KEY));
     }
 }
 
@@ -100,14 +193,36 @@ contract SeedModuleCoverageTest is Test {
     address internal prism; // stacked metadata: zamm vault + zamm deployer + resolver/overlay/tier
     address internal sigil; // gated (noesis-357)
 
+    // ── the alignment catalog roster ──
+    address internal schizo; // flagship curve: real supply, real raise, the target's own uni vault
+    address internal pixelady; // mid-curve exemplar: same vault, no maturity time
+    address internal figmata; // ERC721 auction bound to the target's own Aave endowment vault
+    address internal anti; // truncated free-mint-at-scale edition
+    address internal oekaki; // truncated mixed free/paid edition
+    address internal milady333; // truncated zero-revenue edition
+    address internal referencePool;
+    address internal cultToken;
+
     function setUp() public {
         vm.etch(CREATEX, CREATEX_BYTECODE);
 
         deployer = vm.addr(DEPLOYER_KEY);
         vm.deal(deployer, 1000 ether);
 
+        // Built first: the suite reads the seed's own pins off it rather than restating them.
+        harness = new SeedModuleCoverageHarness();
+        vm.deal(address(harness), 100_000 ether);
+        harness.setIdentity(DEPLOYER_KEY);
+        cultToken = harness.alignmentTokenPin();
+
         MockWETH weth = new MockWETH();
         MockStataToken stata = new MockStataToken(address(weth));
+
+        // The catalog roster binds to a SECOND alignment target, and it resolves that target's vaults
+        // by matching the token address the seed carries as a constant. So the suite has to make that
+        // exact address a real ERC20 locally — otherwise the roster would have to be tested against a
+        // token it does not actually use, which is the kind of near-miss this suite exists to catch.
+        vm.etch(cultToken, address(new MockWETH()).code);
 
         s = new DeployCore();
         // DeployCore's OWN post-deploy setup (e.g. queueManager.setWeth) runs with msg.sender ==
@@ -115,7 +230,7 @@ contract SeedModuleCoverageTest is Test {
         // established pattern in DeployTest/ValidateSepoliaTest/VaultFlavorsTest. `deployer` (the
         // seed's own identity, below) is unrelated: every seed call this suite drives is
         // permissionless (createInstance, rentFeatured, setProfile, receiveContribution).
-        s.deploy(address(s), _config(address(weth), address(stata)));
+        s.deploy(address(s), _config(address(weth), address(stata), cultToken));
 
         d.erc1155 = s.erc1155Factory();
         d.erc721 = s.erc721Factory();
@@ -136,11 +251,32 @@ contract SeedModuleCoverageTest is Test {
         d.tier = address(s.tokenTierBandResolver());
         d.alignmentRegistry = address(s.alignmentRegistry());
         d.master = s.masterRegistry();
+        d.launchManager = address(s.launchManager());
+        d.uniVaultFactory = address(s.uniVaultFactory());
+        // The second target's own vaults — the ones the seed resolves out of the deployment file by
+        // matching the alignment token. Index 1 because the target loop deploys one vault per family
+        // per target in config order, and asserting they are NOT the first target's is the point:
+        // binding a catalog instance to the wrong target's vault is silent and tithes the wrong
+        // community, which no amount of rendering would reveal.
+        d.cultUniVault = s.uniVaults(1);
+        d.cultAaveVault = s.aaveVaults(1);
+        d.cultTargetId = 2;
         merkleGating = address(s.moduleMerkleGating());
 
-        harness = new SeedModuleCoverageHarness();
-        vm.deal(address(harness), 1000 ether);
-        harness.setIdentity(DEPLOYER_KEY);
+        // The seed performs owner-only writes on the launch presets, the alignment registry and the
+        // vault factory. On a real deployment the deployer still holds all three at seed time; here
+        // DeployCore was driven by this suite's harness contract, so the same three are handed to the
+        // seed's identity before it runs. Mirrors the live ordering rather than working around it.
+        vm.prank(address(s));
+        LaunchManager(d.launchManager).transferOwnership(deployer);
+        vm.prank(address(s));
+        UniAlignmentVaultFactory(d.uniVaultFactory).transferOwnership(deployer);
+        // The registries are UUPS proxies that force the two-step handover, which the NEW owner must
+        // initiate — the same flow deploy.ts performs against the live chain.
+        vm.prank(deployer);
+        AlignmentRegistryV1(d.alignmentRegistry).requestOwnershipHandover();
+        vm.prank(address(s));
+        AlignmentRegistryV1(d.alignmentRegistry).completeOwnershipHandover(deployer);
 
         (c0, c2) = harness.seedErc1155(d);
 
@@ -166,6 +302,34 @@ contract SeedModuleCoverageTest is Test {
 
         veil = harness.seedGatedErc1155(d, merkleGating);
         sigil = harness.seedGatedErc404(d, merkleGating);
+
+        // ── the alignment catalog roster ──
+        (address secondActor, address thirdActor) = harness.catalogActors();
+        vm.deal(secondActor, 1000 ether);
+        vm.deal(thirdActor, 1000 ether);
+
+        referencePool = address(new MockV3ReferencePool(cultToken, address(weth)));
+        harness.seedCultAlignmentLegs(d, referencePool);
+        harness.registerCatalogPresets(d);
+
+        vm.recordLogs();
+        harness.seedCatalogFlagship(d);
+        schizo = _oneInstance(address(d.erc404), ERC404_INSTANCE_CREATED);
+
+        vm.recordLogs();
+        harness.seedCatalogMidCurve(d);
+        pixelady = _oneInstance(address(d.erc404), ERC404_INSTANCE_CREATED);
+
+        vm.recordLogs();
+        harness.seedCatalogAuction(d);
+        figmata = _oneInstance(address(d.erc721), ERC1155_INSTANCE_CREATED);
+
+        vm.recordLogs();
+        harness.seedCatalogEditions(d);
+        address[] memory tranche = _instances(address(d.erc1155), ERC1155_INSTANCE_CREATED, 3);
+        anti = tranche[0];
+        oekaki = tranche[1];
+        milady333 = tranche[2];
     }
 
     // ── gatingModule: currently zero at every ungated site; must go non-zero somewhere ──
@@ -314,15 +478,268 @@ contract SeedModuleCoverageTest is Test {
         );
     }
 
+    // ── the alignment catalog roster ──
+    //
+    // These six instances are not variations on the invented ones: each restates a real collection's
+    // measured supply and revenue, and the seed's entire claim is that a visitor can check the
+    // arithmetic on chain. What that makes checkable HERE is narrower and worth stating: this suite
+    // asserts the WIRING those figures depend on — which vault a row tithes into, which curve preset
+    // it was armed against, whether the truncation is recorded next to the real figure. It does not
+    // and cannot check that the figures themselves are the measured ones; that lives in the catalog
+    // the plan cites, and no test can substitute for it.
+
+    /// @dev Every catalog row must bind to the SECOND alignment target's own vaults. This is the
+    ///      failure that renders perfectly: bound to the first target's vault a row still trades,
+    ///      still tithes and still shows a vault panel — it simply pays the wrong community. The
+    ///      assertion that the two vaults are DIFFERENT is what stops this from passing vacuously on
+    ///      a one-target deployment.
+    function test_catalogRoster_bindsTheAlignmentTargetsOwnVaults() public view {
+        assertTrue(d.cultUniVault != d.vault, "catalog: the two targets share a uni vault - binding is untestable");
+        assertTrue(
+            d.cultAaveVault != d.endowmentVault,
+            "catalog: the two targets share an endowment vault - binding is untestable"
+        );
+
+        assertEq(
+            address(UniAlignmentVault(payable(d.cultUniVault)).alignmentToken()),
+            cultToken,
+            "catalog: the resolved uni vault is not bound to the roster's token"
+        );
+        assertEq(
+            address(ERC404BondingInstance(payable(schizo)).vault()),
+            d.cultUniVault,
+            "catalog: the flagship tithes into the wrong target's vault"
+        );
+        assertEq(
+            address(ERC404BondingInstance(payable(pixelady)).vault()),
+            d.cultUniVault,
+            "catalog: the mid-curve row tithes into the wrong target's vault"
+        );
+        assertEq(
+            address(ERC721AuctionInstance(payable(figmata)).vault()),
+            d.cultAaveVault,
+            "catalog: the auction row is not bound to the target's endowment vault"
+        );
+        assertEq(
+            address(ERC1155Instance(payable(anti)).vault()), d.cultUniVault, "catalog: an edition row binds elsewhere"
+        );
+        assertEq(
+            address(ERC1155Instance(payable(oekaki)).vault()), d.cultUniVault, "catalog: an edition row binds elsewhere"
+        );
+        assertEq(
+            address(ERC1155Instance(payable(milady333)).vault()),
+            d.cultUniVault,
+            "catalog: an edition row binds elsewhere"
+        );
+    }
+
+    /// @dev The curves must be armed at the collections' real raises AND created at their real
+    ///      supplies. Both, not either: the raise is the counterfactual the row is making and the
+    ///      supply is what the gallery renders, and the two are independent axes of the curve
+    ///      computation, so honouring one says nothing about the other.
+    ///
+    ///      Everything except the raise is asserted to be the PROTOCOL preset's value, which is what
+    ///      keeps a catalog curve a production curve resized rather than a differently-shaped one.
+    function test_catalogRoster_curvesCarryTheRealRaiseAndTheRealSupply() public view {
+        (uint8 sourceId, uint8 flagshipId, uint8 midCurveId) = harness.catalogPresetIds();
+        (uint256 flagshipRaise, uint256 midCurveRaise) = harness.catalogRaises();
+        (uint256 flagshipSupply, uint256 midCurveSupply,) = harness.catalogSupplies();
+
+        LaunchManager lm = LaunchManager(d.launchManager);
+        LaunchManager.Preset memory std = lm.getPreset(sourceId);
+        LaunchManager.Preset memory a = lm.getPreset(flagshipId);
+        LaunchManager.Preset memory b = lm.getPreset(midCurveId);
+
+        assertEq(a.targetETH, flagshipRaise, "catalog: the flagship preset is not armed at the real raise");
+        assertEq(b.targetETH, midCurveRaise, "catalog: the mid-curve preset is not armed at the real raise");
+        assertTrue(a.targetETH != std.targetETH, "catalog: the flagship preset is just the protocol preset again");
+        assertEq(a.unitPerNFT, std.unitPerNFT, "catalog: the flagship preset changed more than the raise");
+        assertEq(b.unitPerNFT, std.unitPerNFT, "catalog: the mid-curve preset changed more than the raise");
+        assertEq(a.liquidityReserveBps, std.liquidityReserveBps, "catalog: the flagship LP reserve drifted");
+        assertEq(b.liquidityReserveBps, std.liquidityReserveBps, "catalog: the mid-curve LP reserve drifted");
+        assertEq(a.curveComputer, std.curveComputer, "catalog: the flagship preset uses another curve computer");
+        assertEq(b.curveComputer, std.curveComputer, "catalog: the mid-curve preset uses another curve computer");
+
+        ERC404BondingInstance flagship = ERC404BondingInstance(payable(schizo));
+        ERC404BondingInstance mid = ERC404BondingInstance(payable(pixelady));
+        assertEq(
+            flagship.maxSupply(),
+            flagshipSupply * flagship.unit(),
+            "catalog: the flagship was created at something other than the collection's real supply"
+        );
+        assertEq(
+            mid.maxSupply(),
+            midCurveSupply * mid.unit(),
+            "catalog: the mid-curve row was created at something other than the collection's real supply"
+        );
+        // The invented instances are ten pieces each; a roster row that quietly fell back to that
+        // default would still deploy, still trade and still look right on a card.
+        assertGt(flagship.maxSupply(), 10 * flagship.unit(), "catalog: the flagship fell back to the default supply");
+        assertGt(mid.maxSupply(), 10 * mid.unit(), "catalog: the mid-curve row fell back to the default supply");
+    }
+
+    /// @dev THE 80% ENDOWMENT IS EXPRESSIBLE IN EXACTLY ONE PLACE, and this is the assertion that
+    ///      says so. The split is selected by the bound vault's FAMILY, and the endowment branch is
+    ///      reachable only from a settlement path — so the auction row bound to the endowment vault
+    ///      splits 80/19/1 while every curve row, bound to a liquidity-family vault, splits 1/19/80
+    ///      and cannot be reshaped into the other. Asserting the family alone would be weaker: the
+    ///      split each family actually produces is checked here too.
+    function test_catalogAuction_isTheOnlyRowThatCanExpressTheEndowment() public view {
+        string memory endowmentType = IAlignmentVault(payable(d.cultAaveVault)).vaultType();
+        string memory liquidityType = IAlignmentVault(payable(d.cultUniVault)).vaultType();
+        assertFalse(
+            RevenueSplitLib.isLiquidityFamily(endowmentType), "catalog: the auction row's vault is a liquidity vault"
+        );
+        assertTrue(
+            RevenueSplitLib.isLiquidityFamily(liquidityType), "catalog: the curve rows' vault is not a liquidity vault"
+        );
+
+        RevenueSplitLib.Split memory endowed = RevenueSplitLib.splitMintFor(1 ether, false);
+        RevenueSplitLib.Split memory aligned = RevenueSplitLib.splitMintFor(1 ether, true);
+        assertEq(endowed.vaultCut, 0.8 ether, "catalog: the endowment family no longer routes 80% to the vault");
+        assertEq(aligned.vaultCut, 0.19 ether, "catalog: the liquidity family no longer routes 19% to the vault");
+    }
+
+    /// @dev The editions are TRUNCATED, and the truncation is the one thing that must never be
+    ///      readable as the collection's real size. So each row carries both numbers: the on-chain
+    ///      supply the fork actually holds, and the real supply in its metadata beside it. A surface
+    ///      reading either one alone gets a coherent but different answer, which is why neither is
+    ///      allowed to be the only one present.
+    function test_catalogEditions_carryBothTheSeededAndTheRealSupply() public view {
+        (uint256[3] memory supplies, uint256[3] memory freeAllocations) = harness.catalogEditionSizes();
+        address[3] memory rows = [anti, oekaki, milady333];
+
+        for (uint256 i = 0; i < rows.length; i++) {
+            ERC1155Instance row = ERC1155Instance(payable(rows[i]));
+            (,,, uint256 supply,, string memory metadataURI,,,) = row.editions(1);
+            assertEq(supply, supplies[i], "catalog: an edition was not cut to its seeded size");
+            assertEq(
+                row.freeMintAllocation(1),
+                freeAllocations[i],
+                "catalog: an edition's free allocation does not stand in for its real free/paid split"
+            );
+            assertTrue(
+                _contains(metadataURI, "\"realSupply\":\""),
+                "catalog: an edition does not record the collection's real supply"
+            );
+            assertTrue(
+                _contains(metadataURI, "\"truncation\":\""),
+                "catalog: an edition does not record how far it was truncated"
+            );
+            assertTrue(
+                _contains(metadataURI, "\"alignedEth\":\""),
+                "catalog: an edition does not record what alignment would have returned"
+            );
+            // The seeded size must actually BE a truncation. An edition cut to its real size would
+            // satisfy every assertion above while making the recorded ratio a lie.
+            assertLt(supply, 333, "catalog: an edition is not smaller than the smallest real collection");
+        }
+    }
+
+    /// @dev BOTH registry legs, and the vault's own pool key, which is a third thing that looks like
+    ///      the same thing. An unset acquire route reads as `Venue.NONE` and callers are required to
+    ///      refuse rather than fall back to a hardcoded pool; an unset reference pool leaves the
+    ///      anti-sandwich floor with no authority to read.
+    ///
+    ///      The last assertion is the load-bearing one: the FIRST target's vault must still sit on the
+    ///      deployment-wide default tier. That is what makes the retune per-vault rather than a
+    ///      network-wide change wearing a per-vault label — and a network-wide change would move the
+    ///      other target's vault and every graduating curve's launch venue with it.
+    function test_catalogTarget_bothRegistryLegsAndAPerVaultPoolKey() public view {
+        (uint24 fee, int24 tickSpacing) = harness.catalogAcquireRoute();
+        IAlignmentRegistry reg = IAlignmentRegistry(d.alignmentRegistry);
+
+        IAlignmentRegistry.AcquireRoute memory route = reg.getAcquireRoute(d.cultTargetId, cultToken);
+        assertEq(uint8(route.venue), uint8(IAlignmentRegistry.Venue.UNI_V4), "catalog: acquire route is not UNI_V4");
+        assertEq(route.fee, fee, "catalog: acquire route is on the wrong fee tier");
+        assertEq(route.tickSpacing, tickSpacing, "catalog: acquire route tick spacing drifted");
+
+        IAlignmentRegistry.ReferencePool memory ref = reg.getReferencePool(d.cultTargetId, cultToken);
+        assertEq(ref.pool, referencePool, "catalog: no reference pool is pinned for the roster's token");
+
+        (Currency c0, Currency c1, uint24 vaultFee, int24 vaultSpacing,) =
+            UniAlignmentVault(payable(d.cultUniVault)).v4PoolKey();
+        assertEq(Currency.unwrap(c0), address(0), "catalog: the vault's pool key is not native-ETH-first");
+        assertEq(Currency.unwrap(c1), cultToken, "catalog: the vault's pool key is not paired with the token");
+        assertEq(vaultFee, fee, "catalog: the vault still LPs into the deployment-default fee tier");
+        assertEq(vaultSpacing, tickSpacing, "catalog: the vault's tick spacing drifted");
+
+        (,, uint24 otherFee, int24 otherSpacing,) = UniAlignmentVault(payable(d.vault)).v4PoolKey();
+        assertTrue(otherFee != fee, "catalog: the retune moved the OTHER target's vault - it is not per-vault");
+        assertTrue(otherSpacing != tickSpacing, "catalog: the retune moved the other target's tick spacing");
+    }
+
+    /// @dev The acquisition ROUTE PIN must answer for the roster's token and for nothing else. The
+    ///      second half is the one that matters: the quoter is threaded into EVERY vault factory at
+    ///      construction, so a pin that answered broadly would silently re-route the other alignment
+    ///      target's vault — and a re-route that succeeds looks identical to no change at all until
+    ///      the day its pool is the wrong one.
+    function test_acquireRoutePin_answersForTheRosterTokenAndNothingElse() public {
+        AnvilFixedRouteQuoter quoter = new AnvilFixedRouteQuoter(cultToken);
+
+        (AnvilFixedRouteQuoter.Quote memory pinned, AnvilFixedRouteQuoter.Quote[] memory all) =
+            quoter.getQuotes(false, address(0), cultToken, 1 ether);
+        assertGt(pinned.amountOut, 0, "route pin: the roster's token gets no route");
+        assertEq(all.length, 1, "route pin: the roster's token gets no route list");
+        assertEq(pinned.amountIn, 1 ether, "route pin: the quote does not carry the requested size");
+
+        // Every other pair degrades to the vault's own fixed-pool fallback.
+        (AnvilFixedRouteQuoter.Quote memory other, AnvilFixedRouteQuoter.Quote[] memory none) =
+            quoter.getQuotes(false, address(0), address(0xBEEF), 1 ether);
+        assertEq(other.amountOut, 0, "route pin: an unpinned token was given a route");
+        assertEq(none.length, 0, "route pin: an unpinned token was given a route list");
+
+        // Token-in must be native ETH: the acquirer only ever asks ETH -> token, and answering a
+        // token-in pair would put the pin in front of a swap it was never measured against.
+        (AnvilFixedRouteQuoter.Quote memory wrongIn,) = quoter.getQuotes(false, address(0xBEEF), cultToken, 1 ether);
+        assertEq(wrongIn.amountOut, 0, "route pin: answered a non-ETH input");
+    }
+
+    /// @dev Naive substring search. Only used on short metadata strings in assertions.
+    function _contains(string memory haystack, string memory needle) internal pure returns (bool) {
+        bytes memory h = bytes(haystack);
+        bytes memory n = bytes(needle);
+        if (n.length == 0 || n.length > h.length) return false;
+        for (uint256 i = 0; i + n.length <= h.length; i++) {
+            bool hit = true;
+            for (uint256 j = 0; j < n.length; j++) {
+                if (h[i + j] != n[j]) {
+                    hit = false;
+                    break;
+                }
+            }
+            if (hit) return true;
+        }
+        return false;
+    }
+
     // ── helpers ──
 
-    function _config(address weth, address stata) internal pure returns (DeployCore.NetworkConfig memory cfg) {
-        DeployCore.AlignmentTargetConfig[] memory targets = new DeployCore.AlignmentTargetConfig[](1);
+    /// @dev TWO alignment targets, because the catalog roster's whole binding rule is "this target's
+    ///      own vaults, not the first one's". A single-target config would make that rule vacuous —
+    ///      every vault would be both — so the second target is what gives the binding assertions
+    ///      something to be wrong about.
+    function _config(address weth, address stata, address second)
+        internal
+        pure
+        returns (DeployCore.NetworkConfig memory cfg)
+    {
+        DeployCore.AlignmentTargetConfig[] memory targets = new DeployCore.AlignmentTargetConfig[](2);
         targets[0] = DeployCore.AlignmentTargetConfig({
             token: weth,
             symbol: "WETH",
             name: "Wrapped Ether",
             description: "Test alignment target",
+            deployUniVault: true,
+            deployCypherVault: true,
+            deployZAMMVault: true,
+            communityPayout: address(0)
+        });
+        targets[1] = DeployCore.AlignmentTargetConfig({
+            token: second,
+            symbol: "PIN",
+            name: "Catalog-Alignment-Target",
+            description: "The target the catalog roster binds to",
             deployUniVault: true,
             deployCypherVault: true,
             deployZAMMVault: true,

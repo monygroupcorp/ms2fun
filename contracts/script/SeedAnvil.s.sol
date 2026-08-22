@@ -14,6 +14,10 @@ import { FreeMintParams } from "../src/interfaces/IFactoryTypes.sol";
 import { GatingScope } from "../src/gating/IGatingModule.sol";
 import { IMerkleGatingModule, MerkleConfig } from "../src/gating/IMerkleGatingModule.sol";
 import { IAlignmentVault } from "../src/interfaces/IAlignmentVault.sol";
+import { IAlignmentRegistry } from "../src/master/interfaces/IAlignmentRegistry.sol";
+import { LaunchManager } from "../src/factories/erc404/LaunchManager.sol";
+import { PoolKey } from "v4-core/types/PoolKey.sol";
+import { IHooks } from "v4-core/interfaces/IHooks.sol";
 import { MetadataOverlayModule } from "../src/metadata/MetadataOverlayModule.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 import { MerkleProofLib } from "solady/utils/MerkleProofLib.sol";
@@ -29,6 +33,37 @@ interface IAlignmentTargetAdmin {
 interface IMerkleGatingView {
     function getRoots(address instance, uint256 editionId) external view returns (bytes32[] memory);
     function getTierOpenTimes(address instance, uint256 editionId) external view returns (uint256[] memory);
+}
+
+/// @dev Minimal owner surface for curating an alignment target's acquisition venue and its pinned
+///      price-authority pool. Both are `onlyOwner` on AlignmentRegistryV1 and the deployer still owns
+///      the registry at seed time (protocol-admin handover is deferred — see `_transferAdmin`).
+interface IAlignmentRouteAdmin {
+    function setAcquireRoute(uint256 targetId, address token, IAlignmentRegistry.AcquireRoute calldata route) external;
+    function setReferencePool(uint256 targetId, address token, IAlignmentRegistry.ReferencePool calldata ref) external;
+    function getAcquireRoute(uint256 targetId, address token)
+        external
+        view
+        returns (IAlignmentRegistry.AcquireRoute memory);
+    function getReferencePool(uint256 targetId, address token)
+        external
+        view
+        returns (IAlignmentRegistry.ReferencePool memory);
+}
+
+/// @dev The per-vault pool-key setter on UniAlignmentVaultFactory. Declared as an interface rather
+///      than imported: the factory's constructor deploys a vault implementation, so importing the
+///      contract type would drag that bytecode into this script for the sake of one call.
+interface IUniVaultFactoryAdmin {
+    function setVaultPoolKey(address vault, PoolKey calldata poolKey) external;
+}
+
+/// @dev Read-back surface of UniAlignmentVault, so the pool key this script installs can be asserted
+///      rather than assumed. `v4PoolKey` is a public struct getter and returns the flattened tuple.
+interface IUniVaultView {
+    function v4PoolKey() external view returns (Currency, Currency, uint24, int24, IHooks);
+    function alignmentToken() external view returns (address);
+    function alignmentTargetId() external view returns (uint256);
 }
 
 /// @dev Minimal MasterRegistry agent surface — setAgent is onlyOwner (the deployer, pre-handover).
@@ -133,12 +168,86 @@ contract SeedAnvil is SeedAnvilShared {
     uint256 constant SIGIL_MAX_QTY = SIGIL_UNIT; // exactly one free claim's worth
     uint256 constant SIGIL_FREE_ALLOC = 3;
 
+    // ── THE ALIGNMENT CATALOG ROSTER ────────────────────────────────────────────────────────
+    //
+    // READ THIS BEFORE CHANGING A NUMBER BELOW. Six of the seeded collections are not inventions:
+    // each one restates a real, MEASURED derivative collection — its supply, its mint revenue, and
+    // the share that would have returned to the community it derived from had it launched aligned.
+    // A visitor is meant to check the arithmetic, so the figures are the product, not decoration.
+    //
+    // THE INFRASTRUCTURE IS OURS TO INVENT; THE NUMBERS ARE NOT. Pools, quoters, presets, clocks and
+    // truncated edition sizes are all fabricated to fit a local fork, and every fabrication is stated
+    // on chain in the instance's own metadata. Rounding a raise because it is inconvenient is not the
+    // same kind of act and is never in scope. If a figure below cannot be honoured, STOP — do not
+    // quietly move it to one that can.
+    //
+    // Revenue is mint revenue except on the auction collection, where it is the sum of WINNING BIDS
+    // read from settlement events. A mint-transaction total undercounts an auction by an order of
+    // magnitude, because the winner's ETH arrives as bids and the settlement transaction carries
+    // none. Do not "correct" the auction figure back to a mint-transaction number.
+
+    // The roster's measured figures and its curve preset ids live in SeedAnvilShared: both phases
+    // read them, and a raise restated in two files is a raise that eventually disagrees with itself.
+
+    // ── The alignment target's two registry legs ────────────────────────────────────────────
+    // ACQUIRE: native ETH / CULT on Uniswap V4, 1% tier, hookless. The 0.3% tier is INITIALIZED and
+    // holds ZERO liquidity — "a pool exists" is not "a pool can be swapped through", so the tier
+    // matters and is not interchangeable.
+    uint24 constant CULT_ACQUIRE_FEE = 10000;
+    int24 constant CULT_ACQUIRE_TICK_SPACING = 200;
+    // REFERENCE: a Uniswap V3 pool is a valid price AUTHORITY but is NOT a valid acquire venue
+    // (`Venue` is UNI_V4 | ZAMM | ALGEBRA). This is the deepest ETH/CULT pool on chain and is pinned
+    // as the anti-sandwich floor's oracle only. Its 0.3% sibling is likewise empty — do not swap them.
+    address constant CULT_REFERENCE_POOL_V3 = 0xC4ce8E63921b8B6cBdB8fCB6Bd64cC701Fb926f2;
+    uint8 constant CULT_REFERENCE_KIND = 0; // Uniswap V3 `observe`
+    uint32 constant CULT_REFERENCE_TWAP_WINDOW = 0; // 0 => the registry's default window
+
+    // ── The ERC-1155 tranche — freebie collections, TRUNCATED ───────────────────────────────
+    // The seed demonstrates the family; it does not re-mint ten thousand tokens onto a fork. Each
+    // edition is cut to a demo size and the cut is recorded BOTH in the instance's on-chain metadata
+    // and in the PR body. The counterfactual a visitor reads must always cite the REAL figures —
+    // presenting a truncated edition's on-chain supply as the collection's real supply would be the
+    // one unforgivable defect in this seed, which is why the real figures ride the metadata too.
+    uint256 constant ANTI_SEEDED_SUPPLY = 40; // real 10,000 -> 1:250
+    uint256 constant ANTI_FREE_ALLOC = 39; // real split was 9,732 free / 268 paid
+    uint256 constant OEKAKI_SEEDED_SUPPLY = 50; // real 5,555 -> ~1:111
+    uint256 constant OEKAKI_FREE_ALLOC = 37; // real split was 4,134 free / 1,421 paid
+    uint256 constant MILADY333_SEEDED_SUPPLY = 37; // real 333 -> 1:9
+    uint256 constant MILADY333_FREE_ALLOC = 37; // real split was 333 free / 0 paid
+
+    // ── Auction shape ───────────────────────────────────────────────────────────────────────
+    // The orchestrator advances the chain +70m after phase 1 and +120m after phase 2, and
+    // `baseDuration` is an instance IMMUTABLE. A duration under 70m is what lets phase 2 SETTLE the
+    // opening auctions, which is the only way the endowment ends up holding principal that arrived
+    // through the 80% leg rather than through a donation. That same duration means the auctions
+    // settlement starts have themselves ended by the time the app boots, so the collection lands
+    // settle-ready-with-bids rather than mid-countdown. The two cannot both be had from one
+    // instance: any auction a settlement starts begins at the +70m mark and would need to outlive a
+    // further 120m, i.e. a duration LONGER than the one that made the settlement possible.
+    // Settled-with-real-principal is the half that carries the 80% endowment, so it is the half kept.
+    uint40 constant FIGMATA_DURATION = 45 minutes;
+    uint8 constant FIGMATA_LINES = 3;
+    // Deposit per queued piece = the collection's real MINIMUM winning bid. Winning bids below are
+    // the measured minimum, median and maximum of its real settlement distribution.
+    uint256 constant FIGMATA_MIN_BID = 0.095 ether;
+    uint256 constant FIGMATA_BID_MEDIAN = 0.3 ether;
+    uint256 constant FIGMATA_BID_HIGH = 0.95 ether;
+    uint256 constant FIGMATA_BID_MAX = 4.025 ether;
+
+    // Anvil account #2, the second bidder. Well-known public test key; `PERSON` is its address and
+    // already carries the agent-delegation demo's collection, so the seed's two non-deployer actors
+    // stay the two it already uses.
+    uint256 constant PERSON_KEY = 0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a;
+
     // Every seeded instance, accumulated as they're created, so phase 2's _transferAdmin can hand
     // them over. Persisted to anvil-seed.json at the end of run() — phase 2 cannot see this array.
     address[] private _instances;
 
     // The ERC404 instances phase 2 resolves by name.
     SeededErc404 private _seeded;
+
+    // The non-ERC404 catalog instances phase 2 still has work to do on.
+    SeededCatalog private _catalog;
 
     // The two merkle-gated fixtures (noesis-357), kept so the phase-1 post-conditions and the
     // closing console block can name them.
@@ -178,6 +287,19 @@ contract SeedAnvil is SeedAnvilShared {
         // ── ERC404 with a stacked metadata-resolution stack (overlay + tier) ──
         _seedErc404Stacked(d);
 
+        // ── THE ALIGNMENT CATALOG ROSTER ──
+        // Registry legs FIRST: the acquire venue and the pinned price authority are properties of the
+        // TARGET, and every roster instance below binds to a vault that reads them. Curating them
+        // after the instances exist would leave a window in which an aligned collection is bound to a
+        // target with no acquisition route at all.
+        _seedCultAlignmentLegs(d, CULT_REFERENCE_POOL_V3);
+        // Catalog-sized curve presets, before the two curves that select them.
+        _registerCatalogPresets(d);
+        _seedCatalogFlagship(d);
+        _seedCatalogMidCurve(d);
+        _seedCatalogAuction(d);
+        _seedCatalogEditions(d);
+
         // ── ERC721 live (1-day duration -> stays ACTIVE after the advance) ──
         _seedErc721Live(d);
 
@@ -211,7 +333,7 @@ contract SeedAnvil is SeedAnvilShared {
         // Ownership handover is NOT here: it must run after ALL owner-only seeding, and phase 2 still
         // performs owner-only writes (staking activation, overlay authoring). _transferAdmin lives in
         // SeedAnvilBuys and runs last there.
-        _writeSeedState(_seeded, _instances);
+        _writeSeedState(_seeded, _catalog, _instances);
 
         console.log("=== SeedAnvil (phase 1: create + arm) complete ===");
         console.log(
@@ -238,10 +360,12 @@ contract SeedAnvil is SeedAnvilShared {
         IAlignmentTargetAdmin reg = IAlignmentTargetAdmin(d.alignmentRegistry);
         string memory ms2 =
             "The MS2 community and its milady-descended aesthetic. Collections aligned here route ~20% of every fee into the MS2 token, by contract.";
+        // The token is the community's own ERC20 — first-party, which is the entire point: the
+        // derivative collections align back to the parent's real token rather than to a proxy for it.
         string memory cult =
-            "Cult DAO and its ragequit-native treasury. Aligned collections bind ~20% of their fees to the CULT token, forever.";
+            "The Remilia / Milady community and the derivative collections descended from it. Aligned collections bind ~20% of their fees to the community's own token, by contract, forever.";
         reg.updateAlignmentTarget(1, ms2, _collectionMeta("Milady-Station-2", ms2, ART_AVATAR_1));
-        reg.updateAlignmentTarget(2, cult, _collectionMeta("Cult-DAO", cult, ART_AVATAR_2));
+        reg.updateAlignmentTarget(2, cult, _collectionMeta("Milady Cult Coin", cult, ART_AVATAR_2));
         vm.stopBroadcast();
     }
 
@@ -940,7 +1064,9 @@ contract SeedAnvil is SeedAnvilShared {
             address(0),
             d.cypherVault,
             d.cypherDeployer,
-            0
+            0,
+            10,
+            PRESET_SOURCE
         );
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         // +1 DAY, not +1h: this one must stay preopen through BOTH of deploy.ts's advances (~3h
@@ -969,7 +1095,9 @@ contract SeedAnvil is SeedAnvilShared {
             d.stakingModule,
             d.vault,
             d.uniDeployer,
-            10000
+            10000,
+            10,
+            PRESET_SOURCE
         );
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         // openTime must be strictly future at broadcast; +1h clears any broadcast lag. deploy.ts
@@ -1057,7 +1185,19 @@ contract SeedAnvil is SeedAnvilShared {
     ) internal returns (address inst) {
         vm.startBroadcast(deployerKey);
         inst = _createBonding(
-            d, slug, name, description, symbol, image, pieceBase, address(0), vault, deployer_, declaredMaxBps
+            d,
+            slug,
+            name,
+            description,
+            symbol,
+            image,
+            pieceBase,
+            address(0),
+            vault,
+            deployer_,
+            declaredMaxBps,
+            10,
+            PRESET_SOURCE
         );
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         // openTime +1h (crossed by deploy.ts's FIRST advance, so the phase-2 buy lands on an open
@@ -1091,7 +1231,9 @@ contract SeedAnvil is SeedAnvilShared {
             address(0),
             d.vault,
             d.uniDeployer,
-            10000
+            10000,
+            10,
+            PRESET_SOURCE
         );
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         b.setBondingOpenTime(block.timestamp + 1 hours);
@@ -1196,6 +1338,12 @@ contract SeedAnvil is SeedAnvilShared {
     ///        Vault flavor and LP venue are independent axes — the seed spreads instances across both
     ///        so all four vaults and all three AMMs are demonstrated (and the graduated-swap surface
     ///        can be exercised per venue).
+    /// @param nftCount   the collection's piece count. Together with the preset's `unitPerNFT` this is
+    ///        the supply the curve is computed over; it is an INDEPENDENT axis from the raise, because
+    ///        `CurveParamsComputer` solves the curve's shape from `liquidityReserveBps` alone and then
+    ///        rescales its amplitude to hit `targetETH`. A catalog instance therefore carries its real
+    ///        supply AND its real raise; neither has to give way to the other.
+    /// @param presetId   the LaunchManager preset supplying `targetETH`/`unitPerNFT`/reserve/computer.
     function _createBonding(
         Deployed memory d,
         string memory slug,
@@ -1207,7 +1355,9 @@ contract SeedAnvil is SeedAnvilShared {
         address stakingModule,
         address vault,
         address deployer_,
-        uint16 declaredMaxBps
+        uint16 declaredMaxBps,
+        uint256 nftCount,
+        uint8 presetId
     ) internal returns (address instance) {
         ERC404Factory.CreateParams memory params = ERC404Factory.CreateParams({
             salt: keccak256(abi.encode(block.timestamp, slug, "ERC404")),
@@ -1217,8 +1367,8 @@ contract SeedAnvil is SeedAnvilShared {
             tokenBaseURI: pieceBase,
             owner: deployer,
             vault: vault,
-            nftCount: 10,
-            presetId: 1, // STANDARD: targetETH 25 ether, unitPerNFT 1e6
+            nftCount: nftCount,
+            presetId: presetId,
             stakingModule: stakingModule,
             declaredMaxAllowanceBps: declaredMaxBps
         });
@@ -1231,6 +1381,491 @@ contract SeedAnvil is SeedAnvilShared {
                 FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
             ); // msg.value 0: no creation fee on anvil
         _instances.push(instance); // tracked so _transferAdmin hands ownership to ADMIN
+    }
+
+    // ───────────────── THE ALIGNMENT CATALOG ROSTER (phase 1: create + arm) ─────────────────
+
+    /// @dev Curate the alignment target's two registry legs and point its OWN LP vault at the pool
+    ///      that can actually absorb liquidity.
+    ///
+    ///      THREE THINGS THAT LOOK LIKE ONE AND ARE NOT:
+    ///        · the ACQUIRE ROUTE is registry curation — the venue a DAO-side convert is told to use;
+    ///        · the REFERENCE POOL is the price authority the anti-sandwich floor reads, and a
+    ///          Uniswap V3 pool is legal here and illegal as an acquire venue (`Venue` carries no V3);
+    ///        · the vault's own V4 POOL KEY is where the vault deposits liquidity, and it is neither
+    ///          of the above — it lives on the vault, not in the registry.
+    ///      All three are set here because leaving any one of them at a default silently sends real
+    ///      value to a pool that cannot serve it, and none of the three reads the others.
+    ///
+    ///      THE POOL KEY IS SET PER VAULT, NOT NETWORK-WIDE. `DeployCore` builds every vault's key
+    ///      from the network's single fee/tick-spacing pair, so the deployment-wide default is the
+    ///      0.3% tier. This target's deep pool is the 1% tier, and retuning the network default to
+    ///      reach it would move the other target's vault and every graduating curve's launch venue
+    ///      with it. The vault's `setV4PoolKey` is owner-only and the FACTORY owns every vault it
+    ///      deploys, so the retune routes through the factory and touches exactly one vault. That is
+    ///      why the factory address is exported to the deployment file at all.
+    function _seedCultAlignmentLegs(Deployed memory d, address referencePool) internal {
+        require(referencePool.code.length > 0, "catalog: the pinned reference pool holds no code");
+        IAlignmentRouteAdmin reg = IAlignmentRouteAdmin(d.alignmentRegistry);
+
+        IAlignmentRegistry.AcquireRoute memory route = IAlignmentRegistry.AcquireRoute({
+            venue: IAlignmentRegistry.Venue.UNI_V4,
+            fee: CULT_ACQUIRE_FEE,
+            tickSpacing: CULT_ACQUIRE_TICK_SPACING,
+            feeOrHook: 0 // UNI_V4 leg: a ZAMM-only field must stay zero or the route is refused
+        });
+        IAlignmentRegistry.ReferencePool memory ref = IAlignmentRegistry.ReferencePool({
+            pool: referencePool, kind: CULT_REFERENCE_KIND, twapWindow: CULT_REFERENCE_TWAP_WINDOW
+        });
+
+        // Native ETH is currency0 (address(0) sorts below every token), the alignment token is
+        // currency1, hookless. `setV4PoolKey` re-validates the tier/spacing pairing and the currency
+        // ordering, so a mis-specified key reverts here instead of surfacing as a failed convert.
+        PoolKey memory key = PoolKey({
+            currency0: Currency.wrap(address(0)),
+            currency1: Currency.wrap(CULT_TOKEN),
+            fee: CULT_ACQUIRE_FEE,
+            tickSpacing: CULT_ACQUIRE_TICK_SPACING,
+            hooks: IHooks(address(0))
+        });
+
+        vm.startBroadcast(deployerKey);
+        reg.setAcquireRoute(d.cultTargetId, CULT_TOKEN, route);
+        reg.setReferencePool(d.cultTargetId, CULT_TOKEN, ref);
+        IUniVaultFactoryAdmin(d.uniVaultFactory).setVaultPoolKey(d.cultUniVault, key);
+        vm.stopBroadcast();
+
+        _assertCultAlignmentLegs(d, referencePool);
+    }
+
+    /// @dev Read all three legs back off chain state. Each check is a property the seed depends on
+    ///      and none of them restates a comment: an unset route reads as `Venue.NONE` and callers are
+    ///      required to refuse rather than fall back to a hardcoded pool, an unset reference pool
+    ///      reads as address(0) and disarms the price floor, and a pool key left at the deployment
+    ///      default would point the vault's liquidity at the empty tier.
+    function _assertCultAlignmentLegs(Deployed memory d, address referencePool) internal view {
+        IAlignmentRouteAdmin reg = IAlignmentRouteAdmin(d.alignmentRegistry);
+
+        IAlignmentRegistry.AcquireRoute memory storedRoute = reg.getAcquireRoute(d.cultTargetId, CULT_TOKEN);
+        require(storedRoute.venue == IAlignmentRegistry.Venue.UNI_V4, "catalog: acquire route venue is not UNI_V4");
+        require(storedRoute.fee == CULT_ACQUIRE_FEE, "catalog: acquire route is on the wrong fee tier");
+        require(storedRoute.tickSpacing == CULT_ACQUIRE_TICK_SPACING, "catalog: acquire route tick spacing drifted");
+
+        IAlignmentRegistry.ReferencePool memory storedRef = reg.getReferencePool(d.cultTargetId, CULT_TOKEN);
+        require(storedRef.pool == referencePool, "catalog: reference pool is not the pinned one");
+        require(storedRef.kind == CULT_REFERENCE_KIND, "catalog: reference pool oracle kind drifted");
+
+        IUniVaultView vault = IUniVaultView(d.cultUniVault);
+        require(vault.alignmentToken() == CULT_TOKEN, "catalog: the resolved vault is not bound to the target token");
+        require(vault.alignmentTargetId() == d.cultTargetId, "catalog: the resolved vault is on another target");
+        (Currency c0, Currency c1, uint24 fee, int24 spacing,) = vault.v4PoolKey();
+        require(Currency.unwrap(c0) == address(0), "catalog: vault pool key currency0 is not native ETH");
+        require(Currency.unwrap(c1) == CULT_TOKEN, "catalog: vault pool key currency1 is not the alignment token");
+        require(fee == CULT_ACQUIRE_FEE, "catalog: vault is still LPing into the deployment-default fee tier");
+        require(spacing == CULT_ACQUIRE_TICK_SPACING, "catalog: vault pool key tick spacing drifted");
+
+        console.log("CATALOG alignment legs set on target id:", d.cultTargetId);
+        console.log("  acquire  : UNI_V4 fee", uint256(CULT_ACQUIRE_FEE), "tickSpacing 200");
+        console.log("  reference:", referencePool);
+        console.log("  LP vault :", d.cultUniVault);
+    }
+
+    /// @dev Register the two catalog-sized curve presets. `setPreset` guards only against a zero
+    ///      target, a zero unit, an out-of-band reserve and a zero computer — there is no ceiling on
+    ///      `targetETH` anywhere in the contract, so a raise the size of a real collection's is
+    ///      expressible today and needs no protocol change. Everything except the target is carried
+    ///      over from the STANDARD preset, so a catalog curve differs from a production one in SIZE
+    ///      ONLY; read the source preset rather than restating its fields, or the two drift apart
+    ///      silently the first time STANDARD is retuned.
+    function _registerCatalogPresets(Deployed memory d) internal {
+        LaunchManager lm = LaunchManager(d.launchManager);
+        LaunchManager.Preset memory std = lm.getPreset(PRESET_SOURCE);
+
+        vm.startBroadcast(deployerKey);
+        lm.setPreset(
+            PRESET_SCHIZO,
+            LaunchManager.Preset({
+                targetETH: SCHIZO_REAL_RAISE,
+                unitPerNFT: std.unitPerNFT,
+                liquidityReserveBps: std.liquidityReserveBps,
+                curveComputer: std.curveComputer,
+                active: true
+            })
+        );
+        lm.setPreset(
+            PRESET_PIXELADY,
+            LaunchManager.Preset({
+                targetETH: PIXELADY_REAL_RAISE,
+                unitPerNFT: std.unitPerNFT,
+                liquidityReserveBps: std.liquidityReserveBps,
+                curveComputer: std.curveComputer,
+                active: true
+            })
+        );
+        vm.stopBroadcast();
+
+        // A preset that did not take would surface much later as a curve priced for the wrong raise,
+        // which is exactly the number the seed exists to make checkable. Catch it here.
+        LaunchManager.Preset memory a = lm.getPreset(PRESET_SCHIZO);
+        LaunchManager.Preset memory b = lm.getPreset(PRESET_PIXELADY);
+        require(a.targetETH == SCHIZO_REAL_RAISE, "catalog: flagship preset did not take its raise");
+        require(b.targetETH == PIXELADY_REAL_RAISE, "catalog: mid-curve preset did not take its raise");
+        require(a.unitPerNFT == std.unitPerNFT && b.unitPerNFT == std.unitPerNFT, "catalog: preset unit drifted");
+        require(
+            a.liquidityReserveBps == std.liquidityReserveBps && b.liquidityReserveBps == std.liquidityReserveBps,
+            "catalog: preset LP reserve drifted from the protocol preset"
+        );
+
+        console.log("CATALOG presets registered (ids 10, 11), carried from preset", PRESET_SOURCE);
+        console.log("  id 10 targetETH (wei):", a.targetETH);
+        console.log("  id 11 targetETH (wei):", b.targetETH);
+    }
+
+    /// @dev FLAGSHIP — the census's largest raise, armed at its real size and left one call short of
+    ///      graduating. Phase 2 buys the curve out; the graduate action itself is left for a human,
+    ///      so the site shows the split happening rather than a finished artifact. `declaredMax` is 0
+    ///      deliberately: with no creator carve the graduation arithmetic is the unmodified 1/19/80,
+    ///      which is the counterfactual the row is making and the number a visitor can check.
+    ///
+    ///      ART: the real collection serves its metadata from a live third-party domain, so the
+    ///      pieces take one of the seed's own pinned IPFS bases instead. Wiring the real host would
+    ///      make this fork's art depend on somebody else's uptime and point our traffic at it.
+    function _seedCatalogFlagship(Deployed memory d) internal {
+        vm.startBroadcast(deployerKey);
+        address inst = _createBonding(
+            d,
+            "schizo-posters",
+            "Schizo Posters",
+            "The census's largest derivative raise, re-armed at its real size. A full curve here raises exactly what the collection actually raised - and binds 19% of it to the community it descended from. Art is a stand-in: the real collection serves metadata from a domain, not from content-addressed storage.",
+            "SCHIZO",
+            ART_SCHIZO,
+            ART_BASE_ARCTIC,
+            address(0),
+            d.cultUniVault,
+            d.uniDeployer,
+            0, // no creator carve: the graduation split stays the unmodified 1/19/80
+            SCHIZO_REAL_SUPPLY,
+            PRESET_SCHIZO
+        );
+        ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
+        // Same arming as the other ready-to-graduate instances: open crossed by the first advance so
+        // the phase-2 buys land on an open curve, maturity crossed by the second so the app boots
+        // with the graduate action unlocked. We never call deployLiquidity here.
+        b.setBondingOpenTime(block.timestamp + 1 hours);
+        b.setBondingMaturityTime(block.timestamp + 90 minutes);
+        b.setBondingActive(true);
+        d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.07 ether);
+        vm.stopBroadcast();
+        _seeded.schizo = inst;
+
+        console.log("CATALOG flagship (ready-to-graduate):", inst);
+    }
+
+    /// @dev MID-CURVE — the instance the site's live features are demonstrated on, so it must sit
+    ///      visibly mid-curve: bought into far enough that the curve, the holder surface and the
+    ///      vault panel all have something real to render, and with NO maturity time set, so the
+    ///      graduate action never unlocks and a demo cannot accidentally end it.
+    ///
+    ///      ART: the real collection's metadata is immutable IPFS whose entries are addressed by the
+    ///      bare token id, which is exactly the `base + tokenId` concatenation the instance performs.
+    ///      So this one carries the REAL art, re-hosted nowhere.
+    function _seedCatalogMidCurve(Deployed memory d) internal {
+        vm.startBroadcast(deployerKey);
+        address inst = _createBonding(
+            d,
+            "pixelady-maker",
+            "Pixelady Maker",
+            "A ten-thousand-piece derivative, mid-curve and aligned. Every trade routes 19% of the take to the community the collection descended from, by contract. The art is the collection's own, straight off content-addressed storage.",
+            "PXLDY",
+            ART_PIXELADY,
+            ART_BASE_PIXELADY,
+            address(0),
+            d.cultUniVault,
+            d.uniDeployer,
+            0,
+            PIXELADY_REAL_SUPPLY,
+            PRESET_PIXELADY
+        );
+        ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
+        b.setBondingOpenTime(block.timestamp + 1 hours);
+        // No maturity time, deliberately — same shape as the other mid-curve instance. The buys are
+        // in phase 2, after the chain crosses the open time.
+        b.setBondingActive(true);
+        d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.068 ether);
+        vm.stopBroadcast();
+        _seeded.pixelady = inst;
+
+        console.log("CATALOG mid-curve:", inst);
+    }
+
+    /// @dev THE 80% ENDOWMENT — an ERC-721 auction collection bound to the target's OWN Aave
+    ///      endowment vault. This is the only roster member that can express the 80% leg at all: the
+    ///      split is chosen by the PINNED genesis vault's family, and the endowment branch is reachable
+    ///      from the ERC-1155 and ERC-721 settlement paths only. The collection is auction-native in
+    ///      real life too, so its mechanism and this instance's are the same shape.
+    ///
+    ///      Phase 1 queues the pieces and places the opening bids; phase 2 settles them once the
+    ///      chain has passed their end time, and settlement is what puts real principal into the
+    ///      endowment. Bids are the collection's own measured minimum, median and maximum winning
+    ///      bids, so the principal the vault ends up holding is 80% of a real distribution rather
+    ///      than of a made-up one.
+    ///
+    ///      ART: the real collection's metadata is immutable IPFS in bare-id form, and an ERC-721
+    ///      piece carries its token URI directly, so each queued piece IS the real metadata pointer.
+    function _seedCatalogAuction(Deployed memory d) internal {
+        vm.startBroadcast(deployerKey);
+        ERC721AuctionFactory.CreateParams memory params = ERC721AuctionFactory.CreateParams({
+            name: "pixelady-figmata",
+            metadataURI: _catalogMeta(
+                "Pixelady Figmata",
+                "An auction-native derivative, aligned at 80%. Every hammer price is split 80/19/1 - and the 80 is not the creator's, it is permanent endowment principal held for the community the collection descended from. Pieces carry the collection's own metadata.",
+                ART_FIGMATA,
+                CatalogFacts({
+                    realSupply: "180",
+                    realRevenueEth: "90.2673",
+                    revenueBasis: "sum of winning bids, read from settlement events",
+                    alignedEth: "72.2138",
+                    alignedShare: "80% endowment",
+                    seededSupply: "6 queued pieces",
+                    truncation: "history truncated: the real collection settled 180 auctions"
+                })
+            ),
+            creator: deployer,
+            vault: d.cultAaveVault, // the endowment family — this is what selects the 80% split
+            symbol: "FGMTA",
+            lines: FIGMATA_LINES,
+            baseDuration: FIGMATA_DURATION,
+            timeBuffer: 300,
+            bidIncrement: 0.01 ether
+        });
+        address inst = d.erc721.createInstance(keccak256(abi.encode(block.timestamp, "pixelady-figmata")), params);
+        _instances.push(inst);
+
+        ERC721AuctionInstance a = ERC721AuctionInstance(payable(inst));
+        // Two pieces per line: the first of each auto-starts now and is settled in phase 2; the second
+        // is what settlement advances the line to. Each queuePiece's msg.value is the piece's minimum
+        // bid, and the collection's real minimum winning bid is what it is set to.
+        for (uint256 i = 1; i <= uint256(FIGMATA_LINES) * 2; i++) {
+            a.queuePiece{ value: FIGMATA_MIN_BID }(string.concat(ART_BASE_FIGMATA, vm.toString(i)));
+        }
+        d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.066 ether);
+        vm.stopBroadcast();
+
+        // Opening bids, from the two non-deployer actors — a creator cannot be the only bidder on its
+        // own line and have the settlement mean anything.
+        vm.startBroadcast(ACCOUNT_1_KEY);
+        a.createBid{ value: FIGMATA_BID_MEDIAN }(1, "");
+        a.createBid{ value: FIGMATA_BID_MAX }(3, "");
+        vm.stopBroadcast();
+        vm.startBroadcast(PERSON_KEY);
+        a.createBid{ value: FIGMATA_BID_HIGH }(2, "");
+        vm.stopBroadcast();
+
+        _catalog.figmata = inst;
+
+        // The three opening auctions must actually be settleable by phase 2, or the endowment ends up
+        // empty and the 80% leg is never exercised. Both halves of that are checked: a bid is present,
+        // and the auction ends before the orchestrator's first advance rather than after it.
+        for (uint24 id = 1; id <= 3; id++) {
+            (,,, address highBidder, uint256 highBid,, uint40 endTime,) = a.auctions(id);
+            require(highBidder != address(0), "catalog: an opening auction carries no bid (nothing to settle)");
+            require(highBid > 0, "catalog: an opening auction settled at zero");
+            require(
+                uint256(endTime) <= block.timestamp + uint256(FIGMATA_DURATION),
+                "catalog: an opening auction was extended past the window phase 2 can settle in"
+            );
+        }
+
+        console.log("CATALOG auction (80% endowment):", inst);
+        console.log("  endowment vault:", d.cultAaveVault);
+    }
+
+    /// @dev THE ERC-1155 TRANCHE — three free-mint-heavy collections, each cut to a demo-sized
+    ///      edition. The real supply, the real revenue, the aligned share and the truncation ratio all
+    ///      ride the on-chain metadata, because the counterfactual a visitor reads has to cite the
+    ///      REAL figures: letting a truncated edition's on-chain supply be mistaken for the
+    ///      collection's real supply would invalidate every number on the page.
+    ///
+    ///      The three are chosen to span the range rather than repeat one story: a pure free mint at
+    ///      scale, a mixed free-and-paid edition, and a collection that took nothing. The last one
+    ///      earns its slot precisely BECAUSE it owes nothing — a catalog that shows only extraction
+    ///      invites the charge that it was cherry-picked, and a row that owes zero is the answer.
+    function _seedCatalogEditions(Deployed memory d) internal {
+        vm.startBroadcast(deployerKey);
+
+        // Pure free mint at scale. Real metadata lives on a domain, so the piece art is a stand-in.
+        address anti = _createCatalogEdition(
+            d,
+            "anti-miladies",
+            "Anti-Miladies",
+            "A ten-thousand-piece free mint. Almost nothing was charged and almost nothing was owed - and 19% of the little that was would have gone home. Art is a stand-in: the real collection serves metadata from a domain.",
+            ART_ANTI,
+            CatalogFacts({
+                realSupply: "10000",
+                realRevenueEth: "4.01",
+                revenueBasis: "mint revenue",
+                alignedEth: "0.76",
+                alignedShare: "19% liquidity family",
+                seededSupply: "40",
+                truncation: "1:250"
+            }),
+            0.015 ether,
+            ANTI_SEEDED_SUPPLY,
+            ANTI_FREE_ALLOC,
+            0.024 ether
+        );
+
+        // Mixed free and paid — the interesting tier case, and the largest revenue in this tranche.
+        address oekaki = _createCatalogEdition(
+            d,
+            "oekaki-maker",
+            "Oekaki Maker",
+            "Three quarters free, one quarter paid - the mixed case. The paid quarter is where the alignment lands: 19% of it, bound to the community the collection came out of.",
+            ART_OEKAKI,
+            CatalogFacts({
+                realSupply: "5555",
+                realRevenueEth: "32.21",
+                revenueBasis: "mint revenue",
+                alignedEth: "6.12",
+                alignedShare: "19% liquidity family",
+                seededSupply: "50",
+                truncation: "1:111"
+            }),
+            0.0227 ether,
+            OEKAKI_SEEDED_SUPPLY,
+            OEKAKI_FREE_ALLOC,
+            0.023 ether
+        );
+
+        // Took nothing, owes nothing. The honest row.
+        address milady333 = _createCatalogEdition(
+            d,
+            "milady333",
+            "Milady333",
+            "Free from the first mint to the last. It took nothing, so it owes nothing - and it sits in the same catalog as the rest, which is the point of including it.",
+            ART_MILADY333,
+            CatalogFacts({
+                realSupply: "333",
+                realRevenueEth: "0.00",
+                revenueBasis: "mint revenue",
+                alignedEth: "0.00",
+                alignedShare: "19% liquidity family",
+                seededSupply: "37",
+                truncation: "1:9"
+            }),
+            0.001 ether,
+            MILADY333_SEEDED_SUPPLY,
+            MILADY333_FREE_ALLOC,
+            0.022 ether
+        );
+        vm.stopBroadcast();
+
+        // Each edition must carry the free allocation its real free/paid split is standing in for, or
+        // the tranche demonstrates the wrong thing: a free-mint collection whose claim path is closed.
+        require(
+            ERC1155Instance(payable(anti)).freeMintAllocation(1) == ANTI_FREE_ALLOC,
+            "catalog: the free-mint-at-scale edition carries the wrong allocation"
+        );
+        require(
+            ERC1155Instance(payable(oekaki)).freeMintAllocation(1) == OEKAKI_FREE_ALLOC,
+            "catalog: the mixed edition carries the wrong allocation"
+        );
+        require(
+            ERC1155Instance(payable(milady333)).freeMintAllocation(1) == MILADY333_SEEDED_SUPPLY,
+            "catalog: the zero-revenue edition is not fully free-claimable"
+        );
+
+        console.log("CATALOG editions:", anti, oekaki, milady333);
+    }
+
+    /// @dev One truncated ERC-1155 catalog row: instance, its single edition, and a featured slot.
+    ///      Bound to the target's own liquidity-family vault, which is what makes the row's aligned
+    ///      share the 19% one rather than the endowment's 80%.
+    function _createCatalogEdition(
+        Deployed memory d,
+        string memory slug,
+        string memory displayName,
+        string memory description,
+        string memory image,
+        CatalogFacts memory facts,
+        uint256 basePrice,
+        uint256 seededSupply,
+        uint256 freeAlloc,
+        uint256 rankBoost
+    ) internal returns (address instance) {
+        ERC1155Factory.CreateParams memory params = ERC1155Factory.CreateParams({
+            name: slug,
+            symbol: "",
+            metadataURI: _catalogMeta(displayName, description, image, facts),
+            creator: deployer,
+            vault: d.cultUniVault,
+            styleUri: "",
+            gatingModule: address(0),
+            freeMint: FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
+        });
+        instance = d.erc1155.createInstance(keccak256(abi.encode(block.timestamp, slug, "catalog")), params);
+        _instances.push(instance);
+
+        ERC1155Instance(payable(instance))
+            .addEdition(
+                displayName,
+                basePrice,
+                seededSupply,
+                _catalogMeta(displayName, description, image, facts),
+                ERC1155Instance.PricingModel.LIMITED_FIXED,
+                0,
+                0,
+                freeAlloc
+            );
+        d.queue.rentFeatured{ value: 1 ether }(instance, 30 days, rankBoost);
+    }
+
+    /// @dev The measured figures a catalog instance carries, kept as a struct so a row cannot be
+    ///      written with its revenue and its aligned share out of step.
+    struct CatalogFacts {
+        string realSupply;
+        string realRevenueEth;
+        string revenueBasis; // how the revenue was measured — an auction is NOT measured like a mint
+        string alignedEth;
+        string alignedShare;
+        string seededSupply; // what this fork actually holds
+        string truncation; // the ratio between the two, spelled out
+    }
+
+    /// @dev Catalog metadata: the ordinary collection shape plus a `catalog` object carrying the REAL
+    ///      figures alongside what the fork actually seeded. Both halves are present on purpose. A
+    ///      surface that reads only the on-chain supply of a truncated edition would report the
+    ///      collection as a fortieth of its real size and every derived number with it; a surface
+    ///      that reads only the catalog figures would misstate what this chain holds. Neither is
+    ///      recoverable from the other, so both are written down.
+    function _catalogMeta(string memory name, string memory description, string memory image, CatalogFacts memory f)
+        internal
+        pure
+        returns (string memory)
+    {
+        return string.concat(
+            "data:application/json,{\"schemaVersion\":1,\"name\":\"",
+            name,
+            "\",\"description\":\"",
+            description,
+            "\",\"category\":\"edition\",\"image\":\"",
+            image,
+            "\",\"catalog\":{\"realSupply\":\"",
+            f.realSupply,
+            "\",\"realRevenueEth\":\"",
+            f.realRevenueEth,
+            "\",\"revenueBasis\":\"",
+            f.revenueBasis,
+            "\",\"alignedEth\":\"",
+            f.alignedEth,
+            "\",\"alignedShare\":\"",
+            f.alignedShare,
+            "\",\"seededSupply\":\"",
+            f.seededSupply,
+            "\",\"truncation\":\"",
+            f.truncation,
+            "\"}}"
+        );
     }
 
     // ─────────────────────────── Activity ───────────────────────────
@@ -1286,6 +1921,16 @@ contract SeedAnvil is SeedAnvilShared {
     string constant ART_VEIL = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/128.png";
     string constant ART_VEIL_PIECE = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/7.png";
     string constant ART_SIGIL = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/777.png";
+    // Catalog-row card art. Same precedent as ART_CARVED: REUSE a gateway-verified CID from the
+    // harvested set rather than introduce an unverified one. Card art is the collection tile only —
+    // the PIECE art is what carries a row's real collection, and two of the rows carry theirs
+    // verbatim off content-addressed storage (see ART_BASE_PIXELADY / ART_BASE_FIGMATA).
+    string constant ART_SCHIZO = "ipfs://QmbeHAw5nGwSQSZ8pQc8WSdbzxh3rLY8Pg2rqiS1wJRcvQ";
+    string constant ART_PIXELADY = "ipfs://QmNf1UsmdGaMbpatQ6toXSkzDpizaGmC9zfunCyoz1enD5/penguin/128.png";
+    string constant ART_FIGMATA = "ipfs://QmNf1UsmdGaMbpatQ6toXSkzDpizaGmC9zfunCyoz1enD5/penguin/7.png";
+    string constant ART_ANTI = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/128.png";
+    string constant ART_OEKAKI = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/7.png";
+    string constant ART_MILADY333 = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/777.png";
     string constant ART_AVATAR_1 = "ipfs://QmNewNmsfGgvqptDDDeDC7nwWVM8ReXp5qmySNyBdyRw9M";
     string constant ART_AVATAR_2 = "ipfs://QmWZqi5xnTcnqa4k7UuzeLd3sm2mCci24wx1yQvKiDq1vm";
 
