@@ -748,6 +748,11 @@ contract DeployCore is Script {
         vm.serializeAddress(f, "ERC404", address(erc404Factory));
         vm.serializeAddress(f, "ERC1155", address(erc1155Factory));
         vm.serializeAddress(f, "ERC721", address(erc721Factory));
+        // Uniswap V4 alignment-vault factory — exported because it OWNS every vault it deploys, so the
+        // per-vault owner-only setters (`setVaultPoolKey`, `setVaultPriceValidator`) are reachable only
+        // through it. Without this address in the deployment file, retuning ONE vault's pool key is not
+        // expressible and the network-wide `zrouterFee`/`zrouterTickSpacing` becomes the only lever.
+        vm.serializeAddress(f, "UNI", address(uniVaultFactory));
         // Aave endowment vault factory (noesis-077) — exported so the app can offer permissionless
         // Yield-vault creation. Zero when this network has no Aave stataToken (factory not deployed).
         string memory factories = vm.serializeAddress(f, "AAVE", address(aaveVaultFactory));
