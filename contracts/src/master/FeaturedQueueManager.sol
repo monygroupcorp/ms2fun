@@ -29,7 +29,7 @@ import { SmartTransferLib } from "../libraries/SmartTransferLib.sol";
  *     Zero effect on rank. ETH forwarded directly to protocolTreasury.
  *
  * Rank decays PROPORTIONALLY at dailyDecayRate basis-points of the *current* rank per day,
- * computed lazily at read time. Large and small ranks bleed at the same rate, so placement
+ * prorated continuously by elapsed seconds and computed lazily at read time. Large and small ranks bleed at the same rate, so placement
  * stays contestable (no first-big-payer-wins permanence). `dailyDecayRate` is in bps (500 = 5%/day).
  * getFeaturedInstances returns active slots sorted by effective rank — position 1 first.
  *
@@ -335,14 +335,14 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
      *      per elapsed day, applied over the gap since the last rank write. Large and small ranks bleed
      *      at the same rate, so a big initial payer is overtaken over time (no permanence). Every rank
      *      write recrystallises rank + restamps `lastBoostTime`, bounding the linearisation error.
-     *      `decayed` is clamped at `rankScore` (never negative). Partial days round down (favours the
-     *      renter). 10000 bps = 100%.
+     *      `decayed` is clamped at `rankScore` (never negative). Decay is continuous in elapsed
+     *      seconds — a partial day accrues its exact pro-rata share. 10000 bps = 100%.
      */
     // slither-disable-next-line divide-before-multiply,incorrect-equality,timestamp
     function _effectiveRank(FeaturedSlot memory slot) internal view returns (uint256) {
         if (slot.lastBoostTime == 0) return 0;
-        uint256 daysPassed = (block.timestamp - slot.lastBoostTime) / 1 days; // round down: partial days don't decay
-        uint256 decayed = (slot.rankScore * dailyDecayRate * daysPassed) / 10000;
+        uint256 elapsed = block.timestamp - slot.lastBoostTime; // seconds, no flooring
+        uint256 decayed = (slot.rankScore * dailyDecayRate * elapsed) / (10000 * 1 days);
         return slot.rankScore > decayed ? slot.rankScore - decayed : 0;
     }
 
