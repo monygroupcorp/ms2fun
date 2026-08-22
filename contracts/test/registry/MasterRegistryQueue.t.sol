@@ -218,6 +218,29 @@ contract MasterRegistryQueueTest is Test {
         queue.boostRank{ value: 0 }(inst1);
     }
 
+    function test_boostRank_revert_revokedInstance() public {
+        _rentBasic(inst1, alice, 0);
+        registry.revoke(inst1);
+
+        vm.deal(bob, bob.balance + 0.01 ether);
+        vm.prank(bob);
+        vm.expectRevert(FeaturedQueueManager.InstanceNotRegistered.selector);
+        queue.boostRank{ value: 0.01 ether }(inst1);
+    }
+
+    /// @dev Control for the guard above: a still-registered instance is admitted on the same call.
+    function test_boostRank_liveInstanceStillAdmitted() public {
+        _rentBasic(inst1, alice, 0);
+        registry.revoke(inst2);
+
+        vm.deal(bob, bob.balance + 0.01 ether);
+        vm.prank(bob);
+        queue.boostRank{ value: 0.01 ether }(inst1);
+
+        (, uint256 rank,,) = queue.getRentalInfo(inst1);
+        assertEq(rank, 0.01 ether);
+    }
+
     // ── renewDuration ─────────────────────────────────────────────────────────
 
     function test_renewDuration_extendsExpiry() public {
@@ -289,6 +312,35 @@ contract MasterRegistryQueueTest is Test {
         queue.renewDuration{ value: cost + excess }(inst1, extra);
 
         assertEq(alice.balance, balBefore + excess);
+    }
+
+    function test_renewDuration_revert_revokedInstance() public {
+        _rentBasic(inst1, alice, 0);
+        registry.revoke(inst1);
+
+        uint256 extra = queue.minDuration();
+        uint256 cost = queue.quoteDurationCost(extra);
+        vm.deal(bob, bob.balance + cost);
+
+        vm.prank(bob);
+        vm.expectRevert(FeaturedQueueManager.InstanceNotRegistered.selector);
+        queue.renewDuration{ value: cost }(inst1, extra);
+    }
+
+    /// @dev Control for the guard above: a still-registered instance is admitted on the same call.
+    function test_renewDuration_liveInstanceStillAdmitted() public {
+        _rentBasic(inst1, alice, 0);
+        registry.revoke(inst2);
+        (,, uint256 expiresAtBefore,) = queue.getRentalInfo(inst1);
+
+        uint256 extra = queue.minDuration();
+        uint256 cost = queue.quoteDurationCost(extra);
+        vm.deal(bob, bob.balance + cost);
+        vm.prank(bob);
+        queue.renewDuration{ value: cost }(inst1, extra);
+
+        (,, uint256 expiresAtAfter,) = queue.getRentalInfo(inst1);
+        assertEq(expiresAtAfter, expiresAtBefore + extra);
     }
 
     // ── Rank decay ─────────────────────────────────────────────────────────────
