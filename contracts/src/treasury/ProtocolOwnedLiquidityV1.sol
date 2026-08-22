@@ -55,6 +55,8 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
     error InvalidLiquidityAmount();
     /// @notice `msg.value` did not equal the native-currency leg the caller must escrow for this deploy.
     error NativeValueMismatch();
+    /// @notice The deploy priced out to zero liquidity, so it would have recorded a position that holds nothing.
+    error ZeroLiquidityDeploy();
 
     // ============ Events ============
 
@@ -92,6 +94,12 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
 
     /// @notice Cumulative POL fees collected (in wei-equivalents summed across both currencies).
     uint256 public totalPOLFeesCollected;
+
+    /// @dev Whether an instance already has an entry in `polInstances`. `polInstances` is an append-only
+    ///      enumeration with no removal path, and an instance may hold a position more than once over its
+    ///      lifetime (deploy, full `withdrawPOL` exit, re-deploy), so the push is keyed on this flag rather
+    ///      than on the live position. Appended at the end of the layout to stay upgrade-safe.
+    mapping(address => bool) internal _polInstanceListed;
 
     // ============ V4 Callback Routing (mirrors UniAlignmentVault pattern) ============
 
@@ -228,11 +236,21 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
         bytes memory result = IPoolManager(v4PoolManager).unlock(abi.encode(cbData));
         (uint128 liquidity, uint256 used0, uint256 used1) = abi.decode(result, (uint128, uint256, uint256));
 
+        // A deploy that priced out to zero liquidity moved nothing: it consumed no escrow and created no
+        // position. Reject it rather than recording a position that holds nothing.
+        if (liquidity == 0) revert ZeroLiquidityDeploy();
+
         // Store position
         _polPositions[msg.sender] = POLPosition({
             poolKey: poolKey, tickLower: tickLower, tickUpper: tickUpper, salt: salt, liquidity: liquidity
         });
-        polInstances.push(msg.sender);
+        // Enumerate each instance exactly once. A re-deploy after a full exit is permitted by the guard
+        // above (the position's liquidity is back to zero), so the append is conditional on the instance
+        // not already being listed.
+        if (!_polInstanceListed[msg.sender]) {
+            _polInstanceListed[msg.sender] = true;
+            polInstances.push(msg.sender);
+        }
 
         emit POLPositionDeployed(msg.sender, liquidity, salt);
 
