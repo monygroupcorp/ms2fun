@@ -397,6 +397,76 @@ contract ProtocolOwnedLiquidityTest is Test {
         pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
     }
 
+    // ========== polInstances enumeration (noesis-304) ==========
+    //
+    // `polInstances` is append-only with no removal path, and `polInstanceCount()` is the only
+    // enumeration the contract offers, so every append has to correspond to a real, distinct position.
+    // Two paths could add an entry that does not: a deploy that prices out to zero liquidity, and a
+    // legitimate re-deploy after a full exit.
+
+    /// @notice A deploy with both legs zero creates no liquidity and is rejected with a named error —
+    ///         no position is stored and nothing is enumerated.
+    function test_receivePOL_RevertZeroLiquidity() public {
+        PoolKey memory key = _setUpLivePool();
+
+        vm.prank(alice);
+        vm.expectRevert(ProtocolOwnedLiquidityV1.ZeroLiquidityDeploy.selector);
+        pol.receivePOL{ value: 0 }(key, TICK_LOWER, TICK_UPPER, 0, 0);
+
+        assertEq(pol.polInstanceCount(), 0, "no-op deploy must not be enumerated");
+        (,,, uint128 liquidity) = pol.getPolPosition(alice);
+        assertEq(liquidity, 0, "no position stored");
+    }
+
+    /// @notice Repeating the zero-amount call cannot grow the enumeration.
+    function test_receivePOL_ZeroLiquidityRepeated_NoGrowth() public {
+        PoolKey memory key = _setUpLivePool();
+
+        for (uint256 i = 0; i < 5; i++) {
+            vm.prank(alice);
+            vm.expectRevert(ProtocolOwnedLiquidityV1.ZeroLiquidityDeploy.selector);
+            pol.receivePOL{ value: 0 }(key, TICK_LOWER, TICK_UPPER, 0, 0);
+        }
+
+        assertEq(pol.polInstanceCount(), 0, "polInstances must not grow on rejected deploys");
+    }
+
+    /// @notice A real deploy appends exactly one entry, and it is the depositing instance.
+    function test_receivePOL_AppendsExactlyOneInstance() public {
+        PoolKey memory key = _setUpLivePool();
+
+        vm.prank(alice);
+        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+
+        assertEq(pol.polInstanceCount(), 1, "one entry per deployed position");
+        assertEq(pol.polInstances(0), alice, "entry is the depositing instance");
+    }
+
+    /// @notice Deploy, full exit, re-deploy: the position is live again and the instance is still
+    ///         enumerated exactly once. The one-live-position-per-instance guard permits the re-deploy,
+    ///         so the enumeration is what has to stay deduped.
+    function test_receivePOL_RedeployAfterFullExit_NoDuplicateEntry() public {
+        PoolKey memory key = _setUpLivePool();
+
+        vm.prank(alice);
+        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+        assertEq(pol.polInstanceCount(), 1, "first deploy enumerated");
+
+        (,,, uint128 liquidity) = pol.getPolPosition(alice);
+        vm.prank(owner);
+        pol.withdrawPOL(alice, liquidity);
+        (,,, uint128 liquidityAfterExit) = pol.getPolPosition(alice);
+        assertEq(liquidityAfterExit, 0, "position fully exited");
+
+        vm.prank(alice);
+        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+
+        (,,, uint128 liquidityRedeployed) = pol.getPolPosition(alice);
+        assertGt(liquidityRedeployed, 0, "position live again after re-deploy");
+        assertEq(pol.polInstanceCount(), 1, "re-deploy must not duplicate the enumeration entry");
+        assertEq(pol.polInstances(0), alice, "entry is still the depositing instance");
+    }
+
     // ========== withdrawPOL — the principal exit (noesis-303) ==========
     //
     // The deposit seam has a matching exit: an owner-gated negative `liquidityDelta` through the same
