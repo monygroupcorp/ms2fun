@@ -333,6 +333,23 @@ contract ProtocolOwnedLiquidityTest is Test {
         assertEq(token.balanceOf(address(pol)), 0, "no token escrow retained");
     }
 
+    /// @notice The deploy leaves no ERC20 allowance to the PoolManager, and needs none: the settle path
+    ///         pays the token leg with `transfer` from this contract, never by `transferFrom`. The
+    ///         allowance reads zero both before and after, so a successful deploy here is the assertion
+    ///         that no settlement shape in this tree pulls this contract's tokens by allowance.
+    function test_receivePOL_NoPoolManagerAllowance() public {
+        PoolKey memory key = _setUpLivePool();
+
+        assertEq(token.allowance(address(pol), address(pm)), 0, "no allowance before deploy");
+
+        vm.prank(alice);
+        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+
+        (,,, uint128 liquidity) = pol.getPolPosition(alice);
+        assertGt(liquidity, 0, "deploy succeeded with the allowance at zero");
+        assertEq(token.allowance(address(pol), address(pm)), 0, "no standing allowance after deploy");
+    }
+
     /// @notice Without allowance the caller-pull reverts — the contract never fronts the token leg.
     function test_receivePOL_RevertInsufficientAllowance() public {
         PoolKey memory key = _setUpLivePool();
