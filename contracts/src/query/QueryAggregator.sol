@@ -876,14 +876,48 @@ contract QueryAggregator is SafeOwnableUUPS {
         } catch { }
     }
 
+    /// @dev The badge gate. `getRentalInfo.isActive` is the RENTAL record — unexpired and paid for —
+    ///      and deliberately says nothing about registry standing (see the revocation-visibility spec:
+    ///      de-listing removes an instance from the registry's surface, it does not touch the rental).
+    ///      Display is a separate question, and the curated grid already answers it: `getHomePageData`
+    ///      draws its address list from `getFeaturedInstances`, which filters on expiry AND registry
+    ///      liveness. `getProjectCardsBatch` takes caller-supplied addresses and never passes through
+    ///      that filter, so the liveness term is applied here — otherwise a revoked instance's card
+    ///      carries a live `featuredRank`/`featuredExpires`. Same predicate as the grid's, one path
+    ///      later.
     // slither-disable-next-line calls-loop,unused-return
     function _hydrateFeatured(ProjectCard memory card) private view {
         try this.readRentalInfo(card.instance) returns (address, uint256 rank, uint256 expires, bool active) {
-            if (active) {
+            if (active && _registrySaysLive(card.instance)) {
                 card.featuredRank = rank;
                 card.featuredExpires = expires;
             }
         } catch { }
+    }
+
+    /// @dev Registry liveness for the badge gate, and it must never revert — this lens's read contract
+    ///      is that a hostile or upgraded dependency degrades a field rather than bricking a card. Raw
+    ///      `staticcall` + a returndata-size guard + an assembly word read, because a high-level call
+    ///      (even inside `try`/`catch`) reverts on a malformed return frame rather than yielding control
+    ///      back, and because a guarded external reader would widen this contract's ABI.
+    ///      Fallback is FAIL-OPEN — treat the instance as live — which preserves the prior badge
+    ///      behaviour when the registry cannot answer, a strictly narrower failure than stripping the
+    ///      badge from every card at once. Mirrors the queue manager's predicate of the same name.
+    // slither-disable-next-line calls-loop
+    function _registrySaysLive(address instance) private view returns (bool) {
+        address registry = address(masterRegistry);
+        if (registry == address(0)) return true;
+
+        (bool ok, bytes memory data) =
+            registry.staticcall(abi.encodeWithSelector(IMasterRegistry.isRegisteredInstance.selector, instance));
+        if (!ok || data.length < 32) return true;
+
+        uint256 word;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            word := mload(add(data, 0x20))
+        }
+        return word != 0;
     }
 
     /**
