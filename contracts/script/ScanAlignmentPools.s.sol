@@ -111,12 +111,17 @@ contract ScanAlignmentPools is Script {
             });
             PoolId id = key.toId();
             (uint160 sqrtP,,,) = pm.getSlot0(id);
-            if (sqrtP == 0) console.log("   fee", FEES[i], "-> not initialized");
-            continue;
+            if (sqrtP == 0) {
+                console.log("   fee", FEES[i], "-> not initialized");
+                continue;
+            }
             uint128 liq = pm.getLiquidity(id);
             console.log("   fee", FEES[i], _bps(FEES[i]));
             console.log("      liquidity L:", liq);
             console.log("      sqrtPriceX96:", sqrtP);
+            // Strict `>` from an initial `best.liq == 0` is deliberate: a tier that is initialized
+            // but holds zero active liquidity is reported above and must NOT win the recommendation,
+            // because wiring the vault to it would LP into an empty pool. Do not relax this to `>=`.
             if (liq > best.liq) best = Best(FEES[i], SPACINGS[i], liq, true);
         }
         if (!best.found) console.log("   (none initialized)");
@@ -127,8 +132,10 @@ contract ScanAlignmentPools is Script {
         console.log("-- Uniswap V3 (WETH / token) [reference] --");
         for (uint256 i = 0; i < FEES.length; i++) {
             address pool = IUniV3Factory(V3_FACTORY).getPool(WETH, token, FEES[i]);
-            if (pool == address(0)) console.log("   fee", FEES[i], "-> no pool");
-            continue;
+            if (pool == address(0)) {
+                console.log("   fee", FEES[i], "-> no pool");
+                continue;
+            }
             uint128 liq = IUniV3Pool(pool).liquidity();
             console.log("   fee", FEES[i], _bps(FEES[i]));
             console.log("      pool:", pool);
@@ -162,8 +169,10 @@ contract ScanAlignmentPools is Script {
     function _scanCypher(address token) internal view {
         console.log("-- Cypher / Algebra (WETH / token) [CypherLP vault] --");
         address pool = IAlgebraFactory(CYPHER_FACTORY).poolByPair(WETH, token);
-        if (pool == address(0)) console.log("   no Algebra pool for this pair.");
-        return;
+        if (pool == address(0)) {
+            console.log("   no Algebra pool for this pair.");
+            return;
+        }
         uint128 liq = IAlgebraPool(pool).liquidity();
         console.log("   pool:", pool);
         console.log("   liquidity L:", liq);
