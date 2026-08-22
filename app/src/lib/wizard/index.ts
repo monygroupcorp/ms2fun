@@ -3,6 +3,7 @@
  * shared by the wizard UI and NOEMA. Hybrid source of truth: hand-authored factory descriptors +
  * the generic evaluator here, plus live module enumeration from ComponentRegistry.
  */
+export * from './artPointer'
 export * from './schema'
 export * from './projectTypes'
 export * from './configTypes'
