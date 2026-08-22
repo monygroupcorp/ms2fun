@@ -190,20 +190,23 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
 
         // Escrow the caller's capital for THIS deploy. The native leg (address(0)) must arrive as
         // `msg.value`; each ERC20/WETH leg is pulled from the caller now (not assumed already pooled
-        // here) and approved to the PoolManager. `msg.value` must equal the native leg exactly — for a
-        // token-only pool the native leg is 0, so any `msg.value` is rejected.
+        // here). `msg.value` must equal the native leg exactly — for a token-only pool the native leg
+        // is 0, so any `msg.value` is rejected.
+        //
+        // No ERC20 allowance is granted to the PoolManager: the settle path pays every ERC20 leg with
+        // `IERC20Minimal.transfer` (`CurrencySettler.settle` with `payer == address(this)`, which is how
+        // `_settleDelta` calls it), so an allowance would never be read.
+        // `test_receivePOL_NoPoolManagerAllowance` asserts the deploy succeeds with the allowance at zero.
         uint256 nativeAmount;
         if (currency0.isAddressZero()) {
             nativeAmount = amount0;
         } else {
             SafeTransferLib.safeTransferFrom(Currency.unwrap(currency0), msg.sender, address(this), amount0);
-            SafeTransferLib.safeApproveWithRetry(Currency.unwrap(currency0), v4PoolManager, amount0);
         }
         if (currency1.isAddressZero()) {
             nativeAmount = amount1;
         } else {
             SafeTransferLib.safeTransferFrom(Currency.unwrap(currency1), msg.sender, address(this), amount1);
-            SafeTransferLib.safeApproveWithRetry(Currency.unwrap(currency1), v4PoolManager, amount1);
         }
         if (msg.value != nativeAmount) revert NativeValueMismatch();
 
