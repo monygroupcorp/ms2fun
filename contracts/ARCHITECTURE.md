@@ -873,7 +873,7 @@ Used in: ZAMMAlignmentVault, CypherAlignmentVault, ERC404StakingModule
 | Expression | Favors | Rationale |
 |---|---|---|
 | `cost = dailyRate * duration / 1 days` | Renter/Buyer | Sub-day fractions cost nothing — `msg.value >= cost` check ensures no under-payment |
-| `daysPassed = elapsed / 1 days` | Renter | Partial days don't trigger decay |
+| `decayed = rankScore * dailyDecayRate * elapsed / (10000 * 1 days)` | Neither | Decay is prorated by elapsed seconds; sub-day gaps accrue their exact share |
 
 ### Other
 

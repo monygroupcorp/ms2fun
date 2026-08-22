@@ -393,13 +393,13 @@ contract MasterRegistryQueueTest is Test {
     function test_rankCarry_acrossExpiry() public {
         _rentBasic(inst1, alice, 0.5 ether);
 
-        // Warp to expiry — minDuration days have elapsed, so 7 days of decay applied
+        // Warp just past expiry — minDuration + 1 seconds of decay applied
         (,, uint256 expiresAt,) = queue.getRentalInfo(inst1);
         vm.warp(expiresAt + 1);
 
-        // Re-rent — carries proportionally decayed rank (7 integer days elapsed)
-        uint256 daysElapsed = (queue.minDuration() + 1) / 1 days; // = 7
-        uint256 expectedRank = 0.5 ether - (0.5 ether * queue.dailyDecayRate() * daysElapsed) / 10000;
+        // Re-rent — carries proportionally decayed rank, prorated by elapsed seconds
+        uint256 elapsed = queue.minDuration() + 1;
+        uint256 expectedRank = 0.5 ether - (0.5 ether * queue.dailyDecayRate() * elapsed) / (10000 * 1 days);
 
         _rentBasic(inst1, alice, 0);
         (, uint256 rankSecond,,) = queue.getRentalInfo(inst1);
@@ -413,8 +413,8 @@ contract MasterRegistryQueueTest is Test {
         (,, uint256 expiresAt,) = queue.getRentalInfo(inst1);
         vm.warp(expiresAt + 1);
 
-        uint256 daysElapsed = (queue.minDuration() + 1) / 1 days;
-        uint256 expectedRank = 0.5 ether - (0.5 ether * queue.dailyDecayRate() * daysElapsed) / 10000;
+        uint256 elapsed = queue.minDuration() + 1;
+        uint256 expectedRank = 0.5 ether - (0.5 ether * queue.dailyDecayRate() * elapsed) / (10000 * 1 days);
 
         _rentBasic(inst1, bob, 0);
         (address renter, uint256 rankBob,,) = queue.getRentalInfo(inst1);
@@ -471,6 +471,63 @@ contract MasterRegistryQueueTest is Test {
         (address[] memory result,) = queue.getFeaturedInstances(0, 10);
         assertEq(result[0], inst2);
         assertEq(result[1], inst1);
+    }
+
+    /// Decay is prorated by elapsed SECONDS, not floored to whole days: a sub-day gap accrues its
+    /// exact share.
+    function test_rankDecay_subDayGapAccrues() public {
+        _rentBasic(inst1, alice, 1 ether);
+
+        vm.warp(block.timestamp + 12 hours);
+        (, uint256 rankHalfDay,,) = queue.getRentalInfo(inst1);
+        assertEq(rankHalfDay, 1 ether - (1 ether * queue.dailyDecayRate() * 12 hours) / (10000 * 1 days));
+        assertLt(rankHalfDay, 1 ether);
+    }
+
+    /// Writing rank at a sub-day cadence does NOT reset the decay clock for free: 24 boosts an hour
+    /// apart accrue the decay that 24 hours earns. Under day-floored decay every gap rounded to zero
+    /// and a dust boost held placement indefinitely.
+    function test_rankDecay_subDayCadenceStillAccrues() public {
+        uint256 maxDur = queue.maxDuration();
+        uint256 durationCost = queue.quoteDurationCost(maxDur);
+
+        vm.deal(alice, alice.balance + durationCost + 10 ether);
+        vm.prank(alice);
+        queue.rentFeatured{ value: durationCost + 10 ether }(inst1, maxDur, 10 ether);
+
+        // 24 dust boosts, one hour apart — each one restamps lastBoostTime. The cursor is explicit:
+        // `block.timestamp` is loaded once per call frame, so reading it inside the loop would not
+        // observe the warps.
+        uint256 t = block.timestamp;
+        for (uint256 i = 0; i < 24; i++) {
+            t += 1 hours;
+            vm.warp(t);
+            vm.prank(bob);
+            queue.boostRank{ value: 1 wei }(inst1);
+        }
+
+        (, uint256 rankAfter,,) = queue.getRentalInfo(inst1);
+
+        // A full day of decay has accrued despite the sub-day write cadence: 24 wei of dust cannot
+        // outrun 5%/day on 10 ether.
+        assertLt(rankAfter, 10 ether);
+
+        // And it is close to what one undisturbed day of decay produces — recrystallising at each
+        // hourly write compounds the linear step, bounding the divergence to a fraction of a percent.
+        uint256 idealOneDay = 10 ether - (10 ether * queue.dailyDecayRate() * 1 days) / (10000 * 1 days);
+        assertApproxEqRel(rankAfter, idealOneDay, 0.005e18);
+    }
+
+    /// A dust boost cannot lift a slot above where it started once decay is time-proportional.
+    function test_rankDecay_dustBoostDoesNotOutrunDecay() public {
+        _rentBasic(inst1, alice, 1 ether);
+
+        vm.warp(block.timestamp + 23 hours + 59 minutes);
+        vm.prank(bob);
+        queue.boostRank{ value: 1 wei }(inst1);
+
+        (, uint256 rankAfterBoost,,) = queue.getRentalInfo(inst1);
+        assertLt(rankAfterBoost, 1 ether);
     }
 
     /// getEffectiveRank read reflects the proportionally decayed rank.
