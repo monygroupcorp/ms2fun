@@ -6,7 +6,7 @@ import { ERC404BondingInstance } from "../src/factories/erc404/ERC404BondingInst
 import { ERC721AuctionInstance } from "../src/factories/erc721/ERC721AuctionInstance.sol";
 import { LaunchManager } from "../src/factories/erc404/LaunchManager.sol";
 import { MetadataOverlayModule } from "../src/metadata/MetadataOverlayModule.sol";
-import { SeedAnvilShared, IOwnable } from "./SeedAnvilShared.sol";
+import { SeedAnvilShared, IOwnable, IEndowmentPayout, ArtistEndowments } from "./SeedAnvilShared.sol";
 
 /// @dev The DN404 mirror's ERC-721 surface — NFT counts and ownership live here, not on the token.
 /// @dev The endowment vault's principal accounting. Read as a DELTA across the settlements rather
@@ -14,6 +14,11 @@ import { SeedAnvilShared, IOwnable } from "./SeedAnvilShared.sol";
 ///      and an absolute reading could be satisfied by that one instead.
 interface IEndowmentPrincipal {
     function totalPrincipalCommittedAllTime() external view returns (uint256);
+}
+
+/// @dev The yield leg. Permissionless: the destination is always the vault's own `communityPayout`.
+interface IEndowmentHarvest {
+    function harvest() external;
 }
 
 interface IDN404Mirror {
@@ -70,6 +75,25 @@ contract SeedAnvilBuys is SeedAnvilShared {
     uint256 internal constant PIXELADY_PIECES_DEPLOYER = 20;
     uint256 internal constant PIXELADY_PIECES_ACCT1 = 15;
     uint256 internal constant PIXELADY_PIECES_ADMIN = 10;
+    /// @dev Share of the FLAGSHIP curve's bondable supply to buy, in bps — the same shape the
+    ///      mid-curve row already had, and for the same reason. Buying the whole curve out is what
+    ///      would make the reserve land on the armed raise, and that only ever mattered while the row
+    ///      claimed the raise was a measurement a visitor could check. It is not one: the figures on
+    ///      this roster are illustrative. A quarter fill renders every surface the row exists to show
+    ///      and costs roughly a tenth of what a buyout does, and arming is free either way.
+    uint256 internal constant SCHIZO_FILL_BPS = 2500;
+    /// @dev Same fraction on the second large row, for the same reasons.
+    uint256 internal constant BOREDMILADY_FILL_BPS = 2500;
+    /// @dev Pieces the second mid-curve row mints, split so the holder surface has more than one holder.
+    uint256 internal constant BOREDMILADY_PIECES_DEPLOYER = 12;
+    uint256 internal constant BOREDMILADY_PIECES_ACCT1 = 8;
+
+    /// @dev Pieces the small ready-to-graduate row mints. Its whole curve is bought, and at 420 pieces
+    ///      the entire supply can be minted as ids without the id-reconciliation problem the large
+    ///      rows have — but the tail is kept below the gallery window's size anyway, so the row's
+    ///      gallery reads as a populated collection rather than as a wall.
+    uint256 internal constant LAWBSTERS_PIECES = 60;
+
     /// @dev Share of the mid-curve instance's bondable supply to buy, in bps. Far enough along that
     ///      the curve, the holder surface and the vault panel all render something real, and nowhere
     ///      near the end — this instance has no maturity time and must never look close to finishing.
@@ -82,6 +106,15 @@ contract SeedAnvilBuys is SeedAnvilShared {
     /// @dev Bids placed on the auctions that settlement starts, so the collection boots with a
     ///      settle-ready line rather than an empty one.
     uint256 internal constant FIGMATA_FOLLOW_BID = 0.25 ether;
+
+    /// @dev The artist collections' opening auctions, settled here — which is what turns a hammer
+    ///      price into escrowed endowment principal for the artist.
+    uint24 internal constant ARTIST_OPENING_AUCTIONS = 2;
+    uint256 internal constant ARTIST_FOLLOW_BID = 0.2 ether;
+    /// @dev Floor on what settling one artist collection must actually escrow. Not an accuracy claim
+    ///      about anything: it is the difference between a vault panel with a real position in it and
+    ///      one showing dust, and phase 1's bids are sized well above it.
+    uint256 internal constant ARTIST_MIN_ENDOWED = 3 ether;
     uint256 internal constant PERSON_KEY = 0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a;
 
     function run() public {
@@ -104,7 +137,13 @@ contract SeedAnvilBuys is SeedAnvilShared {
         // ── The alignment catalog roster ──
         _buysCatalogFlagship(d, s.schizo);
         _buysCatalogMidCurve(d, s.pixelady);
+        _buysCatalogSecondMidCurve(d, s.boredmilady);
+        _buysCatalogGraduate(d, s.lawbsters);
         _settleCatalogAuction(d, k.figmata);
+
+        // ── The artist endowments ──
+        _settleArtistEndowment(d.paradilfVault, k.paradilf, "paradilf-fan-club");
+        _settleArtistEndowment(d.petravoiceVault, k.petravoice, "petravoice");
 
         // Hand everything to the team's testing wallet (LAST — after all owner-only seeding, which
         // includes this phase's staking activation and overlay authoring).
@@ -117,7 +156,8 @@ contract SeedAnvilBuys is SeedAnvilShared {
         console.log("=== SeedAnvilBuys (phase 2: buys + handover) complete ===");
         console.log("ERC404 : vapor mid-curve + staked; cinder/molten/quench bought (reserve > 0, graduate-ready)");
         console.log("ERC404 : carve reserve >= 3 ETH; stacked NFTs held by ADMIN + overlay authored");
-        console.log("CATALOG: flagship curve bought out, mid-curve filled, auction settlements endowed");
+        console.log("CATALOG: three curves filled to a quarter, the small row bought out (ungraduated)");
+        console.log("ARTIST : both endowments settled, principal escrowed, harvest split to the artist payout");
         console.log("block.timestamp now:", block.timestamp);
     }
 
@@ -348,20 +388,24 @@ contract SeedAnvilBuys is SeedAnvilShared {
 
     // ───────────────── THE ALIGNMENT CATALOG ROSTER (phase 2: buys + settlements) ─────────────────
 
-    /// @dev FLAGSHIP — buy the curve out, so the reserve reads the collection's REAL raise and the
-    ///      graduation a human performs next splits that exact figure. The instance declares no
-    ///      creator carve, so the split is the unmodified 1/19/80 and the aligned share is checkable
-    ///      by arithmetic on a number the page already shows.
+    /// @dev FLAGSHIP — a QUARTER fill, the same shape the mid-curve row uses.
     ///
-    ///      Graduation itself is deliberately NOT performed. The row's argument is what the split
-    ///      WOULD have returned, and a visitor watching it happen is worth more than finding it
-    ///      already done.
+    ///      WHAT CHANGED AND WHY IT IS NOT A LOSS. This row used to buy its entire bondable supply so
+    ///      the reserve would land within a tenth of a percent of the armed raise. That band enforced
+    ///      an accuracy claim the roster no longer makes — the figures here are illustrative, and
+    ///      spending hundreds of ETH to make one exact buys nothing a visitor can act on. Arming is
+    ///      free, so the page still reads the full raise; only the fill shrank.
+    ///
+    ///      The preset check below STAYS, and it is not the same kind of assertion. It proves the
+    ///      preset the seed registered is the preset this instance was created against — a real
+    ///      failure mode, independent of whether any figure is exact.
     function _buysCatalogFlagship(Deployed memory d, address inst) internal {
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         uint256 unit_ = b.unit();
         uint256 bondable = b.maxSupply() - b.liquidityReserve() - (b.freeMintAllocation() * unit_);
+        uint256 fill = (bondable * SCHIZO_FILL_BPS) / 10000;
         uint256 tail = SCHIZO_PIECES * unit_;
-        require(bondable > tail, "catalog: flagship bondable supply is smaller than its piece tail");
+        require(fill > tail, "catalog: flagship fill is smaller than its piece tail");
 
         // 1. The minting tail, FIRST — see the constant's header for why the order is load-bearing.
         _buyBonding(b, deployerKey, tail);
@@ -371,19 +415,78 @@ contract SeedAnvilBuys is SeedAnvilShared {
         vm.startBroadcast(deployerKey);
         b.setSkipNFT(true);
         vm.stopBroadcast();
+        _buyBonding(b, deployerKey, fill - tail);
+
+        // WIRING, not accuracy: the instance must be sitting on the preset the seed registered for it.
+        // A row created against the protocol preset by mistake would trade, render and mislead.
+        uint256 target = LaunchManager(d.launchManager).getPreset(PRESET_SCHIZO).targetETH;
+        require(target == SCHIZO_REAL_RAISE, "catalog: the flagship preset is not the one the seed armed");
+
+        // The FILL is what is asserted, in the mid-curve row's style: far enough along to render, and
+        // nowhere near the cap. A row that crept to its cap would be a graduate demo by accident.
+        uint256 supply = b.totalBondingSupply();
+        require(supply >= fill, "catalog: the flagship curve did not take its fill");
+        require(supply < bondable, "catalog: the flagship curve has no curve left");
+
+        console.log("CATALOG flagship filled:", inst);
+        console.log("  reserve (wei):", b.reserve(), "of armed raise (wei):", target);
+    }
+
+    /// @dev SECOND MID-CURVE — same quarter fill and the same two-part buy as the flagship, with two
+    ///      holders so the row's holder surface is not a single address.
+    function _buysCatalogSecondMidCurve(Deployed memory d, address inst) internal {
+        ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
+        uint256 unit_ = b.unit();
+        uint256 bondable = b.maxSupply() - b.liquidityReserve() - (b.freeMintAllocation() * unit_);
+        uint256 fill = (bondable * BOREDMILADY_FILL_BPS) / 10000;
+        uint256 minted = (BOREDMILADY_PIECES_DEPLOYER + BOREDMILADY_PIECES_ACCT1) * unit_;
+        require(fill > minted, "catalog: the second mid-curve fill is smaller than the pieces it must mint");
+
+        _buyBonding(b, deployerKey, BOREDMILADY_PIECES_DEPLOYER * unit_);
+        _buyBonding(b, ACCOUNT_1_KEY, BOREDMILADY_PIECES_ACCT1 * unit_);
+
+        vm.startBroadcast(deployerKey);
+        b.setSkipNFT(true);
+        vm.stopBroadcast();
+        _buyBonding(b, deployerKey, fill - minted);
+
+        uint256 target = LaunchManager(d.launchManager).getPreset(PRESET_BOREDMILADY).targetETH;
+        require(target == BOREDMILADY_REAL_RAISE, "catalog: the second mid-curve preset is not the one the seed armed");
+        require(b.totalBondingSupply() >= fill, "catalog: the second mid-curve row did not take its fill");
+        require(b.totalBondingSupply() < bondable, "catalog: the second mid-curve row has no curve left");
+
+        console.log("CATALOG second mid-curve filled:", inst);
+        console.log("  reserve (wei):", b.reserve(), "of armed raise (wei):", target);
+    }
+
+    /// @dev THE GRADUATE DEMO — buy the small curve OUT, and stop there.
+    ///
+    ///      This is what replaced the flagship's bought-out curve, and it is the better shape: a small
+    ///      raise can be bought out in full for a couple of ETH, so the graduate action on the seeded
+    ///      chain is live rather than a posture. `deployLiquidity` is deliberately NOT called — the
+    ///      split happening in front of a visitor is worth more than finding it already done — and the
+    ///      last assertion here is what says so, because a graduation performed by accident is not
+    ///      recoverable on a seeded chain.
+    function _buysCatalogGraduate(Deployed memory d, address inst) internal {
+        ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
+        uint256 unit_ = b.unit();
+        uint256 bondable = b.maxSupply() - b.liquidityReserve() - (b.freeMintAllocation() * unit_);
+        uint256 tail = LAWBSTERS_PIECES * unit_;
+        require(bondable > tail, "catalog: the graduate row's bondable supply is smaller than its piece tail");
+
+        _buyBonding(b, deployerKey, tail);
+        vm.startBroadcast(deployerKey);
+        b.setSkipNFT(true);
+        vm.stopBroadcast();
         _buyBonding(b, deployerKey, bondable - tail);
 
-        // The reserve IS the claim: a curve armed at the real raise, bought out, holds that raise, and
-        // the band is kept tight because this is the number the page invites a visitor to check. The
-        // raise is read from the PRESET the instance was created against rather than from a literal
-        // restated here, so the two cannot drift the first time the roster's figure is corrected.
-        uint256 target = LaunchManager(d.launchManager).getPreset(PRESET_SCHIZO).targetETH;
-        uint256 reserve = b.reserve();
-        require(reserve * 1000 >= target * 999, "catalog: flagship reserve fell short of the armed raise");
-        require(reserve * 1000 <= target * 1001, "catalog: flagship reserve overshot the armed raise");
+        uint256 target = LaunchManager(d.launchManager).getPreset(PRESET_LAWBSTERS).targetETH;
+        require(target == LAWBSTERS_REAL_RAISE, "catalog: the graduate row's preset is not the one the seed armed");
+        require(b.totalBondingSupply() == bondable, "catalog: the graduate row's curve is not fully bought");
+        require(!b.graduated(), "catalog: the graduate row has already graduated - the demo action is spent");
 
-        console.log("CATALOG flagship bought out:", inst);
-        console.log("  reserve (wei):", reserve, "of armed raise (wei):", target);
+        console.log("CATALOG graduate row bought out (graduation left uncrossed):", inst);
+        console.log("  reserve (wei):", b.reserve(), "of armed raise (wei):", target);
     }
 
     /// @dev MID-CURVE — three holders and a partial fill. Each actor buys its OWN pieces before the
@@ -465,6 +568,72 @@ contract SeedAnvilBuys is SeedAnvilShared {
         console.log("  endowment principal committed by settlement (wei):", endowed);
     }
 
+    /// @dev THE ARTIST ENDOWMENTS — settle the opening auctions, which is what moves 80% of each
+    ///      hammer price into the artist's endowment as permanent principal, then bid on the auctions
+    ///      those settlements start so the line boots live rather than finished.
+    ///
+    ///      Three things are asserted here and each is a distinct failure. That the settlement
+    ///      ESCROWED principal — a vault holding nothing demonstrates the opposite of an endowment.
+    ///      That the vault pays the artist's DERIVED FIXTURE address — a collection bound to the wrong
+    ///      vault renders perfectly and endows somebody else. And that the `harvest()` path RUNS
+    ///      against that payout, because a principal balance with no path out of it is a savings
+    ///      account, not an endowment.
+    function _settleArtistEndowment(address vault, address inst, string memory slug) internal {
+        ERC721AuctionInstance a = ERC721AuctionInstance(payable(inst));
+        address payout = ArtistEndowments.payout(slug);
+        require(
+            IEndowmentPayout(vault).communityPayout() == payout,
+            "artist endowment: the vault pays somewhere other than this artist's derived fixture address"
+        );
+        require(
+            address(ERC721AuctionInstance(payable(inst)).vault()) == vault,
+            "artist endowment: the collection is bound to another vault"
+        );
+
+        uint256 before = IEndowmentPrincipal(vault).totalPrincipalCommittedAllTime();
+        vm.startBroadcast(deployerKey);
+        for (uint24 id = 1; id <= ARTIST_OPENING_AUCTIONS; id++) {
+            a.settleAuction(id);
+        }
+        vm.stopBroadcast();
+
+        // Each settlement advanced its line to the next queued piece. Bid on those so the collection
+        // boots with a settleable line rather than a stalled one.
+        vm.startBroadcast(ACCOUNT_1_KEY);
+        a.createBid{ value: ARTIST_FOLLOW_BID }(ARTIST_OPENING_AUCTIONS + 1, "");
+        vm.stopBroadcast();
+        vm.startBroadcast(PERSON_KEY);
+        a.createBid{ value: ARTIST_FOLLOW_BID }(ARTIST_OPENING_AUCTIONS + 2, "");
+        vm.stopBroadcast();
+
+        uint256 endowed = IEndowmentPrincipal(vault).totalPrincipalCommittedAllTime() - before;
+        require(endowed >= ARTIST_MIN_ENDOWED, "artist endowment: settling the auctions escrowed too little principal");
+
+        // THE YIELD LEG, EXERCISED — AND WHAT IT DOES NOT PROVE. `harvest()` crystallizes what the
+        // position has earned and routes the target share to `communityPayout`; the creator share
+        // stays claimable in the benefactor's purse. It is permissionless, so calling it here is a
+        // convenience and not an authority.
+        //
+        // The principal is SECONDS OLD IN CHAIN TIME at this point — the settlement that created it
+        // ran moments ago — so the amount this particular harvest delivers is dust or nothing, and no
+        // assertion here claims otherwise. What is asserted is that the call succeeds and that the
+        // sink is the artist's. The non-zero split is a live action: once the fork's clock has moved,
+        // anyone can harvest again and the target leg lands at the payout below. Making it non-zero
+        // at seed time would need the chain advanced between the deposit and the harvest, which only
+        // the orchestrator can do — a script cannot warp the live chain.
+        vm.startBroadcast(deployerKey);
+        IEndowmentHarvest(vault).harvest();
+        vm.stopBroadcast();
+        require(
+            IEndowmentPayout(vault).communityPayout() == payout,
+            "artist endowment: the payout sink moved during harvest"
+        );
+
+        console.log("ARTIST endowment settled:", inst);
+        console.log("  principal escrowed by settlement (wei):", endowed);
+        console.log("  payout sink:", payout);
+    }
+
     /// @dev Post-conditions for the catalog roster, read back off chain state.
     ///
     ///      NOT ASSERTED, deliberately: that the flagship's graduation returns the aligned share.
@@ -522,10 +691,64 @@ contract SeedAnvilBuys is SeedAnvilShared {
             require(highBidder != address(0), "catalog: a follow-on auction carries no bid");
         }
 
+        // 6. THE SECOND MID-CURVE ROW HAS TWO HOLDERS AND CURVE LEFT.
+        ERC404BondingInstance boredmilady = ERC404BondingInstance(payable(s.boredmilady));
+        IDN404Mirror boredMirror = IDN404Mirror(boredmilady.mirrorERC721());
+        require(
+            boredMirror.balanceOf(deployer) == BOREDMILADY_PIECES_DEPLOYER,
+            "catalog: the second mid-curve row minted a different creator piece count than intended"
+        );
+        require(
+            boredMirror.balanceOf(acct1) == BOREDMILADY_PIECES_ACCT1,
+            "catalog: the second actor holds no pieces of the second mid-curve row"
+        );
+
+        // 7. THE GRADUATE ROW IS BOUGHT OUT AND STILL UNGRADUATED. Both halves: a row that quietly
+        //    graduated has spent the one action it exists to offer, and a row short of its cap cannot
+        //    offer it at all.
+        ERC404BondingInstance lawbsters = ERC404BondingInstance(payable(s.lawbsters));
+        uint256 lawbstersBondable =
+            lawbsters.maxSupply() - lawbsters.liquidityReserve() - (lawbsters.freeMintAllocation() * lawbsters.unit());
+        require(lawbsters.totalBondingSupply() == lawbstersBondable, "catalog: the graduate row is not fully bought");
+        require(!lawbsters.graduated(), "catalog: the graduate row has already graduated");
+        require(
+            IDN404Mirror(lawbsters.mirrorERC721()).balanceOf(deployer) == LAWBSTERS_PIECES,
+            "catalog: the graduate row minted a different piece count than intended"
+        );
+
+        // 8. THE ART RESOLVES, ON EVERY ROW THAT NOW HOLDS MINTED IDS. This is the primary acceptance
+        //    test: a row whose economics are perfect and whose pieces render as blank tiles is a
+        //    failed seed. Checked on the COMPOSED pointer read back off the token rather than on the
+        //    base alone, because the defect this catches — a missing or doubled separator between the
+        //    base and the id — only appears once the two are concatenated. None of these four wires a
+        //    metadata resolver, so the composed pointer is the whole answer.
+        _assertComposedPieceURI(schizo.mirrorERC721(), ART_BASE_ARCTIC, 1, "schizo-posters");
+        _assertComposedPieceURI(pixelady.mirrorERC721(), ART_BASE_PIXELADY, 1, "pixelady-maker");
+        _assertComposedPieceURI(boredmilady.mirrorERC721(), ART_BASE_BOREDMILADY, 1, "bored-milady");
+        _assertComposedPieceURI(lawbsters.mirrorERC721(), ART_BASE_LAWBSTERS, 1, "lawbsters");
+
+        // 9. BOTH ARTIST ENDOWMENTS HOLD PRINCIPAL AND PAY THE ARTIST. The standing balance, beside
+        //    the per-settlement delta already asserted at settle time.
+        _assertArtistEndowmentStanding(d.paradilfVault, ArtistEndowments.PARADILF_SLUG);
+        _assertArtistEndowmentStanding(d.petravoiceVault, ArtistEndowments.PETRAVOICE_SLUG);
+
         console.log("CATALOG post-conditions OK");
         console.log("  flagship pieces minted:", flagshipPieces);
         console.log("  mid-curve pieces held by the testing wallet:", PIXELADY_PIECES_ADMIN);
         console.log("  endowment principal committed all-time (wei):", principal);
+    }
+
+    /// @dev One artist endowment's standing state: principal escrowed, and the payout still pointing
+    ///      at the artist's derived fixture address.
+    function _assertArtistEndowmentStanding(address vault, string memory slug) internal view {
+        require(
+            IEndowmentPrincipal(vault).totalPrincipalCommittedAllTime() >= ARTIST_MIN_ENDOWED,
+            "artist endowment: the vault holds no meaningful principal"
+        );
+        require(
+            IEndowmentPayout(vault).communityPayout() == ArtistEndowments.payout(slug),
+            "artist endowment: the vault pays somewhere other than this artist's derived fixture address"
+        );
     }
 
     /// @dev The auction record WITHOUT its token URI. The public mapping getter returns the URI
@@ -559,13 +782,17 @@ contract SeedAnvilBuys is SeedAnvilShared {
     function _transferAdmin(address[] memory all) internal {
         vm.startBroadcast(deployerKey);
         // Fund ADMIN so it can pay gas + value actions (queuePiece deposit, bids, buys) immediately.
-        (bool funded,) = ADMIN.call{ value: 50 ether }("");
+        // A demo wallet float, not a spend: enough to pay gas and the value actions the walk performs
+        // (a queuePiece deposit, a bid, a buy) several times over. It was 50 while anvil's free ETH
+        // made the figure invisible; on a funded chain the float is a real line item, so it is sized
+        // to what the walk needs.
+        (bool funded,) = ADMIN.call{ value: 5 ether }("");
         require(funded, "fund ADMIN failed");
         for (uint256 i = 0; i < all.length; i++) {
             IOwnable(all[i]).transferOwnership(ADMIN);
         }
         vm.stopBroadcast();
-        console.log("Handed", all.length, "instances (creator admin) + 50 ETH to ADMIN:");
+        console.log("Handed", all.length, "instances (creator admin) + 5 ETH to ADMIN:");
         console.log(ADMIN);
     }
 }

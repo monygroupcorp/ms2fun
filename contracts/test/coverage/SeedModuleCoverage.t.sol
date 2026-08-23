@@ -7,7 +7,7 @@ import { CREATEX } from "../../src/shared/CreateXConstants.sol";
 import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
 import { DeployCore } from "../../script/DeployCore.sol";
 import { SeedAnvil } from "../../script/SeedAnvil.s.sol";
-import { SeedAnvilShared } from "../../script/SeedAnvilShared.sol";
+import { SeedAnvilShared, ArtistEndowments, IEndowmentPayout } from "../../script/SeedAnvilShared.sol";
 import { ERC1155Instance } from "../../src/factories/erc1155/ERC1155Instance.sol";
 import { ERC404BondingInstance } from "../../src/factories/erc404/ERC404BondingInstance.sol";
 import { MetadataResolverRouter } from "../../src/metadata/MetadataResolverRouter.sol";
@@ -104,8 +104,20 @@ contract SeedModuleCoverageHarness is SeedAnvil {
         _seedCatalogMidCurve(d);
     }
 
+    function seedCatalogSecondMidCurve(Deployed memory d) external {
+        _seedCatalogSecondMidCurve(d);
+    }
+
+    function seedCatalogGraduate(Deployed memory d) external {
+        _seedCatalogGraduate(d);
+    }
+
     function seedCatalogAuction(Deployed memory d) external {
         _seedCatalogAuction(d);
+    }
+
+    function seedArtistEndowments(Deployed memory d) external {
+        _seedArtistEndowments(d);
     }
 
     function seedCatalogEditions(Deployed memory d) external {
@@ -118,16 +130,32 @@ contract SeedModuleCoverageHarness is SeedAnvil {
         return CULT_TOKEN;
     }
 
-    function catalogPresetIds() external pure returns (uint8 source, uint8 flagship, uint8 midCurve) {
-        return (PRESET_SOURCE, PRESET_SCHIZO, PRESET_PIXELADY);
+    function catalogPresetIds() external pure returns (uint8 source, uint8[4] memory rows) {
+        rows = [PRESET_SCHIZO, PRESET_PIXELADY, PRESET_BOREDMILADY, PRESET_LAWBSTERS];
+        return (PRESET_SOURCE, rows);
     }
 
-    function catalogRaises() external pure returns (uint256 flagship, uint256 midCurve) {
-        return (SCHIZO_REAL_RAISE, PIXELADY_REAL_RAISE);
+    function catalogRaises() external pure returns (uint256[4] memory) {
+        return [SCHIZO_REAL_RAISE, PIXELADY_REAL_RAISE, BOREDMILADY_REAL_RAISE, LAWBSTERS_REAL_RAISE];
     }
 
-    function catalogSupplies() external pure returns (uint256 flagship, uint256 midCurve, uint256 auction) {
-        return (SCHIZO_REAL_SUPPLY, PIXELADY_REAL_SUPPLY, FIGMATA_REAL_SUPPLY);
+    function catalogSupplies() external pure returns (uint256[4] memory) {
+        return [SCHIZO_REAL_SUPPLY, PIXELADY_REAL_SUPPLY, BOREDMILADY_REAL_SUPPLY, LAWBSTERS_REAL_SUPPLY];
+    }
+
+    function catalogAuctionSupply() external pure returns (uint256) {
+        return FIGMATA_REAL_SUPPLY;
+    }
+
+    /// @dev The per-piece art bases each roster curve was created with, in the same row order. Read
+    ///      off the seed rather than restated here: a base that changed in the seed and not in the
+    ///      suite would leave the art assertions checking a string nothing uses.
+    function catalogPieceBases() external pure returns (string[4] memory) {
+        return [ART_BASE_ARCTIC, ART_BASE_PIXELADY, ART_BASE_BOREDMILADY, ART_BASE_LAWBSTERS];
+    }
+
+    function artistSlugs() external pure returns (string[2] memory) {
+        return [ArtistEndowments.PARADILF_SLUG, ArtistEndowments.PETRAVOICE_SLUG];
     }
 
     function catalogEditionSizes()
@@ -200,6 +228,10 @@ contract SeedModuleCoverageTest is Test {
     address internal anti; // truncated free-mint-at-scale edition
     address internal oekaki; // truncated mixed free/paid edition
     address internal milady333; // truncated zero-revenue edition
+    address internal boredmilady; // second mid-curve row
+    address internal lawbsters; // small row: bought out in phase 2, graduation left uncrossed
+    address internal paradilf; // artist endowment collection (target 3)
+    address internal petravoice; // artist endowment collection (target 4)
     address internal referencePool;
     address internal cultToken;
 
@@ -224,13 +256,17 @@ contract SeedModuleCoverageTest is Test {
         // token it does not actually use, which is the kind of near-miss this suite exists to catch.
         vm.etch(cultToken, address(new MockWETH()).code);
 
+        // Fixture tokens for the two artist targets. Registry paperwork only: an endowment vault's
+        // `alignmentToken` exists to satisfy `registerVault`, and the vault never touches it.
+        address[2] memory artistTokens = [address(new MockWETH()), address(new MockWETH())];
+
         s = new DeployCore();
         // DeployCore's OWN post-deploy setup (e.g. queueManager.setWeth) runs with msg.sender ==
         // address(s), so the registries it owns must be owned by address(s) too - matching the
         // established pattern in DeployTest/ValidateSepoliaTest/VaultFlavorsTest. `deployer` (the
         // seed's own identity, below) is unrelated: every seed call this suite drives is
         // permissionless (createInstance, rentFeatured, setProfile, receiveContribution).
-        s.deploy(address(s), _config(address(weth), address(stata), cultToken));
+        s.deploy(address(s), _config(address(weth), address(stata), cultToken, artistTokens));
 
         d.erc1155 = s.erc1155Factory();
         d.erc721 = s.erc721Factory();
@@ -261,6 +297,9 @@ contract SeedModuleCoverageTest is Test {
         d.cultUniVault = s.uniVaults(1);
         d.cultAaveVault = s.aaveVaults(1);
         d.cultTargetId = 2;
+        // The artist targets' endowment vaults — third and fourth in the per-target loop's order.
+        d.paradilfVault = s.aaveVaults(2);
+        d.petravoiceVault = s.aaveVaults(3);
         merkleGating = address(s.moduleMerkleGating());
 
         // The seed performs owner-only writes on the launch presets, the alignment registry and the
@@ -321,8 +360,22 @@ contract SeedModuleCoverageTest is Test {
         pixelady = _oneInstance(address(d.erc404), ERC404_INSTANCE_CREATED);
 
         vm.recordLogs();
+        harness.seedCatalogSecondMidCurve(d);
+        boredmilady = _oneInstance(address(d.erc404), ERC404_INSTANCE_CREATED);
+
+        vm.recordLogs();
+        harness.seedCatalogGraduate(d);
+        lawbsters = _oneInstance(address(d.erc404), ERC404_INSTANCE_CREATED);
+
+        vm.recordLogs();
         harness.seedCatalogAuction(d);
         figmata = _oneInstance(address(d.erc721), ERC1155_INSTANCE_CREATED);
+
+        vm.recordLogs();
+        harness.seedArtistEndowments(d);
+        address[] memory artistRows = _instances(address(d.erc721), ERC1155_INSTANCE_CREATED, 2);
+        paradilf = artistRows[0];
+        petravoice = artistRows[1];
 
         vm.recordLogs();
         harness.seedCatalogEditions(d);
@@ -531,51 +584,74 @@ contract SeedModuleCoverageTest is Test {
             d.cultUniVault,
             "catalog: an edition row binds elsewhere"
         );
+        assertEq(
+            address(ERC404BondingInstance(payable(boredmilady)).vault()),
+            d.cultUniVault,
+            "catalog: the second mid-curve row tithes into the wrong target's vault"
+        );
+        assertEq(
+            address(ERC404BondingInstance(payable(lawbsters)).vault()),
+            d.cultUniVault,
+            "catalog: the graduate row tithes into the wrong target's vault"
+        );
     }
 
-    /// @dev The curves must be armed at the collections' real raises AND created at their real
-    ///      supplies. Both, not either: the raise is the counterfactual the row is making and the
-    ///      supply is what the gallery renders, and the two are independent axes of the curve
-    ///      computation, so honouring one says nothing about the other.
+    /// @dev EVERY CURVE ROW IS SITTING ON THE PRESET THE SEED REGISTERED FOR IT, and was created at
+    ///      the supply that preset was chosen for.
+    ///
+    ///      THIS IS A WIRING ASSERTION, NOT AN ACCURACY ONE. The roster's figures are illustrative and
+    ///      nothing here claims otherwise — what is checked is that the preset the seed armed is the
+    ///      preset the instance got, and that a row did not quietly fall back to the protocol preset
+    ///      or to the ten-piece default. Both of those failures deploy, trade and render correctly.
     ///
     ///      Everything except the raise is asserted to be the PROTOCOL preset's value, which is what
     ///      keeps a catalog curve a production curve resized rather than a differently-shaped one.
-    function test_catalogRoster_curvesCarryTheRealRaiseAndTheRealSupply() public view {
-        (uint8 sourceId, uint8 flagshipId, uint8 midCurveId) = harness.catalogPresetIds();
-        (uint256 flagshipRaise, uint256 midCurveRaise) = harness.catalogRaises();
-        (uint256 flagshipSupply, uint256 midCurveSupply,) = harness.catalogSupplies();
+    function test_catalogRoster_everyCurveSitsOnThePresetTheSeedArmed() public view {
+        (uint8 sourceId, uint8[4] memory presetIds) = harness.catalogPresetIds();
+        uint256[4] memory raises = harness.catalogRaises();
+        uint256[4] memory supplies = harness.catalogSupplies();
+        address[4] memory rows = [schizo, pixelady, boredmilady, lawbsters];
 
         LaunchManager lm = LaunchManager(d.launchManager);
         LaunchManager.Preset memory std = lm.getPreset(sourceId);
-        LaunchManager.Preset memory a = lm.getPreset(flagshipId);
-        LaunchManager.Preset memory b = lm.getPreset(midCurveId);
 
-        assertEq(a.targetETH, flagshipRaise, "catalog: the flagship preset is not armed at the real raise");
-        assertEq(b.targetETH, midCurveRaise, "catalog: the mid-curve preset is not armed at the real raise");
-        assertTrue(a.targetETH != std.targetETH, "catalog: the flagship preset is just the protocol preset again");
-        assertEq(a.unitPerNFT, std.unitPerNFT, "catalog: the flagship preset changed more than the raise");
-        assertEq(b.unitPerNFT, std.unitPerNFT, "catalog: the mid-curve preset changed more than the raise");
-        assertEq(a.liquidityReserveBps, std.liquidityReserveBps, "catalog: the flagship LP reserve drifted");
-        assertEq(b.liquidityReserveBps, std.liquidityReserveBps, "catalog: the mid-curve LP reserve drifted");
-        assertEq(a.curveComputer, std.curveComputer, "catalog: the flagship preset uses another curve computer");
-        assertEq(b.curveComputer, std.curveComputer, "catalog: the mid-curve preset uses another curve computer");
+        for (uint256 i = 0; i < rows.length; i++) {
+            LaunchManager.Preset memory got = lm.getPreset(presetIds[i]);
+            assertEq(got.targetETH, raises[i], "catalog: a preset is not armed at the raise the seed registered");
+            assertTrue(got.targetETH != std.targetETH, "catalog: a catalog preset is just the protocol preset again");
+            assertEq(got.unitPerNFT, std.unitPerNFT, "catalog: a preset changed more than the raise");
+            assertEq(got.liquidityReserveBps, std.liquidityReserveBps, "catalog: a preset's LP reserve drifted");
+            assertEq(got.curveComputer, std.curveComputer, "catalog: a preset uses another curve computer");
 
-        ERC404BondingInstance flagship = ERC404BondingInstance(payable(schizo));
-        ERC404BondingInstance mid = ERC404BondingInstance(payable(pixelady));
-        assertEq(
-            flagship.maxSupply(),
-            flagshipSupply * flagship.unit(),
-            "catalog: the flagship was created at something other than the collection's real supply"
+            ERC404BondingInstance row = ERC404BondingInstance(payable(rows[i]));
+            assertEq(
+                row.maxSupply(),
+                supplies[i] * row.unit(),
+                "catalog: a row was created at something other than the supply its preset was chosen for"
+            );
+            // The invented instances are ten pieces each; a roster row that quietly fell back to that
+            // default would still deploy, still trade and still look right on a card.
+            assertGt(row.maxSupply(), 10 * row.unit(), "catalog: a row fell back to the default supply");
+        }
+
+        // THE GRADUATE POSTURE IS ON THE SMALL ROW. It is the only row whose whole curve the seed can
+        // afford to buy, which is what makes the graduate action live rather than advertised — and the
+        // large rows must NOT carry a maturity time, or they advertise an action they cannot fund.
+        assertGt(
+            ERC404BondingInstance(payable(lawbsters)).bondingMaturityTime(),
+            0,
+            "catalog: the small row carries no maturity time - the graduate action never unlocks"
         );
         assertEq(
-            mid.maxSupply(),
-            midCurveSupply * mid.unit(),
-            "catalog: the mid-curve row was created at something other than the collection's real supply"
+            ERC404BondingInstance(payable(schizo)).bondingMaturityTime(),
+            0,
+            "catalog: the flagship still advertises a graduate action it is not filled for"
         );
-        // The invented instances are ten pieces each; a roster row that quietly fell back to that
-        // default would still deploy, still trade and still look right on a card.
-        assertGt(flagship.maxSupply(), 10 * flagship.unit(), "catalog: the flagship fell back to the default supply");
-        assertGt(mid.maxSupply(), 10 * mid.unit(), "catalog: the mid-curve row fell back to the default supply");
+        assertLt(
+            ERC404BondingInstance(payable(lawbsters)).maxSupply(),
+            ERC404BondingInstance(payable(schizo)).maxSupply(),
+            "catalog: the graduate row is not the small one"
+        );
     }
 
     /// @dev THE 80% ENDOWMENT IS EXPRESSIBLE IN EXACTLY ONE PLACE, and this is the assertion that
@@ -601,11 +677,12 @@ contract SeedModuleCoverageTest is Test {
     }
 
     /// @dev The editions are TRUNCATED, and the truncation is the one thing that must never be
-    ///      readable as the collection's real size. So each row carries both numbers: the on-chain
-    ///      supply the fork actually holds, and the real supply in its metadata beside it. A surface
-    ///      reading either one alone gets a coherent but different answer, which is why neither is
-    ///      allowed to be the only one present.
-    function test_catalogEditions_carryBothTheSeededAndTheRealSupply() public view {
+    ///      readable as the size of the collection the row is an example of. So each row carries both
+    ///      numbers — the on-chain supply the fork holds and the example supply beside it — plus the
+    ///      statement that the example figures are illustrative. A surface reading either number alone
+    ///      gets a coherent but different answer, which is why neither is allowed to be the only one
+    ///      present, and why the basis rides along with them.
+    function test_catalogEditions_carryBothTheSeededAndTheExampleSupply() public view {
         (uint256[3] memory supplies, uint256[3] memory freeAllocations) = harness.catalogEditionSizes();
         address[3] memory rows = [anti, oekaki, milady333];
 
@@ -619,16 +696,16 @@ contract SeedModuleCoverageTest is Test {
                 "catalog: an edition's free allocation does not stand in for its real free/paid split"
             );
             assertTrue(
-                _contains(metadataURI, "\"realSupply\":\""),
-                "catalog: an edition does not record the collection's real supply"
+                _contains(metadataURI, "\"exampleSupply\":\""),
+                "catalog: an edition does not record the supply it is an example of"
             );
             assertTrue(
                 _contains(metadataURI, "\"truncation\":\""),
                 "catalog: an edition does not record how far it was truncated"
             );
             assertTrue(
-                _contains(metadataURI, "\"alignedEth\":\""),
-                "catalog: an edition does not record what alignment would have returned"
+                _contains(metadataURI, "\"figureBasis\":\"illustrative"),
+                "catalog: an edition presents its figures without saying they are illustrative"
             );
             // The seeded size must actually BE a truncation. An edition cut to its real size would
             // satisfy every assertion above while making the recorded ratio a lie.
@@ -695,6 +772,153 @@ contract SeedModuleCoverageTest is Test {
         assertEq(wrongIn.amountOut, 0, "route pin: answered a non-ETH input");
     }
 
+    // ── THE ART, THE ARTISTS, AND WHAT THE COPY IS ALLOWED TO SAY ──
+
+    /// @dev THE PRIMARY ACCEPTANCE TEST: every roster curve composes a piece pointer that resolves.
+    ///
+    ///      A row whose economics are perfect and whose pieces render as blank tiles is a failed seed,
+    ///      and the failure is quiet — a base missing its trailing slash addresses `<cid>7` instead of
+    ///      `<cid>/7`, and one carrying two produces `//7`, which some gateways serve and some do not.
+    ///      Neither shows up anywhere except in the composed string, which is why the composition is
+    ///      what is asserted rather than the base alone.
+    ///
+    ///      Content-addressed is required, not preferred: a base pointing at somebody's web server
+    ///      makes this fork's art depend on their uptime and points our demo traffic at their host.
+    function test_catalogArt_everyRowComposesAResolvablePointer() public view {
+        string[4] memory bases = harness.catalogPieceBases();
+        address[4] memory rows = [schizo, pixelady, boredmilady, lawbsters];
+
+        for (uint256 i = 0; i < rows.length; i++) {
+            bytes memory base = bytes(bases[i]);
+            assertGt(base.length, 8, "art: a roster row carries no per-piece base");
+            assertTrue(_startsWith(bases[i], "ipfs://"), "art: a roster row's base is not content-addressed");
+            assertEq(base[base.length - 1], bytes1("/"), "art: a roster row's base has no trailing slash");
+            assertTrue(base[base.length - 2] != bytes1("/"), "art: a roster row's base ends in a double slash");
+
+            // The composed pointer, read off the instance rather than recomputed from the same string
+            // twice: `metadataURI` IS the per-piece base the token concatenates against.
+            ERC404BondingInstance row = ERC404BondingInstance(payable(rows[i]));
+            assertEq(row.metadataURI(), bases[i], "art: a row's on-chain base is not the one the seed passed");
+            assertEq(
+                string.concat(row.metadataURI(), "7"),
+                string.concat(bases[i], "7"),
+                "art: a row does not compose its piece pointer to the intended string"
+            );
+        }
+
+        // The two auction families carry their URIs per piece rather than composing them, so the
+        // queued record is where the pointer lives. A queued piece with an empty URI is a piece that
+        // mints with no art at all.
+        address[3] memory auctions = [figmata, paradilf, petravoice];
+        for (uint256 i = 0; i < auctions.length; i++) {
+            (, string memory uri,,,,,,) = ERC721AuctionInstance(payable(auctions[i])).auctions(1);
+            assertTrue(_startsWith(uri, "ipfs://"), "art: an auction row queued a piece that is not content-addressed");
+            assertFalse(_contains(uri, "//1"), "art: an auction row queued a piece behind a double slash");
+        }
+    }
+
+    /// @dev THE ARTIST ENDOWMENTS ARE REAL, NOT DECORATIVE.
+    ///
+    ///      Four things, and each is a different way for this to render perfectly while demonstrating
+    ///      nothing: the target must exist as its own alignment target (not a relabelled community
+    ///      one), the vault must pay the artist's DERIVED FIXTURE address, the collection must be
+    ///      bound to THAT vault rather than to a sibling, and the vault must be an endowment rather
+    ///      than a liquidity vault — because the 80% leg is selected by the bound vault's family and
+    ///      a liquidity vault would silently split 1/19/80 instead.
+    function test_artistEndowments_areOwnTargetsThatPayTheArtist() public view {
+        string[2] memory slugs = harness.artistSlugs();
+        address[2] memory vaults = [d.paradilfVault, d.petravoiceVault];
+        address[2] memory rows = [paradilf, petravoice];
+
+        assertTrue(vaults[0] != vaults[1], "artist: both artists share one endowment vault");
+        assertTrue(vaults[0] != d.cultAaveVault, "artist: an artist target reuses the community endowment vault");
+        assertTrue(vaults[1] != d.endowmentVault, "artist: an artist target reuses the first target's vault");
+
+        for (uint256 i = 0; i < rows.length; i++) {
+            assertEq(
+                IEndowmentPayout(vaults[i]).communityPayout(),
+                ArtistEndowments.payout(slugs[i]),
+                "artist: the endowment pays somewhere other than the artist's derived fixture address"
+            );
+            assertEq(
+                address(ERC721AuctionInstance(payable(rows[i])).vault()),
+                vaults[i],
+                "artist: the collection is bound to another vault - it would endow somebody else"
+            );
+            assertFalse(
+                RevenueSplitLib.isLiquidityFamily(IAlignmentVault(payable(vaults[i])).vaultType()),
+                "artist: the endowment vault is a liquidity vault - the 80% leg is not selected"
+            );
+        }
+
+        // The payout is DERIVED, so it is reproducible across reseeds and belongs to nobody. Asserting
+        // it is non-zero is what stops the endowment from crystallizing yield it cannot deliver.
+        assertTrue(ArtistEndowments.payout(slugs[0]) != address(0), "artist: a derived payout is the zero address");
+        assertTrue(
+            ArtistEndowments.payout(slugs[0]) != ArtistEndowments.payout(slugs[1]),
+            "artist: both artists derive the same payout address"
+        );
+    }
+
+    /// @dev THE COPY SAYS WHAT THE ROSTER IS AND DOES NOT SAY WHAT IT IS NOT.
+    ///
+    ///      The roster presents EXAMPLES. It does not argue that the collections it echoes owe anybody
+    ///      a share of what they took, and it does not present its figures as measurements. Both of
+    ///      those are easy to reintroduce by writing one sentence, which is why this is a test rather
+    ///      than a comment: the framing is a decision, and a decision that only lives in prose gets
+    ///      rewritten by the next person who finds the prose inconvenient.
+    function test_catalogCopy_presentsExamplesRatherThanAClaim() public view {
+        address[3] memory editions = [anti, oekaki, milady333];
+        for (uint256 i = 0; i < editions.length; i++) {
+            (,,,,, string memory uri,,,) = ERC1155Instance(payable(editions[i])).editions(1);
+            _assertNoWithdrawnFraming(uri);
+            assertTrue(
+                _contains(uri, "illustrative"),
+                "catalog: an edition's metadata does not say its figures are illustrative"
+            );
+        }
+
+        address[3] memory auctions = [figmata, paradilf, petravoice];
+        for (uint256 i = 0; i < auctions.length; i++) {
+            _assertNoWithdrawnFraming(ERC721AuctionInstance(payable(auctions[i])).contractURI());
+        }
+
+        // The two artist rows must say plainly that they are demonstrations, because they are the two
+        // that name people. A fixture presented without the word is a claim about somebody.
+        assertTrue(
+            _contains(ERC721AuctionInstance(payable(paradilf)).contractURI(), "fixture"),
+            "artist: the row does not state that its payout and token are fixtures"
+        );
+        assertTrue(
+            _contains(ERC721AuctionInstance(payable(petravoice)).contractURI(), "fixture"),
+            "artist: the row does not state that its payout and token are fixtures"
+        );
+    }
+
+    /// @dev The framings the roster has withdrawn, checked as strings. Grepping for the words is
+    ///      coarser than reading the sentence, and that is the point: the words are cheap to avoid and
+    ///      expensive to reintroduce by accident.
+    function _assertNoWithdrawnFraming(string memory uri) internal pure {
+        assertFalse(_contains(uri, "would have gone"), "copy: a row still argues a counterfactual tithe");
+        assertFalse(_contains(uri, "tithe"), "copy: a row still frames the alignment as a tithe");
+        // Space-delimited on purpose: the bare stems are substrings of "escrowed", which is the word
+        // the endowment rows are built on, and a guard that reds on the correct copy gets deleted.
+        assertFalse(_contains(uri, " owes "), "copy: a row still argues that a collection owes somebody");
+        assertFalse(_contains(uri, " owed "), "copy: a row still argues that a collection owed somebody");
+        assertFalse(_contains(uri, "descended from"), "copy: a row still frames the collection as a derivative");
+        assertTrue(_contains(uri, "illustrative"), "copy: a row presents figures without saying they are illustrative");
+    }
+
+    function _startsWith(string memory haystack, string memory needle) internal pure returns (bool) {
+        bytes memory h = bytes(haystack);
+        bytes memory n = bytes(needle);
+        if (n.length > h.length) return false;
+        for (uint256 i = 0; i < n.length; i++) {
+            if (h[i] != n[i]) return false;
+        }
+        return true;
+    }
+
     /// @dev Naive substring search. Only used on short metadata strings in assertions.
     function _contains(string memory haystack, string memory needle) internal pure returns (bool) {
         bytes memory h = bytes(haystack);
@@ -719,12 +943,12 @@ contract SeedModuleCoverageTest is Test {
     ///      own vaults, not the first one's". A single-target config would make that rule vacuous —
     ///      every vault would be both — so the second target is what gives the binding assertions
     ///      something to be wrong about.
-    function _config(address weth, address stata, address second)
+    function _config(address weth, address stata, address second, address[2] memory artistTokens)
         internal
         pure
         returns (DeployCore.NetworkConfig memory cfg)
     {
-        DeployCore.AlignmentTargetConfig[] memory targets = new DeployCore.AlignmentTargetConfig[](2);
+        DeployCore.AlignmentTargetConfig[] memory targets = new DeployCore.AlignmentTargetConfig[](4);
         targets[0] = DeployCore.AlignmentTargetConfig({
             token: weth,
             symbol: "WETH",
@@ -744,6 +968,30 @@ contract SeedModuleCoverageTest is Test {
             deployCypherVault: true,
             deployZAMMVault: true,
             communityPayout: address(0)
+        });
+        // The two ARTIST targets. Endowment-only — no LP vault, because an endowment has no liquidity
+        // leg — and each carries a payout, which the community targets above deliberately leave unset.
+        // Without a payout the artist rows could not assert the one thing that distinguishes an
+        // endowment that pays an artist from one that pays nobody.
+        targets[2] = DeployCore.AlignmentTargetConfig({
+            token: artistTokens[0],
+            symbol: ArtistEndowments.PARADILF_SYMBOL,
+            name: ArtistEndowments.PARADILF_TITLE,
+            description: "Artist endowment target (fixture)",
+            deployUniVault: false,
+            deployCypherVault: false,
+            deployZAMMVault: false,
+            communityPayout: ArtistEndowments.payout(ArtistEndowments.PARADILF_SLUG)
+        });
+        targets[3] = DeployCore.AlignmentTargetConfig({
+            token: artistTokens[1],
+            symbol: ArtistEndowments.PETRAVOICE_SYMBOL,
+            name: ArtistEndowments.PETRAVOICE_TITLE,
+            description: "Artist endowment target (fixture)",
+            deployUniVault: false,
+            deployCypherVault: false,
+            deployZAMMVault: false,
+            communityPayout: ArtistEndowments.payout(ArtistEndowments.PETRAVOICE_SLUG)
         });
 
         cfg.chainId = 1337;

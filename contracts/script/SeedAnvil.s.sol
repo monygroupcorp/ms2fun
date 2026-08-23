@@ -21,7 +21,7 @@ import { IHooks } from "v4-core/interfaces/IHooks.sol";
 import { MetadataOverlayModule } from "../src/metadata/MetadataOverlayModule.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 import { MerkleProofLib } from "solady/utils/MerkleProofLib.sol";
-import { SeedAnvilShared } from "./SeedAnvilShared.sol";
+import { SeedAnvilShared, ArtistEndowments, IEndowmentPayout } from "./SeedAnvilShared.sol";
 
 /// @dev Minimal owner surface for enriching a seeded alignment target's description + logo metadata.
 interface IAlignmentTargetAdmin {
@@ -170,24 +170,25 @@ contract SeedAnvil is SeedAnvilShared {
 
     // ── THE ALIGNMENT CATALOG ROSTER ────────────────────────────────────────────────────────
     //
-    // READ THIS BEFORE CHANGING A NUMBER BELOW. Six of the seeded collections are not inventions:
-    // each one restates a real, MEASURED derivative collection — its supply, its mint revenue, and
-    // the share that would have returned to the community it derived from had it launched aligned.
-    // A visitor is meant to check the arithmetic, so the figures are the product, not decoration.
+    // THE ROSTER IS A SET OF EXAMPLES, NOT A MEASUREMENT. Several seeded collections stand in for
+    // real, recognisable collections; being recognisable is the whole of their job. Their figures are
+    // ILLUSTRATIVE — they give an armed curve the shape of a real one, they cost nothing, and they are
+    // never asserted, never presented as verified, and never worth spending ETH to make exact.
     //
-    // THE INFRASTRUCTURE IS OURS TO INVENT; THE NUMBERS ARE NOT. Pools, quoters, presets, clocks and
-    // truncated edition sizes are all fabricated to fit a local fork, and every fabrication is stated
-    // on chain in the instance's own metadata. Rounding a raise because it is inconvenient is not the
-    // same kind of act and is never in scope. If a figure below cannot be honoured, STOP — do not
-    // quietly move it to one that can.
+    // WHAT IS ASSERTED IS WIRING AND ART: that the preset the seed registered is the preset the
+    // instance got, that a row binds to the vault it names, and that every seeded piece composes a
+    // metadata pointer that actually resolves. Those are real failure modes, and each one is invisible
+    // on a card until somebody opens it.
     //
-    // Revenue is mint revenue except on the auction collection, where it is the sum of WINNING BIDS
-    // read from settlement events. A mint-transaction total undercounts an auction by an order of
-    // magnitude, because the winner's ETH arrives as bids and the settlement transaction carries
-    // none. Do not "correct" the auction figure back to a mint-transaction number.
-
-    // The roster's measured figures and its curve preset ids live in SeedAnvilShared: both phases
-    // read them, and a raise restated in two files is a raise that eventually disagrees with itself.
+    // WHAT THE ROSTER IS ARGUING. Not that these collections owe anyone anything. That the platform
+    // routes value to artists: a curve binds a share of every trade to a community's own token, an
+    // auction turns a hammer price into permanent endowment principal, and two of the four alignment
+    // targets are individual artists rather than communities. The roster is the demonstration surface
+    // for that, and its copy should read as demonstration rather than as accusation.
+    //
+    // The roster's figures, its curve preset ids and the artist-endowment fixtures live in
+    // SeedAnvilShared: both phases read them, and a figure restated in two files eventually disagrees
+    // with itself.
 
     // ── The alignment target's two registry legs ────────────────────────────────────────────
     // ACQUIRE: native ETH / CULT on Uniswap V4, 1% tier, hookless. The 0.3% tier is INITIALIZED and
@@ -202,18 +203,18 @@ contract SeedAnvil is SeedAnvilShared {
     uint8 constant CULT_REFERENCE_KIND = 0; // Uniswap V3 `observe`
     uint32 constant CULT_REFERENCE_TWAP_WINDOW = 0; // 0 => the registry's default window
 
-    // ── The ERC-1155 tranche — freebie collections, TRUNCATED ───────────────────────────────
-    // The seed demonstrates the family; it does not re-mint ten thousand tokens onto a fork. Each
-    // edition is cut to a demo size and the cut is recorded BOTH in the instance's on-chain metadata
-    // and in the PR body. The counterfactual a visitor reads must always cite the REAL figures —
-    // presenting a truncated edition's on-chain supply as the collection's real supply would be the
-    // one unforgivable defect in this seed, which is why the real figures ride the metadata too.
-    uint256 constant ANTI_SEEDED_SUPPLY = 40; // real 10,000 -> 1:250
-    uint256 constant ANTI_FREE_ALLOC = 39; // real split was 9,732 free / 268 paid
-    uint256 constant OEKAKI_SEEDED_SUPPLY = 50; // real 5,555 -> ~1:111
-    uint256 constant OEKAKI_FREE_ALLOC = 37; // real split was 4,134 free / 1,421 paid
-    uint256 constant MILADY333_SEEDED_SUPPLY = 37; // real 333 -> 1:9
-    uint256 constant MILADY333_FREE_ALLOC = 37; // real split was 333 free / 0 paid
+    // ── The ERC-1155 tranche — free-mint-heavy examples, TRUNCATED ──────────────────────────
+    // The seed demonstrates the family; it does not mint ten thousand tokens onto a fork. Each
+    // edition is cut to a demo size, and the cut rides the instance's own on-chain metadata beside
+    // the example supply it stands in for. That pairing is the load-bearing part: a truncated
+    // edition's on-chain supply is the one figure a surface can read directly, so leaving it to be
+    // mistaken for the size it is an example of would misstate the only real number on the row.
+    uint256 constant ANTI_SEEDED_SUPPLY = 40; // example 10,000 -> 1:250
+    uint256 constant ANTI_FREE_ALLOC = 39; // the split it stands in for was mostly free
+    uint256 constant OEKAKI_SEEDED_SUPPLY = 50; // example 5,555 -> ~1:111
+    uint256 constant OEKAKI_FREE_ALLOC = 37; // roughly three quarters free, one quarter paid
+    uint256 constant MILADY333_SEEDED_SUPPLY = 37; // example 333 -> 1:9
+    uint256 constant MILADY333_FREE_ALLOC = 37; // free from the first piece to the last
 
     // ── Auction shape ───────────────────────────────────────────────────────────────────────
     // The orchestrator advances the chain +70m after phase 1 and +120m after phase 2, and
@@ -227,12 +228,29 @@ contract SeedAnvil is SeedAnvilShared {
     // Settled-with-real-principal is the half that carries the 80% endowment, so it is the half kept.
     uint40 constant FIGMATA_DURATION = 45 minutes;
     uint8 constant FIGMATA_LINES = 3;
-    // Deposit per queued piece = the collection's real MINIMUM winning bid. Winning bids below are
-    // the measured minimum, median and maximum of its real settlement distribution.
+    // Deposit per queued piece, and three bid sizes spanning a plausible settlement spread, so the
+    // endowment ends up holding 80% of a distribution rather than of one repeated number. These are
+    // illustrative sizes; nothing downstream asserts them.
     uint256 constant FIGMATA_MIN_BID = 0.095 ether;
     uint256 constant FIGMATA_BID_MEDIAN = 0.3 ether;
     uint256 constant FIGMATA_BID_HIGH = 0.95 ether;
     uint256 constant FIGMATA_BID_MAX = 4.025 ether;
+
+    // ── The artist endowments ───────────────────────────────────────────────────────────────
+    // Two auction collections, one per artist target, and the auction family is not a stylistic
+    // choice: the 80% endowment leg is `splitMintFor(amount, liquidityFamily = false)`, reachable
+    // from the ERC-1155 and ERC-721 settlement paths only. An ERC404 curve bound to an endowment
+    // vault would render a vault panel that nothing ever feeds.
+    //
+    // Small on purpose. These exist to make the target list argue something and to give each artist
+    // vault real escrowed principal to render — not to be large. The duration mirrors the other
+    // auction row so the orchestrator's first advance can settle the openers, which is the only way
+    // principal reaches the endowment through the 80% leg rather than as a donation.
+    uint8 constant ARTIST_LINES = 2;
+    uint40 constant ARTIST_DURATION = 45 minutes;
+    uint256 constant ARTIST_MIN_BID = 0.05 ether;
+    uint256 constant ARTIST_BID_HIGH = 3 ether;
+    uint256 constant ARTIST_BID_LOW = 2.3 ether;
 
     // Anvil account #2, the second bidder. Well-known public test key; `PERSON` is its address and
     // already carries the agent-delegation demo's collection, so the seed's two non-deployer actors
@@ -297,7 +315,13 @@ contract SeedAnvil is SeedAnvilShared {
         _registerCatalogPresets(d);
         _seedCatalogFlagship(d);
         _seedCatalogMidCurve(d);
+        _seedCatalogSecondMidCurve(d);
+        _seedCatalogGraduate(d);
         _seedCatalogAuction(d);
+        // The artist endowments — the two targets that make the roster an argument about artists
+        // rather than about one community. After the community rows on purpose: they read as the
+        // generalisation of what those rows do, not as a separate feature.
+        _seedArtistEndowments(d);
         _seedCatalogEditions(d);
 
         // ── ERC721 live (1-day duration -> stays ACTIVE after the advance) ──
@@ -343,6 +367,10 @@ contract SeedAnvil is SeedAnvilShared {
         console.log(
             "ERC404 : armed but UNBOUGHT - preopen(cypher) + mid-curve(uniV4) + 3 ready-to-graduate (cinder=uniV4, molten=zamm, quench=cypher) + carve + stacked(zamm)"
         );
+        console.log(
+            "CATALOG: 4 curves (schizo/pixelady/bored-milady armed large + mid-curve, lawbsters small + graduate-ready)"
+        );
+        console.log("ARTIST : 2 endowment targets (ids 3, 4) with an auction collection each");
         console.log("Vaults : all 4 flavors used (aave/uni/zamm/cypher); AMMs: all 3 (uniV4/zamm/cypher)");
         console.log(
             "Gating : 2 merkle-allowlisted instances (veil-list ERC1155 BOTH, sigil-gate ERC404 FREE_MINT_ONLY)"
@@ -351,10 +379,11 @@ contract SeedAnvil is SeedAnvilShared {
         console.log("NEXT   : deploy.ts advances the chain past every openTime, then runs SeedAnvilBuys");
     }
 
-    /// @dev Enrich the two seeded alignment targets (registered by DeployCore with empty metadataURI)
+    /// @dev Enrich the four seeded alignment targets (registered by DeployCore with empty metadataURI)
     ///      with a richer description + a logo, so the Vaults-page "Alignment targets" section has
-    ///      something to show. Targets are ids 1 (MS2) + 2 (CULT); deployer still owns the registry at
-    ///      seed time (protocol-admin handover is deferred — see _transferAdmin).
+    ///      something to show. Ids 1 (MS2) and 2 (the community token) are the community targets; 3
+    ///      and 4 are the artist endowments. The deployer still owns the registry at seed time
+    ///      (protocol-admin handover is deferred — see _transferAdmin).
     function _enrichAlignmentTargets(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
         IAlignmentTargetAdmin reg = IAlignmentTargetAdmin(d.alignmentRegistry);
@@ -363,9 +392,26 @@ contract SeedAnvil is SeedAnvilShared {
         // The token is the community's own ERC20 — first-party, which is the entire point: the
         // derivative collections align back to the parent's real token rather than to a proxy for it.
         string memory cult =
-            "The Remilia / Milady community and the derivative collections descended from it. Aligned collections bind ~20% of their fees to the community's own token, by contract, forever.";
-        reg.updateAlignmentTarget(1, ms2, _collectionMeta("Milady-Station-2", ms2, ART_AVATAR_1));
-        reg.updateAlignmentTarget(2, cult, _collectionMeta("Milady Cult Coin", cult, ART_AVATAR_2));
+            "The Remilia / Milady community and the collections aligned to it. An aligned collection binds ~20% of its fees to the community's own token, by contract, forever.";
+        // THE TWO ARTIST TARGETS ARE THE ARGUMENT. A target list with one large community token and
+        // two individual artists says, before any collection is opened, that this is an
+        // artist-exaltation platform on which a large community is one instance rather than the
+        // purpose. Both descriptions say plainly that the payout address and the alignment token are
+        // generated fixtures, so nothing here reads as a claim about a real person's wallet.
+        string memory paradilf =
+            "An artist endowment. Collections aligned here do not buy a token - they escrow permanent principal in a vault that supplies it to Aave, and the yield streams to the artist for as long as the principal sits there. This is a demonstration target: the payout address and the alignment token beside it are generated fixtures, not a real person's.";
+        string memory petravoice =
+            "An artist endowment, held for an artist and paid to them. A collection aligned here escrows permanent principal and streams its yield to their payout address - they keep receiving it without having to sell anything, and the principal is never spent. Demonstration target: the payout address and the alignment token are generated fixtures, not a real person's.";
+        reg.updateAlignmentTarget(TARGET_ID_MS2, ms2, _collectionMeta("Milady-Station-2", ms2, ART_AVATAR_1));
+        reg.updateAlignmentTarget(TARGET_ID_CULT, cult, _collectionMeta("Milady Cult Coin", cult, ART_AVATAR_2));
+        reg.updateAlignmentTarget(
+            TARGET_ID_PARADILF, paradilf, _collectionMeta(ArtistEndowments.PARADILF_TITLE, paradilf, ART_RELIC_I)
+        );
+        reg.updateAlignmentTarget(
+            TARGET_ID_PETRAVOICE,
+            petravoice,
+            _collectionMeta(ArtistEndowments.PETRAVOICE_TITLE, petravoice, ART_RELIC_II)
+        );
         vm.stopBroadcast();
     }
 
@@ -1470,73 +1516,100 @@ contract SeedAnvil is SeedAnvilShared {
         console.log("  LP vault :", d.cultUniVault);
     }
 
-    /// @dev Register the two catalog-sized curve presets. `setPreset` guards only against a zero
+    /// @dev Register the four catalog-sized curve presets. `setPreset` guards only against a zero
     ///      target, a zero unit, an out-of-band reserve and a zero computer — there is no ceiling on
     ///      `targetETH` anywhere in the contract, so a raise the size of a real collection's is
     ///      expressible today and needs no protocol change. Everything except the target is carried
     ///      over from the STANDARD preset, so a catalog curve differs from a production one in SIZE
     ///      ONLY; read the source preset rather than restating its fields, or the two drift apart
     ///      silently the first time STANDARD is retuned.
+    ///
+    ///      ARMING IS FREE. A preset only prices the curve; nothing is spent until somebody buys along
+    ///      it. So a row can carry the raise its real counterpart suggests while the seed buys a
+    ///      fraction of it, which is exactly what phase 2 does on the three large rows.
     function _registerCatalogPresets(Deployed memory d) internal {
         LaunchManager lm = LaunchManager(d.launchManager);
         LaunchManager.Preset memory std = lm.getPreset(PRESET_SOURCE);
 
         vm.startBroadcast(deployerKey);
-        lm.setPreset(
-            PRESET_SCHIZO,
-            LaunchManager.Preset({
-                targetETH: SCHIZO_REAL_RAISE,
-                unitPerNFT: std.unitPerNFT,
-                liquidityReserveBps: std.liquidityReserveBps,
-                curveComputer: std.curveComputer,
-                active: true
-            })
-        );
-        lm.setPreset(
-            PRESET_PIXELADY,
-            LaunchManager.Preset({
-                targetETH: PIXELADY_REAL_RAISE,
-                unitPerNFT: std.unitPerNFT,
-                liquidityReserveBps: std.liquidityReserveBps,
-                curveComputer: std.curveComputer,
-                active: true
-            })
-        );
+        _setCatalogPreset(lm, std, PRESET_SCHIZO, SCHIZO_REAL_RAISE);
+        _setCatalogPreset(lm, std, PRESET_PIXELADY, PIXELADY_REAL_RAISE);
+        _setCatalogPreset(lm, std, PRESET_BOREDMILADY, BOREDMILADY_REAL_RAISE);
+        _setCatalogPreset(lm, std, PRESET_LAWBSTERS, LAWBSTERS_REAL_RAISE);
         vm.stopBroadcast();
 
-        // A preset that did not take would surface much later as a curve priced for the wrong raise,
-        // which is exactly the number the seed exists to make checkable. Catch it here.
-        LaunchManager.Preset memory a = lm.getPreset(PRESET_SCHIZO);
-        LaunchManager.Preset memory b = lm.getPreset(PRESET_PIXELADY);
-        require(a.targetETH == SCHIZO_REAL_RAISE, "catalog: flagship preset did not take its raise");
-        require(b.targetETH == PIXELADY_REAL_RAISE, "catalog: mid-curve preset did not take its raise");
-        require(a.unitPerNFT == std.unitPerNFT && b.unitPerNFT == std.unitPerNFT, "catalog: preset unit drifted");
-        require(
-            a.liquidityReserveBps == std.liquidityReserveBps && b.liquidityReserveBps == std.liquidityReserveBps,
-            "catalog: preset LP reserve drifted from the protocol preset"
-        );
+        // A preset that did not take would surface much later as a curve priced for a raise nobody
+        // chose. This is a WIRING check, not an accuracy claim: what it proves is that the preset the
+        // seed registered is the preset the instance will be created against.
+        _assertCatalogPreset(lm, std, PRESET_SCHIZO, SCHIZO_REAL_RAISE);
+        _assertCatalogPreset(lm, std, PRESET_PIXELADY, PIXELADY_REAL_RAISE);
+        _assertCatalogPreset(lm, std, PRESET_BOREDMILADY, BOREDMILADY_REAL_RAISE);
+        _assertCatalogPreset(lm, std, PRESET_LAWBSTERS, LAWBSTERS_REAL_RAISE);
 
-        console.log("CATALOG presets registered (ids 10, 11), carried from preset", PRESET_SOURCE);
-        console.log("  id 10 targetETH (wei):", a.targetETH);
-        console.log("  id 11 targetETH (wei):", b.targetETH);
+        console.log("CATALOG presets registered (ids 10-13), carried from preset", PRESET_SOURCE);
+        console.log("  id 10 targetETH (wei):", lm.getPreset(PRESET_SCHIZO).targetETH);
+        console.log("  id 11 targetETH (wei):", lm.getPreset(PRESET_PIXELADY).targetETH);
+        console.log("  id 12 targetETH (wei):", lm.getPreset(PRESET_BOREDMILADY).targetETH);
+        console.log("  id 13 targetETH (wei):", lm.getPreset(PRESET_LAWBSTERS).targetETH);
     }
 
-    /// @dev FLAGSHIP — the census's largest raise, armed at its real size and left one call short of
-    ///      graduating. Phase 2 buys the curve out; the graduate action itself is left for a human,
-    ///      so the site shows the split happening rather than a finished artifact. `declaredMax` is 0
-    ///      deliberately: with no creator carve the graduation arithmetic is the unmodified 1/19/80,
-    ///      which is the counterfactual the row is making and the number a visitor can check.
+    /// @dev One catalog preset: the protocol preset with a different raise, and nothing else changed.
+    function _setCatalogPreset(LaunchManager lm, LaunchManager.Preset memory std, uint8 id, uint256 targetETH)
+        internal
+    {
+        lm.setPreset(
+            id,
+            LaunchManager.Preset({
+                targetETH: targetETH,
+                unitPerNFT: std.unitPerNFT,
+                liquidityReserveBps: std.liquidityReserveBps,
+                curveComputer: std.curveComputer,
+                active: true
+            })
+        );
+    }
+
+    function _assertCatalogPreset(LaunchManager lm, LaunchManager.Preset memory std, uint8 id, uint256 targetETH)
+        internal
+        view
+    {
+        LaunchManager.Preset memory got = lm.getPreset(id);
+        require(got.targetETH == targetETH, "catalog: a preset did not take the raise it was registered with");
+        require(got.unitPerNFT == std.unitPerNFT, "catalog: preset unit drifted from the protocol preset");
+        require(
+            got.liquidityReserveBps == std.liquidityReserveBps,
+            "catalog: preset LP reserve drifted from the protocol preset"
+        );
+        require(got.curveComputer == std.curveComputer, "catalog: preset uses another curve computer");
+        require(got.active, "catalog: preset registered inactive");
+    }
+
+    /// @dev FLAGSHIP — the largest curve on the roster, armed at the size a real collection of its
+    ///      shape suggests. Phase 2 buys a FRACTION of it: arming costs nothing, and buying a curve
+    ///      out to land the reserve on an exact figure would be spending real ETH to prop up an
+    ///      accuracy claim this roster does not make. `declaredMax` is 0 deliberately — with no
+    ///      creator carve the graduation arithmetic is the unmodified 1/19/80, which is the shape the
+    ///      row is demonstrating.
+    ///
+    ///      The READY-TO-GRADUATE posture moved off this row and onto the small one below, where the
+    ///      whole curve can be bought out for a couple of ETH and the graduate action is genuinely
+    ///      live. `cinder`/`molten`/`quench` carry the same posture per LP venue.
     ///
     ///      ART: the real collection serves its metadata from a live third-party domain, so the
     ///      pieces take one of the seed's own pinned IPFS bases instead. Wiring the real host would
     ///      make this fork's art depend on somebody else's uptime and point our traffic at it.
+    ///      Do not "improve" this into the real host.
+    ///
+    ///      DESCRIPTION: the LONG one on the roster, on purpose. The description field is demo
+    ///      surface — a page that only ever renders one grey line has not been shown doing its job —
+    ///      and the renderer takes plain text, so length and phrasing are the only axes there are.
     function _seedCatalogFlagship(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
         address inst = _createBonding(
             d,
             "schizo-posters",
             "Schizo Posters",
-            "The census's largest derivative raise, re-armed at its real size. A full curve here raises exactly what the collection actually raised - and binds 19% of it to the community it descended from. Art is a stand-in: the real collection serves metadata from a domain, not from content-addressed storage.",
+            "A demonstration collection, standing in for a large poster drop so the biggest curve on this chain has a recognisable shape. Here is what the shape means. The curve is armed at a raise in the hundreds of ETH, and the price of the next piece is solved from that raise and the collection size together - so a big collection and a small one are the same mechanism at different amplitudes, not two different products. Every trade along the curve binds 19% of the take to an alignment target, by contract and without anybody choosing to be generous on the day. What is seeded here is a slice of that curve rather than the whole of it: the figures are illustrative, they are not measurements, and nothing on this page should be read as an audited number. The art is a stand-in too - the collection this row echoes serves its metadata from a web server rather than from content-addressed storage, and pointing a demonstration at somebody else's host is not something we do.",
             "SCHIZO",
             ART_SCHIZO,
             ART_BASE_ARCTIC,
@@ -1548,17 +1621,18 @@ contract SeedAnvil is SeedAnvilShared {
             PRESET_SCHIZO
         );
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
-        // Same arming as the other ready-to-graduate instances: open crossed by the first advance so
-        // the phase-2 buys land on an open curve, maturity crossed by the second so the app boots
-        // with the graduate action unlocked. We never call deployLiquidity here.
+        // Open time crossed by the orchestrator's first advance so the phase-2 buys land on an open
+        // curve. NO maturity time: this row is no longer the graduate demo, and a curve filled to a
+        // quarter that also advertised a graduate action would be advertising one that cannot pay for
+        // itself. We never call deployLiquidity here.
         b.setBondingOpenTime(block.timestamp + 1 hours);
-        b.setBondingMaturityTime(block.timestamp + 90 minutes);
         b.setBondingActive(true);
         d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.07 ether);
         vm.stopBroadcast();
+        _assertPieceBase(ART_BASE_ARCTIC, "schizo-posters");
         _seeded.schizo = inst;
 
-        console.log("CATALOG flagship (ready-to-graduate):", inst);
+        console.log("CATALOG flagship (mid-curve, armed large):", inst);
     }
 
     /// @dev MID-CURVE — the instance the site's live features are demonstrated on, so it must sit
@@ -1575,7 +1649,7 @@ contract SeedAnvil is SeedAnvilShared {
             d,
             "pixelady-maker",
             "Pixelady Maker",
-            "A ten-thousand-piece derivative, mid-curve and aligned. Every trade routes 19% of the take to the community the collection descended from, by contract. The art is the collection's own, straight off content-addressed storage.",
+            "A ten-thousand-piece demonstration collection, sitting mid-curve. Every trade routes 19% of the take to the alignment target this collection is bound to, by contract. The art is real and comes straight off content-addressed storage; the figures are illustrative.",
             "PXLDY",
             ART_PIXELADY,
             ART_BASE_PIXELADY,
@@ -1593,9 +1667,90 @@ contract SeedAnvil is SeedAnvilShared {
         b.setBondingActive(true);
         d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.068 ether);
         vm.stopBroadcast();
+        _assertPieceBase(ART_BASE_PIXELADY, "pixelady-maker");
         _seeded.pixelady = inst;
 
         console.log("CATALOG mid-curve:", inst);
+    }
+
+    /// @dev SECOND MID-CURVE — a large, widely-recognised collection the roster was missing. Same
+    ///      shape as the row above (no maturity time, a partial fill in phase 2) because the point it
+    ///      makes is different: one recognisable row can be read as a one-off, two cannot.
+    ///
+    ///      ART: real, and content-addressed. `tokenURI(1)` on the collection this row echoes answers
+    ///      `ipfs://<cid>/1` — bare-id form, which is exactly what `base + tokenId` reproduces — so
+    ///      the pieces resolve to the actual art with no re-hosting and no third-party host in the path.
+    ///
+    ///      DESCRIPTION: the SHORT one on the roster, deliberately. A surface that renders the long
+    ///      description well and collapses on a one-liner is still broken, and the only way to know is
+    ///      to have both on the chain.
+    function _seedCatalogSecondMidCurve(Deployed memory d) internal {
+        vm.startBroadcast(deployerKey);
+        address inst = _createBonding(
+            d,
+            "bored-milady",
+            "Bored Milady",
+            "A demonstration collection, mid-curve, aligned at 19%. Illustrative figures, real art.",
+            "BRDMLD",
+            ART_BOREDMILADY,
+            ART_BASE_BOREDMILADY,
+            address(0),
+            d.cultUniVault,
+            d.uniDeployer,
+            0,
+            BOREDMILADY_REAL_SUPPLY,
+            PRESET_BOREDMILADY
+        );
+        ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
+        b.setBondingOpenTime(block.timestamp + 1 hours);
+        b.setBondingActive(true);
+        d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.069 ether);
+        vm.stopBroadcast();
+        _assertPieceBase(ART_BASE_BOREDMILADY, "bored-milady");
+        _seeded.boredmilady = inst;
+
+        console.log("CATALOG second mid-curve:", inst);
+    }
+
+    /// @dev THE READY-TO-GRADUATE ROW, and it is the SMALL collection on purpose. A few-hundred-piece
+    ///      curve armed at a few ETH can be bought out in full for a couple of ETH, so the graduate
+    ///      action on this chain is genuinely live rather than a posture held at three hundred ETH of
+    ///      fill. Phase 2 buys the curve out; GRADUATION IS LEFT UNCROSSED — a visitor performs it,
+    ///      and watching the split happen is worth more than finding it already done.
+    ///
+    ///      Maturity is crossed by the orchestrator's second advance, which is what unlocks the action
+    ///      without taking it. `deployLiquidity` is never called here or in phase 2.
+    ///
+    ///      ART: real, content-addressed, bare-id form — same test the two rows above pass.
+    ///
+    ///      DESCRIPTION: the one that names the mechanic it is here to show.
+    function _seedCatalogGraduate(Deployed memory d) internal {
+        vm.startBroadcast(deployerKey);
+        address inst = _createBonding(
+            d,
+            "lawbsters",
+            "Lawbsters",
+            "The graduate demo. This one is small enough that its whole curve is already bought, which is what unlocks the action on the collection page: graduating deploys the liquidity reserve into a real pool and settles the 1/19/80 split, 19% of it bound to the alignment target. It has not been graduated yet - that is the button, and it is left for you to press. Demonstration collection with illustrative figures; the art is the collection's own.",
+            "LAWB",
+            ART_LAWBSTERS,
+            ART_BASE_LAWBSTERS,
+            address(0),
+            d.cultUniVault,
+            d.uniDeployer,
+            0,
+            LAWBSTERS_REAL_SUPPLY,
+            PRESET_LAWBSTERS
+        );
+        ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
+        b.setBondingOpenTime(block.timestamp + 1 hours);
+        b.setBondingMaturityTime(block.timestamp + 90 minutes);
+        b.setBondingActive(true);
+        d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.071 ether);
+        vm.stopBroadcast();
+        _assertPieceBase(ART_BASE_LAWBSTERS, "lawbsters");
+        _seeded.lawbsters = inst;
+
+        console.log("CATALOG ready-to-graduate (small):", inst);
     }
 
     /// @dev THE 80% ENDOWMENT — an ERC-721 auction collection bound to the target's OWN Aave
@@ -1606,9 +1761,9 @@ contract SeedAnvil is SeedAnvilShared {
     ///
     ///      Phase 1 queues the pieces and places the opening bids; phase 2 settles them once the
     ///      chain has passed their end time, and settlement is what puts real principal into the
-    ///      endowment. Bids are the collection's own measured minimum, median and maximum winning
-    ///      bids, so the principal the vault ends up holding is 80% of a real distribution rather
-    ///      than of a made-up one.
+    ///      endowment. The bids span a spread rather than repeating one size, so the principal the
+    ///      vault ends up holding is 80% of a distribution and the vault panel has something with
+    ///      shape in it.
     ///
     ///      ART: the real collection's metadata is immutable IPFS in bare-id form, and an ERC-721
     ///      piece carries its token URI directly, so each queued piece IS the real metadata pointer.
@@ -1618,16 +1773,16 @@ contract SeedAnvil is SeedAnvilShared {
             name: "pixelady-figmata",
             metadataURI: _catalogMeta(
                 "Pixelady Figmata",
-                "An auction-native derivative, aligned at 80%. Every hammer price is split 80/19/1 - and the 80 is not the creator's, it is permanent endowment principal held for the community the collection descended from. Pieces carry the collection's own metadata.",
+                "The endowment demo. This collection is auction-native, and every hammer price here splits 80/19/1 - the 80 is not the creator's cut, it is permanent principal escrowed in an endowment vault that supplies it to Aave and streams the yield to the community this collection is aligned to. Settle an auction and watch the principal appear in the vault panel. Demonstration collection with illustrative figures; the pieces carry real, content-addressed art.",
                 ART_FIGMATA,
                 CatalogFacts({
-                    realSupply: "180",
-                    realRevenueEth: "90.2673",
-                    revenueBasis: "sum of winning bids, read from settlement events",
-                    alignedEth: "72.2138",
-                    alignedShare: "80% endowment",
+                    standsInFor: "an auction-native collection",
+                    exampleSupply: "180",
+                    exampleRaiseEth: "90.2673",
+                    figureBasis: "illustrative, not a measurement of record",
+                    routesTo: "80% endowment",
                     seededSupply: "6 queued pieces",
-                    truncation: "history truncated: the real collection settled 180 auctions"
+                    truncation: "history truncated: the collection this row echoes settled 180 auctions"
                 })
             ),
             creator: deployer,
@@ -1661,6 +1816,8 @@ contract SeedAnvil is SeedAnvilShared {
         a.createBid{ value: FIGMATA_BID_HIGH }(2, "");
         vm.stopBroadcast();
 
+        _assertPieceBase(ART_BASE_FIGMATA, "pixelady-figmata");
+        _assertQueuedPieceURIs(a, ART_BASE_FIGMATA, uint24(uint256(FIGMATA_LINES) * 2), "pixelady-figmata");
         _catalog.figmata = inst;
 
         // The three opening auctions must actually be settleable by phase 2, or the endowment ends up
@@ -1680,16 +1837,150 @@ contract SeedAnvil is SeedAnvilShared {
         console.log("  endowment vault:", d.cultAaveVault);
     }
 
-    /// @dev THE ERC-1155 TRANCHE — three free-mint-heavy collections, each cut to a demo-sized
-    ///      edition. The real supply, the real revenue, the aligned share and the truncation ratio all
-    ///      ride the on-chain metadata, because the counterfactual a visitor reads has to cite the
-    ///      REAL figures: letting a truncated edition's on-chain supply be mistaken for the
-    ///      collection's real supply would invalidate every number on the page.
+    /// @dev THE ARTIST ENDOWMENTS — one small auction collection per artist target, bound to that
+    ///      artist's own Aave endowment vault.
+    ///
+    ///      WHAT AN ARTIST ENDOWMENT ACTUALLY IS, because it needs less machinery than it looks.
+    ///      `AlignmentEndowmentVault` buys nobody's token: it wraps ETH to WETH, supplies it to Aave,
+    ///      and `harvest()` splits the yield between the benefactor's claimable purse and the target's
+    ///      `communityPayout`. Its `alignmentToken` exists only to satisfy `registerVault`'s check.
+    ///      So an artist endowment is escrowed principal streaming yield to a payout address — which
+    ///      is what "exaltation" should mean, and it needs no token to exist for the artist. It is
+    ///      also the framing that describes what this vault family does: the family has no swap path
+    ///      at all, so a collection bound here never buys anything on anyone's behalf.
+    ///
+    ///      THE AUCTION FAMILY IS FORCED, not chosen. The 80% leg is reachable from a settlement path
+    ///      only, so a curve bound to an endowment vault would render a panel nothing feeds.
+    ///
+    ///      ART: these two are not standing in for real collections, so their pieces take the seed's
+    ///      own pinned IPFS bases — one each, and neither is the base of a collection sitting beside
+    ///      them, so each reads as its own drop.
+    ///
+    ///      NO REAL PERSON'S ADDRESS OR HANDLE reaches an on-chain field here. The payout is derived
+    ///      from a slug, the alignment token is a fixture, and every description says so.
+    function _seedArtistEndowments(Deployed memory d) internal {
+        _catalog.paradilf = _seedArtistEndowment(
+            d,
+            d.paradilfVault,
+            ArtistEndowments.PARADILF_SLUG,
+            ArtistEndowments.PARADILF_TITLE,
+            "PDLFC",
+            "An artist endowment, shown end to end. Bid, and when the auction settles 80% of the hammer price does not go to the creator and does not go into a liquidity pool - it is escrowed as permanent principal in a vault that supplies it to Aave and streams the yield to the artist. The principal is never spent, so the payment does not stop. This is a demonstration collection: the artist payout is a generated fixture address and the alignment token beside it is a fixture too.",
+            ART_RELIC_I,
+            ART_BASE_SIMIAN
+        );
+        _catalog.petravoice = _seedArtistEndowment(
+            d,
+            d.petravoiceVault,
+            ArtistEndowments.PETRAVOICE_SLUG,
+            ArtistEndowments.PETRAVOICE_TITLE,
+            "PTRAC",
+            "Aligned to an artist, and the endowment pays them. Settlements escrow 80% of each hammer price as permanent principal and the yield streams to their payout address. Demonstration collection: fixture payout, fixture token.",
+            ART_RELIC_II,
+            ART_BASE_DOODLE
+        );
+    }
+
+    /// @dev One artist endowment collection: create, queue, bid. Phase 2 settles — which is what turns
+    ///      a hammer price into escrowed principal — and asserts the vault actually took it.
+    function _seedArtistEndowment(
+        Deployed memory d,
+        address vault,
+        string memory slug,
+        string memory title,
+        string memory symbol,
+        string memory description,
+        string memory image,
+        string memory pieceBase
+    ) internal returns (address inst) {
+        // The vault must be the one the registry pinned this artist's payout on. A collection bound to
+        // the wrong endowment still trades, still settles and still renders a vault panel — it simply
+        // endows somebody else, and nothing on the page would say so.
+        require(vault != address(0), "artist endowment: no vault resolved for this target");
+        require(
+            IEndowmentPayout(vault).communityPayout() == ArtistEndowments.payout(slug),
+            "artist endowment: the vault pays somewhere other than this artist's derived fixture address"
+        );
+        _assertPieceBase(pieceBase, slug);
+
+        vm.startBroadcast(deployerKey);
+        ERC721AuctionFactory.CreateParams memory params = ERC721AuctionFactory.CreateParams({
+            name: slug,
+            metadataURI: _catalogMeta(
+                title,
+                description,
+                image,
+                CatalogFacts({
+                    standsInFor: "an artist endowment, not a collection that exists",
+                    exampleSupply: "4 queued pieces",
+                    exampleRaiseEth: "5.3",
+                    figureBasis: "illustrative, not a measurement of record",
+                    routesTo: "80% artist endowment",
+                    seededSupply: "4 queued pieces",
+                    truncation: "none: this collection is a demonstration fixture, not a truncation of a real one"
+                })
+            ),
+            creator: deployer,
+            vault: vault, // the endowment family — this is what selects the 80% split
+            symbol: symbol,
+            lines: ARTIST_LINES,
+            baseDuration: ARTIST_DURATION,
+            timeBuffer: 300,
+            bidIncrement: 0.01 ether
+        });
+        inst = d.erc721.createInstance(keccak256(abi.encode(block.timestamp, slug, "artist")), params);
+        _instances.push(inst);
+
+        ERC721AuctionInstance a = ERC721AuctionInstance(payable(inst));
+        // Two per line: the first of each auto-starts and is settled in phase 2; the second is what
+        // that settlement advances the line to, so the collection boots live rather than finished.
+        for (uint256 i = 1; i <= uint256(ARTIST_LINES) * 2; i++) {
+            a.queuePiece{ value: ARTIST_MIN_BID }(string.concat(pieceBase, vm.toString(i)));
+        }
+        d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.065 ether);
+        vm.stopBroadcast();
+
+        // The two non-deployer actors bid. A creator bidding on its own line would settle into its own
+        // endowment, which demonstrates nothing.
+        vm.startBroadcast(ACCOUNT_1_KEY);
+        a.createBid{ value: ARTIST_BID_HIGH }(1, "");
+        vm.stopBroadcast();
+        vm.startBroadcast(PERSON_KEY);
+        a.createBid{ value: ARTIST_BID_LOW }(2, "");
+        vm.stopBroadcast();
+
+        // Settleable before the orchestrator's first advance, or the endowment ends up empty and the
+        // whole row demonstrates the opposite of what it claims.
+        for (uint24 id = 1; id <= uint24(ARTIST_LINES); id++) {
+            (,,, address highBidder, uint256 highBid,, uint40 endTime,) = a.auctions(id);
+            require(highBidder != address(0), "artist endowment: an opening auction carries no bid");
+            require(highBid > 0, "artist endowment: an opening auction settled at zero");
+            require(
+                uint256(endTime) <= block.timestamp + uint256(ARTIST_DURATION),
+                "artist endowment: an opening auction was extended past the window phase 2 can settle in"
+            );
+        }
+        // THE ART, CHECKED AS QUEUED. An ERC-721 piece carries its URI directly and `tokenURI` reverts
+        // before the piece is minted, so the pointer is verified on the QUEUED record — which is the
+        // same string the mint will hand out, and the last point at which a fix is still cheap.
+        _assertQueuedPieceURIs(a, pieceBase, uint24(uint256(ARTIST_LINES) * 2), slug);
+
+        console.log("ARTIST endowment collection:", inst);
+        console.log("  vault:", vault, "payout:", ArtistEndowments.payout(slug));
+    }
+
+    /// @dev THE ERC-1155 TRANCHE — three free-mint-heavy examples, each cut to a demo-sized edition.
+    ///      The example supply, the example raise, the mechanic and the truncation ratio all ride the
+    ///      on-chain metadata, and each row says in its own metadata that the figures are illustrative.
+    ///      The truncation ratio is the one that must never be dropped: the seeded supply is readable
+    ///      off chain, and without the ratio beside it there is no way to tell a demo-sized edition
+    ///      from a small collection.
     ///
     ///      The three are chosen to span the range rather than repeat one story: a pure free mint at
-    ///      scale, a mixed free-and-paid edition, and a collection that took nothing. The last one
-    ///      earns its slot precisely BECAUSE it owes nothing — a catalog that shows only extraction
-    ///      invites the charge that it was cherry-picked, and a row that owes zero is the answer.
+    ///      scale, a mixed free-and-paid edition, and a collection that charged nothing. The last one
+    ///      earns its slot precisely BECAUSE its aligned share is zero — a demonstration that only
+    ///      ever shows value moving is a pitch, and a row where nothing moves is what makes the other
+    ///      rows legible as a mechanism.
     function _seedCatalogEditions(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
 
@@ -1698,14 +1989,14 @@ contract SeedAnvil is SeedAnvilShared {
             d,
             "anti-miladies",
             "Anti-Miladies",
-            "A ten-thousand-piece free mint. Almost nothing was charged and almost nothing was owed - and 19% of the little that was would have gone home. Art is a stand-in: the real collection serves metadata from a domain.",
+            "A free-mint-at-scale example: ten thousand pieces, almost all claimed for nothing. The claim path is what this row is here to show - a collection can be free and still be aligned, because the 19% is taken from what is actually paid rather than from a promise. Art is a stand-in; figures are illustrative.",
             ART_ANTI,
             CatalogFacts({
-                realSupply: "10000",
-                realRevenueEth: "4.01",
-                revenueBasis: "mint revenue",
-                alignedEth: "0.76",
-                alignedShare: "19% liquidity family",
+                standsInFor: "a free mint at scale",
+                exampleSupply: "10000",
+                exampleRaiseEth: "4.01",
+                figureBasis: "illustrative, not a measurement of record",
+                routesTo: "19% liquidity family",
                 seededSupply: "40",
                 truncation: "1:250"
             }),
@@ -1720,14 +2011,14 @@ contract SeedAnvil is SeedAnvilShared {
             d,
             "oekaki-maker",
             "Oekaki Maker",
-            "Three quarters free, one quarter paid - the mixed case. The paid quarter is where the alignment lands: 19% of it, bound to the community the collection came out of.",
+            "Three quarters free, one quarter paid - the mixed case, and the tier surface is the interesting part. The paid quarter is where the alignment lands: 19% of it, bound to the target by contract. Demonstration example, illustrative figures.",
             ART_OEKAKI,
             CatalogFacts({
-                realSupply: "5555",
-                realRevenueEth: "32.21",
-                revenueBasis: "mint revenue",
-                alignedEth: "6.12",
-                alignedShare: "19% liquidity family",
+                standsInFor: "a mixed free and paid edition",
+                exampleSupply: "5555",
+                exampleRaiseEth: "32.21",
+                figureBasis: "illustrative, not a measurement of record",
+                routesTo: "19% liquidity family",
                 seededSupply: "50",
                 truncation: "1:111"
             }),
@@ -1737,19 +2028,19 @@ contract SeedAnvil is SeedAnvilShared {
             0.023 ether
         );
 
-        // Took nothing, owes nothing. The honest row.
+        // Charged nothing, so nothing is aligned. The row that keeps the others legible.
         address milady333 = _createCatalogEdition(
             d,
             "milady333",
             "Milady333",
-            "Free from the first mint to the last. It took nothing, so it owes nothing - and it sits in the same catalog as the rest, which is the point of including it.",
+            "Free from the first piece to the last. Nothing was charged, so the aligned share is zero - and the row is here precisely because it is: a demonstration that only ever shows value moving is not showing you the mechanism, it is showing you a pitch. Illustrative figures.",
             ART_MILADY333,
             CatalogFacts({
-                realSupply: "333",
-                realRevenueEth: "0.00",
-                revenueBasis: "mint revenue",
-                alignedEth: "0.00",
-                alignedShare: "19% liquidity family",
+                standsInFor: "a collection that charged nothing",
+                exampleSupply: "333",
+                exampleRaiseEth: "0.00",
+                figureBasis: "illustrative, not a measurement of record",
+                routesTo: "19% liquidity family",
                 seededSupply: "37",
                 truncation: "1:9"
             }),
@@ -1820,24 +2111,48 @@ contract SeedAnvil is SeedAnvilShared {
         d.queue.rentFeatured{ value: 1 ether }(instance, 30 days, rankBoost);
     }
 
-    /// @dev The measured figures a catalog instance carries, kept as a struct so a row cannot be
-    ///      written with its revenue and its aligned share out of step.
+    /// @dev Every queued piece points at `base + tokenId`, exactly. `queuePiece` assigns ids
+    ///      sequentially from 1 and stores the URI verbatim, so a base that lost its trailing slash or
+    ///      a loop that queued the wrong index shows up here rather than as a wall of blank tiles.
+    function _assertQueuedPieceURIs(ERC721AuctionInstance a, string memory base, uint24 count, string memory label)
+        internal
+        view
+    {
+        for (uint24 id = 1; id <= count; id++) {
+            (uint24 tokenId, string memory uri,,,,,,) = a.auctions(id);
+            require(tokenId == id, string.concat("art: ", label, " queued a piece under an unexpected token id"));
+            require(
+                keccak256(bytes(uri)) == keccak256(bytes(string.concat(base, vm.toString(uint256(id))))),
+                string.concat("art: ", label, " queued a piece whose URI is not the intended pointer")
+            );
+        }
+    }
+
+    /// @dev The illustrative figures a catalog row carries, kept as a struct so a row cannot be
+    ///      written with its example figures and the mechanic they illustrate out of step.
+    ///
+    ///      EVERY FIELD HERE IS AN EXAMPLE, and `figureBasis` says so on every row. These are not
+    ///      measurements and nothing in the app should present them as verified. What IS load-bearing
+    ///      is `seededSupply` beside `exampleSupply`: an edition cut to a demo size whose on-chain
+    ///      supply could be mistaken for the size it stands in for would misstate the one number a
+    ///      surface can actually read off chain.
     struct CatalogFacts {
-        string realSupply;
-        string realRevenueEth;
-        string revenueBasis; // how the revenue was measured — an auction is NOT measured like a mint
-        string alignedEth;
-        string alignedShare;
+        string standsInFor; // the kind of collection this row is an example of
+        string exampleSupply; // illustrative
+        string exampleRaiseEth; // illustrative
+        string figureBasis; // how to read the two above — always: illustrative, not a measurement
+        string routesTo; // the mechanic the row demonstrates
         string seededSupply; // what this fork actually holds
         string truncation; // the ratio between the two, spelled out
     }
 
-    /// @dev Catalog metadata: the ordinary collection shape plus a `catalog` object carrying the REAL
-    ///      figures alongside what the fork actually seeded. Both halves are present on purpose. A
-    ///      surface that reads only the on-chain supply of a truncated edition would report the
-    ///      collection as a fortieth of its real size and every derived number with it; a surface
-    ///      that reads only the catalog figures would misstate what this chain holds. Neither is
-    ///      recoverable from the other, so both are written down.
+    /// @dev Catalog metadata: the ordinary collection shape plus a `catalog` object carrying the
+    ///      illustrative figures alongside what the fork actually seeded. Both halves are present on
+    ///      purpose. A surface that read only the on-chain supply of a truncated edition would report
+    ///      the row as a fortieth of the size it is standing in for; a surface that read only the
+    ///      example figures would misstate what this chain holds. Neither is recoverable from the
+    ///      other, so both are written down — and `figureBasis` rides along so neither is mistaken
+    ///      for a measurement.
     function _catalogMeta(string memory name, string memory description, string memory image, CatalogFacts memory f)
         internal
         pure
@@ -1850,16 +2165,16 @@ contract SeedAnvil is SeedAnvilShared {
             description,
             "\",\"category\":\"edition\",\"image\":\"",
             image,
-            "\",\"catalog\":{\"realSupply\":\"",
-            f.realSupply,
-            "\",\"realRevenueEth\":\"",
-            f.realRevenueEth,
-            "\",\"revenueBasis\":\"",
-            f.revenueBasis,
-            "\",\"alignedEth\":\"",
-            f.alignedEth,
-            "\",\"alignedShare\":\"",
-            f.alignedShare,
+            "\",\"catalog\":{\"standsInFor\":\"",
+            f.standsInFor,
+            "\",\"exampleSupply\":\"",
+            f.exampleSupply,
+            "\",\"exampleRaiseEth\":\"",
+            f.exampleRaiseEth,
+            "\",\"figureBasis\":\"",
+            f.figureBasis,
+            "\",\"routesTo\":\"",
+            f.routesTo,
             "\",\"seededSupply\":\"",
             f.seededSupply,
             "\",\"truncation\":\"",
@@ -1925,6 +2240,12 @@ contract SeedAnvil is SeedAnvilShared {
     // harvested set rather than introduce an unverified one. Card art is the collection tile only —
     // the PIECE art is what carries a row's real collection, and two of the rows carry theirs
     // verbatim off content-addressed storage (see ART_BASE_PIXELADY / ART_BASE_FIGMATA).
+    // Card images for the two roster additions, taken from the same content-addressed image
+    // directories the collections' own metadata resolves to (`ipfs://<image-cid>/<id>.png`, read out
+    // of `<metadata-cid>/1`). Card art and per-piece art therefore come from the same place, which is
+    // what makes a row read as one collection rather than as a stock image over real pieces.
+    string constant ART_BOREDMILADY = "ipfs://QmWEQVc5xLyjPduYopckWWu6arhqgg7srxTo5FuLmLxiAU/1.png";
+    string constant ART_LAWBSTERS = "ipfs://QmRFZ9GtqT6A8cF8ZF1x4fsysRHMhFSk1g8QGEBVn249pQ/1.png";
     string constant ART_SCHIZO = "ipfs://QmbeHAw5nGwSQSZ8pQc8WSdbzxh3rLY8Pg2rqiS1wJRcvQ";
     string constant ART_PIXELADY = "ipfs://QmNf1UsmdGaMbpatQ6toXSkzDpizaGmC9zfunCyoz1enD5/penguin/128.png";
     string constant ART_FIGMATA = "ipfs://QmNf1UsmdGaMbpatQ6toXSkzDpizaGmC9zfunCyoz1enD5/penguin/7.png";

@@ -16,6 +16,18 @@ interface IOwnable {
     function transferOwnership(address newOwner) external payable;
 }
 
+/// @dev The endowment vault's payout sink. Read back so a collection cannot be bound to a vault that
+///      pays somewhere other than the artist the registry pinned.
+interface IEndowmentPayout {
+    function communityPayout() external view returns (address);
+}
+
+/// @dev The one read the art acceptance test needs, on either token surface (the DN404 mirror for a
+///      bonding instance, the instance itself for an auction collection).
+interface IPieceURI {
+    function tokenURI(uint256 tokenId) external view returns (string memory);
+}
+
 /// @notice ROUTE PIN, not a price oracle. Anvil-only stand-in for the canonical on-chain best-route
 ///         quoter that `DeployCore.NetworkConfig.zQuoter` expects (OPERATOR INPUT — the canonical one
 ///         is deployed per network and there is none to point at on a local fork).
@@ -91,6 +103,32 @@ contract AnvilFixedRouteQuoter {
     }
 }
 
+/// @notice The artist-exaltation fixtures the anvil deployment and the seed must agree on.
+///
+///         Both sides need the same three things per artist — a slug, a display title, and a payout
+///         address — and they are computed here so a rename in one file cannot leave the other
+///         pointing at a payout nobody reads. `DeployAnvil` registers the targets and hands each
+///         payout to the registry; the seed reads them back off the deployed vault and refuses to
+///         proceed if they disagree.
+///
+///         THE PAYOUT IS A DERIVED FIXTURE. It is keyed off the SLUG, not off a deployed token
+///         address, so it is the same address on every reseed of the fork. No real person's address
+///         appears in this seed, and none should ever be substituted here.
+library ArtistEndowments {
+    string internal constant PARADILF_SLUG = "paradilf-fan-club";
+    string internal constant PETRAVOICE_SLUG = "petravoice";
+    string internal constant PARADILF_TITLE = "Paradilf Fan Club";
+    string internal constant PETRAVOICE_TITLE = "Petravoice";
+    string internal constant PARADILF_SYMBOL = "PDLF";
+    string internal constant PETRAVOICE_SYMBOL = "PTRA";
+
+    /// @dev Same derivation shape the deployment already uses for a community payout, keyed off the
+    ///      artist slug. Deterministic, reproducible across reseeds, and owned by nobody.
+    function payout(string memory slug) internal pure returns (address) {
+        return address(uint160(uint256(keccak256(abi.encode("ms2.artist", slug)))));
+    }
+}
+
 /// @notice Shared surface for the two-phase anvil seed: the deployed-address struct, the exact-cost
 ///         buy helpers, and the phase-1 → phase-2 hand-off file.
 ///
@@ -160,6 +198,14 @@ abstract contract SeedAnvilShared is Script {
     // the seeded pieces resolve to the actual art with no re-hosting and no third-party server.
     string internal constant ART_BASE_PIXELADY = "ipfs://bafybeigd7557iwardhnwg5kbmg2s7tmuxqkstjeoixu7wunooiywbb3jqq/";
     string internal constant ART_BASE_FIGMATA = "ipfs://bafybeigibcocisl3d4oirx5bivemr6iwtdnbswxbpd57zb4ekf64lch5dm/";
+    // Resolved off mainnet before they were wired here, by the same test both of the two above pass:
+    // `tokenURI(1)` and `tokenURI(7)` are `ipfs://<cid>/1` and `ipfs://<cid>/7`, i.e. content-addressed
+    // storage addressed by the BARE token id. That is the exact shape `base + tokenId` reproduces, so
+    // the seeded pieces resolve to the real art with no re-hosting and no third-party host in the path.
+    // A collection that had answered from a domain would have taken an ART_BASE_* stand-in instead,
+    // the way the flagship does — the test is the URI's shape, never the collection's fame.
+    string internal constant ART_BASE_BOREDMILADY = "ipfs://QmZ7K6hG5uiTvLVvmxZgm72Nv3kmvTq4CVAEG6JoMFvpkW/";
+    string internal constant ART_BASE_LAWBSTERS = "ipfs://bafybeibvgwjwuosoov6cfgwoyyrt7vocalqoprjayni6rfepda7bi2jdse/";
     // NO real base for the flagship curve or the free-mint editions, DELIBERATELY. Those collections
     // serve their metadata from a live third-party domain rather than from content-addressed storage.
     // Wiring a domain here would make the local fork's art depend on somebody else's uptime and would
@@ -168,31 +214,41 @@ abstract contract SeedAnvilShared is Script {
 
     // ── THE ALIGNMENT CATALOG ROSTER ────────────────────────────────────────────────────────
     //
-    // READ THIS BEFORE CHANGING A NUMBER BELOW. Several seeded collections are not inventions: each
-    // one restates a real, MEASURED derivative collection — its supply, its revenue, and the share
-    // that would have returned to the community it derived from had it launched aligned. A visitor
-    // is meant to check the arithmetic, so the figures are the product, not decoration.
+    // READ THIS BEFORE CHANGING A NUMBER BELOW, AND READ IT BEFORE ADDING AN ASSERTION.
     //
-    // THE INFRASTRUCTURE IS OURS TO INVENT; THE NUMBERS ARE NOT. Pools, quoters, presets, clocks and
+    // THE ROSTER IS A SET OF EXAMPLES, NOT A MEASUREMENT. Several seeded collections stand in for
+    // real, recognisable collections, and being recognisable is the whole of their job. The figures
+    // below are ILLUSTRATIVE: they are the flavour a real collection's shape gives an armed curve,
+    // they read well, and they cost nothing. They are never presented as verified, no copy may imply
+    // a visitor can re-derive them from chain, and no assertion may be written that forces the seed
+    // to spend ETH making one exact. An arming value is free; buying a curve out to honour one is not.
+    //
+    // WHAT THE SEED DOES ASSERT is wiring: that the preset the seed registered is the preset the
+    // instance got, that a row is bound to the vault it names, and that the ART RESOLVES. Those are
+    // real failure modes and they are independent of whether any figure is exact.
+    //
+    // THE INFRASTRUCTURE IS OURS TO INVENT. Pools, quoters, presets, clocks, fixture tokens and
     // truncated edition sizes are all fabricated to fit a local fork, and every fabrication is stated
-    // on chain in the instance's own metadata. Rounding a raise because it is inconvenient is not the
-    // same kind of act and is never in scope. If a figure below cannot be honoured, STOP — do not
-    // quietly move it to one that can.
-    //
-    // Revenue is mint revenue except on the auction collection, where it is the sum of WINNING BIDS
-    // read from settlement events. A mint-transaction total undercounts an auction by an order of
-    // magnitude, because the winner's ETH arrives as bids and the settlement transaction carries
-    // none. Do not "correct" the auction figure back to a mint-transaction number.
+    // on chain in the instance's own metadata.
 
-    // Flagship curve — ready-to-graduate, aligned at 19%.
+    // Flagship curve. Armed at the size the real collection suggests; the seed buys a FRACTION of it.
     uint256 constant SCHIZO_REAL_SUPPLY = 5555;
     uint256 constant SCHIZO_REAL_RAISE = 320.1691 ether;
     // Mid-curve exemplar — the instance the site's live features are demonstrated on.
     uint256 constant PIXELADY_REAL_SUPPLY = 10_000;
     uint256 constant PIXELADY_REAL_RAISE = 106 ether;
-    // Auction collection — the ONLY roster member that can express the 80% endowment (the 80/19/1
-    // leg is `splitMintFor(amount, liquidityFamily = false)`, reachable from the ERC-1155 and
-    // ERC-721 settlement paths only; ERC404 graduation has no family branch and cannot express it).
+    // Second mid-curve row: a large, widely-recognised collection the roster was missing.
+    uint256 constant BOREDMILADY_REAL_SUPPLY = 6911;
+    uint256 constant BOREDMILADY_REAL_RAISE = 223.08 ether;
+    // THE READY-TO-GRADUATE ROW IS THE SMALL ONE, deliberately. A small raise can be bought out in
+    // full for a couple of ETH, so the graduate action is live on the seeded chain instead of being
+    // a posture that costs three hundred ETH to hold. The graduation itself is left UNCROSSED — a
+    // visitor performs it.
+    uint256 constant LAWBSTERS_REAL_SUPPLY = 420;
+    uint256 constant LAWBSTERS_REAL_RAISE = 5.96 ether;
+    // Auction collection — the family that can express the 80% endowment (the 80/19/1 leg is
+    // `splitMintFor(amount, liquidityFamily = false)`, reachable from the ERC-1155 and ERC-721
+    // settlement paths only; ERC404 graduation has no family branch and cannot express it).
     uint256 constant FIGMATA_REAL_SUPPLY = 180;
 
     // Curve presets. `LaunchManager` accepts ANY `targetETH` — the 5/25/50 ETH menu is three
@@ -203,6 +259,32 @@ abstract contract SeedAnvilShared is Script {
     uint8 constant PRESET_SOURCE = 1; // STANDARD — the preset every other seeded instance uses
     uint8 constant PRESET_SCHIZO = 10;
     uint8 constant PRESET_PIXELADY = 11;
+    uint8 constant PRESET_BOREDMILADY = 12;
+    uint8 constant PRESET_LAWBSTERS = 13;
+
+    // ── THE ARTIST ENDOWMENTS ───────────────────────────────────────────────────────────────
+    //
+    // Two alignment targets that are not communities behind a token: they are individual artists,
+    // each with an Aave endowment vault. `AlignmentEndowmentVault` buys nobody's token — it is a
+    // yield engine (ETH -> WETH -> Aave waEthWETH) whose `harvest()` splits yield between a
+    // benefactor's claimable purse and the target's `communityPayout`. Its `alignmentToken` field
+    // exists only to satisfy `registerVault`'s check, so each artist target carries a FIXTURE ERC20
+    // that is registry paperwork and nothing else, labelled as a fixture wherever it is described.
+    //
+    // WHY THIS IS THE POINT AND NOT A SIDE QUEST. Three alignment targets where one is a large
+    // community token and two are individual artists is the argument the seeded target list makes on
+    // its own: the platform is not a Remilia-alignment tool that happens to be general, it is an
+    // artist-exaltation tool and Remilia is one instance of it. It also describes what this vault
+    // family actually does, which the earlier "buy the community's token and hold it as liquidity"
+    // framing did not — `AaveEndowment` has no swap path at all.
+    //
+    // The payout addresses are DERIVED FIXTURES, not people. They are keyed off a fixed slug rather
+    // than off a deployed address so they are reproducible across reseeds, and no real person's
+    // address is used anywhere in this seed.
+    uint256 internal constant TARGET_ID_MS2 = 1;
+    uint256 internal constant TARGET_ID_CULT = 2;
+    uint256 internal constant TARGET_ID_PARADILF = 3;
+    uint256 internal constant TARGET_ID_PETRAVOICE = 4;
 
     // Deployed addresses (read from anvil.json).
     struct Deployed {
@@ -230,6 +312,8 @@ abstract contract SeedAnvilShared is Script {
         address cultUniVault; // CULT's OWN UniswapV4LP vault (NOT SeedUniVault, which is the first target's)
         address cultAaveVault; // CULT's OWN Aave endowment vault (NOT SeedAaveVault)
         uint256 cultTargetId; // alignment target id the CULT vaults were deployed under
+        address paradilfVault; // the first artist target's Aave endowment vault
+        address petravoiceVault; // the second artist target's Aave endowment vault
     }
 
     /// @dev The ERC404 instances phase 1 arms, resolved BY NAME in phase 2.
@@ -243,6 +327,8 @@ abstract contract SeedAnvilShared is Script {
         address stacked; // STACKED METADATA — buy-with-mint + overlay authoring
         address schizo; // CATALOG flagship — READY-TO-GRADUATE, catalog-sized curve, CULT UniV4 vault
         address pixelady; // CATALOG mid-curve — the instance the live features are demonstrated on
+        address boredmilady; // CATALOG mid-curve — the second large collection on the roster
+        address lawbsters; // CATALOG small collection — bought out, graduation left uncrossed
     }
 
     /// @dev The non-ERC404 catalog instances phase 2 still has work to do on. The ERC-1155 tranche is
@@ -250,6 +336,8 @@ abstract contract SeedAnvilShared is Script {
     ///      owes them nothing but the ownership handover, which rides the `all` array.
     struct SeededCatalog {
         address figmata; // ERC721 AUCTION bound to CULT's Aave endowment vault (the 80% endowment leg)
+        address paradilf; // ERC721 AUCTION whose settlements endow the first artist
+        address petravoice; // ERC721 AUCTION whose settlements endow the second artist
     }
 
     uint256 internal deployerKey;
@@ -285,6 +373,26 @@ abstract contract SeedAnvilShared is Script {
         d.launchManager = vm.parseJsonAddress(json, ".contracts.LaunchManager");
         d.uniVaultFactory = vm.parseJsonAddress(json, ".factories.UNI");
         (d.cultUniVault, d.cultAaveVault, d.cultTargetId) = _readCultVaults(json);
+        d.paradilfVault = _readEndowmentVaultForTarget(json, TARGET_ID_PARADILF);
+        d.petravoiceVault = _readEndowmentVaultForTarget(json, TARGET_ID_PETRAVOICE);
+    }
+
+    /// @dev The Aave endowment vault deployed under one alignment target id. The artist targets carry
+    ///      no LP vault at all — an endowment is escrowed principal streaming yield to a payout, and
+    ///      there is no liquidity leg to deploy — so the family filter is what makes the read exact
+    ///      rather than merely first-matching. Reverts rather than returning zero: a seed that bound a
+    ///      collection to address(0) would create instances whose settlements route nowhere.
+    function _readEndowmentVaultForTarget(string memory json, uint256 targetId) internal view returns (address vault) {
+        bytes32 aaveType = keccak256(bytes("AaveEndowment"));
+        string memory vaults = vm.parseJsonString(json, ".vaults");
+        for (uint256 i = 0; i < 64; i++) {
+            string memory at = string.concat("[", vm.toString(i), "]");
+            if (!vm.keyExistsJson(vaults, at)) break;
+            if (vm.parseJsonUint(vaults, string.concat(at, ".targetId")) != targetId) continue;
+            if (keccak256(bytes(vm.parseJsonString(vaults, string.concat(at, ".type")))) != aaveType) continue;
+            return vm.parseJsonAddress(vaults, string.concat(at, ".address"));
+        }
+        revert("anvil.json: no Aave endowment vault is registered under the expected artist target");
     }
 
     /// @dev Resolve the vaults belonging to the CULT alignment target out of `anvil.json`'s `vaults`
@@ -348,6 +456,10 @@ abstract contract SeedAnvilShared is Script {
         vm.serializeAddress(inner, "schizo", s.schizo);
         vm.serializeAddress(inner, "pixelady", s.pixelady);
         vm.serializeAddress(inner, "figmata", k.figmata);
+        vm.serializeAddress(inner, "boredmilady", s.boredmilady);
+        vm.serializeAddress(inner, "lawbsters", s.lawbsters);
+        vm.serializeAddress(inner, "paradilf", k.paradilf);
+        vm.serializeAddress(inner, "petravoice", k.petravoice);
         string memory instancesJson = vm.serializeAddress(inner, "stacked", s.stacked);
 
         string memory root = "anvilSeedState";
@@ -382,6 +494,10 @@ abstract contract SeedAnvilShared is Script {
         s.schizo = vm.parseJsonAddress(json, ".instances.schizo");
         s.pixelady = vm.parseJsonAddress(json, ".instances.pixelady");
         k.figmata = vm.parseJsonAddress(json, ".instances.figmata");
+        s.boredmilady = vm.parseJsonAddress(json, ".instances.boredmilady");
+        s.lawbsters = vm.parseJsonAddress(json, ".instances.lawbsters");
+        k.paradilf = vm.parseJsonAddress(json, ".instances.paradilf");
+        k.petravoice = vm.parseJsonAddress(json, ".instances.petravoice");
         all = vm.parseJsonAddressArray(json, ".all");
 
         // A phase-1 that silently failed to record an instance would otherwise show up much later as
@@ -396,6 +512,10 @@ abstract contract SeedAnvilShared is Script {
         require(s.schizo != address(0), "seed state: schizo missing");
         require(s.pixelady != address(0), "seed state: pixelady missing");
         require(k.figmata != address(0), "seed state: figmata missing");
+        require(s.boredmilady != address(0), "seed state: boredmilady missing");
+        require(s.lawbsters != address(0), "seed state: lawbsters missing");
+        require(k.paradilf != address(0), "seed state: paradilf endowment collection missing");
+        require(k.petravoice != address(0), "seed state: petravoice endowment collection missing");
         require(all.length > 0, "seed state: no instances to hand over");
     }
 
@@ -432,5 +552,70 @@ abstract contract SeedAnvilShared is Script {
     function _curveParams(ERC404BondingInstance b) internal view returns (BondingCurveMath.Params memory p) {
         (uint256 kCoeff, uint256 poleWad, uint256 normalizationFactor) = b.curveParams();
         p = BondingCurveMath.Params({ kCoeff: kCoeff, poleWad: poleWad, normalizationFactor: normalizationFactor });
+    }
+
+    // ─────────────────────── The art acceptance test ───────────────────────
+    //
+    // A SEEDED INSTANCE WHOSE ART DOES NOT RENDER IS A FAILED SEED, whatever its economics say. That
+    // makes these the seed's primary post-conditions rather than a nicety, and they are `require`s in
+    // both phases for the same reason every other post-condition is: forge simulates a script before
+    // broadcasting any of it, so a base that would 404 costs a named failure instead of a fork full of
+    // blank tiles nobody notices until a demo.
+    //
+    // The failure this catches is not exotic. A per-piece base composes as `base + tokenId` with NO
+    // separator, so a base missing its trailing slash silently addresses `<cid>7` instead of `<cid>/7`,
+    // and a base carrying two produces `//7`, which some gateways serve and others do not.
+
+    /// @dev A per-piece metadata base must be content-addressed, must end in exactly one slash, and
+    ///      must not still be carrying a placeholder.
+    function _assertPieceBase(string memory base, string memory label) internal pure {
+        bytes memory b = bytes(base);
+        require(b.length > 8, string.concat("art: ", label, " has no per-piece base URI"));
+        require(_startsWith(base, "ipfs://"), string.concat("art: ", label, " base is not content-addressed"));
+        require(b[b.length - 1] == "/", string.concat("art: ", label, " base has no trailing slash"));
+        require(b[b.length - 2] != "/", string.concat("art: ", label, " base ends in a double slash"));
+        require(!_contains(base, "TODO"), string.concat("art: ", label, " base still carries a placeholder"));
+    }
+
+    /// @dev The COMPOSED pointer, read back off the token rather than recomputed from the same string
+    ///      twice: `base + tokenId`, exactly, with nothing dropped and nothing doubled. Only valid on
+    ///      an instance with no metadata resolver wired — a resolver is entitled to answer with
+    ///      something else, which is what the stacked instance exists to show.
+    function _assertComposedPieceURI(address token, string memory base, uint256 tokenId, string memory label)
+        internal
+        view
+    {
+        string memory expected = string.concat(base, vm.toString(tokenId));
+        require(
+            keccak256(bytes(IPieceURI(token).tokenURI(tokenId))) == keccak256(bytes(expected)),
+            string.concat("art: ", label, " does not compose its piece URI to the intended pointer")
+        );
+    }
+
+    function _startsWith(string memory haystack, string memory needle) internal pure returns (bool) {
+        bytes memory h = bytes(haystack);
+        bytes memory n = bytes(needle);
+        if (n.length > h.length) return false;
+        for (uint256 i = 0; i < n.length; i++) {
+            if (h[i] != n[i]) return false;
+        }
+        return true;
+    }
+
+    function _contains(string memory haystack, string memory needle) internal pure returns (bool) {
+        bytes memory h = bytes(haystack);
+        bytes memory n = bytes(needle);
+        if (n.length == 0 || n.length > h.length) return false;
+        for (uint256 i = 0; i + n.length <= h.length; i++) {
+            bool hit = true;
+            for (uint256 j = 0; j < n.length; j++) {
+                if (h[i + j] != n[j]) {
+                    hit = false;
+                    break;
+                }
+            }
+            if (hit) return true;
+        }
+        return false;
     }
 }
