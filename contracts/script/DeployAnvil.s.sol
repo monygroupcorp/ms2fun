@@ -5,7 +5,12 @@ import { DeployCore } from "./DeployCore.sol";
 // The quoter lives in the shared anvil-seed surface rather than here: `forge script` resolves a
 // script by its FILE, and a second concrete contract in this one makes that resolution ambiguous —
 // the orchestrator's invocation names the path, not the contract.
-import { AnvilFixedRouteQuoter } from "./SeedAnvilShared.sol";
+import { AnvilFixedRouteQuoter, ArtistEndowments } from "./SeedAnvilShared.sol";
+// Registry paperwork, not an asset: an endowment vault's `alignmentToken` exists only to satisfy
+// `registerVault`'s check (the vault holds Aave-supplied WETH and never touches this token), and
+// `initialize` refuses address(0). The Sepolia seed already stands its alignment tokens up the same
+// way. Every surface that names one says FIXTURE, so nobody reads it as a real fan token.
+import { MockERC20 } from "../test/mocks/MockERC20.sol";
 
 /// @notice Deploys the full protocol to a local Anvil chain.
 ///         Called by deploy.mjs: forge script script/DeployAnvil.s.sol --broadcast
@@ -35,18 +40,35 @@ contract DeployAnvil is DeployCore {
         uint256 pk = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(pk);
         vm.startBroadcast(pk);
+        // The two artist targets' fixture tokens. Deployed here rather than pinned as constants
+        // because there is nothing on mainnet to point at — an artist endowment is escrowed principal
+        // streaming yield to a payout address, and the token is the one field the registry insists on.
+        address paradilfToken = address(new MockERC20("Paradilf Fan Club Fixture", "PDLF"));
+        address petravoiceToken = address(new MockERC20("Petravoice Fixture", "PTRA"));
         // The best-route quoter is OPERATOR INPUT and there is no canonical one on a local fork, so the
         // fork supplies its own. It must exist before `deploy` runs: every vault factory takes the
         // quoter as a CONSTRUCTOR immutable and threads it into each vault at deployVault time, and the
         // vault's own `setZQuoter` is owned by the factory, which exposes no passthrough — so this is
         // the only point in the lifecycle at which the acquisition venue is settable at all.
         address quoter = address(new AnvilFixedRouteQuoter(CULT_TOKEN));
-        deploy(deployer, _anvilConfig(quoter));
+        deploy(deployer, _anvilConfig(quoter, paradilfToken, petravoiceToken));
         vm.stopBroadcast();
     }
 
-    function _anvilConfig(address quoter) internal view returns (NetworkConfig memory cfg) {
-        AlignmentTargetConfig[] memory targets = new AlignmentTargetConfig[](2);
+    /// @dev FOUR alignment targets, and the last two are the argument. One is a large community
+    ///      token; two are individual artists, each carrying an Aave endowment vault and nothing else.
+    ///      A reviewer should be able to read "this platform is for artist exaltation, and the large
+    ///      community is one instance of that" off the target list alone, before opening a collection.
+    ///
+    ///      The artist targets deploy NO LP vault, on purpose. An endowment has no liquidity leg: it
+    ///      supplies WETH to Aave and splits the yield between the benefactor's claimable purse and the
+    ///      target's payout. Deploying a liquidity vault beside it would offer a venue nothing routes to.
+    function _anvilConfig(address quoter, address paradilfToken, address petravoiceToken)
+        internal
+        view
+        returns (NetworkConfig memory cfg)
+    {
+        AlignmentTargetConfig[] memory targets = new AlignmentTargetConfig[](4);
         targets[0] = AlignmentTargetConfig({
             token: MS2_TOKEN,
             symbol: "MS2",
@@ -71,6 +93,30 @@ contract DeployAnvil is DeployCore {
             deployCypherVault: true,
             deployZAMMVault: true,
             communityPayout: address(uint160(uint256(keccak256(abi.encode("ms2.community", CULT_TOKEN)))))
+        });
+        // ── The artist endowments ────────────────────────────────────────────────────────────────
+        // The payout on each is a DERIVED FIXTURE keyed off the artist's slug — reproducible across
+        // reseeds, owned by nobody, and never a real person's address. The token beside it is a
+        // fixture too, and is described as one.
+        targets[2] = AlignmentTargetConfig({
+            token: paradilfToken,
+            symbol: ArtistEndowments.PARADILF_SYMBOL,
+            name: ArtistEndowments.PARADILF_TITLE,
+            description: "An artist endowment. Collections bound here escrow permanent principal and stream its yield to the artist rather than buying a token. Demonstration target: the payout address and the alignment token are generated fixtures, not a real person's.",
+            deployUniVault: false,
+            deployCypherVault: false,
+            deployZAMMVault: false,
+            communityPayout: ArtistEndowments.payout(ArtistEndowments.PARADILF_SLUG)
+        });
+        targets[3] = AlignmentTargetConfig({
+            token: petravoiceToken,
+            symbol: ArtistEndowments.PETRAVOICE_SYMBOL,
+            name: ArtistEndowments.PETRAVOICE_TITLE,
+            description: "An artist endowment. Collections bound here escrow permanent principal and stream its yield to the artist they are aligned to. Demonstration target: the payout address and the alignment token are generated fixtures, not a real person's.",
+            deployUniVault: false,
+            deployCypherVault: false,
+            deployZAMMVault: false,
+            communityPayout: ArtistEndowments.payout(ArtistEndowments.PETRAVOICE_SLUG)
         });
 
         // Use timestamp-derived salts so repeated Anvil restarts don't collide
