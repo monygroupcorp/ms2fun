@@ -343,6 +343,121 @@ contract MasterRegistryQueueTest is Test {
         assertEq(expiresAtAfter, expiresAtBefore + extra);
     }
 
+    // ── renewDuration: total-occupancy ceiling ────────────────────────────────
+
+    /// @dev Rent for exactly `maxDuration`, leaving zero headroom under the ceiling.
+    function _rentForMaxDuration(address instance, address renter) internal returns (uint256 maxDur) {
+        maxDur = queue.maxDuration();
+        uint256 cost = queue.quoteDurationCost(maxDur);
+        vm.deal(renter, renter.balance + cost);
+        vm.prank(renter);
+        queue.rentFeatured{ value: cost }(instance, maxDur, 0);
+    }
+
+    /// Renewal is bounded by total occupancy, not only by the size of one increment: a slot already
+    /// sitting at the ceiling cannot be extended past it.
+    function test_renewDuration_revert_resultExceedsCeiling() public {
+        _rentForMaxDuration(inst1, alice);
+
+        uint256 extra = queue.minDuration();
+        uint256 cost = queue.quoteDurationCost(extra);
+        vm.deal(bob, bob.balance + cost);
+
+        vm.prank(bob);
+        vm.expectRevert(FeaturedQueueManager.DurationTooLong.selector);
+        queue.renewDuration{ value: cost }(inst1, extra);
+    }
+
+    /// Control for the guard above: a renewal that lands EXACTLY on the ceiling is still admitted, so
+    /// the cap is a boundary rather than a ban on renewal.
+    function test_renewDuration_uptoCeilingStillAdmitted() public {
+        _rentBasic(inst1, alice, 0);
+        uint256 maxDur = queue.maxDuration();
+        (,, uint256 expiresAtBefore,) = queue.getRentalInfo(inst1);
+
+        // Largest increment that lands on the ceiling exactly.
+        uint256 extra = block.timestamp + maxDur - expiresAtBefore;
+        uint256 cost = queue.quoteDurationCost(extra);
+        vm.deal(bob, bob.balance + cost);
+        vm.prank(bob);
+        queue.renewDuration{ value: cost }(inst1, extra);
+
+        (,, uint256 expiresAtAfter,) = queue.getRentalInfo(inst1);
+        assertEq(expiresAtAfter, block.timestamp + maxDur);
+    }
+
+    /// One second past the ceiling is refused — pins the boundary against an off-by-one.
+    function test_renewDuration_revert_oneSecondPastCeiling() public {
+        _rentBasic(inst1, alice, 0);
+        uint256 maxDur = queue.maxDuration();
+        (,, uint256 expiresAtBefore,) = queue.getRentalInfo(inst1);
+
+        uint256 extra = block.timestamp + maxDur - expiresAtBefore + 1;
+        uint256 cost = queue.quoteDurationCost(extra);
+        vm.deal(bob, bob.balance + cost);
+
+        vm.prank(bob);
+        vm.expectRevert(FeaturedQueueManager.DurationTooLong.selector);
+        queue.renewDuration{ value: cost }(inst1, extra);
+    }
+
+    /// ACCEPTED COST — the dead zone. Increments have a floor (`minDuration`) and the result has a
+    /// ceiling (`maxDuration`), so a slot whose remaining life is within `minDuration` of the ceiling
+    /// refuses EVERY legal increment. It becomes renewable again once enough time has burned off.
+    /// Documented in the `renewDuration` NatSpec; pinned here so it is a decision, not a discovery.
+    function test_renewDuration_deadZoneNearCeiling_thenRenewableAgain() public {
+        uint256 maxDur = _rentForMaxDuration(inst1, alice);
+        uint256 minDur = queue.minDuration();
+        // Derive the rental instant from contract state rather than caching `block.timestamp`, which
+        // the optimizer may fold across `vm.warp`.
+        (,, uint256 expiresAtRented,) = queue.getRentalInfo(inst1);
+        uint256 rentedAt = expiresAtRented - maxDur;
+
+        uint256 cost = queue.quoteDurationCost(minDur);
+        vm.deal(bob, bob.balance + 10 * cost);
+
+        // One second before the dead zone closes: the smallest legal increment still overshoots.
+        vm.warp(rentedAt + minDur - 1);
+        vm.prank(bob);
+        vm.expectRevert(FeaturedQueueManager.DurationTooLong.selector);
+        queue.renewDuration{ value: cost }(inst1, minDur);
+
+        // Exactly enough time burned off: the same call now lands on the ceiling and succeeds.
+        vm.warp(rentedAt + minDur);
+        vm.prank(bob);
+        queue.renewDuration{ value: cost }(inst1, minDur);
+
+        // The renewal landed exactly on the ceiling: now (rentedAt + minDur) + maxDur.
+        (,, uint256 expiresAt,) = queue.getRentalInfo(inst1);
+        assertEq(expiresAt, rentedAt + minDur + maxDur);
+    }
+
+    /// Repeated renewal cannot compound occupancy: whatever the schedule of calls, the slot never
+    /// sits further than `maxDuration` ahead of the current block.
+    function test_renewDuration_repeatedRenewalCannotCompoundPastCeiling() public {
+        _rentBasic(inst1, alice, 0);
+        uint256 maxDur = queue.maxDuration();
+        uint256 extra = maxDur / 4;
+        uint256 cost = queue.quoteDurationCost(extra);
+        vm.deal(bob, bob.balance + 20 * cost);
+
+        // Track the clock locally: a cached `block.timestamp` may be folded across `vm.warp`.
+        (,, uint256 expiresAtRented,) = queue.getRentalInfo(inst1);
+        uint256 nowTs = expiresAtRented - queue.minDuration();
+
+        for (uint256 i = 0; i < 10; i++) {
+            vm.prank(bob);
+            // A renewal refused at the ceiling is the expected outcome for part of this schedule.
+            try queue.renewDuration{ value: cost }(inst1, extra) { } catch { }
+
+            (,, uint256 expiresAt,) = queue.getRentalInfo(inst1);
+            assertLe(expiresAt, nowTs + maxDur);
+
+            nowTs += 30 days;
+            vm.warp(nowTs);
+        }
+    }
+
     // ── Rank decay ─────────────────────────────────────────────────────────────
 
     function test_rankDecay_reducesOverTime() public {
