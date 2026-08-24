@@ -1,5 +1,5 @@
 /**
- * Byte-fidelity verifier for an Algebra Integral 1.2.1 standup. Read-only.
+ * Byte-fidelity and fee-regime verifier for an Algebra Integral 1.2.1 standup. Read-only.
  *
  *   pnpm exec tsx scripts/sepolia-algebra/verify.ts --rpc <url> [--deployment <path>]
  *
@@ -21,8 +21,15 @@
  * addresses the runner substituted, the range is checked positively — the deployment must hold the
  * substituted address, not merely something different. Ranges that cannot be pinned that way
  * (chain-dependent immutables) are printed as unconstrained so the claim stays auditable.
+ *
+ * Byte fidelity covers the code; the community-fee regime lives in storage, so it is additionally
+ * asserted on the target chain against the values fetched from mainnet: the factory points at the
+ * deployed vault factory, the stub points back at the deployed community vault, the factory's
+ * default community fee matches mainnet, and the vault's Algebra fee share matches mainnet. The
+ * three vault role holders are operator addresses by design and are printed, not asserted against
+ * mainnet.
  */
-import { createPublicClient, http } from 'viem'
+import { createPublicClient, http, parseAbi } from 'viem'
 
 import type { Role } from './manifest.ts'
 import {
@@ -35,10 +42,29 @@ import {
   readArtifact,
   readResolved,
   requireString,
+  scopedTo,
   strip0x,
   toBytes,
   toHex,
 } from './lib.ts'
+
+const FACTORY_ABI = parseAbi([
+  'function vaultFactory() view returns (address)',
+  'function defaultCommunityFee() view returns (uint16)',
+])
+
+const VAULT_FACTORY_ABI = parseAbi([
+  'function defaultAlgebraCommunityVault() view returns (address)',
+])
+
+const VAULT_ABI = parseAbi([
+  'function algebraFee() view returns (uint16)',
+  'function algebraFeeManager() view returns (address)',
+  'function algebraFeeReceiver() view returns (address)',
+  'function communityFeeReceiver() view returns (address)',
+])
+
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 
 function describe(mask: MaskRange): string {
   const where = `[${mask.start}..${mask.end}]`.padEnd(16)
@@ -65,7 +91,18 @@ async function main(): Promise<void> {
     to: c.address,
   }))
   subs.push({ what: 'wnative', from: resolved.mainnetWNative, to: record.wnative })
-  subs.push({ what: 'proxyAdmin', from: resolved.originalDeployer, to: record.proxyAdmin })
+  subs.push({
+    what: 'proxyAdmin',
+    from: resolved.originalDeployer,
+    to: record.proxyAdmin,
+    only: 'tokenDescriptor',
+  })
+  subs.push({
+    what: 'algebraFeeManager',
+    from: resolved.vaultConfig.constructorFeeManager,
+    to: record.algebraFeeManager,
+    only: 'communityVault',
+  })
 
   console.log(`chain     ${chainId}`)
   console.log(`deployer  ${record.deployer}`)
@@ -77,7 +114,7 @@ async function main(): Promise<void> {
     const artifact = readArtifact(deployed.role as Role)
     let derived: ReturnType<typeof deriveMasks>
     try {
-      derived = deriveMasks(artifact, subs)
+      derived = deriveMasks(artifact, scopedTo(subs, deployed.role))
     } catch (err: unknown) {
       // A mask that cannot be derived is a failure of this contract, not of the run: the remaining
       // contracts are still checked and reported.
@@ -151,18 +188,103 @@ async function main(): Promise<void> {
     for (const problem of problems) console.log(`    !! ${problem}`)
   }
 
+  // Byte fidelity says the code is right; it says nothing about the configuration the code reads.
+  // The fee regime lives entirely in storage, so it is asserted here against the values fetched
+  // from mainnet rather than narrated in the runbook.
+  console.log('fee regime:')
+  const factory = record.contracts.find((c) => c.role === 'algebraFactory')
+  const vaultFactory = record.contracts.find((c) => c.role === 'vaultFactory')
+  const communityVault = record.contracts.find((c) => c.role === 'communityVault')
+  if (!factory || !vaultFactory || !communityVault) {
+    console.log('  !! the deployment record has no factory / vault factory / community vault')
+    failures++
+  } else {
+    const check = (what: string, got: string, want: string): void => {
+      const ok = got.toLowerCase() === want.toLowerCase()
+      console.log(`  ${ok ? 'OK  ' : 'FAIL'} ${what.padEnd(30)} ${got}${ok ? '' : ` != ${want}`}`)
+      if (!ok) failures++
+    }
+
+    const wiredVaultFactory = await client.readContract({
+      address: factory.address,
+      abi: FACTORY_ABI,
+      functionName: 'vaultFactory',
+    })
+    if (wiredVaultFactory === ZERO_ADDRESS) {
+      console.log('  FAIL vaultFactory is unset — the factory cannot carry a community fee')
+      failures++
+    } else {
+      check('factory.vaultFactory', wiredVaultFactory, vaultFactory.address)
+    }
+
+    check(
+      'stub.defaultCommunityVault',
+      await client.readContract({
+        address: vaultFactory.address,
+        abi: VAULT_FACTORY_ABI,
+        functionName: 'defaultAlgebraCommunityVault',
+      }),
+      communityVault.address,
+    )
+
+    check(
+      'factory.defaultCommunityFee',
+      String(
+        await client.readContract({
+          address: factory.address,
+          abi: FACTORY_ABI,
+          functionName: 'defaultCommunityFee',
+        }),
+      ),
+      String(resolved.factoryConfig.defaultCommunityFee),
+    )
+
+    check(
+      'vault.algebraFee',
+      String(
+        await client.readContract({
+          address: communityVault.address,
+          abi: VAULT_ABI,
+          functionName: 'algebraFee',
+        }),
+      ),
+      String(resolved.vaultConfig.algebraFee),
+    )
+
+    // The role holders are operator addresses by design — mainnet's are third-party accounts with
+    // no test-network counterpart. They are printed, not asserted against mainnet.
+    for (const [role, want] of [
+      ['vault.algebraFeeManager', record.algebraFeeManager],
+      ['vault.algebraFeeReceiver', record.algebraFeeReceiver],
+      ['vault.communityFeeReceiver', record.communityFeeReceiver],
+    ] as const) {
+      const got = await client.readContract({
+        address: communityVault.address,
+        abi: VAULT_ABI,
+        functionName: role.split('.')[1] as
+          | 'algebraFeeManager'
+          | 'algebraFeeReceiver'
+          | 'communityFeeReceiver',
+      })
+      const ok = got.toLowerCase() === want.toLowerCase()
+      console.log(`  ${ok ? 'OK  ' : 'note'} ${role.padEnd(30)} ${got}`)
+      if (!ok) console.log(`       requested ${want} — the role was not applied`)
+    }
+  }
+
   if (record.deviations.length > 0) {
     console.log('recorded configuration deviations:')
     for (const d of record.deviations) console.log(`  - ${d}`)
   }
 
   if (failures > 0) {
-    console.log(`FAIL: ${failures} of ${record.contracts.length} contracts do not match mainnet.`)
+    console.log(`FAIL: ${failures} check(s) do not match mainnet.`)
     process.exitCode = 1
     return
   }
   console.log(
-    `OK: ${record.contracts.length} contracts are byte-identical to mainnet outside the masked ranges printed above.`,
+    `OK: ${record.contracts.length} contracts are byte-identical to mainnet outside the masked ranges ` +
+      'printed above, and the fee regime matches the values read from mainnet.',
   )
 }
 

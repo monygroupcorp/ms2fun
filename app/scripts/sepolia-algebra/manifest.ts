@@ -8,6 +8,8 @@
  * Three further roles (the token-descriptor implementation behind the proxy, its linked
  * NFTDescriptor library, and the original deployer account) are NOT listed here: they are resolved
  * at fetch time from on-chain state and explorer metadata, and land in `artifacts/resolved.json`.
+ * The same is true of the vault's fee-manager and receiver accounts: they are roles, read at fetch
+ * time and reported, never pinned here and never reproduced on a test network.
  */
 
 export type Role =
@@ -19,6 +21,8 @@ export type Role =
   | 'positionManager'
   | 'swapRouter'
   | 'pluginFactory'
+  | 'communityVault'
+  | 'vaultFactory'
 
 export interface RoleSpec {
   readonly role: Role
@@ -63,6 +67,20 @@ export const PUBLISHED_SET: readonly RoleSpec[] = [
     verified: true,
   },
   {
+    role: 'communityVault',
+    label: 'AlgebraCommunityVault',
+    mainnet: '0x85D63DC01cF69AC44580444A640250d50e63f9Df',
+    verified: true,
+    note: 'Community fee sink. Constructed against the factory and a fee-manager account.',
+  },
+  {
+    role: 'vaultFactory',
+    label: 'AlgebraVaultFactoryStub',
+    mainnet: '0xd3345a8AD89efA6879e651e8C8113dD990099785',
+    verified: true,
+    note: 'Returns the community vault for every pool; the factory refuses a non-zero community fee without it.',
+  },
+  {
     role: 'tokenDescriptor',
     label: 'TokenDescriptorProxy',
     mainnet: '0x6E80E39BF2fD98bbBCA67Fe6c9967E01dFB84f74',
@@ -101,6 +119,8 @@ export const DEPLOY_ORDER: readonly Role[] = [
   'positionManager',
   'swapRouter',
   'pluginFactory',
+  'communityVault',
+  'vaultFactory',
 ] as const
 
 export const ALL_ROLES: readonly Role[] = DEPLOY_ORDER
