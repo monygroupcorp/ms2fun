@@ -1,196 +1,248 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
-import { Script, console } from "forge-std/Script.sol";
+import { console } from "forge-std/Script.sol";
+import { SeedSepoliaShared, IShowcaseCurveState } from "./SeedSepoliaShared.sol";
 import { AlignmentRegistryV1 } from "../src/master/AlignmentRegistryV1.sol";
 import { IAlignmentRegistry } from "../src/master/interfaces/IAlignmentRegistry.sol";
 import { MasterRegistryV1 } from "../src/master/MasterRegistryV1.sol";
-import { ComponentRegistry } from "../src/registry/ComponentRegistry.sol";
 import { UniAlignmentVaultFactory } from "../src/vaults/uni/UniAlignmentVaultFactory.sol";
 import { IVaultPriceValidator } from "../src/interfaces/IVaultPriceValidator.sol";
-import { FeatureUtils } from "../src/master/libraries/FeatureUtils.sol";
-import { LiquidityDeployerModule } from "../src/factories/erc404/LiquidityDeployerModule.sol";
+import { ERC404BondingInstance } from "../src/factories/erc404/ERC404BondingInstance.sol";
 import { MockERC20 } from "../test/mocks/MockERC20.sol";
 import { PoolKey } from "v4-core/types/PoolKey.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
 import { IHooks } from "v4-core/interfaces/IHooks.sol";
 
-/// @notice Post-deployment seed script for the existing Sepolia deployment.
-///         Adds missing state that was previously handled by the Node.js seed-common.mjs:
-///         - MS2 + CULT test tokens (MockERC20)
-///         - Alignment targets + UniAlignmentVaults for each (via a NEW factory with setVaultPoolKey)
-///         - V4 pool initialization + pool key assignment for each vault
-///         - LiquidityDeployerModule (real V4 LP deployer, used at ERC404 graduation)
+/// @notice Sepolia showcase seed, PHASE 1: alignment wiring, then CREATE + ARM every ERC404 row.
+///         Buys nothing.
+///
+///         Run against the deployment `DeploySepolia` wrote (`deployments/sepolia.json`); every
+///         address is read from that file rather than declared here.
+///
+///         ── WHY THIS BUYS NOTHING ──
+///         `setBondingOpenTime` rejects a non-future timestamp and `buyBonding` reverts `TooEarly`
+///         before it, and forge simulates an entire script at ONE timestamp before broadcasting any
+///         of it. One script therefore cannot both arm a curve and buy into it. Phase 2
+///         (`SeedSepoliaBuys.s.sol`) runs after the arm window has actually elapsed in wall-clock
+///         time — see `app/scripts/sepolia-seed/` for the orchestrator that waits it out.
+///
+///         ── WHAT IT COSTS ──
+///         Creating and arming a curve moves no ETH: the create call carries no value (the deploy
+///         bond lever ships off) and every other call here is a write. Phase 1's cost is gas.
 ///
 ///         Run with:
-///         forge script script/SeedSepolia.s.sol \
-///           --account <keystore> \
-///           --sender 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab6 \
-///           --rpc-url <sepolia-rpc> \
-///           --broadcast --verify
-contract SeedSepolia is Script {
-    // ── Existing Sepolia deployment ───────────────────────────────────────────
-
-    AlignmentRegistryV1 constant ALIGNMENT_REGISTRY = AlignmentRegistryV1(0x00001152db13C4AFb4d9F4bbA93F364692F372eB);
-    MasterRegistryV1 constant MASTER_REGISTRY = MasterRegistryV1(0x00001152CBa5fDB16A0FAE780fFebD5b9dF8e7cF);
-    ComponentRegistry constant COMPONENT_REGISTRY = ComponentRegistry(0x00001152Ed1bD8e76693cB775c79708275bBb2F3);
-    address constant MASTER_REGISTRY_ADDR = 0x00001152CBa5fDB16A0FAE780fFebD5b9dF8e7cF;
-    address constant PRICE_VALIDATOR = 0x2d3C9f10671314639FCBD4d85F3DcfbFF2D5610E;
-    address constant ZROUTER = 0x4ABdEaB1A6Dca8CEFB3280cb2843DDbEf0FA1CFB;
-    // Destination of the 1% protocol yield cut for every vault this script seeds. Recorded in
-    // deployments/sepolia.json as ProtocolTreasury, same vanity set as the registries above.
-    address constant PROTOCOL_TREASURY = 0x00001152e56eb45082De505e9E9be5DC158E4cfC;
-    // On-chain best-route quoter wired into the seeded vault factory (enables multi-venue acquisition).
-    // address(0) = best-route DISABLED (fixed-pool fallback only). Sepolia has no canonical zQuoter, so this
-    // is left 0 until an operator points it at a compatible quoter. OPERATOR INPUT.
-    address constant ZQUOTER = address(0);
-
-    // Sepolia infrastructure
-    address constant V4_POOL_MANAGER = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
-    address constant WETH = 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14;
-
-    uint256 constant SEPOLIA_CHAIN_ID = 11155111;
-
-    // V4 pool params: 0.3% fee, tickSpacing 60, no hooks
-    uint24 constant POOL_FEE = 3000;
-    int24 constant POOL_TICK_SPACING = 60;
-
-    // Starting price: 1 ETH = 1 token (sqrtPriceX96 = sqrt(1) * 2^96 = 2^96)
-    uint160 constant SQRT_PRICE_1_1 = 79228162514264337593543950336;
-
-    // ── Deployed by this script (written to sepolia-seed.json) ───────────────
-
-    UniAlignmentVaultFactory public vaultFactory;
-    MockERC20 public ms2Token;
-    MockERC20 public cultToken;
-    uint256 public ms2TargetId;
-    uint256 public cultTargetId;
-    address public ms2Vault;
-    address public cultVault;
-    LiquidityDeployerModule public liquidityDeployerModule;
+///           forge script script/SeedSepolia.s.sol --account <keystore> --sender <deployer> \
+///             --rpc-url <sepolia-rpc> --broadcast
+contract SeedSepolia is SeedSepoliaShared {
+    // V4 pool params for the alignment-target pools this seed stands up: 0.3% fee, tickSpacing 60,
+    // no hooks — the same tier `DeployCore` builds the deployment's vault keys from.
+    uint24 internal constant POOL_FEE = 3000;
+    int24 internal constant POOL_TICK_SPACING = 60;
+    /// @dev Starting price 1:1 (sqrt(1) * 2^96). A pool must be initialized before it can be named;
+    ///      it holds no liquidity until someone adds some.
+    uint160 internal constant SQRT_PRICE_1_1 = 79228162514264337593543950336;
 
     function run() public {
+        deployer = msg.sender;
+
+        Deployed memory d = _readDeployed();
+        require(block.chainid == SEPOLIA_CHAIN_ID, "SeedSepolia: not running against Sepolia (or a fork of it)");
+
+        _reportSpend("phase 1 (create + arm)", 0, deployer.balance);
+
+        // ── Alignment wiring: fixture tokens, targets, vaults, pools ──
+        SeedHandoff memory h = _seedAlignment(d);
+
+        // ── The ERC404 roster: create + arm, nothing bought ──
+        ShowcaseLeg[] memory legs = _showcaseRoster();
+        address[] memory instances = new address[](legs.length);
+        uint256 armWindow = _armWindow();
+        uint256 maturityOffset = _maturityOffset();
+        uint256 latestArm;
+
+        for (uint256 i = 0; i < legs.length; i++) {
+            _assertPieceBase(legs[i].pieceBase, legs[i].slug);
+            (address inst, uint256 armedUntil) = _createAndArm(d, legs[i], h.ms2Vault, armWindow, maturityOffset);
+            instances[i] = inst;
+            if (armedUntil > latestArm) latestArm = armedUntil;
+            console.log(string.concat("ARMED ", legs[i].slug), inst);
+        }
+
+        // Phase 2 becomes legal only once the LAST clock phase 1 set has passed, plus slack for the
+        // wall-clock the broadcast itself consumed. Recorded rather than recomputed later, so the
+        // orchestrator waits for the same instant the chain will judge the buys against.
+        h.phase2NotBefore = latestArm + _phase2Slack();
+
+        _assertPhase1(legs, instances);
+        _writeSeedState(legs, instances, h);
+
+        console.log("=== SeedSepolia (phase 1: create + arm) complete ===");
+        console.log("  rows armed:", legs.length);
+        console.log("  block.timestamp now:", block.timestamp);
+        console.log("  phase 2 is legal from (unix):", h.phase2NotBefore);
+        console.log("  wall-clock wait from now (seconds):", h.phase2NotBefore - block.timestamp);
+        console.log("  NEXT: wait out the window, then run SeedSepoliaBuys.s.sol");
+    }
+
+    // ─────────────────────── Alignment targets, vaults, pools ───────────────────────
+
+    /// @dev Two fixture alignment targets with their own Uni-V4 vaults, carried over from the seed
+    ///      this replaces. The tokens are FIXTURES: `MockERC20`s that exist so a target has an asset
+    ///      to name and a vault something to be aligned to. They are labelled as fixtures in the
+    ///      target's own on-chain description, because a testnet target that reads as a real
+    ///      community token is exactly the fiction the showcase refuses.
+    function _seedAlignment(Deployed memory d) internal returns (SeedHandoff memory h) {
+        AlignmentRegistryV1 registry = AlignmentRegistryV1(d.alignmentRegistry);
+        UniAlignmentVaultFactory factory = UniAlignmentVaultFactory(d.uniVaultFactory);
+
         vm.startBroadcast();
-        seed(msg.sender);
+
+        MockERC20 ms2 = new MockERC20("Station Fixture Token", "MS2");
+        MockERC20 cult = new MockERC20("Community Fixture Token", "CULT");
+        h.ms2Token = address(ms2);
+        h.cultToken = address(cult);
+
+        h.ms2TargetId = _registerTarget(
+            registry,
+            address(ms2),
+            "MS2",
+            "Station",
+            "Alignment target demonstrating the vault flow. Its asset is a testnet FIXTURE token, not a traded coin - what it exists to show is where a collection's alignment tithe goes and what the vault does with it."
+        );
+        h.cultTargetId = _registerTarget(
+            registry,
+            address(cult),
+            "CULT",
+            "Community",
+            "A second alignment target, so the registry index and the target picker have more than one row to choose between. Its asset is a testnet FIXTURE token."
+        );
+
+        h.ms2Vault = _deployAndWireVault(d, factory, address(ms2), "MS2", h.ms2TargetId);
+        h.cultVault = _deployAndWireVault(d, factory, address(cult), "CULT", h.cultTargetId);
+
+        vm.stopBroadcast();
+
+        console.log("ALIGNMENT ms2 target/vault:", h.ms2TargetId, h.ms2Vault);
+        console.log("ALIGNMENT cult target/vault:", h.cultTargetId, h.cultVault);
+    }
+
+    function _registerTarget(
+        AlignmentRegistryV1 registry,
+        address token,
+        string memory symbol,
+        string memory title,
+        string memory description
+    ) internal returns (uint256 targetId) {
+        IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);
+        assets[0] =
+            IAlignmentRegistry.AlignmentAsset({ token: token, symbol: symbol, info: description, metadataURI: "" });
+        targetId = registry.registerAlignmentTarget(title, description, "", assets);
+    }
+
+    /// @dev Deploy the target's vault, initialize its V4 pool, point the vault at that pool, and
+    ///      register it. All four, because leaving any one undone produces a vault that looks wired
+    ///      and cannot LP: the pool key lives on the vault (not in the registry), the pool has to
+    ///      exist before it can be named, and an unregistered vault is refused at instance-create.
+    function _deployAndWireVault(
+        Deployed memory d,
+        UniAlignmentVaultFactory factory,
+        address token,
+        string memory symbol,
+        uint256 targetId
+    ) internal returns (address vault) {
+        bytes32 salt = keccak256(abi.encode(block.chainid, targetId, symbol, "UNIv4-SHOWCASE"));
+        vault = factory.deployVault(salt, token, targetId, IVaultPriceValidator(address(0)));
+
+        // Native ETH is currency0 — address(0) sorts below every token address, so the ordering holds
+        // without a comparison.
+        PoolKey memory key = PoolKey({
+            currency0: Currency.wrap(address(0)),
+            currency1: Currency.wrap(token),
+            fee: POOL_FEE,
+            tickSpacing: POOL_TICK_SPACING,
+            hooks: IHooks(address(0))
+        });
+        IPoolManager(d.v4PoolManager).initialize(key, SQRT_PRICE_1_1);
+        factory.setVaultPoolKey(vault, key);
+
+        MasterRegistryV1(d.masterRegistry)
+            .registerVault(
+                vault,
+                deployer,
+                string.concat(symbol, " UNIv4 Vault"),
+                _collectionMeta(
+                    string.concat(symbol, " UNIv4 Vault"),
+                    "Alignment vault for the showcase. A collection aligned to this target sends it 19 percent of its graduation raise, by contract.",
+                    ""
+                ),
+                targetId
+            );
+    }
+
+    // ─────────────────────── Create + arm ───────────────────────
+
+    /// @dev Create one roster row and set its clocks. Returns the latest timestamp the row's state
+    ///      depends on, which is what phase 2 must wait past.
+    ///
+    ///      THE PRE-OPEN ROW IS ARMED ON A DIFFERENT CLOCK, DELIBERATELY. Every other row opens after
+    ///      the short arm window because a human is waiting on it. The pre-open row must still be
+    ///      pre-open when a stranger arrives days later — that state IS its whole demonstration — so
+    ///      it takes `SEPOLIA_PREOPEN_DELAY_SECONDS` (default 30 days) and is excluded from the wait
+    ///      phase 2 computes.
+    function _createAndArm(
+        Deployed memory d,
+        ShowcaseLeg memory leg,
+        address vault,
+        uint256 armWindow,
+        uint256 maturityOffset
+    ) internal returns (address inst, uint256 armedUntil) {
+        vm.startBroadcast();
+        inst = _createShowcaseInstance(d, leg, vault);
+        ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
+
+        if (leg.state == STATE_PREOPEN) {
+            b.setBondingOpenTime(block.timestamp + _preopenDelay());
+            b.setBondingActive(true);
+            armedUntil = 0; // never waited for
+        } else {
+            uint256 openAt = block.timestamp + armWindow;
+            b.setBondingOpenTime(openAt);
+            armedUntil = openAt;
+            if (leg.state == STATE_READY) {
+                // Maturity is what makes the graduate action live, and the setter requires it to be
+                // strictly after the open time — so it is the open time plus a small offset, and it,
+                // not the open time, is this row's real wait.
+                uint256 matureAt = openAt + maturityOffset;
+                b.setBondingMaturityTime(matureAt);
+                armedUntil = matureAt;
+            }
+            b.setBondingActive(true);
+        }
         vm.stopBroadcast();
     }
 
-    function seed(address deployer) public {
-        // ── Phase 1: Test tokens ─────────────────────────────────────────────
+    // ─────────────────────── Phase 1 post-conditions ───────────────────────
 
-        ms2Token = new MockERC20("Milady Station 2", "MS2");
-        cultToken = new MockERC20("CULT DAO", "CULT");
-
-        // ── Phase 2: Alignment targets ───────────────────────────────────────
-
-        IAlignmentRegistry.AlignmentAsset[] memory ms2Assets = new IAlignmentRegistry.AlignmentAsset[](1);
-        ms2Assets[0] = IAlignmentRegistry.AlignmentAsset({
-            token: address(ms2Token), symbol: "MS2", info: "MS2 community alignment target", metadataURI: ""
-        });
-        ms2TargetId = ALIGNMENT_REGISTRY.registerAlignmentTarget(
-            "Milady Station 2", "MS2 community alignment target", "", ms2Assets
-        );
-
-        IAlignmentRegistry.AlignmentAsset[] memory cultAssets = new IAlignmentRegistry.AlignmentAsset[](1);
-        cultAssets[0] = IAlignmentRegistry.AlignmentAsset({
-            token: address(cultToken), symbol: "CULT", info: "CULT community alignment target", metadataURI: ""
-        });
-        cultTargetId =
-            ALIGNMENT_REGISTRY.registerAlignmentTarget("CULT DAO", "CULT community alignment target", "", cultAssets);
-
-        // ── Phase 3: New factory + vaults + pools ────────────────────────────
-        //
-        // The original factory (0x5dE980...) is ownerless and has no setVaultPoolKey.
-        // Deploy a new factory (now Ownable with setVaultPoolKey) for MS2/CULT vaults.
-
-        vaultFactory = new UniAlignmentVaultFactory(
-            WETH,
-            V4_POOL_MANAGER,
-            ZROUTER,
-            POOL_FEE,
-            POOL_TICK_SPACING,
-            PROTOCOL_TREASURY,
-            IVaultPriceValidator(PRICE_VALIDATOR),
-            ALIGNMENT_REGISTRY,
-            ZQUOTER // best-route quoter (address(0) = fixed-pool fallback only); OPERATOR INPUT
-        );
-
-        // Index-based salts — consistent with DeployCore pattern (LINK was index 0)
-        bytes32 ms2Salt = keccak256(abi.encode(SEPOLIA_CHAIN_ID, uint256(1), "UNIv4"));
-        bytes32 cultSalt = keccak256(abi.encode(SEPOLIA_CHAIN_ID, uint256(2), "UNIv4"));
-
-        ms2Vault = vaultFactory.deployVault(ms2Salt, address(ms2Token), ms2TargetId, IVaultPriceValidator(address(0)));
-        cultVault =
-            vaultFactory.deployVault(cultSalt, address(cultToken), cultTargetId, IVaultPriceValidator(address(0)));
-
-        MASTER_REGISTRY.registerVault(
-            ms2Vault,
-            deployer,
-            "MS2 UNIv4 Vault",
-            "data:application/json,{\"name\":\"MS2 UNIv4 Vault\",\"symbol\":\"MS2\"}",
-            ms2TargetId
-        );
-        MASTER_REGISTRY.registerVault(
-            cultVault,
-            deployer,
-            "CULT UNIv4 Vault",
-            "data:application/json,{\"name\":\"CULT UNIv4 Vault\",\"symbol\":\"CULT\"}",
-            cultTargetId
-        );
-
-        // V4 pool key: ETH (address(0)) is always < token address → currency0 = ETH
-        PoolKey memory ms2PoolKey = PoolKey({
-            currency0: Currency.wrap(address(0)),
-            currency1: Currency.wrap(address(ms2Token)),
-            fee: POOL_FEE,
-            tickSpacing: POOL_TICK_SPACING,
-            hooks: IHooks(address(0))
-        });
-        PoolKey memory cultPoolKey = PoolKey({
-            currency0: Currency.wrap(address(0)),
-            currency1: Currency.wrap(address(cultToken)),
-            fee: POOL_FEE,
-            tickSpacing: POOL_TICK_SPACING,
-            hooks: IHooks(address(0))
-        });
-
-        // Initialize pools (permissionless — sets starting price, no liquidity required)
-        IPoolManager(V4_POOL_MANAGER).initialize(ms2PoolKey, SQRT_PRICE_1_1);
-        IPoolManager(V4_POOL_MANAGER).initialize(cultPoolKey, SQRT_PRICE_1_1);
-
-        // Wire pool keys into vaults (only possible because factory now owns vaults + has setVaultPoolKey)
-        vaultFactory.setVaultPoolKey(ms2Vault, ms2PoolKey);
-        vaultFactory.setVaultPoolKey(cultVault, cultPoolKey);
-
-        // ── Phase 4: ComponentRegistry — real functional contracts ───────────
-
-        // LiquidityDeployerModule — deploys Uniswap V4 LP at ERC404 graduation
-        liquidityDeployerModule =
-            new LiquidityDeployerModule(V4_POOL_MANAGER, WETH, POOL_FEE, POOL_TICK_SPACING, address(MASTER_REGISTRY));
-        liquidityDeployerModule.setMetadataURI(
-            "data:application/json,{\"name\":\"Uniswap V4 Deployer\",\"subtitle\":\"Uniswap V4 \\u00b7 Concentrated Liquidity\",\"description\":\"Deploy liquidity to a Uniswap V4 pool. Swap fees compound directly into the pool, deepening liquidity over time.\",\"configType\":\"launch-profile\"}"
-        );
-        COMPONENT_REGISTRY.approveComponent(
-            address(liquidityDeployerModule), FeatureUtils.LIQUIDITY_DEPLOYER, "LiquidityDeployerModule"
-        );
-
-        // ── Output ───────────────────────────────────────────────────────────
-
-        _writeSeedJson();
-    }
-
-    function _writeSeedJson() internal {
-        string memory s = "seed";
-        vm.serializeAddress(s, "vaultFactory", address(vaultFactory));
-        vm.serializeAddress(s, "ms2Token", address(ms2Token));
-        vm.serializeAddress(s, "cultToken", address(cultToken));
-        vm.serializeUint(s, "ms2TargetId", ms2TargetId);
-        vm.serializeUint(s, "cultTargetId", cultTargetId);
-        vm.serializeAddress(s, "ms2Vault", ms2Vault);
-        vm.serializeAddress(s, "cultVault", cultVault);
-        string memory json = vm.serializeAddress(s, "liquidityDeployerModule", address(liquidityDeployerModule));
-        vm.writeJson(json, "./deployments/sepolia-seed.json");
-        console.log("Seed JSON written to: ./deployments/sepolia-seed.json");
+    /// @dev Everything phase 1 claims, checked before the hand-off file is written. `require`s, not
+    ///      logs: forge simulates the whole script first, so a failure here leaves no partial seed and
+    ///      names the row that failed.
+    function _assertPhase1(ShowcaseLeg[] memory legs, address[] memory instances) internal view {
+        for (uint256 i = 0; i < legs.length; i++) {
+            IShowcaseCurveState s = IShowcaseCurveState(instances[i]);
+            string memory slug = legs[i].slug;
+            require(instances[i] != address(0), string.concat("phase1: ", slug, " was not created"));
+            require(s.bondingActive(), string.concat("phase1: ", slug, " is not armed"));
+            require(s.bondingOpenTime() > block.timestamp, string.concat("phase1: ", slug, " opened during phase 1"));
+            require(s.totalBondingSupply() == 0, string.concat("phase1: ", slug, " was bought into by phase 1"));
+            if (legs[i].state == STATE_READY) {
+                require(
+                    s.bondingMaturityTime() > s.bondingOpenTime(),
+                    string.concat("phase1: ", slug, " has no maturity after its open time")
+                );
+            }
+        }
+        console.log("PHASE-1 post-conditions OK");
     }
 }
