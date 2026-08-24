@@ -727,6 +727,11 @@ contract DeployCore is Script {
         vm.serializeAddress(c, "ModuleUniV4Deployer", address(moduleUniV4Deployer));
         vm.serializeAddress(c, "ModuleZAMMDeployer", address(moduleZAMMDeployer));
         vm.serializeAddress(c, "ModuleCypherDeployer", address(moduleCypherDeployer));
+        // The Cypher venue's periphery swap router. Not deployed by us — it is the network's Algebra
+        // router, supplied as config — but the frontend needs it to trade a Cypher-graduated token in
+        // site, so it is published alongside the addresses we do deploy. Zero on a network with no
+        // Algebra deployment, which the app reads as "no router here yet".
+        vm.serializeAddress(c, "CypherSwapRouter", cfg.cypherRouter);
         vm.serializeAddress(c, "ERC404StakingModule", address(erc404StakingModule));
         vm.serializeAddress(c, "MetadataResolverRouter", address(metadataResolverRouter));
         vm.serializeAddress(c, "MetadataOverlayModule", address(metadataOverlayModule));
