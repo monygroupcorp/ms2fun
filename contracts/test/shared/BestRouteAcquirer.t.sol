@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import { BestRouteAcquirer } from "../../src/shared/libraries/BestRouteAcquirer.sol";
 import { MockZQuoter } from "../mocks/MockZQuoter.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
-import { IAlgebraSwapRouter } from "../../src/interfaces/algebra/IAlgebra.sol";
+import { ALGEBRA_DEFAULT_DEPLOYER, IAlgebraSwapRouter } from "../../src/interfaces/algebra/IAlgebra.sol";
 
 /// @notice zRouter stand-in that records which TYPED leg the acquirer dispatched to and mints the
 ///         configured output. Enforces `amountOut >= amountLimit` (like the real router) so a minOut
@@ -154,6 +154,9 @@ contract RecordingAlgebraRouter {
     {
         // Native ETH in: msg.value must fund amountIn, mirroring the real router's `pay()` wrap path.
         require(msg.value == p.amountIn, "RecordingAlgebraRouter: native ETH mismatch");
+        // The vault LPs into factory-created pools, so the acquire leg must name the default deployer.
+        require(p.deployer == ALGEBRA_DEFAULT_DEPLOYER, "RecordingAlgebraRouter: non-default deployer");
+        // The vault LPs into factory-created pools, so the acquire leg must name the default deployer.
         require(out >= p.amountOutMinimum, "RecordingAlgebraRouter: insufficient output");
         called = true;
         lastTokenIn = p.tokenIn;
