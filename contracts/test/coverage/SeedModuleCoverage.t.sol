@@ -760,6 +760,21 @@ contract SeedModuleCoverageTest is Test {
         assertEq(all.length, 1, "route pin: the roster's token gets no route list");
         assertEq(pinned.amountIn, 1 ether, "route pin: the quote does not carry the requested size");
 
+        // THE EXECUTED VENUE MUST BE THE CURATED ONE. The registry curates `Venue.UNI_V4` on the
+        // 1%/200 tier and the vault LPs into that same tier, but the venue the buy actually executes
+        // on is decided HERE and nowhere else — `BestRouteAcquirer._tryBestRoute` switches on
+        // `best.source`, so a pin naming a different AMM sends the convert to a pool the registry
+        // never curated while every registry read-back above still passes. The fee is asserted
+        // alongside it because the source alone does not pick a pool: the acquirer multiplies
+        // `feeBps` by 100 for the V4 fee and maps 100 bps to tick spacing 200, which is the tier the
+        // seed's depth deposit fills. Move either half and this goes red.
+        assertEq(
+            uint8(pinned.source),
+            uint8(AnvilFixedRouteQuoter.AMM.UNI_V4),
+            "route pin: the executed venue is not the curated UNI_V4 one"
+        );
+        assertEq(pinned.feeBps, 100, "route pin: the quote does not resolve to the curated 1% tier");
+
         // Every other pair degrades to the vault's own fixed-pool fallback.
         (AnvilFixedRouteQuoter.Quote memory other, AnvilFixedRouteQuoter.Quote[] memory none) =
             quoter.getQuotes(false, address(0), address(0xBEEF), 1 ether);
