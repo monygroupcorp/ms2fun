@@ -370,6 +370,16 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
             revert PoolKeyNotSet();
         }
 
+        // Crystallize any LP fees accrued in the existing position into `accFeesPerShare` BEFORE the new
+        // shares mint in `_distributeSharesAndCleanup`, so a benefactor arriving in this convert cannot
+        // dilute incumbents' already-earned (but as-yet uncollected) fees. Ordering-driven: it bypasses
+        // the 1-day collection interval that the claim paths keep. Gated to "a position exists and there
+        // are incumbents to protect" — the first-ever convert has no shares and no position, so nothing
+        // is collected; once a position exists, `_claimVaultFees` self-returns zero when no fee is owed.
+        if (totalShares > 0 && totalLPUnits > 0) {
+            _collectAndAccrueNow();
+        }
+
         int24 tickLower = TickMath.minUsableTick(v4PoolKey.tickSpacing);
         int24 tickUpper = TickMath.maxUsableTick(v4PoolKey.tickSpacing);
         uint256 ethToAdd = totalPendingETH;
@@ -486,7 +496,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
     // ========== Fee Claims ==========
 
-    function _claimVaultFees() internal returns (uint256 ethCollected, uint256 tokenCollected) {
+    function _claimVaultFees() internal virtual returns (uint256 ethCollected, uint256 tokenCollected) {
         if (totalLPUnits == 0) {
             return (0, 0);
         }
@@ -574,14 +584,24 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
             block.timestamp >= lastVaultFeeCollectionTime + vaultFeeCollectionInterval
                 || lastVaultFeeCollectionTime == 0
         ) {
-            (uint256 ethCollected, uint256 tokenCollected) = _claimVaultFees();
-            uint256 ethFromTokens = _convertVaultFeesToEth(tokenCollected);
+            _collectAndAccrueNow();
+        }
+    }
 
-            uint256 totalCollected = ethCollected + ethFromTokens;
-            if (totalCollected > 0) {
-                _splitAndAccrueVaultFees(totalCollected);
-                lastVaultFeeCollectionTime = block.timestamp;
-            }
+    /// @dev Collect LP fees and route them through the 80/19/1 split with NO collection-interval gate.
+    ///      The interval throttles only the user-facing `claimFees`/`claimFeesAsDelegate` paths (gas/DoS
+    ///      characteristics unchanged there); the ordering-driven pre-weight-change crystallization in
+    ///      `convertAndAddLiquidity` calls this directly, because deferring the collect past a share
+    ///      mint is exactly what dilutes incumbents. `_claimVaultFees` self-returns zero when no fees are
+    ///      owed, so a convert with nothing to crystallize accrues nothing.
+    function _collectAndAccrueNow() internal {
+        (uint256 ethCollected, uint256 tokenCollected) = _claimVaultFees();
+        uint256 ethFromTokens = _convertVaultFeesToEth(tokenCollected);
+
+        uint256 totalCollected = ethCollected + ethFromTokens;
+        if (totalCollected > 0) {
+            _splitAndAccrueVaultFees(totalCollected);
+            lastVaultFeeCollectionTime = block.timestamp;
         }
     }
 
