@@ -173,9 +173,11 @@ contract FeaturedListIntegrityTest is Test {
 
     // ── _addToList: the auto-prune that bounds list growth ─────────────────────
 
-    /// `_addToList` prunes one expired entry when the list has reached `maxFeaturedSize`. That prune is
-    /// only reachable after `QueueFull` has already proved an expired entry exists, so it can never
-    /// silently no-op on this path — and the list therefore cannot grow past the cap.
+    /// `_addToList` prunes one non-visible entry — expired or revoked — when the list has reached
+    /// `maxFeaturedSize`. That prune is only reachable after the cap check has already proved the
+    /// visible count is below the list length, so a non-visible entry is guaranteed to exist and the
+    /// prune can never silently no-op on this path — the list therefore cannot grow past the cap.
+    /// This registry stand-in never revokes, so here the non-visible entry is always the expired one.
     function test_addToList_autoPruneKeepsTheListBounded() public {
         vm.prank(owner);
         queue.setMaxFeaturedSize(2);
