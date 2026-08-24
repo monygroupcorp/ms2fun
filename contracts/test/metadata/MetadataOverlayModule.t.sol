@@ -103,6 +103,35 @@ contract MockSplitVault {
     receive() external payable { }
 }
 
+/// @dev A registered, healthy vault that STILL reverts on `receiveContribution`, reproducing the two
+///      real production reverts: a contribution below the vault's minimum, and a filled conversion-
+///      participant cap. Wiring this in place of the always-accepting mock de-vacuums the SPLIT gate:
+///      the guard must isolate these reverts, not brick the holder's unlock.
+contract RevertingSplitVault {
+    // Mirrors the real vaults' MIN_CONTRIBUTION floor: a sub-minimum tithe reverts.
+    uint256 public constant MIN_CONTRIBUTION = 0.001 ether;
+
+    uint256 public received;
+    address public benefactor;
+    bool public capReached;
+
+    error ContributionBelowMinimum();
+    error TooManyConversionParticipants();
+
+    /// @dev Flip to simulate the conversion-participant cap being full — every contribution then reverts.
+    function setCapReached(bool v) external {
+        capReached = v;
+    }
+
+    function receiveContribution(Currency, uint256, address b) external payable {
+        if (capReached) revert TooManyConversionParticipants();
+        if (msg.value < MIN_CONTRIBUTION) revert ContributionBelowMinimum();
+        received += msg.value;
+        benefactor = b;
+    }
+    receive() external payable { }
+}
+
 /// @dev Owner contract that reenters unlock on receiving its artist payout — must be blocked.
 contract ReentrantArtist {
     MetadataOverlayModule ov;
@@ -580,6 +609,106 @@ contract MetadataOverlayModuleTest is Test {
         assertEq(treasury.balance, treasuryBefore + 1);
         assertEq(artist.balance, artistBefore + 99);
         assertEq(address(ov).balance, 0);
+    }
+
+    // ── noesis-392: a registered vault that reverts must not brick the unlock ────
+    // The SPLIT tithe leg feeds a registered vault via receiveContribution. A registered, healthy vault
+    // can still revert — on a sub-minimum contribution, or with a full conversion-participant cap. The
+    // guard isolates that revert and folds the tithe into the artist payout, so the holder's unlock always
+    // completes and the payment is conserved. RevertingSplitVault reproduces both reverts.
+
+    /// @dev Trigger 1: a SPLIT price low enough that the 19% tithe falls below the vault's minimum
+    ///      contribution. The vault reverts; the tithe folds to the artist and the unlock still completes.
+    function test_unlock_split_belowMinimumTithe_foldsToArtistNotBricks() public {
+        RevertingSplitVault vault = new RevertingSplitVault();
+        inst.setVault(address(vault));
+        inst.setTokenOwner(1, holder);
+
+        // price = 0.005 ETH → vaultCut = 19% = 0.00095 ETH < MIN_CONTRIBUTION (0.001 ETH) → vault reverts.
+        uint256 price = 0.005 ether;
+        vm.prank(artist);
+        ov.setCommission(
+            address(inst), 1, "c", MetadataOverlayModule.CommCond.PAY, price, MetadataOverlayModule.Payout.SPLIT
+        );
+
+        uint256 expProtocol = price / 100; // 1%
+        uint256 expVault = price * 19 / 100; // 19% (would-be tithe, now folded)
+        uint256 expRemainder = price - expProtocol - expVault; // 80%
+
+        vm.deal(holder, price);
+        uint256 artistBefore = artist.balance;
+        uint256 treasuryBefore = treasury.balance;
+        vm.prank(holder);
+        ov.unlock{ value: price }(address(inst), 1); // must NOT revert
+
+        assertTrue(ov.paid(address(inst), 1), "unlock completed and pinned");
+        assertEq(vault.received(), 0, "reverting vault received nothing");
+        assertEq(treasury.balance, treasuryBefore + expProtocol, "protocol leg unchanged");
+        assertEq(artist.balance, artistBefore + expRemainder + expVault, "vault tithe folded into artist payout");
+        assertEq(address(ov).balance, 0, "module strands nothing");
+    }
+
+    /// @dev Trigger 2: a healthy, registered vault with a full conversion-participant cap reverts every
+    ///      contribution. The tithe folds to the artist; the unlock is not bricked. Above-minimum price so
+    ///      only the cap (not the minimum) drives the revert.
+    function test_unlock_split_participantCapReverts_foldsToArtistNotBricks() public {
+        RevertingSplitVault vault = new RevertingSplitVault();
+        vault.setCapReached(true); // conversion-participant cap full → every receiveContribution reverts
+        inst.setVault(address(vault));
+        inst.setTokenOwner(1, holder);
+
+        uint256 price = 1 ether;
+        vm.prank(artist);
+        ov.setCommission(
+            address(inst), 1, "c", MetadataOverlayModule.CommCond.PAY, price, MetadataOverlayModule.Payout.SPLIT
+        );
+
+        uint256 expProtocol = price / 100;
+        uint256 expVault = price * 19 / 100;
+        uint256 expRemainder = price - expProtocol - expVault;
+
+        vm.deal(holder, price);
+        uint256 artistBefore = artist.balance;
+        uint256 treasuryBefore = treasury.balance;
+        vm.prank(holder);
+        ov.unlock{ value: price }(address(inst), 1); // must NOT revert
+
+        assertTrue(ov.paid(address(inst), 1), "unlock completed and pinned");
+        assertEq(vault.received(), 0, "capped vault received nothing");
+        assertEq(treasury.balance, treasuryBefore + expProtocol, "protocol leg unchanged");
+        assertEq(artist.balance, artistBefore + expRemainder + expVault, "vault tithe folded into artist payout");
+        assertEq(address(ov).balance, 0, "module strands nothing");
+    }
+
+    /// @dev The wave SPLIT path shares the same `_route` leg — a reverting registered vault must not brick
+    ///      a paid wave unlock either.
+    function test_unlockWave_split_revertingVault_foldsToArtistNotBricks() public {
+        RevertingSplitVault vault = new RevertingSplitVault();
+        vault.setCapReached(true);
+        inst.setVault(address(vault));
+        inst.setTokenOwner(2, holder);
+
+        uint256 price = 1 ether;
+        vm.prank(artist);
+        uint256 w = ov.publishWave(
+            address(inst), "pw-", MetadataOverlayModule.WaveCond.PAY, 0, price, MetadataOverlayModule.Payout.SPLIT
+        );
+
+        uint256 expProtocol = price / 100;
+        uint256 expVault = price * 19 / 100;
+        uint256 expRemainder = price - expProtocol - expVault;
+
+        vm.deal(holder, price);
+        uint256 artistBefore = artist.balance;
+        uint256 treasuryBefore = treasury.balance;
+        vm.prank(holder);
+        ov.unlockWave{ value: price }(address(inst), 2, w); // must NOT revert
+
+        assertTrue(ov.wavePaid(address(inst), 2, w), "wave unlock completed and pinned");
+        assertEq(vault.received(), 0, "reverting vault received nothing");
+        assertEq(treasury.balance, treasuryBefore + expProtocol, "protocol leg unchanged");
+        assertEq(artist.balance, artistBefore + expRemainder + expVault, "vault tithe folded into artist payout");
+        assertEq(address(ov).balance, 0, "module strands nothing");
     }
 
     // ── Negative paths: wave unlock (was entirely untested) ─────────────────────

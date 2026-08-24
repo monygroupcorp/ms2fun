@@ -269,10 +269,18 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
                         toArtist += s.vaultCut;
                     }
                 } else {
-                    // credit the contribution to the instance as benefactor (graduation path)
-                    IAlignmentVault(payable(vault)).receiveContribution{ value: s.vaultCut }(
+                    // Credit the contribution to the instance as benefactor (graduation path). Isolate the
+                    // send: a registered vault can still revert on a below-minimum contribution or a filled
+                    // conversion-participant cap, and the module holds no custody — so on a vault revert fold
+                    // the tithe into the artist payout (the same fold applied above for a zero vault/treasury)
+                    // rather than reverting the holder's unlock or stranding the wei. The unlock always
+                    // completes and payment is conserved: protocol + (vault-or-artist) + artist == price.
+                    try IAlignmentVault(payable(vault)).receiveContribution{ value: s.vaultCut }(
                         Currency.wrap(address(0)), s.vaultCut, inst
-                    );
+                    ) { }
+                    catch {
+                        toArtist += s.vaultCut;
+                    }
                 }
             } else {
                 toArtist += s.vaultCut;
