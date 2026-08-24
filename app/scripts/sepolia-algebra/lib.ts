@@ -49,6 +49,23 @@ export interface ResolvedFacts {
   mainnetWNative: Hex
   /** Native-currency symbol string the token descriptor was constructed with. */
   nativeCurrencySymbol: string
+  /**
+   * Community-vault configuration read from mainnet.
+   *
+   * The fee REGIME is what a standup reproduces — the fee value and the roles that govern it. The
+   * mainnet role HOLDERS are third-party accounts with no test-network counterpart, so they are
+   * recorded here as context and the runner points the same roles at operator-supplied addresses.
+   */
+  vaultConfig: {
+    /** Fee-manager account the vault was constructed against; the runner substitutes it. */
+    constructorFeeManager: Hex
+    /** Account currently holding the fee-manager role. The role is transferable. */
+    currentFeeManager: Hex
+    /** Algebra's share of a community-fee withdrawal, in thousandths. */
+    algebraFee: number
+    algebraFeeReceiver: Hex
+    communityFeeReceiver: Hex
+  }
   /** Factory configuration read from mainnet, reproduced by the runner where reproducible. */
   factoryConfig: {
     defaultPluginFactory: Hex
@@ -76,6 +93,11 @@ export interface DeploymentRecord {
   deployer: Hex
   wnative: Hex
   proxyAdmin: Hex
+  /** Operator address the community vault's fee-manager role was constructed against. */
+  algebraFeeManager: Hex
+  /** Operator addresses the vault's two receiver roles were pointed at. */
+  algebraFeeReceiver: Hex
+  communityFeeReceiver: Hex
   startedAt: string
   contracts: DeployedContract[]
   wiringTxs: { call: string; txHash: Hex }[]
@@ -174,6 +196,20 @@ export interface Substitution {
   what: string
   from: Hex
   to: Hex
+  /**
+   * Restrict this substitution to one contract's creation input.
+   *
+   * Needed where two roles are held by the SAME mainnet account but are separate roles on the
+   * target chain: the proxy admin and the community vault's fee manager are one account on
+   * mainnet, so an unscoped rewrite of that address would let whichever substitution ran first
+   * claim both constructor arguments and silently drop the other role's operator address.
+   */
+  only?: Role
+}
+
+/** The substitutions that apply to one role's creation input. */
+export function scopedTo(subs: readonly Substitution[], role: Role): Substitution[] {
+  return subs.filter((s) => s.only === undefined || s.only === role)
 }
 
 /**

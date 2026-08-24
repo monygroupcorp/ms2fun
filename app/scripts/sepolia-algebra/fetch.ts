@@ -10,8 +10,9 @@
  *
  * It also resolves the parts of the set that are not pinned in the manifest: the token-descriptor
  * implementation behind the proxy, the NFTDescriptor library that implementation is linked
- * against, the account that created the set, the wrapped-native token it was built against, and
- * the factory configuration a re-deployment has to reproduce.
+ * against, the account that created the set, the wrapped-native token it was built against, the
+ * factory configuration a re-deployment has to reproduce, and the community-vault fee regime (the
+ * fee value and the accounts holding the fee-manager and receiver roles).
  *
  * Output is never committed. See RUNBOOK.md.
  */
@@ -46,6 +47,13 @@ const FACTORY_ABI = parseAbi([
   'function defaultCommunityFee() view returns (uint16)',
   'function owner() view returns (address)',
   'function POOL_INIT_CODE_HASH() view returns (bytes32)',
+])
+
+const VAULT_ABI = parseAbi([
+  'function algebraFee() view returns (uint16)',
+  'function algebraFeeManager() view returns (address)',
+  'function algebraFeeReceiver() view returns (address)',
+  'function communityFeeReceiver() view returns (address)',
 ])
 
 interface ExplorerContract {
@@ -212,7 +220,23 @@ async function main(): Promise<void> {
   const positionManager = fetched.get('positionManager')
   const swapRouter = fetched.get('swapRouter')
   const factory = fetched.get('algebraFactory')
-  if (!positionManager || !swapRouter || !factory) throw new Error('published set incomplete')
+  const communityVault = fetched.get('communityVault')
+  const vaultFactory = fetched.get('vaultFactory')
+  if (!positionManager || !swapRouter || !factory || !communityVault || !vaultFactory)
+    throw new Error('published set incomplete')
+
+  // The vault pair is a two-contract closure and nothing more: the stub is constructed against the
+  // vault, and the vault against the factory (already in the set) plus a fee-manager account, which
+  // is a role rather than a contract. Both links are asserted here so a future change in the
+  // mainnet topology surfaces as a fetch failure instead of a silently narrower standup.
+  if (
+    normalizeAddress(findArg(vaultFactory, '_algebraCommunityVault')) !== communityVault.address
+  ) {
+    throw new Error('the vault factory stub is constructed against a different community vault')
+  }
+  if (normalizeAddress(findArg(communityVault, '_factory')) !== factory.address) {
+    throw new Error('the community vault is constructed against a different factory')
+  }
 
   const wnatives = [
     findArg(positionManager, '_WNativeToken'),
@@ -255,11 +279,45 @@ async function main(): Promise<void> {
     }),
   ])
 
+  const vaultState = await Promise.all([
+    client.readContract({
+      address: communityVault.address,
+      abi: VAULT_ABI,
+      functionName: 'algebraFeeManager',
+    }),
+    client.readContract({
+      address: communityVault.address,
+      abi: VAULT_ABI,
+      functionName: 'algebraFee',
+    }),
+    client.readContract({
+      address: communityVault.address,
+      abi: VAULT_ABI,
+      functionName: 'algebraFeeReceiver',
+    }),
+    client.readContract({
+      address: communityVault.address,
+      abi: VAULT_ABI,
+      functionName: 'communityFeeReceiver',
+    }),
+  ])
+
+  if (normalizeAddress(config[1]) !== vaultFactory.address) {
+    throw new Error('the factory no longer points at the vault factory stub in the manifest')
+  }
+
   const resolved: ResolvedFacts = {
     addresses: { tokenDescriptorImpl: impl.address, nftDescriptorLibrary: library.address },
     originalDeployer: await explorerCreator(explorer, proxy.address),
     mainnetWNative: wnatives[0],
     nativeCurrencySymbol: findArg(impl, '_nativeCurrencySymbol_'),
+    vaultConfig: {
+      constructorFeeManager: normalizeAddress(findArg(communityVault, '_algebraFeeManager')),
+      currentFeeManager: normalizeAddress(vaultState[0]),
+      algebraFee: Number(vaultState[1]),
+      algebraFeeReceiver: normalizeAddress(vaultState[2]),
+      communityFeeReceiver: normalizeAddress(vaultState[3]),
+    },
     factoryConfig: {
       defaultPluginFactory: normalizeAddress(config[0]),
       vaultFactory: normalizeAddress(config[1]),
@@ -279,6 +337,18 @@ async function main(): Promise<void> {
   console.log(`  defaultTickspacing    ${resolved.factoryConfig.defaultTickspacing}`)
   console.log(`  defaultCommunityFee   ${resolved.factoryConfig.defaultCommunityFee}`)
   console.log(`  POOL_INIT_CODE_HASH   ${resolved.factoryConfig.poolInitCodeHash}`)
+  console.log('mainnet community vault:')
+  console.log(`  algebraFee            ${resolved.vaultConfig.algebraFee} / 1000`)
+  console.log(
+    `  fee-manager role      ${
+      resolved.vaultConfig.currentFeeManager === resolved.vaultConfig.constructorFeeManager
+        ? 'still the account the vault was constructed against'
+        : 'has been transferred away from the account the vault was constructed against'
+    }`,
+  )
+  console.log(
+    '  receiver roles        two distinct third-party accounts (recorded in resolved.json, not reproduced)',
+  )
   console.log('fetch complete — artifacts are gitignored and must not be committed.')
 }
 
