@@ -332,7 +332,8 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
     }
 
     /**
-     * @notice Number of currently active featured slots.
+     * @notice Number of featured slots that currently occupy capacity — the same set
+     *         `getFeaturedInstances` returns as `total`: unexpired AND live in the master registry.
      */
     function queueLength() external view returns (uint256) {
         return _activeCount();
@@ -363,32 +364,47 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
         return slot.rankScore > decayed ? slot.rankScore - decayed : 0;
     }
 
+    /**
+     * @dev The single occupancy count. A slot occupies capacity exactly while it is visible —
+     *      unexpired AND live in the master registry — so `queueLength()` and the `total` returned by
+     *      `getFeaturedInstances` are the same number, and the `maxFeaturedSize` cap is spent only on
+     *      slots that can actually render. A registry revocation therefore frees the seat as well as
+     *      the badge: the revoked slot stops being counted, and a live instance can rent in its place.
+     */
     // slither-disable-next-line timestamp
     function _activeCount() internal view returns (uint256) {
         uint256 count = 0;
         for (uint256 i = 0; i < _featuredList.length; i++) {
-            if (block.timestamp < slots[_featuredList[i]].expiresAt) count++;
+            if (_isFeaturedVisible(_featuredList[i])) count++;
         }
         return count;
     }
 
     function _addToList(address instance) internal {
         if (!_inList[instance]) {
-            // Prune one expired entry to bound list growth before inserting.
-            // Active slots are capped at maxFeaturedSize, so any excess entry is guaranteed expired.
-            if (_featuredList.length >= maxFeaturedSize) _pruneOneExpired();
+            // Prune one non-visible entry to bound list growth before inserting.
+            // The cap is on the VISIBLE count, so `_featuredList` may also hold entries that are
+            // expired or revoked. Whenever the list has reached maxFeaturedSize, the caller has
+            // already passed the cap check, so visible < maxFeaturedSize <= list length — at least one
+            // list entry is non-visible and `_pruneOneInvisible` is guaranteed to find it. The list
+            // therefore cannot grow past the cap, one insert at a time.
+            if (_featuredList.length >= maxFeaturedSize) _pruneOneInvisible();
             _featuredListIndex[instance] = _featuredList.length;
             _featuredList.push(instance);
             _inList[instance] = true;
         }
     }
 
+    /**
+     * @dev Evict one entry that no longer occupies capacity — expired or revoked. Swap-and-pop, so the
+     *      entry moved into the vacated position keeps a correct `_featuredListIndex`.
+     */
     // slither-disable-next-line timestamp
-    function _pruneOneExpired() internal {
+    function _pruneOneInvisible() internal {
         uint256 len = _featuredList.length;
         for (uint256 i = 0; i < len; i++) {
             address inst = _featuredList[i];
-            if (block.timestamp >= slots[inst].expiresAt) {
+            if (!_isFeaturedVisible(inst)) {
                 address last = _featuredList[len - 1];
                 _featuredList[i] = last;
                 _featuredListIndex[last] = i;

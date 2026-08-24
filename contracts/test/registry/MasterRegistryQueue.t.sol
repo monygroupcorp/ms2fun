@@ -21,6 +21,12 @@ contract MockRegistry {
         revoked[instance] = true;
     }
 
+    /// @dev Restores registry liveness. Used to observe whether the featured list still holds an entry
+    ///      that was revoked while it was in the list — a lingering entry becomes visible again.
+    function unrevoke(address instance) external {
+        revoked[instance] = false;
+    }
+
     function isRegisteredInstance(address instance) external view returns (bool) {
         return registered[instance] && !revoked[instance];
     }
@@ -854,6 +860,91 @@ contract MasterRegistryQueueTest is Test {
         (,, uint256 expiresAt1,) = queue.getRentalInfo(inst1);
         vm.warp(expiresAt1 + 1);
         assertEq(queue.queueLength(), 1);
+    }
+
+    /// `queueLength()` and the `total` from `getFeaturedInstances` describe one queue and must agree.
+    /// A revoked instance is dropped by both: it can no longer render, so it is no longer counted.
+    function test_queueLength_agreesWithFeaturedTotal_afterRevocation() public {
+        _rentBasic(inst1, alice, 0);
+        _rentBasic(inst2, bob, 0);
+
+        (, uint256 totalBefore) = queue.getFeaturedInstances(0, 10);
+        assertEq(totalBefore, 2);
+        assertEq(queue.queueLength(), 2);
+
+        registry.revoke(inst1);
+
+        (address[] memory shown, uint256 totalAfter) = queue.getFeaturedInstances(0, 10);
+        assertEq(totalAfter, 1, "the revoked slot is not rendered");
+        assertEq(shown.length, 1);
+        assertEq(shown[0], inst2);
+        assertEq(queue.queueLength(), totalAfter, "both public counts describe the same queue");
+        assertEq(queue.queueLength(), 1);
+    }
+
+    /// The behaviour change: capacity is spent on slots that can render. Revoking the only occupant of
+    /// a size-1 featured set frees the seat for a live instance, rather than holding it until expiry.
+    function test_rentFeatured_revokedSlotFreesCapacity() public {
+        vm.prank(owner);
+        queue.setMaxFeaturedSize(1);
+
+        _rentBasic(inst1, alice, 0);
+
+        // While inst1 is live the single seat is taken.
+        uint256 duration = queue.minDuration();
+        uint256 cost = queue.quoteDurationCost(duration);
+        vm.deal(bob, bob.balance + cost);
+        vm.prank(bob);
+        vm.expectRevert(FeaturedQueueManager.QueueFull.selector);
+        queue.rentFeatured{ value: cost }(inst2, duration, 0);
+
+        // Revocation frees it, well before inst1's slot expires.
+        registry.revoke(inst1);
+        _rentBasic(inst2, bob, 0);
+
+        (address[] memory shown, uint256 total) = queue.getFeaturedInstances(0, 10);
+        assertEq(total, 1);
+        assertEq(shown[0], inst2, "the live instance took the freed seat");
+        assertEq(queue.queueLength(), 1);
+    }
+
+    /// The featured list must stay bounded by the cap under repeated rent/revoke cycles. Revoked
+    /// entries no longer count toward capacity, so they must be evicted from the list rather than
+    /// accumulating in it — otherwise every `getFeaturedInstances` pass walks a longer array.
+    ///
+    /// The list is private, so eviction is observed by restoring registry liveness at the end: an
+    /// entry still held in the list would become visible again and push the count past the cap.
+    function test_featuredList_staysBoundedUnderRentRevokeCycles() public {
+        vm.prank(owner);
+        queue.setMaxFeaturedSize(2);
+
+        address[6] memory pool =
+            [inst1, inst2, makeAddr("inst4"), makeAddr("inst5"), makeAddr("inst6"), makeAddr("inst7")];
+        for (uint256 i = 2; i < pool.length; i++) {
+            registry.register(pool[i]);
+        }
+
+        _rentBasic(pool[0], alice, 0);
+        _rentBasic(pool[1], bob, 0);
+        assertEq(queue.queueLength(), 2);
+
+        // Four cycles, each: revoke the oldest occupant, rent a fresh live instance into its seat.
+        // No slot ever expires, so eviction is the only thing that can keep the list at the cap.
+        for (uint256 i = 0; i < 4; i++) {
+            registry.revoke(pool[i]);
+            _rentBasic(pool[i + 2], charlie, 0);
+            assertEq(queue.queueLength(), 2, "capacity stays exactly at the cap through every cycle");
+        }
+
+        // Restore every revoked instance. Their slots are still unexpired, so any entry the list had
+        // kept would render again.
+        for (uint256 i = 0; i < 4; i++) {
+            registry.unrevoke(pool[i]);
+        }
+
+        (, uint256 total) = queue.getFeaturedInstances(0, 10);
+        assertEq(total, 2, "the list holds no more entries than the cap allows");
+        assertEq(queue.queueLength(), 2);
     }
 
     // ── maxFeaturedSize cap ───────────────────────────────────────────────────
