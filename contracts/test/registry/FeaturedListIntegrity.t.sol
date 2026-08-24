@@ -107,8 +107,8 @@ contract FeaturedListIntegrityTest is Test {
         _rent(instB, 7 days, 2 ether); // index 1, will expire
         _rent(instC, 300 days, 3 ether); // index 2, stays active — the one that gets swapped
 
-        // 8 days: past the two short slots' expiry, and short enough that instC's rank has not yet
-        // decayed to the floor (5%/day of raw rank; it reaches zero at day 20).
+        // 8 days: past the two short slots' expiry. Geometric decay at 5%/day leaves instC with
+        // ~66% of its rank, comfortably non-zero.
         vm.warp(block.timestamp + 8 days);
         queue.pruneExpired(instA); // instC swaps from index 2 into index 0
 
@@ -234,8 +234,8 @@ contract FeaturedListIntegrityTest is Test {
         }
 
         // Still active and still rendered after three auto-prune cycles. Its RANK is deliberately not
-        // asserted here: 24 days elapse across the cycles and proportional decay floors an untouched
-        // rank at day 20, which is the decay mechanic's business and not this file's.
+        // asserted here: 24 days elapse across the cycles and where geometric decay leaves an
+        // untouched rank is the decay mechanic's business, not this file's.
         (,,, bool isActive) = queue.getRentalInfo(instA);
         assertTrue(isActive, "the long-lived entry is still active at the end");
     }

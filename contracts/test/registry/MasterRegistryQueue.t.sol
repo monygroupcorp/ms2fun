@@ -49,6 +49,12 @@ contract MasterRegistryQueueTest is Test {
     address charlie = makeAddr("charlie");
     address treasury = makeAddr("treasury");
 
+    /// Relative tolerance for geometric-decay expectations. `powWad` is an exp/ln pair, so the
+    /// retained fraction lands within a few wei per 1e18 of the exact real-valued answer; 1e-9 is
+    /// far tighter than the gap between the geometric curve and any straight-line one at the
+    /// horizons asserted here.
+    uint256 constant DECAY_TOL = 1e9; // 1e-9 relative, in WAD
+
     // Three registered instances
     address inst1 = makeAddr("inst1");
     address inst2 = makeAddr("inst2");
@@ -466,28 +472,55 @@ contract MasterRegistryQueueTest is Test {
 
     // ── Rank decay ─────────────────────────────────────────────────────────────
 
+    /// Geometric decay: rank is multiplied by (1 - rate) per elapsed day. The day-5 reading is the
+    /// one that separates the two curves — geometric 0.95^5 = 0.7737809375 ether, a straight-line
+    /// step on the same rate would read 0.75 ether.
     function test_rankDecay_reducesOverTime() public {
         _rentBasic(inst1, alice, 1 ether);
 
         (, uint256 rankDay0,,) = queue.getRentalInfo(inst1);
         assertEq(rankDay0, 1 ether);
 
-        // Proportional decay: dailyDecayRate is bps of raw rankScore per day. 500 bps => 5%/day.
         vm.warp(block.timestamp + 1 days);
         (, uint256 rankDay1,,) = queue.getRentalInfo(inst1);
-        assertEq(rankDay1, 1 ether - (1 ether * queue.dailyDecayRate() * 1) / 10000); // 0.95 ether
+        assertApproxEqRel(rankDay1, 0.95 ether, DECAY_TOL);
 
         vm.warp(block.timestamp + 4 days); // 5 days total
         (, uint256 rankDay5,,) = queue.getRentalInfo(inst1);
-        assertEq(rankDay5, 1 ether - (1 ether * queue.dailyDecayRate() * 5) / 10000); // 0.75 ether
+        assertApproxEqRel(rankDay5, 0.7737809375 ether, DECAY_TOL);
+        // Two-sided: strictly below the previous reading, strictly above the straight-line answer.
+        assertLt(rankDay5, rankDay1);
+        assertGt(rankDay5, 0.75 ether);
     }
 
-    function test_rankDecay_floorsAtZero() public {
+    /// Geometric decay has no finite wipe point: rank asymptotes and stays strictly positive at
+    /// horizons where a straight-line curve on the same rate would have crossed zero.
+    function test_rankDecay_asymptotesRatherThanHittingZero() public {
+        _rentBasic(inst1, alice, 1 ether);
+
+        // Day 20 is exactly 10000/dailyDecayRate days — the straight-line wipe point.
+        vm.warp(block.timestamp + 20 days);
+        (, uint256 rankDay20,,) = queue.getRentalInfo(inst1);
+        assertGt(rankDay20, 0, "rank is still positive at the straight-line wipe horizon");
+        assertApproxEqRel(rankDay20, 0.3584859224085422 ether, DECAY_TOL);
+
+        // Still falling, still positive, an order of magnitude further out.
+        vm.warp(block.timestamp + 80 days); // 100 days total
+        (, uint256 rankDay100,,) = queue.getRentalInfo(inst1);
+        assertLt(rankDay100, rankDay20);
+        assertGt(rankDay100, 0);
+        assertApproxEqRel(rankDay100, 0.005920529220334 ether, DECAY_TOL);
+    }
+
+    /// Rank reaches exactly 0 only once the retained fraction underflows the wei resolution of the
+    /// stored rank. The read must floor there, not revert.
+    function test_rankDecay_floorsAtZero_atExtremeHorizon() public {
         _rentBasic(inst1, alice, 0.001 ether);
 
-        vm.warp(block.timestamp + 100 days);
+        vm.warp(block.timestamp + 1000 days);
         (, uint256 rank,,) = queue.getRentalInfo(inst1);
         assertEq(rank, 0);
+        assertEq(queue.getEffectiveRank(inst1), 0);
     }
 
     function test_rankDecay_crystallizedOnBoost() public {
@@ -495,7 +528,7 @@ contract MasterRegistryQueueTest is Test {
 
         vm.warp(block.timestamp + 3 days);
         (, uint256 rankBeforeBoost,,) = queue.getRentalInfo(inst1);
-        assertEq(rankBeforeBoost, 1 ether - (1 ether * queue.dailyDecayRate() * 3) / 10000); // 0.85 ether
+        assertApproxEqRel(rankBeforeBoost, 0.857375 ether, DECAY_TOL); // 0.95^3
 
         vm.prank(bob);
         queue.boostRank{ value: 0.5 ether }(inst1);
@@ -503,10 +536,11 @@ contract MasterRegistryQueueTest is Test {
         (, uint256 rankAfterBoost,,) = queue.getRentalInfo(inst1);
         assertEq(rankAfterBoost, rankBeforeBoost + 0.5 ether);
 
-        // Decay clock reset — only 1 day of proportional decay from the boost time (on the new rank)
+        // Decay clock reset — one day of geometric decay from the boost time, on the new rank.
         vm.warp(block.timestamp + 1 days);
         (, uint256 rankNextDay,,) = queue.getRentalInfo(inst1);
-        assertEq(rankNextDay, rankAfterBoost - (rankAfterBoost * queue.dailyDecayRate() * 1) / 10000);
+        assertApproxEqRel(rankNextDay, (rankAfterBoost * 95) / 100, DECAY_TOL);
+        assertLt(rankNextDay, rankAfterBoost);
     }
 
     // ── Rank carry ────────────────────────────────────────────────────────────
@@ -518,13 +552,11 @@ contract MasterRegistryQueueTest is Test {
         (,, uint256 expiresAt,) = queue.getRentalInfo(inst1);
         vm.warp(expiresAt + 1);
 
-        // Re-rent — carries proportionally decayed rank, prorated by elapsed seconds
-        uint256 elapsed = queue.minDuration() + 1;
-        uint256 expectedRank = 0.5 ether - (0.5 ether * queue.dailyDecayRate() * elapsed) / (10000 * 1 days);
-
+        // Re-rent — carries geometrically decayed rank, evaluated on elapsed seconds. minDuration is
+        // 7 days and the warp adds one second: 0.5 ether * 0.95^(7 + 1/86400).
         _rentBasic(inst1, alice, 0);
         (, uint256 rankSecond,,) = queue.getRentalInfo(inst1);
-        assertEq(rankSecond, expectedRank);
+        assertApproxEqRel(rankSecond, 0.34916844075515117 ether, DECAY_TOL);
     }
 
     function test_rankCarry_acrossDifferentRenters() public {
@@ -534,38 +566,80 @@ contract MasterRegistryQueueTest is Test {
         (,, uint256 expiresAt,) = queue.getRentalInfo(inst1);
         vm.warp(expiresAt + 1);
 
-        uint256 elapsed = queue.minDuration() + 1;
-        uint256 expectedRank = 0.5 ether - (0.5 ether * queue.dailyDecayRate() * elapsed) / (10000 * 1 days);
-
         _rentBasic(inst1, bob, 0);
         (address renter, uint256 rankBob,,) = queue.getRentalInfo(inst1);
         assertEq(renter, bob);
-        assertEq(rankBob, expectedRank);
+        assertApproxEqRel(rankBob, 0.34916844075515117 ether, DECAY_TOL); // 0.5e * 0.95^(7+1/86400)
     }
 
-    // ── Proportional decay: the fix's core properties ───────────────────────────
+    // ── Geometric decay: the curve's core properties ────────────────────────────
 
-    /// A 10× larger boost decays to the SAME FRACTION in the same time — the whole point of
-    /// switching from absolute to proportional decay.
+    /// A 10× larger boost decays to the SAME FRACTION in the same time — rank size does not buy a
+    /// slower burn.
     function test_rankDecay_proportional_sameFractionRegardlessOfSize() public {
         _rentBasic(inst1, alice, 0.1 ether);
         _rentBasic(inst2, bob, 1 ether); // 10× inst1
 
-        vm.warp(block.timestamp + 5 days); // 25% decay for both
+        vm.warp(block.timestamp + 5 days); // both retain 0.95^5
 
         (, uint256 rank1,,) = queue.getRentalInfo(inst1);
         (, uint256 rank2,,) = queue.getRentalInfo(inst2);
 
-        // Each decayed to 75% of its raw rank
-        assertEq(rank1, 0.1 ether - (0.1 ether * queue.dailyDecayRate() * 5) / 10000); // 0.075 ether
-        assertEq(rank2, 1 ether - (1 ether * queue.dailyDecayRate() * 5) / 10000); // 0.75 ether
-        // Same fraction: inst2 stays exactly 10× inst1
-        assertEq(rank2, rank1 * 10);
+        assertApproxEqRel(rank1, 0.07737809375 ether, DECAY_TOL);
+        assertApproxEqRel(rank2, 0.7737809375 ether, DECAY_TOL);
+        // Same fraction: inst2 stays 10× inst1, to within per-read truncation dust.
+        assertApproxEqAbs(rank2, rank1 * 10, 10);
     }
 
-    /// Anti-permanence: a big initial payer is overtaken by a smaller FRESH bid after the decay
-    /// window. Under the old absolute decay a 1 ETH boost would sit at position 1 for ~years; under
-    /// proportional decay a 0.3 ETH fresh bid overtakes within days.
+    /// THE CADENCE-INDEPENDENCE PROPERTY. Two slots start from the same 10 ETH rank at the same
+    /// instant. One is left untouched for 20 days; the other is boosted by dust once a day for the
+    /// same 20 days. Under geometric decay both read the same value — 10 ETH * 0.95^20 — because the
+    /// retention factor composes: decaying over a + b equals decaying over a, crystallising, then
+    /// decaying over b. Under a straight-line-on-current curve the untouched slot reads exactly 0 at
+    /// day 20 while the daily-boosted slot reads 3.5848 ETH, so this test separates the two curves at
+    /// full amplitude.
+    function test_rankDecay_geometric_isCadenceIndependent() public {
+        uint256 maxDur = queue.maxDuration();
+        uint256 durationCost = queue.quoteDurationCost(maxDur);
+
+        vm.deal(alice, alice.balance + durationCost + 10 ether);
+        vm.prank(alice);
+        queue.rentFeatured{ value: durationCost + 10 ether }(inst1, maxDur, 10 ether); // untouched
+
+        vm.deal(bob, bob.balance + durationCost + 10 ether);
+        vm.prank(bob);
+        queue.rentFeatured{ value: durationCost + 10 ether }(inst2, maxDur, 10 ether); // boosted daily
+
+        // Explicit cursor: solc loads block.timestamp once per call frame, so a loop must carry its
+        // own clock rather than re-reading it.
+        uint256 t = block.timestamp;
+        for (uint256 i = 0; i < 20; i++) {
+            t += 1 days;
+            vm.warp(t);
+            vm.prank(charlie);
+            queue.boostRank{ value: 1 wei }(inst2);
+        }
+
+        (, uint256 untouched,,) = queue.getRentalInfo(inst1);
+        (, uint256 boostedDaily,,) = queue.getRentalInfo(inst2);
+
+        // Both read 10 ETH * 0.95^20 = 3.584859224085422 ether.
+        assertApproxEqRel(untouched, 3.584859224085422 ether, DECAY_TOL);
+        assertApproxEqRel(boostedDaily, 3.584859224085422 ether, DECAY_TOL);
+
+        // Same elapsed time, same start, same answer — cadence buys nothing.
+        assertApproxEqRel(untouched, boostedDaily, DECAY_TOL);
+
+        // And the untouched slot did NOT fall off a cliff at the straight-line wipe horizon.
+        assertGt(untouched, 3.5 ether);
+
+        // Two-sided on the dust: 20 wei of boosts cannot make the recrystallised slot outrun the
+        // undisturbed one by any meaningful amount.
+        assertApproxEqAbs(boostedDaily, untouched, 1000);
+    }
+
+    /// Anti-permanence: a big initial payer is overtaken by a smaller FRESH bid once enough decay
+    /// has accrued. Geometric decay takes 1 ETH below 0.3 ETH after ln(0.3)/ln(0.95) ≈ 23.5 days.
     function test_antiPermanence_freshBidderOvertakesBigOldPayer() public {
         uint256 maxDur = queue.maxDuration();
         uint256 durationCost = queue.quoteDurationCost(maxDur);
@@ -575,10 +649,11 @@ contract MasterRegistryQueueTest is Test {
         vm.prank(alice);
         queue.rentFeatured{ value: durationCost + 1 ether }(inst1, maxDur, 1 ether);
 
-        // 15 days pass: inst1 decays to 1e * (1 - 0.05*15) = 0.25 ether
-        vm.warp(block.timestamp + 15 days);
+        // 30 days pass: inst1 decays to 1e * 0.95^30 = 0.2146387639429376 ether
+        vm.warp(block.timestamp + 30 days);
         (, uint256 inst1Decayed,,) = queue.getRentalInfo(inst1);
-        assertEq(inst1Decayed, 0.25 ether);
+        assertApproxEqRel(inst1Decayed, 0.2146387639429376 ether, DECAY_TOL);
+        assertLt(inst1Decayed, 0.3 ether);
 
         // inst2: a much smaller FRESH bid of 0.3 ETH
         vm.deal(bob, bob.balance + durationCost + 0.3 ether);
@@ -599,10 +674,13 @@ contract MasterRegistryQueueTest is Test {
     function test_rankDecay_subDayGapAccrues() public {
         _rentBasic(inst1, alice, 1 ether);
 
+        // Half a day retains sqrt(0.95) = 0.974679434480896 — the geometric half-step, not half the
+        // straight-line step (which would read 0.975 ether).
         vm.warp(block.timestamp + 12 hours);
         (, uint256 rankHalfDay,,) = queue.getRentalInfo(inst1);
-        assertEq(rankHalfDay, 1 ether - (1 ether * queue.dailyDecayRate() * 12 hours) / (10000 * 1 days));
+        assertApproxEqRel(rankHalfDay, 0.974679434480896 ether, DECAY_TOL);
         assertLt(rankHalfDay, 1 ether);
+        assertGt(rankHalfDay, 0.95 ether);
     }
 
     /// Writing rank at a sub-day cadence does NOT reset the decay clock for free: 24 boosts an hour
@@ -633,10 +711,10 @@ contract MasterRegistryQueueTest is Test {
         // outrun 5%/day on 10 ether.
         assertLt(rankAfter, 10 ether);
 
-        // And it is close to what one undisturbed day of decay produces — recrystallising at each
-        // hourly write compounds the linear step, bounding the divergence to a fraction of a percent.
-        uint256 idealOneDay = 10 ether - (10 ether * queue.dailyDecayRate() * 1 days) / (10000 * 1 days);
-        assertApproxEqRel(rankAfter, idealOneDay, 0.005e18);
+        // And it equals what one undisturbed day of decay produces: geometric decay composes exactly
+        // across the 24 recrystallisations, leaving only per-write truncation dust.
+        uint256 idealOneDay = 9.5 ether; // 10 ether * 0.95
+        assertApproxEqRel(rankAfter, idealOneDay, DECAY_TOL);
     }
 
     /// A dust boost cannot lift a slot above where it started once decay is time-proportional.
@@ -656,18 +734,36 @@ contract MasterRegistryQueueTest is Test {
         _rentBasic(inst1, alice, 0.4 ether);
         assertEq(queue.getEffectiveRank(inst1), 0.4 ether);
 
-        vm.warp(block.timestamp + 8 days); // 40% decay
-        uint256 expected = 0.4 ether - (0.4 ether * queue.dailyDecayRate() * 8) / 10000; // 0.24 ether
-        assertEq(queue.getEffectiveRank(inst1), expected);
+        vm.warp(block.timestamp + 8 days); // retains 0.95^8 = 0.6634204312890625
+        assertApproxEqRel(queue.getEffectiveRank(inst1), 0.265368172515625 ether, DECAY_TOL);
     }
 
-    /// Very long idle gap floors at 0 (proportional decay exceeds 100%), never underflows.
+    /// Very long idle gap never underflows and never reverts — the read path stays live at horizons
+    /// far past any legal slot duration.
     function test_rankDecay_neverNegative_longGap() public {
         _rentBasic(inst1, alice, 1 ether);
-        vm.warp(block.timestamp + 40 days); // 200% nominal decay → clamped
+        vm.warp(block.timestamp + 40 days); // retains 0.95^40 = 0.1285121565651034
         (, uint256 rank,,) = queue.getRentalInfo(inst1);
-        assertEq(rank, 0);
+        assertApproxEqRel(rank, 0.1285121565651034 ether, DECAY_TOL);
+        assertGt(rank, 0);
+
+        vm.warp(block.timestamp + 2000 days);
         assertEq(queue.getEffectiveRank(inst1), 0);
+    }
+
+    /// Boundary rates. Zero disables decay outright; 100%/day or more leaves nothing behind at any
+    /// non-zero elapsed time. Both are reachable through the owner setter.
+    function test_rankDecay_boundaryRates() public {
+        _rentBasic(inst1, alice, 1 ether);
+
+        vm.prank(owner);
+        queue.setDailyDecayRate(0);
+        vm.warp(block.timestamp + 100 days);
+        assertEq(queue.getEffectiveRank(inst1), 1 ether, "zero rate retains rank");
+
+        vm.prank(owner);
+        queue.setDailyDecayRate(10000);
+        assertEq(queue.getEffectiveRank(inst1), 0, "a 100%/day rate leaves nothing");
     }
 
     // ── getFeaturedInstances ordering ─────────────────────────────────────────
@@ -750,7 +846,7 @@ contract MasterRegistryQueueTest is Test {
         vm.prank(bob);
         queue.rentFeatured{ value: durationCost + rank }(inst2, maxDur, rank);
 
-        // inst1 effective = 1e * (1 - 0.05*10) = 0.5e; inst2 effective = 1e → inst2 leads
+        // inst1 effective = 1e * 0.95^10 = 0.5987e; inst2 effective = 1e → inst2 leads
         (address[] memory result,) = queue.getFeaturedInstances(0, 10);
         assertEq(result.length, 2);
         assertEq(result[0], inst2);
