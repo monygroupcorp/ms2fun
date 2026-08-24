@@ -1,7 +1,23 @@
-.grid {
+/* Virtualized grid (noesis-382). The scroller owns the scrollbar, `.canvas` is sized to the whole
+   collection so the bar reads true, and each `.row` is absolutely positioned by the virtualizer.
+   The column count is set inline from the measured width — `auto-fill` cannot be used here because
+   the row model needs to know how many pieces a row holds. */
+.scroller {
+  max-block-size: 70vh;
+  overflow-y: auto;
+}
+
+.canvas {
+  position: relative;
+  width: 100%;
+}
+
+.row {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  grid-auto-flow: row dense;
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  width: 100%;
   align-items: start;
   gap: var(--gap-sm);
   list-style: none;
@@ -9,15 +25,21 @@
   padding: 0;
 }
 
+.more {
+  padding: var(--padding-sm);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+}
+
 .tile {
   display: flex;
 }
 
-/* P4: a LIVE auction is the decision — give it a 2×2 feature tile; ended/settled pieces stay small.
-   `dense` flow backfills the small tiles around the big one. Clamps to 1 column on narrow screens. */
-.tile[data-state='active'] {
-  grid-column: span 2;
-  grid-row: span 2;
+/* P4: a LIVE auction is still the decision on the page. Under virtualization every row is one
+   uniform height, so the emphasis is carried by the tile's frame rather than by a 2×2 span. */
+.tile[data-state='active'] .link {
+  border-color: var(--border-primary);
 }
 
 .link {
