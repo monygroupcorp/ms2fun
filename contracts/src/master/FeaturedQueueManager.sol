@@ -25,8 +25,8 @@ import { SmartTransferLib } from "../libraries/SmartTransferLib.sol";
  *     All ETH forwarded directly to protocolTreasury.
  *
  *   renewDuration(instance, duration)
- *     Anyone can extend an active slot's expiry at the flat daily rate.
- *     Zero effect on rank. ETH forwarded directly to protocolTreasury.
+ *     Anyone can extend an active slot's expiry at the flat daily rate, up to a total occupancy of
+ *     maxDuration ahead of now. Zero effect on rank. ETH forwarded directly to protocolTreasury.
  *
  * Rank decays PROPORTIONALLY at dailyDecayRate basis-points of the *current* rank per day,
  * prorated continuously by elapsed seconds and computed lazily at read time. Large and small ranks bleed at the same rate, so placement
@@ -51,6 +51,8 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
     error SlotNotActive();
     error SlotExpired();
     error DurationTooShort();
+    /// @dev Raised for two distinct conditions in `renewDuration`: the increment itself exceeds
+    ///      `maxDuration`, or the resulting `expiresAt` would exceed `maxDuration` from now.
     error DurationTooLong();
     error InvalidBounds();
     error InvalidSize();
@@ -206,6 +208,18 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
      *         ETH forwarded directly to protocolTreasury.
      * @dev    Requires the instance to still be registered: a revoked instance is not visible to
      *         `getFeaturedInstances`, so its placement cannot be extended.
+     * @dev    `maxDuration` is a ceiling on total occupancy, not only on a single increment: a renewal
+     *         is refused when the resulting `expiresAt` would sit further than `maxDuration` ahead of
+     *         the current block. `DurationTooLong` covers BOTH refusals — the increment being larger
+     *         than `maxDuration` ("ask for less"), and the result running past the ceiling ("not yet,
+     *         whatever you ask for"). A caller that needs to tell the two apart compares
+     *         `additionalDuration` and `expiresAt` against `maxDuration` before calling.
+     *
+     *         Because increments also have a floor (`minDuration`), a slot whose remaining life is
+     *         within `minDuration` of the ceiling cannot be renewed at all: the smallest legal
+     *         increment already overshoots. Such a slot becomes renewable again once its remaining
+     *         life decays below `maxDuration - minDuration`. This is intended — it is what keeps a
+     *         capped slot from being prepaid out indefinitely at the current `dailyRate`.
      * @param instance           Active featured instance
      * @param additionalDuration Extra seconds to add to expiresAt
      */
@@ -217,10 +231,13 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
         if (additionalDuration < minDuration) revert DurationTooShort();
         if (additionalDuration > maxDuration) revert DurationTooLong();
 
+        uint256 newExpiresAt = slots[instance].expiresAt + additionalDuration;
+        if (newExpiresAt > block.timestamp + maxDuration) revert DurationTooLong();
+
         uint256 cost = (dailyRate * additionalDuration) / 1 days; // round down: favors renter
         if (msg.value < cost) revert InsufficientPayment();
 
-        slots[instance].expiresAt += additionalDuration;
+        slots[instance].expiresAt = newExpiresAt;
 
         SafeTransferLib.safeTransferETH(protocolTreasury, cost);
 
