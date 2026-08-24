@@ -512,9 +512,19 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
             gatingModule.onMint(msg.sender, editionId, amount);
         }
 
-        // Check supply limits
+        // Check supply limits. Withhold the still-unclaimed free-mint reserve from the paid supply so
+        // every promised, unclaimed free claim always has supply behind it — the RESERVE-from-supply
+        // contract the allocation docstrings state (noesis-135 sub-decision 1), which the paid path did
+        // not previously honor. `freeMintAllocation` can be lowered below `freeMintsClaimed` at any time
+        // (setEditionFreeMintAllocation, no lock-at-first-mint), so clamp the reserve at zero. The
+        // reserve can never exceed supply: addEdition and setEditionFreeMintAllocation cap the allocation
+        // at supply for a limited edition, so `minted + amount + reserve` gates paid mints exactly to the
+        // non-reserved remaining supply without a subtraction that could underflow.
         if (edition.pricingModel != PricingModel.UNLIMITED) {
-            if (edition.minted + amount > edition.supply) revert ExceedsSupply();
+            uint256 claimed = freeMintsClaimed[editionId];
+            uint256 alloc = freeMintAllocation[editionId];
+            uint256 reserve = alloc > claimed ? alloc - claimed : 0;
+            if (edition.minted + amount + reserve > edition.supply) revert ExceedsSupply();
         }
 
         // Calculate cost
