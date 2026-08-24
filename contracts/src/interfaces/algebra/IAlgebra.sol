@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/// @notice Minimal Algebra V2 factory interface
+/// @notice Minimal Algebra Integral factory interface
+/// @dev `createPool` / `poolByPair` are the default-deployer path, which is the one this repo uses. The
+///      factory also exposes a separate custom-deployer path (`customPoolByPair`) that is not declared here
+///      because nothing in this repo creates or reads a custom pool.
 interface IAlgebraFactory {
     function createPool(address tokenA, address tokenB, bytes calldata data) external returns (address pool);
     function poolByPair(address tokenA, address tokenB) external view returns (address pool);
 }
 
-/// @notice Minimal Algebra V2 pool interface
+/// @notice Minimal Algebra Integral pool interface
 interface IAlgebraPool {
     function initialize(uint160 sqrtPriceX96) external;
     function globalState()
@@ -31,12 +34,12 @@ interface IVolatilityOracle {
         returns (int56[] memory tickCumulatives, uint88[] memory volatilityCumulatives);
 }
 
-/// @notice Algebra V2 NonFungiblePositionManager (adds deployer field vs Uniswap V3)
+/// @notice Algebra Integral NonfungiblePositionManager (adds a deployer field vs Uniswap V3)
 interface IAlgebraNFTPositionManager {
     struct MintParams {
         address token0;
         address token1;
-        address deployer; // Algebra-specific: typically address(0)
+        address deployer; // Algebra-specific: ALGEBRA_DEFAULT_DEPLOYER for a factory-created pool
         int24 tickLower;
         int24 tickUpper;
         uint256 amount0Desired;
@@ -116,11 +119,22 @@ interface IAlgebraNFTPositionManager {
     function safeTransferFrom(address from, address to, uint256 tokenId) external;
 }
 
-/// @notice Algebra V2 SwapRouter (uses limitSqrtPrice instead of sqrtPriceLimitX96)
+/// @notice Algebra Integral SwapRouter (uses limitSqrtPrice instead of sqrtPriceLimitX96)
+/// @dev The params tuple carries a `deployer` field between `tokenOut` and `recipient`, matching the
+///      deployed Algebra Integral periphery router (`exactInputSingle` selector `0x1679c792`). The
+///      seven-field Algebra V2 tuple — the same fields with `deployer` omitted — hashes to a different
+///      selector (`0xbc651188`), which the deployed router does not expose: a call built from that shape
+///      reaches the router's fallback and reverts. `test/fork/CypherAlgebraSeamFork.t.sol` pins both
+///      facts against the live bytecode.
 interface IAlgebraSwapRouter {
     struct ExactInputSingleParams {
         address tokenIn;
         address tokenOut;
+        /// @dev Algebra-specific: names the pool deployer for a custom pool. `address(0)` selects the
+        ///      factory's default deployer — the pool the Cypher LP family creates and LPs into via
+        ///      `IAlgebraFactory.createPool` / `poolByPair`. Custom-deployer pools live behind the
+        ///      factory's separate `customPoolByPair` path and are not used by this repo.
+        address deployer;
         address recipient;
         uint256 deadline;
         uint256 amountIn;
@@ -130,3 +144,8 @@ interface IAlgebraSwapRouter {
 
     function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
 }
+
+// The default pool deployer for factory-created (non-custom) Algebra pools. Every Cypher-family pool is
+// created through `IAlgebraFactory.createPool`, so this is the value the swap-router and NFPM params carry
+// on every call this repo makes.
+address constant ALGEBRA_DEFAULT_DEPLOYER = address(0);

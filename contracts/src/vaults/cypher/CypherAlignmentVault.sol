@@ -11,6 +11,7 @@ import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
 import { IVaultPriceValidator } from "../../interfaces/IVaultPriceValidator.sol";
 import { IAlignmentRegistry } from "../../master/interfaces/IAlignmentRegistry.sol";
 import {
+    ALGEBRA_DEFAULT_DEPLOYER,
     IAlgebraFactory,
     IAlgebraPool,
     IAlgebraNFTPositionManager,
@@ -473,6 +474,7 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
                 IAlgebraSwapRouter.ExactInputSingleParams({
                     tokenIn: alignmentToken,
                     tokenOut: weth,
+                    deployer: ALGEBRA_DEFAULT_DEPLOYER,
                     recipient: address(this),
                     deadline: block.timestamp,
                     amountIn: alignmentFees,

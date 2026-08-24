@@ -273,6 +273,13 @@ contract MockAlgebraSwapRouter {
         payable
         returns (uint256 amountOut)
     {
+        // The deployed Integral router routes on (tokenIn, tokenOut, deployer); every pool this repo
+        // creates comes from the plain factory path, so the caller must pass the default deployer or it
+        // would be aimed at a custom pool that does not exist.
+        // The deployed Integral router routes on (tokenIn, tokenOut, deployer); every pool this repo
+        // creates comes from the plain factory path, so the caller must pass the default deployer or it
+        // would be aimed at a custom pool that does not exist.
+        require(p.deployer == ALGEBRA_DEFAULT_DEPLOYER, "MockAlgebraSwapRouter: non-default deployer");
         // Native-ETH-in (the vault's acquire path): the real Algebra router wraps forwarded ETH from
         // its own balance when tokenIn == WNativeToken, so no transferFrom is needed. ERC20-in (the
         // harvest target->WETH swap) still pulls tokenIn from the caller.
