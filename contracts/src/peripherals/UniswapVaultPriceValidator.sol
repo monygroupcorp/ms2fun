@@ -58,6 +58,21 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     /// @notice TWAP window used for V3 price queries. Defaults to 30 minutes.
     uint32 public immutable twapSecondsAgo;
 
+    /// @notice Minimum in-range liquidity a V3 pool must hold to be eligible as the TWAP deviation
+    ///         reference in {_getTwapSqrtPriceX96}. A pool below this floor is skipped and the scan
+    ///         continues to the next fee tier, so the deviation cross-check is never anchored to a
+    ///         pool whose reported cumulatives an attacker can set for the cost of a single wei of
+    ///         liquidity.
+    ///
+    ///         Uniswap V3 `liquidity()` is the in-range depth measure (`L ≈ sqrt(x·y)` scaled), so
+    ///         for a WETH-paired pool any economically meaningful reserve puts `L` many orders of
+    ///         magnitude above this floor, while a capture pool minted with dust sits far below it.
+    ///         `1e15` is a conservative single value with no on-chain anchor: high enough to reject
+    ///         dust reference pools decisively, low enough to admit any real pool without narrowing
+    ///         legitimate TWAP coverage. When no pool clears the floor, selection falls through to the
+    ///         existing no-reference path (unchanged here).
+    uint128 private constant MIN_REFERENCE_LIQUIDITY = 1e15;
+
     constructor(
         // slither-disable-next-line missing-zero-check
         address _weth,
@@ -373,8 +388,10 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         }
     }
 
-    /// @dev Queries V3 pools (across standard fee tiers) for a TWAP-derived sqrtPriceX96.
-    ///      Returns 0 if no V3 pool has sufficient observation history.
+    /// @dev Queries V3 pools (across standard fee tiers) for a TWAP-derived sqrtPriceX96. A pool must
+    ///      clear the {MIN_REFERENCE_LIQUIDITY} depth floor to be eligible; sub-floor pools are skipped
+    ///      so the deviation reference cannot be captured by a dust-liquidity pool. Returns 0 if no
+    ///      pool clears the floor with sufficient observation history.
     function _getTwapSqrtPriceX96(address token) private view returns (uint160) {
         if (v3Factory.code.length == 0) return 0;
 
@@ -387,8 +404,10 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
             address pool = IUniswapV3Factory(v3Factory).getPool(weth, token, feeTiers[i]);
             if (pool == address(0)) continue;
 
+            // Depth gate: a pool below the minimum reference liquidity (a dust / single-wei pool whose
+            // `observe` cumulatives an attacker controls) is not eligible as the deviation reference.
             try IUniswapV3Pool(pool).liquidity() returns (uint128 liq) {
-                if (liq == 0) continue;
+                if (liq < MIN_REFERENCE_LIQUIDITY) continue;
             } catch {
                 continue;
             }
