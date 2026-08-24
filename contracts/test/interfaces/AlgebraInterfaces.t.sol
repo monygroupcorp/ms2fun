@@ -20,13 +20,13 @@ contract AlgebraInterfacesTest is Test {
             recipient: address(3),
             deadline: block.timestamp + 1
         });
-        assertEq(p.deployer, address(0));
     }
 
     function test_swapParamsHasLimitSqrtPrice() public view {
         IAlgebraSwapRouter.ExactInputSingleParams memory p = IAlgebraSwapRouter.ExactInputSingleParams({
             tokenIn: address(1),
             tokenOut: address(2),
+            deployer: ALGEBRA_DEFAULT_DEPLOYER,
             recipient: address(3),
             deadline: block.timestamp + 1,
             amountIn: 1e18,
@@ -34,5 +34,19 @@ contract AlgebraInterfacesTest is Test {
             limitSqrtPrice: 0
         });
         assertEq(p.limitSqrtPrice, 0);
+        assertEq(p.deployer, address(0));
+    }
+
+    /// @notice The declared params tuple must hash to the selector the deployed Integral router exposes.
+    /// @dev Selector-level pin, so a field added, removed, or reordered in `ExactInputSingleParams` fails
+    ///      here in the default suite rather than at the counterparty. The live-bytecode half of this pin
+    ///      (the selector is present on the deployed router; the seven-field V2 selector is not) lives in
+    ///      `test/fork/CypherAlgebraSeamFork.t.sol`.
+    function test_swapSelectorMatchesDeployedIntegralShape() public pure {
+        assertEq(IAlgebraSwapRouter.exactInputSingle.selector, bytes4(0x1679c792));
+        assertTrue(
+            IAlgebraSwapRouter.exactInputSingle.selector
+                != bytes4(keccak256("exactInputSingle((address,address,address,uint256,uint256,uint256,uint160))"))
+        );
     }
 }
