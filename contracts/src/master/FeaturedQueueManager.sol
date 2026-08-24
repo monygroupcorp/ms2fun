@@ -5,6 +5,7 @@ import { SafeOwnableUUPS } from "../shared/SafeOwnableUUPS.sol";
 import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
 import { IMasterRegistry } from "./interfaces/IMasterRegistry.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { SmartTransferLib } from "../libraries/SmartTransferLib.sol";
 
 /**
@@ -28,10 +29,14 @@ import { SmartTransferLib } from "../libraries/SmartTransferLib.sol";
  *     Anyone can extend an active slot's expiry at the flat daily rate, up to a total occupancy of
  *     maxDuration ahead of now. Zero effect on rank. ETH forwarded directly to protocolTreasury.
  *
- * Rank decays PROPORTIONALLY at dailyDecayRate basis-points of the *current* rank per day,
- * prorated continuously by elapsed seconds and computed lazily at read time. Large and small ranks bleed at the same rate, so placement
- * stays contestable (no first-big-payer-wins permanence). `dailyDecayRate` is in bps (500 = 5%/day).
- * getFeaturedInstances returns active slots sorted by effective rank — position 1 first.
+ * Rank decays GEOMETRICALLY: a slot keeps `(1 - dailyDecayRate/10000)` of its REMAINING rank per
+ * day, evaluated continuously in elapsed seconds and computed lazily at read time. Large and small
+ * ranks bleed at the same rate, so placement stays contestable (no first-big-payer-wins permanence),
+ * and the curve is cadence-independent — a slot left alone and a slot recrystallised every day read
+ * the same value after the same elapsed time. Rank asymptotes toward zero rather than crossing it at
+ * a fixed horizon: holding placement costs new ETH, continuously. `dailyDecayRate` is in bps
+ * (500 = 5%/day). getFeaturedInstances returns active slots sorted by effective rank — position 1
+ * first.
  *
  * Featured ETH is DELIBERATELY 100% protocol: every rentFeatured/boostRank/renewDuration payment
  * forwards whole to protocolTreasury, skipping the 80/19/1 alignment split. Featured placement is
@@ -78,7 +83,7 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
     mapping(address => uint256) private _featuredListIndex;
 
     uint256 public dailyRate = 0.001 ether; // duration cost per day
-    uint256 public dailyDecayRate = 500; // proportional rank decay, bps of current rank per day (500 = 5%/day)
+    uint256 public dailyDecayRate = 500; // geometric rank decay, bps of REMAINING rank per day (500 = 5%/day)
     uint256 public minDuration = 7 days;
     uint256 public maxDuration = 365 days;
     uint256 public maxFeaturedSize = 100;
@@ -125,7 +130,7 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
         _setOwner(_owner);
 
         dailyRate = 0.001 ether;
-        dailyDecayRate = 500; // bps of current rank per day (5%/day)
+        dailyDecayRate = 500; // bps of REMAINING rank per day (5%/day)
         minDuration = 7 days;
         maxDuration = 365 days;
         maxFeaturedSize = 100;
@@ -156,7 +161,7 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
 
         // Carry decayed rank forward, add new boost.
         // INTENDED: rank is instance-bound, not wallet-bound. A re-renter of an expired slot inherits
-        // the project's accumulated (proportionally decayed) rank — rank belongs to the project, not the
+        // the project's accumulated (geometrically decayed) rank — rank belongs to the project, not the
         // renter (Mony, 2026-07-16). Not an oversight; do not reset-on-new-renter.
         uint256 newRank = _effectiveRank(slots[instance]) + rankBoost;
 
@@ -310,7 +315,7 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
     /**
      * @notice Slot info for an instance.
      * @return renter        Address that rented the slot
-     * @return effectiveRank Current rank after proportional decay
+     * @return effectiveRank Current rank after geometric decay
      * @return expiresAt     Slot expiry timestamp
      * @return isActive      True if slot is currently active
      */
@@ -325,7 +330,7 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
     }
 
     /**
-     * @notice Effective rank for an instance after applying proportional decay.
+     * @notice Effective rank for an instance after applying geometric decay.
      */
     function getEffectiveRank(address instance) external view returns (uint256) {
         return _effectiveRank(slots[instance]);
@@ -349,19 +354,57 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
     // ── Internal Helpers ───────────────────────────────────────────────────
 
     /**
-     * @dev Proportional (linear-on-current) rank decay — `dailyDecayRate` bps of the raw `rankScore`
-     *      per elapsed day, applied over the gap since the last rank write. Large and small ranks bleed
-     *      at the same rate, so a big initial payer is overtaken over time (no permanence). Every rank
-     *      write recrystallises rank + restamps `lastBoostTime`, bounding the linearisation error.
-     *      `decayed` is clamped at `rankScore` (never negative). Decay is continuous in elapsed
-     *      seconds — a partial day accrues its exact pro-rata share. 10000 bps = 100%.
+     * @dev Geometric (percentage-of-remaining) rank decay: a slot keeps
+     *      `(1 - dailyDecayRate/10000) ** (elapsed / 1 days)` of its rank, evaluated continuously in
+     *      elapsed seconds. 500 bps = 5%/day, so a day multiplies rank by 0.95, half a day by
+     *      sqrt(0.95), and so on.
+     *
+     *      The curve is CADENCE-INDEPENDENT: because the retention factor is exponential in elapsed
+     *      time, decaying over `a + b` seconds equals decaying over `a`, crystallising, and decaying
+     *      over `b`. A slot left alone and a slot recrystallised daily therefore read the same value
+     *      after the same elapsed time, up to per-write rounding dust. Every rank write
+     *      (`rentFeatured`, `boostRank`) crystallises through this same function and restamps
+     *      `lastBoostTime`, so the write path and the read path take the identical step.
+     *
+     *      Rank asymptotes toward zero rather than crossing it at a fixed horizon: percentage decay
+     *      has no finite wipe point, so placement always costs new ETH to hold but is never granted a
+     *      guaranteed expiry date by the curve alone. Rank reaches exactly 0 only once the retained
+     *      fraction underflows the wei resolution of the stored rank (`mulWad` truncation), or once
+     *      the exponent leaves `expWad`'s representable range — both far beyond the slot durations
+     *      `maxDuration` permits.
+     *
+     *      Boundary rates: `dailyDecayRate == 0` retains rank indefinitely, and `>= 10000` (100%/day
+     *      or more) has a retention factor of zero, so any non-zero elapsed time reads 0.
+     *
+     *      Cost: one `lnWad` + one `expWad` + one `mulWad` per evaluation, measured at ~1,030 gas
+     *      over the earlier multiply-and-subtract. `getFeaturedInstances` pays it once per visible
+     *      slot in its collect pass (it is not in the sort loop), so the read scales with
+     *      `maxFeaturedSize` exactly as before.
+     *      Precision: `powWad` is accurate to within a few wei per 1e18 of retained fraction; the
+     *      per-write dust is a truncation of at most 1 wei of rank per crystallisation.
      */
-    // slither-disable-next-line divide-before-multiply,incorrect-equality,timestamp
+    // slither-disable-next-line incorrect-equality,timestamp
     function _effectiveRank(FeaturedSlot memory slot) internal view returns (uint256) {
         if (slot.lastBoostTime == 0) return 0;
+        uint256 rank = slot.rankScore;
+        if (rank == 0) return 0;
+
         uint256 elapsed = block.timestamp - slot.lastBoostTime; // seconds, no flooring
-        uint256 decayed = (slot.rankScore * dailyDecayRate * elapsed) / (10000 * 1 days);
-        return slot.rankScore > decayed ? slot.rankScore - decayed : 0;
+        if (elapsed == 0) return rank;
+
+        uint256 rate = dailyDecayRate;
+        if (rate == 0) return rank;
+        if (rate >= 10000) return 0;
+
+        // Per-day retention factor in WAD, e.g. 500 bps -> 0.95e18.
+        int256 dailyRetention = int256(((10000 - rate) * 1e18) / 10000);
+        // Exponent in WAD days: 1 days -> 1e18, 12 hours -> 0.5e18.
+        int256 exponentDays = int256((elapsed * 1e18) / 1 days);
+
+        // powWad = exp(ln(base) * exponent); expWad saturates to 0 well before it can revert, so a
+        // very long idle gap floors the rank instead of reverting the read path.
+        uint256 retained = uint256(FixedPointMathLib.powWad(dailyRetention, exponentDays));
+        return FixedPointMathLib.mulWad(rank, retained);
     }
 
     /**
@@ -507,8 +550,10 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
         dailyRate = _dailyRate;
     }
 
-    /// @dev `_dailyDecayRate` is in BASIS POINTS of current rank per day (bps), NOT absolute ETH.
-    ///      500 = 5%/day. 10000 = 100%/day. Owner-tunable; see _effectiveRank for the decay curve.
+    /// @dev `_dailyDecayRate` is in BASIS POINTS of REMAINING rank per day (bps), NOT absolute ETH.
+    ///      500 = 5%/day, compounded geometrically: two days retain 0.95 * 0.95. 0 disables decay;
+    ///      10000 or more wipes rank at any non-zero elapsed time. Owner-tunable; see _effectiveRank
+    ///      for the decay curve.
     // slither-disable-next-line events-maths
     function setDailyDecayRate(uint256 _dailyDecayRate) external onlyOwner {
         dailyDecayRate = _dailyDecayRate;
