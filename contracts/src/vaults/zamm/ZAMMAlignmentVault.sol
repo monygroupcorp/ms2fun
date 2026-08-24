@@ -322,6 +322,14 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         uint256 totalEth = pendingETH;
         if (totalEth == 0) revert NoPendingETH();
 
+        // Crystallize any accrued LP fees into the accumulator at the CURRENT totalContributions BEFORE
+        // this convert enlarges it below, so a benefactor arriving in this batch cannot claim a share of
+        // fees earned before they joined (mirrors AlignmentEndowmentVault's crystallize-first ordering).
+        // A no-op until incumbents exist; `_harvestAccruedFees` self-returns when no fees have accrued.
+        if (totalContributions > 0) {
+            _harvestAccruedFees(0);
+        }
+
         address[] memory benefactors = _pendingBenefactors;
         pendingETH = 0;
         delete _pendingBenefactors;
@@ -394,7 +402,18 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         if (block.number == _lastHarvestBlock) revert HarvestSameBlock();
         _lastHarvestBlock = block.number;
         if (totalContributions == 0) revert ZeroContributions();
+        return _harvestAccruedFees(minEthOut);
+    }
 
+    /// @dev Crystallize accrued LP fees into `accRewardPerContribution` at the CURRENT
+    ///      `totalContributions`. Extracted from `harvest` so `convertAndAddLiquidity` can invoke it as
+    ///      its first effect — before it grows `totalContributions` — mirroring
+    ///      `AlignmentEndowmentVault`'s crystallize-first ordering so an arriving benefactor cannot
+    ///      dilute incumbents' already-earned fees. The external `harvest` keeps the same-block and
+    ///      zero-contribution guards; this body carries none, so the ordering call from convert is never
+    ///      suppressed. The token→ETH leg is still floored to the canonical reference inside
+    ///      `_removeFeeLP`, so a zero `minEthOut` from convert cannot widen slippage.
+    function _harvestAccruedFees(uint256 minEthOut) internal returns (uint256 feesCollected) {
         uint256 lpHeld = IZAMM(zamm).balanceOf(address(this), poolId);
         if (lpHeld == 0) return 0;
 

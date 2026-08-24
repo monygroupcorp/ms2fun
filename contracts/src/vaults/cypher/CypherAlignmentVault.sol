@@ -215,6 +215,14 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         // can under/over-declare its contribution vs the value transferred.
         if (msg.value != amount) revert AmountMismatch();
         if (benefactor == address(0) || msg.value == 0) return;
+        // Crystallize any accrued LP fees into the accumulator at the CURRENT totalContributions BEFORE
+        // `_addContribution` enlarges it below, so an arriving benefactor cannot claim a share of fees
+        // earned before they joined (mirrors AlignmentEndowmentVault's crystallize-first ordering). Only
+        // meaningful once a position exists and there are incumbents; `_harvestAccruedFees` self-returns
+        // when the collect yields nothing.
+        if (lpTokenId != 0 && totalContributions > 0) {
+            _harvestAccruedFees(0);
+        }
         // Credit MasterChef fee weight AND accumulate spendable pending ETH so the tithe is convertible
         // into the alignment LP (the corrected D1 invariant: no tithe ETH is left unspendable).
         _addContribution(benefactor, msg.value);
@@ -431,7 +439,19 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     function harvest(uint256 minAmountOut) external nonReentrant returns (uint256 feesETH) {
         if (totalContributions == 0) revert ZeroContributions();
         if (lpTokenId == 0) revert NoPosition();
+        return _harvestAccruedFees(minAmountOut);
+    }
 
+    /// @dev Collect fees from the alignment position and accrue them at the CURRENT
+    ///      `totalContributions`. Extracted from `harvest` so `receiveContribution` can invoke it as its
+    ///      first effect — before `_addContribution` grows the weight — mirroring
+    ///      `AlignmentEndowmentVault`'s crystallize-first ordering so an arriving benefactor cannot
+    ///      dilute incumbents' already-earned fees. The external `harvest` keeps the zero-contribution
+    ///      and no-position guards; this body carries none and self-returns when the collect yields no
+    ///      fee. The target→WETH leg is still floored to the canonical reference, so a zero
+    ///      `minAmountOut` from the contribution path cannot widen slippage.
+    // slither-disable-next-line incorrect-equality,reentrancy-benign,timestamp
+    function _harvestAccruedFees(uint256 minAmountOut) internal returns (uint256 feesETH) {
         (uint256 amount0, uint256 amount1) = positionManager.collect(
             IAlgebraNFTPositionManager.CollectParams({
                 tokenId: lpTokenId,
