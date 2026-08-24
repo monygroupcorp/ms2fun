@@ -1,6 +1,6 @@
 import { defineChain } from 'viem'
 import { createConfig, http } from 'wagmi'
-import { mainnet } from 'wagmi/chains'
+import { mainnet, sepolia } from 'wagmi/chains'
 import { injected } from 'wagmi/connectors'
 import { decentralizedTransport } from './rpc'
 
@@ -31,7 +31,10 @@ export const anvilFork = defineChain({
 })
 
 /**
- * Two chains: mainnet (production) and the local anvil mainnet-fork (dev).
+ * Three chains: mainnet, Sepolia (the showcase testnet), and the local anvil mainnet-fork (dev).
+ * Which one a build actually talks to is `activeChainId` in ./addresses — this list is what the app
+ * knows how to reach at all, and it must cover every id `addressesByChain` carries or a route-scoped
+ * read on that chain has no transport.
  *
  * Wallet: injected/EIP-6963 only. `multiInjectedProviderDiscovery: true` makes wagmi discover all
  * injected wallets via EIP-6963 — each gets its own connector (id = rdns, e.g. 'io.ambire.wallet').
@@ -52,12 +55,13 @@ export const anvilFork = defineChain({
  * key-less public endpoints, all batched. The local anvil fork keeps its single localhost transport.
  */
 export const config = createConfig({
-  chains: [mainnet, anvilFork],
+  chains: [mainnet, sepolia, anvilFork],
   connectors: [injected()],
   multiInjectedProviderDiscovery: true,
   batch: { multicall: true },
   transports: {
     [mainnet.id]: decentralizedTransport(mainnet.id) ?? http(undefined, { batch: true }),
+    [sepolia.id]: decentralizedTransport(sepolia.id) ?? http(undefined, { batch: true }),
     [anvilFork.id]: http(undefined, { batch: true }),
   },
 })
