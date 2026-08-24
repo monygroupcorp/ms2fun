@@ -1,21 +1,45 @@
 /**
- * Embedded post-graduation swap (B19). Once an ERC-404 curve graduates, its token trades on the
- * venue it deployed liquidity to — this panel routes those swaps through the zRouter singleton
- * IN-SITE (no Uniswap link-out) for the two venues zRouter handles natively: Uni-V4 (`swapV4`) and
- * ZAMM (`swapVZ`). Cypher/Algebra is a separate router (fast-follow) and keeps the link-out, so this
- * component is only mounted for `uniV4` | `zamm` venues.
+ * Embedded post-graduation swap (B19 · noesis-349). Once an ERC-404 curve graduates, its token
+ * trades on the venue it deployed liquidity to — and it trades IN-SITE on every one of them. Two
+ * routers cover the three venues:
+ *  - zRouter for the venues it handles natively: Uni-V4 (`swapV4`) and ZAMM (`swapVZ`);
+ *  - the Cypher (Algebra Integral) periphery router for the Cypher family, via `exactInputSingle`.
+ * There is no link-out fallback anywhere in this surface. A venue the app cannot resolve renders as
+ * an unresolved venue (see `BondingSurface`), never as a redirect to somebody else's exchange.
  *
  * Shape mirrors the bonding `SwapPanel`: direction toggle · amount · live quote · slippage · action.
  * Differences that come from trading a real pool instead of the curve:
  *  - the input is the *spent* asset (buy → ETH, sell → tokens), DEX-style;
- *  - there's no view-quoter, so the quote is an `eth_call` SIMULATION of the swap with amountLimit=0
- *    (returns amountOut); slippage is applied to that as the on-chain `amountLimit` min-out floor;
- *  - ETH is the zRouter native sentinel `address(0)` (the router wraps/unwraps WETH internally);
- *  - token→ETH sells pull via `transferFrom`, so they're approve-then-swap (buys need no approval).
+ *  - there's no view-quoter on either router, so the quote is an `eth_call` SIMULATION of the very
+ *    swap that will be signed, with the min-out set to 0; slippage is then applied to the returned
+ *    amountOut as the on-chain min-out floor;
+ *  - token→ETH sells pull via `transferFrom`, so they're approve-then-swap (buys need no approval),
+ *    and because the quote simulation runs that same `transferFrom`, the quote is gated on the
+ *    allowance too.
+ *
+ * Native ETH by venue. zRouter takes ETH as the sentinel `address(0)` and wraps/unwraps internally.
+ * The Algebra router instead names the wrapped-native token explicitly: a buy passes `tokenIn = WETH`
+ * with the ETH riding as `msg.value`, and a sell settles in native ETH by leaving the output on the
+ * router (`recipient = address(0)`) and unwrapping it to the trader in the same `multicall`. Both
+ * `multicall` and `unwrapWNativeToken` were confirmed present on the deployed router (see
+ * `lib/algebra/abis.ts`), so sells deliver ETH on this venue exactly as they do on the other two.
  */
 import { useEffect, useRef, useState } from 'react'
-import { formatEther, formatUnits, maxUint256, parseUnits, zeroAddress } from 'viem'
-import { useAccount, useWaitForTransactionReceipt } from 'wagmi'
+import {
+  decodeAbiParameters,
+  encodeFunctionData,
+  formatEther,
+  formatUnits,
+  maxUint256,
+  parseUnits,
+  zeroAddress,
+} from 'viem'
+import {
+  useAccount,
+  useSimulateContract,
+  useWaitForTransactionReceipt,
+  useWriteContract,
+} from 'wagmi'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   useReadErc404BondingInstanceAllowance,
@@ -27,6 +51,11 @@ import {
   useWriteZRouterSwapV4,
   useWriteZRouterSwapVz,
 } from '../../../generated/contracts'
+import {
+  ALGEBRA_DEFAULT_DEPLOYER,
+  ALGEBRA_NO_PRICE_LIMIT,
+  algebraSwapRouterAbi,
+} from '../../../lib/algebra/abis'
 import { useCollectionAddresses, useCollectionChainId } from '../useCollectionChain'
 import { invalidateInstanceQueries, txErrorReason } from '../../ui/useTxAction'
 import type { GraduatedVenue } from './useGraduatedVenue'
@@ -36,6 +65,16 @@ import { buyEthPresets, sellPctPresets } from './swapPresets'
 import styles from './BondingSurface.module.css'
 
 type Direction = 'buy' | 'sell'
+
+/** Every venue the app can name is tradable here. `unknown` never reaches this component. */
+export type EmbeddableVenue = Extract<GraduatedVenue, { kind: 'uniV4' | 'zamm' | 'cypher' }>
+
+/** Venue names come from `venue.kind`, so a new venue cannot fall through to another one's label. */
+const VENUE_LABEL: Record<EmbeddableVenue['kind'], string> = {
+  uniV4: 'Uniswap V4',
+  zamm: 'ZAMM',
+  cypher: 'Cypher',
+}
 
 /** 24h deadline buffer for the executed swap — matches the bonding panel. */
 const DEADLINE_BUFFER_SEC = 86_400n
@@ -47,10 +86,66 @@ const QUOTE_DEADLINE = 9_999_999_999n
 
 interface GraduatedSwapPanelProps {
   instance: `0x${string}`
-  /** Only the zRouter-native venues reach this component. */
-  venue: Extract<GraduatedVenue, { kind: 'uniV4' | 'zamm' }>
+  venue: EmbeddableVenue
   decimals: number
   refetch: () => void
+}
+
+/** The Algebra `exactInputSingle` params tuple, in the order the deployed router declares it. */
+function algebraSwapParams(args: {
+  tokenIn: `0x${string}`
+  tokenOut: `0x${string}`
+  recipient: `0x${string}`
+  deadline: bigint
+  amountIn: bigint
+  minOut: bigint
+}) {
+  return {
+    tokenIn: args.tokenIn,
+    tokenOut: args.tokenOut,
+    deployer: ALGEBRA_DEFAULT_DEPLOYER,
+    recipient: args.recipient,
+    deadline: args.deadline,
+    amountIn: args.amountIn,
+    amountOutMinimum: args.minOut,
+    limitSqrtPrice: ALGEBRA_NO_PRICE_LIMIT,
+  } as const
+}
+
+/**
+ * A Cypher sell in one transaction: swap the tokens for wrapped native, leaving the proceeds on the
+ * router (`recipient = address(0)`), then unwrap them to the trader. The min-out floor is asserted on
+ * both legs — the swap will not execute below it, and the unwrap will not deliver below it.
+ */
+function algebraSellMulticall(args: {
+  instance: `0x${string}`
+  weth: `0x${string}`
+  trader: `0x${string}`
+  deadline: bigint
+  amountIn: bigint
+  minOut: bigint
+}): readonly `0x${string}`[] {
+  return [
+    encodeFunctionData({
+      abi: algebraSwapRouterAbi,
+      functionName: 'exactInputSingle',
+      args: [
+        algebraSwapParams({
+          tokenIn: args.instance,
+          tokenOut: args.weth,
+          recipient: zeroAddress,
+          deadline: args.deadline,
+          amountIn: args.amountIn,
+          minOut: args.minOut,
+        }),
+      ],
+    }),
+    encodeFunctionData({
+      abi: algebraSwapRouterAbi,
+      functionName: 'unwrapWNativeToken',
+      args: [args.minOut, args.trader],
+    }),
+  ]
 }
 
 export function GraduatedSwapPanel({
@@ -66,7 +161,12 @@ export function GraduatedSwapPanel({
   const [amountStr, setAmountStr] = useState('')
   const [slippagePct, setSlippagePct] = useState('1')
 
+  const isCypher = venue.kind === 'cypher'
   const zRouter = addresses.zRouter
+  const cypherRouter = addresses.CypherSwapRouter
+  // Whichever router this venue signs against — also the address a sell must approve.
+  const router = isCypher ? cypherRouter : zRouter
+  const routerReady = Boolean(router) && router !== zeroAddress
   const isBuy = direction === 'buy'
 
   const symbolRead = useReadErc404BondingInstanceSymbol({ address: instance, chainId: chainId })
@@ -87,14 +187,14 @@ export function GraduatedSwapPanel({
   // and a non-finite or non-positive one is treated as zero tolerance.
   const slippageBps = Math.round((Number(slippagePct) || 0) * 100)
 
-  // Sells pull tokens via transferFrom → need a zRouter allowance first (approve-then-swap). Buys
+  // Sells pull tokens via transferFrom → need a router allowance first (approve-then-swap). Buys
   // send native ETH, so no approval. The quote sim also reverts pre-approval on sells (it runs the
   // real transferFrom), so we gate the quote on a sufficient allowance too.
   const allowanceRead = useReadErc404BondingInstanceAllowance({
     address: instance,
     chainId: chainId,
-    args: address ? [address, zRouter] : undefined,
-    query: { enabled: Boolean(address) },
+    args: address && routerReady ? [address, router] : undefined,
+    query: { enabled: Boolean(address) && routerReady },
   })
   const allowance = allowanceRead.data ?? 0n
   const needsApproval = !isBuy && amountIn !== undefined && allowance < amountIn
@@ -111,8 +211,8 @@ export function GraduatedSwapPanel({
   const tokenOut = isBuy ? instance : zeroAddress
   const deadline = () => BigInt(Math.floor(Date.now() / 1000)) + DEADLINE_BUFFER_SEC
 
-  // Quote = simulate the swap with amountLimit=0 (no slippage floor) and read amountOut. Enabled
-  // only when the swap could actually succeed (connected, amount set, and — for sells — approved).
+  // Quote = simulate the swap with the min-out set to 0 and read amountOut. Enabled only when the
+  // swap could actually succeed (connected, amount set, and — for sells — approved).
   const quoteReady = isConnected && amountIn !== undefined && (isBuy || !needsApproval)
   const buyValue = isBuy && amountIn !== undefined ? amountIn : undefined
 
@@ -159,20 +259,99 @@ export function GraduatedSwapPanel({
         : undefined,
     query: { enabled: quoteReady && venue.kind === 'zamm' },
   })
-  const sim = venue.kind === 'uniV4' ? v4Sim : vzSim
-  // swapV4/swapVZ both return (amountIn, amountOut) — index 1 is what the user receives.
-  const quoteOut = sim.data?.result?.[1]
+
+  // Cypher buy: ETH in as msg.value against tokenIn = wrapped native, tokens straight to the trader.
+  const cypherBuySim = useSimulateContract({
+    abi: algebraSwapRouterAbi,
+    functionName: 'exactInputSingle',
+    ...(routerReady ? { address: router } : {}),
+    chainId: chainId,
+    account: address,
+    value: buyValue,
+    args:
+      venue.kind === 'cypher' && amountIn !== undefined
+        ? [
+            algebraSwapParams({
+              tokenIn: venue.weth,
+              tokenOut: instance,
+              recipient: address ?? zeroAddress,
+              deadline: QUOTE_DEADLINE,
+              amountIn,
+              minOut: 0n,
+            }),
+          ]
+        : undefined,
+    query: { enabled: quoteReady && isBuy && venue.kind === 'cypher' && routerReady },
+  })
+  // Cypher sell: simulate the exact swap-then-unwrap multicall that will be signed, so the quote
+  // cannot drift from the transaction. `results[0]` is the swap leg's abi-encoded amountOut.
+  const cypherSellSim = useSimulateContract({
+    abi: algebraSwapRouterAbi,
+    functionName: 'multicall',
+    ...(routerReady ? { address: router } : {}),
+    chainId: chainId,
+    account: address,
+    args:
+      venue.kind === 'cypher' && amountIn !== undefined && address !== undefined
+        ? [
+            algebraSellMulticall({
+              instance,
+              weth: venue.weth,
+              trader: address,
+              deadline: QUOTE_DEADLINE,
+              amountIn,
+              minOut: 0n,
+            }),
+          ]
+        : undefined,
+    query: { enabled: quoteReady && !isBuy && venue.kind === 'cypher' && routerReady },
+  })
+
+  let quoteOut: bigint | undefined
+  let quoteIsFetching = false
+  let quoteRawError: unknown
+  if (venue.kind === 'uniV4') {
+    // swapV4/swapVZ both return (amountIn, amountOut) — index 1 is what the user receives.
+    quoteOut = v4Sim.data?.result?.[1]
+    quoteIsFetching = v4Sim.isFetching
+    quoteRawError = v4Sim.error
+  } else if (venue.kind === 'zamm') {
+    quoteOut = vzSim.data?.result?.[1]
+    quoteIsFetching = vzSim.isFetching
+    quoteRawError = vzSim.error
+  } else if (isBuy) {
+    quoteOut = cypherBuySim.data?.result
+    quoteIsFetching = cypherBuySim.isFetching
+    quoteRawError = cypherBuySim.error
+  } else {
+    const encoded = cypherSellSim.data?.result?.[0]
+    quoteOut =
+      encoded === undefined ? undefined : decodeAbiParameters([{ type: 'uint256' }], encoded)[0]
+    quoteIsFetching = cypherSellSim.isFetching
+    quoteRawError = cypherSellSim.error
+  }
   const minOut = quoteOut !== undefined ? applySellSlippage(quoteOut, slippageBps) : undefined
 
   const approve = useWriteErc404BondingInstanceApprove()
   const v4Swap = useWriteZRouterSwapV4()
   const vzSwap = useWriteZRouterSwapVz()
-  const swap = venue.kind === 'uniV4' ? v4Swap : vzSwap
+  const cypherSwap = useWriteContract()
+  const swapData = isCypher ? cypherSwap.data : venue.kind === 'uniV4' ? v4Swap.data : vzSwap.data
+  const swapIsPending = isCypher
+    ? cypherSwap.isPending
+    : venue.kind === 'uniV4'
+      ? v4Swap.isPending
+      : vzSwap.isPending
+  const swapRawError = isCypher
+    ? cypherSwap.error
+    : venue.kind === 'uniV4'
+      ? v4Swap.error
+      : vzSwap.error
 
   const { isLoading: isApproving, isSuccess: approveConfirmed } = useWaitForTransactionReceipt({
     hash: approve.data,
   })
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: swap.data })
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: swapData })
 
   // Shared invalidation (noesis-352): a graduated buy/sell still moves the underlying DN404 token's
   // coin balance AND NFT ids in the same transaction (the venue changed, the mint/burn-on-transfer
@@ -197,7 +376,8 @@ export function GraduatedSwapPanel({
   }, [approveConfirmed, refetchAllowance])
 
   function handleApprove(): void {
-    approve.writeContract({ address: instance, chainId: chainId, args: [zRouter, maxUint256] })
+    if (!routerReady) return
+    approve.writeContract({ address: instance, chainId: chainId, args: [router, maxUint256] })
   }
 
   function handleSwap(): void {
@@ -219,7 +399,7 @@ export function GraduatedSwapPanel({
         ],
         value: buyValue,
       })
-    } else {
+    } else if (venue.kind === 'zamm') {
       vzSwap.writeContract({
         address: zRouter,
         chainId: chainId,
@@ -237,11 +417,51 @@ export function GraduatedSwapPanel({
         ],
         value: buyValue,
       })
+    } else {
+      if (!routerReady || address === undefined) return
+      if (isBuy) {
+        cypherSwap.writeContract({
+          abi: algebraSwapRouterAbi,
+          functionName: 'exactInputSingle',
+          address: router,
+          chainId: chainId,
+          args: [
+            algebraSwapParams({
+              tokenIn: venue.weth,
+              tokenOut: instance,
+              recipient: address,
+              deadline: deadline(),
+              amountIn,
+              minOut,
+            }),
+          ],
+          value: buyValue,
+        })
+      } else {
+        cypherSwap.writeContract({
+          abi: algebraSwapRouterAbi,
+          functionName: 'multicall',
+          address: router,
+          chainId: chainId,
+          args: [
+            algebraSellMulticall({
+              instance,
+              weth: venue.weth,
+              trader: address,
+              deadline: deadline(),
+              amountIn,
+              minOut,
+            }),
+          ],
+        })
+      }
     }
   }
 
   function handleReset(): void {
-    swap.reset()
+    if (isCypher) cypherSwap.reset()
+    else if (venue.kind === 'uniV4') v4Swap.reset()
+    else vzSwap.reset()
     setAmountStr('')
     void balanceRead.refetch()
     void allowanceRead.refetch()
@@ -253,6 +473,21 @@ export function GraduatedSwapPanel({
       <div className={styles.panel} data-testid="erc404-graduated-swap">
         <p className={styles.panelTitle}>trade</p>
         <p className={styles.connectNote}>connect wallet to trade</p>
+      </div>
+    )
+  }
+
+  // The venue is known but this network carries no router address for it — say that, and say it
+  // without sending anyone to another exchange.
+  if (!routerReady) {
+    return (
+      <div className={styles.panel} data-testid="erc404-graduated-swap">
+        <p className={styles.panelTitle}>trade</p>
+        <p className={styles.connectNote} data-testid="erc404-graduated-no-router">
+          this collection graduated to a {VENUE_LABEL[venue.kind]} pool, but no{' '}
+          {VENUE_LABEL[venue.kind]} router is configured for this network yet — trading here will
+          light up as soon as one is.
+        </p>
       </div>
     )
   }
@@ -280,9 +515,9 @@ export function GraduatedSwapPanel({
       ? `${isBuy ? formatUnits(quoteOut, decimals) : formatEther(quoteOut)} ${outLabel}`
       : '—'
 
-  const isBusy = swap.isPending || isConfirming
-  const swapError = txErrorReason(swap.error)
-  const quoteError = sim.error && quoteReady ? txErrorReason(sim.error) : undefined
+  const isBusy = swapIsPending || isConfirming
+  const swapError = txErrorReason(swapRawError)
+  const quoteError = quoteRawError && quoteReady ? txErrorReason(quoteRawError) : undefined
 
   return (
     <div className={styles.panel} data-testid="erc404-graduated-swap">
@@ -350,13 +585,17 @@ export function GraduatedSwapPanel({
             disabled={isBusy}
             data-testid="erc404-graduated-slippage-input"
           />
-          <span className={styles.note}>{venue.kind === 'uniV4' ? 'Uniswap V4' : 'ZAMM'} pool</span>
+          <span className={styles.note} data-testid="erc404-graduated-venue-label">
+            {VENUE_LABEL[venue.kind]} pool
+          </span>
         </div>
       </div>
 
       <div className={styles.quoteRow} data-testid="erc404-graduated-quote">
         <span className={styles.quoteLabel}>receive</span>
-        <span className={styles.quoteValue}>{sim.isFetching && quoteReady ? '…' : quoteValue}</span>
+        <span className={styles.quoteValue}>
+          {quoteIsFetching && quoteReady ? '…' : quoteValue}
+        </span>
       </div>
 
       {needsApproval ? (
@@ -379,7 +618,7 @@ export function GraduatedSwapPanel({
           disabled={isBusy || amountIn === undefined || minOut === undefined}
           data-testid="erc404-graduated-swap-submit"
         >
-          {swap.isPending
+          {swapIsPending
             ? 'confirm in wallet…'
             : isConfirming
               ? 'confirming…'
