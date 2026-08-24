@@ -9,7 +9,7 @@ import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
 import { FeatureUtils } from "../../master/libraries/FeatureUtils.sol";
 import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
 import { IFactory } from "../../interfaces/IFactory.sol";
-import { ICurveComputer } from "../../interfaces/ICurveComputer.sol";
+import { BondingCurveMath } from "./libraries/BondingCurveMath.sol";
 import { ERC404BondingInstance } from "./ERC404BondingInstance.sol";
 import { ERC404BondingStorage, InvalidBand, BandIdOverflow } from "./ERC404BondingStorage.sol";
 import { LaunchManager } from "./LaunchManager.sol";
@@ -27,6 +27,19 @@ import { MetadataOverlayModule } from "../../metadata/MetadataOverlayModule.sol"
 interface IDeployBondEscrow {
     function bondAmount() external view returns (uint256);
     function postBond(address instance, address creator) external payable;
+}
+
+/// @dev The curve-span calling convention this factory drives. `preset.curveComputer` is registry-gated
+///      under the `curve_computer` tag; the factory scales the curve to a bonding span it computes here
+///      — full supply, less the liquidity reserve, less the free-mint allocation — so the span the curve
+///      is designed against and the cap the instance enforces are one value. Declared locally (as with
+///      IDeployBondEscrow) to keep the shared ICurveComputer surface untouched.
+interface ICurveSpanComputer {
+    function computeCurveParamsFromBondingSupply(
+        uint256 maxBondingSupply,
+        uint256 targetETH,
+        uint256 liquidityReserveBps
+    ) external view returns (BondingCurveMath.Params memory);
 }
 
 /**
@@ -153,6 +166,11 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     error UnapprovedVault();
     error NameAlreadyTaken();
     error FreeMintAllocationExceedsNftCount();
+    /// @notice The free-mint allocation, in tokens, exceeds the supply left after the liquidity reserve,
+    ///         so the bonding cap `maxSupply - liquidityReserve - allocation·unit` would be negative.
+    ///         Stricter than `FreeMintAllocationExceedsNftCount` (`allocation >= nftCount`): it refuses
+    ///         every allocation that could produce an underflowing cap at the first buy or sell.
+    error FreeMintAllocationExceedsBondingCap();
     error UnapprovedLiquidityDeployer();
     error UnapprovedGatingModule();
     error UnapprovedStakingModule();
@@ -539,14 +557,29 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         }
 
         uint256 unit = preset.unitPerNFT * 1e18;
-        uint256 curveNftCount = params.nftCount - freeMint.allocation;
+        uint256 maxSupply = params.nftCount * unit;
+        // The reserve is computed on the FULL supply — the identical basis the instance uses for its
+        // stored `liquidityReserve` (ERC404BondingInstance.initialize) and for the graduation reserve —
+        // so this value and the instance's are byte-identical.
+        uint256 liquidityReserve = (maxSupply * preset.liquidityReserveBps) / 10000;
+        uint256 allocationTokens = freeMint.allocation * unit;
+        // One bonding cap, defined once. The free-mint allocation is removed EXACTLY once, from the full
+        // supply after the reserve — the same expression `buyBonding`/`sellBonding` enforce as their cap.
+        // An allocation larger than the post-reserve supply is refused here rather than producing a cap
+        // that underflows at the first trade.
+        if (allocationTokens > maxSupply - liquidityReserve) revert FreeMintAllocationExceedsBondingCap();
+        uint256 maxBondingSupply = maxSupply - liquidityReserve - allocationTokens;
         ERC404BondingInstance.BondingParams memory bonding = ERC404BondingInstance.BondingParams({
-            maxSupply: params.nftCount * unit,
+            maxSupply: maxSupply,
             unit: unit,
             liquidityReserveBps: preset.liquidityReserveBps,
             declaredMaxAllowanceBps: params.declaredMaxAllowanceBps,
-            curve: ICurveComputer(preset.curveComputer)
-                .computeCurveParams(curveNftCount, preset.targetETH, preset.unitPerNFT, preset.liquidityReserveBps)
+            // The curve raises `targetETH` across EXACTLY the bonding cap the instance enforces, so a
+            // fully-sold curve reaches its endpoint. The free-mint allocation is deducted only in
+            // `maxBondingSupply` above; the curve is no longer given a pre-deducted NFT count, which is
+            // what removed the allocation a second time on a different basis.
+            curve: ICurveSpanComputer(preset.curveComputer)
+                .computeCurveParamsFromBondingSupply(maxBondingSupply, preset.targetETH, preset.liquidityReserveBps)
         });
 
         // Deploy EIP-1167 minimal proxy via CREATE3.

@@ -2360,6 +2360,32 @@ export const curveParamsComputerAbi = [
   },
   {
     type: 'function',
+    inputs: [
+      { name: 'maxBondingSupply', internalType: 'uint256', type: 'uint256' },
+      { name: 'targetETH', internalType: 'uint256', type: 'uint256' },
+      { name: 'liquidityReserveBps', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'computeCurveParamsFromBondingSupply',
+    outputs: [
+      {
+        name: 'params',
+        internalType: 'struct BondingCurveMath.Params',
+        type: 'tuple',
+        components: [
+          { name: 'kCoeff', internalType: 'uint256', type: 'uint256' },
+          { name: 'poleWad', internalType: 'uint256', type: 'uint256' },
+          {
+            name: 'normalizationFactor',
+            internalType: 'uint256',
+            type: 'uint256',
+          },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'poleWad_', internalType: 'uint256', type: 'uint256' }],
     name: 'graduationMultipleAt',
     outputs: [{ name: 'g', internalType: 'uint256', type: 'uint256' }],
@@ -6771,6 +6797,7 @@ export const erc404FactoryAbi = [
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'BandIdOverflow' },
   { type: 'error', inputs: [], name: 'EndowmentVaultNotSupported' },
+  { type: 'error', inputs: [], name: 'FreeMintAllocationExceedsBondingCap' },
   { type: 'error', inputs: [], name: 'FreeMintAllocationExceedsNftCount' },
   { type: 'error', inputs: [], name: 'InsufficientBond' },
   { type: 'error', inputs: [], name: 'InvalidAddress' },
@@ -9342,6 +9369,39 @@ export const iCarveParamsSourceAbi = [
     ],
     name: 'effectiveCarveEth',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ICurveSpanComputer
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const iCurveSpanComputerAbi = [
+  {
+    type: 'function',
+    inputs: [
+      { name: 'maxBondingSupply', internalType: 'uint256', type: 'uint256' },
+      { name: 'targetETH', internalType: 'uint256', type: 'uint256' },
+      { name: 'liquidityReserveBps', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'computeCurveParamsFromBondingSupply',
+    outputs: [
+      {
+        name: '',
+        internalType: 'struct BondingCurveMath.Params',
+        type: 'tuple',
+        components: [
+          { name: 'kCoeff', internalType: 'uint256', type: 'uint256' },
+          { name: 'poleWad', internalType: 'uint256', type: 'uint256' },
+          {
+            name: 'normalizationFactor',
+            internalType: 'uint256',
+            type: 'uint256',
+          },
+        ],
+      },
+    ],
     stateMutability: 'view',
   },
 ] as const
@@ -17173,6 +17233,15 @@ export const useReadCurveParamsComputerComputeCurveParams =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"computeCurveParamsFromBondingSupply"`
+ */
+export const useReadCurveParamsComputerComputeCurveParamsFromBondingSupply =
+  /*#__PURE__*/ createUseReadContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'computeCurveParamsFromBondingSupply',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"graduationMultipleAt"`
  */
 export const useReadCurveParamsComputerGraduationMultipleAt =
@@ -24261,6 +24330,22 @@ export const useReadICarveParamsSourceEffectiveCarveEth =
   /*#__PURE__*/ createUseReadContract({
     abi: iCarveParamsSourceAbi,
     functionName: 'effectiveCarveEth',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iCurveSpanComputerAbi}__
+ */
+export const useReadICurveSpanComputer = /*#__PURE__*/ createUseReadContract({
+  abi: iCurveSpanComputerAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iCurveSpanComputerAbi}__ and `functionName` set to `"computeCurveParamsFromBondingSupply"`
+ */
+export const useReadICurveSpanComputerComputeCurveParamsFromBondingSupply =
+  /*#__PURE__*/ createUseReadContract({
+    abi: iCurveSpanComputerAbi,
+    functionName: 'computeCurveParamsFromBondingSupply',
   })
 
 /**

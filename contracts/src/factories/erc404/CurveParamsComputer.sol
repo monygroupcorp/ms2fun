@@ -184,7 +184,39 @@ contract CurveParamsComputer is Ownable, ICurveComputer {
         uint256 totalSupply = nftCount * unitPerNFT * 1e18;
         uint256 liquidityReserve = (totalSupply * liquidityReserveBps) / 10000; // round down: slightly more for bonding
         uint256 maxBondingSupply = totalSupply - liquidityReserve;
+        return _paramsForBondingSupply(maxBondingSupply, targetETH, liquidityReserveBps);
+    }
 
+    /**
+     * @notice Compute bonding curve parameters scaled directly to a caller-supplied bonding span.
+     * @dev Same shape solve and targetETH scaling as `computeCurveParams`, but the span the curve is
+     *      integrated over is taken verbatim rather than derived as `nftCount·unit·(1 − r)`. The caller
+     *      (ERC404Factory) owns the definition of the bonding cap — full supply, less the liquidity
+     *      reserve, less the free-mint allocation — and passes exactly that value here, so the curve's
+     *      designed endpoint is byte-identical to the cap the instance enforces at buy/sell. The pole is
+     *      still solved from `liquidityReserveBps` (the reserve fraction sets the graduation multiple),
+     *      which is why that argument is retained even though the span is now explicit.
+     * @param maxBondingSupply Token span (wei) the curve must raise `targetETH` over.
+     * @param targetETH Target ETH to raise through the bonding curve.
+     * @param liquidityReserveBps Bps of total supply reserved for liquidity (sets the graduation multiple).
+     * @return params Computed BondingCurveMath.Params.
+     */
+    function computeCurveParamsFromBondingSupply(
+        uint256 maxBondingSupply,
+        uint256 targetETH,
+        uint256 liquidityReserveBps
+    ) public view returns (BondingCurveMath.Params memory params) {
+        return _paramsForBondingSupply(maxBondingSupply, targetETH, liquidityReserveBps);
+    }
+
+    /// @dev Shape solve + amplitude scaling over an explicit bonding span. Both public entry points route
+    ///      here so the scaling math has one definition; `computeCurveParams` derives the span from an NFT
+    ///      count first, `computeCurveParamsFromBondingSupply` supplies it directly.
+    function _paramsForBondingSupply(uint256 maxBondingSupply, uint256 targetETH, uint256 liquidityReserveBps)
+        internal
+        view
+        returns (BondingCurveMath.Params memory params)
+    {
         // Normalization: the bonding cap maps to ~1e18 (one WAD) of normalized supply.
         uint256 normFactor = maxBondingSupply / 1e18; // round down, guarded by != 0 below
         if (normFactor == 0) normFactor = 1;
