@@ -107,3 +107,9 @@ contracts/lib
 # PID file for the local anvil dev fork (app/scripts/dev-chain/fork.sh), used to verify ownership
 # before a stop/restart is allowed to kill the process holding :8545.
 /.anvil.pid
+
+# Third-party bytecode, ABIs and deployment records pulled from a block explorer by
+# app/scripts/sepolia-algebra (see its RUNBOOK.md). The tools are committed; their output is not —
+# this repository carries deployed addresses and its own MIT interfaces, never vendored third-party
+# artifacts. Everything under it is re-fetchable by re-running the fetch tool.
+app/scripts/sepolia-algebra/artifacts/
