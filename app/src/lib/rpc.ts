@@ -9,8 +9,8 @@
  * grounds. If the wallet-first hop ever proves slow for a given wallet, drop the `unstable_connector`
  * line and it becomes pure ranked-public.
  *
- * Extend PUBLIC_RPCS with the deploy target's chain (testnet/mainnet) when we cut a real deploy; the
- * local anvil fork keeps a single localhost transport (no fallback to make).
+ * Extend PUBLIC_RPCS with each further deploy target's chain; the local anvil fork keeps a single
+ * localhost transport (no fallback to make).
  */
 import { fallback, http, unstable_connector, type Transport } from 'wagmi'
 import { injected } from 'wagmi/connectors'
@@ -24,6 +24,15 @@ const PUBLIC_RPCS: Record<number, string[]> = {
     'https://rpc.ankr.com/eth',
     'https://cloudflare-eth.com',
     'https://eth.llamarpc.com',
+  ],
+  // Sepolia (chain 11155111) — the showcase testnet. Same discipline as the mainnet pool: public,
+  // key-less, multi-provider, health-ranked. Testnet endpoints rate-limit harder than mainnet ones,
+  // which is what the ranked fallback is for.
+  11155111: [
+    'https://ethereum-sepolia-rpc.publicnode.com',
+    'https://sepolia.drpc.org',
+    'https://1rpc.io/sepolia',
+    'https://rpc.sepolia.org',
   ],
 }
 
