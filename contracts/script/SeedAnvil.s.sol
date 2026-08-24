@@ -21,7 +21,16 @@ import { IHooks } from "v4-core/interfaces/IHooks.sol";
 import { MetadataOverlayModule } from "../src/metadata/MetadataOverlayModule.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 import { MerkleProofLib } from "solady/utils/MerkleProofLib.sol";
-import { SeedAnvilShared, ArtistEndowments, IEndowmentPayout } from "./SeedAnvilShared.sol";
+import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
+import { StateLibrary } from "v4-core/libraries/StateLibrary.sol";
+import { PoolIdLibrary } from "v4-core/types/PoolId.sol";
+import {
+    SeedAnvilShared,
+    ArtistEndowments,
+    IEndowmentPayout,
+    AnvilV4DepthSeeder,
+    IUniswapV3PoolMinimal
+} from "./SeedAnvilShared.sol";
 
 /// @dev Minimal owner surface for enriching a seeded alignment target's description + logo metadata.
 interface IAlignmentTargetAdmin {
@@ -105,6 +114,9 @@ interface IAgentRegistry {
 ///             second; it is settle-ready + no-bid either way, and nothing in phase 2 needs it live
 ///           · live auction (1 day)  ACTIVE, with its phase-1 bid intact
 contract SeedAnvil is SeedAnvilShared {
+    using StateLibrary for IPoolManager;
+    using PoolIdLibrary for PoolKey;
+
     // Agent-delegation demo (pre-testnet confirmation): the AGENT is an authorized delegate that
     // creates a collection ON BEHALF OF the PERSON, who ends up owning it. Anvil accounts #3 (agent)
     // and #2 (person) — well-known public test keys.
@@ -202,6 +214,31 @@ contract SeedAnvil is SeedAnvilShared {
     address constant CULT_REFERENCE_POOL_V3 = 0xC4ce8E63921b8B6cBdB8fCB6Bd64cC701Fb926f2;
     uint8 constant CULT_REFERENCE_KIND = 0; // Uniswap V3 `observe`
     uint32 constant CULT_REFERENCE_TWAP_WINDOW = 0; // 0 => the registry's default window
+
+    // ── The acquire pool's DEPTH ────────────────────────────────────────────────────────────
+    // Mainnet singletons, present on the fork. The pool manager is the V4 singleton every pool lives
+    // in; WETH is needed only because the deep pool the token leg is bought on is a WETH pair.
+    address constant V4_POOL_MANAGER = 0x000000000004444c5dc75cB358380D2e3dE08A90;
+    address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    // THE BUDGET IS SIZED BY MEASUREMENT, not by taste. Half buys the token leg on the deep pool and
+    // half is the native-ETH leg, and a tick-symmetric range makes those two legs equal in value.
+    // What the figure has to buy is a pool that can serve a demo-sized convert inside the vault's -5%
+    // oracle floor. Measured on the fork at authoring time, the 1%/200 tier's own liquidity prices a
+    // 0.1 ETH buy tens of percent under the reference TWAP; the position this budget mints lifts the
+    // tier's active liquidity by roughly three orders of magnitude, which puts a several-ETH buy
+    // inside the floor with the 1% pool fee already paid out of the budget. The graduation this fork
+    // leaves armed carves a vault share well under that, so the headroom is deliberate rather than
+    // exact — a demo that reverts on the second convert is the failure mode being bought out.
+    uint256 constant CULT_DEPTH_BUDGET = 24 ether;
+    // +/- ~19.7% in price around the pool's current tick, aligned down to the 200 spacing. Wide
+    // enough that a demo-sized buy stays inside the range for the whole swap (a swap that walks out
+    // of the range falls back onto the tier's original depth mid-trade, which is the thin case again).
+    int24 constant CULT_DEPTH_HALF_WIDTH_TICKS = 1800;
+    // A floor, not the expected value: what is being asserted is that the deposit LANDED and moved
+    // the tier by orders of magnitude, not that it landed to the wei. The tier's pre-existing active
+    // liquidity was ~3.7e20 at authoring, so this is ~100x that and cannot be met by the pool's own
+    // depth drifting on a newer fork block.
+    uint128 constant CULT_DEPTH_MIN_ACTIVE_LIQUIDITY = 4e22;
 
     // ── The ERC-1155 tranche — free-mint-heavy examples, TRUNCATED ──────────────────────────
     // The seed demonstrates the family; it does not mint ten thousand tokens onto a fork. Each
@@ -311,6 +348,12 @@ contract SeedAnvil is SeedAnvilShared {
         // after the instances exist would leave a window in which an aligned collection is bound to a
         // target with no acquisition route at all.
         _seedCultAlignmentLegs(d, CULT_REFERENCE_POOL_V3);
+        // Depth into the curated acquire pool, IMMEDIATELY after the legs and before any roster
+        // instance exists. Ordering is load-bearing in both directions: the pool key has to be set
+        // first (the depth goes into the tier the vault and the registry name, not the deployment
+        // default), and the depth has to exist before anything can graduate into the vault, because a
+        // convert reads the pool at execution time and gets no second attempt at the same ETH.
+        _seedCultPoolDepth(d);
         // Catalog-sized curve presets, before the two curves that select them.
         _registerCatalogPresets(d);
         _seedCatalogFlagship(d);
@@ -1514,6 +1557,64 @@ contract SeedAnvil is SeedAnvilShared {
         console.log("  acquire  : UNI_V4 fee", uint256(CULT_ACQUIRE_FEE), "tickSpacing 200");
         console.log("  reference:", referencePool);
         console.log("  LP vault :", d.cultUniVault);
+    }
+
+    /// @dev Give the curated acquire pool the depth the curated route already claims.
+    ///
+    ///      WHY THE SEED PAYS FOR THIS AT ALL. The registry curates the native-ETH 1%/200 tier as the
+    ///      target's acquire venue, the vault LPs into that same tier, and the fork's route pin sends
+    ///      the executed buy there too — three legs naming one pool. On a bare mainnet fork that pool
+    ///      carries a small fraction of the depth its same-fee V3 sibling does, so a demo-sized ETH ->
+    ///      token buy prices far enough under the reference TWAP to trip the vault's -5% oracle floor
+    ///      and revert the convert. The floor is correct and is left alone; what changes is the pool.
+    ///
+    ///      WHERE THE TOKEN LEG COMES FROM. A two-sided position needs the alignment token and the
+    ///      seed holds only ETH, so the seeder buys the token leg on the deep V3 pool — real tokens at
+    ///      a real price rather than fabricated balances. That buy nudges the token's price up on the
+    ///      reference pool, which moves the vault's floor DOWN (the floor is a minimum token-out
+    ///      derived from the reference price), so it cannot be what breaks a later convert.
+    ///
+    ///      WHAT THIS DOES NOT TOUCH: the reference pool's role as the price authority, the vault's
+    ///      own pool key, the network-wide fee/tick default, and the oracle floor. Only the pool's
+    ///      liquidity moves.
+    function _seedCultPoolDepth(Deployed memory d) internal {
+        PoolKey memory key = PoolKey({
+            currency0: Currency.wrap(address(0)),
+            currency1: Currency.wrap(CULT_TOKEN),
+            fee: CULT_ACQUIRE_FEE,
+            tickSpacing: CULT_ACQUIRE_TICK_SPACING,
+            hooks: IHooks(address(0))
+        });
+
+        uint128 before = IPoolManager(V4_POOL_MANAGER).getLiquidity(key.toId());
+
+        vm.startBroadcast(deployerKey);
+        AnvilV4DepthSeeder seeder = new AnvilV4DepthSeeder(
+            IPoolManager(V4_POOL_MANAGER), IUniswapV3PoolMinimal(CULT_REFERENCE_POOL_V3), WETH, CULT_TOKEN
+        );
+        (uint128 liquidityAdded, uint256 ethUsed, uint256 tokenUsed) =
+            seeder.seedDepth{ value: CULT_DEPTH_BUDGET }(key, CULT_DEPTH_HALF_WIDTH_TICKS);
+        vm.stopBroadcast();
+
+        // Read the tier back off the pool manager rather than trusting the seeder's return: the
+        // number that decides whether a convert survives the floor is the pool's ACTIVE liquidity,
+        // and a position minted outside the current tick range would report units while adding none
+        // of the depth the acquire leg swaps through.
+        uint128 nowActive = IPoolManager(V4_POOL_MANAGER).getLiquidity(key.toId());
+        require(liquidityAdded > 0, "catalog: the acquire pool's depth seed minted no liquidity");
+        require(nowActive > before, "catalog: the depth seed did not land in the pool's active range");
+        require(
+            nowActive >= CULT_DEPTH_MIN_ACTIVE_LIQUIDITY,
+            "catalog: the acquire pool is still too thin to serve a demo-sized convert"
+        );
+
+        console.log("CATALOG acquire-pool depth seeded (UNI_V4 fee 10000 / spacing 200)");
+        console.log("  budget spent (wei):", CULT_DEPTH_BUDGET);
+        console.log("  ETH leg deposited (wei):", ethUsed);
+        console.log("  token leg deposited:", tokenUsed);
+        console.log("  active liquidity before:", uint256(before));
+        console.log("  active liquidity after :", uint256(nowActive));
+        console.log("  seeder (holds the position):", address(seeder));
     }
 
     /// @dev Register the four catalog-sized curve presets. `setPreset` guards only against a zero

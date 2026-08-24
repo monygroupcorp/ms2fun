@@ -10,6 +10,18 @@ import { BondingCurveMath } from "../src/factories/erc404/libraries/BondingCurve
 import { FeaturedQueueManager } from "../src/master/FeaturedQueueManager.sol";
 import { GlobalMessageRegistry } from "../src/registry/GlobalMessageRegistry.sol";
 import { ProfileRegistry } from "../src/registry/ProfileRegistry.sol";
+import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
+import { IUnlockCallback } from "v4-core/interfaces/callback/IUnlockCallback.sol";
+import { IERC20Minimal } from "v4-core/interfaces/external/IERC20Minimal.sol";
+import { PoolKey } from "v4-core/types/PoolKey.sol";
+import { PoolIdLibrary } from "v4-core/types/PoolId.sol";
+import { Currency } from "v4-core/types/Currency.sol";
+import { BalanceDelta } from "v4-core/types/BalanceDelta.sol";
+import { TickMath } from "v4-core/libraries/TickMath.sol";
+import { StateLibrary } from "v4-core/libraries/StateLibrary.sol";
+import { CurrencySettler } from "../src/libraries/v4/CurrencySettler.sol";
+import { LiquidityAmounts } from "../src/libraries/v4/LiquidityAmounts.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 /// @dev Minimal Solady-Ownable surface — instances + registries all expose this single-step transfer.
 interface IOwnable {
@@ -39,16 +51,16 @@ interface IPieceURI {
 ///         venue, and only an unset/reverting/empty quote degrades to the fixed tier. This contract
 ///         fills that seam for ONE token.
 ///
-///         WHY THE PINNED VENUE IS THE ONE IT IS, AND NOT THE VAULT'S LP POOL. These are two different
-///         questions and they have two different answers on this fork. The vault LPs into the deepest
-///         native-ETH V4 pool for its token; the vault ACQUIRES wherever the token is cheapest to buy
-///         without breaching its own oracle floor, and that is the deepest pool of any kind. Measured
-///         on the fork: the V4 tier prices a tenth-of-an-ETH buy ~31% under the reference TWAP and the
-///         V3 tier of the same fee prices a whole-ETH buy ~1% under it — three orders of magnitude of
-///         depth apart. Pinning the acquire leg to the V4 pool would make every demo-sized convert
-///         revert on the vault's slippage floor, which is the floor doing its job against a pool that
-///         cannot serve the size. Buying deep and providing liquidity where the alignment is committed
-///         is what a best-route acquirer is FOR; it is not a workaround.
+///         WHY THE PINNED VENUE IS THE V4 TIER, AND WHAT HAD TO BE TRUE FIRST. The pin names the SAME
+///         pool the registry curates as the acquire route and the same pool the vault LPs into: the
+///         native-ETH 1% / tickSpacing-200 tier. That is only a legal answer while the pool can serve a
+///         demo-sized buy inside the vault's oracle floor, and on a bare mainnet fork it cannot — the
+///         tier carries a small fraction of the depth the same-fee V3 pool does, so a tenth-of-an-ETH
+///         buy prices far enough under the reference TWAP to trip `Slippage()`. `AnvilV4DepthSeeder`
+///         (below) is what makes the pin valid: the seed adds real two-sided liquidity to that pool
+///         before anything converts. The floor is untouched — the pool is made worthy of it, not the
+///         other way round. FLIPPING THIS PIN BACK WITHOUT REMOVING THE DEPTH SEED, OR REMOVING THE
+///         DEPTH SEED WITHOUT FLIPPING THIS PIN, BREAKS THE PAIRING: they are one change.
 ///
 ///         WHY THE ANSWER IS SCOPED TO ONE TOKEN. Every other `(tokenIn, tokenOut)` pair — including
 ///         the other alignment target's — is answered with an EMPTY route, which `BestRouteAcquirer`
@@ -97,9 +109,225 @@ contract AnvilFixedRouteQuoter {
         if (tokenIn != address(0) || tokenOut != pinnedToken || swapAmount == 0) {
             return (best, new Quote[](0));
         }
-        best = Quote({ source: AMM.UNI_V3, feeBps: PINNED_FEE_BPS, amountIn: swapAmount, amountOut: 1 });
+        // `PINNED_FEE_BPS` = 100 -> `BestRouteAcquirer` executes `swapV4(fee 10000, tickSpacing 200)`:
+        // it multiplies the bps by 100 for the pool fee and maps 100 bps -> spacing 200. That is the
+        // exact pool the registry curates and the depth seed fills.
+        best = Quote({ source: AMM.UNI_V4, feeBps: PINNED_FEE_BPS, amountIn: swapAmount, amountOut: 1 });
         quotes = new Quote[](1);
         quotes[0] = best;
+    }
+}
+
+/// @dev The two calls the depth seed makes on the deep same-pair Uniswap V3 pool it sources the token
+///      leg from, plus the pair read the constructor validates the wiring with.
+interface IUniswapV3PoolMinimal {
+    function token0() external view returns (address);
+    function token1() external view returns (address);
+    function swap(
+        address recipient,
+        bool zeroForOne,
+        int256 amountSpecified,
+        uint160 sqrtPriceLimitX96,
+        bytes calldata data
+    ) external returns (int256 amount0, int256 amount1);
+}
+
+/// @dev Minimal WETH surface. The V4 pool is native-ETH; the V3 pool the token leg is bought on is a
+///      WETH pair, so the seeder wraps exactly the ETH it spends there and nothing else.
+interface IWETHMinimalDeposit {
+    function deposit() external payable;
+    function transfer(address to, uint256 amount) external returns (bool);
+}
+
+/// @notice ANVIL-ONLY LIQUIDITY SEEDER for the alignment target's Uniswap V4 acquire pool.
+///
+///         WHY IT EXISTS. The registry curates a native-ETH V4 tier as the target's acquire venue and
+///         the vault LPs into that same tier, but on a bare mainnet fork the tier is thin: a
+///         demo-sized ETH -> token buy prices far enough under the reference TWAP that the vault's
+///         oracle floor (`UniAlignmentVault._floorTokenOut`, -5%) reverts the convert. This contract
+///         gives the pool the depth the curated route already claims, so the executed buy and the
+///         curated venue are the same pool. It does NOT touch the floor, the reference pool, or the
+///         vault's own pool key — the pool is made worthy of the floor, not the floor loosened.
+///
+///         HOW THE TOKEN LEG IS SOURCED. A two-sided position needs the alignment token, and the seed
+///         has only ETH. It buys the token leg on the deep same-pair V3 pool, which is the honest way
+///         to obtain it on a fork: real tokens at a real price, no balance fabrication. That buy makes
+///         the token slightly more expensive on the reference pool, which moves the vault's oracle
+///         floor DOWN (the floor is a minimum token-out derived from the reference price), so it can
+///         never be the thing that causes a later convert to breach.
+///
+///         THE POSITION IS PERMANENT AND UNOWNED IN PRACTICE. There is no withdraw path here: the
+///         position is minted under this contract with a zero salt and left. That is deliberate — the
+///         fork's depth should not be removable by a demo action, and a seeder that could pull it
+///         would be a bigger surface than the one thing it is for.
+///
+///         ANVIL ONLY. Nothing about this belongs on a live network, where the pool's depth is the
+///         market's business and not the deployer's.
+contract AnvilV4DepthSeeder is IUnlockCallback {
+    using CurrencySettler for Currency;
+    using StateLibrary for IPoolManager;
+    using PoolIdLibrary for PoolKey;
+
+    error NotOwner();
+    error NotPoolManager();
+    error NotSourcePool();
+    error SourcePoolPairMismatch();
+    error TokenNotInPoolKey();
+    error NoTokenAcquired();
+    error NoLiquidityMinted();
+
+    /// @notice Callback payload for the single `unlock` this contract ever performs.
+    struct AddLiquidityCallbackData {
+        PoolKey key;
+        int24 tickLower;
+        int24 tickUpper;
+        uint256 amount0;
+        uint256 amount1;
+    }
+
+    IPoolManager public immutable poolManager;
+    /// @notice The deep same-pair Uniswap V3 pool the token leg is bought on.
+    IUniswapV3PoolMinimal public immutable sourcePool;
+    IWETHMinimalDeposit public immutable weth;
+    /// @notice The alignment token being paired with native ETH in the V4 pool.
+    address public immutable token;
+    /// @notice The account that deployed this seeder; the only caller, and where residue is returned.
+    address public immutable owner;
+    /// @dev Orientation of the V3 source pool, resolved once so the swap direction is never guessed.
+    bool private immutable _tokenIsSourceToken0;
+
+    constructor(IPoolManager poolManager_, IUniswapV3PoolMinimal sourcePool_, address weth_, address token_) {
+        poolManager = poolManager_;
+        sourcePool = sourcePool_;
+        weth = IWETHMinimalDeposit(weth_);
+        token = token_;
+        owner = msg.sender;
+
+        address t0 = sourcePool_.token0();
+        address t1 = sourcePool_.token1();
+        bool tokenIsT0 = t0 == token_;
+        if (!tokenIsT0 && t1 != token_) revert SourcePoolPairMismatch();
+        if ((tokenIsT0 ? t1 : t0) != weth_) revert SourcePoolPairMismatch();
+        _tokenIsSourceToken0 = tokenIsT0;
+    }
+
+    /// @dev Residue returns here from the pool manager (`take`) and from the router-free V3 leg.
+    receive() external payable { }
+
+    /// @notice Buy the token leg on the deep V3 pool and add the pair as a concentrated V4 position
+    ///         centred on the V4 pool's current tick.
+    /// @param key The V4 pool key to deposit into — native ETH on one side, `token` on the other.
+    /// @param halfWidthTicks Half-width of the position, in ticks, before alignment to `tickSpacing`.
+    ///        A symmetric-in-ticks range is symmetric in log price, so the two legs carry equal value
+    ///        and an even ETH split across them is the right split.
+    /// @return liquidity The liquidity units minted.
+    /// @return ethUsed Native ETH the position actually pulled.
+    /// @return tokenUsed Alignment token the position actually pulled.
+    function seedDepth(PoolKey calldata key, int24 halfWidthTicks)
+        external
+        payable
+        returns (uint128 liquidity, uint256 ethUsed, uint256 tokenUsed)
+    {
+        if (msg.sender != owner) revert NotOwner();
+        bool tokenIsCurrency1 = Currency.unwrap(key.currency1) == token;
+        if (!tokenIsCurrency1 && Currency.unwrap(key.currency0) != token) revert TokenNotInPoolKey();
+
+        // ── The token leg, bought on the deep pool ───────────────────────────────────────────────
+        uint256 ethForToken = msg.value / 2;
+        weth.deposit{ value: ethForToken }();
+        bool zeroForOne = !_tokenIsSourceToken0; // WETH is the input, so its side is the `zeroFor`.
+        sourcePool.swap(
+            address(this),
+            zeroForOne,
+            int256(ethForToken), // positive = exact input
+            zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1,
+            ""
+        );
+        uint256 tokenHeld = IERC20Minimal(token).balanceOf(address(this));
+        if (tokenHeld == 0) revert NoTokenAcquired();
+
+        // ── The position, centred on the V4 pool's own current tick ──────────────────────────────
+        (, int24 tick,,) = poolManager.getSlot0(key.toId());
+        int24 tickLower = _alignedTick(tick - halfWidthTicks, key.tickSpacing);
+        int24 tickUpper = _alignedTick(tick + halfWidthTicks, key.tickSpacing);
+        int24 minTick = TickMath.minUsableTick(key.tickSpacing);
+        int24 maxTick = TickMath.maxUsableTick(key.tickSpacing);
+        if (tickLower < minTick) tickLower = minTick;
+        if (tickUpper > maxTick) tickUpper = maxTick;
+
+        uint256 ethHeld = address(this).balance;
+        (uint256 amount0, uint256 amount1) = tokenIsCurrency1 ? (ethHeld, tokenHeld) : (tokenHeld, ethHeld);
+
+        bytes memory result = poolManager.unlock(
+            abi.encode(
+                AddLiquidityCallbackData({
+                    key: key, tickLower: tickLower, tickUpper: tickUpper, amount0: amount0, amount1: amount1
+                })
+            )
+        );
+        uint256 used0;
+        uint256 used1;
+        (liquidity, used0, used1) = abi.decode(result, (uint128, uint256, uint256));
+        if (liquidity == 0) revert NoLiquidityMinted();
+        (ethUsed, tokenUsed) = tokenIsCurrency1 ? (used0, used1) : (used1, used0);
+
+        // ── Residue back to the caller: a position never pulls both legs to the last wei ─────────
+        uint256 tokenLeft = IERC20Minimal(token).balanceOf(address(this));
+        if (tokenLeft != 0) IERC20Minimal(token).transfer(owner, tokenLeft);
+        uint256 ethLeft = address(this).balance;
+        if (ethLeft != 0) SafeTransferLib.safeTransferETH(owner, ethLeft);
+    }
+
+    /// @dev V4 unlock callback. Mirrors the house pattern (`ProtocolOwnedLiquidityV1._handleDeployPOL`,
+    ///      `LiquidityDeployerModule.unlockCallback`): price the liquidity off the pool's live sqrt
+    ///      price, mint it, then settle debts and take credits with `CurrencySettler`.
+    function unlockCallback(bytes calldata data) external returns (bytes memory) {
+        if (msg.sender != address(poolManager)) revert NotPoolManager();
+        AddLiquidityCallbackData memory p = abi.decode(data, (AddLiquidityCallbackData));
+
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(p.key.toId());
+        uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
+            sqrtPriceX96,
+            TickMath.getSqrtPriceAtTick(p.tickLower),
+            TickMath.getSqrtPriceAtTick(p.tickUpper),
+            p.amount0,
+            p.amount1
+        );
+
+        (BalanceDelta delta,) = poolManager.modifyLiquidity(
+            p.key,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: p.tickLower,
+                tickUpper: p.tickUpper,
+                liquidityDelta: int256(uint256(liquidity)),
+                salt: bytes32(0)
+            }),
+            ""
+        );
+
+        int128 d0 = delta.amount0();
+        int128 d1 = delta.amount1();
+        if (d0 < 0) p.key.currency0.settle(poolManager, address(this), uint256(uint128(-d0)), false);
+        else if (d0 > 0) p.key.currency0.take(poolManager, address(this), uint256(uint128(d0)), false);
+        if (d1 < 0) p.key.currency1.settle(poolManager, address(this), uint256(uint128(-d1)), false);
+        else if (d1 > 0) p.key.currency1.take(poolManager, address(this), uint256(uint128(d1)), false);
+
+        return abi.encode(liquidity, d0 < 0 ? uint256(uint128(-d0)) : 0, d1 < 0 ? uint256(uint128(-d1)) : 0);
+    }
+
+    /// @dev Uniswap V3 swap callback. The only debt this contract can owe here is the WETH leg it
+    ///      just wrapped — the token side of an exact-input buy is a credit, never a debt.
+    function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata) external {
+        if (msg.sender != address(sourcePool)) revert NotSourcePool();
+        int256 owed = _tokenIsSourceToken0 ? amount1Delta : amount0Delta;
+        if (owed > 0) weth.transfer(msg.sender, uint256(owed));
+    }
+
+    /// @dev Round a tick DOWN to the pool's spacing (floor division, negative ticks included).
+    function _alignedTick(int24 tick, int24 spacing) private pure returns (int24) {
+        int24 compressed = tick / spacing;
+        if (tick < 0 && tick % spacing != 0) compressed--;
+        return compressed * spacing;
     }
 }
 
