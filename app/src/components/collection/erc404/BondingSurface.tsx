@@ -160,12 +160,13 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
   }
 
   if (phase === 'graduated') {
-    // The curve is closed, but the token is still an ERC-20 that trades on its graduated pool. For
-    // the zRouter-native venues (Uni-V4, ZAMM) we embed the swap IN-SITE (B19); Cypher/Algebra is a
-    // separate router (fast-follow) and any unrecognised deployer falls back to the Uniswap link-out
-    // rather than a dead end. The candles below are the pre-graduation bonding history.
-    const embeddable = venue?.kind === 'uniV4' || venue?.kind === 'zamm'
-    const swapUrl = `https://app.uniswap.org/swap?outputCurrency=${instance}&chain=mainnet`
+    // The curve is closed, but the token is still an ERC-20 that trades on its graduated pool —
+    // and every venue we can name trades IN-SITE (noesis-349): Uni-V4 and ZAMM through zRouter,
+    // Cypher through the Algebra periphery router. A venue we cannot resolve gets a plain statement
+    // of that fact rather than a redirect to an unrelated exchange, which would be a dead end for a
+    // token with no pool there and would name a chain this collection may not even be on.
+    // The candles below are the pre-graduation bonding history.
+    const embeddable = venue !== undefined && venue.kind !== 'unknown'
     return (
       <div className={styles.surface} data-testid="erc404-phase-graduated">
         <div className={styles.banner}>
@@ -183,17 +184,12 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
             refetch={refetch}
           />
         ) : (
-          <div>
-            <a
-              className="btn btn-primary btn-chromatic"
-              href={swapUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              data-testid="erc404-graduated-trade"
-            >
-              Trade on Uniswap ↗
-            </a>
-          </div>
+          <p className={styles.note} data-testid="erc404-graduated-no-route">
+            {venue === undefined
+              ? 'reading this collection’s graduated venue…'
+              : 'this collection graduated to a pool we can’t resolve yet, so there’s no trade to offer here. The pool exists on chain — the token’s liquidity deployer is ' +
+                `${venue.deployer ?? 'not readable right now'}.`}
+          </p>
         )}
         {/* The immutable ceiling does not disappear the moment it becomes history, and the receipt
             below says what was actually taken against it. Both are public. */}
