@@ -1,10 +1,34 @@
-.grid {
+/* Virtualized grid (noesis-382). The scroller owns the scrollbar, `.canvas` is sized to the whole
+   collection so the bar reads true, and each `.row` is absolutely positioned by the virtualizer.
+   The column count is set inline from the measured width — `auto-fill` cannot be used here because
+   the row model needs to know how many pieces a row holds. */
+.scroller {
+  max-block-size: 70vh;
+  overflow-y: auto;
+}
+
+.canvas {
+  position: relative;
+  width: 100%;
+}
+
+.row {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  width: 100%;
   gap: var(--gap-sm);
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+.more {
+  padding: var(--padding-sm);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
 }
 
 .tile {
