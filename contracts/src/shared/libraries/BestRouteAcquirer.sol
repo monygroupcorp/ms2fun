@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import { IAlgebraSwapRouter } from "../../interfaces/algebra/IAlgebra.sol";
+import { ALGEBRA_DEFAULT_DEPLOYER, IAlgebraSwapRouter } from "../../interfaces/algebra/IAlgebra.sol";
 
 /// @notice On-chain best-route quote surface (zQuoter.getQuotes). The base quoter
 ///         (`zQuoterBase`) only ever reports one of these five single-hop sources, and every one of
@@ -197,6 +197,7 @@ library BestRouteAcquirer {
             IAlgebraSwapRouter.ExactInputSingleParams({
                 tokenIn: weth,
                 tokenOut: tokenOut,
+                deployer: ALGEBRA_DEFAULT_DEPLOYER,
                 recipient: address(this),
                 deadline: fallbackDeadline,
                 amountIn: ethAmount,
