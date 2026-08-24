@@ -174,9 +174,12 @@ contract ERC404BondingOps is ERC404BondingStorage {
         // Band ids live STRICTLY above `idLimit`: `initTierBands` seeds its ascending-band check with
         // `prevEnd = idLimit` and reverts `InvalidBand` on `idStart <= prevEnd`, and DN404 bounds every
         // auto-minted id with `_wrapNFTId(.., idLimit)`. So `id <= idLimit` proves "ordinary" and the
-        // band walk can be skipped for it. `totalSupply` is fixed at `maxSupply` for this instance's
-        // life, so this is the same `idLimit` the seal validated against.
-        uint256 idLimit = uint256($.totalSupply) / _unit();
+        // band walk can be skipped for it. The ceiling is SEALED at create against `maxSupply / unit` —
+        // the same expression `initTierBands` validated the ladder against. Graduation burns
+        // instance-held coin and so lowers live `totalSupply`, but it does NOT lower this ceiling: an
+        // ordinary id up to `maxSupply / unit` can be outstanding for the instance's whole life, so the
+        // sealed bound is read here, never `$.totalSupply`.
+        uint256 idLimit = maxSupply / _unit();
 
         uint256[] memory owned = _ownedIds(msg.sender, 0, type(uint256).max);
         uint256 suppliedLen = supplied.length;
@@ -239,8 +242,11 @@ contract ERC404BondingOps is ERC404BondingStorage {
         DN404Storage storage $ = _getDN404Storage();
         uint256 unitSize = _unit();
 
-        // (a) `tierZeroId` must be in the ORDINARY id space — never another band's id.
-        if (tierZeroId == 0 || tierZeroId > uint256($.totalSupply) / unitSize) revert NotTierZeroId();
+        // (a) `tierZeroId` must be in the ORDINARY id space — never another band's id. The ceiling is
+        //     the sealed `maxSupply / unit` (what `initTierBands` packed the bands strictly above), not
+        //     live `totalSupply`: graduation burns instance-held coin and lowers live supply, but every
+        //     ordinary id the instance ever minted stays `<= maxSupply / unit` and must remain usable.
+        if (tierZeroId == 0 || tierZeroId > maxSupply / unitSize) revert NotTierZeroId();
 
         uint256 escrowAmount = (uint256(band.weight) - 1) * unitSize;
 
@@ -303,7 +309,10 @@ contract ERC404BondingOps is ERC404BondingStorage {
         if ($.aliasToAddress[holderAlias] != msg.sender) revert NotBandId();
 
         uint256 unitSize = _unit();
-        uint256 idLimit = uint256($.totalSupply) / unitSize;
+        // The ordinary-id ceiling is the sealed `maxSupply / unit`, not live `totalSupply / unit`: a
+        // post-graduation burn lowers live supply, but the free-id search must range over the full
+        // ordinary space the ladder was sealed against so the id it returns is one `mintUp` would accept.
+        uint256 idLimit = maxSupply / unitSize;
         uint256 tierZeroId = _nextFreeTierZeroId($, oo, idLimit);
 
         _swapOwnedId($, oo, msg.sender, holderAlias, bandId, tierZeroId);
@@ -419,10 +428,13 @@ contract ERC404BondingOps is ERC404BondingStorage {
     }
 
     /// @dev The next free ORDINARY id, found exactly the way DN404's mint loop finds one (the `exists`
-    ///      bitmap scan, bounded by `idLimit`, so band ids are never seen). Termination is guaranteed
-    ///      while a band NFT is outstanding: every NFT in existence is backed by one unit of some
-    ///      holder's balance, band NFTs consume ids ABOVE `idLimit`, and the total balance is fixed at
-    ///      `idLimit` units — so at least one id in `[1..idLimit]` is always free here.
+    ///      bitmap scan, bounded by `idLimit`, so band ids are never seen). `idLimit` here is the SEALED
+    ///      `maxSupply / unit`, the ceiling the whole ordinary id space was carved from. Termination is
+    ///      guaranteed while a band NFT is outstanding: every NFT in existence is backed by one unit of
+    ///      some holder's balance, total balance is at most `idLimit` units (graduation only lowers it),
+    ///      and a band NFT consumes an id ABOVE `idLimit` while still costing a unit of that balance — so
+    ///      fewer than `idLimit` ordinary ids can be outstanding, and at least one id in `[1..idLimit]`
+    ///      is always free here.
     function _nextFreeTierZeroId(DN404Storage storage $, Uint32Map storage oo, uint256 idLimit)
         private
         view
@@ -846,8 +858,10 @@ contract ERC404BondingOps is ERC404BondingStorage {
     /// @dev    `bands[i]` describes tier `i + 1`; tier 0 is the implicit ordinary id space `[1..idLimit]`
     ///         with `w_0 = 1` and is never stored. Every band must sit ABOVE `idLimit` — that is what
     ///         makes band ids unreachable by ordinary minting (DN404 bounds every auto-minted id with
-    ///         `_wrapNFTId(.., idLimit)` where `idLimit = totalSupply / unit`, fixed for this instance's
-    ///         life), so a reserved band carves NOTHING out of the sellable supply. Band size is a
+    ///         `_wrapNFTId(.., idLimit)` where its live idLimit is `totalSupply / unit`; at create
+    ///         `totalSupply == maxSupply`, so no ordinary id above `maxSupply / unit` is ever minted, and
+    ///         a later graduation burn only lowers live `totalSupply` — it never raises that ceiling),
+    ///         so a reserved band carves NOTHING out of the sellable supply. Band size is a
     ///         PRODUCT CHOICE bounded above by `band_N <= S / w_N` (S = the tier-0 id count), rounded
     ///         DOWN — an uncapped band at exactly `S / w_N` can hold the entire supply if it all
     ///         concentrated there, and a band deliberately capped BELOW that is a scarce tier: it can
@@ -872,7 +886,9 @@ contract ERC404BondingOps is ERC404BondingStorage {
 
         uint256 n = bands.length;
         if (n == 0) revert InvalidBand();
-        uint256 idLimit = maxSupply / unit; // == DN404's idLimit: totalSupply is fixed at maxSupply
+        uint256 idLimit = maxSupply / unit; // the SEALED ceiling: DN404's idLimit at create, when
+        // totalSupply == maxSupply. This is the one number the tier paths must also read at runtime —
+        // graduation lowers live totalSupply but never this ceiling.
         uint256 prevEnd = idLimit; // bands start strictly above the ordinary id space
         uint256 prevWeight = 1; // w_0
         for (uint256 i = 0; i < n; i++) {
