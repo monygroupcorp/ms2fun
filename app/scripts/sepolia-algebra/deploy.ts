@@ -2,14 +2,21 @@
  * Replay the mainnet Algebra Integral 1.2.1 creation transactions on another chain.
  *
  *   PRIVATE_KEY=0x... pnpm exec tsx scripts/sepolia-algebra/deploy.ts \
- *     --rpc <url> --wnative <address> [--proxy-admin <address>] [--vault-factory <address>]
+ *     --rpc <url> --wnative <address> [--proxy-admin <address>] \
+ *     [--algebra-fee-manager <address>] [--community-fee-receiver <address>] \
+ *     [--algebra-fee-receiver <address>]
  *
  * The exact creation input fetched from mainnet is broadcast unchanged except for address
  * substitution: the wrapped-native token becomes `--wnative`, and every cross-reference inside the
- * set (factory, pool deployer, descriptor, linked library, proxy admin) becomes the corresponding
- * address on the target chain. Every address is CREATE-derived from one sequential account, so the
- * whole set is predicted before the first transaction and each receipt is asserted against its
- * prediction.
+ * set (factory, pool deployer, descriptor, linked library, proxy admin, community vault, vault
+ * factory) becomes the corresponding address on the target chain. Every address is CREATE-derived
+ * from one sequential account, so the whole set is predicted before the first transaction and each
+ * receipt is asserted against its prediction.
+ *
+ * The community vault's three role accounts are operator addresses, all defaulting to the deployer:
+ * mainnet's fee-manager and receiver accounts are third parties with no test-network counterpart,
+ * so the runner reproduces the fee MECHANISM (a wired vault factory, the mainnet default community
+ * fee, the mainnet Algebra fee share) rather than the mainnet accounts.
  *
  * The private key is read from the environment, never from the command line. The deployed
  * addresses and transaction hashes are written to the gitignored `artifacts/deployments/`.
@@ -38,6 +45,7 @@ import {
   readArtifact,
   readResolved,
   requireString,
+  scopedTo,
   strip0x,
   substituteAddresses,
   writeJson,
@@ -55,6 +63,16 @@ const FACTORY_ABI = parseAbi([
   'function setDefaultTickspacing(int24 newDefaultTickspacing)',
   'function setDefaultCommunityFee(uint16 newDefaultCommunityFee)',
 ])
+
+const VAULT_ABI = parseAbi([
+  'function algebraFee() view returns (uint16)',
+  'function changeCommunityFeeReceiver(address newCommunityFeeReceiver)',
+  'function changeAlgebraFeeReceiver(address newAlgebraFeeReceiver)',
+  'function proposeAlgebraFeeChange(uint16 newAlgebraFee)',
+  'function acceptAlgebraFeeChangeProposal(uint16 newAlgebraFee)',
+])
+
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 
 function requirePrivateKey(envName: string): Hex {
   const raw = process.env[envName]
@@ -79,8 +97,11 @@ async function main(): Promise<void> {
     typeof args['proxy-admin'] === 'string'
       ? normalizeAddress(args['proxy-admin'])
       : normalizeAddress(account.address)
-  const vaultFactory =
-    typeof args['vault-factory'] === 'string' ? normalizeAddress(args['vault-factory']) : null
+  const operatorAddress = (key: string): Hex =>
+    typeof args[key] === 'string' ? normalizeAddress(args[key]) : normalizeAddress(account.address)
+  const algebraFeeManager = operatorAddress('algebra-fee-manager')
+  const communityFeeReceiver = operatorAddress('community-fee-receiver')
+  const algebraFeeReceiver = operatorAddress('algebra-fee-receiver')
 
   const publicClient = createPublicClient({ transport: http(rpc) })
   const wallet = createWalletClient({ account, transport: http(rpc) })
@@ -89,7 +110,7 @@ async function main(): Promise<void> {
 
   const artifacts = new Map(DEPLOY_ORDER.map((role) => [role, readArtifact(role)]))
 
-  // Every contract is deployed by one account with sequential nonces, so all eight addresses are
+  // Every contract is deployed by one account with sequential nonces, so every address in the set is
   // known before the first transaction and no cross-reference has to be patched afterwards.
   const startNonce = await publicClient.getTransactionCount({ address: account.address })
   const predicted = new Map<Role, Hex>()
@@ -109,7 +130,18 @@ async function main(): Promise<void> {
     return { what: role, from: artifact.address, to }
   })
   subs.push({ what: 'wnative', from: resolved.mainnetWNative, to: wnative })
-  subs.push({ what: 'proxyAdmin', from: resolved.originalDeployer, to: proxyAdmin })
+  subs.push({
+    what: 'proxyAdmin',
+    from: resolved.originalDeployer,
+    to: proxyAdmin,
+    only: 'tokenDescriptor',
+  })
+  subs.push({
+    what: 'algebraFeeManager',
+    from: resolved.vaultConfig.constructorFeeManager,
+    to: algebraFeeManager,
+    only: 'communityVault',
+  })
 
   const targets = new Set(subs.map((s) => strip0x(s.to)))
   for (const sub of subs) {
@@ -121,6 +153,10 @@ async function main(): Promise<void> {
   console.log(`deployer  ${account.address} (nonce ${startNonce})`)
   console.log(`wnative   ${wnative}`)
   console.log(`proxy admin ${proxyAdmin}`)
+  console.log('vault roles (operator addresses, not mainnet accounts):')
+  console.log(`  algebra fee manager   ${algebraFeeManager}`)
+  console.log(`  algebra fee receiver  ${algebraFeeReceiver}`)
+  console.log(`  community fee receiver ${communityFeeReceiver}`)
   console.log('deploying:')
 
   const contracts: DeployedContract[] = []
@@ -136,7 +172,7 @@ async function main(): Promise<void> {
       )
     }
 
-    const { out: data, counts } = substituteAddresses(artifact.creationInput, subs)
+    const { out: data, counts } = substituteAddresses(artifact.creationInput, scopedTo(subs, role))
     const applied = Object.entries(counts)
       .filter(([, n]) => n > 0)
       .map(([what, n]) => `${what}x${n}`)
@@ -162,7 +198,10 @@ async function main(): Promise<void> {
 
   const factory = contracts.find((c) => c.role === 'algebraFactory')
   const pluginFactory = contracts.find((c) => c.role === 'pluginFactory')
-  if (!factory || !pluginFactory) throw new Error('factory or plugin factory missing after deploy')
+  const communityVault = contracts.find((c) => c.role === 'communityVault')
+  const vaultFactory = contracts.find((c) => c.role === 'vaultFactory')
+  if (!factory || !pluginFactory || !communityVault || !vaultFactory)
+    throw new Error('factory, plugin factory or vault pair missing after deploy')
 
   console.log('wiring:')
   const wiringTxs: { call: string; txHash: Hex }[] = []
@@ -176,7 +215,7 @@ async function main(): Promise<void> {
   }
 
   const cfg = resolved.factoryConfig
-  if (cfg.defaultPluginFactory !== '0x0000000000000000000000000000000000000000') {
+  if (cfg.defaultPluginFactory !== ZERO_ADDRESS) {
     await send(`setDefaultPluginFactory(${pluginFactory.address})`, {
       account,
       chain: null,
@@ -187,20 +226,19 @@ async function main(): Promise<void> {
     })
   }
 
-  if (vaultFactory) {
-    await send(`setVaultFactory(${vaultFactory})`, {
+  // The factory rejects a non-zero default community fee while no vault factory is wired, so the
+  // vault factory must be pointed at before the fee is set.
+  if (cfg.vaultFactory !== ZERO_ADDRESS) {
+    await send(`setVaultFactory(${vaultFactory.address})`, {
       account,
       chain: null,
       address: factory.address,
       abi: FACTORY_ABI,
       functionName: 'setVaultFactory',
-      args: [vaultFactory],
+      args: [vaultFactory.address],
     })
-  } else if (cfg.vaultFactory !== '0x0000000000000000000000000000000000000000') {
-    deviations.push(
-      'vaultFactory is unset: mainnet points at a vault factory that is outside the published set, ' +
-        'so it is not reproduced here. Pass --vault-factory <address> to wire one.',
-    )
+  } else {
+    deviations.push('mainnet has no vault factory wired, so the standup leaves it unset too.')
   }
 
   const freshFee = Number(
@@ -247,20 +285,78 @@ async function main(): Promise<void> {
     }),
   )
   if (freshCommunityFee !== cfg.defaultCommunityFee) {
-    if (cfg.defaultCommunityFee !== 0 && !vaultFactory) {
-      deviations.push(
-        `defaultCommunityFee stays ${freshCommunityFee} (mainnet: ${cfg.defaultCommunityFee}); the factory ` +
-          'rejects a non-zero community fee while no vault factory is wired.',
-      )
-    } else {
-      await send(`setDefaultCommunityFee(${cfg.defaultCommunityFee})`, {
+    await send(`setDefaultCommunityFee(${cfg.defaultCommunityFee})`, {
+      account,
+      chain: null,
+      address: factory.address,
+      abi: FACTORY_ABI,
+      functionName: 'setDefaultCommunityFee',
+      args: [cfg.defaultCommunityFee],
+    })
+  }
+
+  // Community vault roles. The receivers are set by the factory owner and the fee manager
+  // respectively; the Algebra fee itself is a two-step propose/accept across those two roles. Where
+  // an operator hands the fee-manager role to an account this runner does not control, the calls
+  // that role owns are recorded as deviations rather than attempted.
+  const vaultCfg = resolved.vaultConfig
+  const feeManagerIsDeployer = algebraFeeManager === normalizeAddress(account.address)
+
+  await send(`changeCommunityFeeReceiver(${communityFeeReceiver})`, {
+    account,
+    chain: null,
+    address: communityVault.address,
+    abi: VAULT_ABI,
+    functionName: 'changeCommunityFeeReceiver',
+    args: [communityFeeReceiver],
+  })
+
+  if (feeManagerIsDeployer) {
+    await send(`changeAlgebraFeeReceiver(${algebraFeeReceiver})`, {
+      account,
+      chain: null,
+      address: communityVault.address,
+      abi: VAULT_ABI,
+      functionName: 'changeAlgebraFeeReceiver',
+      args: [algebraFeeReceiver],
+    })
+  } else {
+    deviations.push(
+      'algebraFeeReceiver is unset: only the fee manager can set it, and the fee-manager role was ' +
+        'handed to an account this runner does not hold. Call changeAlgebraFeeReceiver from it.',
+    )
+  }
+
+  const freshAlgebraFee = Number(
+    await publicClient.readContract({
+      address: communityVault.address,
+      abi: VAULT_ABI,
+      functionName: 'algebraFee',
+    }),
+  )
+  if (freshAlgebraFee !== vaultCfg.algebraFee) {
+    if (feeManagerIsDeployer) {
+      await send(`proposeAlgebraFeeChange(${vaultCfg.algebraFee})`, {
         account,
         chain: null,
-        address: factory.address,
-        abi: FACTORY_ABI,
-        functionName: 'setDefaultCommunityFee',
-        args: [cfg.defaultCommunityFee],
+        address: communityVault.address,
+        abi: VAULT_ABI,
+        functionName: 'proposeAlgebraFeeChange',
+        args: [vaultCfg.algebraFee],
       })
+      await send(`acceptAlgebraFeeChangeProposal(${vaultCfg.algebraFee})`, {
+        account,
+        chain: null,
+        address: communityVault.address,
+        abi: VAULT_ABI,
+        functionName: 'acceptAlgebraFeeChangeProposal',
+        args: [vaultCfg.algebraFee],
+      })
+    } else {
+      deviations.push(
+        `algebraFee stays ${freshAlgebraFee} (mainnet: ${vaultCfg.algebraFee}); the change is proposed by ` +
+          'the fee manager, and the fee-manager role was handed to an account this runner does not hold.',
+      )
     }
   }
 
@@ -270,6 +366,9 @@ async function main(): Promise<void> {
     deployer: normalizeAddress(account.address),
     wnative,
     proxyAdmin,
+    algebraFeeManager,
+    algebraFeeReceiver,
+    communityFeeReceiver,
     startedAt: new Date().toISOString(),
     contracts,
     wiringTxs,
