@@ -3,29 +3,41 @@
  *
  * The instance is AMM-agnostic — at graduation it delegates to whichever ILiquidityDeployerModule
  * it was created with. We identify the venue by matching `instance.liquidityDeployer()` against the
- * three known module singletons (from the deploy config), then read the pool params the zRouter swap
- * needs straight off that module (they're immutable, so the singleton is authoritative for the whole
- * family): Uni-V4 needs poolFee + tickSpacing; ZAMM needs feeOrHook; Cypher (Algebra) is not routed
- * through zRouter (link-out fast-follow), so it carries no params here.
+ * three known module singletons (from the deploy config), then read the pool params that venue's
+ * swap needs straight off that module (they're immutable, so the singleton is authoritative for the
+ * whole family):
+ *  - Uni-V4 needs poolFee + tickSpacing (zRouter `swapV4`);
+ *  - ZAMM needs feeOrHook (zRouter `swapVZ`);
+ *  - Cypher (Algebra Integral) is not a zRouter venue — it trades on its own periphery router, so
+ *    what it needs is the pool itself. The module carries the Algebra factory and the wrapped-native
+ *    token it paired against at graduation, and `poolByPair(instance, weth)` names the pool.
+ *
+ * Every venue this hook can name is embeddable: the panel trades all three in-site. `unknown` is
+ * reserved for a deployer we cannot identify or a pool we cannot resolve — a state the surface says
+ * plainly rather than routing the user somewhere else.
  */
-import { getAddress } from 'viem'
+import { getAddress, zeroAddress } from 'viem'
+import { useReadContract } from 'wagmi'
 import {
+  useReadCypherLiquidityDeployerModuleAlgebraFactory,
+  useReadCypherLiquidityDeployerModuleWeth,
   useReadErc404BondingInstanceLiquidityDeployer,
   useReadLiquidityDeployerModulePoolFee,
   useReadLiquidityDeployerModuleTickSpacing,
   useReadZammLiquidityDeployerModuleFeeOrHook,
 } from '../../../generated/contracts'
+import { algebraFactoryAbi } from '../../../lib/algebra/abis'
 import { useCollectionAddresses, useCollectionChainId } from '../useCollectionChain'
 
 export type GraduatedVenue =
   | { kind: 'uniV4'; deployer: `0x${string}`; poolFee: number; tickSpacing: number }
   | { kind: 'zamm'; deployer: `0x${string}`; feeOrHook: bigint }
-  | { kind: 'cypher'; deployer: `0x${string}` }
+  | { kind: 'cypher'; deployer: `0x${string}`; pool: `0x${string}`; weth: `0x${string}` }
   | { kind: 'unknown'; deployer: `0x${string}` | undefined }
 
 export interface UseGraduatedVenueResult {
   venue: GraduatedVenue | undefined
-  /** True until the deployer address AND (for embedded venues) the pool params have resolved. */
+  /** True until the deployer address AND the venue's own params have resolved. */
   isPending: boolean
 }
 
@@ -71,13 +83,36 @@ export function useGraduatedVenue(instance: `0x${string}`): UseGraduatedVenueRes
     query: { enabled: isZamm && Boolean(deployer) },
   })
 
+  // Cypher: the module's two immutables name the pool's coordinates, and the factory names the pool.
+  const cypherEnabled = isCypher && Boolean(deployer)
+  const algebraFactoryRead = useReadCypherLiquidityDeployerModuleAlgebraFactory({
+    ...(deployer ? { address: deployer } : {}),
+    chainId: chainId,
+    query: { enabled: cypherEnabled },
+  })
+  const cypherWethRead = useReadCypherLiquidityDeployerModuleWeth({
+    ...(deployer ? { address: deployer } : {}),
+    chainId: chainId,
+    query: { enabled: cypherEnabled },
+  })
+  const algebraFactory = algebraFactoryRead.data
+  const cypherWeth = cypherWethRead.data
+  const poolRead = useReadContract({
+    abi: algebraFactoryAbi,
+    functionName: 'poolByPair',
+    ...(algebraFactory ? { address: algebraFactory } : {}),
+    chainId: chainId,
+    args: cypherWeth ? [instance, cypherWeth] : undefined,
+    query: { enabled: cypherEnabled && Boolean(algebraFactory) && Boolean(cypherWeth) },
+  })
+
   if (deployerRead.isPending || deployer === undefined) {
     return { venue: undefined, isPending: true }
   }
 
   if (isUni) {
     // A module that matches the Uni-V4 address but can't answer poolFee/tickSpacing is not a real
-    // deployer (e.g. the anvil MockComponentModule stub) — degrade to the link-out rather than hang.
+    // deployer (e.g. the anvil MockComponentModule stub) — say so rather than hang.
     if (poolFeeRead.isError || tickSpacingRead.isError) {
       return { venue: { kind: 'unknown', deployer }, isPending: false }
     }
@@ -106,7 +141,21 @@ export function useGraduatedVenue(instance: `0x${string}`): UseGraduatedVenueRes
   }
 
   if (isCypher) {
-    return { venue: { kind: 'cypher', deployer }, isPending: false }
+    if (algebraFactoryRead.isError || cypherWethRead.isError || poolRead.isError) {
+      return { venue: { kind: 'unknown', deployer }, isPending: false }
+    }
+    if (algebraFactory === undefined || cypherWeth === undefined || poolRead.data === undefined) {
+      return { venue: undefined, isPending: true }
+    }
+    // A pair the factory has never seen answers `address(0)`. There is no pool to trade, and there
+    // is nowhere else to send the user — that is the honest no-route state, not a link-out.
+    if (poolRead.data === zeroAddress) {
+      return { venue: { kind: 'unknown', deployer }, isPending: false }
+    }
+    return {
+      venue: { kind: 'cypher', deployer, pool: poolRead.data, weth: cypherWeth },
+      isPending: false,
+    }
   }
 
   return { venue: { kind: 'unknown', deployer }, isPending: false }

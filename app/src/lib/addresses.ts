@@ -50,6 +50,13 @@ export const forkAddresses = {
   ModuleUniV4Deployer: c.ModuleUniV4Deployer as `0x${string}`,
   ModuleZAMMDeployer: c.ModuleZAMMDeployer as `0x${string}`,
   ModuleCypherDeployer: c.ModuleCypherDeployer as `0x${string}`,
+  // The Cypher (Algebra Integral) periphery swap router — the venue's own router, which the embedded
+  // post-graduation swap signs against (noesis-349). It is an EXTERNAL singleton, not one of ours, so
+  // it rides the per-chain deploy config rather than a hardcoded constant: on a mainnet fork it is the
+  // live mainnet router, and on any other network it is whatever that network's Algebra deployment
+  // published. A network with no Algebra deployment carries the zero address here, and the panel says
+  // so instead of trading.
+  CypherSwapRouter: c.CypherSwapRouter as `0x${string}`,
 } as const
 
 /**
