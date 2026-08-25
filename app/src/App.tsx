@@ -1,6 +1,7 @@
 import { Suspense, lazy, useState } from 'react'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
-import { Link, Route, Switch } from 'wouter'
+import { Link, Route, Router, Switch } from 'wouter'
+import { useHashLocation } from 'wouter/use-hash-location'
 import { WagmiProvider } from 'wagmi'
 import { WalletButton } from './components/WalletButton'
 import { WrongNetworkBanner } from './components/ui/WrongNetworkBanner'
@@ -57,6 +58,53 @@ const LearnPage = lazy(() => import('./routes/LearnPage').then((m) => ({ default
 import { useOwnerGate } from './components/ui/useOwnerGate'
 import { forkAddresses } from './lib/addresses'
 import styles from './App.module.css'
+
+/** The commit the bundle was built from, inlined by vite `define` (see vite.config.ts). Both
+ * distribution targets carry it. */
+declare const __BUILD_COMMIT__: string
+
+/** Which distribution target this bundle is serving.
+ *
+ * `'ipfs'` is the pinned distribution reached through noesis.gwei.domains, served from under a
+ * gateway path prefix. Read at render time rather than inlined as a build constant so the routing
+ * matrix in `ipfs-routing.test.tsx` can drive both modes; in a production build vite has already
+ * folded `import.meta.env.VITE_DIST_TARGET` to a literal, so the dead branch is dropped. */
+function isIpfsTarget(): boolean {
+  return import.meta.env.VITE_DIST_TARGET === 'ipfs'
+}
+
+// Build identity in the console, on every target, once per load. The pinned distribution is
+// repointed on its own cadence and can lag ms2.fun, so a bug report has to be able to name the
+// build it was found on.
+console.info(
+  `noesis build ${__BUILD_COMMIT__} · target ${isIpfsTarget() ? 'ipfs' : 'web'} · ${
+    typeof document === 'undefined' ? '' : document.baseURI
+  }`,
+)
+
+/** The visible half of the build identity — a quiet footer line, present on both targets, so the
+ * version is readable from the page itself and not only from a console a reporter may never open.
+ * Styled inline: this is a fixed one-line surface, not a design-system element. */
+function BuildStamp() {
+  return (
+    <footer
+      data-testid="build-stamp"
+      data-build={__BUILD_COMMIT__}
+      data-target={isIpfsTarget() ? 'ipfs' : 'web'}
+      style={{
+        padding: '2rem 1rem',
+        textAlign: 'center',
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+        fontSize: '11px',
+        letterSpacing: '0.08em',
+        opacity: 0.4,
+      }}
+    >
+      build {__BUILD_COMMIT__}
+      {isIpfsTarget() ? ' · ipfs' : ''}
+    </footer>
+  )
+}
 
 /** The NOESIS brand lockup — the picture-frame symbol (the platform frames the work) + the lowercase
  * `noesis` wordmark. Monochrome `currentColor` so it adapts to the bar's text colour. */
@@ -132,7 +180,10 @@ function AdminNavLink({
   )
 }
 
-export function App() {
+/** The app shell and route table. Router-agnostic by construction — every navigation goes through
+ * wouter's `Link`/`useLocation`, which read the location hook from the `Router` above, so the same
+ * tree serves both routing modes with no per-route branching. */
+function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false)
   const closeMenu = () => setMenuOpen(false)
 
@@ -270,9 +321,33 @@ export function App() {
               </Suspense>
             </main>
             <BoardCartBar />
+            <BuildStamp />
           </div>
         </BoardCartProvider>
       </PersistQueryClientProvider>
     </WagmiProvider>
+  )
+}
+
+/** Routing mode selection — the one place the two distribution targets diverge at runtime.
+ *
+ * ms2.fun is a server-backed static host with an SPA fallback (`public/_redirects`, and the
+ * `404.html` mirror the build emits), so history routing gives clean shareable paths.
+ *
+ * The IPFS distribution has no such fallback: a public gateway serves the files that exist under
+ * the CID and answers anything else with its own 404, and the gwei.domains subdomain gateway
+ * reverse-proxies that behaviour unchanged. Hash routing keeps the whole route in the fragment,
+ * which no gateway ever sees — every deep link resolves to the one document that is actually
+ * pinned. `useHashLocation.hrefs` also rewrites every `Link` href to `#/...`, so no call site
+ * changes. */
+export function App() {
+  return isIpfsTarget() ? (
+    <Router hook={useHashLocation}>
+      <AppShell />
+    </Router>
+  ) : (
+    <Router>
+      <AppShell />
+    </Router>
   )
 }
