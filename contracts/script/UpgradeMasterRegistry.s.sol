@@ -4,24 +4,39 @@ pragma solidity ^0.8.20;
 import { Script, console } from "forge-std/Script.sol";
 import { MasterRegistryV1 } from "../src/master/MasterRegistryV1.sol";
 
-/// @notice Upgrades the Sepolia MasterRegistryV1 proxy to the new implementation,
-///         deactivates the old ERC404Factory, and revokes the test instance.
+/// @notice Upgrades the MasterRegistryV1 proxy of an EXISTING deployment to a freshly deployed
+///         implementation, and optionally deactivates a superseded factory and revokes an instance.
+///
+///         The proxy address comes from the deployment record `DeploySepolia` wrote — it is not
+///         pinned here, because a CREATE3 proxy address is a function of the salt set in use and a
+///         redeploy runs a fresh salt set (a salt is single-use per deployer: CreateX reverts
+///         `CreateCollision` once its proxy address carries code).
+///
+///         The two clean-up targets are per-run inputs rather than constants, because which factory
+///         is superseded and which instance is being revoked differ on every run. Both are optional:
+///         unset (or the zero address) skips that step.
 ///
 ///         Run with:
+///         OLD_ERC404_FACTORY=0x... REVOKE_INSTANCE=0x... \
 ///         forge script script/UpgradeMasterRegistry.s.sol \
 ///           --account <keystore> \
-///           --sender 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab6 \
+///           --sender <the deployer named in the record> \
 ///           --rpc-url <sepolia-rpc> \
 ///           --broadcast --verify
 contract UpgradeMasterRegistry is Script {
-    MasterRegistryV1 constant PROXY = MasterRegistryV1(0x00001152CBa5fDB16A0FAE780fFebD5b9dF8e7cF);
-
-    address constant OLD_ERC404_FACTORY = 0xd84f755AdFac9408ADbde65832F8A1BFf5179bF8;
-
-    address constant TEST_INSTANCE = 0x3EC4c183d62eC8520d1346Db57D38F9d0D11059d;
+    /// @dev The deployment record the proxy address is read from.
+    string constant DEPLOYMENT_PATH = "./deployments/sepolia.json";
 
     function run() public {
-        require(TEST_INSTANCE != address(0), "Set TEST_INSTANCE before broadcasting");
+        string memory json = vm.readFile(DEPLOYMENT_PATH);
+        address proxyAddr = vm.parseJsonAddress(json, ".contracts.MasterRegistry");
+        require(proxyAddr != address(0), "MasterRegistry: deployment record holds the zero address");
+        require(proxyAddr.code.length > 0, "MasterRegistry: no code at the address in the deployment record");
+        MasterRegistryV1 proxy = MasterRegistryV1(proxyAddr);
+        console.log("MasterRegistry proxy:", proxyAddr);
+
+        address oldFactory = vm.envOr("OLD_ERC404_FACTORY", address(0));
+        address revokeInstance = vm.envOr("REVOKE_INSTANCE", address(0));
 
         vm.startBroadcast();
 
@@ -30,16 +45,24 @@ contract UpgradeMasterRegistry is Script {
         console.log("New implementation:", address(newImpl));
 
         // 2. Upgrade proxy
-        PROXY.upgradeToAndCall(address(newImpl), "");
+        proxy.upgradeToAndCall(address(newImpl), "");
         console.log("Proxy upgraded");
 
-        // 3. Deactivate old ERC404 factory
-        PROXY.deactivateFactory(OLD_ERC404_FACTORY);
-        console.log("Old ERC404Factory deactivated");
+        // 3. Deactivate the superseded factory, when one was named
+        if (oldFactory != address(0)) {
+            proxy.deactivateFactory(oldFactory);
+            console.log("Factory deactivated:", oldFactory);
+        } else {
+            console.log("OLD_ERC404_FACTORY unset - no factory deactivated");
+        }
 
-        // 4. Revoke test instance
-        PROXY.revokeInstance(TEST_INSTANCE);
-        console.log("Test instance revoked");
+        // 4. Revoke the named instance, when one was named
+        if (revokeInstance != address(0)) {
+            proxy.revokeInstance(revokeInstance);
+            console.log("Instance revoked:", revokeInstance);
+        } else {
+            console.log("REVOKE_INSTANCE unset - no instance revoked");
+        }
 
         vm.stopBroadcast();
     }

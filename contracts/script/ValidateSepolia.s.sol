@@ -15,18 +15,15 @@ import { FeatureUtils } from "../src/master/libraries/FeatureUtils.sol";
 ///         forge script script/ValidateSepolia.s.sol --rpc-url $SEPOLIA_RPC_URL
 contract ValidateSepolia is Script {
     // ── Addresses ─────────────────────────────────────────────────────────
-    // The asymmetry below is deliberate.
+    // Every protocol address this script interrogates is read from the deployment record — the file
+    // the deploy run itself wrote. None is pinned here.
     //
-    // MasterRegistry and ComponentRegistry are CREATE3 proxies whose addresses are fixed by the
-    // vanity salts in `DeploySepolia.s.sol` — a redeploy with the same salt lands on the same
-    // address, so these are genuinely constants and stay pinned here.
-    address constant MASTER_REGISTRY = 0x00001152CBa5fDB16A0FAE780fFebD5b9dF8e7cF;
-    address constant COMPONENT_REGISTRY = 0x00001152Ed1bD8e76693cB775c79708275bBb2F3;
-
-    // LaunchManager and ERC404Factory are deployed with plain `new` in `DeployCore`, so their
-    // addresses are nonce-derived and move on every redeploy. Pinning them makes the validator
-    // interrogate a contract that is not the deployed one. They are read from the deployment
-    // record instead — the same source `_checkVaults` already reads.
+    // The CREATE3 proxies (MasterRegistry, ComponentRegistry) are address-stable only for a FIXED
+    // salt set, and a salt is single-use per deployer: CreateX reverts `CreateCollision` once the
+    // guarded salt's proxy address carries code. A redeploy therefore runs a fresh salt set and
+    // lands on fresh addresses, so a pinned proxy address points the validator at the previous
+    // deployment rather than the current one. LaunchManager and ERC404Factory are deployed with
+    // plain `new` in `DeployCore` and have always been nonce-derived. All four come from the record.
     string constant DEPLOYMENT_PATH = "./deployments/sepolia.json";
 
     /// @dev Sepolia. The external-dependency block below asserts against addresses that only exist
@@ -83,11 +80,11 @@ contract ValidateSepolia is Script {
     }
 
     function _masterRegistry() internal view virtual returns (MasterRegistryV1) {
-        return MasterRegistryV1(MASTER_REGISTRY);
+        return MasterRegistryV1(_recordAddress(_deploymentJson(), ".contracts.MasterRegistry", "MasterRegistry"));
     }
 
     function _componentRegistry() internal view virtual returns (ComponentRegistry) {
-        return ComponentRegistry(COMPONENT_REGISTRY);
+        return ComponentRegistry(_recordAddress(_deploymentJson(), ".contracts.ComponentRegistry", "ComponentRegistry"));
     }
 
     /// @dev Read one address out of the deployment record. A missing key reverts inside

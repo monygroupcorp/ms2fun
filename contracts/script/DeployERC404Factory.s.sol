@@ -7,26 +7,48 @@ import { ERC404Factory } from "../src/factories/erc404/ERC404Factory.sol";
 import { ERC404BondingInstance } from "../src/factories/erc404/ERC404BondingInstance.sol";
 import { ERC404BondingOps } from "../src/factories/erc404/ERC404BondingOps.sol";
 
-/// @notice Deploys a new ERC404BondingInstance implementation + ERC404Factory,
-///         wires protocol treasury, and registers the factory in MasterRegistry.
+/// @notice Deploys a new ERC404BondingInstance implementation + ERC404Factory against an EXISTING
+///         deployment, wires the protocol treasury, and registers the factory in MasterRegistry.
+///         This is the factory-only replacement path; a full protocol deploy is `DeploySepolia`.
+///
+///         Every protocol address is read from the deployment record `DeploySepolia` wrote, so the
+///         script targets whichever deployment that file describes. It carries no pinned protocol
+///         addresses: a CREATE3 proxy address is a function of the salt set in use, and a redeploy
+///         runs a fresh salt set — a salt is single-use per deployer, because CreateX reverts
+///         `CreateCollision` once its proxy address carries code — so a pinned address only
+///         survives until the next deploy.
 ///
 ///         Run with:
 ///         forge script script/DeployERC404Factory.s.sol \
 ///           --account <keystore> \
-///           --sender 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab6 \
+///           --sender <the deployer named in the record> \
 ///           --rpc-url $SEPOLIA_RPC_URL \
 ///           --broadcast --verify
 contract DeployERC404Factory is Script {
-    // ── Existing Sepolia addresses ────────────────────────────────────────────
-    address constant MASTER_REGISTRY = 0x00001152CBa5fDB16A0FAE780fFebD5b9dF8e7cF;
-    address constant GLOBAL_MSG_REGISTRY = 0x74B4Cc5Cd1F4FFB8025c4a20034D25Cc42E1dd6D;
-    address constant COMPONENT_REGISTRY = 0x00001152Ed1bD8e76693cB775c79708275bBb2F3;
-    address constant LAUNCH_MANAGER = 0x354768153a0d3edC314D9f6baa2fd56a6961B449;
-    address constant PROTOCOL_TREASURY = 0xeBF79fed2520e29dc0a2E3D9055621Ef69a95a67;
+    /// @dev The deployment record this script reads every protocol address from.
+    string constant DEPLOYMENT_PATH = "./deployments/sepolia.json";
+
+    /// @dev Sepolia WETH9. A network fixture, not something this protocol deploys — `DeployCore`
+    ///      takes it from the network config and does not write it to the record, so it is mirrored
+    ///      here. Single source of truth: `cfg.weth` in `DeploySepolia.s.sol`.
     address constant WETH = 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14;
-    address constant DEPLOYER = 0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6;
 
     function run() public {
+        string memory json = vm.readFile(DEPLOYMENT_PATH);
+
+        address masterRegistry = _recordAddress(json, ".contracts.MasterRegistry", "MasterRegistry");
+        address globalMsgRegistry = _recordAddress(json, ".contracts.GlobalMessageRegistry", "GlobalMessageRegistry");
+        address componentRegistry = _recordAddress(json, ".contracts.ComponentRegistry", "ComponentRegistry");
+        address launchManager = _recordAddress(json, ".contracts.LaunchManager", "LaunchManager");
+        address protocolTreasury = _recordAddress(json, ".contracts.ProtocolTreasury", "ProtocolTreasury");
+        address deployer = vm.parseJsonAddress(json, ".deployer");
+        require(deployer != address(0), "deployment record: deployer is the zero address");
+
+        console.log("MasterRegistry:   ", masterRegistry);
+        console.log("ComponentRegistry:", componentRegistry);
+        console.log("LaunchManager:    ", launchManager);
+        console.log("ProtocolTreasury: ", protocolTreasury);
+
         vm.startBroadcast();
 
         // 1. Deploy new implementation
@@ -37,22 +59,22 @@ contract DeployERC404Factory is Script {
         // 2. Deploy new factory
         ERC404Factory factory = new ERC404Factory(
             ERC404Factory.CoreConfig({
-                implementation: address(impl), masterRegistry: MASTER_REGISTRY, protocol: DEPLOYER, weth: WETH
+                implementation: address(impl), masterRegistry: masterRegistry, protocol: deployer, weth: WETH
             }),
             ERC404Factory.ModuleConfig({
-                globalMessageRegistry: GLOBAL_MSG_REGISTRY,
-                launchManager: LAUNCH_MANAGER,
-                componentRegistry: COMPONENT_REGISTRY
+                globalMessageRegistry: globalMsgRegistry,
+                launchManager: launchManager,
+                componentRegistry: componentRegistry
             })
         );
         console.log("ERC404Factory:", address(factory));
 
         // 3. Wire treasury
-        factory.setProtocolTreasury(PROTOCOL_TREASURY);
+        factory.setProtocolTreasury(protocolTreasury);
         console.log("Treasury set");
 
         // 4. Register in MasterRegistry
-        MasterRegistryV1(MASTER_REGISTRY)
+        MasterRegistryV1(masterRegistry)
             .registerFactory(
                 address(factory),
                 "ERC404",
@@ -65,5 +87,17 @@ contract DeployERC404Factory is Script {
         console.log("Factory registered");
 
         vm.stopBroadcast();
+    }
+
+    /// @dev A missing key reverts inside `parseJsonAddress`; a zero or codeless entry is rejected
+    ///      here. All three are loud — a record that cannot supply an address must stop the run.
+    function _recordAddress(string memory json, string memory key, string memory label)
+        internal
+        view
+        returns (address addr)
+    {
+        addr = vm.parseJsonAddress(json, key);
+        require(addr != address(0), string.concat(label, ": deployment record holds the zero address"));
+        require(addr.code.length > 0, string.concat(label, ": no code at the address in the deployment record"));
     }
 }
