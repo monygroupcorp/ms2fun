@@ -46,6 +46,18 @@ contract DeploySepolia is DeployCore {
         cfg.cypherPositionManager = address(0);
         cfg.cypherRouter = address(0);
         cfg.cypherAlgebraFactory = address(0);
+        // Aave endowment family. Sepolia's Aave V3 WETH market is fronted by Aave's own test WETH, so the
+        // stataToken's `asset()` is that token and NOT the canonical Sepolia WETH set above. The endowment
+        // family therefore gets its own WETH here; `cfg.weth` stays canonical, so every other family — and
+        // a visitor arriving with canonical Sepolia WETH — is untouched. The vault wraps ETH internally
+        // and both tokens expose a permissionless payable `deposit()`, so a visitor contributing ETH needs
+        // neither token in hand.
+        //
+        // Mainnet carries no equivalent line: there the stataToken's `asset()` IS canonical WETH, so
+        // `cfg.aaveWeth` stays unset and resolves back to `cfg.weth`. `DeployCore` asserts the match at
+        // deploy on every network.
+        cfg.aaveStataToken = 0x162B500569F42D9eCe937e6a61EDfef660A12E98; // stataEthWETH (StaticATokenLM)
+        cfg.aaveWeth = 0xC558DBdd856501FCd9aaF1E62eae57A9F0629a3c; // Aave's Sepolia test WETH
         // ZAMM + zRouter are canonical CREATE2 singletons (same address on every chain they're deployed to).
         cfg.zamm = 0x000000000000040470635EB91b7CE4D132D616eD; // V1
         cfg.zrouter = 0x000000000000FB114709235f1ccBFfb925F600e4; // canonical aggregator
