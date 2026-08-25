@@ -50,6 +50,7 @@ const repoRoot = resolve(appDir, '..')
 const contractsDir = resolve(repoRoot, 'contracts')
 const deploymentPath = resolve(contractsDir, 'deployments/sepolia.json')
 const seedStatePath = resolve(contractsDir, 'deployments/sepolia-seed.json')
+const venuePath = resolve(contractsDir, 'deployments/sepolia-venues.json')
 const broadcastDir = resolve(contractsDir, 'broadcast')
 
 const SEPOLIA_CHAIN_ID = 11155111
@@ -148,7 +149,20 @@ function gasSpentEth(script: string): string {
   return `${formatEther(total)} ETH across ${(run.receipts ?? []).length} transactions`
 }
 
-async function waitForPhaseTwo(notBefore: number): Promise<void> {
+async function waitForPhaseTwo(notBefore: number, referenceReadyAt: number): Promise<void> {
+  // WHY THE WAIT CAN BE LONGER THAN THE ARM WINDOW. Phase 1 creates the pools whose TWAP is the
+  // price authority for every alignment vault's -5% floor, and phase 2 PINS them. The registry
+  // refuses to pin a pool that cannot yet answer a window-long TWAP, so a whole TWAP window has to
+  // pass between the two phases — and a public testnet cannot be told to advance. Phase 1 folds that
+  // instant into the same `phase2NotBefore` the arm window already produces, so there is one wait
+  // rather than two, and only one number anyone has to know about.
+  if (referenceReadyAt > 0) {
+    console.log(
+      `\n  reference pools can serve a TWAP from unix ${referenceReadyAt}` +
+        ` (${new Date(referenceReadyAt * 1000).toISOString()})` +
+        `\n  phase 2 pins them, so this instant is folded into the wait below.`,
+    )
+  }
   const head = await publicClient.getBlock()
   if (Number(head.timestamp) >= notBefore) {
     console.log('✓ The arm window had already elapsed.')
@@ -236,10 +250,28 @@ async function main(): Promise<void> {
   console.log(
     `  arm window     : ${process.env.SEPOLIA_ARM_WINDOW_SECONDS ?? '1200 (default)'} seconds`,
   )
-  console.log('  phase 1        : create + arm  (no ETH beyond gas)')
+  console.log('  phase 1        : create + arm + stand the venues up  (spends the venue depth budget)')
   console.log(
-    '  phase 2        : buys + graduation  (prints its own ETH projection before spending)',
+    '  phase 2        : pin the reference pools, buy, graduate, convert on every venue' +
+      '  (prints its own ETH projection before spending)',
   )
+  if (existsSync(venuePath)) {
+    const venues = JSON.parse(readFileSync(venuePath, 'utf8')) as {
+      chainId: number
+      zammVaultFactory: Address
+      cypherVaultFactory: Address
+    }
+    if (venues.chainId !== SEPOLIA_CHAIN_ID) {
+      throw new Error(`sepolia-venues.json chainId ${venues.chainId} != ${SEPOLIA_CHAIN_ID}`)
+    }
+    console.log(`  zamm family    : ${venues.zammVaultFactory}`)
+    console.log(`  cypher family  : ${venues.cypherVaultFactory}`)
+  } else {
+    console.warn(
+      `⚠ No ${venuePath} — the ZAMM and Cypher legs will be reported unavailable and skipped.` +
+        '\n  It is written by DeploySepolia; redeploy if this deployment predates it.',
+    )
+  }
   console.log('══════════════════════════════════════════════════════════')
 
   if (args.broadcast) {
@@ -256,6 +288,10 @@ async function main(): Promise<void> {
   const seedState = JSON.parse(readFileSync(seedStatePath, 'utf8')) as {
     chainId: number
     phase2NotBefore: number
+    referenceReadyAt?: number
+    ms2ZammVault?: Address
+    cultCypherVault?: Address
+    cypher404?: Address
     instances: Record<string, Address>
   }
   if (seedState.chainId !== SEPOLIA_CHAIN_ID) {
@@ -267,7 +303,12 @@ async function main(): Promise<void> {
   for (const [slug, address] of Object.entries(seedState.instances))
     console.log(`  ${slug.padEnd(20)} ${address}`)
 
-  await waitForPhaseTwo(seedState.phase2NotBefore)
+  console.log('\nVenues phase 1 stood up:')
+  console.log(`  uniswap v4     : seeded (both alignment targets)`)
+  console.log(`  zamm           : ${seedState.ms2ZammVault ?? '(not available on this deployment)'}`)
+  console.log(`  cypher/algebra : ${seedState.cultCypherVault ?? '(rail not wired on this deployment)'}`)
+
+  await waitForPhaseTwo(seedState.phase2NotBefore, seedState.referenceReadyAt ?? 0)
 
   // ── Phase 2 ──
   await confirm('Run PHASE 2 (buys + graduation)? This one spends ETH on the curves.')

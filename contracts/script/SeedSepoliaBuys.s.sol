@@ -8,8 +8,16 @@ import {
     IMerkleGatingView,
     IShowcaseTierState,
     IShowcaseStakingState,
-    IShowcaseCarveParams
+    IShowcaseCarveParams,
+    IAlignmentRouteAdmin,
+    IVenueVaultView,
+    IVenueVaultConvert,
+    IZammVaultConvert,
+    IAlgebraPoolLiquidity
 } from "./SeedSepoliaShared.sol";
+import { IAlignmentRegistry } from "../src/master/interfaces/IAlignmentRegistry.sol";
+import { IZAMM } from "../src/vaults/zamm/ZAMMAlignmentVault.sol";
+import { IAlgebraPool } from "../src/interfaces/algebra/IAlgebra.sol";
 import { ERC404BondingInstance } from "../src/factories/erc404/ERC404BondingInstance.sol";
 import { ERC1155Instance } from "../src/factories/erc1155/ERC1155Instance.sol";
 import { IDynamicPricingModule } from "../src/factories/erc1155/interfaces/IDynamicPricingModule.sol";
@@ -22,6 +30,22 @@ import { Currency } from "v4-core/types/Currency.sol";
 import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
 import { IHooks } from "v4-core/interfaces/IHooks.sol";
 import { StateLibrary } from "v4-core/libraries/StateLibrary.sol";
+
+/// @dev The one router leg phase 2 drives directly: the demo swap that makes the alignment pool carry
+///      a trade, so the vault's own position earns the LP fee the staking stream is funded from.
+interface IzRouterV4Swap {
+    function swapV4(
+        address to,
+        bool exactOut,
+        uint24 swapFee,
+        int24 tickSpace,
+        address tokenIn,
+        address tokenOut,
+        uint256 swapAmount,
+        uint256 amountLimit,
+        uint256 deadline
+    ) external payable returns (uint256 amountIn, uint256 amountOut);
+}
 
 /// @dev The two pool parameters the graduation pool is opened with. Read off the deployed module so
 ///      the liquidity check below names the pool graduation actually created, not a guess at it.
@@ -68,6 +92,14 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
                 )
             );
         }
+
+        // ── The price authorities, pinned now that they can answer ──
+        //
+        // Phase 1 created these pools; it could not pin them. `setReferencePool` probes
+        // `observe([window, 0])` and refuses a pool with no observation that old, so the pin is the
+        // first thing phase 2 does — after a wait the orchestrator has already performed, and before
+        // anything that could need a floor.
+        _pinReferencePools(d, h);
 
         // ── The projection, printed BEFORE anything is broadcast ──
         //
@@ -117,11 +149,345 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
         spent += breadthSpent;
         _assertBreadth(d, h, carveRaise);
 
+        // ── Wave 3: the venues execute ──
+        //
+        // Everything above put real tithes into the vaults; this is where those tithes become
+        // liquidity on the venue each target is curated for. The stream is funded last, because it is
+        // funded by a fee that only exists once a position exists and something has traded against it.
+        spent += _crossVenues(d, h);
+        _assertVenues(d, h);
+
         console.log("=== SeedSepoliaBuys (phase 2: buys + graduation) complete ===");
-        console.log("  curve ETH spent (wei):", spent);
+        console.log("  curve + venue ETH spent (wei):", spent);
         console.log("  graduated pool liquidity:", poolLiquidity);
         console.log("  block.timestamp now:", block.timestamp);
         console.log("POST-CONDITIONS OK: pre-open / mid-curve / ready-to-graduate / graduated");
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════════════════════
+    //                             WAVE 3 — THE VENUES, EXECUTING
+    // ══════════════════════════════════════════════════════════════════════════════════════════
+
+    /// @dev What each venue leg reported, kept so the post-conditions read outcomes rather than
+    ///      re-deriving them from state the convert already changed.
+    struct VenueOutcome {
+        uint256 pendingBefore;
+        uint256 pendingAfter;
+        uint256 lpPositionValue;
+    }
+
+    VenueOutcome internal _uniOutcome;
+    VenueOutcome internal _zammOutcome;
+    VenueOutcome internal _cypherOutcome;
+    StreamFacts internal _streamFacts;
+
+    /// @dev Pin the price authority for every (target, token) this seed curates.
+    ///
+    ///      The Uniswap targets read a Uniswap V3 pool (`kind` 0); the Cypher target reads its own
+    ///      Algebra pool through that pool's oracle plugin (`kind` 1). Both were created a TWAP window
+    ///      ago by phase 1. The window passed to the setter is the DEPLOYMENT's own — read off the
+    ///      validator rather than restated — so the window the registry probes with and the window the
+    ///      floor later prices with cannot drift apart.
+    function _pinReferencePools(Deployed memory d, SeedHandoff memory h) internal {
+        if (block.timestamp < h.referenceReadyAt) {
+            revert(
+                string.concat(
+                    "phase 2: the seeded reference pools cannot serve a TWAP yet - wait ",
+                    vm.toString(h.referenceReadyAt - block.timestamp),
+                    " more seconds"
+                )
+            );
+        }
+        uint32 window = _twapWindow(d);
+        IAlignmentRouteAdmin reg = IAlignmentRouteAdmin(d.alignmentRegistry);
+
+        vm.startBroadcast();
+        reg.setReferencePool(
+            h.ms2TargetId,
+            h.ms2Token,
+            IAlignmentRegistry.ReferencePool({ pool: h.ms2ReferencePool, kind: 0, twapWindow: window })
+        );
+        reg.setReferencePool(
+            h.cultTargetId,
+            h.cultToken,
+            IAlignmentRegistry.ReferencePool({ pool: h.cultReferencePool, kind: 0, twapWindow: window })
+        );
+        if (h.ms2ZammVault != address(0)) {
+            // The ZAMM target's asset is the same MS2, so its price authority is the same pool. What
+            // differs between the two targets is the VENUE, not the price of the asset.
+            reg.setReferencePool(
+                h.ms2ZammTargetId,
+                h.ms2Token,
+                IAlignmentRegistry.ReferencePool({ pool: h.ms2ReferencePool, kind: 0, twapWindow: window })
+            );
+        }
+        if (h.cultCypherVault != address(0)) {
+            reg.setReferencePool(
+                h.cultAlgebraTargetId,
+                h.cultToken,
+                IAlignmentRegistry.ReferencePool({ pool: h.cultAlgebraPool, kind: 1, twapWindow: window })
+            );
+        }
+        vm.stopBroadcast();
+
+        console.log("REFERENCE pinned - ms2 / cult (uniswap v3):", h.ms2ReferencePool, h.cultReferencePool);
+        if (h.cultCypherVault != address(0)) console.log("REFERENCE pinned - cult (algebra):", h.cultAlgebraPool);
+    }
+
+    /// @dev Put every wired venue through the call it exists for.
+    /// @return spent the ETH this leg moved that is not recoverable from a curve — the ZAMM tithe and
+    ///         the demo swap. Reported with the curve spend because it leaves the same balance.
+    function _crossVenues(Deployed memory d, SeedHandoff memory h) internal returns (uint256 spent) {
+        // The Cypher flagship first: its graduation is what puts a real tithe in the Cypher vault, and
+        // it opens the Algebra pool for its own coin on the way past.
+        spent += _graduateCypherCollection(d, h);
+
+        // UNI — the tithe here is entirely earned: two collections graduated into this vault above.
+        _uniOutcome = _convert(h.ms2Vault, "uni-v4 (MS2)");
+
+        // ZAMM — no collection in this showcase graduates onto the ZAMM venue, so the vault's pending
+        // balance is a plain contribution from the seed's own account rather than a raise. Real ETH,
+        // credited to a real benefactor, converted by the same call the product uses. Said plainly
+        // here rather than dressed up as a graduation.
+        if (h.ms2ZammVault != address(0)) {
+            uint256 tithe = _zammVaultTitheWei();
+            vm.startBroadcast();
+            (bool ok,) = payable(h.ms2ZammVault).call{ value: tithe }("");
+            vm.stopBroadcast();
+            require(ok, "venue: the ZAMM vault refused a direct contribution");
+            spent += tithe;
+            _zammOutcome = _convertZamm(h.ms2ZammVault, "zamm (MS2)");
+        }
+
+        // CYPHER — the tithe is the flagship's graduation, 19% by contract.
+        if (h.cultCypherVault != address(0)) {
+            _cypherOutcome = _convert(h.cultCypherVault, "cypher (CULT)");
+        }
+
+        spent += _activateStakingStream(d, h);
+    }
+
+    /// @dev One vault's convert, with what it held before and after.
+    ///
+    ///      `minOutTarget` is 1 rather than a computed bound ON PURPOSE: the vault floors every
+    ///      caller's minimum to an oracle-derived one from the pinned reference pool, and passing a
+    ///      looser number cannot loosen that. A number the seed computed itself would only be a second
+    ///      copy of the floor, free to drift from the one that is enforced.
+    function _convert(address vault, string memory label) internal returns (VenueOutcome memory o) {
+        o.pendingBefore = _pendingTithe(vault);
+        require(o.pendingBefore > 0, string.concat("venue: ", label, " vault holds no tithe to convert"));
+
+        vm.startBroadcast();
+        o.lpPositionValue = IVenueVaultConvert(vault).convertAndAddLiquidity(1);
+        vm.stopBroadcast();
+
+        o.pendingAfter = _pendingTithe(vault);
+        _reportConvert(label, o);
+    }
+
+    /// @dev The ZAMM family's convert. Same three facts recorded, one different call: its LP add is a
+    ///      paired deposit rather than a range position, so it carries two further deposit minimums.
+    ///      Those are 1 for the same reason the swap bound is — the vault floors the swap leg against
+    ///      the pinned reference itself, and the deposit legs are its own accounting rather than a
+    ///      price the seed could independently bound.
+    function _convertZamm(address vault, string memory label) internal returns (VenueOutcome memory o) {
+        o.pendingBefore = _pendingTithe(vault);
+        require(o.pendingBefore > 0, string.concat("venue: ", label, " vault holds no tithe to convert"));
+
+        vm.startBroadcast();
+        o.lpPositionValue = IZammVaultConvert(vault).convertAndAddLiquidity(1, 1, 1);
+        vm.stopBroadcast();
+
+        o.pendingAfter = _pendingTithe(vault);
+        _reportConvert(label, o);
+    }
+
+    function _reportConvert(string memory label, VenueOutcome memory o) internal pure {
+        console.log(string.concat("CONVERTED ", label, " - tithe before / LP position value (wei):"));
+        console.log("  ", o.pendingBefore, o.lpPositionValue);
+    }
+
+    /// @dev Buy out enough of the Cypher flagship to graduate it, then graduate it onto the Algebra
+    ///      rail. Returns the curve ETH it cost.
+    function _graduateCypherCollection(Deployed memory d, SeedHandoff memory h) internal returns (uint256 cost) {
+        if (h.cypher404 == address(0)) return 0;
+        ERC404BondingInstance b = ERC404BondingInstance(payable(h.cypher404));
+        cost = _buyBondingMint(b, _fillAmount(b, _cypherFillBps()));
+
+        vm.startBroadcast();
+        b.deployLiquidity(0); // no carve — the carve is its own row's demonstration
+        vm.stopBroadcast();
+
+        require(b.graduated(), "cypher: the flagship did not graduate");
+        require(_pendingTithe(h.cultCypherVault) > 0, "cypher: the graduation sent no tithe to the Cypher vault");
+        console.log("GRADUATED cypher-flagship (cost wei):", cost);
+        // Named for the operator: the rail the pool was opened on is the module the row was created
+        // against, and it is the deployment's Cypher deployer rather than the Uniswap one.
+        console.log("  liquidity deployer:", d.cypherDeployer);
+    }
+
+    /// @dev Start the staking row's reward stream, on a fee it actually earned.
+    ///
+    ///      Wave 2 shipped this row with the stream ARMED AND UNFUNDED and said so on-chain, because
+    ///      the module's only funding path is a fee delta arriving through `claimAllFees` and pushing
+    ///      ETH at it from a fixture would fabricate the reward rather than demonstrate it. This is
+    ///      the sequence that funds it honestly, and every step is a real transaction:
+    ///
+    ///        1. the row graduated, so it is a BENEFACTOR of its alignment vault with real shares;
+    ///        2. the vault converted, so it holds a real LP position in the alignment pool;
+    ///        3. ONE demo swap trades against that pool, so the position earns a real LP fee;
+    ///        4. the row claims, which pulls its share of that fee and starts the 7-day stream.
+    ///
+    ///      The swap's cost is its fee and its price impact, not its notional: it comes back as the
+    ///      alignment asset. The stream restarts every `rewardsDuration`; keeping it running past that
+    ///      is an operational question and belongs in the durability notes, not in this seed.
+    ///
+    /// @return spent the ETH the demo swap sent (returned as tokens, less fee and impact).
+    function _activateStakingStream(Deployed memory d, SeedHandoff memory h) internal returns (uint256 spent) {
+        ERC404BondingInstance quarry = ERC404BondingInstance(payable(h.staking404));
+        spent = _demoSwapWei();
+
+        vm.startBroadcast();
+        IzRouterV4Swap(d.zRouter).swapV4{ value: spent }(
+            deployer,
+            false, // exact input
+            POOL_FEE,
+            POOL_TICK_SPACING,
+            address(0), // native ETH in
+            h.ms2Token,
+            spent,
+            0, // the seed is its own counterparty on a pool it just seeded
+            block.timestamp + 1 hours
+        );
+        vm.stopBroadcast();
+
+        uint256 balanceBefore = h.staking404.balance;
+        vm.startBroadcast();
+        quarry.claimAllFees();
+        vm.stopBroadcast();
+
+        IShowcaseStakingState sm = IShowcaseStakingState(d.stakingModule);
+        _streamFacts = StreamFacts({
+            feeDelta: h.staking404.balance - balanceBefore,
+            rewardRate: sm.rewardRate(h.staking404),
+            periodFinish: sm.periodFinish(h.staking404),
+            totalStaked: sm.totalStaked(h.staking404),
+            nowTs: block.timestamp
+        });
+
+        console.log("STREAM demo swap (wei) / fee delta claimed (wei):", spent, _streamFacts.feeDelta);
+        console.log(
+            "  reward rate (wei/sec) / period finish (unix):", _streamFacts.rewardRate, _streamFacts.periodFinish
+        );
+    }
+
+    // ─────────────────────── Venue post-conditions ───────────────────────
+
+    /// @dev Every venue this deployment carries is live, and the stream is running on an earned fee.
+    ///      An unwired rail is REPORTED rather than asserted — a network with no Algebra deployment is
+    ///      a network with no Cypher venue, and claiming one would be the only dishonest option here.
+    function _assertVenues(Deployed memory d, SeedHandoff memory h) internal view {
+        IAlignmentRouteAdmin reg = IAlignmentRouteAdmin(d.alignmentRegistry);
+
+        _assertVenueShowcase(
+            _venueFacts(
+                d,
+                reg,
+                "uni-v4 (MS2)",
+                uint8(IAlignmentRegistry.Venue.UNI_V4),
+                h.ms2TargetId,
+                h.ms2Token,
+                h.ms2Vault,
+                uint256(IPoolManager(d.v4PoolManager).getLiquidity(_uniVenueKey(h.ms2Token).toId())),
+                _uniOutcome
+            )
+        );
+
+        if (h.ms2ZammVault != address(0)) {
+            IZAMM.Pool memory pool = IZAMM(d.zamm).pools(_zammPoolId(_zammVenueKey(h.ms2Token, d.zammFeeOrHook)));
+            _assertVenueShowcase(
+                _venueFacts(
+                    d,
+                    reg,
+                    "zamm (MS2)",
+                    uint8(IAlignmentRegistry.Venue.ZAMM),
+                    h.ms2ZammTargetId,
+                    h.ms2Token,
+                    h.ms2ZammVault,
+                    uint256(pool.reserve0),
+                    _zammOutcome
+                )
+            );
+        } else {
+            console.log("VENUE zamm: not available on this network - not asserted, not claimed");
+        }
+
+        if (h.cultCypherVault != address(0)) {
+            // The Algebra pool's ACTIVE liquidity is what a convert swaps through, and the plugin is
+            // what lets it price at all. Both are read here rather than assumed from the seed's own
+            // deposit figure: drop the plugin wiring and this row goes red.
+            require(
+                IAlgebraPool(h.cultAlgebraPool).plugin() != address(0),
+                "venue: the Algebra pool has no plugin (its own reference could not be read)"
+            );
+            _assertVenueShowcase(
+                _venueFacts(
+                    d,
+                    reg,
+                    "cypher (CULT)",
+                    uint8(IAlignmentRegistry.Venue.ALGEBRA),
+                    h.cultAlgebraTargetId,
+                    h.cultToken,
+                    h.cultCypherVault,
+                    uint256(IAlgebraPoolLiquidity(h.cultAlgebraPool).liquidity()),
+                    _cypherOutcome
+                )
+            );
+            require(
+                ERC404BondingInstance(payable(h.cypher404)).graduated(), "venue: the Cypher flagship is not graduated"
+            );
+        } else {
+            console.log("VENUE cypher: the Algebra rail is not wired - not asserted, not claimed");
+        }
+
+        _assertStakingStream(_streamFacts);
+
+        console.log("VENUE POST-CONDITIONS OK:");
+        console.log("  each wired venue: curated route, pinned reference, seeded depth, executed convert");
+        console.log("  staking stream running on a claimed LP-fee delta");
+    }
+
+    function _venueFacts(
+        Deployed memory d,
+        IAlignmentRouteAdmin reg,
+        string memory label,
+        uint8 expectedVenue,
+        uint256 targetId,
+        address token,
+        address vault,
+        uint256 venueLiquidity,
+        VenueOutcome memory o
+    ) internal view returns (VenueFacts memory f) {
+        IAlignmentRegistry.ReferencePool memory ref = reg.getReferencePool(targetId, token);
+        IVenueVaultView v = IVenueVaultView(vault);
+        f = VenueFacts({
+            label: label,
+            routeVenue: uint8(reg.getAcquireRoute(targetId, token).venue),
+            expectedVenue: expectedVenue,
+            referencePool: ref.pool,
+            referenceWindow: ref.twapWindow,
+            expectedWindow: _twapWindow(d),
+            vaultToken: v.alignmentToken(),
+            expectedToken: token,
+            vaultTargetId: v.alignmentTargetId(),
+            expectedTargetId: targetId,
+            vaultPriceValidator: v.priceValidator(),
+            venueLiquidity: venueLiquidity,
+            minVenueLiquidity: MIN_VENUE_ACTIVE_LIQUIDITY,
+            pendingBefore: o.pendingBefore,
+            pendingAfter: o.pendingAfter,
+            lpPositionValue: o.lpPositionValue
+        });
     }
 
     // ─────────────────────── Fills ───────────────────────
@@ -209,6 +575,16 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
         // The overlay commission is paid by the seed to prove the pay-and-pin path settles. It is not
         // curve spend, but it leaves the same balance, so it belongs in the number being confirmed.
         projected += _commissionPrice();
+
+        // The venue legs: the Cypher flagship's curve, the ZAMM vault's contribution and the demo
+        // swap. All three leave the same balance the rows above do, and the operator is deciding
+        // whether to send this phase at all — so they are projected with them rather than beside them.
+        if (h.cypher404 != address(0)) {
+            ERC404BondingInstance cyph = ERC404BondingInstance(payable(h.cypher404));
+            projected += _buyCost(cyph, _fillAmount(cyph, _cypherFillBps()));
+        }
+        if (h.ms2ZammVault != address(0)) projected += _zammVaultTitheWei();
+        projected += _demoSwapWei();
     }
 
     /// @dev The tier row is bought in WHOLE UNITS rather than in bps: every tier operation is
@@ -241,6 +617,11 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
     /// @dev Only PART of the bought position is staked. A row whose entire float is locked cannot
     ///      demonstrate the stake action a second time, and the unstake action needs something to
     ///      leave behind — so the split is a knob and defaults to half.
+    ///      THE ROW ALSO GRADUATES HERE, and that is what makes the stream fundable rather than
+    ///      merely armed: `claimFees` pays a vault's BENEFACTORS, and a collection becomes one by
+    ///      tithing 19% of a real raise at graduation. A row that never graduated could claim nothing
+    ///      no matter how much its vault earned. The stake is placed BEFORE the graduation so the
+    ///      staked position is already accruing when the first fee arrives.
     function _fillStakingRow(SeedHandoff memory h) internal returns (uint256 cost) {
         ERC404BondingInstance b = ERC404BondingInstance(payable(h.staking404));
         uint256 amount = _fillAmount(b, _stakingFillBps());
@@ -250,8 +631,10 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
         require(toStake > 0, "staking: the stake share rounds to nothing");
         vm.startBroadcast();
         b.stake(toStake);
+        b.deployLiquidity(0); // no carve — the carve is its own row's demonstration
         vm.stopBroadcast();
 
+        require(b.graduated(), "staking: the row did not graduate (its stream would have no fee source)");
         console.log("STAKED quarry-staking (amount, cost wei):", toStake, cost);
     }
 
