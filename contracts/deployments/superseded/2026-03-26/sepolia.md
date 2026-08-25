@@ -1,3 +1,8 @@
+> **SUPERSEDED — historical record of the 2026-03-26 deployment.**
+> The salt set that produced the proxy addresses below is spent (a CreateX permissioned salt is
+> single-use per deployer), so the next deploy lands on different addresses. Read nothing here as
+> current; see `README.md` in this directory.
+
 # Sepolia Deployment
 
 **Date:** 2026-03-26
