@@ -79,6 +79,50 @@ const FAMILY_ORDER: VaultFamily[] = ['yield', 'lp']
  * than dropped, so the creator can see it exists but can't pick something whose graduation fails.
  * Yield/Aave is always ready.
  */
+/** The minimal alignment-target shape the token grouping needs. */
+export interface TargetLike {
+  id: bigint
+  token: `0x${string}` | undefined
+}
+
+export interface TargetGroup<T extends TargetLike> {
+  /** Grouping key: the token address (lowercased), or `id:<targetId>` when no token is known (never grouped). */
+  key: string
+  /** The group's representative target — the lowest target id — whose title/description/metadataURI render the row. */
+  primary: T
+  /** Every target id under this token, ascending by id. Length 1 is the common case (unchanged rendering). */
+  targets: T[]
+}
+
+/**
+ * Group alignment targets by their underlying token, preserving first-appearance order.
+ *
+ * `AlignmentRegistryV1.tokenToTargetIds` is a push-list: the same token can be registered under more
+ * than one alignment target so each sits under its own coherent acquisition route (e.g. one target
+ * routes a community's token through Uniswap V4, a second through Cypher). Left ungrouped, the picker
+ * would show that community twice. A token with a single target collapses to a one-target group, so
+ * its row renders exactly as it did before grouping existed.
+ */
+export function groupTargetsByToken<T extends TargetLike>(targets: readonly T[]): TargetGroup<T>[] {
+  const order: string[] = []
+  const byKey = new Map<string, T[]>()
+  for (const t of targets) {
+    const key = t.token ? t.token.toLowerCase() : `id:${t.id.toString()}`
+    let bucket = byKey.get(key)
+    if (!bucket) {
+      bucket = []
+      byKey.set(key, bucket)
+      order.push(key)
+    }
+    bucket.push(t)
+  }
+  return order.map((key) => {
+    const bucket = byKey.get(key)!
+    const sorted = [...bucket].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    return { key, primary: sorted[0]!, targets: sorted }
+  })
+}
+
 export function groupVaultsByFamily<V extends VaultLike>(vaults: readonly V[]): FamilyGroup<V>[] {
   const byFamily = new Map<VaultFamily, Map<string, V>>()
   for (const v of vaults) {
