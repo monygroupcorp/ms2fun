@@ -2,12 +2,22 @@
 pragma solidity ^0.8.20;
 
 import { DeployCore } from "./DeployCore.sol";
+import { SepoliaSalts } from "./SepoliaSalts.sol";
 
 /// @notice Deploys the full protocol to Sepolia.
 ///         Run with: forge script script/DeploySepolia.s.sol --account <keystore> \
 ///                   --rpc-url sepolia --broadcast --verify
+///
+///         The broadcasting address MUST be `SepoliaSalts.DEPLOYER`: it is embedded in every
+///         CREATE3 salt as CreateX's permissioned-deploy guard, and CreateX reverts `InvalidSalt`
+///         for any other sender. `run()` asserts it before broadcasting so the mismatch surfaces in
+///         simulation rather than on chain.
 contract DeploySepolia is DeployCore {
     function run() public {
+        require(
+            msg.sender == SepoliaSalts.DEPLOYER,
+            "DeploySepolia: sender is not the deployer the salt set is bound to (see script/SepoliaSalts.sol)"
+        );
         vm.startBroadcast();
         deploy(msg.sender, _sepoliaConfig());
         vm.stopBroadcast();
@@ -40,13 +50,14 @@ contract DeploySepolia is DeployCore {
         cfg.zamm = 0x000000000000040470635EB91b7CE4D132D616eD; // V1
         cfg.zrouter = 0x000000000000FB114709235f1ccBFfb925F600e4; // canonical aggregator
         cfg.safe = address(0); // deploys MockSafe
-        // Vanity salts — deployer guard: 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab6
-        cfg.saltMasterRegistry = 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab6006fc783a2ee2a5801bcc77a; // => 0x00001152cba5fdb16a0fae780ffebd5b9df8e7cf
-        cfg.saltTreasury = 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab60082245dad1d7c3e0071f20f; // => 0x00001152e56eb45082de505e9e9be5dc158e4cfc
-        cfg.saltQueueManager = 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab600cf49066351827200ad2a5e; // => 0x00001152c0715721ae4d2b0b693862953dcfb99c
-        cfg.saltGlobalMsgReg = 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab6006b9e54d6a39a0801f14fa8; // => 0x0000115268c7cb1a508ec18da1cb2d71c0b2c637
-        cfg.saltAlignmentReg = 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab60057d45cf31029d003f61c1d; // => 0x00001152db13c4afb4d9f4bba93f364692f372eb
-        cfg.saltComponentReg = 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab600586503138e974c00a226d9; // => 0x00001152ed1bd8e76693cb775c79708275bbb2f3
+        // Vanity CREATE3 salts. Single source: script/SepoliaSalts.sol — see that file for the
+        // salt layout, the address derivation, and how to re-mine the set.
+        cfg.saltMasterRegistry = SepoliaSalts.MASTER_REGISTRY;
+        cfg.saltTreasury = SepoliaSalts.TREASURY;
+        cfg.saltQueueManager = SepoliaSalts.QUEUE_MANAGER;
+        cfg.saltGlobalMsgReg = SepoliaSalts.GLOBAL_MSG_REG;
+        cfg.saltAlignmentReg = SepoliaSalts.ALIGNMENT_REG;
+        cfg.saltComponentReg = SepoliaSalts.COMPONENT_REG;
         cfg.priceDeviationBps = 1000;
         cfg.twapSeconds = 1800;
         cfg.zrouterFee = 3000;
