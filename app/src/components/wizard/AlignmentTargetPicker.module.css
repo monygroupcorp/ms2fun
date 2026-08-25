@@ -49,6 +49,50 @@
   background-color: var(--bg-tertiary);
 }
 
+/* A row whose token carries more than one target: the card is a static header, not a button. */
+.targetGrouped {
+  flex-direction: column;
+  cursor: default;
+}
+
+.targetGrouped:hover {
+  border-color: var(--border-secondary);
+}
+
+.targetMain {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.targetVenueAddon {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.venuePill {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  padding: var(--space-1) var(--space-2);
+  background: transparent;
+  border: 1px solid var(--border-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.venuePill:hover {
+  border-color: var(--border-primary);
+}
+
+.venuePillSelected {
+  border-color: var(--border-primary);
+  color: var(--text-primary);
+}
+
 .targetLogo {
   flex-shrink: 0;
   width: 3rem;

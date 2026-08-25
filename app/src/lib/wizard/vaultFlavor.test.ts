@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { deriveVaultFlavor, groupVaultsByFamily, venueLabel, type VaultLike } from './vaultFlavor'
+import {
+  deriveVaultFlavor,
+  groupTargetsByToken,
+  groupVaultsByFamily,
+  venueLabel,
+  type TargetLike,
+  type VaultLike,
+} from './vaultFlavor'
 
 describe('deriveVaultFlavor', () => {
   it('maps AaveEndowment to the yield family', () => {
@@ -77,5 +84,50 @@ describe('groupVaultsByFamily', () => {
   it('omits a family with no vaults', () => {
     const groups = groupVaultsByFamily([v('AaveEndowment', true)])
     expect(groups.map((g) => g.family)).toEqual(['yield'])
+  })
+})
+
+/** Build a minimal target row for the token-grouping tests. */
+const t = (id: number, token: `0x${string}` | undefined): TargetLike => ({ id: BigInt(id), token })
+
+const CULT = '0x00000000000000000000000000000000000c01' as const
+const MS2 = '0x00000000000000000000000000000000000ac2' as const
+
+describe('groupTargetsByToken', () => {
+  it('leaves a single-target token as a one-target group', () => {
+    const groups = groupTargetsByToken([t(1, MS2)])
+    expect(groups).toHaveLength(1)
+    expect(groups[0]!.targets.map((x) => x.id)).toEqual([1n])
+    expect(groups[0]!.primary.id).toBe(1n)
+  })
+
+  it('collapses a token registered under two targets into one group carrying both ids', () => {
+    // CULT registered under target 2 (e.g. Uniswap V4 route) and target 3 (e.g. Cypher/Algebra route).
+    const groups = groupTargetsByToken([t(1, MS2), t(2, CULT), t(3, CULT)])
+    expect(groups).toHaveLength(2)
+    const cultGroup = groups.find((g) => g.targets.length > 1)!
+    expect(cultGroup.targets.map((x) => x.id)).toEqual([2n, 3n])
+    expect(cultGroup.primary.id).toBe(2n)
+  })
+
+  it('groups regardless of input order, sorting the collapsed ids ascending', () => {
+    const groups = groupTargetsByToken([t(5, CULT), t(2, CULT)])
+    expect(groups).toHaveLength(1)
+    expect(groups[0]!.targets.map((x) => x.id)).toEqual([2n, 5n])
+    expect(groups[0]!.primary.id).toBe(2n)
+  })
+
+  it('never groups targets with no known token together', () => {
+    const groups = groupTargetsByToken([t(1, undefined), t(2, undefined)])
+    expect(groups).toHaveLength(2)
+  })
+
+  it('would render the multi-target token as two entries if grouping were removed (non-vacuity)', () => {
+    // The picker maps one row per array entry — this is what "grouping removed" looks like, and it's
+    // exactly the CULT-shown-twice defect the grouping exists to fix.
+    const ungrouped = [t(2, CULT), t(3, CULT)]
+    expect(ungrouped).toHaveLength(2)
+    // With grouping applied, the same input collapses to one row.
+    expect(groupTargetsByToken(ungrouped)).toHaveLength(1)
   })
 })
