@@ -33,10 +33,18 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-src 'none'; manifest-src 'self'; worker-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src 'self' data: https: wss:"
     />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="icon" href="/favicon-32.png" sizes="32x32" />
-    <link rel="icon" href="/favicon-16.png" sizes="16x16" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!--
+      Asset hrefs below go through vite's base-url placeholder, never a leading `/`. Vite
+      substitutes the resolved `base`: `/` for the ms2.fun build (these emit exactly the paths they
+      emitted before) and `./` for the IPFS distribution build, where the document is served from
+      under a `/ipfs/<cid>/` path prefix and a root-anchored href would leave the pin entirely.
+      The og:/twitter: URLs below stay ABSOLUTE on purpose — a share card is fetched by a scraper
+      with no page context, so those have to name an origin.
+    -->
+    <link rel="icon" href="%BASE_URL%favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="%BASE_URL%favicon-32.png" sizes="32x32" />
+    <link rel="icon" href="%BASE_URL%favicon-16.png" sizes="16x16" />
+    <link rel="apple-touch-icon" href="%BASE_URL%apple-touch-icon.png" />
     <meta
       name="description"
       content="noesis — onchain alignment launchpad. Curated art/token releases bound, by contract, to the communities that inspired them."
@@ -66,7 +74,7 @@
       content="noesis — onchain alignment launchpad. Curated art/token releases bound, by contract, to the communities that inspired them."
     />
     <meta name="twitter:image" content="https://noesis.gwei.domains/icon-512.png" />
-    <link rel="stylesheet" href="/fonts/fonts.css" />
+    <link rel="stylesheet" href="%BASE_URL%fonts/fonts.css" />
     <title>noesis</title>
   </head>
   <body>
