@@ -48,16 +48,16 @@ library SepoliaSalts {
 
     /// @notice How many leading zero bytes every address in this set carries. The salt-set test
     ///         asserts it, so a hand-edited constant that does not meet it fails the suite.
-    uint256 internal constant ADDRESS_ZERO_PREFIX_BYTES = 4;
+    uint256 internal constant ADDRESS_ZERO_PREFIX_BYTES = 5;
 
     // ── Mined salt set ────────────────────────────────────────────────────────────────────────
     // Replace all six together; a partially replaced set mixes spent and fresh salts. The trailing
     // comment on each line is the address CreateX will produce — it is documentation, and the
     // salt-set test re-derives it rather than trusting it.
-    bytes32 internal constant MASTER_REGISTRY = 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab600bdef127a418cdb9ab7357b; // => 0x00000000050b4ba28be3eb942cf274a7aed0ed3e
-    bytes32 internal constant TREASURY = 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab60019d9c6be2bcef61ded3b32; // => 0x000000001a48f03ab08d779d0768139bfa081e65
-    bytes32 internal constant QUEUE_MANAGER = 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab60084d009ae00b0f52ceb5908; // => 0x00000000eee59daf0689f4d81e1a1a0ac31545ff
-    bytes32 internal constant GLOBAL_MSG_REG = 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab6009ad0496ae150943c287934; // => 0x000000000c5302cffb25affec797d95dde89318f
-    bytes32 internal constant ALIGNMENT_REG = 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab600ae85d4acd51f103020605c; // => 0x0000000093d069bef9021f627865cead36ec9d7f
-    bytes32 internal constant COMPONENT_REG = 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab600eb8aa11218fc18bb3176d7; // => 0x00000000c08ac2f8fdd8702384641a5d148c210c
+    bytes32 internal constant MASTER_REGISTRY = 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab6000f149ef259940a019208ec; // => 0x0000000000564ad22a8d86622a869b166a1ed2d2
+    bytes32 internal constant TREASURY = 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab6004eb6643822924a033722af; // => 0x0000000000e0c98e51036bdb2fdd232891fb9585
+    bytes32 internal constant QUEUE_MANAGER = 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab60066598523e6f963006c06a2; // => 0x00000000002c9176071e23396e10f124a2c48517
+    bytes32 internal constant GLOBAL_MSG_REG = 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab6008f6a90f033557703864a3b; // => 0x00000000003aec021b3aa39e096c5bce2886a014
+    bytes32 internal constant ALIGNMENT_REG = 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab600a3741d44b2d3ec00e796c6; // => 0x00000000005e8b175d22400baf60a457fb6328f2
+    bytes32 internal constant COMPONENT_REG = 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab600ab8884abc87ef002db17f1; // => 0x000000000083a32325c0eee5ad21d093d8052ea0
 }
