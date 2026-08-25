@@ -7,6 +7,49 @@ import { ERC404BondingInstance } from "../src/factories/erc404/ERC404BondingInst
 import { BondingCurveMath } from "../src/factories/erc404/libraries/BondingCurveMath.sol";
 import { FreeMintParams } from "../src/interfaces/IFactoryTypes.sol";
 import { GatingScope } from "../src/gating/IGatingModule.sol";
+import { ERC1155Factory } from "../src/factories/erc1155/ERC1155Factory.sol";
+import { ERC1155Instance } from "../src/factories/erc1155/ERC1155Instance.sol";
+import { IDynamicPricingModule } from "../src/factories/erc1155/interfaces/IDynamicPricingModule.sol";
+import { ERC721AuctionFactory } from "../src/factories/erc721/ERC721AuctionFactory.sol";
+import { ERC721AuctionInstance } from "../src/factories/erc721/ERC721AuctionInstance.sol";
+import { IMerkleGatingModule, MerkleConfig } from "../src/gating/IMerkleGatingModule.sol";
+import { MetadataOverlayModule } from "../src/metadata/MetadataOverlayModule.sol";
+import { MerkleProofLib } from "solady/utils/MerkleProofLib.sol";
+import { RevenueSplitLib } from "../src/shared/libraries/RevenueSplitLib.sol";
+
+/// @dev Read-back surface of `MerkleGatingModule`. `IMerkleGatingModule` carries only `configureFor`;
+///      these views are what let the seed assert that what it installed is what is actually stored.
+interface IMerkleGatingView {
+    function getRoots(address instance, uint256 editionId) external view returns (bytes32[] memory);
+    function getTierOpenTimes(address instance, uint256 editionId) external view returns (uint256[] memory);
+}
+
+/// @dev The two staking numbers the showcase reports. Read off the deployment's approved STAKING
+///      module rather than off the instance, because the module is where the stream itself lives.
+interface IShowcaseStakingState {
+    function totalStaked(address instance) external view returns (uint256);
+    function stakedBalance(address instance, address user) external view returns (uint256);
+    function rewardRate(address instance) external view returns (uint256);
+    function periodFinish(address instance) external view returns (uint256);
+}
+
+/// @dev The carve parameters the factory applies LIVE at graduation. Read back so the seed reports
+///      the protocol's own figure rather than recomputing the bracket/floor math beside it.
+interface IShowcaseCarveParams {
+    function minPoolEth() external view returns (uint256);
+    function effectiveCarveEth(uint256 raise, uint256 declaredMaxBps, uint256 carveRequestBps)
+        external
+        view
+        returns (uint256);
+}
+
+/// @dev The tier surface the showcase asserts against: the sealed ladder plus the derived
+///      outstanding-band count. Both are public getters on the real instance.
+interface IShowcaseTierState {
+    function tierBands(uint256 idx) external view returns (uint32 idStart, uint32 idEnd, uint32 weight);
+    function bandOutstanding(uint8 tierN) external view returns (uint256);
+    function totalTierEscrow() external view returns (uint256);
+}
 
 /// @dev The read surface the showcase post-conditions are stated against. Declared as an interface
 ///      rather than typed to `ERC404BondingInstance` on purpose: the same assertions are exercised by
@@ -112,6 +155,127 @@ abstract contract SeedSepoliaShared is Script {
     string internal constant ENV_READY_FILL_BPS = "SEPOLIA_READY_FILL_BPS";
     string internal constant ENV_GRADUATED_FILL_BPS = "SEPOLIA_GRADUATED_FILL_BPS";
 
+    // ─────────────────────────── Wave-2 breadth knobs ───────────────────────────
+    //
+    // The breadth rows demonstrate MECHANISMS, not depth, so their defaults are the smallest values
+    // that still reach the state each row exists to show. Every one of them is overridable, and the
+    // seed prints its projection before it spends anything.
+
+    /// @dev Fill for the staking row, in bps of its bondable supply. The stake itself is taken out of
+    ///      what this buys, so it only has to be large enough to leave a non-zero position.
+    string internal constant ENV_STAKING_FILL_BPS = "SEPOLIA_STAKING_FILL_BPS";
+    uint256 internal constant DEFAULT_STAKING_FILL_BPS = 300;
+
+    /// @dev Share of the bought staking position that is actually staked, in bps. Below 10000 so the
+    ///      row also holds a LIQUID balance — an instance whose whole float is locked cannot
+    ///      demonstrate the stake action a second time.
+    string internal constant ENV_STAKE_SHARE_BPS = "SEPOLIA_STAKE_SHARE_BPS";
+    uint256 internal constant DEFAULT_STAKE_SHARE_BPS = 5000;
+
+    /// @dev The tier row's fill is counted in WHOLE DN404 UNITS, not in bps, because every tier
+    ///      operation is denominated in whole units: `mintUp` into tier N burns one ordinary id and
+    ///      escrows `(w_N - 1)` units. The default is exactly what the phase-2 walk consumes —
+    ///      3 units for the scarce band, 2 for the open band, 1 kept liquid to carry the commission.
+    string internal constant ENV_TIER_UNITS = "SEPOLIA_TIER_UNITS";
+    uint256 internal constant DEFAULT_TIER_UNITS = 6;
+
+    /// @dev The carve row's fill, in bps of its bondable supply. See `_carveThresholdRaise`: whether
+    ///      the carve pays anything is a DEPTH question, and the seed prints the raise it would take.
+    string internal constant ENV_CARVE_FILL_BPS = "SEPOLIA_CARVE_FILL_BPS";
+    uint256 internal constant DEFAULT_CARVE_FILL_BPS = 700;
+
+    /// @dev The queue deposit each auction lot is listed with, and the bid placed on the lot that is
+    ///      settled. The bid must clear the deposit (`BidBelowMinimum`); the settle then returns the
+    ///      deposit and splits the bid, so the net cost of the settled lot is a fraction of the bid.
+    string internal constant ENV_AUCTION_DEPOSIT_WEI = "SEPOLIA_AUCTION_DEPOSIT_WEI";
+    uint256 internal constant DEFAULT_AUCTION_DEPOSIT = 0.001 ether;
+    string internal constant ENV_AUCTION_BID_WEI = "SEPOLIA_AUCTION_BID_WEI";
+    uint256 internal constant DEFAULT_AUCTION_BID = 0.0015 ether;
+
+    /// @dev How long the LIVE auction runs. Like the pre-open curve, this row must SURVIVE the seed —
+    ///      a visitor arriving days later still has to find a lot they can bid on — so it is armed on
+    ///      its own long clock and is excluded from the wait phase 2 computes.
+    string internal constant ENV_LIVE_AUCTION_SECONDS = "SEPOLIA_LIVE_AUCTION_SECONDS";
+    uint256 internal constant DEFAULT_LIVE_AUCTION_SECONDS = 30 days;
+
+    /// @dev The overlay commission's price. Paid once by the seed (to prove the pay-and-pin path) and
+    ///      left unpaid on a second id so the same path is walkable by a visitor.
+    string internal constant ENV_COMMISSION_PRICE_WEI = "SEPOLIA_COMMISSION_PRICE_WEI";
+    uint256 internal constant DEFAULT_COMMISSION_PRICE = 0.0005 ether;
+
+    // ─────────────────────────── Wave-2 breadth: fixed shape ───────────────────────────
+
+    /// @dev Anti-snipe buffer on the seeded auctions. Short, so a bid placed immediately after the lot
+    ///      is queued cannot extend the lot past the arm window the orchestrator is waiting out.
+    uint40 internal constant AUCTION_TIME_BUFFER = 60;
+    uint256 internal constant AUCTION_BID_INCREMENT = 0.0005 ether;
+    /// @dev The timed auction runs for exactly the arm window, so its lots end in the same wait phase 2
+    ///      already performs. Below this the anti-snipe buffer would dominate, so it is a floor.
+    uint256 internal constant MIN_ARM_WINDOW_FOR_AUCTIONS = 300;
+
+    /// @dev ERC1155 edition ids. `nextEditionId` starts at 1 and increments per `addEdition`, in the
+    ///      order the calls below make them. Asserted against `nextEditionId`, never assumed.
+    uint256 internal constant EDITION_FIXED = 1;
+    uint256 internal constant EDITION_DYNAMIC = 2;
+    uint256 internal constant EDITION_FREE_CLAIM = 3;
+
+    uint256 internal constant EDITION_FIXED_PRICE = 0.002 ether;
+    uint256 internal constant EDITION_FIXED_SUPPLY = 250;
+    uint256 internal constant EDITION_DYNAMIC_BASE_PRICE = 0.001 ether;
+    /// @dev +20% per mint. Chosen so the exponential regime is visible BY EYE across a handful of
+    ///      mints rather than merely non-zero: a rate that needs a spreadsheet to see is a flat curve
+    ///      wearing a dynamic label, which is the failure mode the price-movement assertion is about.
+    uint256 internal constant EDITION_DYNAMIC_RATE_BPS = 2000;
+    uint256 internal constant EDITION_DYNAMIC_SUPPLY = 250;
+    uint256 internal constant DYNAMIC_PROBE_MINTS = 5;
+    uint256 internal constant DYNAMIC_MIN_MULTIPLE = 2;
+    uint256 internal constant EDITION_FREE_PRICE = 0.001 ether;
+    uint256 internal constant EDITION_FREE_SUPPLY = 250;
+    /// @dev Reserved out of the supply above and claimable once per address. Sized as HEADROOM: it is
+    ///      the one surface a single visitor cannot exhaust by clicking twice.
+    uint256 internal constant EDITION_FREE_ALLOCATION = 100;
+
+    /// @dev The gated edition's own numbers. One tier, open now — see `_gatedTierOpenTimes`.
+    uint256 internal constant GATED_EDITION = 1;
+    uint256 internal constant GATED_EDITION_PRICE = 0.002 ether;
+    uint256 internal constant GATED_EDITION_SUPPLY = 100;
+    uint256 internal constant GATED_FREE_ALLOCATION = 10;
+    /// @dev The cap the seeded operator address is listed with. Small on purpose: `QtyCapExceeded` is
+    ///      then two mints away rather than a hundred, which is the branch a mint UI most often gets
+    ///      wrong (it must read `claimed` before it builds the request).
+    uint256 internal constant GATED_OPERATOR_QTY = 2;
+    uint256 internal constant GATED_MEMBER_QTY = 1;
+
+    /// @dev The tier row's piece count, and the one number on this row bounded from BOTH sides.
+    ///
+    ///      From below: every tier operation costs WHOLE units, and a whole unit is `1 / nftCount` of
+    ///      the curve's supply — so a small collection makes the six units this row needs a large
+    ///      fraction of the raise, and the row stops being faucet-priced.
+    ///
+    ///      From above: `maxSupply = nftCount * unitPerNFT * 1e18` and DN404 holds total supply in a
+    ///      `uint96`, so on the NICHE preset (`unitPerNFT` 1e9, hence a `1e27` unit) anything past ~79
+    ///      pieces reverts `TotalSupplyOverflow` AT CREATE. 60 sits inside that ceiling with margin
+    ///      and puts the walk at a tenth of supply. Raising it means changing preset, not this number.
+    uint256 internal constant TIER_NFT_COUNT = 60;
+    /// @dev The OPEN rung: denomination 2, three ids. Minted up into and back down out of, and left
+    ///      with room, so the reversible half of Token Tiers is walkable after the seed.
+    uint32 internal constant TIER_OPEN_WEIGHT = 2;
+    uint32 internal constant TIER_OPEN_COUNT = 3;
+    /// @dev The SCARCE rung: denomination 3, ONE id, against a supply that could back twenty. The seed
+    ///      takes that id, so the band is exhausted and the next `mintUp` into it reverts
+    ///      `BandExhausted` — the state §3 asks a visitor to be able to observe. It reopens the moment
+    ///      any holder mints down, which is the point: scarcity here is a queue, not a wall.
+    uint32 internal constant TIER_SCARCE_WEIGHT = 3;
+    uint32 internal constant TIER_SCARCE_COUNT = 1;
+    uint8 internal constant TIER_N_OPEN = 1;
+    uint8 internal constant TIER_N_SCARCE = 2;
+
+    /// @dev The carve row declares its FULL allowance up front. The declaration is the disclosure
+    ///      surface — immutable per instance, on the label before the first buy — and declaring the
+    ///      maximum is what makes the row's page worth reading.
+    uint16 internal constant CARVE_DECLARED_MAX_BPS = 10_000;
+    uint256 internal constant CARVE_REQUEST_BPS = 10_000;
+
     // ─────────────────────────── Curve preset ───────────────────────────
 
     /// @dev NICHE (`targetETH` 5 ether) — the smallest preset `DeployCore` registers, and the only
@@ -176,9 +340,19 @@ abstract contract SeedSepoliaShared is Script {
         address zRouter;
         address weth;
         address v4PoolManager;
+        // ── Wave-2 breadth: the other project families and the optional modules ──
+        ERC1155Factory erc1155;
+        ERC721AuctionFactory erc721;
+        address merkleGating; // approved GATING — the Merkle allowlist module
+        address stakingModule; // approved STAKING — the ERC404 fee-stream module
+        address resolverRouter; // METADATA_RESOLVER target when a stack is wired
+        address overlay; // MetadataOverlayModule (waves + commissions)
+        address tierResolver; // TokenTierBandResolver (static band art)
     }
 
-    /// @dev What phase 1 hands phase 2, beyond the instances themselves.
+    /// @dev What phase 1 hands phase 2, beyond the ERC404 curve roster itself. The breadth rows are
+    ///      addressed by FIELD rather than by the roster's name map because they are not curve rows:
+    ///      three of them are not ERC404 instances at all.
     struct SeedHandoff {
         uint256 phase2NotBefore;
         address ms2Token;
@@ -187,6 +361,17 @@ abstract contract SeedSepoliaShared is Script {
         address cultVault;
         uint256 ms2TargetId;
         uint256 cultTargetId;
+        // ── Wave-2 breadth ──
+        address editions; // ERC1155: fixed + dynamic + free-claim editions
+        address gatedEditions; // ERC1155 behind the Merkle allowlist
+        address staking404; // ERC404 with the staking module wired + activated
+        address tiers404; // ERC404 with the metadata stack + the Token Tiers ladder
+        address carve404; // ERC404 that graduates WITH a carve request
+        address auctionTimed; // ERC721 whose lots end inside the arm window
+        address auctionLive; // ERC721 that is still running when a visitor arrives
+        uint256 soldLotId; // the timed lot carrying a bid — settled in phase 2
+        uint256 unsoldLotId; // the timed lot with no bid — reclaimed in phase 2
+        uint256 liveLotId; // the live lot, left running
     }
 
     /// @dev The seed's sender. Resolved from `msg.sender` inside `run()`, which is forge's
@@ -296,10 +481,30 @@ abstract contract SeedSepoliaShared is Script {
         // re-declaring an address literal here — this item introduces no new external addresses.
         d.weth = IWethSource(d.uniVaultFactory).weth();
 
+        // ── Wave-2 breadth: the other two factories and the optional modules ──
+        d.erc1155 = ERC1155Factory(payable(vm.parseJsonAddress(json, ".factories.ERC1155")));
+        d.erc721 = ERC721AuctionFactory(payable(vm.parseJsonAddress(json, ".factories.ERC721")));
+        d.merkleGating = vm.parseJsonAddress(json, ".contracts.ModuleMerkleGating");
+        d.stakingModule = vm.parseJsonAddress(json, ".contracts.ERC404StakingModule");
+        d.resolverRouter = vm.parseJsonAddress(json, ".contracts.MetadataResolverRouter");
+        d.overlay = vm.parseJsonAddress(json, ".contracts.MetadataOverlayModule");
+        d.tierResolver = vm.parseJsonAddress(json, ".contracts.TokenTierBandResolver");
+
         require(address(d.erc404) != address(0), "sepolia.json: ERC404 factory missing");
         require(d.uniVaultFactory != address(0), "sepolia.json: UNI vault factory missing");
         require(d.uniDeployer != address(0), "sepolia.json: ModuleUniV4Deployer missing (stale deployment file?)");
         require(d.v4PoolManager != address(0), "sepolia.json: v4PoolManager missing");
+
+        // Each breadth module is REQUIRED rather than optional: a deployment missing one of them
+        // cannot hold the showcase this seed claims to produce, and discovering that at the first
+        // `createInstance` would leave a half-seeded deployment behind.
+        require(address(d.erc1155) != address(0), "sepolia.json: ERC1155 factory missing");
+        require(address(d.erc721) != address(0), "sepolia.json: ERC721 factory missing");
+        require(d.merkleGating != address(0), "sepolia.json: ModuleMerkleGating missing");
+        require(d.stakingModule != address(0), "sepolia.json: ERC404StakingModule missing");
+        require(d.resolverRouter != address(0), "sepolia.json: MetadataResolverRouter missing");
+        require(d.overlay != address(0), "sepolia.json: MetadataOverlayModule missing");
+        require(d.tierResolver != address(0), "sepolia.json: TokenTierBandResolver missing");
     }
 
     // ─────────────────────────── Hand-off state ───────────────────────────
@@ -323,6 +528,16 @@ abstract contract SeedSepoliaShared is Script {
         vm.serializeAddress(root, "cultVault", h.cultVault);
         vm.serializeUint(root, "ms2TargetId", h.ms2TargetId);
         vm.serializeUint(root, "cultTargetId", h.cultTargetId);
+        vm.serializeAddress(root, "editions", h.editions);
+        vm.serializeAddress(root, "gatedEditions", h.gatedEditions);
+        vm.serializeAddress(root, "staking404", h.staking404);
+        vm.serializeAddress(root, "tiers404", h.tiers404);
+        vm.serializeAddress(root, "carve404", h.carve404);
+        vm.serializeAddress(root, "auctionTimed", h.auctionTimed);
+        vm.serializeAddress(root, "auctionLive", h.auctionLive);
+        vm.serializeUint(root, "soldLotId", h.soldLotId);
+        vm.serializeUint(root, "unsoldLotId", h.unsoldLotId);
+        vm.serializeUint(root, "liveLotId", h.liveLotId);
         vm.serializeAddress(root, "all", instances);
         string memory out = vm.serializeString(root, "instances", instancesJson);
 
@@ -350,6 +565,18 @@ abstract contract SeedSepoliaShared is Script {
         h.cultVault = vm.parseJsonAddress(json, ".cultVault");
         h.ms2TargetId = vm.parseJsonUint(json, ".ms2TargetId");
         h.cultTargetId = vm.parseJsonUint(json, ".cultTargetId");
+
+        h.editions = vm.parseJsonAddress(json, ".editions");
+        h.gatedEditions = vm.parseJsonAddress(json, ".gatedEditions");
+        h.staking404 = vm.parseJsonAddress(json, ".staking404");
+        h.tiers404 = vm.parseJsonAddress(json, ".tiers404");
+        h.carve404 = vm.parseJsonAddress(json, ".carve404");
+        h.auctionTimed = vm.parseJsonAddress(json, ".auctionTimed");
+        h.auctionLive = vm.parseJsonAddress(json, ".auctionLive");
+        h.soldLotId = vm.parseJsonUint(json, ".soldLotId");
+        h.unsoldLotId = vm.parseJsonUint(json, ".unsoldLotId");
+        h.liveLotId = vm.parseJsonUint(json, ".liveLotId");
+        _requireBreadthHandoff(h);
 
         instances = new address[](legs.length);
         for (uint256 i = 0; i < legs.length; i++) {
@@ -588,6 +815,500 @@ abstract contract SeedSepoliaShared is Script {
                 address(0), // no gating on the spine rows
                 FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
             );
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════════════════════
+    //                        WAVE 2 — THE OTHER PROJECT TYPES AND MECHANISMS
+    // ══════════════════════════════════════════════════════════════════════════════════════════
+    //
+    // The spine above holds the four ERC404 CURVE STATES. Everything below holds the rest of what a
+    // visitor is told the product does: editions with three pricing regimes, an allowlist, staking,
+    // the metadata stack, Token Tiers, auctions in three states, and the creator carve.
+    //
+    // The same two rules the spine follows apply unchanged: every description states the FEATURE
+    // rather than roleplaying a drop, and every claimed outcome is a `require` rather than a comment.
+
+    // ─────────────────────────── Breadth knobs ───────────────────────────
+
+    function _stakingFillBps() internal view returns (uint256) {
+        return vm.envOr(ENV_STAKING_FILL_BPS, DEFAULT_STAKING_FILL_BPS);
+    }
+
+    function _stakeShareBps() internal view returns (uint256) {
+        uint256 v = vm.envOr(ENV_STAKE_SHARE_BPS, DEFAULT_STAKE_SHARE_BPS);
+        require(v > 0 && v < 10_000, "stake share: must leave the row both a staked and a liquid balance");
+        return v;
+    }
+
+    function _tierUnits() internal view returns (uint256) {
+        uint256 v = vm.envOr(ENV_TIER_UNITS, DEFAULT_TIER_UNITS);
+        // 5 units reach the scarce band, 2 more reach the open band, 1 stays liquid to carry the
+        // commission the overlay is authored on. Below that the phase-2 walk cannot complete.
+        require(v >= DEFAULT_TIER_UNITS, "tier units: below what the tier walk consumes");
+        return v;
+    }
+
+    function _carveFillBps() internal view returns (uint256) {
+        return vm.envOr(ENV_CARVE_FILL_BPS, DEFAULT_CARVE_FILL_BPS);
+    }
+
+    function _auctionDeposit() internal view returns (uint256) {
+        return vm.envOr(ENV_AUCTION_DEPOSIT_WEI, DEFAULT_AUCTION_DEPOSIT);
+    }
+
+    function _auctionBid() internal view returns (uint256) {
+        uint256 bid = vm.envOr(ENV_AUCTION_BID_WEI, DEFAULT_AUCTION_BID);
+        require(bid >= _auctionDeposit(), "auction bid: below the lot's own minimum (BidBelowMinimum)");
+        return bid;
+    }
+
+    function _liveAuctionSeconds() internal view returns (uint256) {
+        return vm.envOr(ENV_LIVE_AUCTION_SECONDS, DEFAULT_LIVE_AUCTION_SECONDS);
+    }
+
+    function _commissionPrice() internal view returns (uint256) {
+        return vm.envOr(ENV_COMMISSION_PRICE_WEI, DEFAULT_COMMISSION_PRICE);
+    }
+
+    /// @dev The timed auction's lots must END inside the wait phase 2 already performs, so their
+    ///      duration IS the arm window. The floor keeps the anti-snipe buffer from dominating: a bid
+    ///      placed within `AUCTION_TIME_BUFFER` of the end extends the lot, which would push the
+    ///      settle past the instant the orchestrator waits for.
+    function _timedAuctionSeconds() internal view returns (uint256) {
+        uint256 window = _armWindow();
+        require(
+            window >= MIN_ARM_WINDOW_FOR_AUCTIONS,
+            "arm window: too short to also carry the timed auction (raise SEPOLIA_ARM_WINDOW_SECONDS)"
+        );
+        return window;
+    }
+
+    // ─────────────────────────── Metadata ───────────────────────────
+
+    /// @dev Backend-free PIECE metadata — the per-edition JSON an ERC1155 edition carries. Same shape
+    ///      as `_collectionMeta`: an unencoded `data:` JSON URI pointing at a content-addressed image.
+    function _pieceMeta(string memory name, string memory image, string memory collection)
+        internal
+        pure
+        returns (string memory)
+    {
+        return string.concat(
+            "data:application/json,{\"schemaVersion\":1,\"name\":\"",
+            name,
+            "\",\"image\":\"",
+            image,
+            "\",\"collection\":\"",
+            collection,
+            "\"}"
+        );
+    }
+
+    // ─────────────────────────── Merkle allowlist ───────────────────────────
+    //
+    // ── WHAT THIS SEEDS, AND WHAT IT DOES NOT ──
+    //
+    // The seeded allowlist is ADDRESS-BOUND, which is what a Merkle allowlist is: a leaf commits to a
+    // wallet AND the cap it was listed with, so a stranger cannot enter it. The showcase standard also
+    // asks for a gated tier a cold visitor can satisfy, and this wave does NOT provide one — the only
+    // gating module the deployment approves is this one, and authoring a second, cold-satisfiable
+    // gating contract is security-relevant work that belongs in its own item rather than in a seed.
+    // The tier's own description says so on-chain, so a visitor is told what they are looking at
+    // rather than left to discover a door they cannot open.
+    //
+    // The list's SECOND member is a derived fixture address rather than a person's wallet: a
+    // single-leaf tree has `root == leaf` and an EMPTY proof, so it would verify without the verifier
+    // ever hashing an internal node. With two members every proof carries a real sibling.
+
+    /// @dev A deterministic, code-free fixture address derived from the deployment's own sender. It
+    ///      holds no key and is nobody's wallet — its only job is to be a second leaf.
+    function _allowlistFixtureMember() internal view returns (address) {
+        return address(uint160(uint256(keccak256(abi.encodePacked("ms2fun.showcase.allowlist.member", deployer)))));
+    }
+
+    /// @dev A second derived fixture address, deliberately NOT listed, so the refusal path
+    ///      (`InvalidProof`) is a checked property of the seed rather than an assumption about it.
+    function _allowlistStranger() internal view returns (address) {
+        return address(uint160(uint256(keccak256(abi.encodePacked("ms2fun.showcase.allowlist.stranger", deployer)))));
+    }
+
+    /// @dev Leaf construction, byte-identical to `MerkleGatingModule.canMint` AND to
+    ///      `app/src/lib/merkle.ts`: `keccak256(bytes.concat(keccak256(abi.encode(user, maxQty))))`.
+    ///      The cap is part of the leaf, which is what stops a listed wallet re-proving itself at a
+    ///      larger cap than it was listed with.
+    function _leaf(address user, uint256 maxQty) internal pure returns (bytes32) {
+        return keccak256(bytes.concat(keccak256(abi.encode(user, maxQty))));
+    }
+
+    /// @dev Solady commutative (sorted-pair) parent hash — the internal node the on-chain verifier and
+    ///      the off-chain builder must agree on.
+    function _hashPair(bytes32 a, bytes32 b) internal pure returns (bytes32) {
+        return uint256(a) <= uint256(b) ? keccak256(abi.encodePacked(a, b)) : keccak256(abi.encodePacked(b, a));
+    }
+
+    /// @dev Build the two-member tier the fixture installs, and PROVE IT BEFORE INSTALLING IT.
+    ///
+    ///      A divergence between the leaf this seed commits and the leaf the app rebuilds surfaces in
+    ///      the UI as an unexplained `InvalidProof`, with nothing to point at. Verifying the seed's own
+    ///      proofs through the very library the module calls moves that failure into the SEED, where it
+    ///      names itself.
+    function _buildAllowlistTier(address a, uint256 aQty, address b, uint256 bQty, address stranger)
+        internal
+        pure
+        returns (bytes32 root, bytes32[] memory proofA, bytes32[] memory proofB)
+    {
+        bytes32 leafA = _leaf(a, aQty);
+        bytes32 leafB = _leaf(b, bQty);
+        require(leafA != leafB, "gating: the two allowlist members collide to one leaf");
+
+        root = _hashPair(leafA, leafB);
+        require(root != bytes32(0), "gating: zero root (configureFor would revert ZeroRoot)");
+
+        proofA = new bytes32[](1);
+        proofA[0] = leafB;
+        proofB = new bytes32[](1);
+        proofB[0] = leafA;
+
+        require(MerkleProofLib.verify(proofA, root, leafA), "gating: member A's proof does not verify");
+        require(MerkleProofLib.verify(proofB, root, leafB), "gating: member B's proof does not verify");
+        require(
+            !MerkleProofLib.verify(proofA, root, _leaf(stranger, aQty)),
+            "gating: the unlisted address verifies at member A's cap"
+        );
+        require(
+            !MerkleProofLib.verify(proofA, root, _leaf(a, aQty + 1)),
+            "gating: member A verifies at a cap it was not listed with"
+        );
+    }
+
+    /// @dev The off-chain `{address,maxQty}[]` list the mint page fetches to rebuild a connected
+    ///      wallet's proof. Self-hosted as a `data:` URI so the fixture needs no network.
+    ///
+    ///      Two details are load-bearing rather than stylistic: the quotes are BACKSLASH-ESCAPED,
+    ///      because this string is embedded as a JSON string value inside collection metadata that is
+    ///      itself an unencoded `data:` JSON URI; and `maxQty` is a QUOTED integer, because a cap
+    ///      denominated in token units does not fit a JSON number exactly.
+    function _allowlistListUri(address a, uint256 aQty, address b, uint256 bQty) internal pure returns (string memory) {
+        return string.concat(
+            "data:application/json,[{\\\"address\\\":\\\"",
+            vm.toString(a),
+            "\\\",\\\"maxQty\\\":\\\"",
+            vm.toString(aQty),
+            "\\\"},{\\\"address\\\":\\\"",
+            vm.toString(b),
+            "\\\",\\\"maxQty\\\":\\\"",
+            vm.toString(bQty),
+            "\\\"}]"
+        );
+    }
+
+    /// @dev Collection metadata carrying an `allowlists` row, so the mint page can find the list for
+    ///      this (editionId, tierIndex) pair. `tierIndex` is 0 — the tier the app resolves, and the
+    ///      reason the seeded tier is tier 0 and open immediately.
+    function _collectionMetaWithAllowlist(
+        string memory name,
+        string memory description,
+        string memory image,
+        uint256 editionId,
+        string memory escapedListUri
+    ) internal pure returns (string memory) {
+        return string.concat(
+            "data:application/json,{\"schemaVersion\":1,\"name\":\"",
+            name,
+            "\",\"description\":\"",
+            description,
+            "\",\"category\":\"edition\",\"image\":\"",
+            image,
+            "\",\"allowlists\":[{\"editionId\":",
+            vm.toString(editionId),
+            ",\"tierIndex\":0,\"listURI\":\"",
+            escapedListUri,
+            "\"}]}"
+        );
+    }
+
+    // ══════════════════════════ Breadth post-conditions ══════════════════════════
+    //
+    // Each mechanism's claim is stated as a plain struct of on-chain-observable FACTS plus a pure
+    // predicate over it. That shape is deliberate and is the whole vacuity story: phase 2 fills the
+    // struct by reading the chain, and `test/coverage/SepoliaShowcaseBreadth.t.sol` fills the same
+    // struct by hand — including the shapes that must make each predicate go RED. An assertion that
+    // only ever sees healthy input is an assertion nobody has shown can fail.
+
+    /// @dev What the hand-off must carry before phase 2 will touch anything.
+    function _requireBreadthHandoff(SeedHandoff memory h) internal pure {
+        require(h.editions != address(0), "seed state: the editions collection is missing");
+        require(h.gatedEditions != address(0), "seed state: the gated collection is missing");
+        require(h.staking404 != address(0), "seed state: the staking row is missing");
+        require(h.tiers404 != address(0), "seed state: the tiers row is missing");
+        require(h.carve404 != address(0), "seed state: the carve row is missing");
+        require(h.auctionTimed != address(0), "seed state: the timed auction is missing");
+        require(h.auctionLive != address(0), "seed state: the live auction is missing");
+        require(h.soldLotId != 0 && h.unsoldLotId != 0, "seed state: the timed auction's lot ids are missing");
+        require(h.soldLotId != h.unsoldLotId, "seed state: both timed lots resolve to the same id");
+        require(h.liveLotId != 0, "seed state: the live auction's lot id is missing");
+    }
+
+    // ── 1. ERC-1155 editions: fixed, LIMITED_DYNAMIC, free claim ──
+
+    struct EditionFacts {
+        uint256 nextEditionId;
+        uint8 fixedModel;
+        uint256 fixedPrice;
+        uint256 fixedSupply;
+        uint8 dynamicModel;
+        uint256 dynamicBasePrice;
+        uint256 dynamicRate;
+        uint256 dynamicPriceAfterProbe;
+        address dynamicModule;
+        uint256 freeClaimAllocation;
+        uint256 freeClaimSupply;
+        uint256 freeClaimMinted;
+    }
+
+    /// @notice The three pricing regimes an edition collection can carry, each asserted as a REGIME
+    ///         rather than as a configuration flag.
+    /// @dev The dynamic row is the one worth reading twice. Checking that `pricingModel` is
+    ///      `LIMITED_DYNAMIC` and the rate is non-zero would pass with a rate too small to see across
+    ///      a handful of mints — a flat curve wearing a dynamic label. So the assertion is about PRICE
+    ///      MOVEMENT: what the module will actually charge after `DYNAMIC_PROBE_MINTS` mints.
+    function _assertEditionShowcase(EditionFacts memory f) internal pure {
+        require(f.nextEditionId == EDITION_FREE_CLAIM + 1, "editions: the collection does not carry all three editions");
+
+        require(f.fixedModel == uint8(ERC1155Instance.PricingModel.LIMITED_FIXED), "editions: fixed row is not fixed");
+        require(f.fixedPrice > 0, "editions: fixed row has no price");
+        require(f.fixedSupply > 0, "editions: fixed row has no supply to mint from");
+
+        require(
+            f.dynamicModel == uint8(ERC1155Instance.PricingModel.LIMITED_DYNAMIC),
+            "editions: dynamic row is not LIMITED_DYNAMIC"
+        );
+        require(f.dynamicModule != address(0), "editions: no dynamic pricing module is wired to the instance");
+        require(f.dynamicBasePrice > 0 && f.dynamicRate > 0, "editions: dynamic row has no base price or no rate");
+        require(
+            f.dynamicPriceAfterProbe >= f.dynamicBasePrice * DYNAMIC_MIN_MULTIPLE,
+            "editions: the dynamic price does not move enough to be visible across a handful of mints"
+        );
+
+        require(f.freeClaimAllocation > 0, "editions: the free-claim row reserves nothing (nothing is claimable)");
+        require(
+            f.freeClaimAllocation <= f.freeClaimSupply,
+            "editions: the free-claim reservation exceeds the row's own supply"
+        );
+        // Headroom, not merely presence: the claim is one-per-address, so a reservation a single
+        // visitor could exhaust would leave the next visitor a dead button.
+        require(f.freeClaimMinted < f.freeClaimAllocation, "editions: the free-claim reservation is already exhausted");
+    }
+
+    // ── 2. Merkle allowlist gating ──
+
+    struct GatingFacts {
+        address attachedModule;
+        address expectedModule;
+        uint8 scope;
+        uint256 installedTierCount;
+        bytes32 installedRoot;
+        bytes32 provenRoot;
+        uint256 tierOpenTime;
+        uint256 freeClaimAllocation;
+        bool listedMemberVerifies;
+        bool unlistedAddressRejected;
+    }
+
+    /// @notice The allowlist is INSTALLED, OPEN, and DISCRIMINATING.
+    /// @dev The last two facts are what stop this being a label. A root can be installed on a tier
+    ///      that never opens, and a "gate" that accepts every proof is an open collection wearing a
+    ///      gated description — so the seed re-verifies both a listed member and an unlisted address
+    ///      against the root it actually installed, through the same library the module calls.
+    function _assertGatingShowcase(GatingFacts memory f, uint256 nowTs) internal pure {
+        require(f.attachedModule != address(0), "gating: no gating module is attached to the collection");
+        require(f.attachedModule == f.expectedModule, "gating: the attached module is not the approved one");
+        require(f.scope == uint8(GatingScope.BOTH), "gating: scope is not BOTH (the paid path would be ungated)");
+        require(f.installedTierCount >= 1, "gating: no tier was installed");
+        require(f.installedRoot != bytes32(0), "gating: the installed root is zero");
+        require(f.installedRoot == f.provenRoot, "gating: the installed root is not the root that was proven");
+        require(f.tierOpenTime <= nowTs, "gating: the seeded tier has not opened (nobody can mint through it)");
+        require(f.freeClaimAllocation > 0, "gating: the gated free claim reserves nothing");
+        require(f.listedMemberVerifies, "gating: a listed member does not verify against the installed root");
+        require(f.unlistedAddressRejected, "gating: an unlisted address verifies (the gate refuses nobody)");
+    }
+
+    // ── 3. Staking ──
+
+    struct StakingFacts {
+        address module;
+        address expectedModule;
+        bool active;
+        uint256 userStaked;
+        uint256 totalStaked;
+        uint256 liquidBalance;
+    }
+
+    /// @notice The stake/unstake surface is wired, enabled, and carries a real position.
+    /// @dev This wave asserts the SURFACE, not a running stream. The module's only funding path is a
+    ///      real LP-fee delta through `claimAllFees`, which needs pool depth and swap volume that a
+    ///      later wave seeds; manufacturing a reward here would fabricate the source. What is checked
+    ///      is therefore everything that must be true for that stream to start crediting the moment it
+    ///      is funded — and the row keeps a LIQUID balance so the stake action is walkable again.
+    function _assertStakingShowcase(StakingFacts memory f) internal pure {
+        require(f.module != address(0), "staking: no staking module is wired to the row");
+        require(f.module == f.expectedModule, "staking: the wired module is not the approved one");
+        require(f.active, "staking: the row's staking is not activated");
+        require(f.userStaked > 0, "staking: the row carries no staked position");
+        require(f.totalStaked >= f.userStaked, "staking: the module's total is below the seeded position");
+        require(f.liquidBalance > 0, "staking: the whole position is locked (the stake action is unwalkable)");
+    }
+
+    // ── 4/5. Metadata stack and Token Tiers ──
+
+    struct TierFacts {
+        uint256 scarceCapacity;
+        uint256 scarceOutstanding;
+        uint256 openCapacity;
+        uint256 openOutstanding;
+        uint256 totalTierEscrow;
+        bool commissionPaid;
+        uint256 waveCount;
+        string baseArt;
+        string bandArt;
+        string commissionArt;
+    }
+
+    /// @notice Mint-up, mint-down, an EXHAUSTED band, and three visibly different metadata layers.
+    /// @dev The exhaustion check is the one §3 asks for by name: the scarce band's outstanding count
+    ///      equalling its capacity is exactly the condition under which the next `mintUp` into it
+    ///      reverts `BandExhausted`. The open band is asserted to still have room, because the seed
+    ///      minted down out of it — without that, "reversible" is a claim rather than an outcome.
+    ///
+    ///      The three art strings are compared for INEQUALITY rather than checked for presence. The
+    ///      precedence stack (overlay over band over base) is only demonstrated if the three layers
+    ///      resolve to visibly different pictures; three pointers into one collection would render as
+    ///      one image three times and show nothing.
+    function _assertTierShowcase(TierFacts memory f) internal pure {
+        require(f.scarceCapacity > 0, "tiers: the scarce band has no capacity (the ladder was not sealed)");
+        require(
+            f.scarceOutstanding == f.scarceCapacity,
+            "tiers: the scarce band is not exhausted (BandExhausted is unobservable)"
+        );
+        require(f.openCapacity > f.openOutstanding, "tiers: the open band has no room left to mint up into");
+        require(f.totalTierEscrow > 0, "tiers: no coin is escrowed behind a band (no mint-up survived)");
+        require(f.commissionPaid, "tiers: the paid commission was never settled");
+        require(f.waveCount > 0, "tiers: no event wave was published");
+
+        require(bytes(f.baseArt).length > 0, "tiers: the collection has no piece art");
+        require(!_eq(f.baseArt, f.bandArt), "tiers: band art is the same collection as the base art");
+        require(!_eq(f.baseArt, f.commissionArt), "tiers: commission art is the same collection as the base art");
+        require(!_eq(f.bandArt, f.commissionArt), "tiers: commission art is the same collection as the band art");
+    }
+
+    // ── 6. ERC-721 auctions ──
+
+    struct AuctionLotFacts {
+        string label;
+        bool settled;
+        address highBidder;
+        uint256 highBid;
+        uint256 endTime;
+        bool minted;
+        address tokenOwner;
+    }
+
+    /// @notice The three auction states, each asserted by the fact that distinguishes it.
+    /// @dev `settled` is set by BOTH terminal paths, so it cannot tell a sold lot from a reclaimed
+    ///      one on its own. What separates them is the token: `settleAuction` mints it to the winner,
+    ///      `reclaimUnsold` never mints at all. So the sold lot is checked to be OWNED BY ITS WINNER
+    ///      and the reclaimed lot to have no token in existence — remove the settle and the first goes
+    ///      red, remove the reclaim and the second still shows a live unsettled lot.
+    function _assertAuctionShowcase(
+        AuctionLotFacts memory live,
+        AuctionLotFacts memory sold,
+        AuctionLotFacts memory reclaimed,
+        uint256 nowTs
+    ) internal pure {
+        // LIVE: still running, so a visitor can bid into it.
+        require(!live.settled, string.concat("auctions: ", live.label, " is already settled"));
+        require(live.endTime > nowTs, string.concat("auctions: ", live.label, " has already ended"));
+        require(!live.minted, string.concat("auctions: ", live.label, " already minted its token"));
+
+        // SETTLED: ended with a bid, and the winner holds the piece.
+        require(sold.settled, string.concat("auctions: ", sold.label, " was never settled"));
+        require(sold.endTime <= nowTs, string.concat("auctions: ", sold.label, " has not ended"));
+        require(sold.highBidder != address(0), string.concat("auctions: ", sold.label, " settled with no bidder"));
+        require(sold.highBid > 0, string.concat("auctions: ", sold.label, " settled on a zero bid"));
+        require(sold.minted, string.concat("auctions: ", sold.label, " settled without minting its token"));
+        require(
+            sold.tokenOwner == sold.highBidder, string.concat("auctions: ", sold.label, " token is not the winner's")
+        );
+
+        // RECLAIMED: ended with no bid, the deposit returned, no token ever minted.
+        require(reclaimed.settled, string.concat("auctions: ", reclaimed.label, " was never reclaimed"));
+        require(reclaimed.endTime <= nowTs, string.concat("auctions: ", reclaimed.label, " has not ended"));
+        require(
+            reclaimed.highBidder == address(0),
+            string.concat("auctions: ", reclaimed.label, " carried a bid (it is a settled lot, not a reclaimed one)")
+        );
+        require(!reclaimed.minted, string.concat("auctions: ", reclaimed.label, " minted a token on reclaim"));
+    }
+
+    // ── 7. The carve ──
+
+    struct CarveFacts {
+        uint16 declaredMaxBps;
+        uint256 requestBps;
+        uint256 raise;
+        uint256 effectiveCarveEth;
+        uint256 minPoolEth;
+        bool graduated;
+    }
+
+    /// @notice The carve was DECLARED, REQUESTED, and settled at the protocol's own figure.
+    /// @dev The declaration is the disclosure surface — immutable per instance and readable before the
+    ///      first buy — so it is asserted to be on-chain and non-zero regardless of what the carve
+    ///      pays out.
+    ///
+    ///      The payout itself is a DEPTH question, and this assertion states it as one rather than
+    ///      asserting a number the seed's own fill decides. `effectiveCarveEth` is the minimum of the
+    ///      request, the bracket allowance, and the LP share's headroom ABOVE the pool floor — so on a
+    ///      raise whose LP share does not clear that floor the effective carve is zero BY THE
+    ///      PROTOCOL'S DESIGN, and asserting otherwise would be asserting that the seed bought depth.
+    ///      What is checked is the consistency of the two: below the floor the carve must be zero, and
+    ///      above it, having requested the declared maximum, it must not be.
+    function _assertCarveShowcase(CarveFacts memory f) internal pure {
+        require(f.declaredMaxBps > 0, "carve: the row declares no allowance (there is no disclosure to read)");
+        require(f.requestBps > 0, "carve: no carve was requested at graduation");
+        require(f.graduated, "carve: the row did not graduate");
+        require(f.raise > 0, "carve: the row graduated on an empty raise");
+
+        uint256 lpShare = RevenueSplitLib.split(f.raise).remainder;
+        if (lpShare <= f.minPoolEth) {
+            require(
+                f.effectiveCarveEth == 0,
+                "carve: a carve was paid out of a raise whose LP share does not clear the pool floor"
+            );
+        } else {
+            require(
+                f.effectiveCarveEth > 0,
+                "carve: the raise clears the pool floor but the declared-maximum request paid nothing"
+            );
+            require(
+                f.effectiveCarveEth <= lpShare - f.minPoolEth,
+                "carve: the payout exceeds the headroom the LP share has above the pool floor"
+            );
+        }
+    }
+
+    /// @dev The raise at which a full-allowance carve stops clamping to zero: the smallest raise whose
+    ///      LP share strictly exceeds the pool floor. Printed by the seed rather than asserted,
+    ///      because whether to buy that much curve is a depth decision, not a seed decision.
+    function _carveThresholdRaise(uint256 minPoolEth_) internal pure returns (uint256) {
+        // `split` sends 1% to the protocol and 19% to the vault; the remainder is the LP share. Solve
+        // `remainder(raise) > floor` by inverting that 80%, then add one wei to make it strict.
+        return (minPoolEth_ * 100) / 80 + 1;
+    }
+
+    // ─────────────────────────── String equality ───────────────────────────
+
+    function _eq(string memory a, string memory b) internal pure returns (bool) {
+        return keccak256(bytes(a)) == keccak256(bytes(b));
     }
 }
 
