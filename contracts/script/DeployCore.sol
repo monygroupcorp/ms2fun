@@ -19,6 +19,7 @@ import { CypherAlignmentVaultFactory } from "../src/vaults/cypher/CypherAlignmen
 import { IZAMM, ZAMMAlignmentVault } from "../src/vaults/zamm/ZAMMAlignmentVault.sol";
 import { ZAMMAlignmentVaultFactory } from "../src/vaults/zamm/ZAMMAlignmentVaultFactory.sol";
 import { AlignmentEndowmentVaultFactory } from "../src/vaults/aave/AlignmentEndowmentVaultFactory.sol";
+import { IStataToken } from "../src/vaults/aave/AlignmentEndowmentVault.sol";
 import { UniswapVaultPriceValidator } from "../src/peripherals/UniswapVaultPriceValidator.sol";
 import { IVaultPriceValidator } from "../src/interfaces/IVaultPriceValidator.sol";
 import { PoolKey } from "v4-core/types/PoolKey.sol";
@@ -85,6 +86,20 @@ contract DeployCore is Script {
         address cypherAlgebraFactory;
         address zamm;
         address aaveStataToken; // Aave WETH StaticATokenV2 (waEthWETH); address(0) = no endowment vault
+        // WETH the Aave endowment family wraps into before supplying `aaveStataToken`. The vault wraps
+        // ETH with this token and the stataToken then pulls its OWN `asset()`, so the two must be the
+        // same ERC-20 or every contribution reverts inside `stataToken.deposit`.
+        //
+        // address(0) = DEFAULT TO `weth`, which is the mainnet and anvil-fork shape: Aave's mainnet
+        // waEthWETH `asset()` IS canonical WETH, so the field is a no-op there and no network config
+        // needs to carry it. It exists for a network whose Aave market is fronted by its own test WETH
+        // (Sepolia), where the endowment family alone must use that token while the rest of the
+        // deployment keeps the network's canonical WETH.
+        //
+        // Set ONCE here, at deploy, and read into the factory's immutable — there is no per-vault
+        // caller input and no setter, so the trust surface is this config and nothing else.
+        // `deploy()` asserts `IStataToken(aaveStataToken).asset() == aaveWeth` before wiring it.
+        address aaveWeth;
 
         // Pre-existing contracts — address(0) = deploy fresh
         address zrouter;
@@ -356,8 +371,20 @@ contract DeployCore is Script {
 
         // Aave endowment vault factory (ADR-0003) — only where Aave's WETH stataToken exists.
         if (cfg.aaveStataToken != address(0)) {
+            // The endowment family's WETH: `cfg.aaveWeth` when set, otherwise `cfg.weth`. Unset is the
+            // mainnet/anvil-fork shape and resolves to exactly the token every other family uses.
+            address aaveWeth = cfg.aaveWeth == address(0) ? cfg.weth : cfg.aaveWeth;
+            // Deploy-time invariant: the vault wraps ETH into `aaveWeth` and then calls
+            // `stataToken.deposit`, which pulls the stataToken's own `asset()`. If those differ, every
+            // contribution reverts and the vault holds the wrong token — so bind them here and fail the
+            // deploy loudly instead of shipping a vault that cannot take a deposit.
+            address stataAsset = IStataToken(cfg.aaveStataToken).asset();
+            require(
+                stataAsset == aaveWeth,
+                "DeployCore: cfg.aaveWeth does not match the Aave stataToken's asset() (set cfg.aaveWeth)"
+            );
             aaveVaultFactory = new AlignmentEndowmentVaultFactory(
-                cfg.weth, cfg.aaveStataToken, address(treasury), masterRegistry, alignmentRegistry
+                aaveWeth, cfg.aaveStataToken, address(treasury), masterRegistry, alignmentRegistry
             );
             // Permissionless creation (noesis-077): register + activate the Aave factory as a first-class
             // IFactory BEFORE the Phase-5 seed loop. The factory self-registers each vault it deploys

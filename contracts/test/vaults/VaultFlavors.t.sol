@@ -39,6 +39,10 @@ contract VaultFlavorsTest is Test {
     function setUp() public {
         vm.etch(CREATEX, CREATEX_BYTECODE);
         vm.etch(STUB_LINK, RETURN_TRUE); // doubles as weth stub — approve() returns true
+        // The Aave deploy path asserts the stataToken's `asset()` equals the endowment family's WETH,
+        // so the stub must answer it. `cfg.aaveWeth` is left unset in this config, which resolves to
+        // `cfg.weth` (STUB_LINK) — the default path every network but Sepolia takes.
+        vm.mockCall(STUB_STATA, abi.encodeWithSignature("asset()"), abi.encode(STUB_LINK));
 
         s = new DeployCore();
         s.deploy(address(s), _allFamiliesConfig());
