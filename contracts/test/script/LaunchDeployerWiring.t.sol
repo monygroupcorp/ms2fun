@@ -10,7 +10,7 @@ import { IComponentRegistry } from "../../src/registry/interfaces/IComponentRegi
 import { LiquidityDeployerModule } from "../../src/factories/erc404/LiquidityDeployerModule.sol";
 import { ZAMMLiquidityDeployerModule } from "../../src/factories/erc404zamm/ZAMMLiquidityDeployerModule.sol";
 import { CypherLiquidityDeployerModule } from "../../src/factories/erc404cypher/CypherLiquidityDeployerModule.sol";
-import { zRouter } from "../../src/peripherals/zRouter.sol";
+import { zRouter, mainnetChainConfig } from "../../src/peripherals/zRouter.sol";
 
 /**
  * @title LaunchDeployerWiring
@@ -70,7 +70,7 @@ contract LaunchDeployerWiringTest is Test {
     /// @notice Mainnet-shaped deploy: all three LP deployers are the REAL modules, zero mocks under
     ///         LIQUIDITY_DEPLOYER, and the canonical zRouter is reused.
     function test_mainnetLike_allRealDeployers_noMockUnderFunctionalTag() public {
-        zRouter canonical = new zRouter();
+        zRouter canonical = new zRouter(mainnetChainConfig());
 
         DeployCore s = new DeployCore();
         s.deploy(address(s), _mainnetLikeConfig(address(canonical)));
