@@ -282,10 +282,12 @@ contract ValidateSepoliaTest is Test {
         validator.run();
     }
 
-    /// @dev The checked-in Sepolia record must actually carry the keys the validator resolves from,
-    ///      so the production path is not just a test-only shape.
+    /// @dev The superseded 2026-03-26 Sepolia record must still carry the keys the validator
+    ///      resolves from, so the production path is not just a test-only shape. The live
+    ///      `deployments/sepolia.json` is written by the deploy run and is not committed; this
+    ///      historical record keeps the real-record shape under test until a new one lands.
     function test_sepoliaRecordCarriesTheKeysTheValidatorReads() public view {
-        string memory json = vm.readFile("./deployments/sepolia.json");
+        string memory json = vm.readFile("./deployments/superseded/2026-03-26/sepolia.json");
         assertTrue(vm.parseJsonAddress(json, ".contracts.LaunchManager") != address(0), "LaunchManager in record");
         assertTrue(vm.parseJsonAddress(json, ".factories.ERC404") != address(0), "ERC404 factory in record");
     }
