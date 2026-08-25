@@ -14452,9 +14452,153 @@ export const zammLiquidityDeployerModuleAbi = [
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export const zRouterAbi = [
-  { type: 'constructor', inputs: [], stateMutability: 'payable' },
+  {
+    type: 'constructor',
+    inputs: [
+      {
+        name: 'c',
+        internalType: 'struct ChainConfig',
+        type: 'tuple',
+        components: [
+          { name: 'weth', internalType: 'address', type: 'address' },
+          { name: 'v4PoolManager', internalType: 'address', type: 'address' },
+          { name: 'v3Factory', internalType: 'address', type: 'address' },
+          {
+            name: 'v3PoolInitCodeHash',
+            internalType: 'bytes32',
+            type: 'bytes32',
+          },
+          { name: 'v2Factory', internalType: 'address', type: 'address' },
+          {
+            name: 'v2PoolInitCodeHash',
+            internalType: 'bytes32',
+            type: 'bytes32',
+          },
+          { name: 'sushiFactory', internalType: 'address', type: 'address' },
+          {
+            name: 'sushiPoolInitCodeHash',
+            internalType: 'bytes32',
+            type: 'bytes32',
+          },
+          { name: 'zamm', internalType: 'address', type: 'address' },
+          { name: 'zamm0', internalType: 'address', type: 'address' },
+          { name: 'steth', internalType: 'address', type: 'address' },
+          { name: 'wsteth', internalType: 'address', type: 'address' },
+          { name: 'dai', internalType: 'address', type: 'address' },
+          { name: 'permit2', internalType: 'address', type: 'address' },
+          { name: 'nameNft', internalType: 'address', type: 'address' },
+        ],
+      },
+    ],
+    stateMutability: 'payable',
+  },
   { type: 'fallback', stateMutability: 'payable' },
   { type: 'receive', stateMutability: 'payable' },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'DAI',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'NAME_NFT',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'PERMIT2',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'STETH',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'SUSHI_FACTORY',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'SUSHI_POOL_INIT_CODE_HASH',
+    outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'V2_FACTORY',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'V2_POOL_INIT_CODE_HASH',
+    outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'V3_FACTORY',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'V3_POOL_INIT_CODE_HASH',
+    outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'V4_POOL_MANAGER',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'WETH',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'WSTETH',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'ZAMM',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'ZAMM_0',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
   {
     type: 'function',
     inputs: [
@@ -14848,6 +14992,7 @@ export const zRouterAbi = [
   { type: 'error', inputs: [], name: 'Expired' },
   { type: 'error', inputs: [], name: 'InvalidId' },
   { type: 'error', inputs: [], name: 'InvalidMsgVal' },
+  { type: 'error', inputs: [], name: 'LegUnavailable' },
   { type: 'error', inputs: [], name: 'Slippage' },
   {
     type: 'error',
@@ -29330,6 +29475,129 @@ export const useWatchZammLiquidityDeployerModuleVaultCutRedirectedEvent =
  */
 export const useReadZRouter = /*#__PURE__*/ createUseReadContract({
   abi: zRouterAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"DAI"`
+ */
+export const useReadZRouterDai = /*#__PURE__*/ createUseReadContract({
+  abi: zRouterAbi,
+  functionName: 'DAI',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"NAME_NFT"`
+ */
+export const useReadZRouterNameNft = /*#__PURE__*/ createUseReadContract({
+  abi: zRouterAbi,
+  functionName: 'NAME_NFT',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"PERMIT2"`
+ */
+export const useReadZRouterPermit2 = /*#__PURE__*/ createUseReadContract({
+  abi: zRouterAbi,
+  functionName: 'PERMIT2',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"STETH"`
+ */
+export const useReadZRouterSteth = /*#__PURE__*/ createUseReadContract({
+  abi: zRouterAbi,
+  functionName: 'STETH',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"SUSHI_FACTORY"`
+ */
+export const useReadZRouterSushiFactory = /*#__PURE__*/ createUseReadContract({
+  abi: zRouterAbi,
+  functionName: 'SUSHI_FACTORY',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"SUSHI_POOL_INIT_CODE_HASH"`
+ */
+export const useReadZRouterSushiPoolInitCodeHash =
+  /*#__PURE__*/ createUseReadContract({
+    abi: zRouterAbi,
+    functionName: 'SUSHI_POOL_INIT_CODE_HASH',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"V2_FACTORY"`
+ */
+export const useReadZRouterV2Factory = /*#__PURE__*/ createUseReadContract({
+  abi: zRouterAbi,
+  functionName: 'V2_FACTORY',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"V2_POOL_INIT_CODE_HASH"`
+ */
+export const useReadZRouterV2PoolInitCodeHash =
+  /*#__PURE__*/ createUseReadContract({
+    abi: zRouterAbi,
+    functionName: 'V2_POOL_INIT_CODE_HASH',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"V3_FACTORY"`
+ */
+export const useReadZRouterV3Factory = /*#__PURE__*/ createUseReadContract({
+  abi: zRouterAbi,
+  functionName: 'V3_FACTORY',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"V3_POOL_INIT_CODE_HASH"`
+ */
+export const useReadZRouterV3PoolInitCodeHash =
+  /*#__PURE__*/ createUseReadContract({
+    abi: zRouterAbi,
+    functionName: 'V3_POOL_INIT_CODE_HASH',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"V4_POOL_MANAGER"`
+ */
+export const useReadZRouterV4PoolManager = /*#__PURE__*/ createUseReadContract({
+  abi: zRouterAbi,
+  functionName: 'V4_POOL_MANAGER',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"WETH"`
+ */
+export const useReadZRouterWeth = /*#__PURE__*/ createUseReadContract({
+  abi: zRouterAbi,
+  functionName: 'WETH',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"WSTETH"`
+ */
+export const useReadZRouterWsteth = /*#__PURE__*/ createUseReadContract({
+  abi: zRouterAbi,
+  functionName: 'WSTETH',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"ZAMM"`
+ */
+export const useReadZRouterZamm = /*#__PURE__*/ createUseReadContract({
+  abi: zRouterAbi,
+  functionName: 'ZAMM',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"ZAMM_0"`
+ */
+export const useReadZRouterZamm_0 = /*#__PURE__*/ createUseReadContract({
+  abi: zRouterAbi,
+  functionName: 'ZAMM_0',
 })
 
 /**

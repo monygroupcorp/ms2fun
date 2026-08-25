@@ -39,7 +39,7 @@ import { ERC1155Factory } from "../src/factories/erc1155/ERC1155Factory.sol";
 import { DynamicPricingModule } from "../src/factories/erc1155/DynamicPricingModule.sol";
 import { ERC721AuctionFactory } from "../src/factories/erc721/ERC721AuctionFactory.sol";
 import { QueryAggregator } from "../src/query/QueryAggregator.sol";
-import { zRouter } from "../src/peripherals/zRouter.sol";
+import { zRouter, ChainConfig, mainnetChainConfig } from "../src/peripherals/zRouter.sol";
 import { MerkleGatingModule } from "../src/gating/MerkleGatingModule.sol";
 import { FeatureUtils } from "../src/master/libraries/FeatureUtils.sol";
 import { MockComponentModule } from "../test/mocks/MockComponentModule.sol";
@@ -103,6 +103,13 @@ contract DeployCore is Script {
 
         // Pre-existing contracts — address(0) = deploy fresh
         address zrouter;
+        // Chain bindings for a SELF-DEPLOYED zRouter (only read when `zrouter` is address(0)).
+        // Left entirely zero — the mainnet and anvil-fork shape — the router is deployed with
+        // `mainnetChainConfig()`, i.e. exactly the addresses it carried as compile-time constants.
+        // A network that self-deploys the router off mainnet fills this in: every venue it has, and
+        // address(0) for every venue it does not, so an absent leg reverts instead of routing at a
+        // mainnet address that means nothing there. `weth` != 0 is what marks the field as supplied.
+        ChainConfig zrouterChain;
         address safe;
 
         // On-chain best-route quoter (`zQuoter.getQuotes`) wired into every vault factory so deployed
@@ -324,7 +331,9 @@ contract DeployCore is Script {
 
         // ── Phase 3: zRouter ─────────────────────────────────────────────────
 
-        zrouter = cfg.zrouter != address(0) ? zRouter(payable(cfg.zrouter)) : new zRouter();
+        zrouter = cfg.zrouter != address(0)
+            ? zRouter(payable(cfg.zrouter))
+            : new zRouter(cfg.zrouterChain.weth != address(0) ? cfg.zrouterChain : mainnetChainConfig());
 
         // ── Phase 4: Vault infrastructure ───────────────────────────────────
 

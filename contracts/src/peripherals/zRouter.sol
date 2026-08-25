@@ -1,6 +1,49 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+/// @notice Deploy-time binding of every chain-specific address the router routes through.
+/// @dev    Any member left at `address(0)` marks that venue as absent on the target network. The
+///         corresponding leg then reverts — either through the high-level call's own extcodesize
+///         check, or through an explicit `LegUnavailable()` guard where the leg reaches the address
+///         with raw assembly that would otherwise succeed against a codeless target.
+struct ChainConfig {
+    address weth;
+    address v4PoolManager;
+    address v3Factory;
+    bytes32 v3PoolInitCodeHash;
+    address v2Factory;
+    bytes32 v2PoolInitCodeHash;
+    address sushiFactory;
+    bytes32 sushiPoolInitCodeHash;
+    address zamm;
+    address zamm0;
+    address steth;
+    address wsteth;
+    address dai;
+    address permit2;
+    address nameNft;
+}
+
+/// @notice The canonical Ethereum mainnet binding set — the addresses this router carried as
+///         compile-time constants before they became deploy-time immutables.
+function mainnetChainConfig() pure returns (ChainConfig memory c) {
+    c.weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    c.v4PoolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
+    c.v3Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+    c.v3PoolInitCodeHash = 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54;
+    c.v2Factory = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
+    c.v2PoolInitCodeHash = 0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f;
+    c.sushiFactory = 0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac;
+    c.sushiPoolInitCodeHash = 0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303;
+    c.zamm = 0x000000000000040470635EB91b7CE4D132D616eD;
+    c.zamm0 = 0x00000000000008882D72EfA6cCE4B6a40b24C860;
+    c.steth = 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
+    c.wsteth = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
+    c.dai = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
+    c.permit2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+    c.nameNft = 0x0000000000696760E15f265e828DB644A0c242EB;
+}
+
 /// @dev uniV2 / uniV3 / uniV4 / zAMM
 ///      multi-amm multi-call router
 ///      optimized with simple abi.
@@ -8,6 +51,11 @@ pragma solidity ^0.8.28;
 ///      and a Curve AMM swapper,
 ///      as well as Lido staker,
 ///      and generic executor.
+///
+/// @dev Every chain-specific address the router routes through is bound at deploy time through
+///      `ChainConfig` and held as an immutable, so one source deploys to any network.
+///      `mainnetChainConfig()` carries the canonical mainnet set. A venue that does not exist on the
+///      target network is bound to `address(0)`; its leg then reverts instead of routing anywhere.
 contract zRouter {
     error BadSwap();
     error Expired();
@@ -20,7 +68,28 @@ contract zRouter {
     error ETHTransferFailed();
     error SnwapSlippage(address token, uint256 received, uint256 minimum);
 
+    /// @dev A leg whose chain binding is `address(0)` on this deployment's network.
+    error LegUnavailable();
+
     SafeExecutor public immutable safeExecutor;
+
+    // ** CHAIN BINDINGS (see `ChainConfig`) ────────────────────────────────
+
+    address public immutable WETH;
+    address public immutable V4_POOL_MANAGER;
+    address public immutable V3_FACTORY;
+    bytes32 public immutable V3_POOL_INIT_CODE_HASH;
+    address public immutable V2_FACTORY;
+    bytes32 public immutable V2_POOL_INIT_CODE_HASH;
+    address public immutable SUSHI_FACTORY;
+    bytes32 public immutable SUSHI_POOL_INIT_CODE_HASH;
+    address public immutable ZAMM;
+    address public immutable ZAMM_0;
+    address public immutable STETH;
+    address public immutable WSTETH;
+    address public immutable DAI;
+    address public immutable PERMIT2;
+    address public immutable NAME_NFT;
 
     modifier checkDeadline(uint256 deadline) {
         require(block.timestamp <= deadline, Expired());
@@ -29,9 +98,29 @@ contract zRouter {
 
     event OwnershipTransferred(address indexed from, address indexed to);
 
-    constructor() payable {
+    constructor(ChainConfig memory c) payable {
+        // WETH is read through low-level calls that ignore a codeless target, so a zero binding would
+        // burn ETH rather than revert. It is the one binding this router cannot be deployed without.
+        require(c.weth != address(0), LegUnavailable());
+
+        WETH = c.weth;
+        V4_POOL_MANAGER = c.v4PoolManager;
+        V3_FACTORY = c.v3Factory;
+        V3_POOL_INIT_CODE_HASH = c.v3PoolInitCodeHash;
+        V2_FACTORY = c.v2Factory;
+        V2_POOL_INIT_CODE_HASH = c.v2PoolInitCodeHash;
+        SUSHI_FACTORY = c.sushiFactory;
+        SUSHI_POOL_INIT_CODE_HASH = c.sushiPoolInitCodeHash;
+        ZAMM = c.zamm;
+        ZAMM_0 = c.zamm0;
+        STETH = c.steth;
+        WSTETH = c.wsteth;
+        DAI = c.dai;
+        PERMIT2 = c.permit2;
+        NAME_NFT = c.nameNft;
+
         safeExecutor = new SafeExecutor();
-        if (STETH.code.length > 0) safeApprove(STETH, WSTETH, type(uint256).max); // lido (mainnet only)
+        if (c.steth.code.length > 0) safeApprove(c.steth, c.wsteth, type(uint256).max); // lido
         emit OwnershipTransferred(address(0), _owner = tx.origin);
     }
 
@@ -82,7 +171,7 @@ contract zRouter {
                 if (_useTransientBalance(address(this), tokenIn, 0, amountIn)) {
                     safeTransfer(tokenIn, pool, amountIn);
                 } else if (ethIn) {
-                    wrapETH(pool, amountIn);
+                    wrapETH(WETH, pool, amountIn);
                     if (to != address(this)) {
                         if (msg.value > amountIn) {
                             _safeTransferETH(msg.sender, msg.value - amountIn);
@@ -101,7 +190,7 @@ contract zRouter {
         }
 
         if (ethOut) {
-            unwrapETH(amountOut);
+            unwrapETH(WETH, amountOut);
             _safeTransferETH(to, amountOut);
         } else {
             depositFor(tokenOut, 0, amountOut, to); // marks output target
@@ -199,13 +288,13 @@ contract zRouter {
             if (_useTransientBalance(address(this), tokenIn, 0, amountRequired)) {
                 safeTransfer(tokenIn, pool, amountRequired);
             } else if (ethIn) {
-                wrapETH(pool, amountRequired);
+                wrapETH(WETH, pool, amountRequired);
             } else {
                 safeTransferFrom(tokenIn, payer, pool, amountRequired);
             }
             if (ethOut) {
                 uint256 amountOut = uint256(-(zeroForOne ? amount1Delta : amount0Delta));
-                unwrapETH(amountOut);
+                unwrapETH(WETH, amountOut);
                 _safeTransferETH(to, amountOut);
             }
         }
@@ -366,6 +455,9 @@ contract zRouter {
         }
 
         address dst = deadline != type(uint256).max ? ZAMM : ZAMM_0; // support hookless zAMM
+        // The venue is reached with a low-level `call`, which succeeds against a codeless address:
+        // guard explicitly so an unbound zAMM on this network reverts here rather than downstream.
+        require(dst != address(0), LegUnavailable());
         unchecked {
             if (dst == ZAMM_0) {
                 key.feeOrHook = uint256(uint96(key.feeOrHook));
@@ -537,7 +629,7 @@ contract zRouter {
                         }
                         curIn = WETH;
                     } else if (curIn == WETH && _isETH(nextToken)) {
-                        unwrapETH(amount);
+                        unwrapETH(WETH, amount);
                         curIn = address(0); // normalize to 0x00 internally
                     } else {
                         revert BadSwap();
@@ -646,7 +738,7 @@ contract zRouter {
                 // refund any *WETH* dust created by positive slippage:
                 uint256 w = balanceOf(WETH);
                 if (w != 0) {
-                    unwrapETH(w);
+                    unwrapETH(WETH, w);
                     _safeTransferETH(msg.sender, w);
                 }
             } else {
@@ -828,14 +920,14 @@ contract zRouter {
     }
 
     function unwrap(uint256 amount) public payable {
-        unwrapETH(amount == 0 ? balanceOf(WETH) : amount);
+        unwrapETH(WETH, amount == 0 ? balanceOf(WETH) : amount);
     }
 
     // ** POOL HELPERS
 
     function _v2PoolFor(address tokenA, address tokenB, bool sushi)
         internal
-        pure
+        view
         returns (address v2pool, bool zeroForOne)
     {
         unchecked {
@@ -860,7 +952,7 @@ contract zRouter {
 
     function _v3PoolFor(address tokenA, address tokenB, uint24 fee)
         internal
-        pure
+        view
         returns (address v3pool, bool zeroForOne)
     {
         (address token0, address token1, bool zF1) = _sortTokens(tokenA, tokenB);
@@ -868,12 +960,14 @@ contract zRouter {
         v3pool = _computeV3pool(token0, token1, fee);
     }
 
-    function _computeV3pool(address token0, address token1, uint24 fee) internal pure returns (address v3pool) {
+    function _computeV3pool(address token0, address token1, uint24 fee) internal view returns (address v3pool) {
         bytes32 salt = _hash(token0, token1, fee);
+        address factory = V3_FACTORY;
+        bytes32 initCodeHash = V3_POOL_INIT_CODE_HASH;
         assembly ("memory-safe") {
             mstore8(0x00, 0xff)
-            mstore(0x35, V3_POOL_INIT_CODE_HASH)
-            mstore(0x01, shl(96, V3_FACTORY))
+            mstore(0x35, initCodeHash)
+            mstore(0x01, shl(96, factory))
             mstore(0x15, salt)
             v3pool := keccak256(0x00, 0x55)
             mstore(0x35, 0)
@@ -1015,10 +1109,14 @@ contract zRouter {
     // note: If user doesn't care about `to` then just send ETH to STETH or WSTETH
 
     function exactETHToSTETH(address to) public payable returns (uint256 shares) {
+        // Lido is reached with raw `call`, which succeeds against a codeless address: the leg needs
+        // an explicit guard on a network where it is unbound, or the ETH would be sent to `address(0)`.
+        address steth = STETH;
+        require(steth != address(0), LegUnavailable());
         assembly ("memory-safe") {
             // submit(address referral) -> returns shares
             mstore(0x00, 0xa1903eab000000000000000000000000)
-            if iszero(call(gas(), STETH, callvalue(), 0x10, 0x24, 0x00, 0x20)) {
+            if iszero(call(gas(), steth, callvalue(), 0x10, 0x24, 0x00, 0x20)) {
                 revert(0x00, 0x00)
             }
             shares := mload(0x00)
@@ -1026,7 +1124,7 @@ contract zRouter {
             mstore(0x00, 0x8fcb4e5b000000000000000000000000)
             mstore(0x14, to)
             mstore(0x34, shares)
-            if iszero(call(gas(), STETH, 0, 0x10, 0x44, codesize(), 0x00)) {
+            if iszero(call(gas(), steth, 0, 0x10, 0x44, codesize(), 0x00)) {
                 revert(0x00, 0x00)
             }
             mstore(0x34, 0)
@@ -1034,15 +1132,17 @@ contract zRouter {
     }
 
     function exactETHToWSTETH(address to) public payable returns (uint256 wstOut) {
+        address wsteth = WSTETH;
+        require(wsteth != address(0), LegUnavailable());
         assembly ("memory-safe") {
             // Send ETH to WSTETH (triggers receive() which auto-wraps)
-            if iszero(call(gas(), WSTETH, callvalue(), codesize(), 0x00, codesize(), 0x00)) {
+            if iszero(call(gas(), wsteth, callvalue(), codesize(), 0x00, codesize(), 0x00)) {
                 revert(0x00, 0x00)
             }
             // balanceOf(address) to get wstETH received
             mstore(0x14, address())
             mstore(0x00, 0x70a08231000000000000000000000000)
-            if iszero(staticcall(gas(), WSTETH, 0x10, 0x24, 0x00, 0x20)) {
+            if iszero(staticcall(gas(), wsteth, 0x10, 0x24, 0x00, 0x20)) {
                 revert(0x00, 0x00)
             }
             wstOut := mload(0x00)
@@ -1050,7 +1150,7 @@ contract zRouter {
             mstore(0x00, 0xa9059cbb000000000000000000000000)
             mstore(0x14, to)
             mstore(0x34, wstOut)
-            if iszero(call(gas(), WSTETH, 0, 0x10, 0x44, codesize(), 0x00)) {
+            if iszero(call(gas(), wsteth, 0, 0x10, 0x44, codesize(), 0x00)) {
                 revert(0x00, 0x00)
             }
             mstore(0x34, 0)
@@ -1060,16 +1160,18 @@ contract zRouter {
     // **** EXACT TOKEN OUT - REFUND EXCESS ETH IN
 
     function ethToExactSTETH(address to, uint256 exactOut) public payable {
+        address steth = STETH;
+        require(steth != address(0), LegUnavailable());
         assembly ("memory-safe") {
             // getSharesByPooledEth(1e18) to get share rate
             mstore(0x00, 0xd5002f2e000000000000000000000000)
-            if iszero(staticcall(gas(), STETH, 0x10, 0x04, 0x00, 0x20)) {
+            if iszero(staticcall(gas(), steth, 0x10, 0x04, 0x00, 0x20)) {
                 revert(0x00, 0x00)
             }
             let S := mload(0x00)
             // getTotalPooledEther()
             mstore(0x00, 0x37cfdaca000000000000000000000000)
-            if iszero(staticcall(gas(), STETH, 0x10, 0x04, 0x00, 0x20)) {
+            if iszero(staticcall(gas(), steth, 0x10, 0x04, 0x00, 0x20)) {
                 revert(0x00, 0x00)
             }
             let T := mload(0x00)
@@ -1079,14 +1181,14 @@ contract zRouter {
             let ethIn := add(iszero(iszero(mod(z, S))), div(z, S))
             if gt(ethIn, callvalue()) { revert(0x00, 0x00) }
             // submit() to stake ETH
-            if iszero(call(gas(), STETH, ethIn, codesize(), 0x00, codesize(), 0x00)) {
+            if iszero(call(gas(), steth, ethIn, codesize(), 0x00, codesize(), 0x00)) {
                 revert(0x00, 0x00)
             }
             // transferShares(address to, uint256 shares)
             mstore(0x00, 0x8fcb4e5b000000000000000000000000)
             mstore(0x14, to)
             mstore(0x34, sharesNeeded)
-            if iszero(call(gas(), STETH, 0, 0x10, 0x44, codesize(), 0x00)) {
+            if iszero(call(gas(), steth, 0, 0x10, 0x44, codesize(), 0x00)) {
                 revert(0x00, 0x00)
             }
             mstore(0x34, 0)
@@ -1102,30 +1204,32 @@ contract zRouter {
     }
 
     function ethToExactWSTETH(address to, uint256 exactOut) public payable {
+        (address steth, address wsteth) = (STETH, WSTETH);
+        require(steth != address(0) && wsteth != address(0), LegUnavailable());
         assembly ("memory-safe") {
             // getSharesByPooledEth(1e18) to get share rate
             mstore(0x00, 0xd5002f2e000000000000000000000000)
-            if iszero(staticcall(gas(), STETH, 0x10, 0x04, 0x00, 0x20)) {
+            if iszero(staticcall(gas(), steth, 0x10, 0x04, 0x00, 0x20)) {
                 revert(0x00, 0x00)
             }
             let S := mload(0x00)
             // getTotalPooledEther()
             mstore(0x00, 0x37cfdaca000000000000000000000000)
-            if iszero(staticcall(gas(), STETH, 0x10, 0x04, 0x00, 0x20)) {
+            if iszero(staticcall(gas(), steth, 0x10, 0x04, 0x00, 0x20)) {
                 revert(0x00, 0x00)
             }
             let ethIn := mul(exactOut, mload(0x00))
             ethIn := add(iszero(iszero(mod(ethIn, S))), div(ethIn, S))
             if gt(ethIn, callvalue()) { revert(0x00, 0x00) }
             // Send ETH to WSTETH (triggers receive() which auto-wraps)
-            if iszero(call(gas(), WSTETH, ethIn, codesize(), 0x00, codesize(), 0x00)) {
+            if iszero(call(gas(), wsteth, ethIn, codesize(), 0x00, codesize(), 0x00)) {
                 revert(0x00, 0x00)
             }
             // transfer(address to, uint256 amount)
             mstore(0x00, 0xa9059cbb000000000000000000000000)
             mstore(0x14, to)
             mstore(0x34, exactOut)
-            if iszero(call(gas(), WSTETH, 0, 0x10, 0x44, codesize(), 0x00)) {
+            if iszero(call(gas(), wsteth, 0, 0x10, 0x44, codesize(), 0x00)) {
                 revert(0x00, 0x00)
             }
             mstore(0x34, 0)
@@ -1167,8 +1271,6 @@ contract zRouter {
 
 // NameNFT helpers:
 
-address constant NAME_NFT = 0x0000000000696760E15f265e828DB644A0c242EB;
-
 interface INameNFT {
     function reveal(string calldata label, bytes32 secret) external payable returns (uint256 tokenId);
     function transferFrom(address from, address to, uint256 tokenId) external;
@@ -1176,26 +1278,15 @@ interface INameNFT {
 
 // Lido helpers:
 
-address constant STETH = 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
-address constant WSTETH = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
-
 // Uniswap helpers:
 
-address constant V2_FACTORY = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
-bytes32 constant V2_POOL_INIT_CODE_HASH = 0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f;
-
 // ** SushiSwap:
-
-address constant SUSHI_FACTORY = 0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac;
-bytes32 constant SUSHI_POOL_INIT_CODE_HASH = 0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303;
 
 interface IV2Pool {
     function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external;
     function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32);
 }
 
-address constant V3_FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-bytes32 constant V3_POOL_INIT_CODE_HASH = 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54;
 uint160 constant MIN_SQRT_RATIO_PLUS_ONE = 4295128740;
 uint160 constant MAX_SQRT_RATIO_MINUS_ONE = 1461446703485210103287273052203988822378723970341;
 
@@ -1208,8 +1299,6 @@ interface IV3Pool {
         bytes calldata data
     ) external returns (int256 amount0, int256 amount1);
 }
-
-address constant V4_POOL_MANAGER = 0x000000000004444c5dc75cB358380D2e3dE08A90;
 
 struct V4PoolKey {
     address currency0;
@@ -1252,9 +1341,6 @@ library BalanceDeltaLibrary {
 }
 
 // zAMM helpers:
-
-address constant ZAMM = 0x000000000000040470635EB91b7CE4D132D616eD;
-address constant ZAMM_0 = 0x00000000000008882D72EfA6cCE4B6a40b24C860;
 
 struct PoolKey {
     uint256 id0;
@@ -1406,26 +1492,24 @@ interface IERC6909 {
     function transferFrom(address sender, address receiver, uint256 id, uint256 amount) external returns (bool);
 }
 
-// Low-level WETH helpers - we know WETH so we can make assumptions:
+// Low-level WETH helpers - the WETH binding is threaded in from the caller's chain config:
 
-address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-
-function wrapETH(address pool, uint256 amount) {
+function wrapETH(address weth, address pool, uint256 amount) {
     assembly ("memory-safe") {
-        pop(call(gas(), WETH, amount, codesize(), 0x00, codesize(), 0x00))
+        pop(call(gas(), weth, amount, codesize(), 0x00, codesize(), 0x00))
         mstore(0x14, pool)
         mstore(0x34, amount)
         mstore(0x00, 0xa9059cbb000000000000000000000000)
-        pop(call(gas(), WETH, 0, 0x10, 0x44, codesize(), 0x00))
+        pop(call(gas(), weth, 0, 0x10, 0x44, codesize(), 0x00))
         mstore(0x34, 0)
     }
 }
 
-function unwrapETH(uint256 amount) {
+function unwrapETH(address weth, uint256 amount) {
     assembly ("memory-safe") {
         mstore(0x00, 0x2e1a7d4d)
         mstore(0x20, amount)
-        pop(call(gas(), WETH, 0, 0x1c, 0x24, codesize(), 0x00))
+        pop(call(gas(), weth, 0, 0x1c, 0x24, codesize(), 0x00))
     }
 }
 
@@ -1444,9 +1528,6 @@ function depositFor(address token, uint256 id, uint256 amount, address _for) {
 }
 
 // ** PERMIT HELPERS
-
-address constant DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-address constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
 
 interface IERC2612 {
     function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)

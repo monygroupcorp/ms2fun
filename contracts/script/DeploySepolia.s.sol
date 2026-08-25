@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import { DeployCore } from "./DeployCore.sol";
+import { ChainConfig } from "../src/peripherals/zRouter.sol";
 import { SepoliaSalts } from "./SepoliaSalts.sol";
 
 /// @notice Deploys the full protocol to Sepolia.
@@ -58,9 +59,49 @@ contract DeploySepolia is DeployCore {
         // deploy on every network.
         cfg.aaveStataToken = 0x162B500569F42D9eCe937e6a61EDfef660A12E98; // stataEthWETH (StaticATokenLM)
         cfg.aaveWeth = 0xC558DBdd856501FCd9aaF1E62eae57A9F0629a3c; // Aave's Sepolia test WETH
-        // ZAMM + zRouter are canonical CREATE2 singletons (same address on every chain they're deployed to).
+        // ZAMM is a canonical CREATE2 singleton (same address on every chain it's deployed to).
         cfg.zamm = 0x000000000000040470635EB91b7CE4D132D616eD; // V1
-        cfg.zrouter = 0x000000000000FB114709235f1ccBFfb925F600e4; // canonical aggregator
+        // zRouter: SELF-DEPLOYED here rather than reusing a pre-existing Sepolia address.
+        //
+        // Neither router already on Sepolia is this repo's router. `0x0000…F600e4` predates `swapVZ`,
+        // so every ZAMM leg reverts `Unauthorized()`; `0x4ABd…1CFB` binds the mainnet V4 PoolManager,
+        // so every V4 acquire reverts. Deploying `src/peripherals/zRouter.sol` with the Sepolia
+        // bindings below means the logic the showcase exercises is the logic mainnet runs, only
+        // re-addressed — a rehearsal against it transfers.
+        cfg.zrouter = address(0);
+        cfg.zrouterChain = ChainConfig({
+            weth: cfg.weth,
+            // Uniswap V4 PoolManager, Sepolia.
+            v4PoolManager: cfg.v4PoolManager,
+            // Uniswap V3 factory, Sepolia. The pool init-code hash is the mainnet one: the factory
+            // deploys the same pool bytecode, verified on chain by recomputing a live Sepolia pool's
+            // CREATE2 address from this factory + hash and matching `getPool`.
+            v3Factory: cfg.v3Factory,
+            v3PoolInitCodeHash: 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54,
+            // ── DARK LEGS ──────────────────────────────────────────────────────────────────────
+            // No vault or showcase surface routes through V2 or Sushi here, and a V2 leg would need
+            // its own pair init-code hash verified against whichever factory it bound. Left unbound;
+            // the leg reverts. A Uniswap-V2 factory does exist on Sepolia (`cfg.v2Factory`, used by
+            // the price validator) if the leg is ever lit.
+            v2Factory: address(0),
+            v2PoolInitCodeHash: bytes32(0),
+            sushiFactory: address(0),
+            sushiPoolInitCodeHash: bytes32(0),
+            // ───────────────────────────────────────────────────────────────────────────────────
+            // ZAMM V1 is deployed to the same canonical address on Sepolia and is byte-identical.
+            zamm: cfg.zamm,
+            // The hookless ZAMM predecessor has no Sepolia deployment — unbound, leg reverts.
+            zamm0: address(0),
+            // Lido has no Sepolia deployment under these addresses — unbound, leg reverts.
+            steth: address(0),
+            wsteth: address(0),
+            // No canonical DAI on Sepolia — the DAI-permit path reverts.
+            dai: address(0),
+            // Permit2 is deployed to its canonical address on Sepolia.
+            permit2: 0x000000000022D473030F116dDEE9F6B43aC78BA3,
+            // NameNFT is mainnet-only — unbound, leg reverts.
+            nameNft: address(0)
+        });
         cfg.safe = address(0); // deploys MockSafe
         // Vanity CREATE3 salts. Single source: script/SepoliaSalts.sol — see that file for the
         // salt layout, the address derivation, and how to re-mine the set.
