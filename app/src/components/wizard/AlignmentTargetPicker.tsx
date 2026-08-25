@@ -4,7 +4,12 @@ import { useAlignmentTargets } from '../../lib/vaults/useAlignmentTargets'
 import { useCollectionMetadata } from '../useCollectionMetadata'
 import { IpfsImage } from '../ui/IpfsImage'
 import { StateBlock } from '../ui/StateBlock'
-import { groupVaultsByFamily, venueLabel, type VaultFamily } from '../../lib/wizard/vaultFlavor'
+import {
+  groupTargetsByToken,
+  groupVaultsByFamily,
+  venueLabel,
+  type VaultFamily,
+} from '../../lib/wizard/vaultFlavor'
 import type { RegisteredVault } from './useRegisteredVaults'
 import { YieldVaultRequestCard } from './YieldVaultRequestCard'
 import { truncateAddress } from '../../lib/format'
@@ -47,26 +52,39 @@ export interface AlignmentTargetPickerProps {
   excludeFamilies?: readonly VaultFamily[] | undefined
 }
 
-/** One selectable target card — logo (from metadataURI) + title + description + vault count. */
+/** One venue choice within a grouped (multi-target) community row — see `TargetCard`'s `venueOptions`. */
+interface TargetVenueOption {
+  targetId: bigint
+  label: string
+  selected: boolean
+  onSelect: () => void
+}
+
+/**
+ * One selectable community row — logo (from metadataURI) + title + description + vault count.
+ *
+ * Ordinarily the whole card is the (single) selectable target. When the same token carries more than
+ * one alignment target (`venueOptions` present — see `groupTargetsByToken`), the card becomes a static
+ * header and the venue choice moves to an add-on row of pills beneath it, echoing the family→venue
+ * add-on grammar the vault-selection step below already uses: the community is the label, the venue is
+ * the click.
+ */
 function TargetCard({
   target,
   vaultCount,
   selected,
   onSelect,
+  venueOptions,
 }: {
   target: { id: bigint; title: string; description: string; metadataURI: string }
   vaultCount: number
   selected: boolean
   onSelect: () => void
+  venueOptions?: TargetVenueOption[]
 }) {
   const meta = useCollectionMetadata(target.metadataURI)
-  return (
-    <button
-      type="button"
-      className={`${styles.targetCard} ${selected ? styles.targetSelected : ''}`}
-      onClick={onSelect}
-      aria-pressed={selected}
-    >
+  const body = (
+    <>
       <div className={styles.targetLogo}>
         <IpfsImage
           uri={meta?.image ?? ''}
@@ -86,6 +104,42 @@ function TargetCard({
           {vaultCount > 0 ? `${vaultCount} vault${vaultCount === 1 ? '' : 's'}` : 'no vaults yet'}
         </p>
       </div>
+    </>
+  )
+
+  if (venueOptions) {
+    return (
+      <div
+        className={`${styles.targetCard} ${styles.targetGrouped} ${
+          selected ? styles.targetSelected : ''
+        }`}
+      >
+        <div className={styles.targetMain}>{body}</div>
+        <div className={styles.targetVenueAddon}>
+          {venueOptions.map((opt) => (
+            <button
+              key={opt.targetId.toString()}
+              type="button"
+              className={`${styles.venuePill} ${opt.selected ? styles.venuePillSelected : ''}`}
+              onClick={opt.onSelect}
+              aria-pressed={opt.selected}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      className={`${styles.targetCard} ${selected ? styles.targetSelected : ''}`}
+      onClick={onSelect}
+      aria-pressed={selected}
+    >
+      {body}
     </button>
   )
 }
@@ -138,6 +192,19 @@ export function AlignmentTargetPicker({
     return m
   }, [offeredVaults])
 
+  // Level 1 rows: targets sharing a token collapse into one row (rider on noesis-403's second
+  // ruling — the registry may carry the same token under more than one target, one per acquisition
+  // route, but the picker must show it once with the route as an add-on, never the same token twice).
+  const targetGroups = useMemo(() => groupTargetsByToken(targets), [targets])
+
+  // Venue label for one option inside a grouped row — read from that target's own deployed vault
+  // (already fetched for level 2), not a second registry read. A target with no vault yet (route set,
+  // vault not deployed) falls back to an ordinal so the row still renders something distinguishable.
+  const venueLabelForTarget = (id: bigint, indexInGroup: number) => {
+    const vault = offeredVaults.find((v) => v.targetId === id)
+    return vault ? venueLabel(vault.venue) : `Option ${indexInGroup + 1}`
+  }
+
   // Rehydrate the chosen community from the lifted vault selection. `targetId` is local, so a step
   // re-entry remounts this blank while `selectedVault` still holds — without this the community grid
   // collapses to the top and (via the invalidation effect below) the vault itself gets cleared.
@@ -180,15 +247,36 @@ export function AlignmentTargetPicker({
         <LearnLink slug="alignment-vault" />
       </p>
       <div className={styles.targetGrid}>
-        {targets.map((t) => (
-          <TargetCard
-            key={t.id.toString()}
-            target={t}
-            vaultCount={countByTarget.get(t.id) ?? 0}
-            selected={t.id === targetId}
-            onSelect={() => setTargetId(t.id)}
-          />
-        ))}
+        {targetGroups.map((g) => {
+          const vaultCount = g.targets.reduce((sum, t) => sum + (countByTarget.get(t.id) ?? 0), 0)
+          if (g.targets.length === 1) {
+            const t = g.targets[0]!
+            return (
+              <TargetCard
+                key={g.key}
+                target={t}
+                vaultCount={vaultCount}
+                selected={t.id === targetId}
+                onSelect={() => setTargetId(t.id)}
+              />
+            )
+          }
+          return (
+            <TargetCard
+              key={g.key}
+              target={g.primary}
+              vaultCount={vaultCount}
+              selected={g.targets.some((t) => t.id === targetId)}
+              onSelect={() => {}}
+              venueOptions={g.targets.map((t, i) => ({
+                targetId: t.id,
+                label: venueLabelForTarget(t.id, i),
+                selected: t.id === targetId,
+                onSelect: () => setTargetId(t.id),
+              }))}
+            />
+          )
+        })}
       </div>
 
       <p className={styles.requestLine}>
