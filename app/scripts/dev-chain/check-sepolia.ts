@@ -55,6 +55,52 @@ const BONDING_ABI = [
   },
 ] as const
 
+/**
+ * The home page's own read. `getHomePageData` is a lens over the featured queue, so this is the
+ * exact call the landing grid makes — a wall asserted against the queue directly would pass while
+ * the aggregator the app actually reads answered with an empty grid.
+ */
+const HOME_PAGE_ABI = [
+  {
+    type: 'function',
+    name: 'getHomePageData',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'offset', type: 'uint256' },
+      { name: 'limit', type: 'uint256' },
+    ],
+    outputs: [
+      {
+        name: 'projects',
+        type: 'tuple[]',
+        components: [
+          { name: 'instance', type: 'address' },
+          { name: 'name', type: 'string' },
+          { name: 'metadataURI', type: 'string' },
+          { name: 'creator', type: 'address' },
+          { name: 'registeredAt', type: 'uint256' },
+          { name: 'factory', type: 'address' },
+          { name: 'contractType', type: 'string' },
+          { name: 'factoryTitle', type: 'string' },
+          { name: 'vault', type: 'address' },
+          { name: 'vaultName', type: 'string' },
+          { name: 'currentPrice', type: 'uint256' },
+          { name: 'totalSupply', type: 'uint256' },
+          { name: 'maxSupply', type: 'uint256' },
+          { name: 'isActive', type: 'bool' },
+          { name: 'extraData', type: 'bytes' },
+          { name: 'featuredRank', type: 'uint256' },
+          { name: 'featuredExpires', type: 'uint256' },
+        ],
+      },
+      { name: 'totalFeatured', type: 'uint256' },
+    ],
+  },
+] as const
+
+/** `QueryAggregator.MAX_QUERY_LIMIT` — a larger page is refused by the lens itself. */
+const HOME_PAGE_LIMIT = 50n
+
 interface AppConfig {
   chainId: number
   deployBlock?: number
@@ -75,6 +121,7 @@ interface SeedState {
   cultTargetId?: number
   ms2ZammTargetId?: number
   cultAlgebraTargetId?: number
+  featured?: Address[]
 }
 
 const failures: string[] = []
@@ -257,6 +304,57 @@ async function main(): Promise<void> {
       `${label} ${address}`,
       `${label} ${address} holds NO code`,
     )
+  }
+
+  // ── The featured wall: the showcase's front door ──
+  //
+  // A seeded chain can hold every collection the tour needs and still open on an empty wall: the
+  // landing grid renders FEATURED PLACEMENTS, which are rented rather than created. So the wall is
+  // asserted through `getHomePageData` — what the app calls — rather than through the roster.
+  console.log('\nfeatured wall')
+  const featured = seed.featured ?? []
+  check(
+    featured.length > 0,
+    `seed hand-off claims ${featured.length} featured placement(s)`,
+    'seed hand-off names NO featured placements — the home page opens on an empty wall',
+  )
+
+  const aggregator = config.contracts.QueryAggregator
+  if (featured.length > 0) {
+    if (!aggregator || aggregator === zeroAddress) {
+      check(
+        false,
+        '',
+        'QueryAggregator is unset in the app config — the home page has no lens to read',
+      )
+    } else {
+      const home = await client
+        .readContract({
+          address: aggregator,
+          abi: HOME_PAGE_ABI,
+          functionName: 'getHomePageData',
+          args: [0n, HOME_PAGE_LIMIT],
+        })
+        .catch(() => null)
+      if (home === null) {
+        check(false, '', 'getHomePageData reverted — the home page cannot render its grid at all')
+      } else {
+        const [projects, totalFeatured] = home
+        check(
+          Number(totalFeatured) >= featured.length,
+          `getHomePageData reports ${totalFeatured} featured placement(s)`,
+          `getHomePageData reports ${totalFeatured} featured placement(s), fewer than the ${featured.length} the seed rented`,
+        )
+        const rendered = new Set(projects.map((p) => p.instance.toLowerCase()))
+        for (const [index, instance] of featured.entries()) {
+          check(
+            rendered.has(instance.toLowerCase()),
+            `slot ${index + 1} ${instance} is on the wall`,
+            `slot ${index + 1} ${instance} was rented but does not render on the home page`,
+          )
+        }
+      }
+    }
   }
 
   // The venue hand-off is what a later script reads to reach the ZAMM and Cypher families.

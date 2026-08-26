@@ -29,6 +29,7 @@ import { CurrencySettler } from "../src/libraries/v4/CurrencySettler.sol";
 import { LiquidityAmounts } from "../src/libraries/v4/LiquidityAmounts.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { IAlignmentRegistry } from "../src/master/interfaces/IAlignmentRegistry.sol";
+import { FeaturedQueueManager } from "../src/master/FeaturedQueueManager.sol";
 // The ZAMM singleton's surface, taken from the vault that already depends on it rather than
 // re-declared here — the seed fills the pool the vault deposits into, so the key type must be the
 // vault factory's own or the two are only accidentally the same shape.
@@ -236,6 +237,28 @@ abstract contract SeedSepoliaShared is Script {
     ///      left unpaid on a second id so the same path is walkable by a visitor.
     string internal constant ENV_COMMISSION_PRICE_WEI = "SEPOLIA_COMMISSION_PRICE_WEI";
     uint256 internal constant DEFAULT_COMMISSION_PRICE = 0.0005 ether;
+
+    // ─────────────────────────── The featured wall ───────────────────────────
+    //
+    // A featured slot is rented per day at the queue's own `dailyRate`, so the duration is the
+    // whole cost. The default is sized to the showcase's own planned lifetime — roughly 30 days
+    // on Sepolia before the mainnet push (operator ruling, 2026-08-26) — not to the queue's
+    // 365-day ceiling: a wall that outlives the showcase is spend, not durability. The seed
+    // PRINTS the resulting total before it spends anything; the env knob is the lever if the
+    // lifetime changes.
+    //
+    // The rate is read from the deployed queue rather than assumed here: it is owner-tunable, and a
+    // projection computed off a stale literal would be a number nobody can act on.
+    string internal constant ENV_FEATURED_DURATION_SECONDS = "SEPOLIA_FEATURED_DURATION_SECONDS";
+    uint256 internal constant DEFAULT_FEATURED_DURATION_SECONDS = 30 days;
+
+    /// @dev The rank step between adjacent featured slots. Rank is what ORDERS the wall — the queue
+    ///      returns active slots sorted by effective rank — so the seed pays a distinct boost per slot
+    ///      and the tour reads top to bottom in the order it was composed rather than in an arbitrary
+    ///      one. The step is small on purpose: only the ordering is demonstrated here, and rank paid
+    ///      to out-rank nobody is ETH spent on nothing.
+    string internal constant ENV_FEATURED_RANK_STEP_WEI = "SEPOLIA_FEATURED_RANK_STEP_WEI";
+    uint256 internal constant DEFAULT_FEATURED_RANK_STEP_WEI = 0.0001 ether;
 
     // ─────────────────────────── Wave-3 venue knobs ───────────────────────────
     //
@@ -468,6 +491,8 @@ abstract contract SeedSepoliaShared is Script {
         address v3Factory;
         address zamm;
         uint256 zammFeeOrHook;
+        // ── The home page's front door ──
+        FeaturedQueueManager queue; // paid placement; what `QueryAggregator.getHomePageData` reads
     }
 
     /// @dev What phase 1 hands phase 2, beyond the ERC404 curve roster itself. The breadth rows are
@@ -510,6 +535,15 @@ abstract contract SeedSepoliaShared is Script {
         address cultAlgebraPool; // Algebra {CULT, WETH} — the Cypher venue AND its price authority
         address cypher404; // the CULT-on-Cypher collection, graduating through the Algebra rail
         uint256 referenceReadyAt; // when the seeded pools can first serve the deployment's TWAP window
+        // ── The featured wall ──
+        //
+        // The instances that hold a rented slot, in the order they were rented — which is descending
+        // rank, and therefore the order the home page renders them in. Recorded so the channel's
+        // preflight can assert the wall against the seed's own claim rather than against a count
+        // somebody has to remember.
+        address[] featured;
+        uint256 featuredSpendWei; // duration cost + rank boost, summed across the slots above
+        uint256 featuredDuration; // the duration each slot was rented for
     }
 
     /// @dev The seed's sender. Resolved from `msg.sender` inside `run()`, which is forge's
@@ -534,6 +568,31 @@ abstract contract SeedSepoliaShared is Script {
 
     function _preopenDelay() internal view returns (uint256) {
         return vm.envOr(ENV_PREOPEN_DELAY, DEFAULT_PREOPEN_DELAY);
+    }
+
+    function _featuredDuration() internal view returns (uint256) {
+        return vm.envOr(ENV_FEATURED_DURATION_SECONDS, DEFAULT_FEATURED_DURATION_SECONDS);
+    }
+
+    function _featuredRankStep() internal view returns (uint256) {
+        return vm.envOr(ENV_FEATURED_RANK_STEP_WEI, DEFAULT_FEATURED_RANK_STEP_WEI);
+    }
+
+    /// @dev The rank boost for slot `index` of `count`, descending: the first slot rented outranks
+    ///      every later one by one step. Stated as a function rather than as a table so a wall that
+    ///      grows a row keeps its ordering property without a second edit.
+    function _featuredRankBoost(uint256 index, uint256 count) internal view returns (uint256) {
+        return _featuredRankStep() * (count - index);
+    }
+
+    /// @dev What the whole wall costs, asked of the DEPLOYED queue at its current `dailyRate`, before
+    ///      a single slot is rented. The rate is owner-tunable, so this is a read rather than an
+    ///      arithmetic restatement of a literal.
+    function _quoteFeaturedSpend(Deployed memory d, uint256 count) internal view returns (uint256 total) {
+        uint256 durationCost = d.queue.quoteDurationCost(_featuredDuration());
+        for (uint256 i = 0; i < count; i++) {
+            total += durationCost + _featuredRankBoost(i, count);
+        }
     }
 
     // ─────────────────────────── The roster, stated once ───────────────────────────
@@ -613,6 +672,7 @@ abstract contract SeedSepoliaShared is Script {
         d.priceValidator = vm.parseJsonAddress(json, ".contracts.UniswapVaultPriceValidator");
         d.protocolTreasury = vm.parseJsonAddress(json, ".contracts.ProtocolTreasury");
         d.zRouter = vm.parseJsonAddress(json, ".contracts.zRouter");
+        d.queue = FeaturedQueueManager(payable(vm.parseJsonAddress(json, ".contracts.FeaturedQueueManager")));
         d.v4PoolManager = vm.parseJsonAddress(json, ".uniswap.v4PoolManager");
         // WETH is not a top-level field of the deployment file; it is the deploy config's, and the
         // vault factory carries it as an immutable. Read it back off the factory rather than
@@ -648,6 +708,9 @@ abstract contract SeedSepoliaShared is Script {
         require(d.resolverRouter != address(0), "sepolia.json: MetadataResolverRouter missing");
         require(d.overlay != address(0), "sepolia.json: MetadataOverlayModule missing");
         require(d.tierResolver != address(0), "sepolia.json: TokenTierBandResolver missing");
+        // The featured queue is REQUIRED for the same reason the breadth modules are: the home page
+        // reads its placements, so a deployment without one cannot hold the showcase's front door.
+        require(address(d.queue) != address(0), "sepolia.json: FeaturedQueueManager missing");
     }
 
     /// @dev The venue addresses `DeploySepolia` wrote beside the deployment file: the two vault
@@ -733,6 +796,10 @@ abstract contract SeedSepoliaShared is Script {
         vm.serializeAddress(root, "cultAlgebraPool", h.cultAlgebraPool);
         vm.serializeAddress(root, "cypher404", h.cypher404);
         vm.serializeUint(root, "referenceReadyAt", h.referenceReadyAt);
+        // ── The featured wall, in rendered order ──
+        vm.serializeAddress(root, "featured", h.featured);
+        vm.serializeUint(root, "featuredSpendWei", h.featuredSpendWei);
+        vm.serializeUint(root, "featuredDuration", h.featuredDuration);
         vm.serializeAddress(root, "all", instances);
         string memory out = vm.serializeString(root, "instances", instancesJson);
 
@@ -985,10 +1052,16 @@ abstract contract SeedSepoliaShared is Script {
     /// @dev Print what a phase is about to spend BEFORE it spends it. On a public testnet the ETH is
     ///      a human's faucet balance, not a fork's fabricated one, so the number has to be visible at
     ///      simulation time — which is before `--broadcast` sends anything.
-    function _reportSpend(string memory phase, uint256 curveEth, uint256 balanceBefore) internal pure {
+    function _reportSpend(string memory phase, uint256 curveEth, uint256 featuredEth, uint256 balanceBefore)
+        internal
+        pure
+    {
         console.log("--------------------------------------------------");
         console.log(string.concat("ETH projection - ", phase));
         console.log("  curve spend (wei):", curveEth);
+        // Featured placement is rented per DAY, so this line is the one that moves with a duration
+        // rather than with a fill. It is the wall's whole cost: rent plus the rank that orders it.
+        console.log("  featured placement (wei):", featuredEth);
         console.log("  deployer balance before (wei):", balanceBefore);
         console.log("  gas is NOT included above - it is charged per broadcast tx by forge");
         console.log("--------------------------------------------------");
