@@ -188,12 +188,20 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
     ///      ago by phase 1. The window passed to the setter is the DEPLOYMENT's own — read off the
     ///      validator rather than restated — so the window the registry probes with and the window the
     ///      floor later prices with cannot drift apart.
+    ///
+    ///      The readiness instant is taken from the POOLS, not from the number phase 1 recorded:
+    ///      phase 1 can only record its simulation clock, and the pools are written a broadcast later
+    ///      (see `_v3ReferenceReadyAt`). `h.referenceReadyAt` remains what the orchestrator waits on
+    ///      to a first approximation; this is the check that is exact, and it names the remaining
+    ///      seconds so a run that arrives early reports a wait rather than an `OLD` revert from inside
+    ///      the registry's probe.
     function _pinReferencePools(Deployed memory d, SeedHandoff memory h) internal {
-        if (block.timestamp < h.referenceReadyAt) {
+        uint256 readyAt = _referencePoolsReadyAt(d, h);
+        if (block.timestamp < readyAt) {
             revert(
                 string.concat(
                     "phase 2: the seeded reference pools cannot serve a TWAP yet - wait ",
-                    vm.toString(h.referenceReadyAt - block.timestamp),
+                    vm.toString(readyAt - block.timestamp),
                     " more seconds"
                 )
             );

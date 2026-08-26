@@ -1130,6 +1130,37 @@ abstract contract SeedSepoliaShared is Script {
         return ITwapWindowSource(d.priceValidator).twapSecondsAgo();
     }
 
+    /// @dev The instant a seeded V3 reference pool can first answer `observe([window, 0])`, derived
+    ///      from the observation the pool ITSELF holds.
+    ///
+    ///      Phase 1 cannot compute this. A forge script is simulated at ONE timestamp and only then
+    ///      broadcast, so the instant phase 1 is able to record is the SIMULATION's, while the pool's
+    ///      first observation is written when its creating transaction is actually mined — a whole
+    ///      broadcast later. The recorded instant therefore under-states readiness by however long the
+    ///      phase-1 broadcast ran, and `phase2NotBefore`'s slack is sized for block-time jitter rather
+    ///      than for that offset, so which of the two is larger decides whether the pin succeeds.
+    ///      Reading the pool back replaces that race with the only clock that is authoritative here:
+    ///      `observe` reverts `OLD` for a target older than the oldest stored observation, so the
+    ///      oldest observation plus the window IS the instant, exactly.
+    ///
+    ///      The oldest observation sits at `index + 1` once the ring has wrapped and at 0 until it
+    ///      has; the `initialized` flag distinguishes the two. That is the same walk `Oracle.
+    ///      observeSingle` performs before it decides whether to revert.
+    function _v3ReferenceReadyAt(address pool, uint32 window) internal view returns (uint256) {
+        (,, uint16 index, uint16 cardinality,,,) = IUniswapV3PoolMinimal(pool).slot0();
+        (uint32 oldest,,, bool initialized) = IUniswapV3PoolMinimal(pool).observations((index + 1) % cardinality);
+        if (!initialized) (oldest,,,) = IUniswapV3PoolMinimal(pool).observations(0);
+        return uint256(oldest) + window;
+    }
+
+    /// @dev `_v3ReferenceReadyAt` across every V3 reference pool phase 2 pins, as one instant.
+    function _referencePoolsReadyAt(Deployed memory d, SeedHandoff memory h) internal view returns (uint256 readyAt) {
+        uint32 window = _twapWindow(d);
+        readyAt = _v3ReferenceReadyAt(h.ms2ReferencePool, window);
+        uint256 cult = _v3ReferenceReadyAt(h.cultReferencePool, window);
+        if (cult > readyAt) readyAt = cult;
+    }
+
     /// @dev The native-ETH/token V4 key every Uni alignment vault in this seed LPs into and acquires
     ///      through. Native ETH is currency0 — address(0) sorts below every token address, so the
     ///      ordering holds without a comparison — and the tier is the deployment-wide one `DeployCore`
@@ -1743,6 +1774,15 @@ interface IUniswapV3PoolMinimal {
         external
         returns (uint256 amount0, uint256 amount1);
     function increaseObservationCardinalityNext(uint16 observationCardinalityNext) external;
+    function observations(uint256 index)
+        external
+        view
+        returns (
+            uint32 blockTimestamp,
+            int56 tickCumulative,
+            uint160 secondsPerLiquidityCumulativeX128,
+            bool initialized
+        );
     function observe(uint32[] calldata secondsAgos)
         external
         view

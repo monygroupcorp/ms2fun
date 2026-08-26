@@ -149,19 +149,112 @@ function gasSpentEth(script: string): string {
   return `${formatEther(total)} ETH across ${(run.receipts ?? []).length} transactions`
 }
 
-async function waitForPhaseTwo(notBefore: number, referenceReadyAt: number): Promise<void> {
+/// The instant every seeded V3 reference pool can first answer a window-long TWAP, read from the
+/// pools themselves.
+///
+/// Phase 1 records `referenceReadyAt` off its own SIMULATION clock — a forge script is simulated at
+/// one timestamp and only then broadcast, so the pools are actually written a whole broadcast later
+/// and the recorded instant under-states readiness by exactly that long. `phase2NotBefore`'s slack
+/// is sized for block-time jitter, not for broadcast duration, so on a slow phase 1 the wait can end
+/// before the pools can serve the window and phase 2 hits `OLD` inside the registry's own probe.
+/// The pool's oldest observation plus the window is the instant, exactly; this reads it back.
+async function referencePoolsReadyAt(pools: Address[], validator: Address): Promise<number> {
+  const window = await publicClient.readContract({
+    address: validator,
+    abi: [
+      {
+        type: 'function',
+        name: 'twapSecondsAgo',
+        stateMutability: 'view',
+        inputs: [],
+        outputs: [{ type: 'uint32' }],
+      },
+    ] as const,
+    functionName: 'twapSecondsAgo',
+  })
+  const poolAbi = [
+    {
+      type: 'function',
+      name: 'slot0',
+      stateMutability: 'view',
+      inputs: [],
+      outputs: [
+        { type: 'uint160' },
+        { type: 'int24' },
+        { type: 'uint16' },
+        { type: 'uint16' },
+        { type: 'uint16' },
+        { type: 'uint8' },
+        { type: 'bool' },
+      ],
+    },
+    {
+      type: 'function',
+      name: 'observations',
+      stateMutability: 'view',
+      inputs: [{ type: 'uint256' }],
+      outputs: [{ type: 'uint32' }, { type: 'int56' }, { type: 'uint160' }, { type: 'bool' }],
+    },
+  ] as const
+
+  let readyAt = 0
+  for (const pool of pools) {
+    const slot0 = await publicClient.readContract({ address: pool, abi: poolAbi, functionName: 'slot0' })
+    const index = Number(slot0[2])
+    const cardinality = Number(slot0[3])
+    let obs = await publicClient.readContract({
+      address: pool,
+      abi: poolAbi,
+      functionName: 'observations',
+      args: [BigInt((index + 1) % cardinality)],
+    })
+    // The ring has not wrapped yet — the oldest observation is still slot 0.
+    if (!obs[3])
+      obs = await publicClient.readContract({
+        address: pool,
+        abi: poolAbi,
+        functionName: 'observations',
+        args: [0n],
+      })
+    const poolReady = Number(obs[0]) + Number(window)
+    if (poolReady > readyAt) readyAt = poolReady
+  }
+  return readyAt
+}
+
+async function waitForPhaseTwo(
+  notBefore: number,
+  referenceReadyAt: number,
+  pools: Address[],
+  validator: Address,
+): Promise<void> {
   // WHY THE WAIT CAN BE LONGER THAN THE ARM WINDOW. Phase 1 creates the pools whose TWAP is the
   // price authority for every alignment vault's -5% floor, and phase 2 PINS them. The registry
   // refuses to pin a pool that cannot yet answer a window-long TWAP, so a whole TWAP window has to
   // pass between the two phases — and a public testnet cannot be told to advance. Phase 1 folds that
   // instant into the same `phase2NotBefore` the arm window already produces, so there is one wait
   // rather than two, and only one number anyone has to know about.
-  if (referenceReadyAt > 0) {
-    console.log(
-      `\n  reference pools can serve a TWAP from unix ${referenceReadyAt}` +
-        ` (${new Date(referenceReadyAt * 1000).toISOString()})` +
-        `\n  phase 2 pins them, so this instant is folded into the wait below.`,
-    )
+  //
+  // The pools are then asked directly, and the LATER of the two instants is what is waited out: the
+  // number phase 1 recorded is a lower bound (see `referencePoolsReadyAt`), and pinning is judged
+  // against what the pools hold rather than against what phase 1 predicted.
+  if (pools.length > 0) {
+    const measured = await referencePoolsReadyAt(pools, validator)
+    if (measured > notBefore) {
+      console.log(
+        `\n  the seeded reference pools can serve a TWAP from unix ${measured}` +
+          ` (${new Date(measured * 1000).toISOString()}), later than the recorded` +
+          ` ${notBefore} — phase 1's broadcast ran past the instant it was able to record.` +
+          `\n  waiting for the pools rather than for the record.`,
+      )
+      notBefore = measured
+    } else if (referenceReadyAt > 0) {
+      console.log(
+        `\n  reference pools can serve a TWAP from unix ${measured}` +
+          ` (${new Date(measured * 1000).toISOString()})` +
+          `\n  phase 2 pins them, so this instant is folded into the wait below.`,
+      )
+    }
   }
   const head = await publicClient.getBlock()
   if (Number(head.timestamp) >= notBefore) {
@@ -289,6 +382,8 @@ async function main(): Promise<void> {
     chainId: number
     phase2NotBefore: number
     referenceReadyAt?: number
+    ms2ReferencePool?: Address
+    cultReferencePool?: Address
     ms2ZammVault?: Address
     cultCypherVault?: Address
     cypher404?: Address
@@ -308,7 +403,15 @@ async function main(): Promise<void> {
   console.log(`  zamm           : ${seedState.ms2ZammVault ?? '(not available on this deployment)'}`)
   console.log(`  cypher/algebra : ${seedState.cultCypherVault ?? '(rail not wired on this deployment)'}`)
 
-  await waitForPhaseTwo(seedState.phase2NotBefore, seedState.referenceReadyAt ?? 0)
+  const referencePools = [seedState.ms2ReferencePool, seedState.cultReferencePool].filter(
+    (p): p is Address => !!p && p !== '0x0000000000000000000000000000000000000000',
+  )
+  await waitForPhaseTwo(
+    seedState.phase2NotBefore,
+    seedState.referenceReadyAt ?? 0,
+    referencePools,
+    deployment.contracts.UniswapVaultPriceValidator,
+  )
 
   // ── Phase 2 ──
   await confirm('Run PHASE 2 (buys + graduation)? This one spends ETH on the curves.')
