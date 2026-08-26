@@ -16,6 +16,23 @@ import { IMerkleGatingModule, MerkleConfig } from "../src/gating/IMerkleGatingMo
 import { MetadataOverlayModule } from "../src/metadata/MetadataOverlayModule.sol";
 import { MerkleProofLib } from "solady/utils/MerkleProofLib.sol";
 import { RevenueSplitLib } from "../src/shared/libraries/RevenueSplitLib.sol";
+import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
+import { IHooks } from "v4-core/interfaces/IHooks.sol";
+import { IUnlockCallback } from "v4-core/interfaces/callback/IUnlockCallback.sol";
+import { PoolKey } from "v4-core/types/PoolKey.sol";
+import { PoolIdLibrary } from "v4-core/types/PoolId.sol";
+import { Currency } from "v4-core/types/Currency.sol";
+import { BalanceDelta } from "v4-core/types/BalanceDelta.sol";
+import { TickMath } from "v4-core/libraries/TickMath.sol";
+import { StateLibrary } from "v4-core/libraries/StateLibrary.sol";
+import { CurrencySettler } from "../src/libraries/v4/CurrencySettler.sol";
+import { LiquidityAmounts } from "../src/libraries/v4/LiquidityAmounts.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { IAlignmentRegistry } from "../src/master/interfaces/IAlignmentRegistry.sol";
+// The ZAMM singleton's surface, taken from the vault that already depends on it rather than
+// re-declared here — the seed fills the pool the vault deposits into, so the key type must be the
+// vault factory's own or the two are only accidentally the same shape.
+import { IZAMM } from "../src/vaults/zamm/ZAMMAlignmentVault.sol";
 
 /// @dev Read-back surface of `MerkleGatingModule`. `IMerkleGatingModule` carries only `configureFor`;
 ///      these views are what let the seed assert that what it installed is what is actually stored.
@@ -111,6 +128,23 @@ abstract contract SeedSepoliaShared is Script {
     string internal constant DEPLOYMENT_PATH = "./deployments/sepolia.json";
     /// @dev Phase 1 writes it; phase 2 and the orchestrator read it.
     string internal constant SEED_STATE_PATH = "./deployments/sepolia-seed.json";
+    /// @dev Written by `DeploySepolia` beside the deployment file — see `_readVenueHandoff`.
+    string internal constant VENUE_PATH = "./deployments/sepolia-venues.json";
+
+    // ─────────────────────────── Venue pool shape ───────────────────────────
+    //
+    // One fee tier, deployment-wide. `DeployCore` builds every Uni vault's pool key from
+    // `zrouterFee`/`zrouterTickSpacing`, and `BestRouteAcquirer` falls back to the same pair when no
+    // best-route quoter is wired (`cfg.zQuoter` is unset on this network). So the pool a vault LPs
+    // into, the pool its acquire leg swaps through, and the pool the registry curates as its route
+    // are all THIS tier — which is why the depth seed and the route both name it and neither guesses.
+
+    uint24 internal constant POOL_FEE = 3000;
+    int24 internal constant POOL_TICK_SPACING = 60;
+    /// @dev Starting price 1:1 (sqrt(1) * 2^96). A pool must be initialized before it can be named;
+    ///      it holds no liquidity until someone adds some. Parity is a CHOICE, and it is the same
+    ///      choice the reference pool is stood up at — see `SepoliaReferencePoolSeeder`.
+    uint160 internal constant SQRT_PRICE_1_1 = 79228162514264337593543950336;
 
     // ─────────────────────────── Clock knobs ───────────────────────────
     //
@@ -202,6 +236,81 @@ abstract contract SeedSepoliaShared is Script {
     ///      left unpaid on a second id so the same path is walkable by a visitor.
     string internal constant ENV_COMMISSION_PRICE_WEI = "SEPOLIA_COMMISSION_PRICE_WEI";
     uint256 internal constant DEFAULT_COMMISSION_PRICE = 0.0005 ether;
+
+    // ─────────────────────────── Wave-3 venue knobs ───────────────────────────
+    //
+    // Every venue's depth is the seed's own ETH, so every one of them is an environment knob and the
+    // seed prints what it deposited. THE DEFAULTS ARE SIZED BY THE FLOOR, NOT BY AMBITION: the number
+    // that has to hold is that a demo-sized convert prices within the vault's -5% oracle floor, and a
+    // concentrated position reaches that on a fraction of an ETH. A deployment meant to be traded
+    // against wants more; raise these rather than editing the source.
+
+    /// @dev ETH into each Uniswap V4 acquire pool (one per Uni alignment target).
+    ///
+    ///      SIZED BY THE FLOOR, MEASURED. The vault's oracle floor rejects a convert that prices more
+    ///      than `maxPriceDeviationBps` (5%) under the reference TWAP, and on a concentrated position
+    ///      at parity a swap of `dx` moves the price by roughly `2·dx/L`. So the pool has to carry
+    ///      `L >= 40·dx` for the vault's own swap to clear its own floor — with this seed's fills the
+    ///      largest convert swaps a little over a hundredth of an ETH, and the default below leaves
+    ///      that a comfortable margin. Raising the curve fills raises the tithe, and therefore raises
+    ///      this: the two knobs move together.
+    string internal constant ENV_V4_DEPTH_WEI = "SEPOLIA_V4_DEPTH_WEI";
+    uint256 internal constant DEFAULT_V4_DEPTH_WEI = 0.05 ether;
+
+    /// @dev ETH into each seeded {token, WETH} Uniswap V3 REFERENCE pool. This pool is a price
+    ///      authority rather than an execution venue, so it is sized to be a credible quote rather
+    ///      than to absorb a trade.
+    string internal constant ENV_REFERENCE_DEPTH_WEI = "SEPOLIA_REFERENCE_DEPTH_WEI";
+    uint256 internal constant DEFAULT_REFERENCE_DEPTH_WEI = 0.01 ether;
+
+    /// @dev ETH into the ZAMM ETH/token pool. A flipped vault flag with no pool behind it is a dead
+    ///      vault rather than a venue, so the pool and its liquidity are stood up with the vault.
+    string internal constant ENV_ZAMM_DEPTH_WEI = "SEPOLIA_ZAMM_DEPTH_WEI";
+    uint256 internal constant DEFAULT_ZAMM_DEPTH_WEI = 0.05 ether;
+
+    /// @dev ETH into the Algebra {token, WETH} pool that is BOTH the Cypher venue and its reference.
+    string internal constant ENV_ALGEBRA_DEPTH_WEI = "SEPOLIA_ALGEBRA_DEPTH_WEI";
+    uint256 internal constant DEFAULT_ALGEBRA_DEPTH_WEI = 0.05 ether;
+
+    /// @dev The tithe seeded directly into the ZAMM vault so its convert has something to convert.
+    ///      The Uni and Cypher vaults receive theirs the way the product does — 19% of a real
+    ///      graduation — because a collection graduates into each of those venues in this seed. No
+    ///      collection graduates into ZAMM here, so its pending balance is a plain contribution from
+    ///      the seed's own account: real ETH, credited to a real benefactor, converted by the real
+    ///      call. It is stated here rather than dressed up as a raise.
+    string internal constant ENV_ZAMM_VAULT_TITHE_WEI = "SEPOLIA_ZAMM_VAULT_TITHE_WEI";
+    uint256 internal constant DEFAULT_ZAMM_VAULT_TITHE_WEI = 0.002 ether;
+
+    /// @dev The Cypher flagship's fill, in bps of its bondable supply. It is bought to be GRADUATED,
+    ///      so the only floor is a raise the graduation will accept; it is sized like the graduated
+    ///      spine row for the same reason — the pool it opens should be worth looking at.
+    string internal constant ENV_CYPHER_FILL_BPS = "SEPOLIA_CYPHER_FILL_BPS";
+    uint256 internal constant DEFAULT_CYPHER_FILL_BPS = 700;
+
+    /// @dev The demo swap that produces the LP-fee delta the staking stream is funded from. It buys
+    ///      the alignment asset on the vault's own venue pool, so the fee it pays is earned by the
+    ///      vault's position — which is the only funding path the staking module has.
+    string internal constant ENV_DEMO_SWAP_WEI = "SEPOLIA_DEMO_SWAP_WEI";
+    uint256 internal constant DEFAULT_DEMO_SWAP_WEI = 0.004 ether;
+
+    /// @dev Half-width of every seeded position, in ticks, before alignment to the pool's spacing.
+    ///
+    ///      THE CONCENTRATION IS WHAT MAKES A FAUCET BUDGET ENOUGH. Liquidity for a given deposit
+    ///      scales roughly as `1 / (1 - 1/sqrt(priceRatio))`, so narrowing the range buys depth that
+    ///      widening it does not. 1200 ticks is about ±12.7% in price: two-and-a-half times the -5%
+    ///      band the vault's floor allows a convert to move the price through, so the seeded range
+    ///      still contains the price after every convert and the demo swap — and about five times the
+    ///      liquidity the same ETH would buy across a ±80% range.
+    string internal constant ENV_DEPTH_HALF_WIDTH_TICKS = "SEPOLIA_DEPTH_HALF_WIDTH_TICKS";
+    int24 internal constant DEFAULT_DEPTH_HALF_WIDTH_TICKS = 1200;
+
+    /// @dev Observation ring size requested on each seeded V3 reference pool.
+    uint16 internal constant REFERENCE_POOL_CARDINALITY = 16;
+
+    /// @dev Minimum active liquidity a seeded venue pool must report before the seed will claim the
+    ///      venue is live. Guards the failure mode a budget alone cannot: a position minted OUTSIDE
+    ///      the current tick range reports units while adding none of the depth the acquire leg needs.
+    uint128 internal constant MIN_VENUE_ACTIVE_LIQUIDITY = 1e12;
 
     // ─────────────────────────── Wave-2 breadth: fixed shape ───────────────────────────
 
@@ -348,6 +457,17 @@ abstract contract SeedSepoliaShared is Script {
         address resolverRouter; // METADATA_RESOLVER target when a stack is wired
         address overlay; // MetadataOverlayModule (waves + commissions)
         address tierResolver; // TokenTierBandResolver (static band art)
+        // ── Wave-3 venues: the LP families beyond Uni, and the periphery they ride ──
+        address zammVaultFactory; // ZAMMAlignmentVaultFactory — zero when this network has no ZAMM
+        address cypherVaultFactory; // CypherAlignmentVaultFactory — zero until the Algebra rail is up
+        address cypherPositionManager;
+        address cypherRouter;
+        address cypherAlgebraFactory;
+        address zammDeployer; // approved LIQUIDITY_DEPLOYER — the ZAMM module
+        address cypherDeployer; // approved LIQUIDITY_DEPLOYER — the Cypher module
+        address v3Factory;
+        address zamm;
+        uint256 zammFeeOrHook;
     }
 
     /// @dev What phase 1 hands phase 2, beyond the ERC404 curve roster itself. The breadth rows are
@@ -372,6 +492,24 @@ abstract contract SeedSepoliaShared is Script {
         uint256 soldLotId; // the timed lot carrying a bid — settled in phase 2
         uint256 unsoldLotId; // the timed lot with no bid — reclaimed in phase 2
         uint256 liveLotId; // the live lot, left running
+        // ── Wave-3 venues ──
+        //
+        // WHY EACH VENUE CARRIES ITS OWN ALIGNMENT TARGET. The registry stores ONE acquire route per
+        // (targetId, token), and the Cypher vault refuses to convert unless the route it reads says
+        // ALGEBRA. So one target cannot carry a live Uniswap convert AND a live Cypher convert for the
+        // same asset — and pointing a vault at a venue the registry curates as something else is the
+        // registry-vs-executed divergence the acquire route exists to close. Each venue therefore gets
+        // its own target, each with a coherent route and its own reference pool. Two targets naming one
+        // asset is a PICKER question (one asset, venue as an add-on), not a registry question.
+        uint256 ms2ZammTargetId; // MS2 under a ZAMM route
+        uint256 cultAlgebraTargetId; // CULT under an ALGEBRA route — the Cypher flagship's target
+        address ms2ZammVault;
+        address cultCypherVault;
+        address ms2ReferencePool; // Uniswap V3 {MS2, WETH} — price authority for both MS2 targets
+        address cultReferencePool; // Uniswap V3 {CULT, WETH} — price authority for CULT's Uni target
+        address cultAlgebraPool; // Algebra {CULT, WETH} — the Cypher venue AND its price authority
+        address cypher404; // the CULT-on-Cypher collection, graduating through the Algebra rail
+        uint256 referenceReadyAt; // when the seeded pools can first serve the deployment's TWAP window
     }
 
     /// @dev The seed's sender. Resolved from `msg.sender` inside `run()`, which is forge's
@@ -490,6 +628,11 @@ abstract contract SeedSepoliaShared is Script {
         d.overlay = vm.parseJsonAddress(json, ".contracts.MetadataOverlayModule");
         d.tierResolver = vm.parseJsonAddress(json, ".contracts.TokenTierBandResolver");
 
+        // ── Wave-3 venues: the LP modules the deploy already publishes ──
+        d.zammDeployer = vm.parseJsonAddress(json, ".contracts.ModuleZAMMDeployer");
+        d.cypherDeployer = vm.parseJsonAddress(json, ".contracts.ModuleCypherDeployer");
+        _readVenueHandoff(d);
+
         require(address(d.erc404) != address(0), "sepolia.json: ERC404 factory missing");
         require(d.uniVaultFactory != address(0), "sepolia.json: UNI vault factory missing");
         require(d.uniDeployer != address(0), "sepolia.json: ModuleUniV4Deployer missing (stale deployment file?)");
@@ -505,6 +648,48 @@ abstract contract SeedSepoliaShared is Script {
         require(d.resolverRouter != address(0), "sepolia.json: MetadataResolverRouter missing");
         require(d.overlay != address(0), "sepolia.json: MetadataOverlayModule missing");
         require(d.tierResolver != address(0), "sepolia.json: TokenTierBandResolver missing");
+    }
+
+    /// @dev The venue addresses `DeploySepolia` wrote beside the deployment file: the two vault
+    ///      factories the seed deploys ZAMM and Cypher vaults from (its alignment assets are fixtures
+    ///      that do not exist at deploy time), plus the Algebra periphery and the plain externals the
+    ///      venue legs ride. Read from a Sepolia-local file so the cross-network `DeployCore` keeps
+    ///      one output shape.
+    ///
+    ///      A ZERO here is a STATE, not a failure: an Algebra standup may not have happened yet, and a
+    ///      network may carry no ZAMM. The seed reports the venue as unavailable and continues rather
+    ///      than reverting a whole showcase over one absent rail.
+    function _readVenueHandoff(Deployed memory d) internal view {
+        if (!vm.exists(VENUE_PATH)) {
+            console.log("VENUES: no", VENUE_PATH, "- ZAMM and Cypher legs will be reported unavailable");
+            return;
+        }
+        string memory json = vm.readFile(VENUE_PATH);
+        require(
+            vm.parseJsonUint(json, ".chainId") == block.chainid,
+            "sepolia-venues.json: wrong chainId (stale file from another chain?)"
+        );
+        d.zammVaultFactory = vm.parseJsonAddress(json, ".zammVaultFactory");
+        d.cypherVaultFactory = vm.parseJsonAddress(json, ".cypherVaultFactory");
+        d.cypherPositionManager = vm.parseJsonAddress(json, ".cypherPositionManager");
+        d.cypherRouter = vm.parseJsonAddress(json, ".cypherRouter");
+        d.cypherAlgebraFactory = vm.parseJsonAddress(json, ".cypherAlgebraFactory");
+        d.v3Factory = vm.parseJsonAddress(json, ".v3Factory");
+        d.zamm = vm.parseJsonAddress(json, ".zamm");
+        d.zammFeeOrHook = vm.parseJsonUint(json, ".zammFeeOrHook");
+        require(d.v3Factory != address(0), "sepolia-venues.json: v3Factory missing (no reference pool can be stood up)");
+    }
+
+    /// @dev True when the Cypher rail is wired end to end. Anything less than ALL of it is not a
+    ///      partial venue, it is no venue: a vault factory with no router cannot acquire, and a router
+    ///      with no vault factory has nothing to acquire for.
+    function _cypherAvailable(Deployed memory d) internal pure returns (bool) {
+        return d.cypherVaultFactory != address(0) && d.cypherPositionManager != address(0)
+            && d.cypherRouter != address(0) && d.cypherAlgebraFactory != address(0) && d.cypherDeployer != address(0);
+    }
+
+    function _zammAvailable(Deployed memory d) internal pure returns (bool) {
+        return d.zammVaultFactory != address(0) && d.zamm != address(0) && d.zammFeeOrHook != 0;
     }
 
     // ─────────────────────────── Hand-off state ───────────────────────────
@@ -538,6 +723,16 @@ abstract contract SeedSepoliaShared is Script {
         vm.serializeUint(root, "soldLotId", h.soldLotId);
         vm.serializeUint(root, "unsoldLotId", h.unsoldLotId);
         vm.serializeUint(root, "liveLotId", h.liveLotId);
+        // ── Wave-3 venues ──
+        vm.serializeUint(root, "ms2ZammTargetId", h.ms2ZammTargetId);
+        vm.serializeUint(root, "cultAlgebraTargetId", h.cultAlgebraTargetId);
+        vm.serializeAddress(root, "ms2ZammVault", h.ms2ZammVault);
+        vm.serializeAddress(root, "cultCypherVault", h.cultCypherVault);
+        vm.serializeAddress(root, "ms2ReferencePool", h.ms2ReferencePool);
+        vm.serializeAddress(root, "cultReferencePool", h.cultReferencePool);
+        vm.serializeAddress(root, "cultAlgebraPool", h.cultAlgebraPool);
+        vm.serializeAddress(root, "cypher404", h.cypher404);
+        vm.serializeUint(root, "referenceReadyAt", h.referenceReadyAt);
         vm.serializeAddress(root, "all", instances);
         string memory out = vm.serializeString(root, "instances", instancesJson);
 
@@ -576,6 +771,17 @@ abstract contract SeedSepoliaShared is Script {
         h.soldLotId = vm.parseJsonUint(json, ".soldLotId");
         h.unsoldLotId = vm.parseJsonUint(json, ".unsoldLotId");
         h.liveLotId = vm.parseJsonUint(json, ".liveLotId");
+        // ── Wave-3 venues. Zeros are legal here: a venue whose rail this network does not carry was
+        //    reported unavailable in phase 1 and is skipped, not asserted, in phase 2.
+        h.ms2ZammTargetId = vm.parseJsonUint(json, ".ms2ZammTargetId");
+        h.cultAlgebraTargetId = vm.parseJsonUint(json, ".cultAlgebraTargetId");
+        h.ms2ZammVault = vm.parseJsonAddress(json, ".ms2ZammVault");
+        h.cultCypherVault = vm.parseJsonAddress(json, ".cultCypherVault");
+        h.ms2ReferencePool = vm.parseJsonAddress(json, ".ms2ReferencePool");
+        h.cultReferencePool = vm.parseJsonAddress(json, ".cultReferencePool");
+        h.cultAlgebraPool = vm.parseJsonAddress(json, ".cultAlgebraPool");
+        h.cypher404 = vm.parseJsonAddress(json, ".cypher404");
+        h.referenceReadyAt = vm.parseJsonUint(json, ".referenceReadyAt");
         _requireBreadthHandoff(h);
 
         instances = new address[](legs.length);
@@ -883,6 +1089,122 @@ abstract contract SeedSepoliaShared is Script {
         return window;
     }
 
+    // ══════════════════════════ WAVE 3 — VENUE KNOBS AND WIRING ══════════════════════════
+
+    function _v4DepthWei() internal view returns (uint256) {
+        return vm.envOr(ENV_V4_DEPTH_WEI, DEFAULT_V4_DEPTH_WEI);
+    }
+
+    function _referenceDepthWei() internal view returns (uint256) {
+        return vm.envOr(ENV_REFERENCE_DEPTH_WEI, DEFAULT_REFERENCE_DEPTH_WEI);
+    }
+
+    function _zammDepthWei() internal view returns (uint256) {
+        return vm.envOr(ENV_ZAMM_DEPTH_WEI, DEFAULT_ZAMM_DEPTH_WEI);
+    }
+
+    function _algebraDepthWei() internal view returns (uint256) {
+        return vm.envOr(ENV_ALGEBRA_DEPTH_WEI, DEFAULT_ALGEBRA_DEPTH_WEI);
+    }
+
+    function _zammVaultTitheWei() internal view returns (uint256) {
+        return vm.envOr(ENV_ZAMM_VAULT_TITHE_WEI, DEFAULT_ZAMM_VAULT_TITHE_WEI);
+    }
+
+    function _cypherFillBps() internal view returns (uint256) {
+        return vm.envOr(ENV_CYPHER_FILL_BPS, DEFAULT_CYPHER_FILL_BPS);
+    }
+
+    function _demoSwapWei() internal view returns (uint256) {
+        return vm.envOr(ENV_DEMO_SWAP_WEI, DEFAULT_DEMO_SWAP_WEI);
+    }
+
+    function _depthHalfWidthTicks() internal view returns (int24) {
+        return int24(uint24(vm.envOr(ENV_DEPTH_HALF_WIDTH_TICKS, uint256(uint24(DEFAULT_DEPTH_HALF_WIDTH_TICKS)))));
+    }
+
+    /// @dev The TWAP window the deployment's own validator was constructed with. Read off the
+    ///      validator rather than restated here: the wall-clock wait this seed imposes and the window
+    ///      the registry probes with must be the same number, and two copies of it would drift.
+    function _twapWindow(Deployed memory d) internal view returns (uint32) {
+        return ITwapWindowSource(d.priceValidator).twapSecondsAgo();
+    }
+
+    /// @dev The instant a seeded V3 reference pool can first answer `observe([window, 0])`, derived
+    ///      from the observation the pool ITSELF holds.
+    ///
+    ///      Phase 1 cannot compute this. A forge script is simulated at ONE timestamp and only then
+    ///      broadcast, so the instant phase 1 is able to record is the SIMULATION's, while the pool's
+    ///      first observation is written when its creating transaction is actually mined — a whole
+    ///      broadcast later. The recorded instant therefore under-states readiness by however long the
+    ///      phase-1 broadcast ran, and `phase2NotBefore`'s slack is sized for block-time jitter rather
+    ///      than for that offset, so which of the two is larger decides whether the pin succeeds.
+    ///      Reading the pool back replaces that race with the only clock that is authoritative here:
+    ///      `observe` reverts `OLD` for a target older than the oldest stored observation, so the
+    ///      oldest observation plus the window IS the instant, exactly.
+    ///
+    ///      The oldest observation sits at `index + 1` once the ring has wrapped and at 0 until it
+    ///      has; the `initialized` flag distinguishes the two. That is the same walk `Oracle.
+    ///      observeSingle` performs before it decides whether to revert.
+    function _v3ReferenceReadyAt(address pool, uint32 window) internal view returns (uint256) {
+        (,, uint16 index, uint16 cardinality,,,) = IUniswapV3PoolMinimal(pool).slot0();
+        (uint32 oldest,,, bool initialized) = IUniswapV3PoolMinimal(pool).observations((index + 1) % cardinality);
+        if (!initialized) (oldest,,,) = IUniswapV3PoolMinimal(pool).observations(0);
+        return uint256(oldest) + window;
+    }
+
+    /// @dev `_v3ReferenceReadyAt` across every V3 reference pool phase 2 pins, as one instant.
+    function _referencePoolsReadyAt(Deployed memory d, SeedHandoff memory h) internal view returns (uint256 readyAt) {
+        uint32 window = _twapWindow(d);
+        readyAt = _v3ReferenceReadyAt(h.ms2ReferencePool, window);
+        uint256 cult = _v3ReferenceReadyAt(h.cultReferencePool, window);
+        if (cult > readyAt) readyAt = cult;
+    }
+
+    /// @dev The native-ETH/token V4 key every Uni alignment vault in this seed LPs into and acquires
+    ///      through. Native ETH is currency0 — address(0) sorts below every token address, so the
+    ///      ordering holds without a comparison — and the tier is the deployment-wide one `DeployCore`
+    ///      builds vault keys from, which is also the tier `BestRouteAcquirer` falls back to when no
+    ///      quoter is wired. One pool, named by all three legs.
+    function _uniVenueKey(address token) internal pure returns (PoolKey memory) {
+        return PoolKey({
+            currency0: Currency.wrap(address(0)),
+            currency1: Currency.wrap(token),
+            fee: POOL_FEE,
+            tickSpacing: POOL_TICK_SPACING,
+            hooks: IHooks(address(0))
+        });
+    }
+
+    /// @dev The ZAMM key `DeployCore` bakes into a ZAMM vault at deploy: native ETH as token0, the
+    ///      alignment token as token1, the network's `zammFeeOrHook`. Rebuilt here so the pool the
+    ///      seed fills is provably the pool the vault will deposit into.
+    function _zammVenueKey(address token, uint256 feeOrHook) internal pure returns (IZAMM.PoolKey memory) {
+        return IZAMM.PoolKey({ id0: 0, id1: 0, token0: address(0), token1: token, feeOrHook: feeOrHook });
+    }
+
+    /// @dev The pending tithe a vault holds, across the two names the three families give it.
+    ///
+    ///      `UniAlignmentVault` and `CypherAlignmentVault` expose `totalPendingETH()`;
+    ///      `ZAMMAlignmentVault` exposes `pendingETH()`. Probed rather than branched on a family flag
+    ///      the seed would have to keep in step by hand — and a vault that answers NEITHER is refused
+    ///      here rather than read as a zero, because a zero is also what "this vault held no tithe"
+    ///      looks like and the two must not be confusable.
+    function _pendingTithe(address vault) internal view returns (uint256) {
+        (bool ok, bytes memory data) = vault.staticcall(abi.encodeWithSignature("totalPendingETH()"));
+        if (!ok || data.length != 32) {
+            (ok, data) = vault.staticcall(abi.encodeWithSignature("pendingETH()"));
+        }
+        require(ok && data.length == 32, "venue: the vault exposes no pending-tithe read");
+        return abi.decode(data, (uint256));
+    }
+
+    /// @dev ZAMM's pool id for a key — `keccak256(abi.encode(poolKey))`, the same derivation the
+    ///      singleton uses internally, so a reserve read names the pool the seed just filled.
+    function _zammPoolId(IZAMM.PoolKey memory key) internal pure returns (uint256) {
+        return uint256(keccak256(abi.encode(key)));
+    }
+
     // ─────────────────────────── Metadata ───────────────────────────
 
     /// @dev Backend-free PIECE metadata — the per-edition JSON an ERC1155 edition carries. Same shape
@@ -1158,6 +1480,91 @@ abstract contract SeedSepoliaShared is Script {
         require(f.liquidBalance > 0, "staking: the whole position is locked (the stake action is unwalkable)");
     }
 
+    // ── 3b. The staking STREAM (wave 3) ──
+
+    struct StreamFacts {
+        uint256 feeDelta; // ETH the instance actually received when it claimed its vaults' fees
+        uint256 rewardRate; // the module's per-second rate after the delta was recorded
+        uint256 periodFinish;
+        uint256 totalStaked;
+        uint256 nowTs;
+    }
+
+    /// @notice The staking stream is RUNNING, and it is running on a real LP-fee delta.
+    /// @dev Wave 2 left this row's stream armed and unfunded and said so, because the module's only
+    ///      funding path is a fee delta arriving through `claimAllFees` — and pushing ETH at it from a
+    ///      fixture would fabricate the reward source rather than demonstrate it. Wave 3 funds it the
+    ///      way the product does: the alignment vault holds a real LP position, a real swap on that
+    ///      pool pays it a fee, and the claim moves that fee to the instance.
+    ///
+    ///      `feeDelta > 0` is the assertion that keeps this honest. Without it the remaining three
+    ///      checks would pass on a stream started by any ETH from anywhere, which is exactly the shape
+    ///      wave 2 declined to ship.
+    function _assertStakingStream(StreamFacts memory f) internal pure {
+        require(f.totalStaked > 0, "stream: nothing is staked (a stream nobody can accrue is not running)");
+        require(f.feeDelta > 0, "stream: no fee delta arrived - the stream would have no earned source");
+        require(f.rewardRate > 0, "stream: the module records no per-second rate");
+        require(f.periodFinish > f.nowTs, "stream: the reward period has already finished");
+    }
+
+    // ── 3c. The VENUES (wave 3) ──
+
+    struct VenueFacts {
+        string label;
+        uint8 routeVenue; // the venue the registry curates for this (target, token)
+        uint8 expectedVenue;
+        address referencePool;
+        uint32 referenceWindow;
+        uint32 expectedWindow;
+        address vaultToken;
+        address expectedToken;
+        uint256 vaultTargetId;
+        uint256 expectedTargetId;
+        address vaultPriceValidator;
+        uint256 venueLiquidity; // ACTIVE depth in the pool the acquire leg swaps through
+        uint256 minVenueLiquidity;
+        uint256 pendingBefore; // the tithe the vault held going into its convert
+        uint256 pendingAfter;
+        uint256 lpPositionValue; // what the convert itself reported
+    }
+
+    /// @notice One venue is LIVE: curated coherently, priced by a pinned reference, deep enough to
+    ///         serve a convert, and proven by a convert that actually executed.
+    ///
+    /// @dev Three of these facts are the ones a venue quietly fails on, and none of them reads the
+    ///      others. The ROUTE is what the Cypher vault refuses to convert against when it disagrees,
+    ///      and what the app shows a visitor either way. The REFERENCE POOL is the price authority the
+    ///      -5% floor reads; unpinned, the convert reverts before it reaches any pool. The ACTIVE
+    ///      LIQUIDITY is the one a deposit figure cannot stand in for — a position minted outside the
+    ///      current tick range reports units while adding none of the depth the swap needs.
+    ///
+    ///      The last three are the ones that make this an outcome rather than a configuration
+    ///      listing: a tithe existed, the convert consumed it, and it reported a position. Drop the
+    ///      convert and `pendingAfter < pendingBefore` goes red.
+    function _assertVenueShowcase(VenueFacts memory f) internal pure {
+        require(f.expectedVenue != 0, "venue: the expected venue is NONE (the assertion would say nothing)");
+        require(f.routeVenue == f.expectedVenue, string.concat("venue: ", f.label, " route is not the venue it LPs on"));
+        require(f.referencePool != address(0), string.concat("venue: ", f.label, " has no pinned reference pool"));
+        require(
+            f.referenceWindow == f.expectedWindow,
+            string.concat("venue: ", f.label, " reference window is not the deployment's TWAP window")
+        );
+        require(f.vaultToken == f.expectedToken, string.concat("venue: ", f.label, " vault holds another asset"));
+        require(
+            f.vaultTargetId == f.expectedTargetId, string.concat("venue: ", f.label, " vault sits on another target")
+        );
+        require(f.vaultPriceValidator != address(0), string.concat("venue: ", f.label, " vault has no price validator"));
+        require(
+            f.venueLiquidity >= f.minVenueLiquidity,
+            string.concat("venue: ", f.label, " pool is too thin to serve a convert inside the floor")
+        );
+        require(f.pendingBefore > 0, string.concat("venue: ", f.label, " vault held no tithe to convert"));
+        require(
+            f.pendingAfter < f.pendingBefore, string.concat("venue: ", f.label, " convert consumed none of the tithe")
+        );
+        require(f.lpPositionValue > 0, string.concat("venue: ", f.label, " convert reported no LP position"));
+    }
+
     // ── 4/5. Metadata stack and Token Tiers ──
 
     struct TierFacts {
@@ -1315,4 +1722,404 @@ abstract contract SeedSepoliaShared is Script {
 /// @dev The vault factory's WETH immutable — read so the seed never re-declares an external address.
 interface IWethSource {
     function weth() external view returns (address);
+}
+
+/// @dev The validator's own TWAP window. The wall-clock wait this seed imposes before it will pin a
+///      freshly-created reference pool and the window the registry probes that pool with have to be
+///      the same number, so it is read from the deployment rather than restated in the seed.
+interface ITwapWindowSource {
+    function twapSecondsAgo() external view returns (uint32);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+//                     WAVE 3 — THE VENUES: EXTERNAL SURFACES AND THE TWO SEEDERS
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+//
+// A venue is not a configuration flag. Three separate things have to be true before a vault's
+// convert can execute, and none of them reads the others:
+//
+//   · the ACQUIRE ROUTE — the venue the registry curates for this (target, token);
+//   · the REFERENCE POOL — the price authority the vault's -5% oracle floor reads, which must be a
+//     {token, WETH} pool that can already serve a TWAP over the deployment's window; and
+//   · the venue POOL ITSELF, holding enough depth that a demo-sized buy prices inside that floor.
+//
+// The floor is never touched. What the seeders below change is the POOL: the showcase's alignment
+// assets are fixture tokens this deployment mints, so the market that prices them is ours to stand
+// up — and a testnet demonstration of what a vault DOES needs a market for the vault to do it in.
+// That is market plumbing, and it is distinct from the reward source the staking row still refuses
+// to fabricate (which stays a real LP-fee delta from a real swap; see `SeedSepoliaBuys`).
+
+/// @dev The two calls the reference-pool seeder makes on the Uniswap V3 factory.
+interface IUniswapV3FactoryMinimal {
+    function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool);
+    function createPool(address tokenA, address tokenB, uint24 fee) external returns (address pool);
+}
+
+/// @dev The Uniswap V3 pool surface the reference pool is stood up and read back through.
+interface IUniswapV3PoolMinimal {
+    function initialize(uint160 sqrtPriceX96) external;
+    function slot0()
+        external
+        view
+        returns (
+            uint160 sqrtPriceX96,
+            int24 tick,
+            uint16 observationIndex,
+            uint16 observationCardinality,
+            uint16 observationCardinalityNext,
+            uint8 feeProtocol,
+            bool unlocked
+        );
+    function mint(address recipient, int24 tickLower, int24 tickUpper, uint128 amount, bytes calldata data)
+        external
+        returns (uint256 amount0, uint256 amount1);
+    function increaseObservationCardinalityNext(uint16 observationCardinalityNext) external;
+    function observations(uint256 index)
+        external
+        view
+        returns (
+            uint32 blockTimestamp,
+            int56 tickCumulative,
+            uint160 secondsPerLiquidityCumulativeX128,
+            bool initialized
+        );
+    function observe(uint32[] calldata secondsAgos)
+        external
+        view
+        returns (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidityCumulativeX128s);
+    function liquidity() external view returns (uint128);
+    function token0() external view returns (address);
+    function token1() external view returns (address);
+}
+
+/// @dev Minimal WETH surface. The V4 and ZAMM venues are NATIVE-ETH pools; the reference pool and the
+///      Algebra venue are WETH pairs, so exactly the ETH those consume is wrapped and nothing else.
+interface IWethMinimal {
+    function deposit() external payable;
+    function approve(address spender, uint256 amount) external returns (bool);
+    function transfer(address to, uint256 amount) external returns (bool);
+    function balanceOf(address account) external view returns (uint256);
+}
+
+/// @dev The fixture-token surface the seed uses. These are the deployment's OWN `MockERC20`s, minted
+///      by this seed — which is why the token leg of every venue is minted rather than bought. There
+///      is no deep pool on this network to buy a fixture asset from, and inventing one to buy from
+///      would be the same fabrication one step removed.
+interface IFixtureToken {
+    function mint(address to, uint256 amount) external;
+    function approve(address spender, uint256 amount) external returns (bool);
+    function transfer(address to, uint256 amount) external returns (bool);
+    function balanceOf(address account) external view returns (uint256);
+}
+
+/// @dev The Algebra pool's ACTIVE in-range depth. Declared here rather than added to the shared
+///      `IAlgebraPool` because it is a seed-side read: what a convert swaps through is the liquidity
+///      at the current tick, and a deposit figure cannot stand in for it.
+interface IAlgebraPoolLiquidity {
+    function liquidity() external view returns (uint128);
+}
+
+/// @dev The owner-only registry setters the venue wiring drives. Declared here rather than imported
+///      from the concrete registry so the seed states exactly the three calls it makes.
+interface IAlignmentRouteAdmin {
+    function setAcquireRoute(uint256 targetId, address token, IAlignmentRegistry.AcquireRoute calldata route) external;
+    function setReferencePool(uint256 targetId, address token, IAlignmentRegistry.ReferencePool calldata ref) external;
+    function getAcquireRoute(uint256 targetId, address token)
+        external
+        view
+        returns (IAlignmentRegistry.AcquireRoute memory);
+    function getReferencePool(uint256 targetId, address token)
+        external
+        view
+        returns (IAlignmentRegistry.ReferencePool memory);
+}
+
+/// @dev The reads a vault is checked through after it is wired. Every member here is a public getter
+///      on ALL THREE vault families — the two that are not (the pending-tithe read and the convert)
+///      are handled explicitly below rather than assumed into this interface.
+interface IVenueVaultView {
+    function alignmentToken() external view returns (address);
+    function alignmentTargetId() external view returns (uint256);
+    function priceValidator() external view returns (address);
+}
+
+/// @dev The convert, as the Uniswap and Cypher families expose it: one slippage bound, floored by the
+///      vault to an oracle-derived minimum.
+interface IVenueVaultConvert {
+    function convertAndAddLiquidity(uint256 minOutTarget) external returns (uint256 lpPositionValue);
+}
+
+/// @dev The convert, as the ZAMM family exposes it. Its LP add is a paired deposit rather than a
+///      range position, so it carries two further minimums for the deposit legs. Declared separately
+///      rather than folded into one interface: the two signatures are genuinely different calls, and
+///      a single interface would only be able to express one of them.
+interface IZammVaultConvert {
+    function convertAndAddLiquidity(uint256 minTokenOut, uint256 minEth, uint256 minToken)
+        external
+        returns (uint256 lpMinted);
+}
+
+/// @notice Stands up the Uniswap V3 {token, WETH} pool the vault's oracle floor reads as its price
+///         authority, and holds the position it mints.
+///
+///         ── WHY THE SHOWCASE MINTS ITS OWN REFERENCE POOL ──
+///
+///         The floor is derived from a pinned pool's own TWAP, which is the correct design: an
+///         attacker cannot move a time-weighted price inside one transaction. It presumes a pool
+///         exists. The showcase's alignment assets are FIXTURE tokens minted by this deployment, so
+///         nothing on this network prices them until this deployment prices them. Standing the pool
+///         up is therefore part of standing the asset up; it is not a way around the floor, and the
+///         floor is left exactly as deployed.
+///
+///         ── THE TWAP IS A WALL-CLOCK COST, NOT A CALL ──
+///
+///         `setReferencePool` probes `observe([window, 0])` before it will accept a pool, and a pool
+///         initialized moments ago has no observation old enough to answer that. So this contract
+///         only CREATES and SEEDS the pool; the pin happens a full window later, in phase 2, after
+///         the orchestrator has waited the window out in real time. There is no fast-forward on a
+///         public testnet — the wait is the mechanism.
+///
+///         The position is minted under this contract and left. There is no withdraw path, which is
+///         deliberate: the reference pool's depth should not be removable by a demo action.
+contract SepoliaReferencePoolSeeder {
+    error NotOwner();
+    error NotPool();
+    error PoolPairMismatch();
+    error NoLiquidityMinted();
+
+    /// @dev 1:1. The fixture asset has no prior price, so the price it is stood up at is a choice —
+    ///      and parity with ETH is the choice that makes every other number in the showcase readable
+    ///      by eye. The V4 and ZAMM venues are seeded at the same parity, so the curated reference and
+    ///      the executed venue agree and the -5% floor has real headroom rather than a permanent skew.
+    uint160 internal constant SQRT_PRICE_1_1 = 79228162514264337593543950336;
+
+    address public immutable owner;
+    IWethMinimal public immutable weth;
+    IFixtureToken public immutable token;
+    IUniswapV3PoolMinimal public pool;
+
+    constructor(address weth_, address token_) {
+        owner = msg.sender;
+        weth = IWethMinimal(weth_);
+        token = IFixtureToken(token_);
+    }
+
+    receive() external payable { }
+
+    /// @notice Create (or adopt) the {token, WETH} pool at `fee`, initialize it at parity, widen its
+    ///         observation ring, and mint a concentrated position centred on its tick.
+    /// @param halfWidthTicks Half-width before alignment to `tickSpacing`. Symmetric in ticks is
+    ///        symmetric in log price, so equal nominal amounts on the two legs is the right split at
+    ///        parity.
+    /// @return poolAddr The pool that must later be pinned as this (target, token)'s reference.
+    /// @return liquidityMinted Liquidity units the position added.
+    function seed(address v3Factory, uint24 fee, int24 tickSpacing, int24 halfWidthTicks, uint16 cardinality)
+        external
+        payable
+        returns (address poolAddr, uint128 liquidityMinted)
+    {
+        if (msg.sender != owner) revert NotOwner();
+
+        poolAddr = IUniswapV3FactoryMinimal(v3Factory).getPool(address(weth), address(token), fee);
+        if (poolAddr == address(0)) {
+            poolAddr = IUniswapV3FactoryMinimal(v3Factory).createPool(address(weth), address(token), fee);
+        }
+        pool = IUniswapV3PoolMinimal(poolAddr);
+        // The registry's own probe requires the pair to be exactly {token, WETH}; assert it here so a
+        // mis-specified fee tier fails at the seeder rather than a window later at the pin.
+        address t0 = pool.token0();
+        address t1 = pool.token1();
+        if (!((t0 == address(token) && t1 == address(weth)) || (t0 == address(weth) && t1 == address(token)))) {
+            revert PoolPairMismatch();
+        }
+
+        (uint160 sqrtPriceX96,,,,,,) = pool.slot0();
+        if (sqrtPriceX96 == 0) {
+            pool.initialize(SQRT_PRICE_1_1);
+            sqrtPriceX96 = SQRT_PRICE_1_1;
+        }
+        // Widen the observation ring so the pool keeps history once anything trades on it. The pin a
+        // window from now does not depend on this — an untraded pool answers from its single
+        // initialization observation — but a pool that is traded and cannot remember is a reference
+        // that stops working the moment it becomes interesting.
+        pool.increaseObservationCardinalityNext(cardinality);
+
+        // Both legs, at the parity the pool was initialized at: the ETH the caller sent, wrapped, and
+        // the same nominal amount of the fixture token, minted.
+        uint256 ethLeg = msg.value;
+        weth.deposit{ value: ethLeg }();
+        token.mint(address(this), ethLeg);
+
+        (, int24 tick,,,,,) = pool.slot0();
+        (int24 tickLower, int24 tickUpper) = _range(tick, tickSpacing, halfWidthTicks);
+
+        // At parity the two legs are equal in nominal terms, so which side sorts first does not
+        // change the amounts offered — only the callback's payment does, and that reads the ordering
+        // for itself.
+        liquidityMinted = LiquidityAmounts.getLiquidityForAmounts(
+            sqrtPriceX96, TickMath.getSqrtPriceAtTick(tickLower), TickMath.getSqrtPriceAtTick(tickUpper), ethLeg, ethLeg
+        );
+        if (liquidityMinted == 0) revert NoLiquidityMinted();
+        pool.mint(address(this), tickLower, tickUpper, liquidityMinted, "");
+    }
+
+    /// @dev Uniswap V3 mint callback: pay what the position pulled out of the legs already held.
+    function uniswapV3MintCallback(uint256 amount0Owed, uint256 amount1Owed, bytes calldata) external {
+        if (msg.sender != address(pool)) revert NotPool();
+        (uint256 wethOwed, uint256 tokenOwed) =
+            address(weth) < address(token) ? (amount0Owed, amount1Owed) : (amount1Owed, amount0Owed);
+        if (wethOwed != 0) weth.transfer(msg.sender, wethOwed);
+        if (tokenOwed != 0) token.transfer(msg.sender, tokenOwed);
+    }
+
+    function _range(int24 tick, int24 spacing, int24 halfWidthTicks) private pure returns (int24 lower, int24 upper) {
+        lower = _alignedTick(tick - halfWidthTicks, spacing);
+        upper = _alignedTick(tick + halfWidthTicks, spacing);
+        int24 minTick = TickMath.minUsableTick(spacing);
+        int24 maxTick = TickMath.maxUsableTick(spacing);
+        if (lower < minTick) lower = minTick;
+        if (upper > maxTick) upper = maxTick;
+    }
+
+    function _alignedTick(int24 tick, int24 spacing) private pure returns (int24) {
+        int24 compressed = tick / spacing;
+        if (tick < 0 && tick % spacing != 0) compressed--;
+        return compressed * spacing;
+    }
+}
+
+/// @notice Gives the Uniswap V4 pool a vault actually acquires through the depth its curated route
+///         already claims.
+///
+///         This is the Sepolia analog of the depth seeder the mainnet-fork seed uses, and it differs
+///         in exactly one place. On a mainnet fork the token leg is BOUGHT on a deep same-pair V3
+///         pool, because the alignment asset is a real coin with a real market. On this network the
+///         alignment asset is a fixture this deployment minted, and there is no deep pool to buy it
+///         from — so the leg is MINTED. That is a structural difference between a fork of a live
+///         market and a network where the asset begins with the deployment, not a weakening of the
+///         pattern: what both do is put real two-sided liquidity into the pool the acquire leg swaps
+///         through, so the executed buy prices inside the vault's -5% floor.
+///
+///         The position is minted under this contract with a zero salt and left. There is no withdraw
+///         path, for the same reason the reference pool has none.
+contract SepoliaV4DepthSeeder is IUnlockCallback {
+    using CurrencySettler for Currency;
+    using StateLibrary for IPoolManager;
+    using PoolIdLibrary for PoolKey;
+
+    error NotOwner();
+    error NotPoolManager();
+    error TokenNotInPoolKey();
+    error NoLiquidityMinted();
+
+    struct AddLiquidityCallbackData {
+        PoolKey key;
+        int24 tickLower;
+        int24 tickUpper;
+        uint256 amount0;
+        uint256 amount1;
+    }
+
+    IPoolManager public immutable poolManager;
+    IFixtureToken public immutable token;
+    address public immutable owner;
+
+    constructor(IPoolManager poolManager_, address token_) {
+        poolManager = poolManager_;
+        token = IFixtureToken(token_);
+        owner = msg.sender;
+    }
+
+    receive() external payable { }
+
+    /// @notice Mint the fixture leg and add the pair as a concentrated position centred on the pool's
+    ///         current tick.
+    /// @return liquidity Liquidity units minted.
+    /// @return ethUsed Native ETH the position pulled.
+    /// @return tokenUsed Fixture token the position pulled.
+    function seedDepth(PoolKey calldata key, int24 halfWidthTicks)
+        external
+        payable
+        returns (uint128 liquidity, uint256 ethUsed, uint256 tokenUsed)
+    {
+        if (msg.sender != owner) revert NotOwner();
+        bool tokenIsCurrency1 = Currency.unwrap(key.currency1) == address(token);
+        if (!tokenIsCurrency1 && Currency.unwrap(key.currency0) != address(token)) revert TokenNotInPoolKey();
+
+        // At the parity the pool is initialized to, an ETH-symmetric range wants equal nominal legs.
+        uint256 ethHeld = msg.value;
+        token.mint(address(this), ethHeld);
+        uint256 tokenHeld = token.balanceOf(address(this));
+
+        (, int24 tick,,) = poolManager.getSlot0(key.toId());
+        int24 tickLower = _alignedTick(tick - halfWidthTicks, key.tickSpacing);
+        int24 tickUpper = _alignedTick(tick + halfWidthTicks, key.tickSpacing);
+        int24 minTick = TickMath.minUsableTick(key.tickSpacing);
+        int24 maxTick = TickMath.maxUsableTick(key.tickSpacing);
+        if (tickLower < minTick) tickLower = minTick;
+        if (tickUpper > maxTick) tickUpper = maxTick;
+
+        (uint256 amount0, uint256 amount1) = tokenIsCurrency1 ? (ethHeld, tokenHeld) : (tokenHeld, ethHeld);
+
+        bytes memory result = poolManager.unlock(
+            abi.encode(
+                AddLiquidityCallbackData({
+                    key: key, tickLower: tickLower, tickUpper: tickUpper, amount0: amount0, amount1: amount1
+                })
+            )
+        );
+        uint256 used0;
+        uint256 used1;
+        (liquidity, used0, used1) = abi.decode(result, (uint128, uint256, uint256));
+        if (liquidity == 0) revert NoLiquidityMinted();
+        (ethUsed, tokenUsed) = tokenIsCurrency1 ? (used0, used1) : (used1, used0);
+
+        // Residue back to the caller: a position never pulls both legs to the last wei.
+        uint256 tokenLeft = token.balanceOf(address(this));
+        if (tokenLeft != 0) token.transfer(owner, tokenLeft);
+        uint256 ethLeft = address(this).balance;
+        if (ethLeft != 0) SafeTransferLib.safeTransferETH(owner, ethLeft);
+    }
+
+    /// @dev V4 unlock callback — the house pattern: price the liquidity off the pool's live sqrt
+    ///      price, mint it, then settle debts and take credits with `CurrencySettler`.
+    function unlockCallback(bytes calldata data) external returns (bytes memory) {
+        if (msg.sender != address(poolManager)) revert NotPoolManager();
+        AddLiquidityCallbackData memory p = abi.decode(data, (AddLiquidityCallbackData));
+
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(p.key.toId());
+        uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
+            sqrtPriceX96,
+            TickMath.getSqrtPriceAtTick(p.tickLower),
+            TickMath.getSqrtPriceAtTick(p.tickUpper),
+            p.amount0,
+            p.amount1
+        );
+
+        (BalanceDelta delta,) = poolManager.modifyLiquidity(
+            p.key,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: p.tickLower,
+                tickUpper: p.tickUpper,
+                liquidityDelta: int256(uint256(liquidity)),
+                salt: bytes32(0)
+            }),
+            ""
+        );
+
+        int128 d0 = delta.amount0();
+        int128 d1 = delta.amount1();
+        if (d0 < 0) p.key.currency0.settle(poolManager, address(this), uint256(uint128(-d0)), false);
+        else if (d0 > 0) p.key.currency0.take(poolManager, address(this), uint256(uint128(d0)), false);
+        if (d1 < 0) p.key.currency1.settle(poolManager, address(this), uint256(uint128(-d1)), false);
+        else if (d1 > 0) p.key.currency1.take(poolManager, address(this), uint256(uint128(d1)), false);
+
+        return abi.encode(liquidity, d0 < 0 ? uint256(uint128(-d0)) : 0, d1 < 0 ? uint256(uint128(-d1)) : 0);
+    }
+
+    function _alignedTick(int24 tick, int24 spacing) private pure returns (int24) {
+        int24 compressed = tick / spacing;
+        if (tick < 0 && tick % spacing != 0) compressed--;
+        return compressed * spacing;
+    }
 }
