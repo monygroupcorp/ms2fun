@@ -33,3 +33,9 @@ pnpm chain:deploy
   start. `ss` ships with `iproute2` and is present on most Linux boxes; `lsof` and `fuser` also
   work if installed. With none of the three available, both scripts refuse to start or stop
   rather than guess at the port's state.
+- **The app reaches this fork same-origin, through the dev server.** `pnpm dev`/`pnpm preview`
+  proxy `/__rpc/mainnet` to `http://localhost:8545` (`vite.config.ts`); the app's own transport
+  uses that path, never a plain loopback URL, so it clears the page's CSP and Chrome's Local
+  Network Access gate. A **wallet** adding this network manually still needs the absolute RPC,
+  `http://localhost:8545` — the wallet is a separate app, not the page, so neither the CSP nor the
+  proxy applies to it.

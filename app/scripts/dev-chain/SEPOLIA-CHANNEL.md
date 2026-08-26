@@ -55,6 +55,12 @@ Add a custom network in the wallet, exactly as for the 1337 channel today:
 - **RPC** `http://localhost:8546`
 - **Currency** ETH
 
+Use the **absolute** RPC above, not the app's `/__rpc/sepolia` proxy path — the wallet is a
+separate app on your machine, not the page, so it isn't bound by the page's CSP or Chrome's Local
+Network Access gate and can't reach anvil through the dev server. Chrome's "give this site
+permission to access devices on your local network" prompt no longer appears for the PAGE (it now
+reaches anvil same-origin); it's unrelated to the wallet either way.
+
 The wallet will call it Sepolia, because it is Sepolia's chain id. Anvil funds its ten default
 accounts with 10 000 ETH each; import one of those to have a balance to spend.
 
@@ -106,8 +112,9 @@ salt set would be invisible to it.
 
 Two lines, both behind `VITE_SEPOLIA_FORK`, and both no-ops when it is unset:
 
-- `src/lib/wagmi.ts` — chain 11155111's transport becomes `http://localhost:8546` instead of the
-  health-ranked public pool.
+- `src/lib/wagmi.ts` — chain 11155111's transport becomes `/__rpc/sepolia` (same-origin, proxied
+  to `http://localhost:8546` by `vite.config.ts`'s dev-server proxy) instead of the health-ranked
+  public pool.
 - `src/lib/addresses.ts` — the channel's artifact `local-deployment.sepolia.json` is used **in place
   of** the committed `sepolia-deployment.json` placeholder. A substitution, not an addition: both
   files carry chain id 11155111, and two deployments at one key would silently keep the last.
