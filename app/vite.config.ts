@@ -65,6 +65,29 @@ function spaFallback404(): Plugin {
   }
 }
 
+// Same-origin proxy for the two local anvil dev channels (`scripts/dev-chain/README.md`,
+// `scripts/dev-chain/SEPOLIA-CHANNEL.md`). The page's CSP is `connect-src 'self' ...` with no
+// loopback entry (`index.html` is untouched by this file), and Chrome now gates a page fetching
+// loopback cross-origin behind a Local Network Access permission prompt. A same-origin path is
+// covered by `'self'` and is exempt from that gate, and it keeps working when the app is opened
+// from another machine (the proxy target is server-side, so it stays `localhost` regardless of
+// which host served the page). Dev-server-only: `server.proxy`/`preview.proxy` exist only under
+// `serve`/`preview`, never in the emitted build, so the IPFS/prod artifact is untouched.
+// `rewrite` strips the `/__rpc/<channel>` prefix: anvil's JSON-RPC server answers only at `/`,
+// so forwarding the prefixed path through unrewritten 404s at the target (verified live).
+const devChainProxy = {
+  '/__rpc/mainnet': {
+    target: 'http://localhost:8545',
+    changeOrigin: true,
+    rewrite: (path: string) => path.replace(/^\/__rpc\/mainnet/, ''),
+  },
+  '/__rpc/sepolia': {
+    target: 'http://localhost:8546',
+    changeOrigin: true,
+    rewrite: (path: string) => path.replace(/^\/__rpc\/sepolia/, ''),
+  },
+}
+
 export default defineConfig({
   // `/` reproduces the pre-existing default for ms2.fun; `./` makes every emitted URL relative to
   // the document so the build survives a gateway's `/ipfs/<cid>/` path prefix.
@@ -136,6 +159,10 @@ export default defineConfig({
     host: true,
     allowedHosts: true,
     hmr: { clientPort: 5173 },
+    proxy: devChainProxy,
+  },
+  preview: {
+    proxy: devChainProxy,
   },
   resolve: {
     alias: { '@': resolve(__dirname, 'src') },
