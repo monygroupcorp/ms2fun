@@ -23,6 +23,45 @@ contract VenueAssertHarness is SeedSepoliaShared {
     function minVenueLiquidity() external pure returns (uint128) {
         return MIN_VENUE_ACTIVE_LIQUIDITY;
     }
+
+    function referenceReadyAt(address pool, uint32 window) external view returns (uint256) {
+        return _v3ReferenceReadyAt(pool, window);
+    }
+}
+
+/// @dev A Uniswap V3 observation ring, only as much of one as the readiness derivation reads. It is
+///      set up by hand rather than by running a pool, so a test can place the oldest observation
+///      where the derivation has to go looking for it instead of where it happens to land.
+contract ObservationRingStub {
+    struct Observation {
+        uint32 blockTimestamp;
+        int56 tickCumulative;
+        uint160 secondsPerLiquidityCumulativeX128;
+        bool initialized;
+    }
+
+    uint16 public index;
+    uint16 public cardinality;
+
+    mapping(uint256 => Observation) internal _obs;
+
+    function set(uint16 i, uint16 c) external {
+        index = i;
+        cardinality = c;
+    }
+
+    function write(uint256 slot, uint32 ts, bool initialized) external {
+        _obs[slot] = Observation(ts, 0, 0, initialized);
+    }
+
+    function observations(uint256 slot) external view returns (uint32, int56, uint160, bool) {
+        Observation memory o = _obs[slot];
+        return (o.blockTimestamp, o.tickCumulative, o.secondsPerLiquidityCumulativeX128, o.initialized);
+    }
+
+    function slot0() external view returns (uint160, int24, uint16, uint16, uint16, uint8, bool) {
+        return (0, 0, index, cardinality, 0, 0, true);
+    }
 }
 
 /// @notice THE VACUITY CHECK FOR THE SEPOLIA SHOWCASE'S VENUES AND ITS STAKING STREAM.
@@ -268,6 +307,50 @@ contract SepoliaShowcaseVenuesTest is Test {
             )
         );
         assertEq(h.zammPoolId(TOKEN, feeOrHook), expected, "zamm pool id derivation drifted from the vault's");
+    }
+
+    // ═══════════════════ When a reference pool can be pinned ═══════════════════
+
+    /// @dev Phase 2 may pin a reference pool only once the pool can answer a window-long TWAP, and
+    ///      `observe` decides that against the OLDEST observation the pool still holds. Phase 1 cannot
+    ///      compute the instant — it is simulated at one timestamp and broadcast afterwards, so the
+    ///      pool is written later than any number phase 1 could record — which is why the derivation
+    ///      reads the pool instead. These three cases pin that it reads the right slot.
+
+    /// @dev Before the ring has wrapped, the oldest observation is slot 0 and slot `index + 1` is
+    ///      uninitialized. Reading `index + 1` blindly would take a zero timestamp and declare the
+    ///      pool ready a full window before it is.
+    function test_referenceReadyAtWalksBackToSlotZeroBeforeTheRingWraps() public {
+        ObservationRingStub pool = new ObservationRingStub();
+        pool.set(0, 1);
+        pool.write(0, 1_000_000, true);
+        pool.write(1, 0, false); // not yet written
+
+        assertEq(h.referenceReadyAt(address(pool), 1800), 1_000_000 + 1800, "readiness is oldest + window");
+    }
+
+    /// @dev Once the ring has wrapped, the oldest observation is the one AFTER the newest. Reading
+    ///      slot 0 here would hold the pool back long after it could serve the window.
+    function test_referenceReadyAtReadsTheOldestSlotOnceTheRingHasWrapped() public {
+        ObservationRingStub pool = new ObservationRingStub();
+        pool.set(1, 4); // newest at 1, so oldest at 2
+        pool.write(0, 5_000, true);
+        pool.write(1, 9_000, true); // newest
+        pool.write(2, 6_000, true); // oldest still held
+        pool.write(3, 7_000, true);
+
+        assertEq(h.referenceReadyAt(address(pool), 1800), 6_000 + 1800, "readiness must follow the ring, not slot 0");
+    }
+
+    /// @dev The window is not baked in: it is the deployment's own, read off the validator, so a
+    ///      deployment configured with a different one moves this instant with it.
+    function test_referenceReadyAtCarriesTheWindowItIsGiven() public {
+        ObservationRingStub pool = new ObservationRingStub();
+        pool.set(0, 1);
+        pool.write(0, 1_000_000, true);
+
+        assertEq(h.referenceReadyAt(address(pool), 600), 1_000_600, "a shorter window must be honoured");
+        assertEq(h.referenceReadyAt(address(pool), 3600), 1_003_600, "a longer window must be honoured");
     }
 }
 
