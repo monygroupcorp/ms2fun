@@ -6,7 +6,7 @@ import { LiquidityDeployerModule } from "../../../src/factories/erc404/Liquidity
 import { ILiquidityDeployerModule } from "../../../src/interfaces/ILiquidityDeployerModule.sol";
 import { MockERC20 } from "../../mocks/MockERC20.sol";
 import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
-import { zRouter } from "../../../src/peripherals/zRouter.sol";
+import { zRouter, mainnetChainConfig } from "../../../src/peripherals/zRouter.sol";
 import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
 import { PoolKey } from "v4-core/types/PoolKey.sol";
 import { PoolId, PoolIdLibrary } from "v4-core/types/PoolId.sol";
@@ -67,7 +67,7 @@ contract LiquidityDeployerModuleGraduationForkTest is ForkTestBase {
             UNISWAP_V4_POOL_MANAGER, WETH, FEE, TICK_SPACING, address(new MockMasterRegistry())
         );
         // Real zRouter (its V4_POOL_MANAGER constant is the mainnet PM) — the exact swap path the UI uses.
-        router = new zRouter();
+        router = new zRouter(mainnetChainConfig());
 
         vm.label(address(module), "LiquidityDeployerModule");
         vm.label(address(token), "GRAD");
