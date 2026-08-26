@@ -25,6 +25,10 @@
     "chain:deploy": "tsx scripts/dev-chain/deploy.ts",
     "chain:check": "tsx scripts/dev-chain/check.ts",
     "chain:stop": "bash scripts/dev-chain/stop.sh",
+    "chain:fork:sepolia": "bash scripts/dev-chain/fork-sepolia.sh",
+    "chain:deploy:sepolia": "tsx scripts/dev-chain/deploy-sepolia.ts",
+    "chain:check:sepolia": "tsx scripts/dev-chain/check-sepolia.ts",
+    "chain:stop:sepolia": "bash scripts/dev-chain/stop-sepolia.sh",
     "tithe:report": "tsx scripts/tithe-report.ts",
     "publish:preflight": "tsx scripts/assert-publishable.ts"
   },
