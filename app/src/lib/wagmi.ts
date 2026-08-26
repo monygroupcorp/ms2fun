@@ -9,23 +9,36 @@ import { decentralizedTransport } from './rpc'
  * The local anvil mainnet-fork. Chain id is 1337 (from the local-chain deploy bridge,
  * `contracts/.../contracts.local.json`), NOT anvil's default 31337.
  */
-// Dev-only: reach anvil at whatever host served the app. On localhost that's localhost:8545; over
-// Tailscale (walking the app from another machine) it's <archbox-host>:8545, since the browser's
-// localhost is NOT the box running anvil. Falls back to localhost for SSR/no-window.
+// The chain's DECLARED rpc — this is what a WALLET is told to add/switch to
+// (`WrongNetworkBanner`'s manual fallback, `wallet_addEthereumChain`), so it stays the absolute
+// loopback URL: the wallet is a separate app on the user's machine, not the page, so it is bound
+// by neither the page's CSP nor Chrome's Local Network Access gate and cannot reach anvil through
+// the dev-server's same-origin proxy. Host-aware for Tailscale (walking the app from another
+// machine): on localhost that's localhost:8545, off it, that machine's own hostname:8545 — the
+// wallet runs alongside the browser, so it resolves the same host the page did. Falls back to
+// localhost for SSR/no-window.
 const ANVIL_RPC =
   typeof window !== 'undefined' && window.location.hostname !== 'localhost'
     ? `http://${window.location.hostname}:8545`
     : 'http://localhost:8545'
 
+// The APP's own read transport for the mainnet-fork channel — same-origin, proxied server-side to
+// anvil by `vite.config.ts`'s `devChainProxy`. Same-origin is covered by the page's
+// `connect-src 'self'` CSP and exempt from the LNA gate that a plain loopback fetch now trips; it
+// also keeps working when the app is opened from another machine, since the proxy target is
+// resolved on the dev server rather than the browser. viem's `http()` builds requests off
+// `location` for a relative URL, so no origin needs constructing here.
+const ANVIL_RPC_PROXY = '/__rpc/mainnet'
+
 /**
  * The Sepolia-fork dev channel's endpoint (`app/scripts/dev-chain/SEPOLIA-CHANNEL.md`) — a second
- * anvil on :8546, forking Sepolia and keeping chain id 11155111. Same host rule as the mainnet
- * channel above: reach it at whatever host served the app.
+ * anvil on :8546, forking Sepolia and keeping chain id 11155111. Same same-origin-proxy rule as
+ * the mainnet channel's app transport above: this is the APP's read path, not a wallet-facing
+ * chain rpcUrls entry (the `sepolia` chain here is `wagmi/chains`' standard export, untouched), so
+ * it can be the proxy path outright. The wallet's own custom-network entry for this channel is the
+ * absolute `http://localhost:8546`, documented in `scripts/dev-chain/SEPOLIA-CHANNEL.md`.
  */
-const SEPOLIA_FORK_RPC =
-  typeof window !== 'undefined' && window.location.hostname !== 'localhost'
-    ? `http://${window.location.hostname}:8546`
-    : 'http://localhost:8546'
+const SEPOLIA_FORK_RPC = '/__rpc/sepolia'
 
 export const anvilFork = defineChain({
   id: 1337,
@@ -63,7 +76,8 @@ export const anvilFork = defineChain({
  *    multicall itself) into a single HTTP POST instead of N round-trips.
  * RPC stays fully decentralized (no keyed endpoints, ADR-0010): a real network uses
  * `decentralizedTransport` — the connected wallet's node preferred, then a health-ranked pool of
- * key-less public endpoints, all batched. The local anvil fork keeps its single localhost transport.
+ * key-less public endpoints, all batched. The local anvil fork keeps its single same-origin-proxied
+ * transport (`ANVIL_RPC_PROXY` above).
  */
 export const config = createConfig({
   chains: [mainnet, sepolia, anvilFork],
@@ -79,7 +93,7 @@ export const config = createConfig({
     [sepolia.id]: sepoliaForkEnabled
       ? http(SEPOLIA_FORK_RPC, { batch: true })
       : (decentralizedTransport(sepolia.id) ?? http(undefined, { batch: true })),
-    [anvilFork.id]: http(undefined, { batch: true }),
+    [anvilFork.id]: http(ANVIL_RPC_PROXY, { batch: true }),
   },
 })
 
