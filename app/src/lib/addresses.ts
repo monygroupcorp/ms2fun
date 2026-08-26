@@ -1,5 +1,23 @@
 import localDeployment from '../config/local-deployment.json'
 import sepoliaDeployment from '../config/sepolia-deployment.json'
+import sepoliaForkDeployment from '../config/local-deployment.sepolia.json'
+
+/**
+ * The Sepolia-fork DEV CHANNEL seam (`app/scripts/dev-chain/SEPOLIA-CHANNEL.md`).
+ *
+ * A second anvil channel forks Sepolia on :8546 and runs the real deploy + seed pipeline against it,
+ * so the showcase can be walked before the public testnet carries it. The fork keeps the chain id it
+ * forked (11155111) — the seed scripts require it, and matching the real network is the whole point
+ * — so the channel cannot be selected by chain id. This flag is the selection instead, and it does
+ * exactly two things: it points chain 11155111's transport at the fork (see ./wagmi.ts) and it
+ * substitutes the channel's deployment artifact for the committed placeholder below.
+ *
+ * UNSET IS THE UNCHANGED APP. The comparison is against a statically-replaced `import.meta.env`
+ * value, so an ordinary build resolves this to `false`, the branch below folds to the committed
+ * `sepoliaDeployment`, and the channel artifact drops out of the bundle. Nothing here reaches a
+ * production build: the flag is only ever set by hand, in front of `pnpm dev`.
+ */
+export const sepoliaForkEnabled: boolean = import.meta.env.VITE_SEPOLIA_FORK === '1'
 
 /** Chain id of the local anvil mainnet-fork (see ./wagmi.ts). */
 export const anvilChainId = 1337
@@ -134,8 +152,16 @@ export function buildAddressesByChain(
  * `scripts/dev-chain/sepolia-config.ts`; its committed copy is likewise a zero placeholder, so a Sepolia build
  * made before that deploy is broadcast resolves zero addresses rather than a guess, and dropping the
  * real file in is config rather than code. Adding a further chain is a file plus a line here.
+ *
+ * The Sepolia entry is a SUBSTITUTION, never an addition: `local-deployment.sepolia.json` is the
+ * dev channel's own artifact and carries the same chain id (11155111), so both files at once would
+ * mean two deployments at one key and `buildAddressesByChain` would silently keep the last. With
+ * `VITE_SEPOLIA_FORK` unset — every ordinary build — the committed placeholder is what is carried.
  */
-const DEPLOYMENTS: readonly Deployment[] = [localDeployment, sepoliaDeployment]
+const DEPLOYMENTS: readonly Deployment[] = [
+  localDeployment,
+  sepoliaForkEnabled ? sepoliaForkDeployment : sepoliaDeployment,
+]
 
 /**
  * Chain-scoped address map (chain-scoped-slug-routes, noesis-079). Every chain this build carries a

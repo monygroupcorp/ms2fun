@@ -2,6 +2,7 @@ import { defineChain } from 'viem'
 import { createConfig, http } from 'wagmi'
 import { mainnet, sepolia } from 'wagmi/chains'
 import { injected } from 'wagmi/connectors'
+import { sepoliaForkEnabled } from './addresses'
 import { decentralizedTransport } from './rpc'
 
 /**
@@ -15,6 +16,16 @@ const ANVIL_RPC =
   typeof window !== 'undefined' && window.location.hostname !== 'localhost'
     ? `http://${window.location.hostname}:8545`
     : 'http://localhost:8545'
+
+/**
+ * The Sepolia-fork dev channel's endpoint (`app/scripts/dev-chain/SEPOLIA-CHANNEL.md`) — a second
+ * anvil on :8546, forking Sepolia and keeping chain id 11155111. Same host rule as the mainnet
+ * channel above: reach it at whatever host served the app.
+ */
+const SEPOLIA_FORK_RPC =
+  typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+    ? `http://${window.location.hostname}:8546`
+    : 'http://localhost:8546'
 
 export const anvilFork = defineChain({
   id: 1337,
@@ -61,7 +72,13 @@ export const config = createConfig({
   batch: { multicall: true },
   transports: {
     [mainnet.id]: decentralizedTransport(mainnet.id) ?? http(undefined, { batch: true }),
-    [sepolia.id]: decentralizedTransport(sepolia.id) ?? http(undefined, { batch: true }),
+    // The Sepolia-fork dev channel, when it is selected, is a local anvil rather than a network —
+    // so it takes the fork's single localhost transport, exactly as the mainnet channel does, and
+    // the health-ranked public pool is not consulted for it. Unset (every ordinary build) this is
+    // the unchanged `decentralizedTransport` line.
+    [sepolia.id]: sepoliaForkEnabled
+      ? http(SEPOLIA_FORK_RPC, { batch: true })
+      : (decentralizedTransport(sepolia.id) ?? http(undefined, { batch: true })),
     [anvilFork.id]: http(undefined, { batch: true }),
   },
 })
