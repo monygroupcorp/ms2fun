@@ -1,8 +1,22 @@
 name: contracts-ci
 
+# Path-filtered: every step below runs with working-directory: contracts and reads only
+# contracts/** (forge install/build/test, the EIP-170 gate script, both foundry.toml
+# profiles). app-ci is intentionally left unfiltered — its G7 step rebuilds contracts
+# from source and diffs the generated wagmi bindings, so a contracts-only change must
+# still run app-ci to catch bindings drift (app-ci.yml G7). This filter is one-directional
+# for that reason. `main` currently has no branch protection (no required checks), so an
+# absent run here reads as not-applicable rather than a stuck "Expected" check; revisit
+# this filter if branch protection is ever added.
 on:
   push:
+    paths:
+      - 'contracts/**'
+      - '.github/workflows/contracts-ci.yml'
   pull_request:
+    paths:
+      - 'contracts/**'
+      - '.github/workflows/contracts-ci.yml'
 
 defaults:
   run:
