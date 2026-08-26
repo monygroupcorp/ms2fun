@@ -240,17 +240,17 @@ abstract contract SeedSepoliaShared is Script {
 
     // ─────────────────────────── The featured wall ───────────────────────────
     //
-    // THE ONE KNOB HERE THAT IS NOT SIZED FOR A FAUCET IS THE DURATION, AND THAT IS DELIBERATE. A
-    // featured slot is rented per day at the queue's own `dailyRate`, so the duration is the whole
-    // cost: a slot that expires is a home page that goes back to an empty wall, and a showcase a
-    // single month exhausts is not a showcase. The default therefore buys the queue's own ceiling
-    // (365 days) rather than a month, and the seed PRINTS the resulting total before it spends
-    // anything — the duration is the lever to pull if that number is not the one to broadcast.
+    // A featured slot is rented per day at the queue's own `dailyRate`, so the duration is the
+    // whole cost. The default is sized to the showcase's own planned lifetime — roughly 30 days
+    // on Sepolia before the mainnet push (operator ruling, 2026-08-26) — not to the queue's
+    // 365-day ceiling: a wall that outlives the showcase is spend, not durability. The seed
+    // PRINTS the resulting total before it spends anything; the env knob is the lever if the
+    // lifetime changes.
     //
     // The rate is read from the deployed queue rather than assumed here: it is owner-tunable, and a
     // projection computed off a stale literal would be a number nobody can act on.
     string internal constant ENV_FEATURED_DURATION_SECONDS = "SEPOLIA_FEATURED_DURATION_SECONDS";
-    uint256 internal constant DEFAULT_FEATURED_DURATION_SECONDS = 365 days;
+    uint256 internal constant DEFAULT_FEATURED_DURATION_SECONDS = 30 days;
 
     /// @dev The rank step between adjacent featured slots. Rank is what ORDERS the wall — the queue
     ///      returns active slots sorted by effective rank — so the seed pays a distinct boost per slot
