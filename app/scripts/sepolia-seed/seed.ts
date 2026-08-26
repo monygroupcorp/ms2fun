@@ -199,7 +199,11 @@ async function referencePoolsReadyAt(pools: Address[], validator: Address): Prom
 
   let readyAt = 0
   for (const pool of pools) {
-    const slot0 = await publicClient.readContract({ address: pool, abi: poolAbi, functionName: 'slot0' })
+    const slot0 = await publicClient.readContract({
+      address: pool,
+      abi: poolAbi,
+      functionName: 'slot0',
+    })
     const index = Number(slot0[2])
     const cardinality = Number(slot0[3])
     let obs = await publicClient.readContract({
@@ -343,7 +347,9 @@ async function main(): Promise<void> {
   console.log(
     `  arm window     : ${process.env.SEPOLIA_ARM_WINDOW_SECONDS ?? '1200 (default)'} seconds`,
   )
-  console.log('  phase 1        : create + arm + stand the venues up  (spends the venue depth budget)')
+  console.log(
+    '  phase 1        : create + arm + stand the venues up  (spends the venue depth budget)',
+  )
   console.log(
     '  phase 2        : pin the reference pools, buy, graduate, convert on every venue' +
       '  (prints its own ETH projection before spending)',
@@ -400,8 +406,12 @@ async function main(): Promise<void> {
 
   console.log('\nVenues phase 1 stood up:')
   console.log(`  uniswap v4     : seeded (both alignment targets)`)
-  console.log(`  zamm           : ${seedState.ms2ZammVault ?? '(not available on this deployment)'}`)
-  console.log(`  cypher/algebra : ${seedState.cultCypherVault ?? '(rail not wired on this deployment)'}`)
+  console.log(
+    `  zamm           : ${seedState.ms2ZammVault ?? '(not available on this deployment)'}`,
+  )
+  console.log(
+    `  cypher/algebra : ${seedState.cultCypherVault ?? '(rail not wired on this deployment)'}`,
+  )
 
   const referencePools = [seedState.ms2ReferencePool, seedState.cultReferencePool].filter(
     (p): p is Address => !!p && p !== '0x0000000000000000000000000000000000000000',
