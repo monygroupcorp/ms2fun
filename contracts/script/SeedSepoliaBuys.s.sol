@@ -119,7 +119,9 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
         // as ONE number with the roster's, because what the operator is deciding is whether to send
         // this phase at all.
         uint256 breadthProjected = _projectBreadth(h);
-        _reportSpend("phase 2 (buys + graduation)", projected + breadthProjected, deployer.balance);
+        // Featured placement is rented once, in phase 1, and this phase rents none — the zero states
+        // that rather than leaving the line off and giving the two phases' summaries different shapes.
+        _reportSpend("phase 2 (buys + graduation)", projected + breadthProjected, 0, deployer.balance);
         console.log("  of which the breadth rows (wei):", breadthProjected);
         require(
             deployer.balance > projected + breadthProjected,

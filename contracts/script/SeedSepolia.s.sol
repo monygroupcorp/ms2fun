@@ -68,13 +68,21 @@ contract SeedSepolia is SeedSepoliaShared {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
 
+    /// @dev How many slots the wall rents. Stated as a constant because the projection is printed
+    ///      BEFORE the rows exist — `_seedFeaturedWall` asserts it renders exactly this many, so the
+    ///      number the operator was shown and the number that was spent cannot diverge.
+    uint256 internal constant FEATURED_SLOTS = 4;
+
     function run() public {
         deployer = msg.sender;
 
         Deployed memory d = _readDeployed();
         require(block.chainid == SEPOLIA_CHAIN_ID, "SeedSepolia: not running against Sepolia (or a fork of it)");
 
-        _reportSpend("phase 1 (create + arm)", 0, deployer.balance);
+        // The featured wall is the only ETH this phase spends that is priced by TIME rather than by
+        // depth, so its total is quoted off the deployed queue and printed with the rest — before
+        // `--broadcast` sends anything, which is the only moment the number can still change a mind.
+        _reportSpend("phase 1 (create + arm)", 0, _quoteFeaturedSpend(d, FEATURED_SLOTS), deployer.balance);
 
         // ── Alignment wiring: fixture tokens, targets, vaults, pools ──
         SeedHandoff memory h = _seedAlignment(d);
@@ -114,6 +122,12 @@ contract SeedSepolia is SeedSepoliaShared {
         uint256 cypherArm = _seedCypherCollection(d, h);
         if (cypherArm > latestArm) latestArm = cypherArm;
 
+        // ── The front door: rent the wall the home page renders ──
+        //
+        // LAST in the phase, because every slot names an instance and an instance has to be created
+        // and registered before the queue will accept it.
+        _seedFeaturedWall(d, h, legs, instances);
+
         // Phase 2 becomes legal only once the LAST clock phase 1 set has passed, plus slack for the
         // wall-clock the broadcast itself consumed. Recorded rather than recomputed later, so the
         // orchestrator waits for the same instant the chain will judge the buys against.
@@ -128,10 +142,12 @@ contract SeedSepolia is SeedSepoliaShared {
         _assertPhase1(legs, instances);
         _assertBreadthPhase1(d, h);
         _assertVenuesPhase1(d, h);
+        _assertFeaturedPhase1(d, h);
         _writeSeedState(legs, instances, h);
 
         console.log("=== SeedSepolia (phase 1: create + arm) complete ===");
         console.log("  rows armed:", legs.length);
+        console.log("  featured slots rented / total spend (wei):", h.featured.length, h.featuredSpendWei);
         console.log("  block.timestamp now:", block.timestamp);
         console.log("  phase 2 is legal from (unix):", h.phase2NotBefore);
         console.log("  wall-clock wait from now (seconds):", h.phase2NotBefore - block.timestamp);
@@ -1290,6 +1306,132 @@ contract SeedSepolia is SeedSepoliaShared {
         require(s.bondingActive(), string.concat("phase1: ", slug, " is not armed"));
         require(s.bondingOpenTime() > block.timestamp, string.concat("phase1: ", slug, " opened during phase 1"));
         require(s.totalBondingSupply() == 0, string.concat("phase1: ", slug, " was bought into by phase 1"));
+    }
+
+    // ─────────────────────── 9. The featured wall ───────────────────────
+
+    /// @dev Rent the placements the home page renders. `QueryAggregator.getHomePageData` is a read
+    ///      over the featured queue, so a deployment with no placements answers with an empty grid
+    ///      however much it holds — the showcase's front door is the one surface that is not seeded
+    ///      by creating collections.
+    ///
+    ///      WHICH ROWS, AND WHY THESE FOUR. The wall is the tour's first page, so it carries the
+    ///      product's ARC rather than its inventory: the graduated curve (the arc completed, trading
+    ///      on a real pool), the mid-curve row (the arc in motion, and the one thing a visitor can act
+    ///      on immediately), the edition set (a second project family, priced three ways on one page)
+    ///      and the live auction (a third family, with a clock running). One per mechanism family,
+    ///      with the two curve states leading because the curve is the product's spine.
+    ///
+    ///      WHY THE ORDER IS PAID FOR. The queue returns active slots sorted by effective rank, so
+    ///      without distinct boosts the wall's order is whatever the sort makes of equal keys. Each
+    ///      slot is rented with a boost one step above the next, which is also the demonstration:
+    ///      placement is bought and contestable, and every wei of it is 100% protocol revenue by
+    ///      design rather than a split.
+    ///
+    ///      WHY PHASE 1. The rent rides the phase that already holds the payer's purse for the venue
+    ///      depth and the auction deposits, and it has to: `rentFeatured` refuses an unregistered
+    ///      instance, and phase 1 is where every instance is created and registered. Phase 2 buys
+    ///      into curves and graduates them — it changes no row's eligibility for a slot.
+    function _seedFeaturedWall(
+        Deployed memory d,
+        SeedHandoff memory h,
+        ShowcaseLeg[] memory legs,
+        address[] memory instances
+    ) internal {
+        address[] memory wall = new address[](FEATURED_SLOTS);
+        wall[0] = _instanceForSlug(legs, instances, "flare-graduated");
+        wall[1] = _instanceForSlug(legs, instances, "vapor-mid");
+        wall[2] = h.editions;
+        wall[3] = h.auctionLive;
+
+        uint256 duration = _featuredDuration();
+        // The bounds are the QUEUE's, and they are owner-tunable: a duration outside them reverts
+        // `InvalidDuration` at the first rent. Refused here instead, at simulation time, with the
+        // ceiling that refused it named — the knob to turn is an environment variable.
+        require(
+            duration >= d.queue.minDuration() && duration <= d.queue.maxDuration(),
+            "featured: SEPOLIA_FEATURED_DURATION_SECONDS is outside the queue's own duration bounds"
+        );
+        uint256 durationCost = d.queue.quoteDurationCost(duration);
+
+        vm.startBroadcast();
+        for (uint256 i = 0; i < wall.length; i++) {
+            require(wall[i] != address(0), "featured: the wall names a row this seed did not create");
+            uint256 rankBoost = _featuredRankBoost(i, wall.length);
+            // Exactly what is due, rather than a generous value and a refund: the refund path hands
+            // the excess back through the WETH fallback, which is a second mechanism to be right
+            // about for no gain on a seed that already knows the price.
+            d.queue.rentFeatured{ value: durationCost + rankBoost }(wall[i], duration, rankBoost);
+            h.featuredSpendWei += durationCost + rankBoost;
+            console.log("FEATURED slot / instance:", i + 1, wall[i]);
+            console.log("  rank boost / duration (seconds):", rankBoost, duration);
+        }
+        vm.stopBroadcast();
+
+        h.featured = wall;
+        h.featuredDuration = duration;
+        console.log("FEATURED wall - slots / total spend (wei):", wall.length, h.featuredSpendWei);
+        console.log("  daily rate read from the queue (wei):", d.queue.dailyRate());
+        console.log("  slot expiry (unix):", block.timestamp + duration);
+    }
+
+    /// @dev Resolve one roster row BY NAME. The wall names the rows it features rather than indexing
+    ///      them, for the same reason phase 2 does: the roster grows, and a positional reference
+    ///      silently re-targets when it does.
+    function _instanceForSlug(ShowcaseLeg[] memory legs, address[] memory instances, string memory slug)
+        internal
+        pure
+        returns (address)
+    {
+        for (uint256 i = 0; i < legs.length; i++) {
+            if (keccak256(bytes(legs[i].slug)) == keccak256(bytes(slug))) return instances[i];
+        }
+        revert(string.concat("featured: the roster carries no row named ", slug));
+    }
+
+    // ─────────────────────── Featured phase-1 post-conditions ───────────────────────
+
+    /// @dev The wall as the HOME PAGE will read it, not as the seed remembers renting it. Read back
+    ///      through `getFeaturedInstances` — the same call `QueryAggregator.getHomePageData` makes —
+    ///      because a slot that was paid for and is not visible (an unregistered instance, a slot the
+    ///      cap pruned) renders an empty front door exactly like never having rented it.
+    function _assertFeaturedPhase1(Deployed memory d, SeedHandoff memory h) internal view {
+        require(h.featured.length == FEATURED_SLOTS, "featured: the wall is not the size that was quoted");
+
+        // The whole visible wall, not only this seed's window of it: a deployment may already carry
+        // placements somebody else rented, and they sort among these by rank like any other.
+        (address[] memory rendered, uint256 total) = d.queue.getFeaturedInstances(0, d.queue.maxFeaturedSize());
+        require(total >= FEATURED_SLOTS, "featured: the queue reports fewer active slots than were rented");
+
+        uint256 previousPosition;
+        for (uint256 i = 0; i < FEATURED_SLOTS; i++) {
+            uint256 position = _positionInWall(rendered, h.featured[i]);
+            require(position != type(uint256).max, "featured: a rented slot is not on the wall the home page reads");
+            // The RELATIVE order of this seed's own slots is what the descending rank steps bought.
+            // Stated as relative rather than absolute because the seed does not own the whole wall:
+            // an existing placement may outrank all of these and still leave the tour in its order.
+            if (i > 0) {
+                require(position > previousPosition, "featured: the wall renders this seed's rows out of order");
+            }
+            previousPosition = position;
+
+            (,, uint256 expiresAt, bool isActive) = d.queue.getRentalInfo(h.featured[i]);
+            require(isActive, "featured: a rented slot is not active");
+            require(
+                expiresAt >= block.timestamp + h.featuredDuration,
+                "featured: a slot expires sooner than the duration it was rented for"
+            );
+        }
+
+        console.log("FEATURED phase-1 post-conditions OK");
+    }
+
+    /// @dev Where `instance` sits on the rendered wall, or `type(uint256).max` when it is not on it.
+    function _positionInWall(address[] memory rendered, address instance) internal pure returns (uint256) {
+        for (uint256 i = 0; i < rendered.length; i++) {
+            if (rendered[i] == instance) return i;
+        }
+        return type(uint256).max;
     }
 
     // ─────────────────────── Fact readers ───────────────────────
