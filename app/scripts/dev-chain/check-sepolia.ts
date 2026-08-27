@@ -61,10 +61,10 @@ const PIECE_BASE_ABI = [
 ] as const
 
 /**
- * The collection each curve row wears, mirroring the roster in `SeedSepoliaShared`. The four rows
- * draw their pieces from four different alignment-census collections; a row that came up on another
- * row's directory — or on the shared breadth-row art — renders as a uniform wall and still passes
- * every wiring check above. On-chain URI equality only: no gateway is contacted from this script.
+ * The collection each curve row wears, mirroring the roster in `SeedSepoliaShared`. Every row on
+ * this seed draws its pieces from a different collection; a row that came up on another row's
+ * directory renders as a uniform wall and still passes every wiring check above. On-chain URI
+ * equality only: no gateway is contacted from this script.
  */
 const PIECE_BASE_BY_SLUG: Record<string, string> = {
   'ember-preopen': 'ipfs://bafybeigd7557iwardhnwg5kbmg2s7tmuxqkstjeoixu7wunooiywbb3jqq/',
@@ -72,6 +72,49 @@ const PIECE_BASE_BY_SLUG: Record<string, string> = {
   'cinder-ready': 'ipfs://bafybeih64fcswxjq7qrpx6hbzr2wkmn7u7bcl63yadaxmzgcyabecenl6e/',
   'flare-graduated': 'ipfs://bafybeibvgwjwuosoov6cfgwoyyrt7vocalqoprjayni6rfepda7bi2jdse/',
 }
+
+/**
+ * The same reading for the BREADTH rows that carry an on-chain base, keyed by hand-off field rather
+ * than by roster slug because those rows are recorded individually rather than in the roster list.
+ * The edition and auction rows are absent on purpose: their mechanisms compose per-piece `data:`
+ * documents and expose no base to read back.
+ */
+const BREADTH_PIECE_BASES: { key: BreadthKey; label: string; expected: string }[] = [
+  {
+    key: 'staking404',
+    label: 'quarry-staking',
+    expected: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/',
+  },
+  {
+    key: 'tiers404',
+    label: 'prism-tiers',
+    expected: 'ipfs://QmX89dvzA3TSwsGfY7SthYkDxSFjszec8JkEEZE7JP5QHF/',
+  },
+  {
+    key: 'carve404',
+    label: 'carve-demo',
+    expected: 'ipfs://bafybeic5in4it4rsocajjvzn3zs5scsci4a7hhpbpd5fulqca42vqtjs2q/',
+  },
+  {
+    key: 'cypher404',
+    label: 'cypher-flagship',
+    expected: 'ipfs://bafybeicrcd4fgtumtkjfzkxkmlzqvy3w6cn2tlb3vm6jvbnxbojebvnwne/',
+  },
+]
+
+/**
+ * The directories this showcase has RETIRED. No row may compose its pieces against one of them: a
+ * base that came back — copied across from another seed, or restored from an older revision — puts
+ * foreign art on the wall while every other check here still passes. Matched as a substring,
+ * because what is refused is the directory, not the exact string it was wired as.
+ */
+const RETIRED_ART_DIRS: readonly string[] = [
+  'QmZcH4YvBVVRJtdn4RdbaqgspFU8gH6P9vomDpBVpAL3u4',
+  'bafybeibc5sgo2plmjkq2tzmhrn54bk3crhnc23zd2msg4ea7a4pxrkgfna',
+  'QmeSjSinHpPnmXmspMjwiXyN6zS4E9zccariGR3jxcaWtq',
+  'QmPMc4tcBsMqLRuCQtPmPe84bpSjrC3Ky7t3JWuHXYB4aS',
+  'QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg',
+]
 
 const BONDING_ABI = [
   {
@@ -135,9 +178,16 @@ interface AppConfig {
   contracts: Record<string, Address>
 }
 
+/** The hand-off fields that name a breadth row carrying an on-chain piece base. */
+type BreadthKey = 'staking404' | 'tiers404' | 'carve404' | 'cypher404'
+
 interface SeedState {
   chainId: number
   instances: Record<string, Address>
+  staking404?: Address
+  tiers404?: Address
+  carve404?: Address
+  cypher404?: Address
   ms2Vault?: Address
   cultVault?: Address
   ms2ZammVault?: Address
@@ -161,6 +211,17 @@ function check(condition: boolean, ok: string, bad: string): void {
     console.log(`  ✗ ${bad}`)
     failures.push(bad)
   }
+}
+
+/** A base that landed inside a retired directory is named on its own line, not folded into the
+ *  equality failure above: the two say different things, and the retired one is the regression. */
+function checkNotRetired(label: string, base: string): void {
+  const hit = RETIRED_ART_DIRS.find((dir) => base.includes(dir))
+  check(
+    hit === undefined,
+    `${label} is clear of the retired directories`,
+    `${label} composes its pieces against a RETIRED directory (${hit ?? ''})`,
+  )
 }
 
 async function hasCode(client: PublicClient, address: Address): Promise<boolean> {
@@ -291,6 +352,30 @@ async function main(): Promise<void> {
       `${slug} composes its pieces against its own collection`,
       `${slug} composes its pieces against ${base || '(unreadable)'}, expected ${expected}`,
     )
+    checkNotRetired(slug, base)
+  }
+
+  // The breadth rows wear their own collections on the same terms. The Cypher row is optional: its
+  // rail is not wired on every deployment, and phase 1 records a zero address when it is skipped.
+  for (const { key, label, expected } of BREADTH_PIECE_BASES) {
+    const instance = seed[key]
+    if (!instance || instance === zeroAddress) {
+      if (key === 'cypher404') {
+        console.log(`  · ${label} is not on this deployment — its art is not checked`)
+        continue
+      }
+      check(false, '', `${label} is missing from the seed hand-off — its art cannot be checked`)
+      continue
+    }
+    const base = await client
+      .readContract({ address: instance, abi: PIECE_BASE_ABI, functionName: 'metadataURI' })
+      .catch(() => '')
+    check(
+      base === expected,
+      `${label} composes its pieces against its own collection`,
+      `${label} composes its pieces against ${base || '(unreadable)'}, expected ${expected}`,
+    )
+    checkNotRetired(label, base)
   }
 
   // The graduated row is the one the walk is FOR: the curve closed and the raise moved into a live
