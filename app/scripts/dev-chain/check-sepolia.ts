@@ -45,6 +45,34 @@ const MASTER_REGISTRY_ABI = [
   },
 ] as const
 
+/**
+ * `metadataURI` is the PER-TOKEN base the instance composes `tokenURI(id)` against — distinct from
+ * `contractURI`, which is the collection-level document. Reading it costs one view call and answers
+ * on a pre-open row that has never minted a piece.
+ */
+const PIECE_BASE_ABI = [
+  {
+    type: 'function',
+    name: 'metadataURI',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'string' }],
+  },
+] as const
+
+/**
+ * The collection each curve row wears, mirroring the roster in `SeedSepoliaShared`. The four rows
+ * draw their pieces from four different alignment-census collections; a row that came up on another
+ * row's directory — or on the shared breadth-row art — renders as a uniform wall and still passes
+ * every wiring check above. On-chain URI equality only: no gateway is contacted from this script.
+ */
+const PIECE_BASE_BY_SLUG: Record<string, string> = {
+  'ember-preopen': 'ipfs://bafybeigd7557iwardhnwg5kbmg2s7tmuxqkstjeoixu7wunooiywbb3jqq/',
+  'vapor-mid': 'ipfs://QmZ7K6hG5uiTvLVvmxZgm72Nv3kmvTq4CVAEG6JoMFvpkW/',
+  'cinder-ready': 'ipfs://bafybeih64fcswxjq7qrpx6hbzr2wkmn7u7bcl63yadaxmzgcyabecenl6e/',
+  'flare-graduated': 'ipfs://bafybeibvgwjwuosoov6cfgwoyyrt7vocalqoprjayni6rfepda7bi2jdse/',
+}
+
 const BONDING_ABI = [
   {
     type: 'function',
@@ -241,6 +269,28 @@ async function main(): Promise<void> {
   console.log('\ncurve rows')
   for (const [slug, address] of Object.entries(seed.instances)) {
     check(await hasCode(client, address), `${slug} ${address}`, `${slug} ${address} holds NO code`)
+  }
+
+  // ── The art each row wears ──
+  //
+  // A seeded row whose pieces resolve into the wrong collection is a failed seed even though it
+  // holds code, is registered and reports the right curve state. Asserted by URI equality against
+  // the roster's own bases — the check names a mismatch, it does not fetch the art.
+  console.log('\ncollection art')
+  for (const [slug, expected] of Object.entries(PIECE_BASE_BY_SLUG)) {
+    const instance = seed.instances[slug]
+    if (!instance || instance === zeroAddress) {
+      check(false, '', `${slug} is missing from the seed hand-off — its art cannot be checked`)
+      continue
+    }
+    const base = await client
+      .readContract({ address: instance, abi: PIECE_BASE_ABI, functionName: 'metadataURI' })
+      .catch(() => '')
+    check(
+      base === expected,
+      `${slug} composes its pieces against its own collection`,
+      `${slug} composes its pieces against ${base || '(unreadable)'}, expected ${expected}`,
+    )
   }
 
   // The graduated row is the one the walk is FOR: the curve closed and the raise moved into a live
