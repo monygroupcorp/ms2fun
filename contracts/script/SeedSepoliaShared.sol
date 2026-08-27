@@ -431,11 +431,54 @@ abstract contract SeedSepoliaShared is Script {
     string internal constant ART_BASE_SIMIAN = "ipfs://QmeSjSinHpPnmXmspMjwiXyN6zS4E9zccariGR3jxcaWtq/";
     string internal constant ART_BASE_DOODLE = "ipfs://QmPMc4tcBsMqLRuCQtPmPe84bpSjrC3Ky7t3JWuHXYB4aS/";
 
-    // Collection tile art — single gateway-verified pointers from the same harvested set.
+    // Collection tile art — single gateway-verified pointers from the same harvested set. These back
+    // the BREADTH rows (editions, tiers, commissions, queued pieces); the four ERC404 curve rows draw
+    // from the derivative families below instead.
     string internal constant ART_EMBER = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/7.png";
     string internal constant ART_VAPOR = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/128.png";
     string internal constant ART_CINDER = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/777.png";
     string internal constant ART_FLARE = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/42.png";
+
+    /// @dev The directory the four tiles above share. Named so `_assertTileArt` can refuse it for a
+    ///      curve row: those rows carry their own collection's tile, never a shared one.
+    string internal constant SHARED_TILE_DIR = "QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg";
+
+    // ── The alignment census's families: one collection per curve row ─────────────────────────────
+    //
+    // The four curve rows are the showcase's argument, and the argument is alignment — so each row
+    // wears ONE derivative collection end to end: its pieces resolve inside that collection's own
+    // metadata directory, and its collection tile is that same collection's own art. A stock tile
+    // over foreign pieces reads as one uniform set on the featured wall and teaches the visitor the
+    // opposite of what the roster is for. Card art and piece art come from the same place, always.
+    //
+    // Every base below addresses its entries by the BARE token id (`<cid>/1`, no extension), which is
+    // exactly the `base + tokenId` concatenation the instance performs, so a seeded piece resolves to
+    // the real art with no re-hosting and no third-party host in the path.
+    string internal constant ART_BASE_PIXELADY = "ipfs://bafybeigd7557iwardhnwg5kbmg2s7tmuxqkstjeoixu7wunooiywbb3jqq/";
+    string internal constant ART_BASE_BOREDMILADY = "ipfs://QmZ7K6hG5uiTvLVvmxZgm72Nv3kmvTq4CVAEG6JoMFvpkW/";
+    string internal constant ART_BASE_FIGMATA = "ipfs://bafybeih64fcswxjq7qrpx6hbzr2wkmn7u7bcl63yadaxmzgcyabecenl6e/";
+    string internal constant ART_BASE_LAWBSTERS = "ipfs://bafybeibvgwjwuosoov6cfgwoyyrt7vocalqoprjayni6rfepda7bi2jdse/";
+
+    // The tile for each row, taken from that row's OWN family. Pixelady's is the `image` its piece-1
+    // metadata names; the other three are the collection's own card art.
+    string internal constant ART_TILE_PIXELADY =
+        "ipfs://bafybeih5mqafo34424swmfdboww3s2tvfmzoojbip4jmcjbg5n3fl7edee/1.png";
+    string internal constant ART_TILE_BOREDMILADY = "ipfs://QmWEQVc5xLyjPduYopckWWu6arhqgg7srxTo5FuLmLxiAU/1.png";
+    string internal constant ART_TILE_FIGMATA =
+        "ipfs://bafybeieedvws62v6g3gr6uw2a2m7m2ckhekv2vkcsv62vokpjtcvkz6gfi/1.png";
+    string internal constant ART_TILE_LAWBSTERS = "ipfs://QmRFZ9GtqT6A8cF8ZF1x4fsysRHMhFSk1g8QGEBVn249pQ/1.png";
+
+    // ── Id coverage of each metadata directory ───────────────────────────────────────────────────
+    //
+    // A row mints piece ids 1..SHOWCASE_NFT_COUNT, so its directory must answer for at least that
+    // many ids or the tail of the collection renders blank. The counts below are each collection's
+    // supply as harvested — the number of ids its directory carries. `_assertPieceCoverage` holds
+    // them against what a row can mint, so raising the piece count past a directory's reach is a
+    // named failure instead of a silent gap.
+    uint256 internal constant COVER_PIXELADY = 10_000;
+    uint256 internal constant COVER_BOREDMILADY = 6911;
+    uint256 internal constant COVER_FIGMATA = 180;
+    uint256 internal constant COVER_LAWBSTERS = 420;
 
     // ─────────────────────────── The roster ───────────────────────────
 
@@ -457,6 +500,7 @@ abstract contract SeedSepoliaShared is Script {
         uint8 state;
         uint16 declaredMaxBps;
         uint256 fillBps; // phase-2 share of bondable supply to buy (0 for the pre-open row)
+        uint256 pieceIdCoverage; // ids the row's metadata directory answers for — see COVER_*
     }
 
     /// @dev The addresses the deploy wrote, narrowed to what an ERC404 showcase seed touches.
@@ -612,11 +656,12 @@ abstract contract SeedSepoliaShared is Script {
             title: "Ember",
             symbol: "EMBER",
             description: "This collection demonstrates the PRE-OPEN state. The curve is armed and the countdown is running, and nothing can be bought until it expires - a buy attempted now is rejected on-chain, not hidden by the interface. Watch what the collection page does as the timer runs down.",
-            image: ART_EMBER,
-            pieceBase: ART_BASE_DOODLE,
+            image: ART_TILE_PIXELADY,
+            pieceBase: ART_BASE_PIXELADY,
             state: STATE_PREOPEN,
             declaredMaxBps: 0,
-            fillBps: 0
+            fillBps: 0,
+            pieceIdCoverage: COVER_PIXELADY
         });
 
         legs[1] = ShowcaseLeg({
@@ -624,11 +669,12 @@ abstract contract SeedSepoliaShared is Script {
             title: "Vapor",
             symbol: "VAPOR",
             description: "This collection demonstrates a LIVE BONDING CURVE part-way through its sale. Each buy mints coin and, in whole units, the pieces that ride it - one asset with two surfaces. Buy into it and watch the price, the piece gallery and the holder list move.",
-            image: ART_VAPOR,
-            pieceBase: ART_BASE_ANIME,
+            image: ART_TILE_BOREDMILADY,
+            pieceBase: ART_BASE_BOREDMILADY,
             state: STATE_MID_CURVE,
             declaredMaxBps: 0,
-            fillBps: vm.envOr(ENV_MID_FILL_BPS, uint256(400))
+            fillBps: vm.envOr(ENV_MID_FILL_BPS, uint256(400)),
+            pieceIdCoverage: COVER_BOREDMILADY
         });
 
         legs[2] = ShowcaseLeg({
@@ -636,11 +682,12 @@ abstract contract SeedSepoliaShared is Script {
             title: "Cinder",
             symbol: "CINDER",
             description: "This collection demonstrates the READY-TO-GRADUATE state. The curve is open, matured and holds a raise, so the graduation action is live and uncrossed - the collection is one call away from opening a Uniswap V4 pool. The creator declared a carve allowance up front, which the page shows before you buy.",
-            image: ART_CINDER,
-            pieceBase: ART_BASE_ARCTIC,
+            image: ART_TILE_FIGMATA,
+            pieceBase: ART_BASE_FIGMATA,
             state: STATE_READY,
             declaredMaxBps: 5000,
-            fillBps: vm.envOr(ENV_READY_FILL_BPS, uint256(700))
+            fillBps: vm.envOr(ENV_READY_FILL_BPS, uint256(700)),
+            pieceIdCoverage: COVER_FIGMATA
         });
 
         legs[3] = ShowcaseLeg({
@@ -648,12 +695,22 @@ abstract contract SeedSepoliaShared is Script {
             title: "Flare",
             symbol: "FLARE",
             description: "This collection demonstrates the GRADUATED state. Its curve has closed and the raise opened a real Uniswap V4 pool, so the coin now trades on the venue instead of on the curve - and 19 percent of the raise went to the alignment vault by contract. Trade it, then read the graduation on-chain.",
-            image: ART_FLARE,
-            pieceBase: ART_BASE_SIMIAN,
+            image: ART_TILE_LAWBSTERS,
+            pieceBase: ART_BASE_LAWBSTERS,
             state: STATE_GRADUATED,
             declaredMaxBps: 0,
-            fillBps: vm.envOr(ENV_GRADUATED_FILL_BPS, uint256(700))
+            fillBps: vm.envOr(ENV_GRADUATED_FILL_BPS, uint256(700)),
+            pieceIdCoverage: COVER_LAWBSTERS
         });
+
+        // The art is part of the roster's claim, so it is checked where the roster is built rather
+        // than only where it is deployed: a row whose directory cannot answer for every id the row
+        // can mint is named here, before anything is created on chain.
+        for (uint256 i = 0; i < legs.length; i++) {
+            _assertPieceBase(legs[i].pieceBase, legs[i].slug);
+            _assertPieceCoverage(legs[i].pieceIdCoverage, SHOWCASE_NFT_COUNT, legs[i].slug);
+            _assertTileArt(legs[i].image, legs[i].slug);
+        }
     }
 
     // ─────────────────────────── Address loading ───────────────────────────
@@ -998,6 +1055,32 @@ abstract contract SeedSepoliaShared is Script {
         require(b[b.length - 1] == "/", string.concat("art: ", label, " base has no trailing slash"));
         require(b[b.length - 2] != "/", string.concat("art: ", label, " base ends in a double slash"));
         require(!_contains(base, "TODO"), string.concat("art: ", label, " base still carries a placeholder"));
+    }
+
+    /// @dev A row mints piece ids 1..`minted`, and `base + tokenId` resolves only for ids the
+    ///      directory actually carries. A directory shorter than the row's piece count renders the
+    ///      tail of the collection blank, which is a failed seed even though every wiring assertion
+    ///      passes — so the reach of the art is asserted against the count, not assumed from it.
+    function _assertPieceCoverage(uint256 covered, uint256 minted, string memory label) internal pure {
+        require(
+            covered >= minted,
+            string.concat("art: ", label, " metadata directory does not cover every id the row can mint")
+        );
+    }
+
+    /// @dev The collection tile must come from the row's OWN collection. The shared tile directory
+    ///      backs the breadth rows, and a curve row pointing at it puts one house image over another
+    ///      collection's pieces — the featured wall then reads as a single uniform set and says
+    ///      nothing about the collection behind each row.
+    function _assertTileArt(string memory image, string memory label) internal pure {
+        bytes memory b = bytes(image);
+        require(b.length > 8, string.concat("art: ", label, " has no collection tile"));
+        require(_startsWith(image, "ipfs://"), string.concat("art: ", label, " tile is not content-addressed"));
+        require(b[b.length - 1] != "/", string.concat("art: ", label, " tile points at a directory, not a file"));
+        require(
+            !_contains(image, SHARED_TILE_DIR),
+            string.concat("art: ", label, " tile comes from the shared set, not from the row's own collection")
+        );
     }
 
     function _startsWith(string memory haystack, string memory needle) internal pure returns (bool) {
