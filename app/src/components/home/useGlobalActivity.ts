@@ -6,13 +6,20 @@ import { scanBackward } from '../../lib/logScan'
 import type { FeedMessage } from '../useMessageFeed'
 
 /**
+ * Home's own cache key. The invalidation PREFIX (`['message-feed']`) is shared with the board —
+ * `BoardCartBar` invalidates that prefix on reply/react, and this query refetches along with it —
+ * but the cache ENTRY under this exact key is not, and must never be. The board's `useGlobalFeed`
+ * (BoardPage) is an infinite query caching `{ pages, pageParams }`; this is a plain query caching
+ * `FeedMessage[]`. Two shapes under one key means whichever query populates the cache first
+ * poisons the other's read — see noesis-422.
+ */
+export const homeActivityQueryKey = ['message-feed', 'global', 'preview'] as const
+
+/**
  * Global activity feed for the home landing surface — every `MessagePosted` event across all
  * channels, newest first. Mirrors the board's `useGlobalFeed` (BoardPage) but lives here so the
- * home route doesn't import a route module.
- *
- * Cache-shared with the board: keyed under `['message-feed', 'global']`, so a reply/react on the
- * board (which invalidates `['message-feed']`) also refreshes home, and a warm board cache serves
- * home instantly. Read-only — no compose surface here; home links into `/board` for that.
+ * home route doesn't import a route module. Read-only — no compose surface here; home links into
+ * `/board` for that.
  */
 export function useGlobalActivity(): {
   data: FeedMessage[] | undefined
@@ -22,7 +29,7 @@ export function useGlobalActivity(): {
   const client = usePublicClient({ chainId: forkChainId })
 
   const { data, isPending, isError } = useQuery({
-    queryKey: ['message-feed', 'global'],
+    queryKey: homeActivityQueryKey,
     enabled: !!client,
     staleTime: 15_000,
     queryFn: async (): Promise<FeedMessage[]> => {
