@@ -275,7 +275,7 @@ function CollectionBody({ instance }: { instance: `0x${string}` }) {
           {/* Secondary, demoted below the hang and collapsed by default (self-rendered as
               <Disclosure> inside each panel, so a null vault doesn't leave an empty box). */}
           {instance && <VaultPanel vault={card.vault} benefactor={instance} />}
-          {/* W-H: user-facing featured-queue economics (rent / boost / renew / prune). */}
+          {/* W-H: user-facing featured-queue economics (boost / raise rank / renew / prune). */}
           <FeaturedPanel instance={instance} />
 
           {/* N5: creator admin, below the featured queue and outside the shell. Self-hides unless
