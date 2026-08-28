@@ -36,4 +36,24 @@ describe('formatTokenAmount', () => {
   it('negatives keep the sign', () => {
     expect(formatTokenAmount(-(one + one / 4n), 18, 4)).toBe('-1.25')
   })
+  it('caps a large whole-number amount the same way (no unbounded fraction tail)', () => {
+    // 12,000,000.667600000000000001 tokens — a large supply with a long fractional remainder.
+    expect(formatTokenAmount(12_000_000_667600000000000001n, 18, 4)).toBe('12000000.6676')
+  })
+
+  it('bounds display width across dust, mid-curve, and large magnitudes', () => {
+    // maxFrac caps the FRACTION only — the assertion is on frac-digit count, which is what makes
+    // formatEther/formatGwei's raw output (e.g. "0.667600000000000001") overflow a fixed-width cell.
+    const cases: bigint[] = [
+      1n, // dust: 1 wei
+      1234_500_000_000_000n, // sub-unit
+      999_990_000_000_000_000n, // mid-curve, just under 1
+      1234_567890123456789012n, // mid-curve, multi-digit whole part
+      12_000_000_667600000000000001n, // large supply
+    ]
+    for (const v of cases) {
+      const [, frac] = formatTokenAmount(v, 18, 4).split('.')
+      expect((frac ?? '').length).toBeLessThanOrEqual(4)
+    }
+  })
 })
