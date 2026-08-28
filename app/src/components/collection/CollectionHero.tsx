@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'wouter'
 import { formatGwei } from 'viem'
 import { IpfsImage } from '../ui/IpfsImage'
-import { truncateAddress } from '../../lib/format'
+import { formatTokenAmount, truncateAddress } from '../../lib/format'
 import type { ProjectCard } from '../useCreatorCollections'
 import type { CollectionMetadata } from '../../lib/metadata'
 import styles from '../../routes/CollectionPage.module.css'
@@ -62,7 +62,9 @@ export function CollectionHero({ instance, card, metadata, primary }: Collection
 
         <div className={styles.mintstate}>
           <div className={styles.mintTop}>
-            <span className={styles.price}>{formatGwei(card.currentPrice)} gwei</span>
+            <span className={styles.price} title={`${formatGwei(card.currentPrice)} gwei`}>
+              {formatTokenAmount(card.currentPrice, 9)} gwei
+            </span>
             <span className={styles.count}>
               {minted.toString()}
               {cap > 0n ? ` / ${cap.toString()}` : ''}

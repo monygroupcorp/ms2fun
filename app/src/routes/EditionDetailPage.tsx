@@ -19,6 +19,7 @@ import { useEditions, type EditionView } from '../components/collection/useEditi
 import { MintPanel } from '../components/collection/erc1155/MintPanel'
 import { editionThemeStyle, type EditionTheme } from '../components/collection/erc1155/editionTheme'
 import { fetchJson, isResolvableUri, jsonOrNull } from '../lib/metadata'
+import { formatTokenAmount } from '../lib/format'
 import { IpfsImage } from '../components/ui/IpfsImage'
 import { StateBlock } from '../components/ui/StateBlock'
 import { MintBar } from '../components/ui/MintBar'
@@ -253,7 +254,9 @@ function EditionDetail({ instance, id }: EditionDetailProps) {
           <div className="ed-stats">
             <div className="r">
               <span className="k">price</span>
-              <span className="v">{formatEther(edition.currentPrice)} ETH</span>
+              <span className="v" title={`${formatEther(edition.currentPrice)} ETH`}>
+                {formatTokenAmount(edition.currentPrice)} ETH
+              </span>
             </div>
             <div className="r">
               <span className="k">pricing</span>
@@ -269,7 +272,11 @@ function EditionDetail({ instance, id }: EditionDetailProps) {
 
       {/* Mobile: the sticky mint bar keeps the impression in thumb reach. */}
       <MintBar
-        price={`${formatEther(edition.currentPrice)} ETH`}
+        price={
+          <span title={`${formatEther(edition.currentPrice)} ETH`}>
+            {formatTokenAmount(edition.currentPrice)} ETH
+          </span>
+        }
         sub={limited ? `${remaining.toString()} left` : 'open'}
         action={<a href="#mint">Mint</a>}
       />
