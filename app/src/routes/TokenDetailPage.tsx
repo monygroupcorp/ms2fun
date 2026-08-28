@@ -11,7 +11,6 @@
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Redirect, useParams } from 'wouter'
-import { formatEther } from 'viem'
 import { useAccount, usePublicClient } from 'wagmi'
 import {
   erc721AuctionInstanceAbi,
@@ -28,7 +27,7 @@ import { useOwnerGate } from '../components/ui/useOwnerGate'
 import { forkChainId } from '../lib/addresses'
 import { fetchJson, jsonOrNull } from '../lib/metadata'
 import { IpfsImage } from '../components/ui/IpfsImage'
-import { formatTokenAmount, truncateAddress } from '../lib/format'
+import { formatPrice, formatPriceTitle, truncateAddress } from '../lib/format'
 import { StateBlock } from '../components/ui/StateBlock'
 import { MintBar } from '../components/ui/MintBar'
 import { ShareLink } from '../components/ui/ShareLink'
@@ -434,8 +433,8 @@ function Erc721Token({ instance, id, collectionName, creator, vaultName }: Token
               {bids.slice(0, 10).map((b, i) => (
                 <div className="p" key={`${b.blockNumber}-${i}`}>
                   <span className="ev">Bid</span>
-                  <span className="val" title={`${formatEther(b.amount)} ETH`}>
-                    {formatTokenAmount(b.amount)} ETH
+                  <span className="val" title={formatPriceTitle(b.amount)}>
+                    {formatPrice(b.amount)}
                   </span>
                   <span className="who">{truncateAddress(b.bidder)}</span>
                   <span className="when">—</span>
@@ -450,9 +449,9 @@ function Erc721Token({ instance, id, collectionName, creator, vaultName }: Token
             <span className={styles.priceLabel}>{hasBidder ? 'High bid' : 'Min bid'}</span>
             <span
               className={styles.price}
-              title={`${formatEther(hasBidder ? a.highBid : a.minBid)} ETH`}
+              title={formatPriceTitle(hasBidder ? a.highBid : a.minBid)}
             >
-              {formatTokenAmount(hasBidder ? a.highBid : a.minBid)} ETH
+              {formatPrice(hasBidder ? a.highBid : a.minBid)}
             </span>
           </div>
           {/* N13: bid (and settle/reclaim) INLINE on the token page — the same auction action the
@@ -477,8 +476,8 @@ function Erc721Token({ instance, id, collectionName, creator, vaultName }: Token
       {/* Mobile: the acquire action stays in thumb reach — jumps to the inline bid form. */}
       <MintBar
         price={
-          <span title={`${formatEther(hasBidder ? a.highBid : a.minBid)} ETH`}>
-            {formatTokenAmount(hasBidder ? a.highBid : a.minBid)} ETH
+          <span title={formatPriceTitle(hasBidder ? a.highBid : a.minBid)}>
+            {formatPrice(hasBidder ? a.highBid : a.minBid)}
           </span>
         }
         sub={hasBidder ? 'high bid' : 'min bid'}

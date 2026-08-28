@@ -5,7 +5,7 @@ import { useAllCollections } from '../lib/discovery'
 import type { CollectionFilters, ProjectCard } from '../lib/discovery'
 import { useCollectionMetadata } from '../components/useCollectionMetadata'
 import { IpfsImage } from '../components/ui/IpfsImage'
-import { truncateAddress } from '../lib/format'
+import { formatSupplyCount, truncateAddress } from '../lib/format'
 import { forkChainId } from '../lib/addresses'
 import { CollectionCard } from '../components/CollectionCard'
 import { StateBlock } from '../components/ui/StateBlock'
@@ -190,10 +190,10 @@ function RegistryRow({ card }: { card: ProjectCard }) {
   const minted = card.totalSupply
   const mintedLabel =
     cap > 0n
-      ? `${minted.toString()} / ${cap.toString()}`
+      ? `${formatSupplyCount(minted, card.contractType)} / ${formatSupplyCount(cap, card.contractType)}`
       : card.contractType === 'ERC1155'
         ? 'open'
-        : minted.toString()
+        : formatSupplyCount(minted, card.contractType)
   const aligned =
     card.vaultName ||
     (card.vault && card.vault !== '0x0000000000000000000000000000000000000000'
