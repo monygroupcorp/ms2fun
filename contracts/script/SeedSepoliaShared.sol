@@ -709,16 +709,31 @@ abstract contract SeedSepoliaShared is Script {
     ///
     /// @dev EVERY DESCRIPTION STATES THE FEATURE, NOT A FICTION. The showcase's defining constraint
     ///      is that a stranger can learn the product by reading the roster: a description says what
-    ///      the collection demonstrates and what to do with it. The NAMES stay evocative; the
-    ///      descriptions carry the teaching. Copy that roleplays a real drop is the thing this
-    ///      roster exists not to be, and re-introducing it costs a later wave the unwind.
+    ///      the collection demonstrates and what to do with it. Copy that roleplays a real drop is
+    ///      the thing this roster exists not to be, and re-introducing it costs a later wave the
+    ///      unwind.
+    ///
+    ///      A NAME HONOURS THE DERIVATIVE FAMILY THE ROW WEARS; THE DESCRIPTION CARRIES THE TEACHING.
+    ///      Each row's pieces come from a named derivative collection, so the row is named as a riff
+    ///      on that collection — near enough to credit it, distinct enough that nobody reads the row
+    ///      as the collection itself. Lifecycle and mechanism words (pre-open, mid, staking, tiers,
+    ///      editions) belong in the description, never in the name. The SLUG is the internal key —
+    ///      the salt, the hand-off's map key, the label every log and post-condition reads — and it
+    ///      is deliberately not the display name: `name` below is what the app renders.
+    ///
+    ///      A NAME IS ALSO A REGISTRY KEY, so it carries no spaces. `MasterRegistryV1.registerInstance`
+    ///      runs every name through `MetadataUtils.isValidName`, which admits only `[0-9A-Za-z-_]`;
+    ///      a space anywhere in a name reverts the create for the whole row. Capitalization survives
+    ///      the round trip — only the uniqueness hash case-folds — so a two-word riff is written as a
+    ///      CamelCase compound rather than hyphenated. Single-word and compound names sit side by side
+    ///      across the roster on purpose; there is no one form to normalise the wall onto.
     function _showcaseRoster() internal view returns (ShowcaseLeg[] memory legs) {
         legs = new ShowcaseLeg[](4);
 
         legs[0] = ShowcaseLeg({
             slug: "ember-preopen",
-            title: "Ember",
-            symbol: "EMBER",
+            title: "Voxelady",
+            symbol: "VOXY",
             description: "This collection demonstrates the PRE-OPEN state. The curve is armed and the countdown is running, and nothing can be bought until it expires - a buy attempted now is rejected on-chain, not hidden by the interface. Watch what the collection page does as the timer runs down.",
             image: ART_TILE_PIXELADY,
             imageDir: ART_IMG_PIXELADY,
@@ -731,8 +746,8 @@ abstract contract SeedSepoliaShared is Script {
 
         legs[1] = ShowcaseLeg({
             slug: "vapor-mid",
-            title: "Vapor",
-            symbol: "VAPOR",
+            title: "SnoredMilady",
+            symbol: "SNORED",
             description: "This collection demonstrates a LIVE BONDING CURVE part-way through its sale. Each buy mints coin and, in whole units, the pieces that ride it - one asset with two surfaces. Buy into it and watch the price, the piece gallery and the holder list move.",
             image: ART_TILE_BOREDMILADY,
             imageDir: ART_IMG_BOREDMILADY,
@@ -745,8 +760,8 @@ abstract contract SeedSepoliaShared is Script {
 
         legs[2] = ShowcaseLeg({
             slug: "cinder-ready",
-            title: "Cinder",
-            symbol: "CINDER",
+            title: "Figmenta",
+            symbol: "FIGM",
             description: "This collection demonstrates the READY-TO-GRADUATE state. The curve is open, matured and holds a raise, so the graduation action is live and uncrossed - the collection is one call away from opening a Uniswap V4 pool. The creator declared a carve allowance up front, which the page shows before you buy.",
             image: ART_TILE_FIGMATA,
             imageDir: ART_IMG_FIGMATA,
@@ -759,8 +774,8 @@ abstract contract SeedSepoliaShared is Script {
 
         legs[3] = ShowcaseLeg({
             slug: "flare-graduated",
-            title: "Flare",
-            symbol: "FLARE",
+            title: "Shrimpsters",
+            symbol: "SHRMP",
             description: "This collection demonstrates the GRADUATED state. Its curve has closed and the raise opened a real Uniswap V4 pool, so the coin now trades on the venue instead of on the curve - and 19 percent of the raise went to the alignment vault by contract. Trade it, then read the graduation on-chain.",
             image: ART_TILE_LAWBSTERS,
             imageDir: ART_IMG_LAWBSTERS,
@@ -1333,13 +1348,16 @@ abstract contract SeedSepoliaShared is Script {
 
     /// @dev Create + arm helper shared by phase 1's rows. Kept here so the create parameters a row
     ///      does NOT vary (owner, preset, piece count, gating, free mint) are stated exactly once.
+    ///
+    ///      `name` is the row's DISPLAY name and `salt` is derived from the SLUG, so the identifier
+    ///      the seed keys its hand-off by stays stable while the name the app shows is the roster's.
     function _createShowcaseInstance(Deployed memory d, ShowcaseLeg memory leg, address vault)
         internal
         returns (address instance)
     {
         ERC404Factory.CreateParams memory params = ERC404Factory.CreateParams({
             salt: keccak256(abi.encode(block.timestamp, leg.slug, "ERC404-SEPOLIA")),
-            name: leg.slug,
+            name: leg.title,
             symbol: leg.symbol,
             styleUri: "",
             tokenBaseURI: leg.pieceBase,
