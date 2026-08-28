@@ -28,7 +28,7 @@ import { useOwnerGate } from '../components/ui/useOwnerGate'
 import { forkChainId } from '../lib/addresses'
 import { fetchJson, jsonOrNull } from '../lib/metadata'
 import { IpfsImage } from '../components/ui/IpfsImage'
-import { truncateAddress } from '../lib/format'
+import { formatTokenAmount, truncateAddress } from '../lib/format'
 import { StateBlock } from '../components/ui/StateBlock'
 import { MintBar } from '../components/ui/MintBar'
 import { ShareLink } from '../components/ui/ShareLink'
@@ -434,7 +434,9 @@ function Erc721Token({ instance, id, collectionName, creator, vaultName }: Token
               {bids.slice(0, 10).map((b, i) => (
                 <div className="p" key={`${b.blockNumber}-${i}`}>
                   <span className="ev">Bid</span>
-                  <span className="val">{formatEther(b.amount)} ETH</span>
+                  <span className="val" title={`${formatEther(b.amount)} ETH`}>
+                    {formatTokenAmount(b.amount)} ETH
+                  </span>
                   <span className="who">{truncateAddress(b.bidder)}</span>
                   <span className="when">—</span>
                 </div>
@@ -446,8 +448,11 @@ function Erc721Token({ instance, id, collectionName, creator, vaultName }: Token
         <div className={styles.acquire} id="bid">
           <div className={styles.priceRow}>
             <span className={styles.priceLabel}>{hasBidder ? 'High bid' : 'Min bid'}</span>
-            <span className={styles.price}>
-              {formatEther(hasBidder ? a.highBid : a.minBid)} ETH
+            <span
+              className={styles.price}
+              title={`${formatEther(hasBidder ? a.highBid : a.minBid)} ETH`}
+            >
+              {formatTokenAmount(hasBidder ? a.highBid : a.minBid)} ETH
             </span>
           </div>
           {/* N13: bid (and settle/reclaim) INLINE on the token page — the same auction action the
@@ -471,7 +476,11 @@ function Erc721Token({ instance, id, collectionName, creator, vaultName }: Token
 
       {/* Mobile: the acquire action stays in thumb reach — jumps to the inline bid form. */}
       <MintBar
-        price={`${formatEther(hasBidder ? a.highBid : a.minBid)} ETH`}
+        price={
+          <span title={`${formatEther(hasBidder ? a.highBid : a.minBid)} ETH`}>
+            {formatTokenAmount(hasBidder ? a.highBid : a.minBid)} ETH
+          </span>
+        }
         sub={hasBidder ? 'high bid' : 'min bid'}
         action={<a href="#bid">{state === 'active' ? 'Bid' : 'View'}</a>}
       />

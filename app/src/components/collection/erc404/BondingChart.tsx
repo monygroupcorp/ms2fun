@@ -402,8 +402,19 @@ function drawCandles(ctx: CanvasRenderingContext2D, ink: Ink, candles: Candle[])
   })
 }
 
+/**
+ * Chart-axis price label. Distinct from `formatTokenAmount` (lib/format.ts): this formats a
+ * synthetic curve price already computed as a plain `number` (curveSampler.ts), not an on-chain
+ * wei `bigint` read — there is no lossless bigint to hand the shared formatter here. Caps to 4
+ * significant digits; for sub-1e-6 prices, fixed notation (not `toExponential`) so the label never
+ * reads as scientific notation on the chart.
+ */
 function formatPrice(p: number): string {
   if (p === 0) return '0'
-  if (p < 1e-6) return p.toExponential(2)
+  if (p < 1e-6) {
+    // -floor(log10(p)) is the leading zero count after the decimal point; +3 keeps ~4 sig figs.
+    const fracDigits = Math.min(20, -Math.floor(Math.log10(p)) + 3)
+    return p.toFixed(fracDigits).replace(/0+$/, '')
+  }
   return p.toPrecision(4)
 }

@@ -56,6 +56,7 @@ import {
   ALGEBRA_NO_PRICE_LIMIT,
   algebraSwapRouterAbi,
 } from '../../../lib/algebra/abis'
+import { formatTokenAmount } from '../../../lib/format'
 import { useCollectionAddresses, useCollectionChainId } from '../useCollectionChain'
 import { invalidateInstanceQueries, txErrorReason } from '../../ui/useTxAction'
 import type { GraduatedVenue } from './useGraduatedVenue'
@@ -512,8 +513,12 @@ export function GraduatedSwapPanel({
   const outLabel = isBuy ? symbol : 'ETH'
   const quoteValue =
     quoteOut !== undefined
-      ? `${isBuy ? formatUnits(quoteOut, decimals) : formatEther(quoteOut)} ${outLabel}`
+      ? `${isBuy ? formatTokenAmount(quoteOut, decimals) : formatTokenAmount(quoteOut)} ${outLabel}`
       : '—'
+  const quoteTitle =
+    quoteOut !== undefined
+      ? `${isBuy ? formatUnits(quoteOut, decimals) : formatEther(quoteOut)} ${outLabel}`
+      : undefined
 
   const isBusy = swapIsPending || isConfirming
   const swapError = txErrorReason(swapRawError)
@@ -564,8 +569,11 @@ export function GraduatedSwapPanel({
           presets={isBuy ? buyEthPresets() : sellPctPresets(balanceRead.data, decimals)}
         />
         {!isBuy && balanceRead.data !== undefined && (
-          <span className={styles.note}>
-            balance: {formatUnits(balanceRead.data, decimals)} {symbol}
+          <span
+            className={styles.note}
+            title={`${formatUnits(balanceRead.data, decimals)} ${symbol}`}
+          >
+            balance: {formatTokenAmount(balanceRead.data, decimals)} {symbol}
           </span>
         )}
       </div>
@@ -593,7 +601,10 @@ export function GraduatedSwapPanel({
 
       <div className={styles.quoteRow} data-testid="erc404-graduated-quote">
         <span className={styles.quoteLabel}>receive</span>
-        <span className={styles.quoteValue}>
+        <span
+          className={styles.quoteValue}
+          title={quoteIsFetching && quoteReady ? undefined : quoteTitle}
+        >
           {quoteIsFetching && quoteReady ? '…' : quoteValue}
         </span>
       </div>
