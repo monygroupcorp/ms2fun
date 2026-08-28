@@ -14,7 +14,7 @@ import {
   resolveUriCandidates,
   type IpfsGateway,
 } from './uri'
-import { gatewayKey, noteThrottled, resetGatewayHealth } from './gatewayHealth'
+import { gatewayKey, noteFault, noteThrottled, resetGatewayHealth } from './gatewayHealth'
 import { customGatewayStore } from '../storage/keys'
 
 // A base32 CIDv1 is case-insensitive, so it survives a DNS label; a CIDv0 is base58btc and does not.
@@ -533,6 +533,22 @@ describe('fetchJson', () => {
       expect(mockFetch).not.toHaveBeenCalled()
     })
 
+    it('keeps the last living gateway askable when the roster is cooling from FAULTS, not a real refusal', async () => {
+      for (const gateway of IPFS_GATEWAYS) noteFault(gatewayKey(gateway))
+      mockFetch.mockResolvedValue(makeMockResponse(true, { a: 1 }))
+      expect(await fetchJson(`ipfs://${CID_V1}`)).toEqual({ status: 'found', data: { a: 1 } })
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+    })
+
+    it('drops to zero when even ONE gateway in an otherwise fault-cooling roster is genuinely throttled', async () => {
+      const [first, ...restGateways] = IPFS_GATEWAYS as IpfsGateway[]
+      noteThrottled(gatewayKey(first as IpfsGateway))
+      for (const gateway of restGateways) noteFault(gatewayKey(gateway))
+      const result = await fetchJson(`ipfs://${CID_V1}`)
+      expect(result.status).toBe('throttled')
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
     it('starts the next item at the gateway that last worked', async () => {
       const urls = publicUrls(CID_V1)
       expect(urls.length).toBeGreaterThan(1)
@@ -575,9 +591,14 @@ describe('fetchJson', () => {
       expect(urls).toHaveLength(publicUrls(CID_V1).length - 1)
     })
 
-    it('is empty when every gateway is cooling — the caller must report that as throttled', () => {
+    it('is empty when every gateway is genuinely throttled — the caller must report that as throttled', () => {
       for (const gateway of IPFS_GATEWAYS) noteThrottled(gatewayKey(gateway))
       expect(resolveCandidates(`ipfs://${CID_V1}`)).toEqual([])
+    })
+
+    it('keeps a single survivor rather than going empty when every gateway is cooling from faults', () => {
+      for (const gateway of IPFS_GATEWAYS) noteFault(gatewayKey(gateway))
+      expect(resolveCandidates(`ipfs://${CID_V1}`)).toHaveLength(1)
     })
 
     it('tags each ipfs candidate with the gateway it reports health to', () => {

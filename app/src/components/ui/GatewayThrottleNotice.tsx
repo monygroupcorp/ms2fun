@@ -18,6 +18,11 @@
  *
  * Tier 2 is deliberately not a wall. Someone who will never run a gateway must be able to dismiss
  * this, keep browsing what is cached, and wait the window out.
+ *
+ * The notice fires for two different reasons, worded differently but sharing both tiers: a rate
+ * limit (`throttled`) is a cooldown with a real deadline; a slow-but-alive roster that keeps
+ * missing the request timeout (`starved`) never trips a cooldown at all, but leaves the wall just
+ * as blank, so it gets the same door rather than no notice.
  */
 import { useEffect, useState, type FormEvent } from 'react'
 import {
@@ -43,7 +48,11 @@ function describeWindow(retryAt: number, now: number): string {
  * change with no event behind it. `throttleSnapshot` returns the same object while nothing has
  * changed, so a re-read that finds no change does not re-render.
  */
-function useThrottleState(): { cooling: boolean; retryAt: number } {
+function useThrottleState(): {
+  cooling: boolean
+  retryAt: number
+  reason: 'throttled' | 'starved'
+} {
   const [state, setState] = useState(() => throttleSnapshot(getIpfsGateways()))
 
   useEffect(() => {
@@ -63,7 +72,7 @@ function useThrottleState(): { cooling: boolean; retryAt: number } {
 }
 
 export function GatewayThrottleNotice() {
-  const { cooling, retryAt } = useThrottleState()
+  const { cooling, retryAt, reason } = useThrottleState()
   /** The window the viewer already dismissed; a NEW window re-shows the notice. */
   const [dismissedFor, setDismissedFor] = useState(0)
   const [custom, setCustom] = useState<string | null>(() => customGatewayStore.get())
@@ -100,10 +109,21 @@ export function GatewayThrottleNotice() {
         <div className={styles.text}>
           <span className={styles.label}>Loading slowly</span>
           <span className={styles.msg}>
-            The public IPFS gateways are rate-limiting this browser, so new art and metadata
-            can&rsquo;t load for {describeWindow(retryAt, Date.now())}. This is a limit on your
-            connection, not a problem with this app or the collection, and it clears on its own.
-            Anything already loaded stays visible.
+            {reason === 'throttled' ? (
+              <>
+                The public IPFS gateways are rate-limiting this browser, so new art and metadata
+                can&rsquo;t load for {describeWindow(retryAt, Date.now())}. This is a limit on your
+                connection, not a problem with this app or the collection, and it clears on its own.
+                Anything already loaded stays visible.
+              </>
+            ) : (
+              <>
+                Public gateways are responding slowly right now, so new art and metadata can&rsquo;t
+                load for {describeWindow(retryAt, Date.now())}. This isn&rsquo;t a problem with this
+                app or the collection, and it should clear on its own. Anything already loaded stays
+                visible.
+              </>
+            )}
           </span>
         </div>
         <button
