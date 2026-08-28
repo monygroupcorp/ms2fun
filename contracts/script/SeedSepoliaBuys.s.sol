@@ -684,13 +684,13 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
 
         vm.startBroadcast();
         MetadataOverlayModule ov = MetadataOverlayModule(d.overlay);
-        // A commission's payload is a real metadata URI in a THIRD collection, not a label: the
-        // overlay wins over both the band and the base, so it has to carry a picture of its own for
-        // the top of the precedence stack to show anything.
+        // A commission's payload is a real metadata URI, not a label: the overlay wins over both the
+        // band and the base, so it has to carry a picture of its own for the top of the precedence
+        // stack to show anything. It is drawn from the ladder's top rung, above both bands.
         ov.setCommission(
             h.tiers404,
             paidId,
-            string.concat(ART_BASE_SIMIAN, vm.toString(paidId)),
+            string.concat(ART_BASE_SCHIZO, vm.toString(paidId)),
             MetadataOverlayModule.CommCond.PAY,
             price,
             MetadataOverlayModule.Payout.ARTIST
@@ -701,7 +701,7 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
         ov.setCommission(
             h.tiers404,
             unpaidId,
-            string.concat(ART_BASE_SIMIAN, vm.toString(unpaidId)),
+            string.concat(ART_BASE_SCHIZO, vm.toString(unpaidId)),
             MetadataOverlayModule.CommCond.PAY,
             price,
             MetadataOverlayModule.Payout.ARTIST
@@ -907,8 +907,8 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
             }
         }
         f.waveCount = ov.waveCount(instance);
-        f.baseArt = ART_BASE_ANIME;
-        f.bandArt = ART_BASE_ARCTIC;
+        f.baseArt = ART_BASE_SONORA;
+        f.bandArt = ART_BASE_SONORA222;
     }
 
     /// @param raise the reserve the row held immediately BEFORE `deployLiquidity`. Passed in rather

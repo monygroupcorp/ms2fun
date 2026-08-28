@@ -421,46 +421,54 @@ abstract contract SeedSepoliaShared is Script {
 
     // ─────────────────────────── Art ───────────────────────────
     //
+    // EVERY row on this seed — the four curve rows and the eight breadth rows alike — wears ONE
+    // derivative collection end to end. A row's pieces resolve inside that collection's own metadata
+    // directory and its collection tile is that same collection's own art, so the featured wall reads
+    // as twelve distinct drops rather than one uniform set. No two rows share a family, and no row
+    // takes its tile from a directory another row's tile comes from.
+    //
     // Per-piece bases are METADATA directories whose entries are addressed by the BARE token id,
-    // because `base + tokenId` composes with no separator and no extension. An image directory 404s
-    // for every id. These are the same content-addressed directories the local seed resolved and
-    // gateway-verified; reusing them keeps the showcase's art off any host we would have to keep up.
-
-    string internal constant ART_BASE_ANIME = "ipfs://QmZcH4YvBVVRJtdn4RdbaqgspFU8gH6P9vomDpBVpAL3u4/";
-    string internal constant ART_BASE_ARCTIC = "ipfs://bafybeibc5sgo2plmjkq2tzmhrn54bk3crhnc23zd2msg4ea7a4pxrkgfna/";
-    string internal constant ART_BASE_SIMIAN = "ipfs://QmeSjSinHpPnmXmspMjwiXyN6zS4E9zccariGR3jxcaWtq/";
-    string internal constant ART_BASE_DOODLE = "ipfs://QmPMc4tcBsMqLRuCQtPmPe84bpSjrC3Ky7t3JWuHXYB4aS/";
-
-    // Collection tile art — single gateway-verified pointers from the same harvested set. These back
-    // the BREADTH rows (editions, tiers, commissions, queued pieces); the four ERC404 curve rows draw
-    // from the derivative families below instead.
-    string internal constant ART_EMBER = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/7.png";
-    string internal constant ART_VAPOR = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/128.png";
-    string internal constant ART_CINDER = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/777.png";
-    string internal constant ART_FLARE = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/42.png";
-
-    /// @dev The directory the four tiles above share. Named so `_assertTileArt` can refuse it for a
-    ///      curve row: those rows carry their own collection's tile, never a shared one.
-    string internal constant SHARED_TILE_DIR = "QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg";
-
-    // ── The alignment census's families: one collection per curve row ─────────────────────────────
+    // because `base + tokenId` composes with no separator and no extension — an image directory 404s
+    // for every id. Tiles are single FILES inside the family's own IMAGE directory, which is a
+    // different CID from the metadata one for every family here.
     //
-    // The four curve rows are the showcase's argument, and the argument is alignment — so each row
-    // wears ONE derivative collection end to end: its pieces resolve inside that collection's own
-    // metadata directory, and its collection tile is that same collection's own art. A stock tile
-    // over foreign pieces reads as one uniform set on the featured wall and teaches the visitor the
-    // opposite of what the roster is for. Card art and piece art come from the same place, always.
-    //
-    // Every base below addresses its entries by the BARE token id (`<cid>/1`, no extension), which is
-    // exactly the `base + tokenId` concatenation the instance performs, so a seeded piece resolves to
-    // the real art with no re-hosting and no third-party host in the path.
+    // Rows whose mechanism composes per-piece `data:` metadata (the ERC-1155 editions and the ERC-721
+    // auction houses) have no on-chain base to wire, so only their family's image directory appears
+    // below: the piece document is ours, the picture inside it is the family's.
+
+    // ── Metadata directories, one per row that carries an on-chain base ───────────────────────────
     string internal constant ART_BASE_PIXELADY = "ipfs://bafybeigd7557iwardhnwg5kbmg2s7tmuxqkstjeoixu7wunooiywbb3jqq/";
     string internal constant ART_BASE_BOREDMILADY = "ipfs://QmZ7K6hG5uiTvLVvmxZgm72Nv3kmvTq4CVAEG6JoMFvpkW/";
     string internal constant ART_BASE_FIGMATA = "ipfs://bafybeih64fcswxjq7qrpx6hbzr2wkmn7u7bcl63yadaxmzgcyabecenl6e/";
     string internal constant ART_BASE_LAWBSTERS = "ipfs://bafybeibvgwjwuosoov6cfgwoyyrt7vocalqoprjayni6rfepda7bi2jdse/";
+    string internal constant ART_BASE_MILADYSTATION = "ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/";
+    string internal constant ART_BASE_GHIBLADY = "ipfs://bafybeic5in4it4rsocajjvzn3zs5scsci4a7hhpbpd5fulqca42vqtjs2q/";
+    string internal constant ART_BASE_ELITE = "ipfs://bafybeicrcd4fgtumtkjfzkxkmlzqvy3w6cn2tlb3vm6jvbnxbojebvnwne/";
 
-    // The tile for each row, taken from that row's OWN family. Pixelady's is the `image` its piece-1
-    // metadata names; the other three are the collection's own card art.
+    /// @dev The tier row's THREE metadata directories are one family's own lineage, bottom to top:
+    ///      the ordinary base is the parent collection, and each tier band is the derivative that
+    ///      succeeded it. Precedence (overlay over band over base) is only demonstrated if the layers
+    ///      can be told apart by eye, and a ladder read inside one lineage says what the rungs mean
+    ///      as well as that they differ.
+    string internal constant ART_BASE_SONORA = "ipfs://QmX89dvzA3TSwsGfY7SthYkDxSFjszec8JkEEZE7JP5QHF/";
+    string internal constant ART_BASE_SONORA222 = "ipfs://bafybeifxxqwdsdxtmvk6iauqqh4vobvlrflv332nb6fnllhwwjeblr35ra/";
+    string internal constant ART_BASE_SCHIZO = "ipfs://bafybeibtjhjyswebkwvck4u6pomllz46gdsfqtsdfrurhm7awn34oxckgi/";
+
+    // ── Image directories, one per family. A row's tile is a FILE inside its own family's ─────────
+    string internal constant ART_IMG_PIXELADY = "ipfs://bafybeih5mqafo34424swmfdboww3s2tvfmzoojbip4jmcjbg5n3fl7edee/";
+    string internal constant ART_IMG_BOREDMILADY = "ipfs://QmWEQVc5xLyjPduYopckWWu6arhqgg7srxTo5FuLmLxiAU/";
+    string internal constant ART_IMG_FIGMATA = "ipfs://bafybeieedvws62v6g3gr6uw2a2m7m2ckhekv2vkcsv62vokpjtcvkz6gfi/";
+    string internal constant ART_IMG_LAWBSTERS = "ipfs://QmRFZ9GtqT6A8cF8ZF1x4fsysRHMhFSk1g8QGEBVn249pQ/";
+    string internal constant ART_IMG_RADBRO = "ipfs://bafybeiawybz4ma6qj2litcotzpu4j6z5whwlb5bcocsfhvzp5odco5twgy/";
+    string internal constant ART_IMG_MILADYSTATION = "ipfs://QmSjnEsFWBWC3hCcm1UarThXLSRrKuYLq1e8oYFaZpVmJS/";
+    string internal constant ART_IMG_MFERS = "ipfs://QmSXG9BXpFPCse35T4ZcEVdYXDUwP7MRr2oXJvfuEiVCPT/";
+    string internal constant ART_IMG_MEOWLADY = "ipfs://bafybeic5ayyoejk74vhbrodtgw66lg5n4fbkkua6fhrqniwjuciaiaau5e/";
+    string internal constant ART_IMG_COLOMBIA = "ipfs://bafybeiamccfdkkqi7hnqyxhfaiz5tkdvxc5uz7ed6o2hgrypbjom2tsi2a/";
+    string internal constant ART_IMG_SONORA = "ipfs://QmcX9WYUF6Z79Gg8RBxzX9sowQpNJKaQRn6Gn1xUVqQB2t/";
+    string internal constant ART_IMG_GHIBLADY = "ipfs://bafybeih77zrj3rugllheg277n4sib4avy2hb5i4xnhrt6y5ix5xiwjzote/";
+    string internal constant ART_IMG_ELITE = "ipfs://bafybeifgzaqtirkmmy7rqgtchfg2twe4olz2i3ul64w4pnlufrsaovkhau/";
+
+    // ── The curve rows' tiles ─────────────────────────────────────────────────────────────────────
     string internal constant ART_TILE_PIXELADY =
         "ipfs://bafybeih5mqafo34424swmfdboww3s2tvfmzoojbip4jmcjbg5n3fl7edee/1.png";
     string internal constant ART_TILE_BOREDMILADY = "ipfs://QmWEQVc5xLyjPduYopckWWu6arhqgg7srxTo5FuLmLxiAU/1.png";
@@ -468,17 +476,72 @@ abstract contract SeedSepoliaShared is Script {
         "ipfs://bafybeieedvws62v6g3gr6uw2a2m7m2ckhekv2vkcsv62vokpjtcvkz6gfi/1.png";
     string internal constant ART_TILE_LAWBSTERS = "ipfs://QmRFZ9GtqT6A8cF8ZF1x4fsysRHMhFSk1g8QGEBVn249pQ/1.png";
 
+    // ── The breadth rows' tiles and pieces ────────────────────────────────────────────────────────
+    //
+    // One family per row, distinct ids within a row so a collection page is not three copies of one
+    // picture. The auction and edition pieces are the only places a breadth row names a picture per
+    // piece; everything else on those rows is the collection tile.
+    string internal constant ART_TILE_ATLAS =
+        "ipfs://bafybeiawybz4ma6qj2litcotzpu4j6z5whwlb5bcocsfhvzp5odco5twgy/1.png";
+    string internal constant ART_PIECE_ATLAS_FIXED =
+        "ipfs://bafybeiawybz4ma6qj2litcotzpu4j6z5whwlb5bcocsfhvzp5odco5twgy/2.png";
+    string internal constant ART_PIECE_ATLAS_RISING =
+        "ipfs://bafybeiawybz4ma6qj2litcotzpu4j6z5whwlb5bcocsfhvzp5odco5twgy/3.png";
+    string internal constant ART_PIECE_ATLAS_CLAIM =
+        "ipfs://bafybeiawybz4ma6qj2litcotzpu4j6z5whwlb5bcocsfhvzp5odco5twgy/4.png";
+
+    string internal constant ART_TILE_VEIL = "ipfs://QmSXG9BXpFPCse35T4ZcEVdYXDUwP7MRr2oXJvfuEiVCPT/1.png";
+    string internal constant ART_PIECE_VEIL_PASS = "ipfs://QmSXG9BXpFPCse35T4ZcEVdYXDUwP7MRr2oXJvfuEiVCPT/2.png";
+
+    string internal constant ART_TILE_QUARRY = "ipfs://QmSjnEsFWBWC3hCcm1UarThXLSRrKuYLq1e8oYFaZpVmJS/1.png";
+    string internal constant ART_TILE_PRISM = "ipfs://QmcX9WYUF6Z79Gg8RBxzX9sowQpNJKaQRn6Gn1xUVqQB2t/1.png";
+    string internal constant ART_TILE_CARVE =
+        "ipfs://bafybeih77zrj3rugllheg277n4sib4avy2hb5i4xnhrt6y5ix5xiwjzote/1.png";
+    string internal constant ART_TILE_CYPHER =
+        "ipfs://bafybeifgzaqtirkmmy7rqgtchfg2twe4olz2i3ul64w4pnlufrsaovkhau/1.png";
+
+    string internal constant ART_TILE_RELIC =
+        "ipfs://bafybeic5ayyoejk74vhbrodtgw66lg5n4fbkkua6fhrqniwjuciaiaau5e/1.png";
+    string internal constant ART_PIECE_RELIC_I =
+        "ipfs://bafybeic5ayyoejk74vhbrodtgw66lg5n4fbkkua6fhrqniwjuciaiaau5e/2.png";
+    string internal constant ART_PIECE_RELIC_II =
+        "ipfs://bafybeic5ayyoejk74vhbrodtgw66lg5n4fbkkua6fhrqniwjuciaiaau5e/3.png";
+
+    /// @dev Three ids in this directory are AVIF rather than PNG and are the only surviving copies of
+    ///      their pieces; the two ids taken here are PNG.
+    string internal constant ART_TILE_SALON =
+        "ipfs://bafybeiamccfdkkqi7hnqyxhfaiz5tkdvxc5uz7ed6o2hgrypbjom2tsi2a/1.png";
+    string internal constant ART_PIECE_SALON_I =
+        "ipfs://bafybeiamccfdkkqi7hnqyxhfaiz5tkdvxc5uz7ed6o2hgrypbjom2tsi2a/2.png";
+
     // ── Id coverage of each metadata directory ───────────────────────────────────────────────────
     //
-    // A row mints piece ids 1..SHOWCASE_NFT_COUNT, so its directory must answer for at least that
-    // many ids or the tail of the collection renders blank. The counts below are each collection's
-    // supply as harvested — the number of ids its directory carries. `_assertPieceCoverage` holds
-    // them against what a row can mint, so raising the piece count past a directory's reach is a
-    // named failure instead of a silent gap.
+    // A row mints piece ids 1..N, and `base + tokenId` resolves only for ids the directory actually
+    // carries. The counts below are each collection's supply — the number of ids its directory
+    // answers for. `_assertPieceCoverage` holds them against what a row can mint, so raising a piece
+    // count past a directory's reach is a named failure instead of a silent gap.
     uint256 internal constant COVER_PIXELADY = 10_000;
     uint256 internal constant COVER_BOREDMILADY = 6911;
     uint256 internal constant COVER_FIGMATA = 180;
     uint256 internal constant COVER_LAWBSTERS = 420;
+    uint256 internal constant COVER_MILADYSTATION = 1212;
+    uint256 internal constant COVER_GHIBLADY = 2600;
+    uint256 internal constant COVER_ELITE = 777;
+    uint256 internal constant COVER_SONORA = 444;
+    uint256 internal constant COVER_SONORA222 = 222;
+    uint256 internal constant COVER_SCHIZO = 100;
+
+    // ── The retired directories ──────────────────────────────────────────────────────────────────
+    //
+    // The five blue-chip directories this seed used to draw from. They are kept here, and ONLY here,
+    // as a denylist: `_assertNotRetiredArt` runs over every base and every tile the seed configures,
+    // so one of them coming back — copied from the anvil seed, or restored from an older revision —
+    // is a named failure at simulation time rather than a wall of foreign art on the testnet.
+    string internal constant RETIRED_DIR_ANIME = "QmZcH4YvBVVRJtdn4RdbaqgspFU8gH6P9vomDpBVpAL3u4";
+    string internal constant RETIRED_DIR_ARCTIC = "bafybeibc5sgo2plmjkq2tzmhrn54bk3crhnc23zd2msg4ea7a4pxrkgfna";
+    string internal constant RETIRED_DIR_SIMIAN = "QmeSjSinHpPnmXmspMjwiXyN6zS4E9zccariGR3jxcaWtq";
+    string internal constant RETIRED_DIR_DOODLE = "QmPMc4tcBsMqLRuCQtPmPe84bpSjrC3Ky7t3JWuHXYB4aS";
+    string internal constant RETIRED_DIR_SHARED_TILE = "QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg";
 
     // ─────────────────────────── The roster ───────────────────────────
 
@@ -496,6 +559,7 @@ abstract contract SeedSepoliaShared is Script {
         string symbol;
         string description; // states the FEATURE demonstrated — see `_showcaseRoster`
         string image;
+        string imageDir; // the row family's IMAGE directory — `image` must live inside it
         string pieceBase;
         uint8 state;
         uint16 declaredMaxBps;
@@ -657,6 +721,7 @@ abstract contract SeedSepoliaShared is Script {
             symbol: "EMBER",
             description: "This collection demonstrates the PRE-OPEN state. The curve is armed and the countdown is running, and nothing can be bought until it expires - a buy attempted now is rejected on-chain, not hidden by the interface. Watch what the collection page does as the timer runs down.",
             image: ART_TILE_PIXELADY,
+            imageDir: ART_IMG_PIXELADY,
             pieceBase: ART_BASE_PIXELADY,
             state: STATE_PREOPEN,
             declaredMaxBps: 0,
@@ -670,6 +735,7 @@ abstract contract SeedSepoliaShared is Script {
             symbol: "VAPOR",
             description: "This collection demonstrates a LIVE BONDING CURVE part-way through its sale. Each buy mints coin and, in whole units, the pieces that ride it - one asset with two surfaces. Buy into it and watch the price, the piece gallery and the holder list move.",
             image: ART_TILE_BOREDMILADY,
+            imageDir: ART_IMG_BOREDMILADY,
             pieceBase: ART_BASE_BOREDMILADY,
             state: STATE_MID_CURVE,
             declaredMaxBps: 0,
@@ -683,6 +749,7 @@ abstract contract SeedSepoliaShared is Script {
             symbol: "CINDER",
             description: "This collection demonstrates the READY-TO-GRADUATE state. The curve is open, matured and holds a raise, so the graduation action is live and uncrossed - the collection is one call away from opening a Uniswap V4 pool. The creator declared a carve allowance up front, which the page shows before you buy.",
             image: ART_TILE_FIGMATA,
+            imageDir: ART_IMG_FIGMATA,
             pieceBase: ART_BASE_FIGMATA,
             state: STATE_READY,
             declaredMaxBps: 5000,
@@ -696,6 +763,7 @@ abstract contract SeedSepoliaShared is Script {
             symbol: "FLARE",
             description: "This collection demonstrates the GRADUATED state. Its curve has closed and the raise opened a real Uniswap V4 pool, so the coin now trades on the venue instead of on the curve - and 19 percent of the raise went to the alignment vault by contract. Trade it, then read the graduation on-chain.",
             image: ART_TILE_LAWBSTERS,
+            imageDir: ART_IMG_LAWBSTERS,
             pieceBase: ART_BASE_LAWBSTERS,
             state: STATE_GRADUATED,
             declaredMaxBps: 0,
@@ -709,7 +777,7 @@ abstract contract SeedSepoliaShared is Script {
         for (uint256 i = 0; i < legs.length; i++) {
             _assertPieceBase(legs[i].pieceBase, legs[i].slug);
             _assertPieceCoverage(legs[i].pieceIdCoverage, SHOWCASE_NFT_COUNT, legs[i].slug);
-            _assertTileArt(legs[i].image, legs[i].slug);
+            _assertTileArt(legs[i].image, legs[i].imageDir, legs[i].slug);
         }
     }
 
@@ -1055,6 +1123,20 @@ abstract contract SeedSepoliaShared is Script {
         require(b[b.length - 1] == "/", string.concat("art: ", label, " base has no trailing slash"));
         require(b[b.length - 2] != "/", string.concat("art: ", label, " base ends in a double slash"));
         require(!_contains(base, "TODO"), string.concat("art: ", label, " base still carries a placeholder"));
+        _assertNotRetiredArt(base, label);
+    }
+
+    /// @dev No URI this seed configures may point into a retired directory. The five directories the
+    ///      showcase used to draw from are kept as a denylist rather than as wiring, so a base or a
+    ///      tile carrying one — copied across from another seed, or restored from an older revision —
+    ///      fails by name at simulation time, before anything is created on chain.
+    function _assertNotRetiredArt(string memory uri, string memory label) internal pure {
+        require(
+            !_contains(uri, RETIRED_DIR_ANIME) && !_contains(uri, RETIRED_DIR_ARCTIC)
+                && !_contains(uri, RETIRED_DIR_SIMIAN) && !_contains(uri, RETIRED_DIR_DOODLE)
+                && !_contains(uri, RETIRED_DIR_SHARED_TILE),
+            string.concat("art: ", label, " points into a retired directory")
+        );
     }
 
     /// @dev A row mints piece ids 1..`minted`, and `base + tokenId` resolves only for ids the
@@ -1068,19 +1150,118 @@ abstract contract SeedSepoliaShared is Script {
         );
     }
 
-    /// @dev The collection tile must come from the row's OWN collection. The shared tile directory
-    ///      backs the breadth rows, and a curve row pointing at it puts one house image over another
-    ///      collection's pieces — the featured wall then reads as a single uniform set and says
-    ///      nothing about the collection behind each row.
-    function _assertTileArt(string memory image, string memory label) internal pure {
+    /// @dev The collection tile must come from the row's OWN family. There is no shared tile
+    ///      directory left to refuse: the rule is now positive and per row, because a tile taken from
+    ///      ANY directory other than the row's own puts one collection's image over another
+    ///      collection's pieces, and a wall of tiles that all came from one place reads as a single
+    ///      uniform set whatever family that place belongs to.
+    function _assertTileArt(string memory image, string memory imageDir, string memory label) internal pure {
         bytes memory b = bytes(image);
         require(b.length > 8, string.concat("art: ", label, " has no collection tile"));
         require(_startsWith(image, "ipfs://"), string.concat("art: ", label, " tile is not content-addressed"));
         require(b[b.length - 1] != "/", string.concat("art: ", label, " tile points at a directory, not a file"));
         require(
-            !_contains(image, SHARED_TILE_DIR),
-            string.concat("art: ", label, " tile comes from the shared set, not from the row's own collection")
+            _startsWith(imageDir, "ipfs://") && bytes(imageDir)[bytes(imageDir).length - 1] == "/",
+            string.concat("art: ", label, " declares no image directory to hold its tile against")
         );
+        require(
+            _startsWith(image, imageDir),
+            string.concat("art: ", label, " tile does not come from the row's own collection")
+        );
+        _assertNotRetiredArt(image, label);
+    }
+
+    /// @dev The highest piece id the tier row can address. Ordinary ids run 1..`TIER_NFT_COUNT`, and
+    ///      the two sealed bands are allocated ABOVE that ceiling, one id per unit of band count — so
+    ///      this is the largest id the band directories have to answer for. The overlay wave and the
+    ///      commissions compose over ORDINARY ids, which sit below it.
+    uint256 internal constant TIER_MAX_ADDRESSABLE_ID = TIER_NFT_COUNT + TIER_OPEN_COUNT + TIER_SCARCE_COUNT;
+
+    /// @dev The breadth rows' art, held to the same rules as the roster's — run before phase 1
+    ///      creates anything, so a mis-wired directory names itself at simulation time.
+    ///
+    ///      The ERC-1155 edition rows and the ERC-721 auction houses compose per-piece `data:`
+    ///      documents rather than a base + id, so there is no metadata directory to cover for them:
+    ///      what is checked is that every picture they name comes from their own family.
+    function _assertBreadthArt() internal pure {
+        // 1. Editions — one family across the collection tile and all three edition pictures.
+        _assertTileArt(ART_TILE_ATLAS, ART_IMG_RADBRO, "atlas-editions");
+        _assertTileArt(ART_PIECE_ATLAS_FIXED, ART_IMG_RADBRO, "atlas-editions fixed");
+        _assertTileArt(ART_PIECE_ATLAS_RISING, ART_IMG_RADBRO, "atlas-editions rising");
+        _assertTileArt(ART_PIECE_ATLAS_CLAIM, ART_IMG_RADBRO, "atlas-editions claim");
+
+        // 2. The gated row.
+        _assertTileArt(ART_TILE_VEIL, ART_IMG_MFERS, "veil-list");
+        _assertTileArt(ART_PIECE_VEIL_PASS, ART_IMG_MFERS, "veil-list pass");
+
+        // 3. Staking — an ERC404 row, so its base has to reach every id the row can mint.
+        _assertTileArt(ART_TILE_QUARRY, ART_IMG_MILADYSTATION, "quarry-staking");
+        _assertPieceBase(ART_BASE_MILADYSTATION, "quarry-staking");
+        _assertPieceCoverage(COVER_MILADYSTATION, SHOWCASE_NFT_COUNT, "quarry-staking");
+
+        // 4/5. Tiers — one family's own lineage across four directories. The base answers for the
+        //      ordinary ids; the two band directories and the commission directory answer for ids up
+        //      to the band ceiling, which is the highest id anything on this row can address.
+        _assertTileArt(ART_TILE_PRISM, ART_IMG_SONORA, "prism-tiers");
+        _assertPieceBase(ART_BASE_SONORA, "prism-tiers base");
+        _assertPieceBase(ART_BASE_SONORA222, "prism-tiers open band");
+        _assertPieceBase(ART_BASE_SCHIZO, "prism-tiers scarce band");
+        _assertPieceCoverage(COVER_SONORA, TIER_NFT_COUNT, "prism-tiers base");
+        _assertPieceCoverage(COVER_SONORA222, TIER_MAX_ADDRESSABLE_ID, "prism-tiers open band");
+        _assertPieceCoverage(COVER_SCHIZO, TIER_MAX_ADDRESSABLE_ID, "prism-tiers scarce band");
+        // The rungs have to be tellable apart or the precedence stack demonstrates nothing. Three
+        // directories, checked here rather than only on the two the phase-2 read-back carries.
+        require(!_eq(ART_BASE_SONORA, ART_BASE_SONORA222), "art: prism-tiers open band repeats the base directory");
+        require(!_eq(ART_BASE_SONORA, ART_BASE_SCHIZO), "art: prism-tiers scarce band repeats the base directory");
+        require(!_eq(ART_BASE_SONORA222, ART_BASE_SCHIZO), "art: prism-tiers bands repeat one another");
+
+        // 7. The carve row.
+        _assertTileArt(ART_TILE_CARVE, ART_IMG_GHIBLADY, "carve-demo");
+        _assertPieceBase(ART_BASE_GHIBLADY, "carve-demo");
+        _assertPieceCoverage(COVER_GHIBLADY, SHOWCASE_NFT_COUNT, "carve-demo");
+
+        // 8. The Cypher flagship.
+        _assertTileArt(ART_TILE_CYPHER, ART_IMG_ELITE, "cypher-flagship");
+        _assertPieceBase(ART_BASE_ELITE, "cypher-flagship");
+        _assertPieceCoverage(COVER_ELITE, SHOWCASE_NFT_COUNT, "cypher-flagship");
+
+        // 6. The two auction houses.
+        _assertTileArt(ART_TILE_RELIC, ART_IMG_MEOWLADY, "relic-line");
+        _assertTileArt(ART_PIECE_RELIC_I, ART_IMG_MEOWLADY, "relic-line lot I");
+        _assertTileArt(ART_PIECE_RELIC_II, ART_IMG_MEOWLADY, "relic-line lot II");
+        _assertTileArt(ART_TILE_SALON, ART_IMG_COLOMBIA, "salon-line");
+        _assertTileArt(ART_PIECE_SALON_I, ART_IMG_COLOMBIA, "salon-line lot I");
+
+        _assertDistinctFamilies();
+    }
+
+    /// @dev One family per row, across the whole seed. Two rows drawing on the same directory is the
+    ///      defect this asserts away: the wall then shows the same collection twice and the roster
+    ///      stops saying that each row is a different drop. Held over the IMAGE directories, because
+    ///      those are what a visitor actually sees on the featured grid.
+    function _assertDistinctFamilies() internal pure {
+        string[12] memory dirs = [
+            ART_IMG_PIXELADY,
+            ART_IMG_BOREDMILADY,
+            ART_IMG_FIGMATA,
+            ART_IMG_LAWBSTERS,
+            ART_IMG_RADBRO,
+            ART_IMG_MILADYSTATION,
+            ART_IMG_MFERS,
+            ART_IMG_MEOWLADY,
+            ART_IMG_COLOMBIA,
+            ART_IMG_SONORA,
+            ART_IMG_GHIBLADY,
+            ART_IMG_ELITE
+        ];
+        for (uint256 i = 0; i < dirs.length; i++) {
+            for (uint256 j = i + 1; j < dirs.length; j++) {
+                require(
+                    keccak256(bytes(dirs[i])) != keccak256(bytes(dirs[j])),
+                    "art: two rows wear the same collection - every row on this seed is its own family"
+                );
+            }
+        }
     }
 
     function _startsWith(string memory haystack, string memory needle) internal pure returns (bool) {

@@ -632,6 +632,9 @@ contract SeedSepolia is SeedSepoliaShared {
     ///      phase 2 must wait past — the timed auction's end. The LIVE auction is excluded from that,
     ///      exactly as the pre-open curve row is: it exists to still be running afterwards.
     function _seedBreadth(Deployed memory d, SeedHandoff memory h) internal returns (uint256 latestClock) {
+        // The art these rows will wear, checked before the first of them is created — the same
+        // pre-condition the roster performs on itself, over the directories the breadth rows name.
+        _assertBreadthArt();
         h.editions = _seedEditions(d, h.ms2Vault);
         h.gatedEditions = _seedGatedEditions(d, h.cultVault);
         uint256 stakingMaturity;
@@ -658,7 +661,7 @@ contract SeedSepolia is SeedSepoliaShared {
                     metadataURI: _collectionMeta(
                         "Atlas Editions",
                         "This collection demonstrates the three ways an EDITION can be priced. One row is a fixed price, one rises with every mint, and one reserves part of its supply as a free claim. Open all three and compare what the mint button asks for.",
-                        ART_EMBER
+                        ART_TILE_ATLAS
                     ),
                     creator: deployer,
                     vault: vault,
@@ -675,7 +678,7 @@ contract SeedSepolia is SeedSepoliaShared {
             "Fixed Edition",
             EDITION_FIXED_PRICE,
             EDITION_FIXED_SUPPLY,
-            _pieceMeta("Fixed Edition", ART_EMBER, "atlas-editions"),
+            _pieceMeta("Fixed Edition", ART_PIECE_ATLAS_FIXED, "atlas-editions"),
             ERC1155Instance.PricingModel.LIMITED_FIXED,
             0,
             0,
@@ -687,7 +690,7 @@ contract SeedSepolia is SeedSepoliaShared {
             "Rising Edition",
             EDITION_DYNAMIC_BASE_PRICE,
             EDITION_DYNAMIC_SUPPLY,
-            _pieceMeta("Rising Edition", ART_VAPOR, "atlas-editions"),
+            _pieceMeta("Rising Edition", ART_PIECE_ATLAS_RISING, "atlas-editions"),
             ERC1155Instance.PricingModel.LIMITED_DYNAMIC,
             EDITION_DYNAMIC_RATE_BPS,
             0,
@@ -699,7 +702,7 @@ contract SeedSepolia is SeedSepoliaShared {
             "Claim Edition",
             EDITION_FREE_PRICE,
             EDITION_FREE_SUPPLY,
-            _pieceMeta("Claim Edition", ART_CINDER, "atlas-editions"),
+            _pieceMeta("Claim Edition", ART_PIECE_ATLAS_CLAIM, "atlas-editions"),
             ERC1155Instance.PricingModel.LIMITED_FIXED,
             0,
             0,
@@ -739,7 +742,7 @@ contract SeedSepolia is SeedSepoliaShared {
                     metadataURI: _collectionMetaWithAllowlist(
                         "Veil List",
                         "This collection demonstrates ALLOWLIST GATING. Each entry on the list commits to a wallet AND the quantity that wallet may take, so the contract - not the interface - decides who mints and how much. The seeded list is bound to the addresses below and cannot be joined from outside; connect one of them to pass, connect anything else to see the refusal.",
-                        ART_VAPOR,
+                        ART_TILE_VEIL,
                         GATED_EDITION,
                         _allowlistListUri(deployer, GATED_OPERATOR_QTY, member, GATED_MEMBER_QTY)
                     ),
@@ -756,7 +759,7 @@ contract SeedSepolia is SeedSepoliaShared {
                 "Veil Pass",
                 GATED_EDITION_PRICE,
                 GATED_EDITION_SUPPLY,
-                _pieceMeta("Veil Pass", ART_VAPOR, "veil-list"),
+                _pieceMeta("Veil Pass", ART_PIECE_VEIL_PASS, "veil-list"),
                 ERC1155Instance.PricingModel.LIMITED_FIXED,
                 0,
                 0,
@@ -802,8 +805,8 @@ contract SeedSepolia is SeedSepoliaShared {
             "QUARRY",
             "Quarry",
             "This collection demonstrates STAKING. Holders lock coin into the collection itself and take a pro-rata share of the trading fees it collects, streamed over a week rather than paid as a lump. Stake, unstake, and watch the claimable figure move: the stream is funded by fees this collection's alignment vault earns on the venue it aligns to, so what a staker takes is earned rather than granted.",
-            ART_CINDER,
-            ART_BASE_ANIME,
+            ART_TILE_QUARRY,
+            ART_BASE_MILADYSTATION,
             SHOWCASE_NFT_COUNT,
             d.stakingModule,
             0
@@ -835,15 +838,17 @@ contract SeedSepolia is SeedSepoliaShared {
     ///      twenty) is taken by the seed and left taken, which is what makes `BandExhausted` a state a
     ///      visitor can observe rather than a revert in a test.
     ///
-    ///      THE ART IS THREE DIFFERENT COLLECTIONS, not three labels: ordinary pieces resolve to one,
-    ///      band ids to a second, and the overlay commission phase 2 pays to a third. Precedence
-    ///      (overlay over band over base) is only demonstrated if the layers can be told apart by eye.
+    ///      THE ART IS ONE FAMILY'S OWN LINEAGE, read bottom to top. Ordinary pieces resolve to the
+    ///      parent collection; the open band to the derivative that succeeded it; the scarce band to
+    ///      the derivative after that; and the commission phase 2 pays sits on top of them all.
+    ///      Precedence (overlay over band over base) is only demonstrated if the layers can be told
+    ///      apart by eye, and stacking one lineage says what a rung MEANS as well as that it differs.
     function _seedTierRow(Deployed memory d, address vault) internal returns (address instance) {
         ERC404Factory.TierSpec[] memory tiers = new ERC404Factory.TierSpec[](2);
         tiers[0] =
-            ERC404Factory.TierSpec({ weight: TIER_OPEN_WEIGHT, count: TIER_OPEN_COUNT, baseURI: ART_BASE_ARCTIC });
+            ERC404Factory.TierSpec({ weight: TIER_OPEN_WEIGHT, count: TIER_OPEN_COUNT, baseURI: ART_BASE_SONORA222 });
         tiers[1] =
-            ERC404Factory.TierSpec({ weight: TIER_SCARCE_WEIGHT, count: TIER_SCARCE_COUNT, baseURI: ART_BASE_ARCTIC });
+            ERC404Factory.TierSpec({ weight: TIER_SCARCE_WEIGHT, count: TIER_SCARCE_COUNT, baseURI: ART_BASE_SCHIZO });
 
         address[] memory children = new address[](2);
         children[0] = d.overlay; // precedence: holder pins and paid commissions win over...
@@ -857,7 +862,7 @@ contract SeedSepolia is SeedSepoliaShared {
                     name: "prism-tiers",
                     symbol: "PRISM",
                     styleUri: "",
-                    tokenBaseURI: ART_BASE_ANIME,
+                    tokenBaseURI: ART_BASE_SONORA,
                     owner: deployer,
                     vault: vault,
                     nftCount: TIER_NFT_COUNT,
@@ -868,7 +873,7 @@ contract SeedSepolia is SeedSepoliaShared {
                 _collectionMeta(
                     "Prism",
                     "This collection demonstrates TOKEN TIERS and layered METADATA. Coin can be folded into a higher-denomination piece and unfolded again, and a piece's picture is resolved on-chain from three stacked layers - a paid commission over reserved-band art over the collection's own base. One rung is deliberately scarce, so it sells out and reopens as holders unfold.",
-                    ART_FLARE
+                    ART_TILE_PRISM
                 ),
                 d.uniDeployer,
                 address(0), // no gating on this row — the gate is its own collection
@@ -890,12 +895,13 @@ contract SeedSepolia is SeedSepoliaShared {
 
         // The event wave is an ARTIST write and needs no holdings, so it is published here. A wave's
         // art composes as `wave.baseURI + id`, the same way the base and the band do — so its payload
-        // is a metadata directory too, and a FOURTH collection, because an opt-in wave that resolves
-        // to the picture already showing reads as nothing happening.
+        // is a metadata directory too. It draws on the ladder's first rung, which is a step up from
+        // the collection base an ordinary id otherwise shows: opting into the wave visibly moves the
+        // piece, rather than resolving to the picture already on screen.
         MetadataOverlayModule(d.overlay)
             .publishWave(
                 instance,
-                ART_BASE_DOODLE,
+                ART_BASE_SONORA222,
                 MetadataOverlayModule.WaveCond.NONE,
                 0,
                 0,
@@ -923,8 +929,8 @@ contract SeedSepolia is SeedSepoliaShared {
             "CARVE",
             "Carve",
             "This collection demonstrates the CREATOR CARVE and the disclosure that governs it. The maximum share of the raise this creator may ever take at graduation is fixed in the contract before the first buy, and the page shows it - so what the creator can do is priced in rather than discovered afterwards. The pool floor clamps the carve on a thin raise; it never blocks the graduation.",
-            ART_FLARE,
-            ART_BASE_SIMIAN,
+            ART_TILE_CARVE,
+            ART_BASE_GHIBLADY,
             SHOWCASE_NFT_COUNT,
             address(0),
             CARVE_DECLARED_MAX_BPS
@@ -965,8 +971,8 @@ contract SeedSepolia is SeedSepoliaShared {
             "CYPH",
             "Cypher Flagship",
             "This collection demonstrates the CYPHER venue. Its curve graduates onto an Algebra pool rather than a Uniswap one, and the 19 percent alignment tithe it pays goes to a vault that acquires and LPs on that same venue - the route the registry curates, the pool the vault deposits into and the pool the swap executes on are one pool. Graduate it, then read the pool it opened.",
-            ART_VAPOR,
-            ART_BASE_ARCTIC,
+            ART_TILE_CYPHER,
+            ART_BASE_ELITE,
             SHOWCASE_NFT_COUNT
         );
         ERC404BondingInstance b = ERC404BondingInstance(payable(instance));
@@ -1083,7 +1089,7 @@ contract SeedSepolia is SeedSepoliaShared {
                     metadataURI: _collectionMeta(
                         "Relic Line",
                         "This auction house demonstrates how a lot ENDS. It runs two lines on a short clock: one lot takes a bid and is settled to its winner, the other attracts none and is reclaimed by the creator. Read both after they close - the settled lot minted a piece and split the hammer, the reclaimed one never minted at all.",
-                        ART_CINDER
+                        ART_TILE_RELIC
                     ),
                     creator: deployer,
                     vault: h.ms2Vault,
@@ -1097,8 +1103,8 @@ contract SeedSepolia is SeedSepoliaShared {
         ERC721AuctionInstance t = ERC721AuctionInstance(payable(timed));
         // One lot per LINE, so both start immediately: a second lot on the same line would sit in the
         // queue behind the first and never reach an end state inside this seed.
-        t.queuePiece{ value: deposit }(_pieceMeta("Relic I", ART_EMBER, "relic-line"));
-        t.queuePiece{ value: deposit }(_pieceMeta("Relic II", ART_VAPOR, "relic-line"));
+        t.queuePiece{ value: deposit }(_pieceMeta("Relic I", ART_PIECE_RELIC_I, "relic-line"));
+        t.queuePiece{ value: deposit }(_pieceMeta("Relic II", ART_PIECE_RELIC_II, "relic-line"));
 
         uint256 soldLot = t.getActiveAuction(0);
         uint256 unsoldLot = t.getActiveAuction(1);
@@ -1117,7 +1123,7 @@ contract SeedSepolia is SeedSepoliaShared {
                     metadataURI: _collectionMeta(
                         "Salon Line",
                         "This auction house demonstrates a LIVE lot. One piece is on the block with the clock running, the minimum is the creator's own deposit, and a late bid pushes the ending back so the last seconds cannot be sniped. Place a bid and watch the countdown move.",
-                        ART_FLARE
+                        ART_TILE_SALON
                     ),
                     creator: deployer,
                     vault: h.cultVault,
@@ -1129,7 +1135,7 @@ contract SeedSepolia is SeedSepoliaShared {
                 })
             );
         ERC721AuctionInstance l = ERC721AuctionInstance(payable(live));
-        l.queuePiece{ value: deposit }(_pieceMeta("Salon I", ART_CINDER, "salon-line"));
+        l.queuePiece{ value: deposit }(_pieceMeta("Salon I", ART_PIECE_SALON_I, "salon-line"));
         uint256 liveLot = l.getActiveAuction(0);
         require(liveLot != 0, "auctions: the live line did not start its lot");
         vm.stopBroadcast();
