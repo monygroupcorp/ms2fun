@@ -3,7 +3,6 @@
  * Reads editions via useEditions (batched), reads live mint cost on-demand, and writes via
  * ERC1155Instance.mint with msg.value equal to the calculated cost.
  */
-import { formatEther } from 'viem'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'wouter'
 import { FreeMintClaimPanel } from './erc1155/FreeMintClaimPanel'
@@ -11,7 +10,7 @@ import { MintPanel } from './erc1155/MintPanel'
 import { useEditions, type EditionView } from './useEditions'
 import { useCollectionChainId, useCollectionSlug } from './useCollectionChain'
 import { fetchJson, isResolvableUri, jsonOrNull } from '../../lib/metadata'
-import { formatTokenAmount } from '../../lib/format'
+import { formatPrice, formatPriceTitle } from '../../lib/format'
 import { IpfsImage } from '../ui/IpfsImage'
 import styles from './EditionList.module.css'
 
@@ -109,8 +108,8 @@ function EditionCard({ edition, instance, refetch }: EditionCardProps) {
       <div className={styles.stats}>
         <div className={styles.stat}>
           <span className={styles.statLabel}>price</span>
-          <span className={styles.statValue} title={`${formatEther(edition.currentPrice)} ETH`}>
-            {formatTokenAmount(edition.currentPrice)} ETH
+          <span className={styles.statValue} title={formatPriceTitle(edition.currentPrice)}>
+            {formatPrice(edition.currentPrice)}
           </span>
         </div>
         <div className={styles.stat}>

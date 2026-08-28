@@ -28,7 +28,6 @@ import { useEffect, useRef, useState } from 'react'
 import {
   decodeAbiParameters,
   encodeFunctionData,
-  formatEther,
   formatUnits,
   maxUint256,
   parseUnits,
@@ -56,7 +55,7 @@ import {
   ALGEBRA_NO_PRICE_LIMIT,
   algebraSwapRouterAbi,
 } from '../../../lib/algebra/abis'
-import { formatTokenAmount } from '../../../lib/format'
+import { formatPrice, formatPriceTitle, formatTokenAmount } from '../../../lib/format'
 import { useCollectionAddresses, useCollectionChainId } from '../useCollectionChain'
 import { invalidateInstanceQueries, txErrorReason } from '../../ui/useTxAction'
 import type { GraduatedVenue } from './useGraduatedVenue'
@@ -513,11 +512,15 @@ export function GraduatedSwapPanel({
   const outLabel = isBuy ? symbol : 'ETH'
   const quoteValue =
     quoteOut !== undefined
-      ? `${isBuy ? formatTokenAmount(quoteOut, decimals) : formatTokenAmount(quoteOut)} ${outLabel}`
+      ? isBuy
+        ? `${formatTokenAmount(quoteOut, decimals)} ${outLabel}`
+        : formatPrice(quoteOut)
       : '—'
   const quoteTitle =
     quoteOut !== undefined
-      ? `${isBuy ? formatUnits(quoteOut, decimals) : formatEther(quoteOut)} ${outLabel}`
+      ? isBuy
+        ? `${formatUnits(quoteOut, decimals)} ${outLabel}`
+        : formatPriceTitle(quoteOut)
       : undefined
 
   const isBusy = swapIsPending || isConfirming

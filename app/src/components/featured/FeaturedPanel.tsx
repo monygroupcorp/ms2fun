@@ -14,7 +14,7 @@
  *   pruneExpired(instance) → non-payable, permissionless
  */
 import { useMemo, useState } from 'react'
-import { decodeEventLog, formatEther, type Log } from 'viem'
+import { decodeEventLog, type Log } from 'viem'
 import { useWaitForTransactionReceipt } from 'wagmi'
 import {
   featuredQueueManagerAbi,
@@ -22,7 +22,7 @@ import {
   useReadFeaturedQueueManagerQuoteDurationCost,
 } from '../../generated/contracts'
 import { forkAddresses, forkChainId } from '../../lib/addresses'
-import { formatTokenAmount, truncateAddress } from '../../lib/format'
+import { formatPrice, formatPriceTitle, truncateAddress } from '../../lib/format'
 import { AmountField } from '../ui/AmountField'
 import { parseAmount } from '../ui/parseAmount'
 import { TxButton } from '../ui/TxButton'
@@ -284,11 +284,11 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
           className={styles.quote}
           title={
             rentDurationSecs !== undefined && rentQuote !== undefined && rentBoostValid
-              ? `cost: ${formatEther(rentQuote)} ETH duration${
+              ? `cost: ${formatPriceTitle(rentQuote)} duration${
                   rentBoostWei && rentBoostWei > 0n
-                    ? ` + ${formatEther(rentBoostWei)} ETH boost`
+                    ? ` + ${formatPriceTitle(rentBoostWei)} boost`
                     : ''
-                } = ${rentValue !== undefined ? formatEther(rentValue) : '—'} ETH`
+                } = ${rentValue !== undefined ? formatPriceTitle(rentValue) : '—'}`
               : undefined
           }
         >
@@ -298,11 +298,9 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
               ? 'fetching cost…'
               : !rentBoostValid
                 ? 'invalid rank boost amount'
-                : `cost: ${formatTokenAmount(rentQuote)} ETH duration${
-                    rentBoostWei && rentBoostWei > 0n
-                      ? ` + ${formatTokenAmount(rentBoostWei)} ETH boost`
-                      : ''
-                  } = ${rentValue !== undefined ? formatTokenAmount(rentValue) : '—'} ETH`}
+                : `cost: ${formatPrice(rentQuote)} duration${
+                    rentBoostWei && rentBoostWei > 0n ? ` + ${formatPrice(rentBoostWei)} boost` : ''
+                  } = ${rentValue !== undefined ? formatPrice(rentValue) : '—'}`}
         </p>
         <TxButton
           state={rentTx.state}
@@ -375,13 +373,13 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
         </div>
         <p
           className={styles.quote}
-          title={renewQuote !== undefined ? `cost: ${formatEther(renewQuote)} ETH` : undefined}
+          title={renewQuote !== undefined ? `cost: ${formatPriceTitle(renewQuote)}` : undefined}
         >
           {renewSecs === undefined
             ? `enter ${MIN_DAYS}–${MAX_DAYS} additional days`
             : renewQuote === undefined
               ? 'fetching cost…'
-              : `cost: ${formatTokenAmount(renewQuote)} ETH`}
+              : `cost: ${formatPrice(renewQuote)}`}
         </p>
         <TxButton
           state={renewTx.state}

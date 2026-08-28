@@ -9,6 +9,7 @@
  */
 import { formatEther } from 'viem'
 import { metadataOverlayModuleAbi } from '../../../generated/contracts'
+import { formatTokenAmount } from '../../../lib/format'
 import { useCollectionChainId } from '../useCollectionChain'
 import { AdminSection, ActionRow } from '../../ui/AdminSection'
 import { TxButton } from '../../ui/TxButton'
@@ -179,7 +180,7 @@ function WaveRow({
     <ActionRow
       label={`wave #${wave.index}`}
       hint={`${WAVE_COND_LABEL[wave.cond] ?? 'unknown'}${
-        wave.cond === 1 ? ` (≥ ${wave.threshold.toString()})` : ''
+        wave.cond === 1 ? ` (≥ ${formatTokenAmount(wave.threshold)})` : ''
       }${wave.cond === 2 ? ` · ${formatEther(wave.price)} ETH` : ''}${
         wave.eligible ? '' : ' · not yet eligible'
       }${isPinned ? ' · pinned' : ''}`}

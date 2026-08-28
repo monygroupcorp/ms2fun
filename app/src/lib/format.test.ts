@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { formatTokenAmount, truncateAddress } from './format'
+import {
+  formatPrice,
+  formatSupplyCount,
+  formatTokenAmount,
+  formatTokenCount,
+  truncateAddress,
+} from './format'
 
 describe('truncateAddress', () => {
   it('shortens to head…tail', () => {
@@ -55,5 +61,51 @@ describe('formatTokenAmount', () => {
       const [, frac] = formatTokenAmount(v, 18, 4).split('.')
       expect((frac ?? '').length).toBeLessThanOrEqual(4)
     }
+  })
+})
+
+describe('formatPrice', () => {
+  const ETH_FLOOR = 10n ** 14n // ~1e-4 ETH: the gwei/ETH unit switchover
+
+  it('renders a small bonding-curve price in gwei, just under the floor', () => {
+    expect(formatPrice(ETH_FLOOR - 1n)).toBe('99999.9999 gwei')
+  })
+  it('renders the floor value itself in ETH', () => {
+    expect(formatPrice(ETH_FLOOR)).toBe('0.0001 ETH')
+  })
+  it('renders a graduated market price in ETH, never as an eight-digit gwei figure', () => {
+    // The Shrimpster overflow value: ~36273898.1304 gwei, unreadable as a price at that scale.
+    expect(formatPrice(36_273_898_130_400_000n)).toBe('0.0362 ETH')
+  })
+  it('renders dust as gwei, not a near-zero ETH string', () => {
+    expect(formatPrice(1n)).toBe('0 gwei')
+  })
+})
+
+describe('formatTokenCount', () => {
+  it('compacts a billion-scale supply the way the origin report expects', () => {
+    expect(formatTokenCount(3_000_000_000n * 10n ** 18n)).toBe('3B')
+    expect(formatTokenCount(50_000_000_000n * 10n ** 18n)).toBe('50B')
+  })
+  it('renders zero supply as a bare 0, not "0B"', () => {
+    expect(formatTokenCount(0n)).toBe('0')
+  })
+  it('compacts a partial, sub-thousand supply without a suffix', () => {
+    expect(formatTokenCount(42n * 10n ** 18n)).toBe('42')
+  })
+  it('compacts a thousands-scale supply with a K suffix', () => {
+    expect(formatTokenCount(2500n * 10n ** 18n)).toBe('2.5K')
+  })
+})
+
+describe('formatSupplyCount', () => {
+  it('compact-formats an ERC404 (fungible-scaled) supply', () => {
+    expect(formatSupplyCount(3_000_000_000n * 10n ** 18n, 'ERC404')).toBe('3B')
+  })
+  it('passes an ERC721 count through unscaled — it is already a plain NFT count', () => {
+    expect(formatSupplyCount(9999n, 'ERC721')).toBe('9999')
+  })
+  it('passes an ERC1155 count through unscaled — it is already a plain edition count', () => {
+    expect(formatSupplyCount(250n, 'ERC1155')).toBe('250')
   })
 })

@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { Link, Redirect, useParams } from 'wouter'
-import { formatGwei } from 'viem'
 import { useAccount, useSwitchChain } from 'wagmi'
 import { useReadMasterRegistryV1ResolveName } from '../generated/contracts'
 import { useCollection } from '../components/useCollection'
@@ -18,7 +17,7 @@ import {
   useCollectionChainId,
 } from '../components/collection/useCollectionChain'
 import { addressesForChain, forkChainId, type SupportedChainId } from '../lib/addresses'
-import { formatTokenAmount, truncateAddress } from '../lib/format'
+import { formatPrice, formatPriceTitle, formatSupplyCount, truncateAddress } from '../lib/format'
 import { StateBlock } from '../components/ui/StateBlock'
 import { MintBar } from '../components/ui/MintBar'
 import { ShareLink } from '../components/ui/ShareLink'
@@ -308,11 +307,17 @@ function CollectionBody({ instance }: { instance: `0x${string}` }) {
               section wraps the auction surface, so the anchor is still correct). */}
           <MintBar
             price={
-              <span title={`${formatGwei(card.currentPrice)} gwei`}>
-                {formatTokenAmount(card.currentPrice, 9)} gwei
+              <span title={formatPriceTitle(card.currentPrice)}>
+                {formatPrice(card.currentPrice)}
               </span>
             }
-            sub={cap > 0n ? `${(cap - minted).toString()} left` : card.isActive ? 'open' : 'ended'}
+            sub={
+              cap > 0n
+                ? `${formatSupplyCount(cap - minted, card.contractType)} left`
+                : card.isActive
+                  ? 'open'
+                  : 'ended'
+            }
             action={<a href="#mint">{card.contractType === 'ERC721' ? 'Bid' : 'Mint'}</a>}
           />
         </>
