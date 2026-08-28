@@ -1,4 +1,4 @@
-import { formatGwei, formatUnits, zeroAddress } from 'viem'
+import { formatUnits, zeroAddress } from 'viem'
 import { useAccount, useReadContract, useReadContracts } from 'wagmi'
 import {
   EXEC_TO_ETH_PATH,
@@ -6,7 +6,7 @@ import {
   exec404Contract,
   uniswapV2RouterContract,
 } from '../lib/exec404'
-import { formatTokenAmount } from '../lib/format'
+import { formatPrice, formatPriceTitle } from '../lib/format'
 import styles from './Exec404Stats.module.css'
 
 /** Compact EXEC token amount: base-units → human, no trailing-zero noise. */
@@ -59,8 +59,8 @@ export function Exec404Stats() {
   const stats: Array<{ label: string; value: string; title?: string | undefined }> = [
     {
       label: 'market price · 1 EXEC',
-      value: priceWei !== undefined ? `≈${formatTokenAmount(priceWei, 9)} gwei` : '—',
-      title: priceWei !== undefined ? `${formatGwei(priceWei)} gwei` : undefined,
+      value: priceWei !== undefined ? `≈${formatPrice(priceWei)}` : '—',
+      title: priceWei !== undefined ? formatPriceTitle(priceWei) : undefined,
     },
     {
       label: 'total supply',

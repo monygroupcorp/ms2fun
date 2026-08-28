@@ -1,8 +1,13 @@
 import type { ReactNode } from 'react'
 import { Link } from 'wouter'
-import { formatGwei } from 'viem'
 import { IpfsImage } from '../ui/IpfsImage'
-import { formatTokenAmount, truncateAddress } from '../../lib/format'
+import {
+  formatPrice,
+  formatPriceTitle,
+  formatSupplyCount,
+  formatSupplyCountTitle,
+  truncateAddress,
+} from '../../lib/format'
 import type { ProjectCard } from '../useCreatorCollections'
 import type { CollectionMetadata } from '../../lib/metadata'
 import styles from '../../routes/CollectionPage.module.css'
@@ -62,13 +67,20 @@ export function CollectionHero({ instance, card, metadata, primary }: Collection
 
         <div className={styles.mintstate}>
           <div className={styles.mintTop}>
-            <span className={styles.price} title={`${formatGwei(card.currentPrice)} gwei`}>
-              {formatTokenAmount(card.currentPrice, 9)} gwei
+            <span className={styles.price} title={formatPriceTitle(card.currentPrice)}>
+              {formatPrice(card.currentPrice)}
             </span>
-            <span className={styles.count}>
-              {minted.toString()}
-              {cap > 0n ? ` / ${cap.toString()}` : ''}
-              {cap > 0n && <small>{(cap - minted).toString()} remaining</small>}
+            <span
+              className={styles.count}
+              title={`${formatSupplyCountTitle(minted, card.contractType)}${
+                cap > 0n ? ` / ${formatSupplyCountTitle(cap, card.contractType)}` : ''
+              }`}
+            >
+              {formatSupplyCount(minted, card.contractType)}
+              {cap > 0n ? ` / ${formatSupplyCount(cap, card.contractType)}` : ''}
+              {cap > 0n && (
+                <small>{formatSupplyCount(cap - minted, card.contractType)} remaining</small>
+              )}
             </span>
           </div>
           {cap > 0n && (
