@@ -40,6 +40,7 @@ import type { CurveParamsTuple } from './useBondingData'
 import { EMPTY_BYTES, ZERO_BYTES32, encodeMerkleGatingData, resolveBuyPasswordHash } from './gating'
 import { useMerkleAllowlistProof } from './useMerkleAllowlist'
 import { encodeActionMessage } from '../../../lib/actionMessage'
+import { formatTokenAmount } from '../../../lib/format'
 import { type CostInverse, solveBuyAmount } from './costInverse'
 import { curveParamsFromTuple, curvePriceAt } from './curveSampler'
 import { SwapQuickFill } from './SwapQuickFill'
@@ -374,12 +375,16 @@ export function SwapPanel({
   const buyQuoteValue = solving
     ? '…'
     : resolved !== undefined
-      ? `${formatUnits(resolved.amount, decimals)} tokens`
+      ? `${formatTokenAmount(resolved.amount, decimals)} tokens`
       : buyTooSmall
         ? 'spend too small'
         : '—'
+  const buyQuoteTitle =
+    resolved !== undefined ? `${formatUnits(resolved.amount, decimals)} tokens` : undefined
   const sellQuoteValue =
-    refundQuote.data !== undefined ? `${formatEther(refundQuote.data)} ETH` : '—'
+    refundQuote.data !== undefined ? `${formatTokenAmount(refundQuote.data)} ETH` : '—'
+  const sellQuoteTitle =
+    refundQuote.data !== undefined ? `${formatEther(refundQuote.data)} ETH` : undefined
 
   return (
     <div className={styles.panel} data-testid="erc404-swap">
@@ -434,7 +439,9 @@ export function SwapPanel({
         />
         {/* Untiered (every ERC-404 shipped to date): unchanged from before this readout existed. */}
         {!isBuy && balance.data !== undefined && !tiered && (
-          <span className={styles.note}>balance: {formatEther(balance.data)}</span>
+          <span className={styles.note} title={formatEther(balance.data)}>
+            balance: {formatTokenAmount(balance.data)}
+          </span>
         )}
         {/* Tiered: Holdings (coinBalanceOf, escrow-inclusive) beside balance (transferable) so
             coin folded into a band NFT reads as held, not lost. `balance` still drives the sell
@@ -443,33 +450,43 @@ export function SwapPanel({
             stop. */}
         {!isBuy && balance.data !== undefined && tiered && (
           <div className={styles.note} data-testid="erc404-holdings-readout">
-            {holdings !== undefined && <div>holdings: {formatEther(holdings)}</div>}
-            <div>balance: {formatEther(balance.data)}</div>
+            {holdings !== undefined && (
+              <div title={formatEther(holdings)}>holdings: {formatTokenAmount(holdings)}</div>
+            )}
+            <div title={formatEther(balance.data)}>balance: {formatTokenAmount(balance.data)}</div>
           </div>
         )}
         {!isBuy && tiered && pendingEscrowRelease !== undefined && pendingEscrowRelease > 0n && (
-          <p className={styles.note} data-testid="erc404-pending-escrow-note">
-            {formatEther(pendingEscrowRelease)} released from escrow and waiting to be claimed — not
-            yet in your balance.
+          <p
+            className={styles.note}
+            data-testid="erc404-pending-escrow-note"
+            title={`${formatEther(pendingEscrowRelease)} released from escrow`}
+          >
+            {formatTokenAmount(pendingEscrowRelease)} released from escrow and waiting to be claimed
+            — not yet in your balance.
           </p>
         )}
         {/* Debit-burns-your-band warning (noesis-173): informational only — never blocks the sell,
             never implies the coin is at risk. Named exactly when the holder owns one band and the
             debit empties the whole position; bounded otherwise. */}
         {!isBuy && tiered && bandBurnPreview.bandsBurnedMax > 0 && (
-          <p className={styles.note} data-testid="erc404-band-burn-warning">
+          <p
+            className={styles.note}
+            data-testid="erc404-band-burn-warning"
+            title={`${formatEther(bandBurnPreview.escrowReleasedMax)} claimable escrow`}
+          >
             {bandBurnPreview.exact && bandBurnPreview.bandBurned !== undefined ? (
               <>
                 This sell burns tier {bandBurnPreview.bandBurned.tierN} band #
                 {bandBurnPreview.bandBurned.id.toString()} and credits you{' '}
-                {formatEther(bandBurnPreview.escrowReleasedMax)} as claimable escrow. The NFT is
-                gone; the coin is not.
+                {formatTokenAmount(bandBurnPreview.escrowReleasedMax)} as claimable escrow. The NFT
+                is gone; the coin is not.
               </>
             ) : (
               <>
                 This sell burns {bandBurnPreview.piecesBurned} of your NFTs, and up to{' '}
                 {bandBurnPreview.bandsBurnedMax} of them may be band NFTs — up to{' '}
-                {formatEther(bandBurnPreview.escrowReleasedMax)} credited to you as claimable
+                {formatTokenAmount(bandBurnPreview.escrowReleasedMax)} credited to you as claimable
                 escrow. The coin is not lost; the NFTs are.
               </>
             )}
@@ -562,13 +579,19 @@ export function SwapPanel({
 
       <div className={styles.quoteRow} data-testid="erc404-quote">
         <span className={styles.quoteLabel}>{isBuy ? 'receive' : 'refund'}</span>
-        <span className={styles.quoteValue}>{isBuy ? buyQuoteValue : sellQuoteValue}</span>
+        <span className={styles.quoteValue} title={isBuy ? buyQuoteTitle : sellQuoteTitle}>
+          {isBuy ? buyQuoteValue : sellQuoteValue}
+        </span>
       </div>
       {isBuy && resolved !== undefined && (
         <div className={styles.quoteRow}>
           <span className={styles.quoteLabel}>cost</span>
-          <span className={styles.quoteValue} data-testid="erc404-buy-cost">
-            ≈ {formatEther(resolved.cost)} ETH
+          <span
+            className={styles.quoteValue}
+            data-testid="erc404-buy-cost"
+            title={`${formatEther(resolved.cost)} ETH`}
+          >
+            ≈ {formatTokenAmount(resolved.cost)} ETH
           </span>
         </div>
       )}

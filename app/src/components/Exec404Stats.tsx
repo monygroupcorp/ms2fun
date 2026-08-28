@@ -6,6 +6,7 @@ import {
   exec404Contract,
   uniswapV2RouterContract,
 } from '../lib/exec404'
+import { formatTokenAmount } from '../lib/format'
 import styles from './Exec404Stats.module.css'
 
 /** Compact EXEC token amount: base-units → human, no trailing-zero noise. */
@@ -55,10 +56,11 @@ export function Exec404Stats() {
   const pairKnown = pair?.status === 'success'
   const graduated = pairKnown && pair.result !== zeroAddress
 
-  const stats: Array<{ label: string; value: string }> = [
+  const stats: Array<{ label: string; value: string; title?: string | undefined }> = [
     {
       label: 'market price · 1 EXEC',
-      value: priceWei !== undefined ? `≈${formatGwei(priceWei)} gwei` : '—',
+      value: priceWei !== undefined ? `≈${formatTokenAmount(priceWei, 9)} gwei` : '—',
+      title: priceWei !== undefined ? `${formatGwei(priceWei)} gwei` : undefined,
     },
     {
       label: 'total supply',
@@ -85,7 +87,9 @@ export function Exec404Stats() {
       <dl className={styles.statsGrid}>
         {stats.map((s) => (
           <div key={s.label} className={styles.stat}>
-            <dd className={styles.statValue}>{isPending ? '…' : s.value}</dd>
+            <dd className={styles.statValue} title={isPending ? undefined : s.title}>
+              {isPending ? '…' : s.value}
+            </dd>
             <dt className={styles.statLabel}>{s.label}</dt>
           </div>
         ))}

@@ -22,7 +22,7 @@ import {
   useReadFeaturedQueueManagerQuoteDurationCost,
 } from '../../generated/contracts'
 import { forkAddresses, forkChainId } from '../../lib/addresses'
-import { truncateAddress } from '../../lib/format'
+import { formatTokenAmount, truncateAddress } from '../../lib/format'
 import { AmountField } from '../ui/AmountField'
 import { parseAmount } from '../ui/parseAmount'
 import { TxButton } from '../ui/TxButton'
@@ -280,18 +280,29 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
             ariaLabel="additional rank boost in ETH"
           />
         </div>
-        <p className={styles.quote}>
+        <p
+          className={styles.quote}
+          title={
+            rentDurationSecs !== undefined && rentQuote !== undefined && rentBoostValid
+              ? `cost: ${formatEther(rentQuote)} ETH duration${
+                  rentBoostWei && rentBoostWei > 0n
+                    ? ` + ${formatEther(rentBoostWei)} ETH boost`
+                    : ''
+                } = ${rentValue !== undefined ? formatEther(rentValue) : '—'} ETH`
+              : undefined
+          }
+        >
           {rentDurationSecs === undefined
             ? `enter a duration between ${MIN_DAYS} and ${MAX_DAYS} days`
             : rentQuote === undefined
               ? 'fetching cost…'
               : !rentBoostValid
                 ? 'invalid rank boost amount'
-                : `cost: ${formatEther(rentQuote)} ETH duration${
+                : `cost: ${formatTokenAmount(rentQuote)} ETH duration${
                     rentBoostWei && rentBoostWei > 0n
-                      ? ` + ${formatEther(rentBoostWei)} ETH boost`
+                      ? ` + ${formatTokenAmount(rentBoostWei)} ETH boost`
                       : ''
-                  } = ${rentValue !== undefined ? formatEther(rentValue) : '—'} ETH`}
+                  } = ${rentValue !== undefined ? formatTokenAmount(rentValue) : '—'} ETH`}
         </p>
         <TxButton
           state={rentTx.state}
@@ -362,12 +373,15 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
             placeholder="14"
           />
         </div>
-        <p className={styles.quote}>
+        <p
+          className={styles.quote}
+          title={renewQuote !== undefined ? `cost: ${formatEther(renewQuote)} ETH` : undefined}
+        >
           {renewSecs === undefined
             ? `enter ${MIN_DAYS}–${MAX_DAYS} additional days`
             : renewQuote === undefined
               ? 'fetching cost…'
-              : `cost: ${formatEther(renewQuote)} ETH`}
+              : `cost: ${formatTokenAmount(renewQuote)} ETH`}
         </p>
         <TxButton
           state={renewTx.state}

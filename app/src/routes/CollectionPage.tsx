@@ -18,7 +18,7 @@ import {
   useCollectionChainId,
 } from '../components/collection/useCollectionChain'
 import { addressesForChain, forkChainId, type SupportedChainId } from '../lib/addresses'
-import { truncateAddress } from '../lib/format'
+import { formatTokenAmount, truncateAddress } from '../lib/format'
 import { StateBlock } from '../components/ui/StateBlock'
 import { MintBar } from '../components/ui/MintBar'
 import { ShareLink } from '../components/ui/ShareLink'
@@ -307,7 +307,11 @@ function CollectionBody({ instance }: { instance: `0x${string}` }) {
           {/* ERC721 collections are auctions — the action is a bid, not a mint (the same #mint
               section wraps the auction surface, so the anchor is still correct). */}
           <MintBar
-            price={`${formatGwei(card.currentPrice)} gwei`}
+            price={
+              <span title={`${formatGwei(card.currentPrice)} gwei`}>
+                {formatTokenAmount(card.currentPrice, 9)} gwei
+              </span>
+            }
             sub={cap > 0n ? `${(cap - minted).toString()} left` : card.isActive ? 'open' : 'ended'}
             action={<a href="#mint">{card.contractType === 'ERC721' ? 'Bid' : 'Mint'}</a>}
           />

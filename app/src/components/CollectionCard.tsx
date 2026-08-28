@@ -3,7 +3,7 @@ import { formatGwei } from 'viem'
 import { Link } from 'wouter'
 import { queryAggregatorAbi } from '../generated/contracts'
 import { IpfsImage } from './ui/IpfsImage'
-import { truncateAddress } from '../lib/format'
+import { formatTokenAmount, truncateAddress } from '../lib/format'
 import { forkChainId } from '../lib/addresses'
 import { useCollectionMetadata } from './useCollectionMetadata'
 import styles from './CollectionCard.module.css'
@@ -60,7 +60,9 @@ export function CollectionCard({ card, variant = 'card' }: CollectionCardProps) 
           <span className="nm">{title}</span>
           <span className="by">by {truncateAddress(card.creator)}</span>
         </div>
-        <span className="px">{formatGwei(card.currentPrice)} gwei</span>
+        <span className="px" title={`${formatGwei(card.currentPrice)} gwei`}>
+          {formatTokenAmount(card.currentPrice, 9)} gwei
+        </span>
       </div>
     </Link>
   )
