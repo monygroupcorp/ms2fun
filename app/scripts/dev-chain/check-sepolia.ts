@@ -127,6 +127,57 @@ const BONDING_ABI = [
 ] as const
 
 /**
+ * `name()` and `symbol()` are what every surface renders a collection AS — the home grid reads the
+ * name straight off `getHomePageData`, and a wallet reads the symbol. Both are set once at create
+ * and are not settable afterwards, so a row that came up under the wrong one is a re-seed, not a
+ * fix; asserting them here is what makes that discoverable before anybody walks the showcase.
+ */
+const NAME_ABI = [
+  {
+    type: 'function',
+    name: 'name',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'string' }],
+  },
+  {
+    type: 'function',
+    name: 'symbol',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'string' }],
+  },
+] as const
+
+/**
+ * The name and symbol each CURVE row must answer with, keyed by roster slug. The slug is the seed's
+ * internal identifier — the salt input and this hand-off's map key — and is deliberately NOT the
+ * display name: what a visitor reads is the name below.
+ */
+const NAME_BY_SLUG: Record<string, { name: string; symbol: string }> = {
+  'ember-preopen': { name: 'Voxelady', symbol: 'VOXY' },
+  'vapor-mid': { name: 'SnoredMilady', symbol: 'SNORED' },
+  'cinder-ready': { name: 'Figmenta', symbol: 'FIGM' },
+  'flare-graduated': { name: 'Shrimpsters', symbol: 'SHRMP' },
+}
+
+/**
+ * The same reading for every row recorded under its own hand-off field: the two edition
+ * collections, the three remaining ERC-404 rows, the Cypher flagship and the two auction houses.
+ * Together with `NAME_BY_SLUG` this covers all twelve collections the seed creates.
+ */
+const NAMED_ROWS: { key: NamedKey; label: string; name: string; symbol: string }[] = [
+  { key: 'editions', label: 'atlas-editions', name: 'GladbroWebring', symbol: 'GLADBRO' },
+  { key: 'gatedEditions', label: 'veil-list', name: 'Mferlady', symbol: 'MFERL' },
+  { key: 'staking404', label: 'quarry-staking', name: 'MiladySubstation', symbol: 'SUBSTN' },
+  { key: 'tiers404', label: 'prism-tiers', name: 'SonoraEcho', symbol: 'ECHO' },
+  { key: 'carve404', label: 'carve-demo', name: 'Ghibladita', symbol: 'GBLD' },
+  { key: 'cypher404', label: 'cypher-flagship', name: 'AngeliteMaker', symbol: 'ANGLT' },
+  { key: 'auctionTimed', label: 'relic-line', name: 'Mewlady', symbol: 'MEW' },
+  { key: 'auctionLive', label: 'salon-line', name: 'Colombilady', symbol: 'COLMB' },
+]
+
+/**
  * The home page's own read. `getHomePageData` is a lens over the featured queue, so this is the
  * exact call the landing grid makes — a wall asserted against the queue directly would pass while
  * the aggregator the app actually reads answered with an empty grid.
@@ -181,9 +232,16 @@ interface AppConfig {
 /** The hand-off fields that name a breadth row carrying an on-chain piece base. */
 type BreadthKey = 'staking404' | 'tiers404' | 'carve404' | 'cypher404'
 
+/** Every hand-off field holding a collection whose name and symbol are checked below. */
+type NamedKey = BreadthKey | 'editions' | 'gatedEditions' | 'auctionTimed' | 'auctionLive'
+
 interface SeedState {
   chainId: number
   instances: Record<string, Address>
+  editions?: Address
+  gatedEditions?: Address
+  auctionTimed?: Address
+  auctionLive?: Address
   staking404?: Address
   tiers404?: Address
   carve404?: Address
@@ -221,6 +279,35 @@ function checkNotRetired(label: string, base: string): void {
     hit === undefined,
     `${label} is clear of the retired directories`,
     `${label} composes its pieces against a RETIRED directory (${hit ?? ''})`,
+  )
+}
+
+/**
+ * The name and symbol one collection answers with, against what the seed says it created. Read as
+ * two calls rather than one so a row that answers with the right name under the wrong ticker is
+ * named for what it is: the name is what the grid shows, the symbol is what a wallet shows.
+ */
+async function checkNameAndSymbol(
+  client: PublicClient,
+  label: string,
+  instance: Address,
+  expected: { name: string; symbol: string },
+): Promise<void> {
+  const [name, symbol] = await Promise.all([
+    client.readContract({ address: instance, abi: NAME_ABI, functionName: 'name' }).catch(() => ''),
+    client
+      .readContract({ address: instance, abi: NAME_ABI, functionName: 'symbol' })
+      .catch(() => ''),
+  ])
+  check(
+    name === expected.name,
+    `${label} is on-chain "${expected.name}"`,
+    `${label} is on-chain "${name || '(unreadable)'}", expected "${expected.name}"`,
+  )
+  check(
+    symbol === expected.symbol,
+    `${label} trades as ${expected.symbol}`,
+    `${label} trades as ${symbol || '(unreadable)'}, expected ${expected.symbol}`,
   )
 }
 
@@ -376,6 +463,35 @@ async function main(): Promise<void> {
       `${label} composes its pieces against ${base || '(unreadable)'}, expected ${expected}`,
     )
     checkNotRetired(label, base)
+  }
+
+  // ── What every row is CALLED ──
+  //
+  // A collection's name and symbol are fixed at create, so a seed that came up under the wrong ones
+  // cannot be corrected in place — the deployment has to be re-seeded. Asserting all twelve here is
+  // what turns that into a preflight failure rather than something read off the home page later.
+  console.log('\ncollection names')
+  for (const [slug, expected] of Object.entries(NAME_BY_SLUG)) {
+    const instance = seed.instances[slug]
+    if (!instance || instance === zeroAddress) {
+      check(false, '', `${slug} is missing from the seed hand-off — its name cannot be checked`)
+      continue
+    }
+    await checkNameAndSymbol(client, slug, instance, expected)
+  }
+  for (const { key, label, name, symbol } of NAMED_ROWS) {
+    const instance = seed[key]
+    if (!instance || instance === zeroAddress) {
+      // Same rule the art check follows: the Cypher rail is not wired on every deployment, and
+      // phase 1 records a zero there rather than failing the whole showcase over one absent venue.
+      if (key === 'cypher404') {
+        console.log(`  · ${label} is not on this deployment — its name is not checked`)
+        continue
+      }
+      check(false, '', `${label} is missing from the seed hand-off — its name cannot be checked`)
+      continue
+    }
+    await checkNameAndSymbol(client, label, instance, { name, symbol })
   }
 
   // The graduated row is the one the walk is FOR: the curve closed and the raise moved into a live
