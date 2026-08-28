@@ -30,6 +30,8 @@ import { LiquidityAmounts } from "../src/libraries/v4/LiquidityAmounts.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { IAlignmentRegistry } from "../src/master/interfaces/IAlignmentRegistry.sol";
 import { FeaturedQueueManager } from "../src/master/FeaturedQueueManager.sol";
+import { GlobalMessageRegistry } from "../src/registry/GlobalMessageRegistry.sol";
+import { MessageTypes } from "../src/libraries/MessageTypes.sol";
 // The ZAMM singleton's surface, taken from the vault that already depends on it rather than
 // re-declared here — the seed fills the pool the vault deposits into, so the key type must be the
 // vault factory's own or the two are only accidentally the same shape.
@@ -601,6 +603,13 @@ abstract contract SeedSepoliaShared is Script {
         uint256 zammFeeOrHook;
         // ── The home page's front door ──
         FeaturedQueueManager queue; // paid placement; what `QueryAggregator.getHomePageData` reads
+        // ── The social layer ──
+        //
+        // Every activity surface the app renders — the home preview, a collection's ACTIVITY
+        // section, the board — reads `MessagePosted` off this one registry and nothing else. A
+        // showcase that creates twelve collections and posts to none of them opens every one of
+        // those surfaces on its empty state.
+        GlobalMessageRegistry messages;
     }
 
     /// @dev What phase 1 hands phase 2, beyond the ERC404 curve roster itself. The breadth rows are
@@ -813,6 +822,7 @@ abstract contract SeedSepoliaShared is Script {
         d.protocolTreasury = vm.parseJsonAddress(json, ".contracts.ProtocolTreasury");
         d.zRouter = vm.parseJsonAddress(json, ".contracts.zRouter");
         d.queue = FeaturedQueueManager(payable(vm.parseJsonAddress(json, ".contracts.FeaturedQueueManager")));
+        d.messages = GlobalMessageRegistry(vm.parseJsonAddress(json, ".contracts.GlobalMessageRegistry"));
         d.v4PoolManager = vm.parseJsonAddress(json, ".uniswap.v4PoolManager");
         // WETH is not a top-level field of the deployment file; it is the deploy config's, and the
         // vault factory carries it as an immutable. Read it back off the factory rather than
@@ -851,6 +861,10 @@ abstract contract SeedSepoliaShared is Script {
         // The featured queue is REQUIRED for the same reason the breadth modules are: the home page
         // reads its placements, so a deployment without one cannot hold the showcase's front door.
         require(address(d.queue) != address(0), "sepolia.json: FeaturedQueueManager missing");
+        // Required on the same terms: the seed's last wave posts the showcase's activity, and a
+        // deployment without the registry would leave every activity surface on its empty state
+        // after a full, otherwise-successful seed.
+        require(address(d.messages) != address(0), "sepolia.json: GlobalMessageRegistry missing");
     }
 
     /// @dev The venue addresses `DeploySepolia` wrote beside the deployment file: the two vault
@@ -1344,6 +1358,270 @@ abstract contract SeedSepoliaShared is Script {
         console.log("  deployer balance before (wei):", balanceBefore);
         console.log("  gas is NOT included above - it is charged per broadcast tx by forge");
         console.log("--------------------------------------------------");
+    }
+
+    // ─────────────────────────── The activity the showcase carries ───────────────────────────
+    //
+    // WHY THIS WAVE EXISTS. Three surfaces in the app render nothing but `MessagePosted` events —
+    // the home page's RECENT ACTIVITY preview, each collection page's ACTIVITY section, and the
+    // board. A showcase that stands up twelve collections and posts to none of them opens all
+    // three on their empty state, which is what a visitor reads first.
+    //
+    // WHAT THE COPY IS FOR. Every line states a FEATURE of the surface it sits on, in the same
+    // register the roster's descriptions use: what the mechanism does, and what to do with it. No
+    // personas, no invented community, no roleplayed drop — a stranger reading the board learns the
+    // product. The lines are constants rather than generated so the whole set is reviewable in one
+    // place before it is ever broadcast.
+    //
+    // WHAT IT COSTS. Every message carries zero attached ETH, so this wave adds no ETH to either
+    // phase's projection; it costs gas for exactly ONE broadcast transaction, because the registry
+    // takes the whole set through `postBatch`. The N12 spam lever (`postThreshold`) is zero on this
+    // deployment, so a zero-value post surfaces on every feed.
+
+    /// @dev One channel's seeded activity: the address a post is filed under, the label the run log
+    ///      names it by, and the two lines it carries. Held as a struct so the copy sits beside the
+    ///      channel it teaches rather than in a parallel array that can drift out of step with it.
+    struct ActivityChannel {
+        address channel;
+        string label;
+        string first;
+        string second;
+    }
+
+    /// @dev Everything beyond the two lines each channel carries: the salon's own posts and the one
+    ///      reply / quote / reaction of each kind. Counted here so the batch can be allocated at its
+    ///      exact size — a memory array cannot be grown, and shrinking one takes assembly.
+    uint256 internal constant ACTIVITY_EXTRA_MESSAGES = 9;
+
+    /// @dev The twelve collection channels, in the order the run log prints them. The Cypher row is
+    ///      the one optional member: its rail is not wired on every deployment and phase 1 records a
+    ///      zero address when it is skipped, so it is dropped from the set rather than posted into
+    ///      the zero address.
+    function _activityChannels(ShowcaseLeg[] memory legs, address[] memory instances, SeedHandoff memory h)
+        internal
+        pure
+        returns (ActivityChannel[] memory chans)
+    {
+        bool hasCypher = h.cypher404 != address(0);
+        chans = new ActivityChannel[](hasCypher ? 12 : 11);
+        uint256 n;
+
+        chans[n++] = ActivityChannel({
+            channel: instances[0],
+            label: legs[0].slug,
+            first: "the countdown is the contract's, not this page's. a buy before it expires is rejected on-chain.",
+            second: "a pre-open row still takes messages. the activity feed is not gated on the curve being open."
+        });
+        chans[n++] = ActivityChannel({
+            channel: instances[1],
+            label: legs[1].slug,
+            first: "mid-curve. every buy moves the price, and in whole units it mints the pieces that ride the coin.",
+            second: "the gallery fills as the curve fills. one asset, two surfaces - coin and pieces, same balance."
+        });
+        chans[n++] = ActivityChannel({
+            channel: instances[2],
+            label: legs[2].slug,
+            first: "open, matured, and holding a raise. graduation is live and uncrossed - the action on the page does it.",
+            second: "the carve allowance was declared before the first buy, and it is immutable. read it above."
+        });
+        chans[n++] = ActivityChannel({
+            channel: instances[3],
+            label: legs[3].slug,
+            first: "the curve closed and the raise opened a uniswap v4 pool. the coin trades on the venue now.",
+            second: "part of the raise went to the alignment vault by contract, not by promise. the split is on-chain."
+        });
+        chans[n++] = ActivityChannel({
+            channel: h.editions,
+            label: "atlas-editions",
+            first: "three editions on one contract: one at a fixed price, one priced dynamically, one free to claim.",
+            second: "supply is capped per edition, not per collection. each edition sells and sells out on its own."
+        });
+        chans[n++] = ActivityChannel({
+            channel: h.gatedEditions,
+            label: "veil-list",
+            first: "this edition sits behind a merkle allowlist. an address that is not on it is refused on-chain.",
+            second: "the list opens in tiers. each tier carries its own root and its own open time."
+        });
+        chans[n++] = ActivityChannel({
+            channel: h.staking404,
+            label: "quarry-staking",
+            first: "staking is wired to the fee stream. stake the coin and the reward accrues per second, not per claim.",
+            second: "unstaking is not a lock-up: the stream stops and the principal comes back the same call."
+        });
+        chans[n++] = ActivityChannel({
+            channel: h.tiers404,
+            label: "prism-tiers",
+            first: "the ids are banded. an open band and a scarce band, each sealed at its count when the row was created.",
+            second: "mint up into a band or back down out of it. the move is reversible and priced by the band."
+        });
+        chans[n++] = ActivityChannel({
+            channel: h.carve404,
+            label: "carve-demo",
+            first: "the creator declared a maximum carve before the first buy. that number cannot be raised afterwards.",
+            second: "at graduation the carve comes out of the raise, up to the declared cap and no further."
+        });
+        if (hasCypher) {
+            chans[n++] = ActivityChannel({
+                channel: h.cypher404,
+                label: "cypher-flagship",
+                first: "this row graduates through the algebra rail instead of uniswap. same curve, different venue.",
+                second: "its tithe lands in a cypher vault, which converts on the venue the target is curated for."
+            });
+        }
+        chans[n++] = ActivityChannel({
+            channel: h.auctionTimed,
+            label: "relic-line",
+            first: "two timed lots ran here: one closed with a bid and was settled, one closed with none and was reclaimed.",
+            second: "settle and reclaim are both on-chain actions. neither state is something this page decides."
+        });
+        chans[n++] = ActivityChannel({
+            channel: h.auctionLive,
+            label: "salon-line",
+            first: "this lot is still running. bid on it and watch the high bidder and the end time move.",
+            second: "a bid does not extend the clock by itself - the end time is the one the lot was created with."
+        });
+
+        require(n == chans.length, "activity: channel set is not the size it was allocated at");
+        for (uint256 i = 0; i < chans.length; i++) {
+            require(
+                chans[i].channel != address(0), string.concat("activity: ", chans[i].label, " has no channel address")
+            );
+        }
+    }
+
+    /// @dev Post the showcase's activity as ONE batch. `postBatch` emits sequential message ids
+    ///      starting at the registry's current `messageCount`, so the id a reply / quote / reaction
+    ///      points at is computable before the batch is sent — which is what lets one transaction
+    ///      carry a threaded conversation rather than needing a round trip per reference.
+    ///
+    ///      ORDER IS A DISPLAY DECISION. The home preview renders the LAST few messages, so the tail
+    ///      of this batch is what a visitor reads first: it ends on the salon's posts, a reply and a
+    ///      quote, with one reaction among them so the preview shows a typed badge too.
+    function _seedActivity(
+        Deployed memory d,
+        ShowcaseLeg[] memory legs,
+        address[] memory instances,
+        SeedHandoff memory h
+    ) internal returns (uint256 posted) {
+        ActivityChannel[] memory chans = _activityChannels(legs, instances, h);
+
+        uint256 base = d.messages.messageCount();
+        GlobalMessageRegistry.PostParams[] memory posts =
+            new GlobalMessageRegistry.PostParams[](chans.length * 2 + ACTIVITY_EXTRA_MESSAGES);
+
+        uint256 n;
+        uint256 midCurveAnchor;
+        uint256 graduatedAnchor;
+        for (uint256 i = 0; i < chans.length; i++) {
+            if (i == 1) midCurveAnchor = base + n;
+            if (i == 3) graduatedAnchor = base + n;
+            posts[n++] = _activityPost(chans[i].channel, chans[i].first);
+            posts[n++] = _activityPost(chans[i].channel, chans[i].second);
+        }
+
+        // Endorsements carry no text on purpose: the app aggregates them into a count against the
+        // message they target and never renders them as a row of their own.
+        posts[n++] = _activityReact(chans[1].channel, midCurveAnchor);
+        posts[n++] = _activityReact(chans[3].channel, graduatedAnchor);
+        // A reply rides the SAME channel as the message it answers, which is what puts it inside
+        // that collection's own feed rather than only on the board.
+        posts[n++] = _activityReply(
+            chans[1].channel, midCurveAnchor, "a reply carries the id of the post it answers. it threads under it here."
+        );
+
+        // The salon: a post filed under the poster's own address rather than a collection. This is
+        // what the board's composer writes, and it is the channel the board opens on.
+        uint256 salonAnchor = base + n;
+        posts[n++] = _activityPost(
+            deployer, "the board is every channel at once. a post with no collection lands here, on the poster's wall."
+        );
+        posts[n++] = _activityPost(
+            deployer, "the chips above filter the board down to one collection, and the count beside each one is live."
+        );
+        posts[n++] = _activityPost(
+            deployer,
+            "a post can carry eth. the threshold that hides cheap posts is an owner setting, and it is zero here."
+        );
+        posts[n++] = _activityReact(deployer, salonAnchor);
+        posts[n++] = _activityReply(
+            deployer,
+            salonAnchor,
+            "on-chain the board is flat: one event per message. the threading is done when it is read."
+        );
+        posts[n++] = _activityQuote(
+            deployer,
+            graduatedAnchor,
+            "a quote lifts the message it names into a thread of its own instead of nesting under it."
+        );
+
+        require(n == posts.length, "activity: batch is not the size it was allocated at");
+
+        vm.startBroadcast();
+        d.messages.postBatch(posts);
+        vm.stopBroadcast();
+
+        posted = posts.length;
+
+        // Post-condition, asserted against the registry rather than against the log: the batch is
+        // the only writer in this transaction, so the counter must have advanced by exactly its size.
+        require(d.messages.messageCount() == base + posted, "activity: the registry did not record the whole batch");
+
+        console.log("--------------------------------------------------");
+        console.log("ACTIVITY seeded (one postBatch transaction)");
+        console.log("  channels posted to:", chans.length);
+        console.log("  messages emitted:", posted);
+        console.log("  first message id:", base);
+        console.log("  eth attached (wei): 0 - this wave costs gas only");
+        console.log("--------------------------------------------------");
+        console.log("ACTIVITY post-conditions OK");
+    }
+
+    function _activityPost(address channel, string memory content)
+        private
+        pure
+        returns (GlobalMessageRegistry.PostParams memory)
+    {
+        return _activityMessage(channel, MessageTypes.POST, 0, content);
+    }
+
+    function _activityReply(address channel, uint256 refId, string memory content)
+        private
+        pure
+        returns (GlobalMessageRegistry.PostParams memory)
+    {
+        return _activityMessage(channel, MessageTypes.REPLY, refId, content);
+    }
+
+    function _activityQuote(address channel, uint256 refId, string memory content)
+        private
+        pure
+        returns (GlobalMessageRegistry.PostParams memory)
+    {
+        return _activityMessage(channel, MessageTypes.QUOTE, refId, content);
+    }
+
+    function _activityReact(address channel, uint256 refId)
+        private
+        pure
+        returns (GlobalMessageRegistry.PostParams memory)
+    {
+        return _activityMessage(channel, MessageTypes.REACT, refId, "");
+    }
+
+    function _activityMessage(address channel, uint8 messageType, uint256 refId, string memory content)
+        private
+        pure
+        returns (GlobalMessageRegistry.PostParams memory)
+    {
+        return GlobalMessageRegistry.PostParams({
+            instance: channel,
+            messageType: messageType,
+            refId: refId,
+            actionRef: bytes32(0),
+            metadata: bytes32(0),
+            value: 0,
+            content: content
+        });
     }
 
     /// @dev Create + arm helper shared by phase 1's rows. Kept here so the create parameters a row

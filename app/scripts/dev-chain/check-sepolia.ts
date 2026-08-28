@@ -116,6 +116,45 @@ const RETIRED_ART_DIRS: readonly string[] = [
   'QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg',
 ]
 
+/**
+ * The one event every activity surface in the app reads: the home page's RECENT ACTIVITY preview,
+ * each collection page's ACTIVITY section, and the board all render `MessagePosted` and nothing
+ * else. Declared here as an event-only ABI because that is all this check needs — the group below
+ * reads logs, it never calls the registry.
+ */
+const MESSAGE_POSTED_ABI = [
+  {
+    type: 'event',
+    name: 'MessagePosted',
+    inputs: [
+      { name: 'messageId', type: 'uint256', indexed: true },
+      { name: 'instance', type: 'address', indexed: true },
+      { name: 'sender', type: 'address', indexed: true },
+      { name: 'messageType', type: 'uint8', indexed: false },
+      { name: 'refId', type: 'uint256', indexed: false },
+      { name: 'actionRef', type: 'bytes32', indexed: false },
+      { name: 'metadata', type: 'bytes32', indexed: false },
+      { name: 'value', type: 'uint256', indexed: false },
+      { name: 'content', type: 'string', indexed: false },
+    ],
+  },
+] as const
+
+/** `MessageTypes` (contracts/src/libraries/MessageTypes.sol), mirrored for the assertions below. */
+const MESSAGE_TYPE = { POST: 0, REPLY: 1, QUOTE: 2, REACT: 3 } as const
+
+/**
+ * What the seed's activity wave puts on chain, as the floor this check holds it to.
+ *
+ * PER_CHANNEL is two because a single message renders as a one-line feed that still reads as an
+ * accident; the seed posts two to every collection so each ACTIVITY section shows a filled state.
+ * GLOBAL_MIN is the whole batch at its SMALLEST legal size — eleven collections (the Cypher row is
+ * absent on deployments without the Algebra rail) times two, plus the nine messages the salon and
+ * the typed trio contribute. A deployment carrying the Cypher row exceeds it by two.
+ */
+const ACTIVITY_MESSAGES_PER_CHANNEL = 2
+const ACTIVITY_GLOBAL_MIN = 31
+
 const BONDING_ABI = [
   {
     type: 'function',
@@ -629,6 +668,112 @@ async function main(): Promise<void> {
       `${label} ${address}`,
       `${label} ${address} holds NO code`,
     )
+  }
+
+  // ── The activity the showcase carries ──
+  //
+  // Every check above asserts something a visitor can only reach by clicking. This one asserts what
+  // they read FIRST: the home page's activity preview, each collection's ACTIVITY section and the
+  // board are rendered entirely from `MessagePosted`, so a seed that builds twelve collections and
+  // posts to none of them opens all three on their empty state while passing every other group here.
+  console.log('\nactivity')
+  const registry = config.contracts.GlobalMessageRegistry
+  if (!registry || registry === zeroAddress) {
+    check(
+      false,
+      '',
+      'GlobalMessageRegistry is unset in the app config — no activity surface can render',
+    )
+  } else {
+    const logs = await client
+      .getLogs({
+        address: registry,
+        event: MESSAGE_POSTED_ABI[0],
+        fromBlock: BigInt(config.deployBlock ?? 0),
+        toBlock: 'latest',
+      })
+      .catch(() => null)
+
+    if (logs === null) {
+      check(
+        false,
+        '',
+        'the message registry could not be read for MessagePosted — the activity feed cannot render',
+      )
+    } else {
+      check(
+        logs.length >= ACTIVITY_GLOBAL_MIN,
+        `board carries ${logs.length} message(s) (floor ${ACTIVITY_GLOBAL_MIN})`,
+        `board carries ${logs.length} message(s), fewer than the ${ACTIVITY_GLOBAL_MIN} the seed posts — the board and the home preview open near-empty`,
+      )
+
+      // Per-channel, over the same twelve collections the name group walks. A total that clears the
+      // floor says nothing about DISTRIBUTION: one busy channel and eleven silent ones passes the
+      // count and still leaves eleven collection pages on their empty state.
+      const perChannel = new Map<string, number>()
+      let wallPosts = 0
+      const typed = new Set<number>()
+      for (const log of logs) {
+        const { instance, sender, messageType } = log.args
+        if (instance === undefined || sender === undefined || messageType === undefined) continue
+        const key = instance.toLowerCase()
+        perChannel.set(key, (perChannel.get(key) ?? 0) + 1)
+        if (key === sender.toLowerCase()) wallPosts++
+        typed.add(messageType)
+      }
+
+      const activityChannels: [string, Address | undefined][] = [
+        ...Object.keys(NAME_BY_SLUG).map(
+          (slug) => [slug, seed.instances[slug]] as [string, Address | undefined],
+        ),
+        ...NAMED_ROWS.map((row) => [row.label, seed[row.key]] as [string, Address | undefined]),
+      ]
+      for (const [label, instance] of activityChannels) {
+        if (!instance || instance === zeroAddress) {
+          // Same rule the art and name groups follow: the Cypher rail is not on every deployment.
+          if (label === 'cypher-flagship') {
+            console.log(`  · ${label} is not on this deployment — its channel is not checked`)
+            continue
+          }
+          check(
+            false,
+            '',
+            `${label} is missing from the seed hand-off — its channel cannot be checked`,
+          )
+          continue
+        }
+        const count = perChannel.get(instance.toLowerCase()) ?? 0
+        check(
+          count >= ACTIVITY_MESSAGES_PER_CHANNEL,
+          `${label} channel carries ${count} message(s)`,
+          `${label} channel carries ${count} message(s), fewer than ${ACTIVITY_MESSAGES_PER_CHANNEL} — its ACTIVITY section reads as empty`,
+        )
+      }
+
+      // A WALL post — one filed under the poster's own address rather than a collection — is what
+      // the board's own composer writes. Without one the board has nothing outside the collection
+      // chips, which is the state it opens on.
+      check(
+        wallPosts > 0,
+        `board holds ${wallPosts} wall post(s) outside the collection channels`,
+        'board holds NO wall posts — the board opens with nothing outside the collection chips',
+      )
+
+      // The three typed messages, asserted from the events rather than from a count: the reply,
+      // quote and reaction each drive a different renderer, and a feed of plain posts exercises none
+      // of them.
+      for (const [label, type] of [
+        ['reply', MESSAGE_TYPE.REPLY],
+        ['quote', MESSAGE_TYPE.QUOTE],
+        ['endorsement', MESSAGE_TYPE.REACT],
+      ] as const) {
+        check(
+          typed.has(type),
+          `at least one ${label} (type ${type}) is on chain`,
+          `NO ${label} (type ${type}) is on chain — that surface renders on no seeded message`,
+        )
+      }
+    }
   }
 
   console.log('')
