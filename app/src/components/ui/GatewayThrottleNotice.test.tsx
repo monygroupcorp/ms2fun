@@ -10,9 +10,11 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  FAULT_STARVATION_THRESHOLD,
   gatewayKey,
   getIpfsGateways,
   IPFS_GATEWAYS,
+  noteRosterFault,
   noteThrottled,
   resetGatewayHealth,
   GATEWAY_PROBE_CID,
@@ -167,5 +169,37 @@ describe('GatewayThrottleNotice', () => {
 
     await waitFor(() => expect(customGatewayStore.get()).toBeNull())
     expect(screen.getByTestId('gateway-throttle-input')).toBeInTheDocument()
+  })
+})
+
+describe('GatewayThrottleNotice — fault starvation', () => {
+  it('surfaces the notice when the roster has gone fault-only, with no gateway actually cooling', () => {
+    // No cooldown anywhere — every gateway is nominally askable — but attempts keep faulting.
+    for (let i = 0; i < FAULT_STARVATION_THRESHOLD; i += 1) noteRosterFault()
+    render(<GatewayThrottleNotice />)
+
+    const notice = screen.getByTestId('gateway-throttle-notice')
+    expect(notice).toBeInTheDocument()
+    expect(notice.textContent).toMatch(/responding slowly/i)
+    // The starved wording is distinct from the rate-limit wording.
+    expect(notice.textContent).not.toMatch(/rate-limiting this browser/i)
+    // The Tier-2 door is still offered.
+    expect(screen.getByTestId('gateway-throttle-input')).toBeInTheDocument()
+  })
+
+  it('does not surface the notice below the starvation threshold', () => {
+    for (let i = 0; i < FAULT_STARVATION_THRESHOLD - 1; i += 1) noteRosterFault()
+    render(<GatewayThrottleNotice />)
+
+    expect(screen.queryByTestId('gateway-throttle-notice')).not.toBeInTheDocument()
+  })
+
+  it('keeps the ordinary throttle wording when a real cooldown is in force', () => {
+    coolEveryGateway()
+    render(<GatewayThrottleNotice />)
+
+    expect(screen.getByTestId('gateway-throttle-notice').textContent).toMatch(
+      /rate-limiting this browser/i,
+    )
   })
 })

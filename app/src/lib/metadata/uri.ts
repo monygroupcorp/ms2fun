@@ -18,6 +18,8 @@ import {
   gatewayKey,
   nextAvailableAt,
   noteOutcome,
+  noteRosterFault,
+  noteRosterRecovered,
   orderGateways,
   parseRetryAfter,
   THROTTLE_BASE_MS,
@@ -76,8 +78,15 @@ export const IPFS_GATEWAYS: readonly IpfsGateway[] = [
   { operator: '4EVERLAND', form: 'subdomain', base: '4everland.io' },
 ] as const
 
-/** Per-gateway request timeout — a hung gateway is aborted and the next one is tried. */
-const GATEWAY_TIMEOUT_MS = 8_000
+/**
+ * Per-gateway request timeout — a hung gateway is aborted and the next one is tried.
+ *
+ * Measured against a live public gateway serving real seed content: 6.2-7.6 s wall, against the
+ * previous 8 s cap — close enough that a routine response classified as a timeout `fault` rather
+ * than a slow success. Raised to give a genuinely-serving-but-slow gateway room to finish instead
+ * of being penalised for it.
+ */
+const GATEWAY_TIMEOUT_MS = 12_000
 
 /**
  * True when a CID can be carried in a DNS label without changing meaning.
@@ -377,6 +386,8 @@ export async function fetchJson<T = unknown>(
   if (candidates.length === 0) {
     // Every gateway that could serve this CID is in cooldown. Firing at them anyway is precisely
     // what keeps the window from clearing, so we report the state instead of spending the request.
+    // A real cooldown is a throttle signal, not starvation — clear any fault streak.
+    noteRosterRecovered()
     return { status: 'throttled', retryAt: nextAvailableAt(addressable) }
   }
 
@@ -393,10 +404,18 @@ export async function fetchJson<T = unknown>(
       if (candidate.gatewayKey) {
         noteOutcome(candidate.gatewayKey, attempt.outcome, attempt.retryAfterMs)
       }
-      if (attempt.outcome === 'ok') return { status: 'found', data: attempt.data as T }
+      if (attempt.outcome === 'ok') {
+        noteRosterRecovered()
+        return { status: 'found', data: attempt.data as T }
+      }
       if (attempt.outcome === 'throttled') sawThrottle = true
       else if (attempt.outcome === 'missing') sawMissing = true
     }
+    // Every gateway tried faulted — no ok, no throttle, no missing anywhere in the roster. That is
+    // the starvation signal `GatewayThrottleNotice` needs; anything else (a throttle or a missing
+    // mixed in) means the roster is still answering, so the streak resets instead.
+    if (!sawThrottle && !sawMissing) noteRosterFault()
+    else noteRosterRecovered()
   } catch (err) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
     throw err
