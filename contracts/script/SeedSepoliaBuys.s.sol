@@ -159,11 +159,24 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
         spent += _crossVenues(d, h);
         _assertVenues(d, h);
 
+        // ── Wave 4: the showcase says something ──
+        //
+        // LAST on purpose, and not only because every channel has to exist first. The home page's
+        // activity preview reads BACKWARD from the chain tip and stops after a couple of windows
+        // rather than scanning to the deploy block, so messages posted before the buys and the
+        // graduations could sit behind more blocks than that preview ever looks at. Posted here,
+        // they are the newest thing on the chain when a visitor arrives.
+        //
+        // Zero ETH is attached, so this wave changes neither the projection printed above nor
+        // `spent`; it is one broadcast transaction's gas, and its own line says so.
+        uint256 messagesPosted = _seedActivity(d, legs, instances, h);
+
         console.log("=== SeedSepoliaBuys (phase 2: buys + graduation) complete ===");
         console.log("  curve + venue ETH spent (wei):", spent);
+        console.log("  activity messages posted (0 wei attached, gas only):", messagesPosted);
         console.log("  graduated pool liquidity:", poolLiquidity);
         console.log("  block.timestamp now:", block.timestamp);
-        console.log("POST-CONDITIONS OK: pre-open / mid-curve / ready-to-graduate / graduated");
+        console.log("POST-CONDITIONS OK: pre-open / mid-curve / ready-to-graduate / graduated / activity");
     }
 
     // ══════════════════════════════════════════════════════════════════════════════════════════
