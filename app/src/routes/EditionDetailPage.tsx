@@ -12,14 +12,13 @@
  * does not render an "opens <when>" stat — it works only from the fields the aggregator returns.
  */
 import { Link, Redirect, useParams } from 'wouter'
-import { formatEther } from 'viem'
 import { useQuery } from '@tanstack/react-query'
 import { useCollection } from '../components/useCollection'
 import { useEditions, type EditionView } from '../components/collection/useEditions'
 import { MintPanel } from '../components/collection/erc1155/MintPanel'
 import { editionThemeStyle, type EditionTheme } from '../components/collection/erc1155/editionTheme'
 import { fetchJson, isResolvableUri, jsonOrNull } from '../lib/metadata'
-import { formatTokenAmount } from '../lib/format'
+import { formatPrice, formatPriceTitle } from '../lib/format'
 import { IpfsImage } from '../components/ui/IpfsImage'
 import { StateBlock } from '../components/ui/StateBlock'
 import { MintBar } from '../components/ui/MintBar'
@@ -254,8 +253,8 @@ function EditionDetail({ instance, id }: EditionDetailProps) {
           <div className="ed-stats">
             <div className="r">
               <span className="k">price</span>
-              <span className="v" title={`${formatEther(edition.currentPrice)} ETH`}>
-                {formatTokenAmount(edition.currentPrice)} ETH
+              <span className="v" title={formatPriceTitle(edition.currentPrice)}>
+                {formatPrice(edition.currentPrice)}
               </span>
             </div>
             <div className="r">
@@ -273,8 +272,8 @@ function EditionDetail({ instance, id }: EditionDetailProps) {
       {/* Mobile: the sticky mint bar keeps the impression in thumb reach. */}
       <MintBar
         price={
-          <span title={`${formatEther(edition.currentPrice)} ETH`}>
-            {formatTokenAmount(edition.currentPrice)} ETH
+          <span title={formatPriceTitle(edition.currentPrice)}>
+            {formatPrice(edition.currentPrice)}
           </span>
         }
         sub={limited ? `${remaining.toString()} left` : 'open'}

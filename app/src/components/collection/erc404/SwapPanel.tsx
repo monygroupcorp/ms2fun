@@ -40,7 +40,7 @@ import type { CurveParamsTuple } from './useBondingData'
 import { EMPTY_BYTES, ZERO_BYTES32, encodeMerkleGatingData, resolveBuyPasswordHash } from './gating'
 import { useMerkleAllowlistProof } from './useMerkleAllowlist'
 import { encodeActionMessage } from '../../../lib/actionMessage'
-import { formatTokenAmount } from '../../../lib/format'
+import { formatPrice, formatPriceTitle, formatTokenAmount } from '../../../lib/format'
 import { type CostInverse, solveBuyAmount } from './costInverse'
 import { curveParamsFromTuple, curvePriceAt } from './curveSampler'
 import { SwapQuickFill } from './SwapQuickFill'
@@ -381,10 +381,9 @@ export function SwapPanel({
         : '—'
   const buyQuoteTitle =
     resolved !== undefined ? `${formatUnits(resolved.amount, decimals)} tokens` : undefined
-  const sellQuoteValue =
-    refundQuote.data !== undefined ? `${formatTokenAmount(refundQuote.data)} ETH` : '—'
+  const sellQuoteValue = refundQuote.data !== undefined ? formatPrice(refundQuote.data) : '—'
   const sellQuoteTitle =
-    refundQuote.data !== undefined ? `${formatEther(refundQuote.data)} ETH` : undefined
+    refundQuote.data !== undefined ? formatPriceTitle(refundQuote.data) : undefined
 
   return (
     <div className={styles.panel} data-testid="erc404-swap">
@@ -589,9 +588,9 @@ export function SwapPanel({
           <span
             className={styles.quoteValue}
             data-testid="erc404-buy-cost"
-            title={`${formatEther(resolved.cost)} ETH`}
+            title={formatPriceTitle(resolved.cost)}
           >
-            ≈ {formatTokenAmount(resolved.cost)} ETH
+            ≈ {formatPrice(resolved.cost)}
           </span>
         </div>
       )}
