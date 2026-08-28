@@ -55,6 +55,14 @@ export const THROTTLE_MAX_MS = 15 * 60_000
 export const FAULT_BASE_MS = 15_000
 export const FAULT_MAX_MS = 5 * 60_000
 
+/**
+ * How many consecutive `fetchJson` resolutions must find EVERY gateway they tried ending in
+ * `fault` — no `ok`, no `throttled`, no `missing` anywhere in the roster — before the roster
+ * counts as starved. One near-timeout is unremarkable; the same shape repeating with nothing else
+ * in between is a roster that is failing to deliver at all, not a single unlucky request.
+ */
+export const FAULT_STARVATION_THRESHOLD = 2
+
 /** Stable identity for a roster entry: two hostnames of one operator are still two endpoints. */
 export function gatewayKey(gateway: IpfsGateway): string {
   return `${gateway.operator}|${gateway.base}`
@@ -67,6 +75,28 @@ let cache: GatewayHealthMap | undefined
 /** Bumped on every mutation so snapshot consumers can tell "nothing changed" cheaply. */
 let version = 0
 const listeners = new Set<() => void>()
+
+/**
+ * Consecutive `fetchJson` resolutions where every gateway tried ended in `fault`. This is
+ * deliberately separate from per-gateway cooldowns: a gateway sitting right at the timeout edge
+ * can fault attempt after attempt without ever tripping `throttled`, and a lone survivor (see
+ * `orderGateways`) can keep being asked and keep missing. Reset by any `ok`/`throttled`/`missing`
+ * outcome — those are evidence the roster is doing SOMETHING; this counts the times it does
+ * nothing at all. Session-local by design: it describes what is happening right now, not a
+ * decision worth surviving a reload.
+ */
+let rosterFaultStreak = 0
+
+/**
+ * WHY the gateway at each key is currently cooling, for the entries with a live cooldown. Not
+ * persisted (an ephemeral read on WHY, not a decision worth surviving a reload) and not exposed —
+ * `orderGateways` is the only reader, and only to decide whether the last-survivor exemption
+ * below may apply. A throttle (`429`/`503`) is an explicit refusal from the gateway itself and
+ * must still close every door, exactly as before; a fault (timeout, 5xx, dropped connection) is
+ * this app's own inference that something went wrong, and is wrong often enough at the edge of a
+ * timeout that the last one open should stay askable rather than going fully dark.
+ */
+const coolReason = new Map<string, 'throttle' | 'fault'>()
 
 function read(): GatewayHealthMap {
   if (cache === undefined) cache = { ...gatewayHealthStore.get() }
@@ -104,6 +134,7 @@ function update(key: string, patch: GatewayHealth): void {
 
 /** Record a 2xx: the gateway is good, any backoff it had accumulated is discharged. */
 export function noteSuccess(key: string, now: number = Date.now()): void {
+  coolReason.delete(key)
   const current = healthOf(key)
   if (current.lastGoodAt === now && current.failures === 0 && current.cooldownUntil === 0) return
   update(key, { lastGoodAt: now, failures: 0, cooldownUntil: 0 })
@@ -141,6 +172,7 @@ export function noteThrottled(
     retryAfterMs !== null && retryAfterMs > 0
       ? Math.min(retryAfterMs, THROTTLE_MAX_MS)
       : backoff(THROTTLE_BASE_MS, THROTTLE_MAX_MS, current.failures)
+  coolReason.set(key, 'throttle')
   update(key, { lastGoodAt: current.lastGoodAt, failures, cooldownUntil: now + delay })
 }
 
@@ -148,6 +180,7 @@ export function noteThrottled(
 export function noteFault(key: string, now: number = Date.now()): void {
   const current = healthOf(key)
   const failures = current.failures + 1
+  coolReason.set(key, 'fault')
   update(key, {
     lastGoodAt: current.lastGoodAt,
     failures,
@@ -188,16 +221,37 @@ export function classifyStatus(status: number): AttemptOutcome {
  *     metered against a shared public bucket, and skipping it would silently ignore the setting.
  *  2. every remaining gateway that is NOT cooling, most-recently-good first.
  *
- * Cooling public gateways are DROPPED, not appended. Asking one anyway is the behaviour that keeps
- * a rate-limit window from clearing.
+ * Cooling public gateways are DROPPED, not appended — asking one anyway is the behaviour that
+ * keeps a rate-limit window from clearing — UNLESS every one of them is cooling from a FAULT
+ * (timeout, 5xx, dropped connection) rather than an explicit `429`/`503` refusal, AND dropping
+ * the last of them would leave zero public gateways at all. A `429`/`503` is the gateway itself
+ * telling us to stop, and every entry cooling for that reason still closes every door exactly as
+ * before — that is what protects the shared, IP-metered bucket. A fault is this app's own
+ * inference that something went wrong, at a gateway sitting close enough to its timeout that the
+ * inference is wrong often enough to matter (see `uri.ts`'s `GATEWAY_TIMEOUT_MS`); parking the
+ * LAST one on that basis does not protect a shared budget (there is nothing left to protect it
+ * FROM), it just closes the only door, including the Tier-2 "paste your own gateway" one for
+ * anyone relying on the public set answering long enough to reach it. In that fault-only case the
+ * entry closest to clearing stays eligible — demoted to last, never removed.
  */
 export function orderGateways(
   gateways: readonly IpfsGateway[],
   now: number = Date.now(),
 ): IpfsGateway[] {
   const custom = gateways.filter((g) => g.operator === 'custom')
-  const rest = gateways
-    .filter((g) => g.operator !== 'custom' && !isCooling(gatewayKey(g), now))
+  const others = gateways.filter((g) => g.operator !== 'custom')
+  let candidates = others.filter((g) => !isCooling(gatewayKey(g), now))
+  if (candidates.length === 0 && others.length > 0) {
+    const cooling = others.filter((g) => isCooling(gatewayKey(g), now))
+    const allFaultOnly = cooling.every((g) => coolReason.get(gatewayKey(g)) !== 'throttle')
+    if (allFaultOnly) {
+      const survivor = others
+        .map((g, index) => ({ g, index, until: healthOf(gatewayKey(g)).cooldownUntil }))
+        .sort((a, b) => a.until - b.until || a.index - b.index)[0]
+      if (survivor) candidates = [survivor.g]
+    }
+  }
+  const rest = candidates
     .map((g, index) => ({ g, index, at: healthOf(gatewayKey(g)).lastGoodAt }))
     // Most-recently-good first; never-tried entries keep their roster order behind them.
     .sort((a, b) => b.at - a.at || a.index - b.index)
@@ -219,15 +273,39 @@ export function nextAvailableAt(
   return Number.isFinite(soonest) ? soonest : 0
 }
 
-/** Whether the viewer is currently being refused by everything, and until when. */
-export interface ThrottleSnapshot {
-  /** True when no gateway can be asked right now. */
-  cooling: boolean
-  /** Epoch ms the first gateway becomes askable again (0 when `cooling` is false). */
-  retryAt: number
+/** Record that one `fetchJson` resolution saw every gateway it tried end in `fault`. */
+export function noteRosterFault(): void {
+  rosterFaultStreak += 1
+  version += 1
+  for (const fn of listeners) fn()
 }
 
-const NOT_COOLING: ThrottleSnapshot = { cooling: false, retryAt: 0 }
+/** Record that one `fetchJson` resolution saw an `ok`, `throttled`, or `missing` outcome. */
+export function noteRosterRecovered(): void {
+  if (rosterFaultStreak === 0) return
+  rosterFaultStreak = 0
+  version += 1
+  for (const fn of listeners) fn()
+}
+
+/** True once the roster has gone fault-only, wall-wide, for `FAULT_STARVATION_THRESHOLD` calls running. */
+export function isRosterStarved(): boolean {
+  return rosterFaultStreak >= FAULT_STARVATION_THRESHOLD
+}
+
+/** Whether the viewer is currently being refused by everything, and until when. */
+export interface ThrottleSnapshot {
+  /** True when no gateway can be asked right now, OR the roster is starved (see `reason`). */
+  cooling: boolean
+  /** Epoch ms the first gateway becomes askable again (0 when `cooling` is false). An estimate,
+   *  not a promise, when `reason` is `'starved'` — no gateway actually told us when to retry. */
+  retryAt: number
+  /** `'throttled'` — a rate-limit cooldown is in force. `'starved'` — nothing is cooling down
+   *  (see `orderGateways`'s last-survivor rule), but the roster has stopped delivering anyway. */
+  reason: 'throttled' | 'starved'
+}
+
+const NOT_COOLING: ThrottleSnapshot = { cooling: false, retryAt: 0, reason: 'throttled' }
 let snapshot: ThrottleSnapshot = NOT_COOLING
 let snapshotVersion = -1
 let snapshotAt = 0
@@ -243,11 +321,28 @@ export function throttleSnapshot(
 ): ThrottleSnapshot {
   if (snapshotVersion === version && now < snapshotAt) return snapshot
   const retryAt = gateways.length === 0 ? 0 : nextAvailableAt(gateways, now)
-  const next: ThrottleSnapshot = retryAt > now ? { cooling: true, retryAt } : NOT_COOLING
+  let next: ThrottleSnapshot
+  if (retryAt > now) {
+    next = { cooling: true, retryAt, reason: 'throttled' }
+  } else if (isRosterStarved()) {
+    // No cooldown is in force (the survivor rule keeps a door open), but the roster has answered
+    // with nothing but faults. FAULT_BASE_MS is an honest estimate of how long a fault backs a
+    // gateway off, not a real deadline — the state clears on the next `noteRosterRecovered` call,
+    // which bumps `version` and wakes subscribers regardless of this timer.
+    next = { cooling: true, retryAt: now + FAULT_BASE_MS, reason: 'starved' }
+  } else {
+    next = NOT_COOLING
+  }
   snapshotVersion = version
   // Re-evaluation is only required when the current cooldown lapses; until then the answer holds.
-  snapshotAt = retryAt > now ? retryAt : Number.POSITIVE_INFINITY
-  if (next.cooling !== snapshot.cooling || next.retryAt !== snapshot.retryAt) snapshot = next
+  snapshotAt = next.cooling ? next.retryAt : Number.POSITIVE_INFINITY
+  if (
+    next.cooling !== snapshot.cooling ||
+    next.retryAt !== snapshot.retryAt ||
+    next.reason !== snapshot.reason
+  ) {
+    snapshot = next
+  }
   return snapshot
 }
 
@@ -255,6 +350,8 @@ export function throttleSnapshot(
 export function resetGatewayHealth(): void {
   cache = {}
   version += 1
+  rosterFaultStreak = 0
+  coolReason.clear()
   snapshotVersion = -1
   snapshotAt = 0
   snapshot = NOT_COOLING

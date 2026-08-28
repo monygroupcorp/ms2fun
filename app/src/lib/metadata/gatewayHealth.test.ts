@@ -2,12 +2,16 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   classifyStatus,
   FAULT_BASE_MS,
+  FAULT_STARVATION_THRESHOLD,
   gatewayKey,
   healthOf,
   isCooling,
+  isRosterStarved,
   nextAvailableAt,
   noteFault,
   noteOutcome,
+  noteRosterFault,
+  noteRosterRecovered,
   noteSuccess,
   noteThrottled,
   orderGateways,
@@ -161,9 +165,32 @@ describe('orderGateways', () => {
     expect(orderGateways([CUSTOM, A, B, C], now + 1)[0]).toEqual(CUSTOM)
   })
 
-  it('returns nothing when every public gateway is cooling', () => {
+  it('returns nothing when every public gateway is genuinely throttled — a real refusal closes every door', () => {
     const now = 1_000_000
     for (const key of [keyA, keyB, keyC]) noteThrottled(key, null, now)
+    expect(orderGateways([A, B, C], now + 1)).toEqual([])
+  })
+
+  it('never parks the last living gateway when the roster is cooling from FAULTS: the soonest-to-clear entry survives', () => {
+    const now = 1_000_000
+    noteFault(keyA, now) // one fault: cooldownUntil = now + FAULT_BASE_MS
+    noteFault(keyB, now)
+    noteFault(keyB, now) // a second fault doubles B's backoff past A's — A clears first
+    expect(orderGateways([A, B], now + 1)).toEqual([A])
+  })
+
+  it('keeps a custom gateway ahead of the fault survivor', () => {
+    const now = 1_000_000
+    noteFault(keyA, now)
+    noteFault(keyB, now)
+    expect(orderGateways([CUSTOM, A, B], now + 1)[0]).toEqual(CUSTOM)
+  })
+
+  it('does NOT keep a survivor when even one cooling entry is genuinely throttled, not merely faulted', () => {
+    const now = 1_000_000
+    noteThrottled(keyA, null, now)
+    noteFault(keyB, now)
+    noteFault(keyC, now)
     expect(orderGateways([A, B, C], now + 1)).toEqual([])
   })
 })
@@ -185,7 +212,7 @@ describe('nextAvailableAt', () => {
 
 describe('throttleSnapshot', () => {
   it('reports not-cooling while a gateway is askable', () => {
-    expect(throttleSnapshot([A, B])).toEqual({ cooling: false, retryAt: 0 })
+    expect(throttleSnapshot([A, B])).toEqual({ cooling: false, retryAt: 0, reason: 'throttled' })
   })
 
   it('reports cooling with the earliest retry once everything is parked', () => {
@@ -195,10 +222,64 @@ describe('throttleSnapshot', () => {
     const snapshot = throttleSnapshot([A, B])
     expect(snapshot.cooling).toBe(true)
     expect(snapshot.retryAt).toBe(now + 30_000)
+    expect(snapshot.reason).toBe('throttled')
   })
 
   it('returns the same object while nothing has changed (the store-subscription contract)', () => {
     const first = throttleSnapshot([A, B])
     expect(throttleSnapshot([A, B])).toBe(first)
+  })
+
+  it('reports starved once the roster has gone fault-only for the threshold, with no cooldown in force', () => {
+    for (let i = 0; i < FAULT_STARVATION_THRESHOLD; i += 1) noteRosterFault()
+    const snapshot = throttleSnapshot([A, B])
+    expect(snapshot.cooling).toBe(true)
+    expect(snapshot.reason).toBe('starved')
+  })
+
+  it('does not report starved before the threshold is reached', () => {
+    for (let i = 0; i < FAULT_STARVATION_THRESHOLD - 1; i += 1) noteRosterFault()
+    expect(throttleSnapshot([A, B])).toEqual({ cooling: false, retryAt: 0, reason: 'throttled' })
+  })
+
+  it('a real cooldown takes priority over a starved reading', () => {
+    const now = Date.now()
+    for (let i = 0; i < FAULT_STARVATION_THRESHOLD; i += 1) noteRosterFault()
+    noteThrottled(keyA, 60_000, now)
+    noteThrottled(keyB, 30_000, now)
+    const snapshot = throttleSnapshot([A, B], now + 1)
+    expect(snapshot.reason).toBe('throttled')
+  })
+
+  it('clears on recovery', () => {
+    for (let i = 0; i < FAULT_STARVATION_THRESHOLD; i += 1) noteRosterFault()
+    expect(isRosterStarved()).toBe(true)
+    noteRosterRecovered()
+    expect(isRosterStarved()).toBe(false)
+    expect(throttleSnapshot([A, B])).toEqual({ cooling: false, retryAt: 0, reason: 'throttled' })
+  })
+})
+
+describe('roster fault streak', () => {
+  it('is not starved below the threshold', () => {
+    for (let i = 0; i < FAULT_STARVATION_THRESHOLD - 1; i += 1) noteRosterFault()
+    expect(isRosterStarved()).toBe(false)
+  })
+
+  it('is starved at the threshold', () => {
+    for (let i = 0; i < FAULT_STARVATION_THRESHOLD; i += 1) noteRosterFault()
+    expect(isRosterStarved()).toBe(true)
+  })
+
+  it('resets on recovery', () => {
+    for (let i = 0; i < FAULT_STARVATION_THRESHOLD; i += 1) noteRosterFault()
+    noteRosterRecovered()
+    expect(isRosterStarved()).toBe(false)
+  })
+
+  it('resetGatewayHealth clears the streak too', () => {
+    for (let i = 0; i < FAULT_STARVATION_THRESHOLD; i += 1) noteRosterFault()
+    resetGatewayHealth()
+    expect(isRosterStarved()).toBe(false)
   })
 })
