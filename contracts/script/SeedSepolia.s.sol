@@ -872,7 +872,7 @@ contract SeedSepolia is SeedSepoliaShared {
                 }),
                 _collectionMeta(
                     "SonoraEcho",
-                    "This collection demonstrates TOKEN TIERS and layered METADATA. Coin can be folded into a higher-denomination piece and unfolded again, and a piece's picture is resolved on-chain from three stacked layers - a paid commission over reserved-band art over the collection's own base. One rung is deliberately scarce, so it sells out and reopens as holders unfold.",
+                    "It's like if banners, remilio, fumo, milady and bonkler were all in one DNT contract, where 100 coins = 1 banners, 200 coins = 2 banners or 1 remilio, 300 coins = 3 banners or 1 fumo, and so on and so forth. That is TOKEN TIERS: coin can be folded into a higher-denomination piece and unfolded again, and one rung here is deliberately scarce, so it sells out and reopens as holders unfold. This collection also demonstrates layered METADATA - a piece's picture is resolved on-chain from three stacked layers, a paid commission over reserved-band art over the collection's own base.",
                     ART_TILE_PRISM
                 ),
                 d.uniDeployer,
