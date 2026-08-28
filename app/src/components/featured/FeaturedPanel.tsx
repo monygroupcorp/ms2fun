@@ -1,6 +1,7 @@
 /**
  * FeaturedPanel — user-facing featured-queue economics for a single collection. This is monetization,
- * NOT owner-gated: anyone may rent a featured slot, boost rank, renew, or prune an expired slot
+ * NOT owner-gated: anyone may boost a collection onto the featured queue, raise its rank, renew,
+ * or prune an expired slot
  * (FeaturedQueueManager, Interface H). All ETH amounts are entered via AmountField/parseAmount;
  * durations are entered in days (plain number inputs) and converted to seconds. Each action goes
  * through useTxAction + TxButton and refetches getRentalInfo on success.
@@ -212,10 +213,11 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
       : '—'
 
   return (
-    <Disclosure summary="FEATURED QUEUE" testId="featured-panel">
+    <Disclosure summary="BOOST" testId="featured-panel">
       <p className={styles.note}>
         Featuring puts this collection on the <b>front-page featured row</b> — paid placement,
-        ranked by how much ETH is boosted. Permissionless: anyone can rent a slot or boost the rank.
+        ranked by how much ETH is boosted. Permissionless: anyone can boost a collection or raise
+        its rank.
       </p>
       {/* ---- Status ---------------------------------------------------- */}
       <div className={styles.status}>
@@ -243,15 +245,15 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
         ) : (
           <p className={styles.note}>
             {expired
-              ? 'this collection’s featured slot has expired — rent again below or prune it.'
-              : 'this collection is not currently featured. rent a slot below to boost its visibility.'}
+              ? 'this collection’s featured slot has expired — boost it again below or prune it.'
+              : 'this collection is not currently featured. boost it below to get on the queue.'}
           </p>
         )}
       </div>
 
       {/* ---- Rent ------------------------------------------------------ */}
       <div className={styles.action}>
-        <h3 className={styles.actionTitle}>rent a featured slot</h3>
+        <h3 className={styles.actionTitle}>boost this collection</h3>
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="featured-rent-days">
             duration (days, {MIN_DAYS}–{MAX_DAYS})
@@ -275,7 +277,7 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
             onChange={setRentBoost}
             unit="ETH"
             placeholder="0"
-            ariaLabel="rent rank boost in ETH"
+            ariaLabel="additional rank boost in ETH"
           />
         </div>
         <p className={styles.quote}>
@@ -294,23 +296,23 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
         <TxButton
           state={rentTx.state}
           onClick={handleRent}
-          label="rent featured"
+          label="boost"
           disabled={rentDurationSecs === undefined || rentValue === undefined}
-          disabledHint={`enter a duration (${MIN_DAYS}–${MAX_DAYS} days) above to rent`}
+          disabledHint={`enter a duration (${MIN_DAYS}–${MAX_DAYS} days) above to boost`}
           onReset={rentTx.reset}
           receipt={
             rentPaidWei !== undefined
-              ? { verb: 'featured slot rented', net: { label: 'paid', wei: rentPaidWei } }
+              ? { verb: 'boosted', net: { label: 'paid', wei: rentPaidWei } }
               : undefined
           }
-          successLabel={rentPaidWei === undefined ? 'featured slot rented — confirmed.' : undefined}
+          successLabel={rentPaidWei === undefined ? 'boosted — confirmed.' : undefined}
           testId="featured-rent"
         />
       </div>
 
       {/* ---- Boost ----------------------------------------------------- */}
       <div className={styles.action}>
-        <h3 className={styles.actionTitle}>boost rank</h3>
+        <h3 className={styles.actionTitle}>raise rank</h3>
         <div className={styles.field}>
           <span className={styles.fieldLabel}>add ETH to rank score</span>
           <AmountField
@@ -327,14 +329,14 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
         <TxButton
           state={boostTx.state}
           onClick={handleBoost}
-          label="boost rank"
+          label="raise rank"
           className="btn btn-secondary"
           disabled={boostWei === undefined || boostWei === 0n}
-          disabledHint="enter an ETH amount above to boost"
+          disabledHint="enter an ETH amount above to raise rank"
           onReset={boostTx.reset}
           receipt={
             boostSentWei !== undefined
-              ? { verb: 'rank boosted', net: { label: 'sent', wei: boostSentWei } }
+              ? { verb: 'rank raised', net: { label: 'sent', wei: boostSentWei } }
               : undefined
           }
           testId="featured-boost"
