@@ -212,8 +212,24 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
       ? new Date(Number(expiresAt) * 1000).toLocaleString()
       : '—'
 
+  const summary = (
+    <span className={styles.summary}>
+      BOOST
+      {featured && (
+        <span className="badge badge-solid" data-testid="featured-summary-badge">
+          featured
+        </span>
+      )}
+      {!featured && expired && (
+        <span className="badge" data-testid="featured-summary-badge">
+          expired
+        </span>
+      )}
+    </span>
+  )
+
   return (
-    <Disclosure summary="BOOST" testId="featured-panel">
+    <Disclosure summary={summary} testId="featured-panel">
       <p className={styles.note}>
         Featuring puts this collection on the <b>front-page featured row</b> — paid placement,
         ranked by how much ETH is boosted. Permissionless: anyone can boost a collection or raise
