@@ -17,6 +17,7 @@ import {
 import { IZAMM } from "../src/vaults/zamm/ZAMMAlignmentVault.sol";
 import { ZAMMAlignmentVaultFactory } from "../src/vaults/zamm/ZAMMAlignmentVaultFactory.sol";
 import { CypherAlignmentVaultFactory } from "../src/vaults/cypher/CypherAlignmentVaultFactory.sol";
+import { AlignmentEndowmentVaultFactory } from "../src/vaults/aave/AlignmentEndowmentVaultFactory.sol";
 import { IAlgebraFactory, IAlgebraPool, IAlgebraNFTPositionManager } from "../src/interfaces/algebra/IAlgebra.sol";
 import { PoolIdLibrary } from "v4-core/types/PoolId.sol";
 import { StateLibrary } from "v4-core/libraries/StateLibrary.sol";
@@ -104,7 +105,7 @@ contract SeedSepolia is SeedSepoliaShared {
 
         for (uint256 i = 0; i < legs.length; i++) {
             _assertPieceBase(legs[i].pieceBase, legs[i].slug);
-            (address inst, uint256 armedUntil) = _createAndArm(d, legs[i], h.ms2Vault, armWindow, maturityOffset);
+            (address inst, uint256 armedUntil) = _createAndArm(d, legs[i], h.cultVault, armWindow, maturityOffset);
             instances[i] = inst;
             if (armedUntil > latestArm) latestArm = armedUntil;
             console.log(string.concat("ARMED ", legs[i].slug), inst);
@@ -178,53 +179,96 @@ contract SeedSepolia is SeedSepoliaShared {
     function _seedAlignment(Deployed memory d) internal returns (SeedHandoff memory h) {
         AlignmentRegistryV1 registry = AlignmentRegistryV1(d.alignmentRegistry);
         UniAlignmentVaultFactory factory = UniAlignmentVaultFactory(d.uniVaultFactory);
+        AlignmentSeed[] memory roster = _alignmentRoster();
 
-        vm.startBroadcast();
+        h.targetTokens = new address[](roster.length);
+        h.targetVaults = new address[](roster.length);
+        h.targetIds = new uint256[](roster.length);
+        h.endowmentVaults = new address[](roster.length);
 
-        MockERC20 ms2 = new MockERC20("Station Fixture Token", "MS2");
-        MockERC20 cult = new MockERC20("Community Fixture Token", "CULT");
-        h.ms2Token = address(ms2);
-        h.cultToken = address(cult);
-
-        h.ms2TargetId = _registerTarget(
-            registry,
-            address(ms2),
-            "MS2",
-            "Station",
-            "Alignment target demonstrating the vault flow on the Uniswap V4 venue. Its asset is a testnet FIXTURE token, not a traded coin - what it exists to show is where a collection's alignment tithe goes and what the vault does with it."
-        );
-        h.cultTargetId = _registerTarget(
-            registry,
-            address(cult),
-            "CULT",
-            "Community",
-            "A second alignment target on the Uniswap V4 venue, so the registry index and the target picker have more than one row to choose between. Its asset is a testnet FIXTURE token."
-        );
-
-        h.ms2Vault = _deployAndWireVault(d, factory, address(ms2), "MS2", h.ms2TargetId);
-        h.cultVault = _deployAndWireVault(d, factory, address(cult), "CULT", h.cultTargetId);
-
-        // The curated venue for both Uni targets, set here so the registry and the vault agree before
-        // anything is deposited. `feeOrHook` stays zero — a ZAMM-only field on a UNI_V4 leg is refused.
-        IAlignmentRouteAdmin reg = IAlignmentRouteAdmin(d.alignmentRegistry);
+        // The curated venue for every Uni target, set as each row is created so the registry and the
+        // vault agree before anything is deposited. `feeOrHook` stays zero — a ZAMM-only field on a
+        // UNI_V4 leg is refused.
         IAlignmentRegistry.AcquireRoute memory uniRoute = IAlignmentRegistry.AcquireRoute({
             venue: IAlignmentRegistry.Venue.UNI_V4, fee: POOL_FEE, tickSpacing: POOL_TICK_SPACING, feeOrHook: 0
         });
-        reg.setAcquireRoute(h.ms2TargetId, h.ms2Token, uniRoute);
-        reg.setAcquireRoute(h.cultTargetId, h.cultToken, uniRoute);
+        IAlignmentRouteAdmin reg = IAlignmentRouteAdmin(d.alignmentRegistry);
 
+        vm.startBroadcast();
+        for (uint256 i = 0; i < roster.length; i++) {
+            AlignmentSeed memory a = roster[i];
+
+            address token = address(new MockERC20(a.tokenName, a.symbol));
+            uint256 targetId = _registerTarget(
+                registry,
+                token,
+                a.symbol,
+                a.title,
+                a.description,
+                // The row's own metadata, which is where its LOGO comes from. Inline JSON pointing at
+                // a content-addressed image: the registry carries the pointer, not the picture.
+                _collectionMeta(a.title, a.description, string.concat(ART_IMG_TARGETS, a.logo))
+            );
+            address vault = _deployAndWireVault(d, factory, token, a.symbol, targetId);
+            reg.setAcquireRoute(targetId, token, uniRoute);
+
+            // The ENDOWMENT family, on the rows that carry one. It is a different promise from the LP
+            // vault beside it — a principal held and a community paid from the yield, rather than the
+            // tithe put to work as liquidity — so the two are shown on the same wall rather than
+            // described. The community payout is deliberately left unset: it names a real recipient
+            // and that is a decision, not a seed constant.
+            if (a.endowment && d.aaveVaultFactory != address(0)) {
+                h.endowmentVaults[i] = AlignmentEndowmentVaultFactory(d.aaveVaultFactory)
+                    .deployVault(
+                        keccak256(abi.encode(block.chainid, token, a.symbol, "AAVE-SHOWCASE", _vaultSaltNonce())),
+                        token,
+                        targetId
+                    );
+            }
+
+            h.targetTokens[i] = token;
+            h.targetVaults[i] = vault;
+            h.targetIds[i] = targetId;
+
+            // The two rows every collection binds to by name keep their own fields.
+            if (_eq(a.symbol, "CULT")) {
+                h.cultToken = token;
+                h.cultVault = vault;
+                h.cultTargetId = targetId;
+            } else if (_eq(a.symbol, "MS2")) {
+                h.ms2Token = token;
+                h.ms2Vault = vault;
+                h.ms2TargetId = targetId;
+            }
+        }
         vm.stopBroadcast();
 
-        console.log("ALIGNMENT ms2 target/vault:", h.ms2TargetId, h.ms2Vault);
-        console.log("ALIGNMENT cult target/vault:", h.cultTargetId, h.cultVault);
+        require(h.cultVault != address(0), "alignment: the roster carries no CULT row (every collection aligns to it)");
+        require(h.ms2Vault != address(0), "alignment: the roster carries no MS2 row");
+
+        for (uint256 i = 0; i < roster.length; i++) {
+            console.log(
+                string.concat("ALIGNMENT ", roster[i].title, " target/vault:"), h.targetIds[i], h.targetVaults[i]
+            );
+            if (h.endowmentVaults[i] != address(0)) {
+                console.log(string.concat("  endowment vault: "), h.endowmentVaults[i]);
+            }
+        }
 
         // The price authorities, CREATED here and PINNED a TWAP window later — see `_referenceReadyAt`.
-        h.ms2ReferencePool = _seedReferencePool(d, h.ms2Token, "MS2");
+        // Every row gets one, because a row a creator can PICK is a row whose tithe must be able to
+        // acquire; a target with a vault and no venue behind it is a trap the picker sets for them.
         h.cultReferencePool = _seedReferencePool(d, h.cultToken, "CULT");
+        h.ms2ReferencePool = _seedReferencePool(d, h.ms2Token, "MS2");
+        for (uint256 i = 0; i < roster.length; i++) {
+            if (_eq(roster[i].symbol, "CULT") || _eq(roster[i].symbol, "MS2")) continue;
+            _seedReferencePool(d, h.targetTokens[i], roster[i].symbol);
+        }
 
         // The depth the curated route already claims, in the pool the acquire leg swaps through.
-        _seedV4Depth(d, h.ms2Token, "MS2");
-        _seedV4Depth(d, h.cultToken, "CULT");
+        for (uint256 i = 0; i < roster.length; i++) {
+            _seedV4Depth(d, h.targetTokens[i], roster[i].symbol);
+        }
     }
 
     // ─────────────────────── The reference pool (price authority) ───────────────────────
@@ -315,8 +359,13 @@ contract SeedSepolia is SeedSepoliaShared {
             AlignmentRegistryV1(d.alignmentRegistry),
             h.ms2Token,
             "MS2",
-            "Station-ZAMM",
-            "The same FIXTURE asset as the Station target, curated on the ZAMM venue instead. A separate target because the registry curates ONE venue per target and asset, and a vault that LPs somewhere other than its curated route is exactly what that curation exists to prevent."
+            "MS2-ZAMM",
+            "The same FIXTURE asset as the MS2 target, curated on the ZAMM venue instead. A separate target because the registry curates ONE venue per target and asset, and a vault that LPs somewhere other than its curated route is exactly what that curation exists to prevent.",
+            _collectionMeta(
+                "MS2-ZAMM",
+                "The MS2 target, curated on the ZAMM venue instead of Uniswap.",
+                string.concat(ART_IMG_TARGETS, "MS2.png")
+            )
         );
         h.ms2ZammVault = ZAMMAlignmentVaultFactory(d.zammVaultFactory)
             .deployVault(
@@ -391,8 +440,13 @@ contract SeedSepolia is SeedSepoliaShared {
             AlignmentRegistryV1(d.alignmentRegistry),
             h.cultToken,
             "CULT",
-            "Community-Cypher",
-            "The same FIXTURE asset as the Community target, curated on the Cypher (Algebra) venue instead. A separate target because a Cypher vault refuses to convert unless the route it reads names ALGEBRA - the vault checks the curation rather than trusting its own wiring."
+            "Remilia-Cypher",
+            "The same FIXTURE asset as the Remilia target, curated on the Cypher (Algebra) venue instead. A separate target because a Cypher vault refuses to convert unless the route it reads names ALGEBRA - the vault checks the curation rather than trusting its own wiring.",
+            _collectionMeta(
+                "Remilia-Cypher",
+                "The Remilia target, curated on the Cypher (Algebra) venue instead of Uniswap.",
+                string.concat(ART_IMG_TARGETS, "CULT.png")
+            )
         );
         h.cultCypherVault = address(
             CypherAlignmentVaultFactory(d.cypherVaultFactory)
@@ -504,12 +558,14 @@ contract SeedSepolia is SeedSepoliaShared {
         address token,
         string memory symbol,
         string memory title,
-        string memory description
+        string memory description,
+        string memory metadataURI
     ) internal returns (uint256 targetId) {
         IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);
-        assets[0] =
-            IAlignmentRegistry.AlignmentAsset({ token: token, symbol: symbol, info: description, metadataURI: "" });
-        targetId = registry.registerAlignmentTarget(title, description, "", assets);
+        assets[0] = IAlignmentRegistry.AlignmentAsset({
+            token: token, symbol: symbol, info: description, metadataURI: metadataURI
+        });
+        targetId = registry.registerAlignmentTarget(title, description, metadataURI, assets);
     }
 
     /// @dev Deploy the target's vault, initialize its V4 pool, point the vault at that pool, and
@@ -523,7 +579,9 @@ contract SeedSepolia is SeedSepoliaShared {
         string memory symbol,
         uint256 targetId
     ) internal returns (address vault) {
-        bytes32 salt = keccak256(abi.encode(block.chainid, targetId, symbol, "UNIv4-SHOWCASE"));
+        // Keyed on the TOKEN, not on the target's ordinal: an ordinal renumbers whenever the roster
+        // changes and drags every derived address with it. See `_vaultSaltNonce` for the escape hatch.
+        bytes32 salt = keccak256(abi.encode(block.chainid, token, symbol, "UNIv4-SHOWCASE", _vaultSaltNonce()));
         vault = factory.deployVault(salt, token, targetId, IVaultPriceValidator(address(0)));
 
         // Native ETH is currency0 — address(0) sorts below every token address, so the ordering holds
@@ -648,12 +706,12 @@ contract SeedSepolia is SeedSepoliaShared {
         // The art these rows will wear, checked before the first of them is created — the same
         // pre-condition the roster performs on itself, over the directories the breadth rows name.
         _assertBreadthArt();
-        h.editions = _seedEditions(d, h.ms2Vault);
+        h.editions = _seedEditions(d, h.cultVault);
         h.gatedEditions = _seedGatedEditions(d, h.cultVault);
         uint256 stakingMaturity;
         (h.staking404, stakingMaturity) = _seedStakingRow(d, h.ms2Vault);
         h.tiers404 = _seedTierRow(d, h.cultVault);
-        h.carve404 = _seedCarveRow(d, h.ms2Vault);
+        h.carve404 = _seedCarveRow(d, h.cultVault);
         latestClock = _seedAuctions(d, h);
         if (stakingMaturity > latestClock) latestClock = stakingMaturity;
     }
@@ -1094,7 +1152,7 @@ contract SeedSepolia is SeedSepoliaShared {
                         ART_TILE_RELIC
                     ),
                     creator: deployer,
-                    vault: h.ms2Vault,
+                    vault: h.cultVault,
                     symbol: "MEW",
                     lines: 2,
                     baseDuration: uint40(_timedAuctionSeconds()),

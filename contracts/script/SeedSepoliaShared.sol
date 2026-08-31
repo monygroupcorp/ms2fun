@@ -467,6 +467,15 @@ abstract contract SeedSepoliaShared is Script {
     ///      it lands these layers may render blank on public gateways - the same stated residual the
     ///      figmata directory carried, and not a reason to hold the wiring.
     string internal constant ART_BASE_WOTLK = "ipfs://bafybeifxf2xnossezzaywoni3gf5dfyqotn36vdvhnjkvldgkavyc2kx2q/";
+
+    /// @dev The ALIGNMENT ROSTER's logos, one square PNG per community, keyed by ticker. Each is the
+    ///      community's own mark, taken from its canonical source (its own site, or the asset lists
+    ///      the wallets and explorers already serve it from) rather than redrawn — a target a visitor
+    ///      recognises is the whole point of showing a roster instead of a list of addresses.
+    ///
+    ///      Wired ahead of its pin, CID-preserving, exactly as the collection art is: correct before
+    ///      the pin lands, unchanged after it, and blank in between.
+    string internal constant ART_IMG_TARGETS = "ipfs://bafybeiaq7odvp24jbgwsyaxq5c67qs2iev2ct42rd7rhjuticpbqd6fhlm/";
     string internal constant ART_BASE_PIXELADYBC =
         "ipfs://bafybeigtcr23kdzivowzasei7u7yza5frirctrjflytvooycb6tdqa4dga/";
 
@@ -589,6 +598,88 @@ abstract contract SeedSepoliaShared is Script {
         bool metadataOverlay;
     }
 
+    /// @dev One community the showcase can align to.
+    ///
+    ///      THE ASSET IS A TESTNET FIXTURE, AND EVERY ROW SAYS SO. The real token lives on Ethereum
+    ///      mainnet and cannot be traded here, so the seed mints a stand-in and records the real
+    ///      address beside it. That is what makes the demonstration honest AND complete: the tithe,
+    ///      the acquire swap and the LP position are all genuinely exercised against the fixture,
+    ///      while `mainnetToken` says exactly which asset this row is a rehearsal for.
+    struct AlignmentSeed {
+        string symbol; // the fixture's ticker — the community's real one
+        string tokenName; // the fixture's on-chain name, which carries the word FIXTURE
+        string title; // what the vaults page calls this row
+        string logo; // file inside `ART_IMG_TARGETS`
+        address mainnetToken; // the real mainnet ERC-20 this row rehearses
+        string description;
+        bool endowment; // also stand up an Aave endowment vault for this target
+    }
+
+    /// @notice The alignment roster, stated once.
+    ///
+    /// @dev Order is display order. Remilia leads because every collection on this wall is a Remilia
+    ///      derivative and aligns to it; MS2 follows because it is this platform's own token and the
+    ///      one row that aligns elsewhere. The rest are communities the picker offers a creator, each
+    ///      with a live venue behind it so a collection launched against one during a walk can
+    ///      actually tithe rather than reverting at its first acquire.
+    function _alignmentRoster() internal pure returns (AlignmentSeed[] memory r) {
+        r = new AlignmentSeed[](6);
+        r[0] = AlignmentSeed({
+            symbol: "CULT",
+            tokenName: "Remilia Fixture Token",
+            title: "Remilia",
+            logo: "CULT.png",
+            mainnetToken: 0x0000000000c5dc95539589fbD24BE07c6C14eCa4,
+            description: "Milady Cult Coin - Remilia Corporation's own token, and the community every collection on this wall descends from. Aligning here sends a share of each sale to a vault that acquires CULT and holds it as liquidity. The asset on this testnet is a FIXTURE standing in for mainnet 0x0000000000c5dc95539589fbD24BE07c6C14eCa4; what is real here is where the money goes and what the vault does with it.",
+            endowment: true
+        });
+        r[1] = AlignmentSeed({
+            symbol: "MS2",
+            tokenName: "Station This Fixture Token",
+            title: "MS2",
+            logo: "MS2.png",
+            mainnetToken: 0x98Ed411B8cf8536657c660Db8aA55D9D4bAAf820,
+            description: "Station This - this platform's own token. It carries an endowment vault as well as a liquidity vault, so the two vault families can be read side by side: one holds a principal and pays a community from the yield, the other puts the tithe to work as liquidity. Fixture asset for mainnet 0x98Ed411B8cf8536657c660Db8aA55D9D4bAAf820.",
+            endowment: true
+        });
+        r[2] = AlignmentSeed({
+            symbol: "SPX",
+            tokenName: "SPX6900 Fixture Token",
+            title: "SPX6900",
+            logo: "SPX.png",
+            mainnetToken: 0xE0f63A424a4439cBE457D80E4f4b51aD25b2c56C,
+            description: "SPX6900 - a community a creator can align a collection to instead of ours. Its venue is stood up and funded here, so a collection launched against it tithes for real. Fixture asset for mainnet 0xE0f63A424a4439cBE457D80E4f4b51aD25b2c56C.",
+            endowment: false
+        });
+        r[3] = AlignmentSeed({
+            symbol: "MOG",
+            tokenName: "Mog Coin Fixture Token",
+            title: "MOG",
+            logo: "MOG.png",
+            mainnetToken: 0xaaeE1A9723aaDB7afA2810263653A34bA2C21C7a,
+            description: "Mog Coin - another community on the picker, with its own funded venue. Fixture asset for mainnet 0xaaeE1A9723aaDB7afA2810263653A34bA2C21C7a.",
+            endowment: false
+        });
+        r[4] = AlignmentSeed({
+            symbol: "ZAMM",
+            tokenName: "ZAMM Fixture Token",
+            title: "ZAMM",
+            logo: "ZAMM.png",
+            mainnetToken: 0xE9b1cFEA55BAA219e34301f2F31b9FD0921664ED,
+            description: "ZAMM - the token of the venue this platform already routes one of its vault families through. Fixture asset for mainnet 0xE9b1cFEA55BAA219e34301f2F31b9FD0921664ED.",
+            endowment: false
+        });
+        r[5] = AlignmentSeed({
+            symbol: "CYPH",
+            tokenName: "Cypher Fixture Token",
+            title: "CYPH",
+            logo: "CYPH.png",
+            mainnetToken: 0xa279cA693D66fE65Ba0062D0218578F424249dfD,
+            description: "Cypher - the community behind the Algebra rail this deployment also curates as a venue. Fixture asset for mainnet 0xa279cA693D66fE65Ba0062D0218578F424249dfD.",
+            endowment: false
+        });
+    }
+
     /// @dev The addresses the deploy wrote, narrowed to what an ERC404 showcase seed touches.
     struct Deployed {
         ERC404Factory erc404;
@@ -596,6 +687,7 @@ abstract contract SeedSepoliaShared is Script {
         address alignmentRegistry;
         address componentRegistry;
         address uniVaultFactory;
+        address aaveVaultFactory; // AlignmentEndowmentVaultFactory; zero where the network has no Aave market
         address uniDeployer; // approved LIQUIDITY_DEPLOYER — the Uni-V4 module
         address priceValidator;
         address protocolTreasury;
@@ -643,6 +735,15 @@ abstract contract SeedSepoliaShared is Script {
         address cultVault;
         uint256 ms2TargetId;
         uint256 cultTargetId;
+        // ── The alignment roster, in `_alignmentRoster()` order ──
+        //
+        // The two named pairs above are the roster's first two rows, kept as their own fields because
+        // every collection binds to one of them by name. These arrays carry the WHOLE roster, so the
+        // check script can hold all six rows to the same reading without knowing their names.
+        address[] targetTokens;
+        address[] targetVaults;
+        uint256[] targetIds;
+        address[] endowmentVaults; // per roster row; address(0) where the row carries none
         // ── Wave-2 breadth ──
         address editions; // ERC1155: fixed + dynamic + free-claim editions
         address gatedEditions; // ERC1155 behind the Merkle allowlist
@@ -838,6 +939,7 @@ abstract contract SeedSepoliaShared is Script {
 
         d.erc404 = ERC404Factory(payable(vm.parseJsonAddress(json, ".factories.ERC404")));
         d.uniVaultFactory = vm.parseJsonAddress(json, ".factories.UNI");
+        d.aaveVaultFactory = vm.parseJsonAddress(json, ".factories.AAVE");
         d.masterRegistry = vm.parseJsonAddress(json, ".contracts.MasterRegistry");
         d.alignmentRegistry = vm.parseJsonAddress(json, ".contracts.AlignmentRegistry");
         d.componentRegistry = vm.parseJsonAddress(json, ".contracts.ComponentRegistry");
@@ -954,6 +1056,10 @@ abstract contract SeedSepoliaShared is Script {
         vm.serializeAddress(root, "cultVault", h.cultVault);
         vm.serializeUint(root, "ms2TargetId", h.ms2TargetId);
         vm.serializeUint(root, "cultTargetId", h.cultTargetId);
+        vm.serializeAddress(root, "targetTokens", h.targetTokens);
+        vm.serializeAddress(root, "targetVaults", h.targetVaults);
+        vm.serializeUint(root, "targetIds", h.targetIds);
+        vm.serializeAddress(root, "endowmentVaults", h.endowmentVaults);
         vm.serializeAddress(root, "editions", h.editions);
         vm.serializeAddress(root, "gatedEditions", h.gatedEditions);
         vm.serializeAddress(root, "staking404", h.staking404);
@@ -1005,6 +1111,10 @@ abstract contract SeedSepoliaShared is Script {
         h.cultVault = vm.parseJsonAddress(json, ".cultVault");
         h.ms2TargetId = vm.parseJsonUint(json, ".ms2TargetId");
         h.cultTargetId = vm.parseJsonUint(json, ".cultTargetId");
+        h.targetTokens = vm.parseJsonAddressArray(json, ".targetTokens");
+        h.targetVaults = vm.parseJsonAddressArray(json, ".targetVaults");
+        h.targetIds = vm.parseJsonUintArray(json, ".targetIds");
+        h.endowmentVaults = vm.parseJsonAddressArray(json, ".endowmentVaults");
 
         h.editions = vm.parseJsonAddress(json, ".editions");
         h.gatedEditions = vm.parseJsonAddress(json, ".gatedEditions");
@@ -1776,6 +1886,21 @@ abstract contract SeedSepoliaShared is Script {
     ///      wave, one wearing a paid commission, and one carrying an unpaid commission as the live
     ///      action. The row must HOLD at least this many for the demonstration to be authorable.
     uint256 internal constant METADATA_DEMO_PIECES = 3;
+
+    /// @dev Bump to step a vault's deterministic address past a CREATE3 collision.
+    ///
+    ///      EARNED, not anticipated. The vault salt used to be keyed on the target's ORDINAL, so
+    ///      removing one target from the deploy renumbered every row, moved every derived address,
+    ///      and landed one of them on an address that already holds code on Sepolia — CreateX reverts
+    ///      `FailedContractCreation` on the CREATE3 proxy and the whole phase dies. The salt is keyed
+    ///      on the TOKEN now, which does not renumber, but any deterministic address can collide with
+    ///      a chain it does not control. This is the escape hatch, so a collision on a live network is
+    ///      a re-run with one env var rather than an edit.
+    string internal constant ENV_VAULT_SALT_NONCE = "SEPOLIA_VAULT_SALT_NONCE";
+
+    function _vaultSaltNonce() internal view returns (uint256) {
+        return vm.envOr(ENV_VAULT_SALT_NONCE, uint256(0));
+    }
 
     /// @dev The WOTLK ids whose art did not survive the rescue, and which the wave demonstration must
     ///      therefore not land on.

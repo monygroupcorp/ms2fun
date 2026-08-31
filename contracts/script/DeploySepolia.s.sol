@@ -94,22 +94,20 @@ contract DeploySepolia is DeployCore {
     }
 
     function _sepoliaConfig() internal pure returns (NetworkConfig memory cfg) {
-        AlignmentTargetConfig[] memory targets = new AlignmentTargetConfig[](1);
-        // LINK is NOT one of the showcase's alignment targets, and is curated as none: it carries no
-        // acquire route, no reference pool and no seeded depth, and no collection aligns to it. It
-        // stays in this list because the deployment's per-target ENDOWMENT vault (the Aave family) is
-        // built from it, and that vault is a surface the showcase demonstrates. The alignment targets
-        // the showcase actually uses are FIXTURE tokens the seed mints — see `SeedSepolia`.
-        targets[0] = AlignmentTargetConfig({
-            token: 0x779877A7B0D9E8603169DdbD7836e478b4624789, // LINK
-            symbol: "LINK",
-            name: "Chainlink",
-            description: "Chainlink - Sepolia endowment-vault target",
-            deployUniVault: true,
-            deployCypherVault: false,
-            deployZAMMVault: false,
-            communityPayout: address(0) // set post-deploy
-        });
+        // NO DEPLOY-TIME ALIGNMENT TARGETS ON THIS NETWORK.
+        //
+        // The showcase's roster is six communities — Remilia, MS2, SPX6900, MOG, ZAMM and Cypher —
+        // and every one of them is an Ethereum MAINNET token that does not exist here. A vault bound
+        // to a mainnet address on Sepolia deploys happily and then fails at its first acquire, which
+        // is a worse demonstration than none. So the roster is minted, registered, vaulted and given
+        // depth by `SeedSepolia` as FIXTURE assets, each recording the real mainnet address it stands
+        // in for. See `SeedSepoliaShared._alignmentRoster`.
+        //
+        // This list was previously one entry — LINK — which existed only so the per-target Aave
+        // ENDOWMENT vault had something to hang on. That surface has a better home now: the endowment
+        // vaults are stood up by the seed on the two roster rows that should carry one (Remilia and
+        // MS2), so the wall no longer shows a target nothing aligns to and nobody chose.
+        AlignmentTargetConfig[] memory targets = new AlignmentTargetConfig[](0);
 
         cfg.chainId = 11155111;
         cfg.weth = 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14;

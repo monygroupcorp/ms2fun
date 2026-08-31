@@ -60,6 +60,65 @@ const PIECE_BASE_ABI = [
   },
 ] as const
 
+const ALIGNMENT_REGISTRY_ABI = [
+  {
+    type: 'function',
+    name: 'getAlignmentTarget',
+    stateMutability: 'view',
+    inputs: [{ type: 'uint256' }],
+    outputs: [
+      {
+        type: 'tuple',
+        components: [
+          { name: 'id', type: 'uint256' },
+          { name: 'title', type: 'string' },
+          { name: 'description', type: 'string' },
+          { name: 'metadataURI', type: 'string' },
+          { name: 'approvedAt', type: 'uint256' },
+          { name: 'active', type: 'bool' },
+        ],
+      },
+    ],
+  },
+  {
+    type: 'function',
+    name: 'getAcquireRoute',
+    stateMutability: 'view',
+    inputs: [{ type: 'uint256' }, { type: 'address' }],
+    outputs: [
+      {
+        type: 'tuple',
+        components: [
+          { name: 'venue', type: 'uint8' },
+          { name: 'fee', type: 'uint24' },
+          { name: 'tickSpacing', type: 'int24' },
+          { name: 'feeOrHook', type: 'uint256' },
+        ],
+      },
+    ],
+  },
+] as const
+
+/**
+ * The alignment roster the seed stands up, mirroring `SeedSepoliaShared._alignmentRoster`.
+ *
+ * Held here as an EXPECTATION rather than read back from the seed's own output, so a roster that
+ * silently loses a row, loses its logo, or gains back a target nobody chose fails this check instead
+ * of reporting whatever it happens to hold.
+ */
+const TARGET_LOGO_DIR = 'ipfs://bafybeiaq7odvp24jbgwsyaxq5c67qs2iev2ct42rd7rhjuticpbqd6fhlm/'
+const ALIGNMENT_ROSTER: { title: string; logo: string; endowment: boolean }[] = [
+  { title: 'Remilia', logo: 'CULT.png', endowment: true },
+  { title: 'MS2', logo: 'MS2.png', endowment: true },
+  { title: 'SPX6900', logo: 'SPX.png', endowment: false },
+  { title: 'MOG', logo: 'MOG.png', endowment: false },
+  { title: 'ZAMM', logo: 'ZAMM.png', endowment: false },
+  { title: 'CYPH', logo: 'CYPH.png', endowment: false },
+]
+
+/** Sepolia LINK — curated as a target once, to hang the endowment vault on. It must not come back. */
+const RETIRED_TARGET_TOKEN = '0x779877A7B0D9E8603169DdbD7836e478b4624789'.toLowerCase()
+
 const OVERLAY_ABI = [
   {
     type: 'function',
@@ -325,6 +384,10 @@ interface SeedState {
   ms2ReferencePool?: Address
   cultReferencePool?: Address
   cultAlgebraPool?: Address
+  targetTokens?: Address[]
+  targetVaults?: Address[]
+  targetIds?: number[]
+  endowmentVaults?: Address[]
   ms2TargetId?: number
   cultTargetId?: number
   ms2ZammTargetId?: number
@@ -535,6 +598,128 @@ async function main(): Promise<void> {
       `${label} composes its pieces against ${base || '(unreadable)'}, expected ${expected}`,
     )
     checkNotRetired(label, base)
+  }
+
+  // ── The alignment roster ──
+  //
+  // Six communities, each with its own logo, its own vault and a curated venue behind it. Read from
+  // the REGISTRY rather than from the seed's hand-off where it can be, because the hand-off records
+  // what the seed believes it did and this check exists to disagree with that when it is wrong.
+  console.log('\nalignment roster')
+  const rosterRegistry = config.contracts.AlignmentRegistryV1
+  const rosterIds = seed.targetIds ?? []
+  const rosterVaults = seed.targetVaults ?? []
+  const rosterTokens = seed.targetTokens ?? []
+  const endowmentVaults = seed.endowmentVaults ?? []
+
+  check(
+    rosterIds.length === ALIGNMENT_ROSTER.length,
+    `the roster stands up ${ALIGNMENT_ROSTER.length} communities`,
+    `the roster stands up ${rosterIds.length} communities, expected ${ALIGNMENT_ROSTER.length}`,
+  )
+
+  if (rosterRegistry && rosterRegistry !== zeroAddress && rosterIds.length > 0) {
+    const targets = await Promise.all(
+      rosterIds.map((id) =>
+        client
+          .readContract({
+            address: rosterRegistry,
+            abi: ALIGNMENT_REGISTRY_ABI,
+            functionName: 'getAlignmentTarget',
+            args: [BigInt(id)],
+          })
+          .catch(() => undefined),
+      ),
+    )
+
+    ALIGNMENT_ROSTER.forEach((expected, i) => {
+      const target = targets[i]
+      if (!target) {
+        check(false, '', `${expected.title} did not read back from the registry`)
+        return
+      }
+      check(
+        target.title === expected.title,
+        `${expected.title} is registered under its own name`,
+        `roster row ${i} is "${target.title}", expected "${expected.title}"`,
+      )
+      // THE LOGO. A target whose metadataURI carries no image renders as the fallback glyph, which
+      // is the state this roster existed to leave behind.
+      const wantImage = `${TARGET_LOGO_DIR}${expected.logo}`
+      check(
+        target.metadataURI.includes(wantImage),
+        `${expected.title} carries its own logo`,
+        `${expected.title} does not point at ${wantImage}`,
+      )
+      check(
+        target.active,
+        `${expected.title} is active`,
+        `${expected.title} is registered but not active`,
+      )
+    })
+
+    // Every roster row is curated on a venue: a target a creator can pick whose route is NONE takes
+    // their tithe and cannot acquire with it.
+    const routes = await Promise.all(
+      rosterIds.map((id, i) =>
+        client
+          .readContract({
+            address: rosterRegistry,
+            abi: ALIGNMENT_REGISTRY_ABI,
+            functionName: 'getAcquireRoute',
+            args: [BigInt(id), rosterTokens[i] ?? zeroAddress],
+          })
+          .catch(() => undefined),
+      ),
+    )
+    const uncurated = ALIGNMENT_ROSTER.filter((_, i) => (routes[i]?.venue ?? 0) === 0).map(
+      (r) => r.title,
+    )
+    check(
+      uncurated.length === 0,
+      'every community is curated on a venue',
+      `no acquire route curated for: ${uncurated.join(', ')}`,
+    )
+
+    // The retired target must not come back. It was only ever a peg for the endowment vault, and the
+    // endowments have real homes now.
+    const retired = rosterTokens.filter((tk) => tk?.toLowerCase() === RETIRED_TARGET_TOKEN)
+    check(
+      retired.length === 0,
+      'the retired endowment-peg target is gone',
+      'a roster row still points at the retired endowment-peg token',
+    )
+  }
+
+  // The endowment family hangs on the two rows that should carry one, and on no others.
+  ALIGNMENT_ROSTER.forEach((expected, i) => {
+    const vault = endowmentVaults[i]
+    const has = vault !== undefined && vault !== zeroAddress
+    check(
+      has === expected.endowment,
+      expected.endowment
+        ? `${expected.title} carries an endowment vault`
+        : `${expected.title} carries no endowment vault, as intended`,
+      expected.endowment
+        ? `${expected.title} should carry an endowment vault and does not`
+        : `${expected.title} carries an endowment vault it was not meant to`,
+    )
+  })
+
+  // Every community has a liquidity vault, and it holds code.
+  const vaultChecks = await Promise.all(
+    ALIGNMENT_ROSTER.map(async (expected, i) => {
+      const vault = rosterVaults[i]
+      if (!vault || vault === zeroAddress) return { expected, ok: false, why: 'no vault recorded' }
+      return {
+        expected,
+        ok: await hasCode(client, vault),
+        why: 'the recorded vault holds no code',
+      }
+    }),
+  )
+  for (const { expected, ok, why } of vaultChecks) {
+    check(ok, `${expected.title} has a liquidity vault`, `${expected.title}: ${why}`)
   }
 
   // ── The artist-metadata demonstration ──

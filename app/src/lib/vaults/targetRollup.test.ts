@@ -27,6 +27,8 @@ function endowment(
     collectionCount,
     vaultType: 'AaveEndowment',
     totalPrincipal: principal,
+    ethLocked: undefined,
+    pendingEth: undefined,
     accumulatedFees: 0n,
     targetId,
   }
@@ -37,12 +39,15 @@ function lp(
   fees: bigint,
   targetId: bigint | null,
   collectionCount = 1,
+  ethLocked: bigint = 0n,
 ): RollupVaultInput {
   return {
     address,
     collectionCount,
     vaultType: 'UniV4',
     totalPrincipal: undefined,
+    ethLocked,
+    pendingEth: 0n,
     accumulatedFees: fees,
     targetId,
   }
@@ -123,7 +128,15 @@ describe('targetFigureLabel / targetFigureNote', () => {
     expect(targetFigureLabel(undefined, true)).toBe('…')
     expect(
       targetFigureLabel(
-        { targetId: 1n, endowmentPrincipal: 0n, lpFees: 0n, vaultCount: 0, collectionCount: 0 },
+        {
+          targetId: 1n,
+          endowmentPrincipal: 0n,
+          lpFees: 0n,
+          lpEthPlaced: 0n,
+          lpPendingEth: 0n,
+          vaultCount: 0,
+          collectionCount: 0,
+        },
         true,
       ),
     ).toBe('…')
@@ -132,12 +145,61 @@ describe('targetFigureLabel / targetFigureNote', () => {
 
   it('states the figure scope in the header voice', () => {
     const note = targetFigureNote(
-      { targetId: 1n, endowmentPrincipal: ONE_ETH, lpFees: 0n, vaultCount: 1, collectionCount: 2 },
+      {
+        targetId: 1n,
+        endowmentPrincipal: ONE_ETH,
+        lpFees: 0n,
+        lpEthPlaced: 0n,
+        lpPendingEth: 0n,
+        vaultCount: 1,
+        collectionCount: 2,
+      },
       false,
     )
-    expect(note).toContain('principal locked in endowment vaults')
+    expect(note).toContain('endowment principal')
     expect(note).toContain('1 vault')
     expect(note).toContain('2 collections')
+  })
+
+  it('counts liquidity into the figure and names both halves of it', () => {
+    const rollup = {
+      targetId: 1n,
+      endowmentPrincipal: ONE_ETH,
+      lpFees: 0n,
+      lpEthPlaced: 2n * ONE_ETH,
+      lpPendingEth: 0n,
+      vaultCount: 2,
+      collectionCount: 3,
+    }
+    // The figure is principal PLUS what the LP vaults placed — a community's ETH is bound whether it
+    // is held as principal or working as liquidity.
+    expect(targetFigureLabel(rollup, false)).toBe('3 ETH')
+    const note = targetFigureNote(rollup, false)
+    expect(note).toContain('1 ETH endowment principal')
+    expect(note).toContain('2 ETH placed as liquidity, at cost')
+  })
+
+  it('says nothing is bound rather than showing a bare zero breakdown', () => {
+    const note = targetFigureNote(
+      {
+        targetId: 1n,
+        endowmentPrincipal: 0n,
+        lpFees: 0n,
+        lpEthPlaced: 0n,
+        lpPendingEth: 0n,
+        vaultCount: 1,
+        collectionCount: 0,
+      },
+      false,
+    )
+    expect(note).toContain('nothing bound yet')
+  })
+
+  it('rolls an LP vault ETH placement up to its target', () => {
+    const rollups = rollUpByTarget([lp(A, 0n, 1n, 1, 5n * ONE_ETH)], [1n])
+    expect(rollups[0]?.lpEthPlaced).toBe(5n * ONE_ETH)
+    // ...and never into the endowment principal, which means a different thing.
+    expect(rollups[0]?.endowmentPrincipal).toBe(0n)
   })
 })
 
