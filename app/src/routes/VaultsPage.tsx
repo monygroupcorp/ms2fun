@@ -14,7 +14,8 @@ import { Link } from 'wouter'
 import { useAllVaults } from '../lib/vaults/useAllVaults'
 import { useVaultsSummary } from '../lib/vaults/useVaultsSummary'
 import { useAlignmentTargets } from '../lib/vaults/useAlignmentTargets'
-import { type AlignmentCommunity, groupTargetsByCommunity } from '../lib/vaults/communities'
+import { groupTargetsByToken, type TargetGroup } from '../lib/wizard/vaultFlavor'
+import type { AlignmentTargetRow } from '../lib/vaults/useAlignmentTargets'
 import {
   ethCompact as eth,
   rollUpByTarget,
@@ -38,7 +39,7 @@ function CommunityCard({
   rollup,
   pending,
 }: {
-  community: AlignmentCommunity
+  community: TargetGroup<AlignmentTargetRow>
   rollup: TargetRollup
   pending: boolean
 }) {
@@ -134,7 +135,7 @@ export function VaultsPage() {
   const unattributed = rollupByKey.get('unattributed')
   // One card per community. An asset on two venues is two targets on chain and one row here, and its
   // figure sums every venue — see `lib/vaults/communities`.
-  const communities = groupTargetsByCommunity(targets)
+  const communities = groupTargetsByToken(targets)
 
   return (
     <div className={styles.page}>

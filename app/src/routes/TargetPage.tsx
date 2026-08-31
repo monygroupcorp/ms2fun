@@ -15,7 +15,7 @@ import { Link, useParams } from 'wouter'
 import { useAllVaults } from '../lib/vaults/useAllVaults'
 import { useVaultsSummary } from '../lib/vaults/useVaultsSummary'
 import { useAlignmentTargets } from '../lib/vaults/useAlignmentTargets'
-import { findCommunityByTargetId, groupTargetsByCommunity } from '../lib/vaults/communities'
+import { groupTargetsByToken } from '../lib/wizard/vaultFlavor'
 import { useAcquireVenues, venueLabel } from '../lib/vaults/acquireVenues'
 import {
   ethCompact as eth,
@@ -37,9 +37,13 @@ export function TargetPage() {
   const targetId = /^\d+$/.test(raw) ? BigInt(raw) : undefined
 
   const { targets, isPending: targetsPending } = useAlignmentTargets()
-  const communities = groupTargetsByCommunity(targets)
+  const communities = groupTargetsByToken(targets)
+  // Either of a community's target ids must land here, so the lookup scans every id in the group
+  // rather than matching only the primary.
   const community =
-    targetId !== undefined ? findCommunityByTargetId(communities, targetId) : undefined
+    targetId !== undefined
+      ? communities.find((c) => c.targets.some((t) => t.id === targetId))
+      : undefined
 
   const { vaults, isPending, isError } = useAllVaults()
   const { byAddress, isPending: summaryPending } = useVaultsSummary(vaults.map((v) => v.address))
