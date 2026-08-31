@@ -449,12 +449,26 @@ abstract contract SeedSepoliaShared is Script {
 
     /// @dev The tier row's THREE metadata directories are one family's own lineage, bottom to top:
     ///      the ordinary base is the parent collection, and each tier band is the derivative that
-    ///      succeeded it. Precedence (overlay over band over base) is only demonstrated if the layers
-    ///      can be told apart by eye, and a ladder read inside one lineage says what the rungs mean
-    ///      as well as that they differ.
+    ///      succeeded it. Band art over base is only demonstrated if the layers can be told apart by
+    ///      eye, and a ladder read inside one lineage says what the rungs mean as well as that they
+    ///      differ.
     string internal constant ART_BASE_SONORA = "ipfs://QmX89dvzA3TSwsGfY7SthYkDxSFjszec8JkEEZE7JP5QHF/";
     string internal constant ART_BASE_SONORA222 = "ipfs://bafybeifxxqwdsdxtmvk6iauqqh4vobvlrflv332nb6fnllhwwjeblr35ra/";
     string internal constant ART_BASE_SCHIZO = "ipfs://bafybeibtjhjyswebkwvck4u6pomllz46gdsfqtsdfrurhm7awn34oxckgi/";
+
+    /// @dev The METADATA row's own lineage, read the same way: the Pixelady base is the parent
+    ///      collection, the WOTLK expansion is the wave an artist publishes for holders to opt into,
+    ///      and Pixelady Maker BC - the later edition of the same maker - is what a paid commission
+    ///      replaces a piece with. Three directories, one family, so a visitor can tell which layer
+    ///      they are looking at without being told which layer they are looking at.
+    ///
+    ///      BOTH ARE WIRED AHEAD OF THEIR PIN. Their CIDs are the collections' own, recovered
+    ///      CID-preserving, so they are correct before the pin lands and stay correct after it. Until
+    ///      it lands these layers may render blank on public gateways - the same stated residual the
+    ///      figmata directory carried, and not a reason to hold the wiring.
+    string internal constant ART_BASE_WOTLK = "ipfs://bafybeifxf2xnossezzaywoni3gf5dfyqotn36vdvhnjkvldgkavyc2kx2q/";
+    string internal constant ART_BASE_PIXELADYBC =
+        "ipfs://bafybeigtcr23kdzivowzasei7u7yza5frirctrjflytvooycb6tdqa4dga/";
 
     // ── Image directories, one per family. A row's tile is a FILE inside its own family's ─────────
     string internal constant ART_IMG_PIXELADY = "ipfs://bafybeih5mqafo34424swmfdboww3s2tvfmzoojbip4jmcjbg5n3fl7edee/";
@@ -532,6 +546,8 @@ abstract contract SeedSepoliaShared is Script {
     uint256 internal constant COVER_SONORA = 444;
     uint256 internal constant COVER_SONORA222 = 222;
     uint256 internal constant COVER_SCHIZO = 100;
+    uint256 internal constant COVER_WOTLK = 150;
+    uint256 internal constant COVER_PIXELADYBC = 1000;
 
     // ── The retired directories ──────────────────────────────────────────────────────────────────
     //
@@ -567,6 +583,10 @@ abstract contract SeedSepoliaShared is Script {
         uint16 declaredMaxBps;
         uint256 fillBps; // phase-2 share of bondable supply to buy (0 for the pre-open row)
         uint256 pieceIdCoverage; // ids the row's metadata directory answers for — see COVER_*
+        /// @dev Wire the overlay module under a router on this row, making it the ARTIST METADATA
+        ///      demonstration. The roster is where the wall is described, so which row carries the
+        ///      metadata stack is stated HERE rather than special-cased at the create call.
+        bool metadataOverlay;
     }
 
     /// @dev The addresses the deploy wrote, narrowed to what an ERC404 showcase seed touches.
@@ -741,30 +761,32 @@ abstract contract SeedSepoliaShared is Script {
 
         legs[0] = ShowcaseLeg({
             slug: "ember-preopen",
-            title: "Voxelady",
-            symbol: "VOXY",
+            title: "SnoredMilady",
+            symbol: "SNORED",
             description: "This collection demonstrates the PRE-OPEN state. The curve is armed and the countdown is running, and nothing can be bought until it expires - a buy attempted now is rejected on-chain, not hidden by the interface. Watch what the collection page does as the timer runs down.",
-            image: ART_TILE_PIXELADY,
-            imageDir: ART_IMG_PIXELADY,
-            pieceBase: ART_BASE_PIXELADY,
+            image: ART_TILE_BOREDMILADY,
+            imageDir: ART_IMG_BOREDMILADY,
+            pieceBase: ART_BASE_BOREDMILADY,
             state: STATE_PREOPEN,
             declaredMaxBps: 0,
             fillBps: 0,
-            pieceIdCoverage: COVER_PIXELADY
+            pieceIdCoverage: COVER_BOREDMILADY,
+            metadataOverlay: false
         });
 
         legs[1] = ShowcaseLeg({
             slug: "vapor-mid",
-            title: "SnoredMilady",
-            symbol: "SNORED",
-            description: "This collection demonstrates a LIVE BONDING CURVE part-way through its sale. Each buy mints coin and, in whole units, the pieces that ride it - one asset with two surfaces. Buy into it and watch the price, the piece gallery and the holder list move.",
-            image: ART_TILE_BOREDMILADY,
-            imageDir: ART_IMG_BOREDMILADY,
-            pieceBase: ART_BASE_BOREDMILADY,
+            title: "Voxelady",
+            symbol: "VOXY",
+            description: "This collection demonstrates a LIVE BONDING CURVE part-way through its sale. Each buy mints coin and, in whole units, the pieces that ride it - one asset with two surfaces. Buy into it and watch the price, the piece gallery and the holder list move. It also demonstrates ARTIST METADATA: a piece's picture is resolved on-chain, and the holder chooses which layer shows. The base is the collection's own art. The artist has published a WAVE - a later expansion set - that any holder can opt into. And a holder can COMMISSION the artist to replace a piece's picture outright, paying for it on-chain: here, a pixelady upgraded to the maker's later edition. One piece on this row wears each, so all three are on the page at once, and one commission is left unpaid so the paying is something you can do rather than something you are shown.",
+            image: ART_TILE_PIXELADY,
+            imageDir: ART_IMG_PIXELADY,
+            pieceBase: ART_BASE_PIXELADY,
             state: STATE_MID_CURVE,
             declaredMaxBps: 0,
             fillBps: vm.envOr(ENV_MID_FILL_BPS, uint256(400)),
-            pieceIdCoverage: COVER_BOREDMILADY
+            pieceIdCoverage: COVER_PIXELADY,
+            metadataOverlay: true
         });
 
         legs[2] = ShowcaseLeg({
@@ -778,7 +800,8 @@ abstract contract SeedSepoliaShared is Script {
             state: STATE_READY,
             declaredMaxBps: 5000,
             fillBps: vm.envOr(ENV_READY_FILL_BPS, uint256(700)),
-            pieceIdCoverage: COVER_FIGMATA
+            pieceIdCoverage: COVER_FIGMATA,
+            metadataOverlay: false
         });
 
         legs[3] = ShowcaseLeg({
@@ -792,7 +815,8 @@ abstract contract SeedSepoliaShared is Script {
             state: STATE_GRADUATED,
             declaredMaxBps: 0,
             fillBps: vm.envOr(ENV_GRADUATED_FILL_BPS, uint256(700)),
-            pieceIdCoverage: COVER_LAWBSTERS
+            pieceIdCoverage: COVER_LAWBSTERS,
+            metadataOverlay: false
         });
 
         // The art is part of the roster's claim, so it is checked where the roster is built rather
@@ -1202,8 +1226,7 @@ abstract contract SeedSepoliaShared is Script {
 
     /// @dev The highest piece id the tier row can address. Ordinary ids run 1..`TIER_NFT_COUNT`, and
     ///      the two sealed bands are allocated ABOVE that ceiling, one id per unit of band count — so
-    ///      this is the largest id the band directories have to answer for. The overlay wave and the
-    ///      commissions compose over ORDINARY ids, which sit below it.
+    ///      this is the largest id the band directories have to answer for.
     uint256 internal constant TIER_MAX_ADDRESSABLE_ID = TIER_NFT_COUNT + TIER_OPEN_COUNT + TIER_SCARCE_COUNT;
 
     /// @dev The breadth rows' art, held to the same rules as the roster's — run before phase 1
@@ -1646,14 +1669,48 @@ abstract contract SeedSepoliaShared is Script {
             stakingModule: address(0),
             declaredMaxAllowanceBps: leg.declaredMaxBps
         });
+        if (!leg.metadataOverlay) {
+            instance = d.erc404
+                .createInstance(
+                    params,
+                    _collectionMeta(leg.title, leg.description, leg.image),
+                    d.uniDeployer,
+                    address(0), // no gating on the spine rows
+                    FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
+                );
+            return instance;
+        }
+
+        // The ARTIST METADATA row, created through the factory's METADATA overload so the overlay is
+        // sealed onto the instance in the same transaction that creates it. NO TIER POINTER and an
+        // EMPTY LADDER: Token Tiers is the other demonstration's, and `_wireMetadata` rejects a tier
+        // module wired with no bands behind it. The router carries ONE child, so what precedence
+        // there is to show on this row is the overlay's own - a holder's selection between the paid
+        // commission, the artist's wave and the collection base.
         instance = d.erc404
             .createInstance(
                 params,
                 _collectionMeta(leg.title, leg.description, leg.image),
                 d.uniDeployer,
                 address(0), // no gating on the spine rows
-                FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
+                FreeMintParams({ allocation: 0, scope: GatingScope.BOTH }),
+                ERC404Factory.MetadataConfig({
+                    resolver: d.resolverRouter,
+                    childResolvers: _oneChild(d.overlay),
+                    overlay: d.overlay,
+                    tier: address(0),
+                    tiers: new ERC404Factory.TierSpec[](0),
+                    autoLatest: false, // opt-in waves: a holder chooses the layer, nothing switches under them
+                    defaultPayout: MetadataOverlayModule.Payout.ARTIST
+                })
             );
+    }
+
+    /// @dev A one-element child list, so the create call above reads as the wiring it is rather than
+    ///      as three lines of array construction.
+    function _oneChild(address child) internal pure returns (address[] memory children) {
+        children = new address[](1);
+        children[0] = child;
     }
 
     // ══════════════════════════════════════════════════════════════════════════════════════════
@@ -1707,6 +1764,80 @@ abstract contract SeedSepoliaShared is Script {
 
     function _commissionPrice() internal view returns (uint256) {
         return vm.envOr(ENV_COMMISSION_PRICE_WEI, DEFAULT_COMMISSION_PRICE);
+    }
+
+    /// @dev The `selection` pointer that means "wave 0" — `MetadataOverlayModule.WAVE_OFFSET` plus the
+    ///      index of the only wave this seed publishes. The module's offset is `internal`, so this
+    ///      mirrors it rather than reading it; the seed does not trust the mirror, it CHECKS it, by
+    ///      requiring the selection to resolve to the wave's own art right after making it.
+    uint256 internal constant OVERLAY_WAVE_0 = 3;
+
+    /// @dev How many pieces the ARTIST METADATA demonstration consumes: one wearing the artist's
+    ///      wave, one wearing a paid commission, and one carrying an unpaid commission as the live
+    ///      action. The row must HOLD at least this many for the demonstration to be authorable.
+    uint256 internal constant METADATA_DEMO_PIECES = 3;
+
+    /// @dev The WOTLK ids whose art did not survive the rescue, and which the wave demonstration must
+    ///      therefore not land on.
+    ///
+    ///      The expansion set was recovered CID-preserving from a thinned pin: 149/150 images and
+    ///      110/150 metadata files came back byte-identical and verified against the collection's own
+    ///      per-file CIDs, and the rest are unreachable — announced providers, none of them serving.
+    ///      A wave resolves as `baseURI + id`, so an opt-in on one of these ids would pin a holder to
+    ///      a picture that cannot load. THE HOLES ARE NOT AT THE END: ids 2 and 4-9 are among them,
+    ///      which is exactly where a "lowest held id" rule would land. Hence a list, not a ceiling.
+    ///
+    ///      This is a property of the RESCUE, not of the collection, so it is stated once here rather
+    ///      than being rediscovered by whoever next reads a blank tile.
+    function _waveArtMissing(uint256 id) internal pure returns (bool) {
+        if (id == 0 || id > COVER_WOTLK) return true;
+        uint16[41] memory holes = [
+            uint16(2),
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            12,
+            19,
+            20,
+            24,
+            28,
+            29,
+            33,
+            46,
+            77,
+            85,
+            90,
+            100,
+            101,
+            102,
+            105,
+            106,
+            107,
+            110,
+            111,
+            112,
+            113,
+            114,
+            115,
+            116,
+            117,
+            118,
+            119,
+            120,
+            121,
+            122,
+            123,
+            124,
+            125,
+            135
+        ];
+        for (uint256 i = 0; i < holes.length; i++) {
+            if (holes[i] == id) return true;
+        }
+        return false;
     }
 
     /// @dev The timed auction's lots must END inside the wait phase 2 already performs, so their
@@ -2206,23 +2337,24 @@ abstract contract SeedSepoliaShared is Script {
         uint256 openCapacity;
         uint256 openOutstanding;
         uint256 totalTierEscrow;
-        bool commissionPaid;
         uint256 waveCount;
         string baseArt;
         string bandArt;
-        string commissionArt;
     }
 
-    /// @notice Mint-up, mint-down, an EXHAUSTED band, and three visibly different metadata layers.
+    /// @notice Mint-up, mint-down, an EXHAUSTED band, and two visibly different art layers.
     /// @dev The exhaustion check is the one §3 asks for by name: the scarce band's outstanding count
     ///      equalling its capacity is exactly the condition under which the next `mintUp` into it
     ///      reverts `BandExhausted`. The open band is asserted to still have room, because the seed
     ///      minted down out of it — without that, "reversible" is a claim rather than an outcome.
     ///
-    ///      The three art strings are compared for INEQUALITY rather than checked for presence. The
-    ///      precedence stack (overlay over band over base) is only demonstrated if the three layers
-    ///      resolve to visibly different pictures; three pointers into one collection would render as
-    ///      one image three times and show nothing.
+    ///      The art strings are compared for INEQUALITY rather than checked for presence: band over
+    ///      base is only demonstrated if the two layers resolve to visibly different pictures, and two
+    ///      pointers into one collection would render as one image twice and show nothing.
+    ///
+    ///      THE WAVE COUNT IS ASSERTED ZERO. Waves and paid commissions are the ARTIST METADATA row's
+    ///      demonstration; this row deliberately wires no overlay at all. Asserting the absence makes
+    ///      the split a gate rather than a convention somebody can quietly undo.
     function _assertTierShowcase(TierFacts memory f) internal pure {
         require(f.scarceCapacity > 0, "tiers: the scarce band has no capacity (the ladder was not sealed)");
         require(
@@ -2231,13 +2363,10 @@ abstract contract SeedSepoliaShared is Script {
         );
         require(f.openCapacity > f.openOutstanding, "tiers: the open band has no room left to mint up into");
         require(f.totalTierEscrow > 0, "tiers: no coin is escrowed behind a band (no mint-up survived)");
-        require(f.commissionPaid, "tiers: the paid commission was never settled");
-        require(f.waveCount > 0, "tiers: no event wave was published");
+        require(f.waveCount == 0, "tiers: this row carries an overlay wave (the demo split has regressed)");
 
         require(bytes(f.baseArt).length > 0, "tiers: the collection has no piece art");
         require(!_eq(f.baseArt, f.bandArt), "tiers: band art is the same collection as the base art");
-        require(!_eq(f.baseArt, f.commissionArt), "tiers: commission art is the same collection as the base art");
-        require(!_eq(f.bandArt, f.commissionArt), "tiers: commission art is the same collection as the band art");
     }
 
     // ── 6. ERC-721 auctions ──

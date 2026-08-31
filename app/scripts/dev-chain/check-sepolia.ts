@@ -60,6 +60,39 @@ const PIECE_BASE_ABI = [
   },
 ] as const
 
+const OVERLAY_ABI = [
+  {
+    type: 'function',
+    name: 'waveCount',
+    stateMutability: 'view',
+    inputs: [{ type: 'address' }],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'resolve',
+    stateMutability: 'view',
+    inputs: [{ type: 'address' }, { type: 'uint256' }, { type: 'address' }],
+    outputs: [{ type: 'string' }],
+  },
+] as const
+
+/**
+ * The two directories the ARTIST METADATA row's upper layers resolve to, mirroring
+ * `SeedSepoliaShared`. The wave is the maker's later expansion set; the commission is the maker's
+ * later edition — the piece a holder paid to be upgraded to. Both are read as on-chain URI equality;
+ * no gateway is contacted, so a directory that is not yet pinned still passes here.
+ */
+const WAVE_BASE = 'ipfs://bafybeifxf2xnossezzaywoni3gf5dfyqotn36vdvhnjkvldgkavyc2kx2q/'
+const COMMISSION_BASE = 'ipfs://bafybeigtcr23kdzivowzasei7u7yza5frirctrjflytvooycb6tdqa4dga/'
+
+/** The row the roster flags `metadataOverlay`, and the row that must NOT carry the overlay. */
+const METADATA_SLUG = 'vapor-mid'
+
+/** `SHOWCASE_NFT_COUNT` in `SeedSepoliaShared` — the piece ids a curve row can mint, so the id range
+ *  the overlay is read across is the row's whole reachable range rather than a sample of it. */
+const SHOWCASE_PIECE_IDS = 50
+
 /**
  * The collection each curve row wears, mirroring the roster in `SeedSepoliaShared`. Every row on
  * this seed draws its pieces from a different collection; a row that came up on another row's
@@ -67,8 +100,8 @@ const PIECE_BASE_ABI = [
  * equality only: no gateway is contacted from this script.
  */
 const PIECE_BASE_BY_SLUG: Record<string, string> = {
-  'ember-preopen': 'ipfs://bafybeigd7557iwardhnwg5kbmg2s7tmuxqkstjeoixu7wunooiywbb3jqq/',
-  'vapor-mid': 'ipfs://QmZ7K6hG5uiTvLVvmxZgm72Nv3kmvTq4CVAEG6JoMFvpkW/',
+  'ember-preopen': 'ipfs://QmZ7K6hG5uiTvLVvmxZgm72Nv3kmvTq4CVAEG6JoMFvpkW/',
+  'vapor-mid': 'ipfs://bafybeigd7557iwardhnwg5kbmg2s7tmuxqkstjeoixu7wunooiywbb3jqq/',
   'cinder-ready': 'ipfs://bafybeih64fcswxjq7qrpx6hbzr2wkmn7u7bcl63yadaxmzgcyabecenl6e/',
   'flare-graduated': 'ipfs://bafybeibvgwjwuosoov6cfgwoyyrt7vocalqoprjayni6rfepda7bi2jdse/',
 }
@@ -194,8 +227,8 @@ const NAME_ABI = [
  * display name: what a visitor reads is the name below.
  */
 const NAME_BY_SLUG: Record<string, { name: string; symbol: string }> = {
-  'ember-preopen': { name: 'Voxelady', symbol: 'VOXY' },
-  'vapor-mid': { name: 'SnoredMilady', symbol: 'SNORED' },
+  'ember-preopen': { name: 'SnoredMilady', symbol: 'SNORED' },
+  'vapor-mid': { name: 'Voxelady', symbol: 'VOXY' },
   'cinder-ready': { name: 'Figmenta', symbol: 'FIGM' },
   'flare-graduated': { name: 'Shrimpsters', symbol: 'SHRMP' },
 }
@@ -502,6 +535,103 @@ async function main(): Promise<void> {
       `${label} composes its pieces against ${base || '(unreadable)'}, expected ${expected}`,
     )
     checkNotRetired(label, base)
+  }
+
+  // ── The artist-metadata demonstration ──
+  //
+  // The row shows three layers at once: the collection base, the artist's WAVE, and a PAID
+  // commission. This reads what the overlay RESOLVES for every piece the row can mint, so it asserts
+  // the demonstration a visitor actually sees rather than the calls the seed made. The counts are
+  // exact — one wave piece, one paid commission — because "at least one" would pass a run that
+  // switched the whole row onto one layer.
+  console.log('\nartist metadata')
+  const overlay = config.contracts.MetadataOverlayModule
+  const metadataRow = seed.instances[METADATA_SLUG]
+  if (!overlay || overlay === zeroAddress) {
+    check(false, '', 'MetadataOverlayModule is unset — the artist-metadata row cannot be checked')
+  } else if (!metadataRow || metadataRow === zeroAddress) {
+    check(
+      false,
+      '',
+      `${METADATA_SLUG} is missing from the seed hand-off — its metadata layers cannot be checked`,
+    )
+  } else {
+    const waves = await client
+      .readContract({
+        address: overlay,
+        abi: OVERLAY_ABI,
+        functionName: 'waveCount',
+        args: [metadataRow],
+      })
+      .catch(() => -1n)
+    check(
+      waves === 1n,
+      `${METADATA_SLUG} carries the artist's one published wave`,
+      `${METADATA_SLUG} carries ${waves === -1n ? '(unreadable)' : waves.toString()} waves, expected 1`,
+    )
+
+    const ids = Array.from({ length: SHOWCASE_PIECE_IDS }, (_, i) => BigInt(i + 1))
+    const resolved = await Promise.all(
+      ids.map((id) =>
+        client
+          .readContract({
+            address: overlay,
+            abi: OVERLAY_ABI,
+            functionName: 'resolve',
+            args: [metadataRow, id, zeroAddress],
+          })
+          .catch(() => ''),
+      ),
+    )
+    const waveIds = ids.filter((id, i) => resolved[i] === `${WAVE_BASE}${id}`)
+    const commissionIds = ids.filter((id, i) => resolved[i] === `${COMMISSION_BASE}${id}`)
+    const strayIds = ids.filter(
+      (id, i) =>
+        resolved[i] !== '' &&
+        resolved[i] !== `${WAVE_BASE}${id}` &&
+        resolved[i] !== `${COMMISSION_BASE}${id}`,
+    )
+    check(
+      waveIds.length === 1,
+      `one piece wears the wave (id ${waveIds[0] ?? '-'})`,
+      `${waveIds.length} pieces resolve to the wave directory, expected exactly 1`,
+    )
+    check(
+      commissionIds.length === 1,
+      `one piece wears a paid commission (id ${commissionIds[0] ?? '-'})`,
+      `${commissionIds.length} pieces resolve to the commission directory, expected exactly 1`,
+    )
+    check(
+      strayIds.length === 0,
+      'every other piece falls through the overlay to the collection base',
+      `${strayIds.length} pieces resolve to a directory that is neither the wave nor the commission`,
+    )
+    // The unpaid commission is the live action, so it must NOT be visible. It is authored on an id
+    // whose `resolve` is empty — indistinguishable here from an untouched id, which is the point:
+    // an unpaid commission shows a visitor the base, and the payment is what changes the picture.
+    check(
+      waveIds.length + commissionIds.length < SHOWCASE_PIECE_IDS,
+      'pieces remain on the collection base for the layers to be told apart',
+      'every piece is switched onto an upper layer — the base is not demonstrated',
+    )
+  }
+
+  // The tier row demonstrates TOKEN TIERS and no longer carries the overlay: one row, one thing to
+  // learn. A wave reappearing here is the demo-split regressing.
+  if (overlay && overlay !== zeroAddress && seed.tiers404 && seed.tiers404 !== zeroAddress) {
+    const tierWaves = await client
+      .readContract({
+        address: overlay,
+        abi: OVERLAY_ABI,
+        functionName: 'waveCount',
+        args: [seed.tiers404],
+      })
+      .catch(() => -1n)
+    check(
+      tierWaves === 0n,
+      'prism-tiers carries no overlay wave — its demonstration is Token Tiers alone',
+      `prism-tiers carries ${tierWaves === -1n ? '(unreadable)' : tierWaves.toString()} overlay waves, expected 0`,
+    )
   }
 
   // ── What every row is CALLED ──

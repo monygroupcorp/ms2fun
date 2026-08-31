@@ -244,11 +244,9 @@ contract SepoliaShowcaseBreadthTest is Test {
             openCapacity: 3,
             openOutstanding: 0, // minted up into and back down out of
             totalTierEscrow: 4e24,
-            commissionPaid: true,
-            waveCount: 1,
+            waveCount: 0, // the overlay is the ARTIST METADATA row's; this row wires none
             baseArt: "ipfs://base/",
-            bandArt: "ipfs://band/",
-            commissionArt: "ipfs://commission/7"
+            bandArt: "ipfs://band/"
         });
     }
 
@@ -279,19 +277,22 @@ contract SepoliaShowcaseBreadthTest is Test {
         h.assertTiers(f);
     }
 
-    /// @dev Three metadata layers that all point at the same collection render as one picture three
-    ///      times: the precedence stack is wired and demonstrates nothing.
-    function test_redWhenTheThreeMetadataLayersAreTheSameArt() public {
+    /// @dev Two art layers that point at the same collection render as one picture twice: the band
+    ///      table is sealed and demonstrates nothing.
+    function test_redWhenTheTwoArtLayersAreTheSameArt() public {
         SeedSepoliaShared.TierFacts memory f = _healthyTiers();
         f.bandArt = f.baseArt;
         vm.expectRevert(bytes("tiers: band art is the same collection as the base art"));
         h.assertTiers(f);
     }
 
-    function test_redWhenTheCommissionWasNeverPaid() public {
+    /// @dev The demo split, as a gate rather than a convention: waves and paid commissions belong to
+    ///      the ARTIST METADATA row, so an overlay wave reappearing on the tier row is a regression
+    ///      and must fail the seed rather than quietly re-merge the two demonstrations.
+    function test_redWhenTheTierRowCarriesAnOverlayWave() public {
         SeedSepoliaShared.TierFacts memory f = _healthyTiers();
-        f.commissionPaid = false;
-        vm.expectRevert(bytes("tiers: the paid commission was never settled"));
+        f.waveCount = 1;
+        vm.expectRevert(bytes("tiers: this row carries an overlay wave (the demo split has regressed)"));
         h.assertTiers(f);
     }
 

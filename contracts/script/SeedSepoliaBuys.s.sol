@@ -112,8 +112,12 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
         for (uint256 i = 0; i < legs.length; i++) {
             if (legs[i].fillBps == 0) continue;
             ERC404BondingInstance b = ERC404BondingInstance(payable(instances[i]));
-            amounts[i] = _fillAmount(b, legs[i].fillBps);
+            amounts[i] = _rosterFillAmount(b, legs[i]);
             projected += _buyCost(b, amounts[i]);
+            // The metadata row pays its own commission to prove the pay-and-pin path settles. Not
+            // curve spend, but it leaves the same balance, so it belongs in the number the operator
+            // is shown before anything is broadcast.
+            if (legs[i].metadataOverlay) projected += _commissionPrice();
         }
         // The breadth rows' curve spend, projected the same way and against the same balance. Reported
         // as ONE number with the roster's, because what the operator is deciding is whether to send
@@ -140,6 +144,12 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
             spent += cost;
             console.log(string.concat("BOUGHT ", legs[i].slug), amounts[i], cost);
         }
+
+        // ── The artist-metadata demonstration, on the row that now holds pieces ──
+        //
+        // AFTER the buys and not a line earlier: `select` and `unlock` are HOLDER writes, and until
+        // the loop above lands there is nobody on this row to be that holder.
+        spent += _seedMetadataDemo(d, legs, instances);
 
         // ── The graduation ──
         uint128 poolLiquidity = _graduate(d, legs, instances);
@@ -524,6 +534,30 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
         require(amount >= unit, "fill: rounds below one whole unit (raise the fill bps)");
     }
 
+    /// @dev What a roster row buys in phase 2.
+    ///
+    ///      Ordinarily its bps share of what the curve has left to sell. The METADATA row is the one
+    ///      exception, and for the same reason the tier row buys in whole units rather than in bps:
+    ///      its demonstration is denominated in PIECES, not in a share of the curve. It authors the
+    ///      artist's wave on one piece, a paid commission on a second and an unpaid commission on a
+    ///      third, so a bps fill that rounds to fewer whole units than that leaves the row unable to
+    ///      show the thing it exists to show.
+    ///
+    ///      EARNED FROM THE FORK REHEARSAL, not from reasoning: 400 bps of this curve's 50 units
+    ///      rounds to 2 whole units — one short — and phase 2 reverted on the demonstration's own
+    ///      `require`. The mid-curve state this row also demonstrates is unharmed: a slightly larger
+    ///      partial fill is still a partial fill, and the row still opens, still does not graduate.
+    function _rosterFillAmount(ERC404BondingInstance b, ShowcaseLeg memory leg) internal view returns (uint256 amount) {
+        amount = _fillAmount(b, leg.fillBps);
+        if (!leg.metadataOverlay) return amount;
+
+        uint256 demonstration = METADATA_DEMO_PIECES * b.unit();
+        if (demonstration > amount) amount = demonstration;
+        require(
+            amount <= _bondableRemaining(b), "metadata: the curve has less left to sell than the demonstration needs"
+        );
+    }
+
     // ─────────────────────── Graduation ───────────────────────
 
     /// @dev Graduate the row that claims the graduated state and read back the venue pool's liquidity.
@@ -594,10 +628,6 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
 
         ERC404BondingInstance carve = ERC404BondingInstance(payable(h.carve404));
         projected += _buyCost(carve, _fillAmount(carve, _carveFillBps()));
-
-        // The overlay commission is paid by the seed to prove the pay-and-pin path settles. It is not
-        // curve spend, but it leaves the same balance, so it belongs in the number being confirmed.
-        projected += _commissionPrice();
 
         // The venue legs: the Cypher flagship's curve, the ZAMM vault's contribution and the demo
         // swap. All three leave the same balance the rows above do, and the operator is deciding
@@ -687,42 +717,7 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
         b.mintDown(_lowestBandIdOfTier(b, idLimit, TIER_N_OPEN));
         vm.stopBroadcast();
 
-        // The metadata layers, authored on ids the seed still holds. `unlock` is a HOLDER write, so it
-        // cannot precede the buy, and `setCommission` becomes immutable the moment it is paid.
-        uint256[] memory ordinary = _ordinaryIds(b, idLimit);
-        require(ordinary.length >= 2, "tiers: not enough ordinary ids left to author both commissions");
-        uint256 paidId = ordinary[0];
-        uint256 unpaidId = ordinary[1];
-        uint256 price = _commissionPrice();
-
-        vm.startBroadcast();
-        MetadataOverlayModule ov = MetadataOverlayModule(d.overlay);
-        // A commission's payload is a real metadata URI, not a label: the overlay wins over both the
-        // band and the base, so it has to carry a picture of its own for the top of the precedence
-        // stack to show anything. It is drawn from the ladder's top rung, above both bands.
-        ov.setCommission(
-            h.tiers404,
-            paidId,
-            string.concat(ART_BASE_SCHIZO, vm.toString(paidId)),
-            MetadataOverlayModule.CommCond.PAY,
-            price,
-            MetadataOverlayModule.Payout.ARTIST
-        );
-        ov.unlock{ value: price }(h.tiers404, paidId);
-        // A second, UNPAID commission so the pay-and-pin path arrives as a live action for a visitor
-        // rather than pre-consumed by the seed.
-        ov.setCommission(
-            h.tiers404,
-            unpaidId,
-            string.concat(ART_BASE_SCHIZO, vm.toString(unpaidId)),
-            MetadataOverlayModule.CommCond.PAY,
-            price,
-            MetadataOverlayModule.Payout.ARTIST
-        );
-        vm.stopBroadcast();
-
         console.log("TIERS prism-tiers walked (cost wei):", cost);
-        console.log("  commission paid on id / left unpaid on id:", paidId, unpaidId);
     }
 
     /// @dev The caller's lowest ORDINARY id — one in `[1..idLimit]`, never a band id. Lowest because
@@ -762,6 +757,116 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
         for (uint256 i = 0; i < ids.length; i++) {
             if (ids[i] != 0 && ids[i] <= idLimit) out[k++] = ids[i];
         }
+    }
+
+    // ─────────────────────── 6. The artist-metadata demonstration ───────────────────────
+
+    /// @dev Author the layers a holder can choose between on the METADATA row: the collection BASE,
+    ///      the artist's WAVE, and a paid COMMISSION. One piece wears each, so the row shows all
+    ///      three at once rather than asking a visitor to imagine the other two.
+    ///
+    ///      A FOURTH PIECE CARRIES AN UNPAID COMMISSION. `setCommission` without `unlock` leaves the
+    ///      pay-and-pin path as a live action a visitor can take rather than one the seed already
+    ///      consumed, and it correctly resolves to the base until somebody pays for it.
+    ///
+    ///      `selection` is per id and the row was created `autoLatest: false`, so every id the seed
+    ///      does not touch resolves through the router to the collection base. The layers are opt-in
+    ///      by construction: nothing switches under a holder who never asked for it.
+    ///
+    ///      Every claim here is a `require` on what the overlay actually RESOLVES, not on what was
+    ///      written — a selection that pointed somewhere else, or a commission that went visible
+    ///      before it was paid for, fails the run instead of reaching a visitor.
+    function _seedMetadataDemo(Deployed memory d, ShowcaseLeg[] memory legs, address[] memory instances)
+        internal
+        returns (uint256 spent)
+    {
+        for (uint256 i = 0; i < legs.length; i++) {
+            if (!legs[i].metadataOverlay) continue;
+
+            address inst = instances[i];
+            ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
+            uint256[] memory ids = _ordinaryIds(b, b.maxSupply() / b.unit());
+            require(
+                ids.length >= METADATA_DEMO_PIECES,
+                "metadata: the row holds too few pieces to show base, wave and commission"
+            );
+
+            uint256 waveId = _lowestWaveEligibleId(ids);
+            (uint256 paidId, uint256 unpaidId) = _twoIdsOtherThan(ids, waveId);
+            uint256 price = _commissionPrice();
+            MetadataOverlayModule ov = MetadataOverlayModule(d.overlay);
+
+            vm.startBroadcast();
+            // The wave: the opt-in a holder performs on the expansion phase 1 published.
+            ov.select(inst, waveId, OVERLAY_WAVE_0);
+            // The paid commission. `unlock` pins the selection in the same transaction that pays for
+            // it, so the settled state and the visible state cannot disagree.
+            ov.setCommission(
+                inst,
+                paidId,
+                string.concat(ART_BASE_PIXELADYBC, vm.toString(paidId)),
+                MetadataOverlayModule.CommCond.PAY,
+                price,
+                MetadataOverlayModule.Payout.ARTIST
+            );
+            ov.unlock{ value: price }(inst, paidId);
+            // ...and one left unpaid, which is the action rather than the record of an action.
+            ov.setCommission(
+                inst,
+                unpaidId,
+                string.concat(ART_BASE_PIXELADYBC, vm.toString(unpaidId)),
+                MetadataOverlayModule.CommCond.PAY,
+                price,
+                MetadataOverlayModule.Payout.ARTIST
+            );
+            vm.stopBroadcast();
+            spent += price;
+
+            require(
+                keccak256(bytes(ov.resolve(inst, waveId, deployer)))
+                    == keccak256(bytes(string.concat(ART_BASE_WOTLK, vm.toString(waveId)))),
+                "metadata: the wave selection does not resolve to the wave art"
+            );
+            require(
+                keccak256(bytes(ov.resolve(inst, paidId, deployer)))
+                    == keccak256(bytes(string.concat(ART_BASE_PIXELADYBC, vm.toString(paidId)))),
+                "metadata: the paid commission does not resolve to its art"
+            );
+            require(
+                bytes(ov.resolve(inst, unpaidId, deployer)).length == 0,
+                "metadata: the unpaid commission is visible before anybody paid for it"
+            );
+            require(ov.waveCount(inst) == 1, "metadata: the row does not carry exactly the one published wave");
+
+            console.log(string.concat("METADATA ", legs[i].slug), inst);
+            console.log("  wave id / paid commission id / unpaid commission id:", waveId, paidId, unpaidId);
+        }
+    }
+
+    /// @dev The lowest held id whose WOTLK art survived the rescue. Lowest because it is the piece a
+    ///      visitor meets first; eligible because a wave resolves as `baseURI + id`, so an opt-in on a
+    ///      rescued-out id would pin a holder to a picture that cannot load.
+    function _lowestWaveEligibleId(uint256[] memory ids) internal pure returns (uint256 id) {
+        for (uint256 i = 0; i < ids.length; i++) {
+            if (_waveArtMissing(ids[i])) continue;
+            if (id == 0 || ids[i] < id) id = ids[i];
+        }
+        require(id != 0, "metadata: the row holds no id whose wave art survived the rescue");
+    }
+
+    /// @dev The two lowest held ids that are not `skip`, lowest first.
+    function _twoIdsOtherThan(uint256[] memory ids, uint256 skip) internal pure returns (uint256 a, uint256 c) {
+        for (uint256 i = 0; i < ids.length; i++) {
+            uint256 id = ids[i];
+            if (id == skip) continue;
+            if (a == 0 || id < a) {
+                c = a;
+                a = id;
+            } else if (c == 0 || id < c) {
+                c = id;
+            }
+        }
+        require(a != 0 && c != 0, "metadata: the row holds too few pieces to author both commissions");
     }
 
     // ─────────────────────── 7. The carve ───────────────────────
@@ -907,19 +1012,9 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
         f.scarceOutstanding = b.bandOutstanding(TIER_N_SCARCE);
         f.totalTierEscrow = t.totalTierEscrow();
 
-        MetadataOverlayModule ov = MetadataOverlayModule(d.overlay);
-        uint256 idLimit = b.maxSupply() / b.unit();
-        uint256[] memory ordinary = _ordinaryIds(b, idLimit);
-        require(ordinary.length >= 1, "tiers: the row holds no ordinary id to read a commission off");
-        // The paid id is the one the seed unlocked; `paid` is the module's own settled flag.
-        for (uint256 i = 0; i < ordinary.length; i++) {
-            if (ov.paid(instance, ordinary[i])) {
-                f.commissionPaid = true;
-                f.commissionArt = ov.commissionURI(instance, ordinary[i]);
-                break;
-            }
-        }
-        f.waveCount = ov.waveCount(instance);
+        // Read the overlay only to prove this row does NOT use it: the waves and commissions moved
+        // to the ARTIST METADATA row, and a count above zero here means the split has regressed.
+        f.waveCount = MetadataOverlayModule(d.overlay).waveCount(instance);
         f.baseArt = ART_BASE_SONORA;
         f.bandArt = ART_BASE_SONORA222;
     }
