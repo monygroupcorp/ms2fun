@@ -369,7 +369,7 @@ contract SeedSepolia is SeedSepoliaShared {
         );
         h.ms2ZammVault = ZAMMAlignmentVaultFactory(d.zammVaultFactory)
             .deployVault(
-                keccak256(abi.encode(block.chainid, h.ms2ZammTargetId, "MS2", "ZAMM-SHOWCASE")),
+                keccak256(abi.encode(block.chainid, h.ms2Token, "MS2", "ZAMM-SHOWCASE", _vaultSaltNonce())),
                 h.ms2Token,
                 h.ms2ZammTargetId,
                 key
@@ -451,7 +451,7 @@ contract SeedSepolia is SeedSepoliaShared {
         h.cultCypherVault = address(
             CypherAlignmentVaultFactory(d.cypherVaultFactory)
                 .createVault(
-                    keccak256(abi.encode(block.chainid, h.cultAlgebraTargetId, "CULT", "CYPHER-SHOWCASE")),
+                    keccak256(abi.encode(block.chainid, h.cultToken, "CULT", "CYPHER-SHOWCASE", _vaultSaltNonce())),
                     d.cypherPositionManager,
                     d.cypherRouter,
                     d.weth,
@@ -632,14 +632,19 @@ contract SeedSepolia is SeedSepoliaShared {
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
 
         // The artist's WAVE, published here because publishing is an ARTIST write that needs no
-        // holdings — the same reason the tier row used to publish its own in this phase. Opting IN is
-        // a holder write and cannot happen until phase 2 has bought into this row. `WaveCond.NONE` at
-        // price 0: the expansion is offered to every holder, and the thing this row charges for is
-        // the commission, not the wave.
+        // holdings. Opting IN is a holder write and cannot happen until phase 2 has bought into this
+        // row. `WaveCond.NONE` at price 0: the upgraded edition is offered to EVERY holder, free —
+        // which is why it rides the fully-recovered directory. Whoever buys a piece on this row can
+        // opt in and have it resolve, whatever id they were minted.
         if (leg.metadataOverlay) {
             MetadataOverlayModule(d.overlay)
                 .publishWave(
-                    inst, ART_BASE_WOTLK, MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST
+                    inst,
+                    ART_BASE_PIXELADYBC,
+                    MetadataOverlayModule.WaveCond.NONE,
+                    0,
+                    0,
+                    MetadataOverlayModule.Payout.ARTIST
                 );
             console.log(string.concat("WAVE published on ", leg.slug), inst);
         }

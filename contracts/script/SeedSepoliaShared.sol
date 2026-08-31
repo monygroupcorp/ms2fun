@@ -879,7 +879,7 @@ abstract contract SeedSepoliaShared is Script {
             slug: "vapor-mid",
             title: "Voxelady",
             symbol: "VOXY",
-            description: "This collection demonstrates a LIVE BONDING CURVE part-way through its sale. Each buy mints coin and, in whole units, the pieces that ride it - one asset with two surfaces. Buy into it and watch the price, the piece gallery and the holder list move. It also demonstrates ARTIST METADATA: a piece's picture is resolved on-chain, and the holder chooses which layer shows. The base is the collection's own art. The artist has published a WAVE - a later expansion set - that any holder can opt into. And a holder can COMMISSION the artist to replace a piece's picture outright, paying for it on-chain: here, a pixelady upgraded to the maker's later edition. One piece on this row wears each, so all three are on the page at once, and one commission is left unpaid so the paying is something you can do rather than something you are shown.",
+            description: "This collection demonstrates a LIVE BONDING CURVE part-way through its sale. Each buy mints coin and, in whole units, the pieces that ride it - one asset with two surfaces. Buy into it and watch the price, the piece gallery and the holder list move. It also demonstrates ARTIST METADATA: a piece's picture is resolved on-chain, and the holder chooses which layer shows. The base is the collection's own art. The artist has published an upgraded edition as a WAVE, and any holder can opt into it for free - buy a piece here and you can upgrade it yourself. Some pieces additionally carry a COMMISSION the artist has priced: its holder can pay, on-chain, to have that piece replaced with a rarer one-off. One piece on this row wears each, so all three are on the page at once",
             image: ART_TILE_PIXELADY,
             imageDir: ART_IMG_PIXELADY,
             pieceBase: ART_BASE_PIXELADY,
@@ -1876,6 +1876,27 @@ abstract contract SeedSepoliaShared is Script {
         return vm.envOr(ENV_COMMISSION_PRICE_WEI, DEFAULT_COMMISSION_PRICE);
     }
 
+    /// @dev The ids the artist pre-authors commission offers on, above the pieces the seed keeps.
+    ///
+    ///      THE POINT OF AUTHORING FORWARD. `unlock` is holder-gated, so an offer on a piece the SEED
+    ///      holds can only ever be paid by the seed — a visitor watching it is shown a state, not
+    ///      handed an action. `setCommission` has no existence check, so the artist can author an
+    ///      offer on an id before it is minted; the next person to buy into this row receives a piece
+    ///      with an offer already waiting on it, and can pay it as its holder. That is the difference
+    ///      between demonstrating the pay-and-pin path and describing it.
+    ///
+    ///      The ids are chosen, not sequential: they clear the pieces the seed keeps AND skip the ids
+    ///      whose commission art did not survive the rescue (see `_commissionArtMissing`).
+    function _commissionOfferIds() internal pure returns (uint256[] memory ids) {
+        ids = new uint256[](6);
+        ids[0] = 10;
+        ids[1] = 11;
+        ids[2] = 13;
+        ids[3] = 14;
+        ids[4] = 15;
+        ids[5] = 16;
+    }
+
     /// @dev The `selection` pointer that means "wave 0" — `MetadataOverlayModule.WAVE_OFFSET` plus the
     ///      index of the only wave this seed publishes. The module's offset is `internal`, so this
     ///      mirrors it rather than reading it; the seed does not trust the mirror, it CHECKS it, by
@@ -1902,19 +1923,24 @@ abstract contract SeedSepoliaShared is Script {
         return vm.envOr(ENV_VAULT_SALT_NONCE, uint256(0));
     }
 
-    /// @dev The WOTLK ids whose art did not survive the rescue, and which the wave demonstration must
-    ///      therefore not land on.
+    /// @dev The WOTLK ids whose art did not survive the rescue, and which a COMMISSION must therefore
+    ///      not be authored on.
     ///
     ///      The expansion set was recovered CID-preserving from a thinned pin: 149/150 images and
     ///      110/150 metadata files came back byte-identical and verified against the collection's own
     ///      per-file CIDs, and the rest are unreachable — announced providers, none of them serving.
-    ///      A wave resolves as `baseURI + id`, so an opt-in on one of these ids would pin a holder to
-    ///      a picture that cannot load. THE HOLES ARE NOT AT THE END: ids 2 and 4-9 are among them,
-    ///      which is exactly where a "lowest held id" rule would land. Hence a list, not a ceiling.
+    ///      THE HOLES ARE NOT AT THE END: ids 2 and 4-9 are among them, which is exactly where a
+    ///      "next few ids" rule would land. Hence a list, not a ceiling.
+    ///
+    ///      This is why the WAVE does not ride this collection. A wave is published to the whole
+    ///      collection and opted into by any holder on any id, so it needs art for every id a row can
+    ///      mint; a commission is authored by the artist on ids it names, so it only needs those. The
+    ///      wave rides the fully-recovered edition and the commission rides this one — which also
+    ///      puts the PAID layer on the scarcer set, where paying for it makes more sense.
     ///
     ///      This is a property of the RESCUE, not of the collection, so it is stated once here rather
     ///      than being rediscovered by whoever next reads a blank tile.
-    function _waveArtMissing(uint256 id) internal pure returns (bool) {
+    function _commissionArtMissing(uint256 id) internal pure returns (bool) {
         if (id == 0 || id > COVER_WOTLK) return true;
         uint16[41] memory holes = [
             uint16(2),

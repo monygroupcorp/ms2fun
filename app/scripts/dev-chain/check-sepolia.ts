@@ -129,6 +129,13 @@ const OVERLAY_ABI = [
   },
   {
     type: 'function',
+    name: 'commissionURI',
+    stateMutability: 'view',
+    inputs: [{ type: 'address' }, { type: 'uint256' }],
+    outputs: [{ type: 'string' }],
+  },
+  {
+    type: 'function',
     name: 'resolve',
     stateMutability: 'view',
     inputs: [{ type: 'address' }, { type: 'uint256' }, { type: 'address' }],
@@ -138,12 +145,19 @@ const OVERLAY_ABI = [
 
 /**
  * The two directories the ARTIST METADATA row's upper layers resolve to, mirroring
- * `SeedSepoliaShared`. The wave is the maker's later expansion set; the commission is the maker's
- * later edition — the piece a holder paid to be upgraded to. Both are read as on-chain URI equality;
- * no gateway is contacted, so a directory that is not yet pinned still passes here.
+ * `SeedSepoliaShared`.
+ *
+ * The WAVE is the maker's upgraded edition, offered free to every holder — so it rides the directory
+ * that was recovered whole, because a holder can opt in on any id the row can mint. The COMMISSION is
+ * the scarcer winter set, authored by the artist on ids it names and paid for by that piece's holder.
+ * Both are read as on-chain URI equality; no gateway is contacted, so a directory that is not yet
+ * pinned still passes here.
  */
-const WAVE_BASE = 'ipfs://bafybeifxf2xnossezzaywoni3gf5dfyqotn36vdvhnjkvldgkavyc2kx2q/'
-const COMMISSION_BASE = 'ipfs://bafybeigtcr23kdzivowzasei7u7yza5frirctrjflytvooycb6tdqa4dga/'
+const WAVE_BASE = 'ipfs://bafybeigtcr23kdzivowzasei7u7yza5frirctrjflytvooycb6tdqa4dga/'
+const COMMISSION_BASE = 'ipfs://bafybeifxf2xnossezzaywoni3gf5dfyqotn36vdvhnjkvldgkavyc2kx2q/'
+
+/** Ids the artist pre-authors offers on, mirroring `SeedSepoliaShared._commissionOfferIds`. */
+const COMMISSION_OFFER_IDS = [10, 11, 13, 14, 15, 16]
 
 /** The row the roster flags `metadataOverlay`, and the row that must NOT carry the overlay. */
 const METADATA_SLUG = 'vapor-mid'
@@ -791,13 +805,44 @@ async function main(): Promise<void> {
       'every other piece falls through the overlay to the collection base',
       `${strayIds.length} pieces resolve to a directory that is neither the wave nor the commission`,
     )
-    // The unpaid commission is the live action, so it must NOT be visible. It is authored on an id
-    // whose `resolve` is empty — indistinguishable here from an untouched id, which is the point:
-    // an unpaid commission shows a visitor the base, and the payment is what changes the picture.
     check(
       waveIds.length + commissionIds.length < SHOWCASE_PIECE_IDS,
       'pieces remain on the collection base for the layers to be told apart',
       'every piece is switched onto an upper layer — the base is not demonstrated',
+    )
+
+    // THE PATH A VISITOR CAN ACTUALLY TAKE. Offers authored ahead of the mint frontier are what make
+    // the pay-and-pin path reachable by someone who is not the seed: buy a piece, receive one of
+    // these ids, pay as its holder. Unpaid they resolve to the base, so this reads `commissionURI`
+    // rather than `resolve` — the offer must EXIST while remaining invisible.
+    const offerUris = await Promise.all(
+      COMMISSION_OFFER_IDS.map((id) =>
+        client
+          .readContract({
+            address: overlay,
+            abi: OVERLAY_ABI,
+            functionName: 'commissionURI',
+            args: [metadataRow, BigInt(id)],
+          })
+          .catch(() => ''),
+      ),
+    )
+    const missingOffers = COMMISSION_OFFER_IDS.filter(
+      (id, i) => offerUris[i] !== `${COMMISSION_BASE}${id}`,
+    )
+    check(
+      missingOffers.length === 0,
+      `${COMMISSION_OFFER_IDS.length} commission offers wait above the mint frontier for the next buyers`,
+      `no commission offer authored on id(s): ${missingOffers.join(', ')}`,
+    )
+    const visibleOffers = COMMISSION_OFFER_IDS.filter((id, i) => {
+      void i
+      return resolved[id - 1] !== undefined && resolved[id - 1] !== ''
+    })
+    check(
+      visibleOffers.length === 0,
+      'the waiting offers are invisible until paid, as an unpaid commission should be',
+      `commission offers already resolve on id(s): ${visibleOffers.join(', ')}`,
     )
   }
 
