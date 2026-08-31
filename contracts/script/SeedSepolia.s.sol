@@ -573,6 +573,19 @@ contract SeedSepolia is SeedSepoliaShared {
         inst = _createShowcaseInstance(d, leg, vault);
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
 
+        // The artist's WAVE, published here because publishing is an ARTIST write that needs no
+        // holdings — the same reason the tier row used to publish its own in this phase. Opting IN is
+        // a holder write and cannot happen until phase 2 has bought into this row. `WaveCond.NONE` at
+        // price 0: the expansion is offered to every holder, and the thing this row charges for is
+        // the commission, not the wave.
+        if (leg.metadataOverlay) {
+            MetadataOverlayModule(d.overlay)
+                .publishWave(
+                    inst, ART_BASE_WOTLK, MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST
+                );
+            console.log(string.concat("WAVE published on ", leg.slug), inst);
+        }
+
         if (leg.state == STATE_PREOPEN) {
             b.setBondingOpenTime(block.timestamp + _preopenDelay());
             b.setBondingActive(true);
@@ -839,10 +852,11 @@ contract SeedSepolia is SeedSepoliaShared {
     ///      visitor can observe rather than a revert in a test.
     ///
     ///      THE ART IS ONE FAMILY'S OWN LINEAGE, read bottom to top. Ordinary pieces resolve to the
-    ///      parent collection; the open band to the derivative that succeeded it; the scarce band to
-    ///      the derivative after that; and the commission phase 2 pays sits on top of them all.
-    ///      Precedence (overlay over band over base) is only demonstrated if the layers can be told
-    ///      apart by eye, and stacking one lineage says what a rung MEANS as well as that it differs.
+    ///      parent collection; the open band to the derivative that succeeded it; and the scarce band
+    ///      to the derivative after that. Band art over base is only demonstrated if the layers can be
+    ///      told apart by eye, and reading one lineage says what a rung MEANS as well as that it
+    ///      differs. The overlay's own layers - waves and paid commissions - are the ARTIST METADATA
+    ///      row's demonstration and are deliberately not wired here: one row, one thing to learn.
     function _seedTierRow(Deployed memory d, address vault) internal returns (address instance) {
         ERC404Factory.TierSpec[] memory tiers = new ERC404Factory.TierSpec[](2);
         tiers[0] =
@@ -850,9 +864,11 @@ contract SeedSepolia is SeedSepoliaShared {
         tiers[1] =
             ERC404Factory.TierSpec({ weight: TIER_SCARCE_WEIGHT, count: TIER_SCARCE_COUNT, baseURI: ART_BASE_SCHIZO });
 
-        address[] memory children = new address[](2);
-        children[0] = d.overlay; // precedence: holder pins and paid commissions win over...
-        children[1] = d.tierResolver; // ...static band art, which wins over the collection base
+        // ONE child. The overlay - waves and paid commissions - is the METADATA row's demonstration
+        // now (see the roster's `metadataOverlay` flag), so this row wires only what TOKEN TIERS
+        // itself resolves through: static band art over the collection base.
+        address[] memory children = new address[](1);
+        children[0] = d.tierResolver;
 
         vm.startBroadcast();
         instance = d.erc404
@@ -872,7 +888,7 @@ contract SeedSepolia is SeedSepoliaShared {
                 }),
                 _collectionMeta(
                     "SonoraEcho",
-                    "It's like if banners, remilio, fumo, milady and bonkler were all in one DNT contract, where 100 coins = 1 banners, 200 coins = 2 banners or 1 remilio, 300 coins = 3 banners or 1 fumo, and so on and so forth. That is TOKEN TIERS: coin can be folded into a higher-denomination piece and unfolded again, and one rung here is deliberately scarce, so it sells out and reopens as holders unfold. This collection also demonstrates layered METADATA - a piece's picture is resolved on-chain from three stacked layers, a paid commission over reserved-band art over the collection's own base.",
+                    "It's like if banners, remilio, fumo, milady and bonkler were all in one DNT contract, where 100 coins = 1 banners, 200 coins = 2 banners or 1 remilio, 300 coins = 3 banners or 1 fumo, and so on and so forth. That is TOKEN TIERS: coin can be folded into a higher-denomination piece and unfolded again, and one rung here is deliberately scarce, so it sells out and reopens as holders unfold.",
                     ART_TILE_PRISM
                 ),
                 d.uniDeployer,
@@ -881,10 +897,10 @@ contract SeedSepolia is SeedSepoliaShared {
                 ERC404Factory.MetadataConfig({
                     resolver: d.resolverRouter,
                     childResolvers: children,
-                    overlay: d.overlay,
+                    overlay: address(0), // no overlay on this row: `address(0)` is the factory's documented skip
                     tier: d.tierResolver,
                     tiers: tiers,
-                    autoLatest: false, // opt-in waves, so band art stays visible by default
+                    autoLatest: false, // unread with no overlay wired; left explicit rather than implied
                     defaultPayout: MetadataOverlayModule.Payout.ARTIST
                 })
             );
@@ -893,20 +909,6 @@ contract SeedSepolia is SeedSepoliaShared {
         b.setBondingOpenTime(block.timestamp + _armWindow());
         b.setBondingActive(true);
 
-        // The event wave is an ARTIST write and needs no holdings, so it is published here. A wave's
-        // art composes as `wave.baseURI + id`, the same way the base and the band do — so its payload
-        // is a metadata directory too. It draws on the ladder's first rung, which is a step up from
-        // the collection base an ordinary id otherwise shows: opting into the wave visibly moves the
-        // piece, rather than resolving to the picture already on screen.
-        MetadataOverlayModule(d.overlay)
-            .publishWave(
-                instance,
-                ART_BASE_SONORA222,
-                MetadataOverlayModule.WaveCond.NONE,
-                0,
-                0,
-                MetadataOverlayModule.Payout.ARTIST
-            );
         vm.stopBroadcast();
 
         console.log("TIERS prism-tiers:", instance);
