@@ -95,7 +95,11 @@ Four differences, and they are the whole list.
   `--auto-impersonate`, the orchestrator funds the address with `anvil_setBalance`, and forge signs
   `--unlocked`. The live run signs from a keystore.
 - **The salt set is cleared first.** A CreateX CREATE3 salt is consumed by the deploy that used it,
-  and this set is already spent on live Sepolia — a fork at latest would revert `CreateCollision`.
+  so once this set has been spent on live Sepolia a fork at latest would revert `CreateCollision`.
+  **It is not spent yet:** verified 2026-08-31 against live Sepolia, all six salts derive exactly the
+  addresses `SepoliaSalts.sol` documents and neither the CREATE2 proxy nor the address it produces
+  holds code. So this step currently clears six empty accounts and becomes load-bearing only after
+  the first live deploy — do not read it passing as evidence of anything until then.
   The orchestrator re-derives the six CREATE2 proxies (and the addresses they produce) from
   `script/SepoliaSalts.sol` and clears code and nonce at each before deploying. Each derivation must
   reproduce the address the salt set documents, so a wrong constant fails loudly rather than
