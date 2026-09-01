@@ -20,9 +20,7 @@ contract EmptyV3Factory {
 ///         validator reverts on, whereas a real factory with no registered pool is the legitimate
 ///         "no TWAP available yet" case this harness means to exercise deterministically.
 contract UniPriceValidatorHarness is UniswapVaultPriceValidator {
-    constructor()
-        UniswapVaultPriceValidator(address(0), address(new EmptyV3Factory()), address(0), 1000, 1800)
-    { }
+    constructor() UniswapVaultPriceValidator(address(0), address(new EmptyV3Factory()), address(0), 1000, 1800) { }
 
     function computeProportion(uint160 sqrtPriceX96, address token, int24 tickLower, int24 tickUpper)
         external

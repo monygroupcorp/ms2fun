@@ -44,9 +44,8 @@ contract VaultMultiDepositTest is ForkTestBase {
 
         // Deploy peripherals and vault (clone pattern)
         address alignmentToken = USDC; // Use real USDC for fork tests (has V3 pool with WETH)
-        UniswapVaultPriceValidator priceValidator = new UniswapVaultPriceValidator(
-            WETH, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800
-        );
+        UniswapVaultPriceValidator priceValidator =
+            new UniswapVaultPriceValidator(WETH, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800);
 
         // Setup mock alignment registry
         mockRegistry = new MockAlignmentRegistry();
