@@ -1074,6 +1074,7 @@ contract QueryAggregator is SafeOwnableUUPS {
         string metadataURI;
         IERC1155EditionReader.PricingModel pricingModel;
         uint256 priceIncreaseRate;
+        uint256 openTime;
     }
 
     /// @notice Batch-fetch edition data for an ERC1155 instance (replaces instance-level getEditionsBatch)
@@ -1112,7 +1113,8 @@ contract QueryAggregator is SafeOwnableUUPS {
                     minted: ed.minted,
                     metadataURI: ed.metadataURI,
                     pricingModel: IERC1155EditionReader.PricingModel(uint8(ed.pricingModel)),
-                    priceIncreaseRate: ed.priceIncreaseRate
+                    priceIncreaseRate: ed.priceIncreaseRate,
+                    openTime: ed.openTime
                 });
             } catch {
                 result[i].id = editionId;

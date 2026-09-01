@@ -28,9 +28,12 @@ interface FreeMintClaimPanelProps {
   /** A free mint is PER edition (noesis-135) — allocation, claim counter, and the per-user claimed
    *  flag are all keyed by this editionId. */
   editionId: bigint
+  /** Unix timestamp; 0 = open immediately. Gates this edition's free-claim path exactly like the
+   *  paid mint path (ERC1155Instance.sol claimFreeMint also reverts EditionNotOpen()). */
+  openTime: bigint
 }
 
-export function FreeMintClaimPanel({ instance, editionId }: FreeMintClaimPanelProps) {
+export function FreeMintClaimPanel({ instance, editionId, openTime }: FreeMintClaimPanelProps) {
   const chainId = useCollectionChainId()
   const { address, isConnected } = useAccount()
 
@@ -81,11 +84,13 @@ export function FreeMintClaimPanel({ instance, editionId }: FreeMintClaimPanelPr
   const allowlist = useMerkleAllowlistProof(instance, editionId, gated)
   const allocationOpen = allocation !== undefined && allocation > 0n
   const exhausted = allocationOpen && claimedCount !== undefined && claimedCount >= allocation
+  const opensAt = openTime > 0n ? new Date(Number(openTime) * 1000) : null
+  const notYetOpen = opensAt !== null && Date.now() < opensAt.getTime()
   // Base eligibility (ignoring the merkle proof) — controls whether the panel renders at all, so a
   // gated pool with an unclaimed allocation still shows (with a not-allowlisted state) rather than
   // vanishing. `canSubmit` additionally requires a resolved proof when gated.
   const baseEligible = isConnected && allocationOpen && !exhausted && hasClaimed === false
-  const canSubmit = baseEligible && (!gated || allowlist.status === 'eligible')
+  const canSubmit = baseEligible && (!gated || allowlist.status === 'eligible') && !notYetOpen
 
   function handleClaim(): void {
     // Free-mint gating ('bytes' arg): the module decodes
@@ -141,6 +146,11 @@ export function FreeMintClaimPanel({ instance, editionId }: FreeMintClaimPanelPr
           {allowlist.status === 'not-eligible' && 'this wallet is not on the allowlist'}
           {allowlist.status === 'eligible' &&
             `allowlisted — up to ${allowlist.maxQty?.toString() ?? '0'} per wallet`}
+        </p>
+      )}
+      {notYetOpen && opensAt && (
+        <p className={styles.context} data-testid="erc1155-freemint-not-open">
+          opens {opensAt.toLocaleString()}
         </p>
       )}
       <button
