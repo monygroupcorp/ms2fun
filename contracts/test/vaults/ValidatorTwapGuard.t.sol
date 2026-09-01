@@ -78,7 +78,7 @@ contract ValidatorTwapGuardTest is Test {
 
     function setUp() public {
         factory = new MockV3DepthFactory();
-        validator = new UniswapVaultPriceValidator(WETH, address(0), address(factory), address(0), 1000, 1800);
+        validator = new UniswapVaultPriceValidator(WETH, address(factory), address(0), 1000, 1800);
     }
 
     function _swapProportionAtSpotZero() internal view returns (uint256) {

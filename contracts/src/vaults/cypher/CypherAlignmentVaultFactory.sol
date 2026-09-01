@@ -16,6 +16,9 @@ import { Ownable } from "solady/auth/Ownable.sol";
 ///      (setPriceValidator/setMaxPriceDeviationBps) are only reachable through the owner-gated
 ///      passthroughs below — mirroring UniAlignmentVaultFactory.setVaultPoolKey.
 contract CypherAlignmentVaultFactory is Ownable {
+    /// @notice A constructor argument that must never be zero was zero.
+    error InvalidAddress();
+
     address public immutable vaultImplementation;
     /// @notice Oracle/TWAP validator wired into every deployed vault. Reads the canonical reference
     ///         TWAP and floors the vault's swaps; production must pass the shared validator.
@@ -31,7 +34,6 @@ contract CypherAlignmentVaultFactory is Ownable {
 
     event VaultDeployed(address indexed vault, address indexed alignmentToken);
 
-    // slither-disable-next-line missing-zero-check
     constructor(
         address _vaultImplementation,
         IVaultPriceValidator _defaultPriceValidator,
@@ -41,6 +43,10 @@ contract CypherAlignmentVaultFactory is Ownable {
         IAlignmentRegistry _alignmentRegistry
     ) {
         _initializeOwner(msg.sender);
+        // The CREATE3 clone points at this implementation with no setter; a zero here would let
+        // createVault appear to succeed while every clone delegatecalls into nothing, and ETH sent
+        // to a clone's receive() would be unrecoverable. No repair possible post-deploy.
+        if (_vaultImplementation == address(0)) revert InvalidAddress();
         vaultImplementation = _vaultImplementation;
         defaultPriceValidator = _defaultPriceValidator;
         algebraFactory = _algebraFactory;

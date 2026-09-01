@@ -92,7 +92,7 @@ contract UniValidatorPinnedTwapTest is Test {
 
     function setUp() public {
         // v2Factory / v3Factory / poolManager are irrelevant to the pinned-pool path — pass zero.
-        validator = new UniswapVaultPriceValidator(WETH, address(0), address(0), address(0), 1000, TWAP);
+        validator = new UniswapVaultPriceValidator(WETH, address(0), address(0), 1000, TWAP);
     }
 
     // ---- kind validation ----

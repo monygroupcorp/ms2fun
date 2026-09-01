@@ -15,9 +15,7 @@ contract UniValidatorPinnedTwapForkTest is ForkTestBase {
 
     function setUp() public {
         loadAddresses(); // vm.skip(true) if not forked
-        validator = new UniswapVaultPriceValidator(
-            WETH, UNISWAP_V2_FACTORY, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800
-        );
+        validator = new UniswapVaultPriceValidator(WETH, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800);
     }
 
     /// @notice The pinned V3 read on a deep, mature pool produces a sane, nonzero ETH value.

@@ -236,7 +236,6 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         address _weth,
         address _poolManager,
         address _alignmentToken,
-        // slither-disable-next-line missing-zero-check
         address _zRouter,
         uint24 _zRouterFee,
         int24 _zRouterTickSpacing,
@@ -253,6 +252,9 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         if (_weth == address(0)) revert InvalidAddress();
         if (_poolManager == address(0)) revert InvalidAddress();
         if (_alignmentToken == address(0)) revert InvalidAddress();
+        // No setter exists for zRouter after initialize; a zero here permanently kills this vault's
+        // acquisition path with no repair possible post-deploy.
+        if (_zRouter == address(0)) revert InvalidAddress();
         if (address(_alignmentRegistry) == address(0)) revert InvalidAddress();
         // The 1% protocol cut accrues from the first fee collection onward, and the vault carries no
         // setter for its destination — a zero treasury would accrue into a bucket with no exit, so it

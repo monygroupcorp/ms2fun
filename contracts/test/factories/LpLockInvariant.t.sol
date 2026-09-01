@@ -181,7 +181,7 @@ contract CypherLpLockInvariantTest is Test {
             address(weth),
             address(token),
             protocolTreasury,
-            address(0),
+            makeAddr("zRouter"), // unused by these tests; initialize now requires nonzero
             address(0),
             address(0),
             alignmentRegistry,

@@ -70,7 +70,7 @@ contract CypherLiquidityDeployerModuleTest is Test {
             address(weth),
             address(token),
             protocolTreasury,
-            address(0), // zRouter
+            makeAddr("zRouter"), // unused by these tests; initialize now requires nonzero
             address(0), // zQuoter
             address(0), // priceValidator inert
             alignmentRegistry,

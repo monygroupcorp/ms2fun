@@ -49,9 +49,15 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     error ReferenceTwapUnavailable();
     /// @notice `kind` passed to {quoteEthForTokensVia} is not a supported pool family (only 0 and 1 are).
     error UnsupportedPoolKind(uint8 kind);
+    /// @notice `v3Factory` is codeless — a misconfigured validator, never a legitimate per-token
+    ///         state. Thrown by {_getTwapSqrtPriceX96} INSTEAD OF returning 0, so a wrong/absent
+    ///         factory address surfaces immediately rather than silently degrading every vault using
+    ///         this validator to the clamp-only floor. Distinct from the legitimate "no pool exists
+    ///         yet for this token" case, which still returns 0 (a real factory with no pool is an
+    ///         expected per-token condition, not a config error).
+    error PriceValidatorMisconfigured();
 
     address public immutable weth;
-    address public immutable v2Factory;
     address public immutable v3Factory;
     address public immutable poolManager;
     uint256 public immutable maxPriceDeviationBps;
@@ -77,8 +83,6 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         // slither-disable-next-line missing-zero-check
         address _weth,
         // slither-disable-next-line missing-zero-check
-        address _v2Factory,
-        // slither-disable-next-line missing-zero-check
         address _v3Factory,
         // slither-disable-next-line missing-zero-check
         address _poolManager,
@@ -86,7 +90,6 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         uint32 _twapSecondsAgo
     ) {
         weth = _weth;
-        v2Factory = _v2Factory;
         v3Factory = _v3Factory;
         poolManager = _poolManager;
         maxPriceDeviationBps = _maxPriceDeviationBps;
@@ -391,9 +394,14 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     /// @dev Queries V3 pools (across standard fee tiers) for a TWAP-derived sqrtPriceX96. A pool must
     ///      clear the {MIN_REFERENCE_LIQUIDITY} depth floor to be eligible; sub-floor pools are skipped
     ///      so the deviation reference cannot be captured by a dust-liquidity pool. Returns 0 if no
-    ///      pool clears the floor with sufficient observation history.
+    ///      pool clears the floor with sufficient observation history — a legitimate, expected result
+    ///      for a token with no deep V3 pool yet, and the caller falls back to the clamp-only floor.
+    ///      A codeless `v3Factory`, in contrast, is NEVER legitimate — a real factory always has code,
+    ///      so this can only mean the validator was deployed with a wrong or absent factory address.
+    ///      That reverts instead of returning 0: silently degrading every vault behind a misconfigured
+    ///      validator to the weaker clamp-only floor is the fail-open this function must not repeat.
     function _getTwapSqrtPriceX96(address token) private view returns (uint160) {
-        if (v3Factory.code.length == 0) return 0;
+        if (v3Factory.code.length == 0) revert PriceValidatorMisconfigured();
 
         uint24[3] memory feeTiers = [uint24(3000), uint24(500), uint24(10000)];
         uint32[] memory secondsAgos = new uint32[](2);

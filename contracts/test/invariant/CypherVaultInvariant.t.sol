@@ -78,7 +78,7 @@ contract CypherVaultInvariantTest is StdInvariant, Test {
             address(weth),
             address(alignmentToken),
             treasury,
-            address(0), // zRouter
+            makeAddr("zRouter"), // unused by these tests; initialize now requires nonzero
             address(0), // zQuoter
             address(validator),
             registry,

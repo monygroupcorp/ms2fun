@@ -133,7 +133,7 @@ contract ProtocolFeeExitParityTest is Test {
             address(weth),
             address(alignmentToken),
             treasury_,
-            address(0), // zRouter
+            address(zRouter), // initialize now requires nonzero; reuses the same mock as the ZAMM/Uni inits below
             address(0), // zQuoter
             address(validator),
             IAlignmentRegistry(address(registry)),

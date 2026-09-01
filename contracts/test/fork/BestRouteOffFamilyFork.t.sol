@@ -84,9 +84,8 @@ contract BestRouteOffFamilyForkTest is ForkTestBase {
         // The canonical deployed zRouter singleton production pins, not a local copy of it.
         require(CANONICAL_ZROUTER.code.length > 0, "canonical zRouter has no code at this fork block");
         router = zRouter(payable(CANONICAL_ZROUTER));
-        UniswapVaultPriceValidator priceValidator = new UniswapVaultPriceValidator(
-            WETH, UNISWAP_V2_FACTORY, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800
-        );
+        UniswapVaultPriceValidator priceValidator =
+            new UniswapVaultPriceValidator(WETH, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800);
 
         MockAlignmentRegistry registry = new MockAlignmentRegistry();
         registry.setTargetActive(TARGET_ID, true);

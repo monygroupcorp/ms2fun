@@ -41,9 +41,8 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         alignmentToken = USDC; // Use real USDC for fork tests (has V3 pool with WETH)
 
         // Deploy peripherals and vault (clone pattern)
-        UniswapVaultPriceValidator priceValidator = new UniswapVaultPriceValidator(
-            WETH, UNISWAP_V2_FACTORY, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800
-        );
+        UniswapVaultPriceValidator priceValidator =
+            new UniswapVaultPriceValidator(WETH, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800);
         mockRegistry = new MockAlignmentRegistry();
         mockRegistry.setTargetActive(TARGET_ID, true);
         mockRegistry.setTokenInTarget(TARGET_ID, alignmentToken, true);
@@ -152,11 +151,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
             3000,
             60,
             IVaultPriceValidator(
-                address(
-                    new UniswapVaultPriceValidator(
-                        WETH, UNISWAP_V2_FACTORY, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800
-                    )
-                )
+                address(new UniswapVaultPriceValidator(WETH, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800))
             ),
             IAlignmentRegistry(address(mockRegistry)),
             TARGET_ID,

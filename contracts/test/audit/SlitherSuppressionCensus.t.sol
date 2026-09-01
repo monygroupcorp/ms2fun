@@ -41,11 +41,11 @@ contract SlitherSuppressionCensusTest is Test {
     uint256 internal constant EXPECTED_SOL_FILES = 89;
 
     /// @dev Total `missing-zero-check` directives across `src`.
-    uint256 internal constant EXPECTED_TOTAL = 24;
+    uint256 internal constant EXPECTED_TOTAL = 20;
 
     function _expected() internal pure returns (string[] memory paths, uint256[] memory counts) {
-        paths = new string[](11);
-        counts = new uint256[](11);
+        paths = new string[](9);
+        counts = new uint256[](9);
 
         paths[0] = "src/factories/erc404/LiquidityDeployerModule.sol";
         counts[0] = 1;
@@ -54,7 +54,7 @@ contract SlitherSuppressionCensusTest is Test {
         paths[2] = "src/factories/erc404zamm/ZAMMLiquidityDeployerModule.sol";
         counts[2] = 1;
         paths[3] = "src/peripherals/UniswapVaultPriceValidator.sol";
-        counts[3] = 4;
+        counts[3] = 3;
         paths[4] = "src/promotion/PromotionBadges.sol";
         counts[4] = 1;
         paths[5] = "src/treasury/ProtocolTreasuryV1.sol";
@@ -62,13 +62,9 @@ contract SlitherSuppressionCensusTest is Test {
         paths[6] = "src/vaults/aave/AlignmentEndowmentVaultFactory.sol";
         counts[6] = 4;
         paths[7] = "src/vaults/cypher/CypherAlignmentVault.sol";
-        counts[7] = 5;
-        paths[8] = "src/vaults/cypher/CypherAlignmentVaultFactory.sol";
-        counts[8] = 1;
-        paths[9] = "src/vaults/uni/UniAlignmentVault.sol";
-        counts[9] = 1;
-        paths[10] = "src/vaults/uni/UniAlignmentVaultFactory.sol";
-        counts[10] = 4;
+        counts[7] = 4;
+        paths[8] = "src/vaults/uni/UniAlignmentVaultFactory.sol";
+        counts[8] = 4;
     }
 
     // ── The census ────────────────────────────────────────────────────────
