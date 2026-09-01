@@ -8,8 +8,6 @@
  * seam — accent on the title underline + mint-CTA border, background tint on the stats panel — so
  * editions look distinct. Absent/invalid → the default monochrome Gallery Brutalism look.
  *
- * Note: the on-chain EditionView (QueryAggregator batch) does NOT expose `openTime`, so this page
- * does not render an "opens <when>" stat — it works only from the fields the aggregator returns.
  */
 import { Link, Redirect, useParams } from 'wouter'
 import { useQuery } from '@tanstack/react-query'

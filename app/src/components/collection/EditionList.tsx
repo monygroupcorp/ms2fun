@@ -123,7 +123,7 @@ function EditionCard({ edition, instance, refetch }: EditionCardProps) {
       </div>
       {/* Free-mint is per edition (noesis-135) — each edition renders its own claim panel, which
           shows nothing unless this edition has a free allocation the connected wallet can still claim. */}
-      <FreeMintClaimPanel instance={instance} editionId={edition.id} />
+      <FreeMintClaimPanel instance={instance} editionId={edition.id} openTime={edition.openTime} />
       <MintPanel instance={instance} edition={edition} refetch={refetch} />
     </>
   )

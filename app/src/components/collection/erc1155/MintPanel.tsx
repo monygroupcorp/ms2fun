@@ -130,6 +130,11 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
   const cost = costData !== undefined ? formatEther(costData) : null
   const isBusy = sigPending || isConfirming
   const gatingBlocksMint = gated && allowlist.status !== 'eligible'
+  // `openTime === 0` means open immediately (ERC1155Instance.sol); a nonzero value gates every
+  // mint path — paid and free — until that timestamp, and the contract reverts EditionNotOpen()
+  // rather than degrading, so the button must not be clickable before then.
+  const opensAt = edition.openTime > 0n ? new Date(Number(edition.openTime) * 1000) : null
+  const notYetOpen = opensAt !== null && Date.now() < opensAt.getTime()
 
   if (!isConnected) {
     return (
@@ -178,11 +183,16 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
         <button
           className={styles.mintBtn}
           onClick={handleMint}
-          disabled={isBusy || costData === undefined || gatingBlocksMint}
+          disabled={isBusy || costData === undefined || gatingBlocksMint || notYetOpen}
         >
           {sigPending ? 'confirm in wallet…' : isConfirming ? 'confirming…' : 'mint'}
         </button>
       </div>
+      {notYetOpen && (
+        <p className={styles.connectNote} data-testid="erc1155-mint-not-open">
+          opens {opensAt.toLocaleString()}
+        </p>
+      )}
       {gated && (
         <p className={styles.mintInput} data-testid="erc1155-mint-allowlist-status">
           {allowlist.status === 'loading' && 'checking allowlist…'}

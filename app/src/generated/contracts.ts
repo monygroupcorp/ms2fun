@@ -12949,6 +12949,7 @@ export const queryAggregatorAbi = [
             internalType: 'uint256',
             type: 'uint256',
           },
+          { name: 'openTime', internalType: 'uint256', type: 'uint256' },
         ],
       },
     ],
