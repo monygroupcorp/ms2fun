@@ -50,6 +50,9 @@ const VaultsPage = lazy(() =>
   import('./routes/VaultsPage').then((m) => ({ default: m.VaultsPage })),
 )
 const VaultPage = lazy(() => import('./routes/VaultPage').then((m) => ({ default: m.VaultPage })))
+const TargetPage = lazy(() =>
+  import('./routes/TargetPage').then((m) => ({ default: m.TargetPage })),
+)
 const RequestTargetPage = lazy(() =>
   import('./routes/RequestTargetPage').then((m) => ({ default: m.RequestTargetPage })),
 )
@@ -145,7 +148,7 @@ function NavLinks({
         BOARD
       </Link>
       <Link href="/vaults" className={linkClassName} onClick={onNavigate}>
-        VAULTS
+        ALIGNMENT
       </Link>
       {/* REQUEST TARGET intentionally NOT in the top nav (ADR-019 canonical set is
           COLLECTIONS · BOARD · LAUNCH · CONNECT). The /request-target route stays; it's linked
@@ -258,6 +261,7 @@ function AppShell() {
                   <Route path="/collections" component={CollectionsPage} />
                   <Route path="/board" component={BoardPage} />
                   <Route path="/vaults" component={VaultsPage} />
+                  <Route path="/target/:id" component={TargetPage} />
                   <Route path="/vault/:address" component={VaultPage} />
                   <Route path="/request-target" component={RequestTargetPage} />
                   <Route path="/learn/:slug" component={LearnPage} />

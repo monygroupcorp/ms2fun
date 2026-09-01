@@ -59,24 +59,53 @@ const vaultSummaryAbi = [
     outputs: [{ type: 'uint256' }],
     stateMutability: 'view',
   },
+  {
+    type: 'function',
+    name: 'totalEthLocked',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'totalPendingETH',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
+  },
 ] as const
 
 /** Reads per vault in the batch, in call order. */
-const CALLS_PER_VAULT = 5
+const CALLS_PER_VAULT = 7
 
 export interface VaultSummary {
   vaultType: string | undefined
   /** Endowment TVL; undefined for LP vaults. */
   totalPrincipal: bigint | undefined
   accumulatedFees: bigint | undefined
+  /**
+   * ETH this LP vault has actually deployed into its position — the contract's own record
+   * (`totalEthLocked += ethDeployed`), at COST. Undefined for endowment vaults, which do not have it.
+   *
+   * It is a cost basis and not a mark: the position's present worth moves with price and impermanent
+   * loss, and the counter only ever increments, so it states ETH PLACED rather than ETH currently in
+   * the pool. Every surface that shows it says so.
+   */
+  ethLocked: bigint | undefined
+  /** ETH received and awaiting conversion — real, held, and not yet liquidity. */
+  pendingEth: bigint | undefined
   /** The alignment target this vault binds to; `null` when neither family's getter resolved. */
   targetId: bigint | null
 }
 
 export function useVaultsSummary(addresses: readonly `0x${string}`[]): {
   byAddress: Map<string, VaultSummary>
-  /** Sum of endowment principals (the honest TVL — LP positions aren't valued). */
+  /** Sum of endowment principals. */
   endowmentTvl: bigint
+  /** Sum of ETH the LP vaults have placed into their positions, at cost. */
+  lpEthPlaced: bigint
+  /** Sum of ETH the LP vaults hold, tithed but not yet converted. */
+  lpPendingEth: bigint
   isPending: boolean
 } {
   const contracts = useMemo(
@@ -128,6 +157,8 @@ export function useVaultsSummary(addresses: readonly `0x${string}`[]): {
   return useMemo(() => {
     const byAddress = new Map<string, VaultSummary>()
     let endowmentTvl = 0n
+    let lpEthPlaced = 0n
+    let lpPendingEth = 0n
     addresses.forEach((address, i) => {
       const base = i * CALLS_PER_VAULT
       const typeRes = data?.[base]
@@ -135,6 +166,8 @@ export function useVaultsSummary(addresses: readonly `0x${string}`[]): {
       const feesRes = data?.[base + 2]
       const endowmentTargetRes = data?.[base + 3]
       const liquidityTargetRes = data?.[base + 4]
+      const ethLockedRes = data?.[base + 5]
+      const pendingEthRes = data?.[base + 6]
       const vaultType = typeRes?.status === 'success' ? (typeRes.result as string) : undefined
       const totalPrincipal =
         vaultType === 'AaveEndowment' && principalRes?.status === 'success'
@@ -147,9 +180,34 @@ export function useVaultsSummary(addresses: readonly `0x${string}`[]): {
           : liquidityTargetRes?.status === 'success'
             ? (liquidityTargetRes.result as bigint)
             : null
+      // Endowment vaults do not carry these, and `allowFailure` turns that into a failed read rather
+      // than a zero — which is the distinction between "holds nothing" and "has no such thing".
+      const ethLocked =
+        vaultType !== 'AaveEndowment' && ethLockedRes?.status === 'success'
+          ? (ethLockedRes.result as bigint)
+          : undefined
+      const pendingEth =
+        vaultType !== 'AaveEndowment' && pendingEthRes?.status === 'success'
+          ? (pendingEthRes.result as bigint)
+          : undefined
       if (totalPrincipal !== undefined) endowmentTvl += totalPrincipal
-      byAddress.set(address.toLowerCase(), { vaultType, totalPrincipal, accumulatedFees, targetId })
+      if (ethLocked !== undefined) lpEthPlaced += ethLocked
+      if (pendingEth !== undefined) lpPendingEth += pendingEth
+      byAddress.set(address.toLowerCase(), {
+        vaultType,
+        totalPrincipal,
+        accumulatedFees,
+        ethLocked,
+        pendingEth,
+        targetId,
+      })
     })
-    return { byAddress, endowmentTvl, isPending: isPending && addresses.length > 0 }
+    return {
+      byAddress,
+      endowmentTvl,
+      lpEthPlaced,
+      lpPendingEth,
+      isPending: isPending && addresses.length > 0,
+    }
   }, [addresses, data, isPending])
 }

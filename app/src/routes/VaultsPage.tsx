@@ -1,25 +1,29 @@
 /**
- * VaultsPage (`/vaults`) — the browsable index of alignment vaults + the platform's honest TVL.
+ * VaultsPage (`/vaults`) — the index of ALIGNMENT COMMUNITIES + the platform's honest TVL.
+ *
+ * ONE CARD PER COMMUNITY, not per registry target. An asset curated on two venues is two targets on
+ * chain (see `lib/vaults/communities`), and showing both was showing the same community twice. The
+ * venues live on the community's own page, which is also where its vaults are listed — this page
+ * answers "who can a collection align to", and the target page answers "and what is bound to them".
  *
  * TVL is shown per the "honest split": endowment vaults report real `totalPrincipal()`; LP vaults
  * (Uni/ZAMM/Cypher) expose no principal read, so they show a family badge + accrued fees instead of
  * a fabricated number. The header total sums ONLY endowment principals, labelled as such.
  */
 import { Link } from 'wouter'
-import { truncateAddress } from '../lib/format'
 import { useAllVaults } from '../lib/vaults/useAllVaults'
 import { useVaultsSummary } from '../lib/vaults/useVaultsSummary'
-import { type AlignmentTargetRow, useAlignmentTargets } from '../lib/vaults/useAlignmentTargets'
+import { useAlignmentTargets } from '../lib/vaults/useAlignmentTargets'
+import { groupTargetsByToken, type TargetGroup } from '../lib/wizard/vaultFlavor'
+import type { AlignmentTargetRow } from '../lib/vaults/useAlignmentTargets'
 import {
   ethCompact as eth,
   rollUpByTarget,
   rollupsByTargetKey,
+  sumRollups,
   targetFigureLabel,
-  targetFigureNote,
-  vaultTargetLabel,
   type TargetRollup,
 } from '../lib/vaults/targetRollup'
-import { vaultFamilyLabel } from '../components/vault/useVaultOverview'
 import { useCollectionMetadata } from '../components/useCollectionMetadata'
 import { IpfsImage } from '../components/ui/IpfsImage'
 import { StateBlock } from '../components/ui/StateBlock'
@@ -30,38 +34,48 @@ import styles from './VaultsPage.module.css'
  * bound to that target. The figure is always shown with its scope stated — a bare number here is a
  * claim a visitor cannot check, and checking it is the whole point of the page.
  */
-function TargetCard({
-  target,
+function CommunityCard({
+  community,
   rollup,
   pending,
 }: {
-  target: AlignmentTargetRow
-  rollup: TargetRollup | undefined
+  community: TargetGroup<AlignmentTargetRow>
+  rollup: TargetRollup
   pending: boolean
 }) {
+  const target = community.primary
   const meta = useCollectionMetadata(target.metadataURI)
   return (
     <li className={styles.targetCard} data-testid="alignment-target">
-      <div className={styles.targetLogo}>
-        <IpfsImage
-          uri={meta?.image ?? ''}
-          alt={`${target.title} logo`}
-          className={styles.targetImg}
-          fallback={
-            <span className={styles.targetGlyph} aria-hidden>
-              ◈
-            </span>
-          }
-        />
-      </div>
-      <div className={styles.targetBody}>
-        <p className={styles.targetName}>{target.title}</p>
-        {target.description && <p className={styles.targetDesc}>{target.description}</p>}
-        <p className={styles.tvlValue} data-testid="target-figure">
-          {targetFigureLabel(rollup, pending)}
-        </p>
-        <p className={styles.tvlNote}>{targetFigureNote(rollup, pending)}</p>
-      </div>
+      <Link href={`/target/${target.id.toString()}`} className={styles.targetLink}>
+        <div className={styles.targetLogo}>
+          <IpfsImage
+            uri={meta?.image ?? ''}
+            alt={`${target.title} logo`}
+            className={styles.targetImg}
+            fallback={
+              <span className={styles.targetGlyph} aria-hidden>
+                ◈
+              </span>
+            }
+          />
+        </div>
+        <div className={styles.targetBody}>
+          <p className={styles.targetName}>{target.title}</p>
+          {target.description && (
+            <>
+              <p className={styles.targetDesc}>{target.description}</p>
+              {/* Not an anchor: the whole card already is one, and nesting a second would be invalid
+                  markup. This is the affordance, the card is the click. */}
+              <span className={styles.readMore}>read more →</span>
+            </>
+          )}
+          <p className={styles.targetFigure} data-testid="target-figure">
+            {targetFigureLabel(rollup, pending)}
+            {!pending && <sup className={styles.asterisk}>*</sup>}
+          </p>
+        </div>
+      </Link>
     </li>
   )
 }
@@ -80,10 +94,10 @@ function UnattributedCard({ rollup, pending }: { rollup: TargetRollup; pending: 
         <p className={styles.targetDesc}>
           vaults whose alignment target did not resolve to an active target
         </p>
-        <p className={styles.tvlValue} data-testid="target-figure">
+        <p className={styles.targetFigure} data-testid="target-figure">
           {targetFigureLabel(rollup, pending)}
+          {!pending && <sup className={styles.asterisk}>*</sup>}
         </p>
-        <p className={styles.tvlNote}>{targetFigureNote(rollup, pending)}</p>
       </div>
     </li>
   )
@@ -92,7 +106,13 @@ function UnattributedCard({ rollup, pending }: { rollup: TargetRollup; pending: 
 export function VaultsPage() {
   const { vaults, isPending, isError } = useAllVaults()
   const addresses = vaults.map((v) => v.address)
-  const { byAddress, endowmentTvl, isPending: summaryPending } = useVaultsSummary(addresses)
+  const {
+    byAddress,
+    endowmentTvl,
+    lpEthPlaced,
+    lpPendingEth,
+    isPending: summaryPending,
+  } = useVaultsSummary(addresses)
   const { targets } = useAlignmentTargets()
 
   const rollups = rollUpByTarget(
@@ -103,6 +123,8 @@ export function VaultsPage() {
         collectionCount: v.collectionCount,
         vaultType: s?.vaultType,
         totalPrincipal: s?.totalPrincipal,
+        ethLocked: s?.ethLocked,
+        pendingEth: s?.pendingEth,
         accumulatedFees: s?.accumulatedFees,
         targetId: s?.targetId ?? null,
       }
@@ -111,8 +133,9 @@ export function VaultsPage() {
   )
   const rollupByKey = rollupsByTargetKey(rollups)
   const unattributed = rollupByKey.get('unattributed')
-  /** target id → title, so each vault row can name the target its ETH is counted under. */
-  const targetTitles = new Map(targets.map((t) => [t.id.toString(), t.title]))
+  // One card per community. An asset on two venues is two targets on chain and one row here, and its
+  // figure sums every venue — see `lib/vaults/communities`.
+  const communities = groupTargetsByToken(targets)
 
   return (
     <div className={styles.page}>
@@ -123,19 +146,17 @@ export function VaultsPage() {
       </nav>
 
       <header className={styles.head}>
-        <h1 className={styles.title}>Vaults</h1>
+        <h1 className={styles.title}>Alignment</h1>
         <p className={styles.sub}>
-          Every collection binds ~20% of its fees to an alignment vault, by contract. Here they are
-          — browse them, read the stats, post about them.
+          Every collection binds ~20% of its fees to an alignment vault, by contract. These are the
+          communities that money flows to — open one to see its venues and its vaults.
         </p>
         <div className={styles.tvl} data-testid="vaults-tvl">
-          <span className={styles.tvlLabel}>Endowment TVL</span>
+          <span className={styles.tvlLabel}>ETH bound</span>
           <span className={styles.tvlValue}>
-            {summaryPending ? '…' : `${eth(endowmentTvl)} ETH`}
+            {summaryPending ? '…' : `${eth(endowmentTvl + lpEthPlaced + lpPendingEth)} ETH`}
           </span>
-          <span className={styles.tvlNote}>
-            principal locked in endowment vaults · LP-vault positions not valued here
-          </span>
+          <span className={styles.tvlNote}>across every alignment community*</span>
         </div>
       </header>
 
@@ -147,11 +168,11 @@ export function VaultsPage() {
             The communities collections bind to — ~20% of fees flow to these.
           </p>
           <ul className={styles.targetGrid}>
-            {targets.map((t) => (
-              <TargetCard
-                key={t.id.toString()}
-                target={t}
-                rollup={rollupByKey.get(t.id.toString())}
+            {communities.map((c) => (
+              <CommunityCard
+                key={c.key}
+                community={c}
+                rollup={sumRollups(c.targets.map((t) => rollupByKey.get(t.id.toString())))}
                 pending={summaryPending}
               />
             ))}
@@ -176,43 +197,23 @@ export function VaultsPage() {
         </StateBlock>
       )}
 
-      {vaults.length > 0 && (
-        <ul className={styles.list} data-testid="vaults-list">
-          {vaults.map((v) => {
-            const s = byAddress.get(v.address.toLowerCase())
-            const isEndowment = s?.vaultType === 'AaveEndowment'
-            return (
-              <li key={v.address}>
-                <Link href={`/vault/${v.address}`} className={styles.row} data-testid="vault-row">
-                  <span className={styles.rowName}>
-                    {v.name || truncateAddress(v.address)}
-                    <span className={styles.rowAddr}>{truncateAddress(v.address)}</span>
-                    <span className={styles.rowAddr} data-testid="vault-row-target">
-                      → {vaultTargetLabel(s?.targetId, targetTitles)}
-                    </span>
-                  </span>
-                  <span className={styles.rowBadge}>{vaultFamilyLabel(s?.vaultType)}</span>
-                  <span className={styles.rowTvl}>
-                    {isEndowment && s?.totalPrincipal !== undefined ? (
-                      <b>{eth(s.totalPrincipal)} ETH</b>
-                    ) : (
-                      <span className={styles.rowPool}>
-                        pool live
-                        {s?.accumulatedFees !== undefined && s.accumulatedFees > 0n
-                          ? ` · ${eth(s.accumulatedFees)} ETH fees`
-                          : ''}
-                      </span>
-                    )}
-                  </span>
-                  <span className={styles.rowCount}>
-                    {v.collectionCount} {v.collectionCount === 1 ? 'collection' : 'collections'}
-                  </span>
-                </Link>
-              </li>
-            )
-          })}
-        </ul>
-      )}
+      {/* The vaults themselves are listed on each community's own page: a flat list here repeated
+          every vault under a heading that could not say which community it served. */}
+
+      {/* One footnote for every asterisk above. The figures are a sum of unlike things and saying so
+          once, here, beats repeating a scope line under each of six cards — the per-community
+          breakdown is on the community's own page, one click away. */}
+      <footer className={styles.footnote}>
+        <p>
+          <span aria-hidden>*</span> ETH bound to a community, counting three things that are not
+          the same: <b>endowment principal</b>, which the vault holds and can redeem;{' '}
+          <b>ETH placed as liquidity</b>, stated at what the vault put in rather than marked to
+          market, so the position&apos;s worth today moves with the pool and with impermanent loss;
+          and <b>ETH awaiting conversion</b>, tithed and held but not yet working. Accrued LP fees
+          are counted separately again and are never folded in. Open a community for its own
+          breakdown.
+        </p>
+      </footer>
     </div>
   )
 }

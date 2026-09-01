@@ -467,6 +467,15 @@ abstract contract SeedSepoliaShared is Script {
     ///      it lands these layers may render blank on public gateways - the same stated residual the
     ///      figmata directory carried, and not a reason to hold the wiring.
     string internal constant ART_BASE_WOTLK = "ipfs://bafybeifxf2xnossezzaywoni3gf5dfyqotn36vdvhnjkvldgkavyc2kx2q/";
+
+    /// @dev The ALIGNMENT ROSTER's logos, one square PNG per community, keyed by ticker. Each is the
+    ///      community's own mark, taken from its canonical source (its own site, or the asset lists
+    ///      the wallets and explorers already serve it from) rather than redrawn — a target a visitor
+    ///      recognises is the whole point of showing a roster instead of a list of addresses.
+    ///
+    ///      Wired ahead of its pin, CID-preserving, exactly as the collection art is: correct before
+    ///      the pin lands, unchanged after it, and blank in between.
+    string internal constant ART_IMG_TARGETS = "ipfs://bafybeiaq7odvp24jbgwsyaxq5c67qs2iev2ct42rd7rhjuticpbqd6fhlm/";
     string internal constant ART_BASE_PIXELADYBC =
         "ipfs://bafybeigtcr23kdzivowzasei7u7yza5frirctrjflytvooycb6tdqa4dga/";
 
@@ -589,6 +598,88 @@ abstract contract SeedSepoliaShared is Script {
         bool metadataOverlay;
     }
 
+    /// @dev One community the showcase can align to.
+    ///
+    ///      THE ASSET IS A TESTNET FIXTURE, AND EVERY ROW SAYS SO. The real token lives on Ethereum
+    ///      mainnet and cannot be traded here, so the seed mints a stand-in and records the real
+    ///      address beside it. That is what makes the demonstration honest AND complete: the tithe,
+    ///      the acquire swap and the LP position are all genuinely exercised against the fixture,
+    ///      while `mainnetToken` says exactly which asset this row is a rehearsal for.
+    struct AlignmentSeed {
+        string symbol; // the fixture's ticker — the community's real one
+        string tokenName; // the fixture's on-chain name, which carries the word FIXTURE
+        string title; // what the vaults page calls this row
+        string logo; // file inside `ART_IMG_TARGETS`
+        address mainnetToken; // the real mainnet ERC-20 this row rehearses
+        string description;
+        bool endowment; // also stand up an Aave endowment vault for this target
+    }
+
+    /// @notice The alignment roster, stated once.
+    ///
+    /// @dev Order is display order. Remilia leads because every collection on this wall is a Remilia
+    ///      derivative and aligns to it; MS2 follows because it is this platform's own token and the
+    ///      one row that aligns elsewhere. The rest are communities the picker offers a creator, each
+    ///      with a live venue behind it so a collection launched against one during a walk can
+    ///      actually tithe rather than reverting at its first acquire.
+    function _alignmentRoster() internal pure returns (AlignmentSeed[] memory r) {
+        r = new AlignmentSeed[](6);
+        r[0] = AlignmentSeed({
+            symbol: "CULT",
+            tokenName: "Remilia Fixture Token",
+            title: "Remilia",
+            logo: "CULT.png",
+            mainnetToken: 0x0000000000c5dc95539589fbD24BE07c6C14eCa4,
+            description: "Milady Cult Coin - Remilia Corporation's own token, and the community every collection on this wall descends from. Aligning here sends a share of each sale to a vault that acquires CULT and holds it as liquidity. The asset on this testnet is a FIXTURE standing in for mainnet 0x0000000000c5dc95539589fbD24BE07c6C14eCa4; what is real here is where the money goes and what the vault does with it.",
+            endowment: true
+        });
+        r[1] = AlignmentSeed({
+            symbol: "MS2",
+            tokenName: "Station This Fixture Token",
+            title: "MS2",
+            logo: "MS2.png",
+            mainnetToken: 0x98Ed411B8cf8536657c660Db8aA55D9D4bAAf820,
+            description: "Station This - this platform's own token. It carries an endowment vault as well as a liquidity vault, so the two vault families can be read side by side: one holds a principal and pays a community from the yield, the other puts the tithe to work as liquidity. Fixture asset for mainnet 0x98Ed411B8cf8536657c660Db8aA55D9D4bAAf820.",
+            endowment: true
+        });
+        r[2] = AlignmentSeed({
+            symbol: "SPX",
+            tokenName: "SPX6900 Fixture Token",
+            title: "SPX6900",
+            logo: "SPX.png",
+            mainnetToken: 0xE0f63A424a4439cBE457D80E4f4b51aD25b2c56C,
+            description: "SPX6900 - a community a creator can align a collection to instead of ours. Its venue is stood up and funded here, so a collection launched against it tithes for real. Fixture asset for mainnet 0xE0f63A424a4439cBE457D80E4f4b51aD25b2c56C.",
+            endowment: false
+        });
+        r[3] = AlignmentSeed({
+            symbol: "MOG",
+            tokenName: "Mog Coin Fixture Token",
+            title: "MOG",
+            logo: "MOG.png",
+            mainnetToken: 0xaaeE1A9723aaDB7afA2810263653A34bA2C21C7a,
+            description: "Mog Coin - another community on the picker, with its own funded venue. Fixture asset for mainnet 0xaaeE1A9723aaDB7afA2810263653A34bA2C21C7a.",
+            endowment: false
+        });
+        r[4] = AlignmentSeed({
+            symbol: "ZAMM",
+            tokenName: "ZAMM Fixture Token",
+            title: "ZAMM",
+            logo: "ZAMM.png",
+            mainnetToken: 0xE9b1cFEA55BAA219e34301f2F31b9FD0921664ED,
+            description: "ZAMM - the token of the venue this platform already routes one of its vault families through. Fixture asset for mainnet 0xE9b1cFEA55BAA219e34301f2F31b9FD0921664ED.",
+            endowment: false
+        });
+        r[5] = AlignmentSeed({
+            symbol: "CYPH",
+            tokenName: "Cypher Fixture Token",
+            title: "CYPH",
+            logo: "CYPH.png",
+            mainnetToken: 0xa279cA693D66fE65Ba0062D0218578F424249dfD,
+            description: "Cypher - the community behind the Algebra rail this deployment also curates as a venue. Fixture asset for mainnet 0xa279cA693D66fE65Ba0062D0218578F424249dfD.",
+            endowment: false
+        });
+    }
+
     /// @dev The addresses the deploy wrote, narrowed to what an ERC404 showcase seed touches.
     struct Deployed {
         ERC404Factory erc404;
@@ -596,6 +687,7 @@ abstract contract SeedSepoliaShared is Script {
         address alignmentRegistry;
         address componentRegistry;
         address uniVaultFactory;
+        address aaveVaultFactory; // AlignmentEndowmentVaultFactory; zero where the network has no Aave market
         address uniDeployer; // approved LIQUIDITY_DEPLOYER — the Uni-V4 module
         address priceValidator;
         address protocolTreasury;
@@ -643,6 +735,15 @@ abstract contract SeedSepoliaShared is Script {
         address cultVault;
         uint256 ms2TargetId;
         uint256 cultTargetId;
+        // ── The alignment roster, in `_alignmentRoster()` order ──
+        //
+        // The two named pairs above are the roster's first two rows, kept as their own fields because
+        // every collection binds to one of them by name. These arrays carry the WHOLE roster, so the
+        // check script can hold all six rows to the same reading without knowing their names.
+        address[] targetTokens;
+        address[] targetVaults;
+        uint256[] targetIds;
+        address[] endowmentVaults; // per roster row; address(0) where the row carries none
         // ── Wave-2 breadth ──
         address editions; // ERC1155: fixed + dynamic + free-claim editions
         address gatedEditions; // ERC1155 behind the Merkle allowlist
@@ -778,7 +879,7 @@ abstract contract SeedSepoliaShared is Script {
             slug: "vapor-mid",
             title: "Voxelady",
             symbol: "VOXY",
-            description: "This collection demonstrates a LIVE BONDING CURVE part-way through its sale. Each buy mints coin and, in whole units, the pieces that ride it - one asset with two surfaces. Buy into it and watch the price, the piece gallery and the holder list move. It also demonstrates ARTIST METADATA: a piece's picture is resolved on-chain, and the holder chooses which layer shows. The base is the collection's own art. The artist has published a WAVE - a later expansion set - that any holder can opt into. And a holder can COMMISSION the artist to replace a piece's picture outright, paying for it on-chain: here, a pixelady upgraded to the maker's later edition. One piece on this row wears each, so all three are on the page at once, and one commission is left unpaid so the paying is something you can do rather than something you are shown.",
+            description: "This collection demonstrates a LIVE BONDING CURVE part-way through its sale. Each buy mints coin and, in whole units, the pieces that ride it - one asset with two surfaces. Buy into it and watch the price, the piece gallery and the holder list move. It also demonstrates ARTIST METADATA: a piece's picture is resolved on-chain, and the holder chooses which layer shows. The base is the collection's own art. The artist has published an upgraded edition as a WAVE, and any holder can opt into it for free - buy a piece here and you can upgrade it yourself. Some pieces additionally carry a COMMISSION the artist has priced: its holder can pay, on-chain, to have that piece replaced with a rarer one-off. One piece on this row wears each, so all three are on the page at once",
             image: ART_TILE_PIXELADY,
             imageDir: ART_IMG_PIXELADY,
             pieceBase: ART_BASE_PIXELADY,
@@ -838,6 +939,7 @@ abstract contract SeedSepoliaShared is Script {
 
         d.erc404 = ERC404Factory(payable(vm.parseJsonAddress(json, ".factories.ERC404")));
         d.uniVaultFactory = vm.parseJsonAddress(json, ".factories.UNI");
+        d.aaveVaultFactory = vm.parseJsonAddress(json, ".factories.AAVE");
         d.masterRegistry = vm.parseJsonAddress(json, ".contracts.MasterRegistry");
         d.alignmentRegistry = vm.parseJsonAddress(json, ".contracts.AlignmentRegistry");
         d.componentRegistry = vm.parseJsonAddress(json, ".contracts.ComponentRegistry");
@@ -954,6 +1056,10 @@ abstract contract SeedSepoliaShared is Script {
         vm.serializeAddress(root, "cultVault", h.cultVault);
         vm.serializeUint(root, "ms2TargetId", h.ms2TargetId);
         vm.serializeUint(root, "cultTargetId", h.cultTargetId);
+        vm.serializeAddress(root, "targetTokens", h.targetTokens);
+        vm.serializeAddress(root, "targetVaults", h.targetVaults);
+        vm.serializeUint(root, "targetIds", h.targetIds);
+        vm.serializeAddress(root, "endowmentVaults", h.endowmentVaults);
         vm.serializeAddress(root, "editions", h.editions);
         vm.serializeAddress(root, "gatedEditions", h.gatedEditions);
         vm.serializeAddress(root, "staking404", h.staking404);
@@ -1005,6 +1111,10 @@ abstract contract SeedSepoliaShared is Script {
         h.cultVault = vm.parseJsonAddress(json, ".cultVault");
         h.ms2TargetId = vm.parseJsonUint(json, ".ms2TargetId");
         h.cultTargetId = vm.parseJsonUint(json, ".cultTargetId");
+        h.targetTokens = vm.parseJsonAddressArray(json, ".targetTokens");
+        h.targetVaults = vm.parseJsonAddressArray(json, ".targetVaults");
+        h.targetIds = vm.parseJsonUintArray(json, ".targetIds");
+        h.endowmentVaults = vm.parseJsonAddressArray(json, ".endowmentVaults");
 
         h.editions = vm.parseJsonAddress(json, ".editions");
         h.gatedEditions = vm.parseJsonAddress(json, ".gatedEditions");
@@ -1766,6 +1876,27 @@ abstract contract SeedSepoliaShared is Script {
         return vm.envOr(ENV_COMMISSION_PRICE_WEI, DEFAULT_COMMISSION_PRICE);
     }
 
+    /// @dev The ids the artist pre-authors commission offers on, above the pieces the seed keeps.
+    ///
+    ///      THE POINT OF AUTHORING FORWARD. `unlock` is holder-gated, so an offer on a piece the SEED
+    ///      holds can only ever be paid by the seed — a visitor watching it is shown a state, not
+    ///      handed an action. `setCommission` has no existence check, so the artist can author an
+    ///      offer on an id before it is minted; the next person to buy into this row receives a piece
+    ///      with an offer already waiting on it, and can pay it as its holder. That is the difference
+    ///      between demonstrating the pay-and-pin path and describing it.
+    ///
+    ///      The ids are chosen, not sequential: they clear the pieces the seed keeps AND skip the ids
+    ///      whose commission art did not survive the rescue (see `_commissionArtMissing`).
+    function _commissionOfferIds() internal pure returns (uint256[] memory ids) {
+        ids = new uint256[](6);
+        ids[0] = 10;
+        ids[1] = 11;
+        ids[2] = 13;
+        ids[3] = 14;
+        ids[4] = 15;
+        ids[5] = 16;
+    }
+
     /// @dev The `selection` pointer that means "wave 0" — `MetadataOverlayModule.WAVE_OFFSET` plus the
     ///      index of the only wave this seed publishes. The module's offset is `internal`, so this
     ///      mirrors it rather than reading it; the seed does not trust the mirror, it CHECKS it, by
@@ -1777,19 +1908,39 @@ abstract contract SeedSepoliaShared is Script {
     ///      action. The row must HOLD at least this many for the demonstration to be authorable.
     uint256 internal constant METADATA_DEMO_PIECES = 3;
 
-    /// @dev The WOTLK ids whose art did not survive the rescue, and which the wave demonstration must
-    ///      therefore not land on.
+    /// @dev Bump to step a vault's deterministic address past a CREATE3 collision.
+    ///
+    ///      EARNED, not anticipated. The vault salt used to be keyed on the target's ORDINAL, so
+    ///      removing one target from the deploy renumbered every row, moved every derived address,
+    ///      and landed one of them on an address that already holds code on Sepolia — CreateX reverts
+    ///      `FailedContractCreation` on the CREATE3 proxy and the whole phase dies. The salt is keyed
+    ///      on the TOKEN now, which does not renumber, but any deterministic address can collide with
+    ///      a chain it does not control. This is the escape hatch, so a collision on a live network is
+    ///      a re-run with one env var rather than an edit.
+    string internal constant ENV_VAULT_SALT_NONCE = "SEPOLIA_VAULT_SALT_NONCE";
+
+    function _vaultSaltNonce() internal view returns (uint256) {
+        return vm.envOr(ENV_VAULT_SALT_NONCE, uint256(0));
+    }
+
+    /// @dev The WOTLK ids whose art did not survive the rescue, and which a COMMISSION must therefore
+    ///      not be authored on.
     ///
     ///      The expansion set was recovered CID-preserving from a thinned pin: 149/150 images and
     ///      110/150 metadata files came back byte-identical and verified against the collection's own
     ///      per-file CIDs, and the rest are unreachable — announced providers, none of them serving.
-    ///      A wave resolves as `baseURI + id`, so an opt-in on one of these ids would pin a holder to
-    ///      a picture that cannot load. THE HOLES ARE NOT AT THE END: ids 2 and 4-9 are among them,
-    ///      which is exactly where a "lowest held id" rule would land. Hence a list, not a ceiling.
+    ///      THE HOLES ARE NOT AT THE END: ids 2 and 4-9 are among them, which is exactly where a
+    ///      "next few ids" rule would land. Hence a list, not a ceiling.
+    ///
+    ///      This is why the WAVE does not ride this collection. A wave is published to the whole
+    ///      collection and opted into by any holder on any id, so it needs art for every id a row can
+    ///      mint; a commission is authored by the artist on ids it names, so it only needs those. The
+    ///      wave rides the fully-recovered edition and the commission rides this one — which also
+    ///      puts the PAID layer on the scarcer set, where paying for it makes more sense.
     ///
     ///      This is a property of the RESCUE, not of the collection, so it is stated once here rather
     ///      than being rediscovered by whoever next reads a blank tile.
-    function _waveArtMissing(uint256 id) internal pure returns (bool) {
+    function _commissionArtMissing(uint256 id) internal pure returns (bool) {
         if (id == 0 || id > COVER_WOTLK) return true;
         uint16[41] memory holes = [
             uint16(2),

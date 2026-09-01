@@ -39,6 +39,10 @@ export interface RollupVaultInput {
   vaultType: string | undefined
   /** Endowment principal; undefined for LP vaults (they revert the read). */
   totalPrincipal: bigint | undefined
+  /** ETH the LP vault placed into its position, at cost; undefined for endowment vaults. */
+  ethLocked: bigint | undefined
+  /** ETH the LP vault holds, tithed but not yet converted into liquidity. */
+  pendingEth: bigint | undefined
   /** Accrued fees, both families. */
   accumulatedFees: bigint | undefined
   /** Probed target id, or `null` when neither family's target getter resolved. */
@@ -52,6 +56,22 @@ export interface TargetRollup {
   endowmentPrincipal: bigint
   /** Sum of `accumulatedFees` across this target's LP vaults. Never added to the principal. */
   lpFees: bigint
+  /**
+   * Sum of ETH this target's LP vaults have placed into their positions, at cost.
+   *
+   * Kept BESIDE the endowment principal rather than merged into it: a principal is held and
+   * redeemable, an LP placement is a cost basis whose present worth moves with the pool. Adding them
+   * would produce one number that means neither thing.
+   */
+  lpEthPlaced: bigint
+  /**
+   * Sum of ETH this target's LP vaults hold awaiting conversion.
+   *
+   * Counted, because it is the vault's ETH and it is bound to this community — it simply has not
+   * been put to work yet. Named separately, because "working as liquidity" and "waiting to be" are
+   * different states and one of them is an action somebody can still take.
+   */
+  lpPendingEth: bigint
   vaultCount: number
   collectionCount: number
 }
@@ -59,7 +79,15 @@ export interface TargetRollup {
 const ENDOWMENT = 'AaveEndowment'
 
 function emptyRollup(targetId: bigint | null): TargetRollup {
-  return { targetId, endowmentPrincipal: 0n, lpFees: 0n, vaultCount: 0, collectionCount: 0 }
+  return {
+    targetId,
+    endowmentPrincipal: 0n,
+    lpFees: 0n,
+    lpEthPlaced: 0n,
+    lpPendingEth: 0n,
+    vaultCount: 0,
+    collectionCount: 0,
+  }
 }
 
 /**
@@ -101,6 +129,8 @@ export function rollUpByTarget(
       group.endowmentPrincipal += vault.totalPrincipal ?? 0n
     } else if (vault.vaultType !== undefined) {
       group.lpFees += vault.accumulatedFees ?? 0n
+      group.lpEthPlaced += vault.ethLocked ?? 0n
+      group.lpPendingEth += vault.pendingEth ?? 0n
     }
   })
 
@@ -145,7 +175,9 @@ export function vaultTargetLabel(
  */
 export function targetFigureLabel(rollup: TargetRollup | undefined, pending: boolean): string {
   if (pending) return '…'
-  return `${ethCompact(rollup?.endowmentPrincipal ?? 0n)} ETH`
+  const bound =
+    (rollup?.endowmentPrincipal ?? 0n) + (rollup?.lpEthPlaced ?? 0n) + (rollup?.lpPendingEth ?? 0n)
+  return `${ethCompact(bound)} ETH`
 }
 
 /**
@@ -156,11 +188,51 @@ export function targetFigureNote(rollup: TargetRollup | undefined, pending: bool
   if (pending) return 'reading vaults…'
   const vaults = rollup?.vaultCount ?? 0
   const collections = rollup?.collectionCount ?? 0
+  const principal = rollup?.endowmentPrincipal ?? 0n
+  const placed = rollup?.lpEthPlaced ?? 0n
+
+  // The figure is a sum of two unlike things, so the note always says what went into it. An LP
+  // placement is stated AT COST, because the position's present worth moves with the pool and this
+  // page has no business implying otherwise.
+  const parts: string[] = []
+  if (principal > 0n) parts.push(`${ethCompact(principal)} ETH endowment principal`)
+  if (placed > 0n) parts.push(`${ethCompact(placed)} ETH placed as liquidity, at cost`)
+  const awaiting = rollup?.lpPendingEth ?? 0n
+  if (awaiting > 0n) parts.push(`${ethCompact(awaiting)} ETH awaiting conversion`)
+  const made = parts.length > 0 ? parts.join(' + ') : 'nothing bound yet'
+
   const scope =
-    `principal locked in endowment vaults · ${vaults} ${vaults === 1 ? 'vault' : 'vaults'}` +
+    `${made} · ${vaults} ${vaults === 1 ? 'vault' : 'vaults'}` +
     ` · ${collections} ${collections === 1 ? 'collection' : 'collections'}`
   const fees = rollup?.lpFees ?? 0n
-  return fees > 0n
-    ? `${scope} · plus ${ethCompact(fees)} ETH LP fees, not valued into the figure`
-    : scope
+  return fees > 0n ? `${scope} · plus ${ethCompact(fees)} ETH LP fees` : scope
+}
+
+/**
+ * Sum several targets' rollups into one.
+ *
+ * A COMMUNITY's figure, not a target's: an asset curated on two venues is two targets, and a
+ * visitor reading one card expects the number on it to cover everything bound to that community
+ * rather than to whichever venue happened to be registered first.
+ */
+export function sumRollups(rollups: readonly (TargetRollup | undefined)[]): TargetRollup {
+  const out: TargetRollup = {
+    targetId: null,
+    endowmentPrincipal: 0n,
+    lpFees: 0n,
+    lpEthPlaced: 0n,
+    lpPendingEth: 0n,
+    vaultCount: 0,
+    collectionCount: 0,
+  }
+  for (const r of rollups) {
+    if (!r) continue
+    out.endowmentPrincipal += r.endowmentPrincipal
+    out.lpFees += r.lpFees
+    out.lpEthPlaced += r.lpEthPlaced
+    out.lpPendingEth += r.lpPendingEth
+    out.vaultCount += r.vaultCount
+    out.collectionCount += r.collectionCount
+  }
+  return out
 }

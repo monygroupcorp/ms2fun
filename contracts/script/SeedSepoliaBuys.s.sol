@@ -791,8 +791,10 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
                 "metadata: the row holds too few pieces to show base, wave and commission"
             );
 
-            uint256 waveId = _lowestWaveEligibleId(ids);
-            (uint256 paidId, uint256 unpaidId) = _twoIdsOtherThan(ids, waveId);
+            // The wave rides the fully-recovered edition, so any held id can carry it.
+            uint256 waveId = _lowestId(ids);
+            // The commission rides the scarcer set, so its id must be one the rescue recovered.
+            uint256 paidId = _lowestCommissionableId(ids, waveId);
             uint256 price = _commissionPrice();
             MetadataOverlayModule ov = MetadataOverlayModule(d.overlay);
 
@@ -804,69 +806,70 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
             ov.setCommission(
                 inst,
                 paidId,
-                string.concat(ART_BASE_PIXELADYBC, vm.toString(paidId)),
+                string.concat(ART_BASE_WOTLK, vm.toString(paidId)),
                 MetadataOverlayModule.CommCond.PAY,
                 price,
                 MetadataOverlayModule.Payout.ARTIST
             );
             ov.unlock{ value: price }(inst, paidId);
-            // ...and one left unpaid, which is the action rather than the record of an action.
-            ov.setCommission(
-                inst,
-                unpaidId,
-                string.concat(ART_BASE_PIXELADYBC, vm.toString(unpaidId)),
-                MetadataOverlayModule.CommCond.PAY,
-                price,
-                MetadataOverlayModule.Payout.ARTIST
-            );
+
+            // ...and the offers a VISITOR can take. Authored on ids ABOVE the pieces the seed keeps,
+            // so the next person to buy into this row is minted a piece that already carries one and
+            // can pay it as its holder. An offer on a piece the seed holds could only ever be paid by
+            // the seed, which is a state to look at rather than an action to take.
+            uint256[] memory offers = _commissionOfferIds();
+            for (uint256 k = 0; k < offers.length; k++) {
+                ov.setCommission(
+                    inst,
+                    offers[k],
+                    string.concat(ART_BASE_WOTLK, vm.toString(offers[k])),
+                    MetadataOverlayModule.CommCond.PAY,
+                    price,
+                    MetadataOverlayModule.Payout.ARTIST
+                );
+            }
             vm.stopBroadcast();
             spent += price;
 
             require(
                 keccak256(bytes(ov.resolve(inst, waveId, deployer)))
-                    == keccak256(bytes(string.concat(ART_BASE_WOTLK, vm.toString(waveId)))),
+                    == keccak256(bytes(string.concat(ART_BASE_PIXELADYBC, vm.toString(waveId)))),
                 "metadata: the wave selection does not resolve to the wave art"
             );
             require(
                 keccak256(bytes(ov.resolve(inst, paidId, deployer)))
-                    == keccak256(bytes(string.concat(ART_BASE_PIXELADYBC, vm.toString(paidId)))),
+                    == keccak256(bytes(string.concat(ART_BASE_WOTLK, vm.toString(paidId)))),
                 "metadata: the paid commission does not resolve to its art"
             );
+            // An authored-but-unpaid offer must stay invisible: it resolves to the base until the
+            // holder pays, which is what makes paying a change a visitor can see happen.
             require(
-                bytes(ov.resolve(inst, unpaidId, deployer)).length == 0,
-                "metadata: the unpaid commission is visible before anybody paid for it"
+                bytes(ov.resolve(inst, offers[0], deployer)).length == 0,
+                "metadata: an unpaid commission offer is visible before anybody paid for it"
             );
             require(ov.waveCount(inst) == 1, "metadata: the row does not carry exactly the one published wave");
 
             console.log(string.concat("METADATA ", legs[i].slug), inst);
-            console.log("  wave id / paid commission id / unpaid commission id:", waveId, paidId, unpaidId);
+            console.log("  wave id / paid commission id:", waveId, paidId);
+            console.log("  commission offers authored for the next buyers on ids:", offers.length);
         }
     }
 
-    /// @dev The lowest held id whose WOTLK art survived the rescue. Lowest because it is the piece a
-    ///      visitor meets first; eligible because a wave resolves as `baseURI + id`, so an opt-in on a
-    ///      rescued-out id would pin a holder to a picture that cannot load.
-    function _lowestWaveEligibleId(uint256[] memory ids) internal pure returns (uint256 id) {
+    /// @dev The lowest id the caller holds — the piece a visitor meets first.
+    function _lowestId(uint256[] memory ids) internal pure returns (uint256 id) {
         for (uint256 i = 0; i < ids.length; i++) {
-            if (_waveArtMissing(ids[i])) continue;
             if (id == 0 || ids[i] < id) id = ids[i];
         }
-        require(id != 0, "metadata: the row holds no id whose wave art survived the rescue");
+        require(id != 0, "metadata: the row holds no pieces");
     }
 
-    /// @dev The two lowest held ids that are not `skip`, lowest first.
-    function _twoIdsOtherThan(uint256[] memory ids, uint256 skip) internal pure returns (uint256 a, uint256 c) {
+    /// @dev The lowest held id, other than `skip`, whose COMMISSION art survived the rescue.
+    function _lowestCommissionableId(uint256[] memory ids, uint256 skip) internal pure returns (uint256 id) {
         for (uint256 i = 0; i < ids.length; i++) {
-            uint256 id = ids[i];
-            if (id == skip) continue;
-            if (a == 0 || id < a) {
-                c = a;
-                a = id;
-            } else if (c == 0 || id < c) {
-                c = id;
-            }
+            if (ids[i] == skip || _commissionArtMissing(ids[i])) continue;
+            if (id == 0 || ids[i] < id) id = ids[i];
         }
-        require(a != 0 && c != 0, "metadata: the row holds too few pieces to author both commissions");
+        require(id != 0, "metadata: the row holds no id whose commission art survived the rescue");
     }
 
     // ─────────────────────── 7. The carve ───────────────────────
