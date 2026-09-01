@@ -317,7 +317,7 @@ contract HarvestFirstCypherTest is Test {
             address(weth),
             address(alignmentToken),
             treasury,
-            address(0),
+            makeAddr("zRouter"), // unused by these tests; initialize now requires nonzero
             address(0),
             address(validator),
             registry,

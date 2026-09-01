@@ -77,7 +77,7 @@ contract CypherOracleFloorBandTest is Test {
             address(weth),
             address(alignmentToken),
             protocolTreasury,
-            address(0), // zRouter
+            makeAddr("zRouter"), // unused by these tests; initialize now requires nonzero
             address(0), // zQuoter → Algebra fixed-pool fallback (the mock swap router)
             address(validator),
             registry,

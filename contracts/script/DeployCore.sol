@@ -339,7 +339,7 @@ contract DeployCore is Script {
 
         // Always deploy — self-guards with code.length checks when pools don't exist
         priceValidator = new UniswapVaultPriceValidator(
-            cfg.weth, cfg.v2Factory, cfg.v3Factory, cfg.v4PoolManager, cfg.priceDeviationBps, cfg.twapSeconds
+            cfg.weth, cfg.v3Factory, cfg.v4PoolManager, cfg.priceDeviationBps, cfg.twapSeconds
         );
 
         uniVaultFactory = new UniAlignmentVaultFactory(

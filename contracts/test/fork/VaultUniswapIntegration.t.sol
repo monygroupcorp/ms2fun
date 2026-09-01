@@ -42,7 +42,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
 
         // Deploy peripherals and vault (clone pattern)
         UniswapVaultPriceValidator priceValidator = new UniswapVaultPriceValidator(
-            WETH, UNISWAP_V2_FACTORY, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800
+            WETH, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800
         );
         mockRegistry = new MockAlignmentRegistry();
         mockRegistry.setTargetActive(TARGET_ID, true);
@@ -154,7 +154,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
             IVaultPriceValidator(
                 address(
                     new UniswapVaultPriceValidator(
-                        WETH, UNISWAP_V2_FACTORY, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800
+                        WETH, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800
                     )
                 )
             ),

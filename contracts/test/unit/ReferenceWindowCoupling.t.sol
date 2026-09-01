@@ -87,7 +87,7 @@ contract ReferenceWindowCouplingTest is Test {
     }
 
     function _validator(uint32 window) internal returns (UniswapVaultPriceValidator) {
-        return new UniswapVaultPriceValidator(weth, address(0), address(0), address(0), 1000, window);
+        return new UniswapVaultPriceValidator(weth, address(0), address(0), 1000, window);
     }
 
     function _pinDefaultWindow(address pool) internal {

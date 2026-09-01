@@ -156,7 +156,6 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         // slither-disable-next-line missing-zero-check
         address _alignmentToken,
         address _protocolTreasury,
-        // slither-disable-next-line missing-zero-check
         address _zRouter,
         // slither-disable-next-line missing-zero-check
         address _zQuoter,
@@ -182,6 +181,10 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         // setter for its destination — a zero treasury would accrue into a bucket with no exit, so it
         // is refused here rather than at withdrawal time (mirrors ZAMMAlignmentVault.initialize).
         if (_protocolTreasury == address(0)) revert TreasuryNotSet();
+
+        // No setter exists for zRouter after initialize; a zero here permanently kills this vault's
+        // acquisition path with no repair possible post-deploy.
+        if (_zRouter == address(0)) revert InvalidAddress();
 
         positionManager = IAlgebraNFTPositionManager(_positionManager);
         swapRouter = IAlgebraSwapRouter(_swapRouter);

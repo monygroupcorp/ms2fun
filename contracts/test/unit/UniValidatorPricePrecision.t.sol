@@ -54,7 +54,7 @@ contract UniValidatorPricePrecisionTest is Test {
     uint32 internal constant TWAP = 1800;
 
     function setUp() public {
-        validator = new UniswapVaultPriceValidator(WETH, address(0), address(0), address(0), 1000, TWAP);
+        validator = new UniswapVaultPriceValidator(WETH, address(0), address(0), 1000, TWAP);
         legacy = new LegacyShiftPrice();
     }
 

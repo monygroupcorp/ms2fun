@@ -68,7 +68,7 @@ contract VaultCypherGraduationForkTest is ForkTestBase {
 
         // Real price validator reading the real Uni V3 WETH/USDC pool TWAP for the reference (kind 0).
         UniswapVaultPriceValidator validator = new UniswapVaultPriceValidator(
-            WETH, UNISWAP_V2_FACTORY, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800
+            WETH, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800
         );
 
         MockAlignmentRegistry registry = new MockAlignmentRegistry();

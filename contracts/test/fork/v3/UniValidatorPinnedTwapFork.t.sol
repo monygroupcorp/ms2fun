@@ -16,7 +16,7 @@ contract UniValidatorPinnedTwapForkTest is ForkTestBase {
     function setUp() public {
         loadAddresses(); // vm.skip(true) if not forked
         validator = new UniswapVaultPriceValidator(
-            WETH, UNISWAP_V2_FACTORY, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800
+            WETH, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800
         );
     }
 

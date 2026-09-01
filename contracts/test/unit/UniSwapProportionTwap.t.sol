@@ -82,7 +82,7 @@ contract UniSwapProportionTwapTest is Test {
 
     function setUp() public {
         factory = new MockV3TwapFactory();
-        validator = new UniswapVaultPriceValidator(WETH, address(0), address(factory), address(0), 1000, 1800);
+        validator = new UniswapVaultPriceValidator(WETH, address(factory), address(0), 1000, 1800);
     }
 
     // ── (1) Full range is inert to the TWAP ────────────────────────────────────────────────────────
