@@ -36,6 +36,7 @@ import { useCollection } from '../../useCollection'
 import { useCollectionMetadata } from '../../useCollectionMetadata'
 import { useCollectionAddresses, useCollectionChainId } from '../useCollectionChain'
 import { collectionToDataUri } from '../../../lib/metadata'
+import { ArtPointerNotice } from '../ArtPointerNotice'
 import {
   buildAllowlistFromPaste,
   buildAllowlistFromUri,
@@ -72,6 +73,7 @@ export function CreatorAdminPanel({ instance }: CreatorAdminPanelProps) {
       <UpdateMetadataRow instance={instance} editions={editions} onUpdated={refetchEditions} />
       <SetEditionFreeMintRow instance={instance} editions={editions} onUpdated={refetchEditions} />
       <SetStyleRow instance={instance} />
+      <ArtPointerNotice instance={instance} />
       <MigrateVaultRow instance={instance} />
       <AgentDelegationRow instance={instance} />
       <RetryVaultRow instance={instance} />

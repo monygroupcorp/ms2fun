@@ -51,6 +51,14 @@ export interface CollectionMetadata {
    * allowlist has been configured.
    */
   allowlists?: AllowlistRow[]
+  /**
+   * Which authored art pointers the allowlist REFUSED (`sanitizeImageUri` blanked a non-empty
+   * string). Without it `image: ''` is ambiguous — a collection that authored no art and one whose
+   * art the app will never render read identically, and only the second is worth telling the
+   * creator about. Omitted when nothing was refused. Never serialized: `buildCollectionJson`
+   * writes an explicit key list, so this stays in-memory.
+   */
+  refusedPointers?: readonly ('image' | 'banner')[]
 }
 
 /** One row of `CollectionMetadata.allowlists` — see that field's doc for the (editionId,tierIndex) model. */
@@ -104,14 +112,23 @@ export function parseProfile(json: unknown): ProfileMetadata {
 export function parseCollection(json: unknown): CollectionMetadata {
   const o = (json ?? {}) as Record<string, unknown>
   const allowlists = allowlistRows(o.allowlists)
+  const rawImage = str(o.image)
+  // ERC-7572 spells it `banner_image`; `banner` is our pre-7572 key, still read so collections
+  // written before the rename (and any third-party JSON) keep rendering.
+  const rawBanner = str(o.banner_image) || str(o.banner)
+  const image = sanitizeImageUri(rawImage)
+  const banner = sanitizeImageUri(rawBanner)
+  // A pointer that was authored and then blanked is a refusal, not an absence — recorded here, the
+  // one place the allowlist is applied to collection JSON, so no caller re-implements the rules.
+  const refusedPointers: ('image' | 'banner')[] = []
+  if (rawImage.trim() !== '' && image === '') refusedPointers.push('image')
+  if (rawBanner.trim() !== '' && banner === '') refusedPointers.push('banner')
   return {
     schemaVersion: num(o.schemaVersion, 1),
     name: str(o.name),
     description: str(o.description),
-    image: sanitizeImageUri(str(o.image)),
-    // ERC-7572 spells it `banner_image`; `banner` is our pre-7572 key, still read so collections
-    // written before the rename (and any third-party JSON) keep rendering.
-    banner: sanitizeImageUri(str(o.banner_image) || str(o.banner)),
+    image,
+    banner,
     category: str(o.category),
     // `external_link` is derived from links[0] on write, so it needs no read-back — but a
     // third-party collection may carry only `external_link`. Surface it as the sole link.
@@ -119,6 +136,7 @@ export function parseCollection(json: unknown): CollectionMetadata {
     // `exactOptionalPropertyTypes` forbids assigning `undefined` to an optional field — only include
     // the key when there's an actual row set.
     ...(allowlists !== undefined ? { allowlists } : {}),
+    ...(refusedPointers.length > 0 ? { refusedPointers } : {}),
   }
 }
 
