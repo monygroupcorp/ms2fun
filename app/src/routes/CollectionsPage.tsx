@@ -146,7 +146,11 @@ export function CollectionsPage() {
       </div>
 
       {isPending && <StateBlock variant="loading">hanging the work…</StateBlock>}
-      {isError && <StateBlock variant="error">discovery unreachable — is the fork up?</StateBlock>}
+      {isError && (
+        <StateBlock variant="error">
+          discovery unreachable — no response from the network.
+        </StateBlock>
+      )}
 
       {!isPending && !isError && total === 0 && (
         <StateBlock variant="empty" boxed testId="collections-empty">

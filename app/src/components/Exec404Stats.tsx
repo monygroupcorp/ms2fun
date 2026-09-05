@@ -44,7 +44,7 @@ export function Exec404Stats() {
   if (isError) {
     return (
       <section className={styles.card} data-testid="exec404-stats">
-        <p className={styles.unreachable}>EXEC404 unreachable — is the fork up?</p>
+        <p className={styles.unreachable}>EXEC404 unreachable — no response from the network.</p>
       </section>
     )
   }

@@ -188,7 +188,11 @@ function TruncationNotice({ testId, subject }: { testId: string; subject: string
 export function HeldPanel({ data, isPending, isError, truncated }: PanelProps) {
   if (isPending) return <StateBlock variant="loading">hanging the work…</StateBlock>
   if (isError)
-    return <StateBlock variant="error">could not reach the aggregator — is the fork up?</StateBlock>
+    return (
+      <StateBlock variant="error">
+        could not reach the aggregator — no response from the network.
+      </StateBlock>
+    )
   if (isPortfolioEmpty(data))
     return (
       <>
@@ -234,7 +238,11 @@ export function VaultsPanel({
 }: PanelProps & { isOwn?: boolean }) {
   if (isPending) return <StateBlock variant="loading">hanging the work…</StateBlock>
   if (isError)
-    return <StateBlock variant="error">could not reach the aggregator — is the fork up?</StateBlock>
+    return (
+      <StateBlock variant="error">
+        could not reach the aggregator — no response from the network.
+      </StateBlock>
+    )
 
   const positions: readonly VaultPosition[] = data?.[2] ?? []
   const claimable = data?.[3] ?? 0n
