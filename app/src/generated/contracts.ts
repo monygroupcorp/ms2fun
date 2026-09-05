@@ -8404,6 +8404,25 @@ export const erc721AuctionInstanceAbi = [
         indexed: true,
       },
       {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'VaultContributionRetried',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
         name: 'treasury',
         internalType: 'address',
         type: 'address',
@@ -23502,6 +23521,15 @@ export const useWatchErc721AuctionInstanceVaultContributionFailedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc721AuctionInstanceAbi,
     eventName: 'VaultContributionFailed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"VaultContributionRetried"`
+ */
+export const useWatchErc721AuctionInstanceVaultContributionRetriedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc721AuctionInstanceAbi,
+    eventName: 'VaultContributionRetried',
   })
 
 /**
