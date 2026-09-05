@@ -195,12 +195,24 @@ contract MockMasterRegistry {
 }
 
 /// @dev Alignment-registry mock with a settable ambassador set, so `execute` auth can be driven and the
-///      `removeAmbassador` backstop exercised. Only `isAmbassador` is read by the vault.
+///      `removeAmbassador` backstop exercised, plus the canonical community payout the vault resolves its
+///      target sink from. The vault reads `isAmbassador` and `getCommunityPayout`.
 contract MockAmbassadorRegistry {
     mapping(uint256 => mapping(address => bool)) private _amb;
+    mapping(uint256 => address) private _communityPayout;
 
     function setAmbassador(uint256 targetId, address account, bool flag) external {
         _amb[targetId][account] = flag;
+    }
+
+    /// @dev Mirrors AlignmentRegistryV1.setCommunityPayout, minus the owner gate — the canonical sink the
+    ///      vault prefers over its own stored fallback.
+    function setCommunityPayout(uint256 targetId, address payout) external {
+        _communityPayout[targetId] = payout;
+    }
+
+    function getCommunityPayout(uint256 targetId) external view returns (address) {
+        return _communityPayout[targetId];
     }
 
     /// @dev Mirrors AlignmentRegistryV1.removeAmbassador (the sole `execute` backstop).
@@ -853,6 +865,83 @@ contract AlignmentEndowmentVaultTest is Test {
 
         assertEq(communityPayout.balance - communityBefore, 0.019 ether, "target leg pushed on harvest");
         assertEq(v2.accumulatedTargetFees(), 0, "nothing accrued when the sink is set");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 2b. The target sink is resolved from the registry at send time
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// @dev A registry re-point reaches a vault that was already deployed. The stored `communityPayout`
+    ///      is a fallback, not a pin: were it read first, every clone deployed before the re-point would
+    ///      keep force-sending to the superseded address with nothing to claw back.
+    function test_targetSink_registryRepointReachesADeployedVault() public {
+        address canonical = makeAddr("canonicalSink");
+        ambassadorRegistry.setCommunityPayout(TARGET_ID, canonical);
+
+        _contributeBenefactor(ONE_ETH);
+        _simulateYield(0.1 ether);
+
+        uint256 staleBefore = communityPayout.balance;
+        uint256 canonicalBefore = canonical.balance;
+        vault.harvest();
+
+        assertEq(canonical.balance - canonicalBefore, 0.019 ether, "the registry's sink was paid");
+        assertEq(communityPayout.balance, staleBefore, "the pinned deploy-time address was not");
+        assertEq(vault.communityPayout(), communityPayout, "the fallback slot is untouched");
+    }
+
+    /// @dev The flush leg resolves the same way — a fix that touched only `_crystallizeYield` would
+    ///      leave the accrued balance going to the stale address.
+    function test_flushTargetFees_resolvesFromRegistry() public {
+        // Strand a leg with no sink on either side, then wire the registry alone and flush.
+        AlignmentEndowmentVault v2 = _deployVault(address(0));
+        MockOwnable b2 = new MockOwnable(alice);
+        vm.prank(alice);
+        v2.receiveContribution{ value: ONE_ETH }(nativeCurrency, ONE_ETH, address(b2));
+        _simulateYield(0.1 ether);
+        v2.harvest();
+        assertEq(v2.accumulatedTargetFees(), 0.019 ether, "accrued with no sink");
+
+        address canonical = makeAddr("canonicalFlushSink");
+        ambassadorRegistry.setCommunityPayout(TARGET_ID, canonical);
+
+        uint256 before = canonical.balance;
+        assertEq(v2.flushTargetFees(), 0.019 ether);
+        assertEq(canonical.balance - before, 0.019 ether, "flush paid the registry's sink");
+        assertEq(v2.communityPayout(), address(0), "with no stored fallback of its own");
+    }
+
+    /// @dev With the registry returning zero and no stored payout, `_crystallizeYield` still ACCRUES the
+    ///      target leg (never reverts, never drops it) and `flushTargetFees()` still reverts.
+    function test_targetSink_zeroOnBothSidesAccruesAndFlushReverts() public {
+        AlignmentEndowmentVault v2 = _deployVault(address(0));
+        assertEq(ambassadorRegistry.getCommunityPayout(TARGET_ID), address(0), "registry unset too");
+
+        MockOwnable b2 = new MockOwnable(alice);
+        vm.prank(alice);
+        v2.receiveContribution{ value: ONE_ETH }(nativeCurrency, ONE_ETH, address(b2));
+        _simulateYield(0.1 ether);
+
+        v2.harvest();
+        assertEq(v2.accumulatedTargetFees(), 0.019 ether, "accrued, not reverted, not dropped");
+        assertEq(v2.pendingYieldOf(address(b2)), 0.08 ether, "creator leg unaffected");
+
+        vm.expectRevert(AlignmentEndowmentVault.CommunityPayoutNotSet.selector);
+        v2.flushTargetFees();
+    }
+
+    /// @dev The stored slot is the fallback, and it is used whenever the registry has no answer.
+    function test_targetSink_fallsBackToStoredWhenRegistryIsUnset() public {
+        assertEq(ambassadorRegistry.getCommunityPayout(TARGET_ID), address(0));
+
+        _contributeBenefactor(ONE_ETH);
+        _simulateYield(0.1 ether);
+
+        uint256 before = communityPayout.balance;
+        vault.harvest();
+
+        assertEq(communityPayout.balance - before, 0.019 ether, "stored fallback paid");
+        assertEq(vault.accumulatedTargetFees(), 0, "nothing accrued");
     }
 
     /// @dev harvest still succeeds when the target sink rejects ETH (force-send).

@@ -874,6 +874,13 @@ export const alignmentRegistryV1Abi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'targetId', internalType: 'uint256', type: 'uint256' }],
+    name: 'ambassadorCount',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'cancelOwnershipHandover',
     outputs: [],
@@ -15899,6 +15906,15 @@ export const useReadAlignmentRegistryV1AlignmentTargets =
   /*#__PURE__*/ createUseReadContract({
     abi: alignmentRegistryV1Abi,
     functionName: 'alignmentTargets',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"ambassadorCount"`
+ */
+export const useReadAlignmentRegistryV1AmbassadorCount =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentRegistryV1Abi,
+    functionName: 'ambassadorCount',
   })
 
 /**

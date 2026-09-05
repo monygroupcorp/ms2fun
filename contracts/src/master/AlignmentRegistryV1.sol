@@ -195,9 +195,19 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     ///         approved for the same community, never a revived one.
     ///         What `active = false` gates: `isAlignmentTargetActive` and `hasActiveTarget` (the reverse
     ///         lookup the request registry's dup guard reads) both stop reporting this target, and the
-    ///         owner-only configuration writers that require an active target — `setCommunityPayout`,
-    ///         `setAcquireRoute`, `setReferencePool` — revert `TargetNotFound`. Already-stored config
-    ///         for the target is left in place; it is simply no longer reachable as active.
+    ///         owner-only configuration writers that require an active target — `setAcquireRoute` and
+    ///         `setReferencePool` — revert `TargetNotFound`. Already-stored config for the target is
+    ///         left in place; it is simply no longer reachable as active.
+    ///         What `active = false` does NOT gate — the two residuals an operator must read this as
+    ///         leaving behind:
+    ///          - `setCommunityPayout`. A de-curated target's vaults may still hold an accrued community
+    ///            cut whose only exit resolves the payout from this registry, so the sink stays settable
+    ///            for as long as that money exists. See the note on that function.
+    ///          - Ambassador deploy rights. Appointed ambassadors are NOT cleared here, and
+    ///            `AlignmentEndowmentVault.execute` reads only `isAmbassador` — it never consults
+    ///            `isAlignmentTargetActive`. After de-curation an ambassador can still move the
+    ///            endowment's deployable corpus. The lever that revokes this is `removeAmbassador`,
+    ///            called per ambassador; `ambassadorCount` reports how many are outstanding.
     function deactivateAlignmentTarget(uint256 targetId) external override onlyOwner {
         if (alignmentTargets[targetId].approvedAt == 0) revert TargetNotFound();
         alignmentTargets[targetId].active = false;
@@ -260,6 +270,14 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
         return _isAmbassador[targetId][account];
     }
 
+    /// @notice How many ambassadors are currently appointed on `targetId`.
+    /// @dev    Deploy rights survive de-curation, so this is what an operator needs at the moment they
+    ///         withdraw curation: the number of `removeAmbassador` calls still owed before nobody can
+    ///         spend the target's endowment corpus.
+    function ambassadorCount(uint256 targetId) external view override returns (uint256) {
+        return alignmentTargetAmbassadors[targetId].length;
+    }
+
     // ============ Token Lookup ============
 
     function isTokenInTarget(uint256 targetId, address token) external view override returns (bool) {
@@ -273,13 +291,19 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     // ============ Community Payout ============
 
     /**
-     * @notice Set the community payout address for an active alignment target
+     * @notice Set the community payout address for an approved alignment target.
+     * @dev    Deliberately NOT gated on `active`. Every alignment vault accrues the target's cut and
+     *         pays it out only through this registry's answer, to a sink the caller cannot choose; a
+     *         target de-curated before its payout was ever set would otherwise have that accrued ETH
+     *         sealed in permanently, since `deactivateAlignmentTarget` is one-way. Setting a payout on
+     *         a de-curated target does not restore curation and opens no redirect surface — it lets the
+     *         community's own money reach the community. `approvedAt` is still required: an unapproved
+     *         id has no target to pay.
      * @param targetId ID of the alignment target
-     * @param payout   Address that receives the community's share from the Aave endowment vault
+     * @param payout   Address that receives the community's share from this target's alignment vaults
      */
     function setCommunityPayout(uint256 targetId, address payout) external override onlyOwner {
         if (alignmentTargets[targetId].approvedAt == 0) revert TargetNotFound();
-        if (!alignmentTargets[targetId].active) revert TargetNotFound();
         if (payout == address(0)) revert InvalidAddress();
 
         communityPayout[targetId] = payout;

@@ -87,6 +87,7 @@ interface IAlignmentRegistry {
     function removeAmbassador(uint256 targetId, address ambassador) external;
     function getAmbassadors(uint256 targetId) external view returns (address[] memory);
     function isAmbassador(uint256 targetId, address account) external view returns (bool);
+    function ambassadorCount(uint256 targetId) external view returns (uint256);
 
     // Token Lookup
     function isTokenInTarget(uint256 targetId, address token) external view returns (bool);
