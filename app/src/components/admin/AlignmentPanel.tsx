@@ -680,7 +680,9 @@ export function TargetRequestsPanel() {
     <AdminSection title="target requests" testId="admin-target-requests">
       {isPending && <StateBlock variant="loading">loading pending requests…</StateBlock>}
       {isError && (
-        <StateBlock variant="error">couldn&apos;t load requests — is the fork up?</StateBlock>
+        <StateBlock variant="error">
+          couldn&apos;t load requests — no response from the network.
+        </StateBlock>
       )}
       {!isPending && !isError && (data === undefined || data.length === 0) && (
         <StateBlock variant="empty" boxed testId="admin-target-requests-empty">

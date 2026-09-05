@@ -228,7 +228,9 @@ export function AlignmentTargetPicker({
   if (isPending || targetsPending)
     return <StateBlock variant="loading">loading alignment targets…</StateBlock>
   if (isError)
-    return <StateBlock variant="error">could not load vaults — is the fork up?</StateBlock>
+    return (
+      <StateBlock variant="error">could not load vaults — no response from the network.</StateBlock>
+    )
   if (targets.length === 0)
     return (
       <StateBlock variant="empty" boxed>
@@ -243,7 +245,8 @@ export function AlignmentTargetPicker({
       {/* Level 1 — the community. */}
       <h3 className={styles.sectionTitle}>Community</h3>
       <p className={styles.help}>
-        Every collection binds ~20% of its fees to a vault aligned with the community you pick.{' '}
+        Every collection routes a fixed share of its fees — 19% on liquidity collections, 80% on
+        endowment ones — to a vault aligned with the community you pick.{' '}
         <LearnLink slug="alignment-vault" />
       </p>
       <div className={styles.targetGrid}>

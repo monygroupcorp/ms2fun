@@ -142,7 +142,9 @@ export function ProfilePage() {
 
       {isPending && <StateBlock variant="loading">hanging the work…</StateBlock>}
       {isError && (
-        <StateBlock variant="error">could not reach registry — is the fork up?</StateBlock>
+        <StateBlock variant="error">
+          could not reach registry — no response from the network.
+        </StateBlock>
       )}
 
       {/* Own profile, not yet set up: prompt to set up the plate. NB this is about the PROFILE, not

@@ -3,7 +3,8 @@
  * `bondAmount` from the escrow; renders nothing while the lever is OFF (bondAmount 0 = today's
  * behavior), so it only appears once an admin has enabled the bond. The bond is escrowed at create,
  * returned in full when the collection graduates, and forfeited to the treasury only if it never
- * graduates within the deadline.
+ * graduates within a protocol-set deadline. That deadline is computed at forfeit time from
+ * owner-settable escrow parameters and is not read here, so the copy names no figure.
  */
 import { formatEther } from 'viem'
 import { useReadDeployBondEscrowBondAmount } from '../../generated/contracts'
@@ -23,7 +24,7 @@ export function BondNotice() {
       <p className={styles.note}>
         Creating this collection escrows a refundable deposit of {formatEther(bondAmount)} ETH on
         top of any fee. You get it back in full when the collection graduates. It is only forfeited
-        to the protocol treasury if the collection never graduates within the deadline.
+        to the protocol treasury if the collection never graduates within a protocol-set deadline.
       </p>
     </div>
   )

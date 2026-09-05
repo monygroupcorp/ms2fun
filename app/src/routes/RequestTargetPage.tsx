@@ -374,7 +374,9 @@ function MyRequests() {
         <StateBlock variant="loading">loading your requests…</StateBlock>
       )}
       {isConnected && isError && (
-        <StateBlock variant="error">couldn&apos;t load your requests — is the fork up?</StateBlock>
+        <StateBlock variant="error">
+          couldn&apos;t load your requests — no response from the network.
+        </StateBlock>
       )}
       {isConnected && !isPending && !isError && (data === undefined || data.length === 0) && (
         <StateBlock variant="empty" boxed testId="my-requests-empty">

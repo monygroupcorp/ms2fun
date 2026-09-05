@@ -36,7 +36,7 @@ Classic editions: you define pieces, each with its own supply and price. Buyers 
 ## ERC-721 — auction collection
 One-of-one pieces sold by timed auction. Best for scarce, individually-valued work.
 
-Every standard binds the same **~20% alignment** to a vault and settles fees the same way — the difference is purely how minting and pricing work.
+Every standard routes the same **fixed alignment share** to a vault and settles fees the same way — the difference is purely how minting and pricing work.
 `,
     related: ['erc404', 'erc1155', 'erc721', 'alignment-vault', 'bonding-curve-graduation'],
   },
@@ -94,13 +94,14 @@ Every standard binds the same **~20% alignment** to a vault and settles fees the
   'alignment-vault': {
     title: 'Alignment vaults',
     summary:
-      'Every collection binds ~20% of its fees to a vault aligned with an established community — the thing that makes it not a grift.',
+      'Every collection routes a fixed share of its fees — 19% on liquidity collections, 80% on endowment ones — to a vault aligned with an established community, the thing that makes it not a grift.',
     body: `
-Every launch here is **bound to an alignment vault**. On mint and on every resale, forever, roughly **20% of the fees** flow to that vault, which holds or LPs the target community's token.
+Every launch here is **bound to an alignment vault**. On mint and on every resale, a fixed share of the fees — **19% on liquidity collections, 80% on endowment collections** — flows to that vault, which holds or LPs the target community's token.
 
 This is the core idea of the launchpad: a derivative collection that **materially supports** the community it draws from, instead of extracting from it. You pick the community you're aligning to, then one of its vaults.
 
-- The binding is **contract-enforced and permanent** — it can't be undone after deploy.
+- The **share is a contract constant** — no setter and no owner path, so nobody can change what a settlement pays out.
+- The **destination is curation, not code** — the protocol owner can repoint a target's payout address or retire the target. The ratio is the promise; the payee is a listing decision you can watch and leave over.
 - The capital is **not custodial to us** — it lives in the vault contract.
 - Ongoing LP yield is split by the same **1% protocol · 19% aligned community · 80% benefactors** law as the graduation carve: the 19% flows to that target's own alignment sink, and benefactor collections earn a proportional share of the remaining 80%.
 

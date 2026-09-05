@@ -20,7 +20,9 @@ export function CollectionsBrowse() {
 
   if (isPending) return <StateBlock variant="loading">hanging the work…</StateBlock>
   if (isError)
-    return <StateBlock variant="error">discovery unreachable — is the fork up?</StateBlock>
+    return (
+      <StateBlock variant="error">discovery unreachable — no response from the network.</StateBlock>
+    )
 
   const [cards] = data
   if (cards.length === 0) {
