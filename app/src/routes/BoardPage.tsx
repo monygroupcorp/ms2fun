@@ -14,6 +14,7 @@ import { truncateAddress } from '../lib/format'
 import { MessageComposer } from '../components/MessageComposer'
 import { meetsThreshold, threadMessages } from '../components/threadMessages'
 import { type FeedMessage, usePostThreshold } from '../components/useMessageFeed'
+import { ActivityBox } from '../components/activity/ActivityBox'
 import { ActivityMessage } from '../components/activity/ActivityMessage'
 import { channelRef, messageVerb } from '../components/activity/messageMeta'
 import { StateBlock } from '../components/ui/StateBlock'
@@ -225,6 +226,21 @@ export function BoardPage() {
     (m) => (channel === 'all' || m.instance === channel) && meetsThreshold(m, threshold),
   )
 
+  // The window's name plate says which channel you are standing in — the rail's own labels, so the
+  // room you picked and the room you are in are named the same way.
+  const roomName =
+    channel === 'all'
+      ? 'All discourse'
+      : connected && channel.toLowerCase() === connected.toLowerCase()
+        ? 'Your wall'
+        : truncateAddress(channel)
+
+  // What the plate counts: the lines actually in the transcript of the active view.
+  const rows =
+    boardView === 'discourse'
+      ? visibleThreads.reduce((n, t) => n + 1 + t.replies.length, 0)
+      : activityRows.length
+
   return (
     <div className={styles.page}>
       <nav className={styles.crumb}>
@@ -271,31 +287,31 @@ export function BoardPage() {
             </nav>
           </div>
 
-          {connected !== undefined && (
-            <section className={styles.composeSection}>
-              {/* channel = sender's own address — the established per-wall convention */}
-              <MessageComposer channel={connected} />
-              <p className={styles.composeNote}>
-                signed by {truncateAddress(connected)} · permanent — posts appear in the feed and on
-                your profile
-              </p>
-            </section>
-          )}
-
-          {connected === undefined && (
-            <StateBlock variant="empty" boxed>
-              connect your wallet to post — every voice on the board is attributed.
-            </StateBlock>
-          )}
-
-          <section className={styles.feedSection}>
-            {threshold > 0n && (
-              <StateBlock variant="empty" testId="board-threshold-note">
-                spam lever on: showing posts of {formatEther(threshold)} ETH or more — cheaper posts
-                are hidden until the threshold is lowered.
-              </StateBlock>
-            )}
-
+          {/* The salon is the same chat box home's preview and every collection feed are drawn in
+              — one window, named for the channel you are standing in, with the composer in its
+              well. The composer used to sit above the feed as a section of its own, which read as
+              a form over a list rather than as a room you speak in. */}
+          <ActivityBox
+            room={roomName}
+            status={rows > 0 ? `${rows} posts` : undefined}
+            scrolls
+            composer={
+              connected !== undefined ? (
+                <>
+                  {/* channel = sender's own address — the established per-wall convention */}
+                  <MessageComposer channel={connected} />
+                  <p className={styles.composeNote}>
+                    signed by {truncateAddress(connected)} · permanent — posts appear in the feed
+                    and on your profile
+                  </p>
+                </>
+              ) : (
+                <StateBlock variant="empty">
+                  connect your wallet to post — every voice on the board is attributed.
+                </StateBlock>
+              )
+            }
+          >
             {isPending && <StateBlock variant="loading">hanging the work…</StateBlock>}
 
             {isError && (
@@ -308,32 +324,22 @@ export function BoardPage() {
               </StateBlock>
             )}
 
-            {/* Discourse — the threaded salon (filtered to the active channel). */}
-            {!isPending && !isError && boardView === 'discourse' && visibleThreads.length > 0 && (
-              <div className={styles.list}>
-                {visibleThreads.map((thread) => (
-                  <article
-                    key={String(thread.message.messageId)}
-                    className="noesis-post"
-                    data-testid="board-thread"
-                  >
-                    <ActivityMessage message={thread.message} vaults={vaultSet} actions={actions} />
+            {/* Discourse — the threaded salon (filtered to the active channel). Newest first in the
+                DOM; the transcript reverses it onto the floor of the window. */}
+            {!isPending &&
+              !isError &&
+              boardView === 'discourse' &&
+              visibleThreads.map((thread) => (
+                <ActivityMessage
+                  key={String(thread.message.messageId)}
+                  message={thread.message}
+                  replies={thread.replies}
+                  vaults={vaultSet}
+                  actions={actions}
+                />
+              ))}
 
-                    {thread.replies.map((reply) => (
-                      <div
-                        key={String(reply.messageId)}
-                        className="reply"
-                        data-testid="board-reply"
-                      >
-                        <ActivityMessage message={reply} vaults={vaultSet} actions={actions} />
-                      </div>
-                    ))}
-                  </article>
-                ))}
-              </div>
-            )}
-
-            {/* Activity — the flat on-chain register, every event attributed, newest first. */}
+            {/* Activity — the flat on-chain register, every event attributed. */}
             {!isPending && !isError && boardView === 'activity' && data !== undefined && (
               <ul className={styles.register} data-testid="board-activity">
                 {activityRows.map((m) => {
@@ -356,8 +362,10 @@ export function BoardPage() {
               </ul>
             )}
 
-            {/* Load older — fetches the next window back (ADR-0010 Tier 1B); hidden once the feed
-                reaches the deploy-block floor. */}
+            {/* Both of these are scrollback: last in the DOM, so the reversed transcript puts them
+                at the top of the pane, above the oldest line — where you go looking for them.
+                "Load older" fetches the next window back (ADR-0010 Tier 1B); it is hidden once the
+                feed reaches the deploy-block floor. */}
             {!isPending && !isError && data !== undefined && data.length > 0 && hasNextPage && (
               <div className={styles.loadOlder}>
                 <button
@@ -371,7 +379,14 @@ export function BoardPage() {
                 </button>
               </div>
             )}
-          </section>
+
+            {threshold > 0n && (
+              <StateBlock variant="empty" testId="board-threshold-note">
+                spam lever on: showing posts of {formatEther(threshold)} ETH or more — cheaper posts
+                are hidden until the threshold is lowered.
+              </StateBlock>
+            )}
+          </ActivityBox>
         </div>
       </div>
     </div>
