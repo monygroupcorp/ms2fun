@@ -175,12 +175,14 @@ function AuctionPositions({ positions }: { positions: readonly AuctionPosition[]
  * noesis-327, which is the one place it could never appear.
  *
  * The copy names what was checked rather than what is shown, because in the empty case nothing is
- * being shown at all.
+ * being shown at all. It names no count: the read width is a client-side strategy that has already
+ * changed once (50 → `QUERY_WINDOW`), and a notice carrying a stale number is a second wrong answer
+ * on top of the incomplete read it is meant to confess.
  */
 function TruncationNotice({ testId, subject }: { testId: string; subject: string }) {
   return (
     <p className={styles.warn} data-testid={testId}>
-      only the first 50 collections were checked — {subject} outside that set are not shown.
+      some collections could not be checked — {subject} in them are not shown.
     </p>
   )
 }
