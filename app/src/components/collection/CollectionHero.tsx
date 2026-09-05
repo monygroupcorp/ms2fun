@@ -10,6 +10,7 @@ import {
 } from '../../lib/format'
 import type { ProjectCard } from '../useCreatorCollections'
 import type { CollectionMetadata } from '../../lib/metadata'
+import { activeNetworkName } from '../../lib/network'
 import styles from '../../routes/CollectionPage.module.css'
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
@@ -55,7 +56,9 @@ export function CollectionHero({ instance, card, metadata, primary }: Collection
   return (
     <div className={styles.shell}>
       <aside className={styles.specimen}>
-        <p className={styles.kicker}>Collections / {card.isActive ? 'Live' : 'Ended'} · Ethereum</p>
+        <p className={styles.kicker}>
+          Collections / {card.isActive ? 'Live' : 'Ended'} · {activeNetworkName}
+        </p>
         <h1 className={styles.title}>{title}</h1>
         <p className={styles.by}>
           by{' '}

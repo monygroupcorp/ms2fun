@@ -151,7 +151,7 @@ export function CollectionsPage() {
       {!isPending && !isError && total === 0 && (
         <StateBlock variant="empty" boxed testId="collections-empty">
           {data !== undefined && data.length === 0 && !filtersActive
-            ? 'this wall is empty — run the seed script to populate.'
+            ? 'this wall is empty — nothing has launched yet.'
             : 'nothing matches the current filters.'}
         </StateBlock>
       )}

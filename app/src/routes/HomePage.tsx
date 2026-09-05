@@ -7,6 +7,7 @@ import { CollectionCard, type HomePageCard } from '../components/CollectionCard'
 import { ActivityPreview } from '../components/home/ActivityPreview'
 import { StateBlock } from '../components/ui/StateBlock'
 import { orderFeatured } from '../lib/featuredOrder'
+import { activeNetworkName, activeNetworkStatus } from '../lib/network'
 import styles from './HomePage.module.css'
 
 /**
@@ -30,7 +31,7 @@ function HeroLanding() {
   return (
     <div className={styles.hero}>
       <div className={styles.heroLeft}>
-        <p className="noesis-kicker">Onchain · Ethereum · No grift</p>
+        <p className="noesis-kicker">Onchain · {activeNetworkName} · No grift</p>
         <h1 className={styles.heroTitle}>
           <span className="text-chromatic-strong">alignment</span> launchpad.
         </h1>
@@ -52,7 +53,9 @@ function HeroLanding() {
         <div className="noesis-ledger">
           <div className="noesis-ledger-head">
             <span>How alignment works</span>
-            <span>Ethereum · Live</span>
+            <span>
+              {activeNetworkName} · {activeNetworkStatus}
+            </span>
           </div>
           <div className="noesis-ledger-row">
             <span className="n">01</span>
@@ -64,16 +67,20 @@ function HeroLanding() {
           <div className="noesis-ledger-row">
             <span className="n">02</span>
             <span>
-              Fee split<small>set once, enforced forever</small>
+              Fee split<small>a contract constant, not a creator setting</small>
             </span>
             <span className="v">~20%</span>
           </div>
           <div className="noesis-ledger-row">
             <span className="n">03</span>
             <span>
-              Bind<small>to your stated inspiration&rsquo;s vault</small>
+              Bind
+              <small>
+                to your stated inspiration&rsquo;s vault — at edition mint, auction close, or ERC404
+                graduation
+              </small>
             </span>
-            <span className="v">on-mint</span>
+            <span className="v">by contract</span>
           </div>
         </div>
         <div className={`noesis-bind ${styles.heroBind}`}>
@@ -170,7 +177,7 @@ export function HomePage() {
                   testId="collections-empty"
                   className={styles.gridSpan}
                 >
-                  this wall is empty — run the seed script to populate.
+                  no collections are featured yet.
                 </StateBlock>
               )}
 
