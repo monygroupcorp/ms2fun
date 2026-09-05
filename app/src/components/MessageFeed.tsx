@@ -55,7 +55,9 @@ export function MessageFeed({
       {isPending && <StateBlock variant="loading">loading activity…</StateBlock>}
 
       {isError && (
-        <StateBlock variant="error">couldn&apos;t load activity — is the fork up?</StateBlock>
+        <StateBlock variant="error">
+          couldn&apos;t load activity — no response from the network.
+        </StateBlock>
       )}
 
       {!isPending && !isError && data !== undefined && threads.length === 0 && (

@@ -6,7 +6,8 @@ type StateVariant = 'loading' | 'empty' | 'error'
  * The shared loading / empty / error state. Every surface used to hand-roll a
  * `<p className={styles.note}>…</p>` with a per-page `.note` rule; this unifies the
  * styling (and the loading pulse + error contrast + reduced-motion handling) in one
- * place. Messages stay caller-supplied — they're contextual ("is the fork up?").
+ * place. Messages stay caller-supplied — they name what failed, and never instruct: a
+ * visitor cannot act on a network fault.
  *
  * Visual layer is the NOESIS `.noesis-state` device (vendored signature.css), which
  * maps 1:1 onto these props: `loading`→pulse+▪, `error`→✕+left accent (`role=alert`),
@@ -14,7 +15,7 @@ type StateVariant = 'loading' | 'empty' | 'error'
  * Both the keyframe and the `prefers-reduced-motion` guard live with the device.
  *
  *   <StateBlock variant="loading">hanging the work…</StateBlock>
- *   <StateBlock variant="error">discovery unreachable — is the fork up?</StateBlock>
+ *   <StateBlock variant="error">discovery unreachable — no response from the network.</StateBlock>
  *   <StateBlock variant="empty" boxed>this wall is empty</StateBlock>
  *
  * For rich boxed zero-states, callers may pass structured children using the device's

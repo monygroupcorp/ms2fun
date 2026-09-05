@@ -123,7 +123,7 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
   if (isError) {
     return (
       <div className={styles.surface}>
-        <p className={styles.note}>could not load bonding data — is the fork up?</p>
+        <p className={styles.note}>could not load bonding data — no response from the network.</p>
       </div>
     )
   }

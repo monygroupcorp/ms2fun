@@ -188,7 +188,7 @@ export function VaultsPage() {
       )}
       {isError && (
         <StateBlock variant="error" boxed>
-          couldn&apos;t load vaults — is the fork up?
+          couldn&apos;t load vaults — no response from the network.
         </StateBlock>
       )}
       {!isPending && !isError && vaults.length === 0 && (

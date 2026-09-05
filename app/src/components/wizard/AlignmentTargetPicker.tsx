@@ -228,7 +228,9 @@ export function AlignmentTargetPicker({
   if (isPending || targetsPending)
     return <StateBlock variant="loading">loading alignment targets…</StateBlock>
   if (isError)
-    return <StateBlock variant="error">could not load vaults — is the fork up?</StateBlock>
+    return (
+      <StateBlock variant="error">could not load vaults — no response from the network.</StateBlock>
+    )
   if (targets.length === 0)
     return (
       <StateBlock variant="empty" boxed>

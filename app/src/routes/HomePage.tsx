@@ -143,7 +143,7 @@ export function HomePage() {
           )}
           {isError && (
             <StateBlock variant="error" boxed>
-              discovery unreachable — is the fork up?
+              discovery unreachable — no response from the network.
             </StateBlock>
           )}
 

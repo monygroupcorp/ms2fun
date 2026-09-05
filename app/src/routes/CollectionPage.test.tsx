@@ -184,3 +184,38 @@ test('a collection that failed to load does not offer a link to it', async () =>
   expect(screen.queryByTestId('share-link')).toBe(null)
   expect(screen.queryByTestId('share-link-fallback')).toBe(null)
 })
+
+// ── The error copy a stranger reads ──────────────────────────────────────────
+// Both failure branches of this route render the app's house error string, and on a published
+// origin every read fails until the origin and chain questions are settled — so this copy is the
+// landing state of a shared link, not an edge case. Nothing asserted it, so nothing noticed it
+// was addressed to a developer about a local anvil fork they do not have.
+
+test.each([
+  [
+    'the name cannot be resolved',
+    () => {
+      mockResolveName.mockReturnValue({ data: undefined, isPending: false, isError: true })
+      mockUseCollection.mockReturnValue({ data: undefined, isPending: false, isError: false })
+    },
+    /couldn.t resolve this collection/i,
+  ],
+  [
+    'the collection cannot be read',
+    () => {
+      mockResolveName.mockReturnValue({ data: INSTANCE, isPending: false, isError: false })
+      mockUseCollection.mockReturnValue({ data: undefined, isPending: false, isError: true })
+    },
+    /couldn.t load collection/i,
+  ],
+])(
+  'the error state when %s names the failure without mentioning a fork',
+  async (_, arrange, said) => {
+    arrange()
+
+    renderAt('/1337/foo')
+
+    expect(await screen.findByText(said)).toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/fork/i)
+  },
+)

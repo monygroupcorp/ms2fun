@@ -44,7 +44,7 @@ export function EditionList({ instance }: EditionListProps) {
   }
 
   if (isError) {
-    return <p className={styles.note}>could not load editions — is the fork up?</p>
+    return <p className={styles.note}>could not load editions — no response from the network.</p>
   }
 
   const firstEdition = data[0]

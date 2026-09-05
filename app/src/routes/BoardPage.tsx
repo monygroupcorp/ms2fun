@@ -299,7 +299,9 @@ export function BoardPage() {
             {isPending && <StateBlock variant="loading">hanging the work…</StateBlock>}
 
             {isError && (
-              <StateBlock variant="error">couldn&apos;t load activity — is the fork up?</StateBlock>
+              <StateBlock variant="error">
+                couldn&apos;t load activity — no response from the network.
+              </StateBlock>
             )}
 
             {!isPending && !isError && data !== undefined && data.length === 0 && (

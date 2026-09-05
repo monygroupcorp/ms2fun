@@ -281,7 +281,11 @@ function Erc404Token({ instance, id, collectionName, creator, vaultName }: Token
 
   if (isPending) return <StateBlock variant="loading">hanging the work…</StateBlock>
   if (isError)
-    return <StateBlock variant="error">couldn&apos;t load token — is the fork up?</StateBlock>
+    return (
+      <StateBlock variant="error">
+        couldn&apos;t load token — no response from the network.
+      </StateBlock>
+    )
 
   return (
     <article className={styles.wall}>
@@ -360,7 +364,11 @@ function Erc721Token({ instance, id, collectionName, creator, vaultName }: Token
 
   if (isPending) return <StateBlock variant="loading">hanging the work…</StateBlock>
   if (isError || !data)
-    return <StateBlock variant="error">couldn&apos;t load token — is the fork up?</StateBlock>
+    return (
+      <StateBlock variant="error">
+        couldn&apos;t load token — no response from the network.
+      </StateBlock>
+    )
 
   const a = data.auction
   const state = deriveAuctionState(
