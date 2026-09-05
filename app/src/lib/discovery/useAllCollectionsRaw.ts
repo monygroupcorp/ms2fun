@@ -1,13 +1,15 @@
 import { useQuery } from '@tanstack/react-query'
 import { usePublicClient } from 'wagmi'
-import { queryAggregatorAbi } from '../../generated/contracts'
 import { forkAddresses, forkChainId } from '../addresses'
 import type { ProjectCard } from './types'
+import { fetchProjectCardsBatched } from './batchRead'
 import { scanAllInstances } from './scanInstances'
 
 /**
- * Raw fetch — no filters, no sort. Scans `MasterRegistryV1.CreatorInstanceAdded` for ALL
- * instances, then hydrates them via `QueryAggregator.getProjectCardsBatch` in one call.
+ * Raw fetch — no filters, no sort. Scans the registry for ALL live instances, then hydrates them
+ * via `QueryAggregator.getProjectCardsBatch` in windows of at most `MAX_QUERY_LIMIT` — the
+ * aggregator reverts on a longer array, and the registry only grows, so a single whole-array call
+ * fails permanently past the cap (see `batchRead.ts`).
  *
  * Query key: `['all-collections', forkChainId, forkAddresses.MasterRegistryV1]`
  *
@@ -43,16 +45,7 @@ export function useAllCollectionsRaw(): {
 
       const instances = await scanAllInstances(client)
 
-      if (instances.length === 0) return []
-
-      const cards = await client.readContract({
-        address: forkAddresses.QueryAggregator,
-        abi: queryAggregatorAbi,
-        functionName: 'getProjectCardsBatch',
-        args: [instances],
-      })
-
-      return cards as ProjectCard[]
+      return fetchProjectCardsBatched(client, instances)
     },
   })
 

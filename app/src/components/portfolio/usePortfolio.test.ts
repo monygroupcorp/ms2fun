@@ -4,6 +4,7 @@ import { afterEach, describe, it, expect } from 'vitest'
 import {
   auctionPositions,
   derivePortfolioInputs,
+  fetchPortfolioDataBatched,
   hasAuctionEscrow,
   isPortfolioEmpty,
   MAX_QUERY_LIMIT,
@@ -11,7 +12,7 @@ import {
   type AuctionPosition,
   type PortfolioData,
 } from './usePortfolio'
-import { VaultsPanel } from './PortfolioPanels'
+import { HeldPanel, VaultsPanel } from './PortfolioPanels'
 
 const ZERO = '0x0000000000000000000000000000000000000000' as const
 const addr = (n: number): `0x${string}` => `0x${n.toString(16).padStart(40, '0')}` as `0x${string}`
@@ -41,15 +42,19 @@ describe('derivePortfolioInputs', () => {
     expect(vaultAddrs).toHaveLength(1)
   })
 
-  it('caps both arrays at MAX_QUERY_LIMIT and flags truncation', () => {
+  it('keeps every instance and vault past MAX_QUERY_LIMIT — no clipping, no truncation flag', () => {
+    // noesis-327: this used to `.slice(0, 50)`. Because `useAllCollections` sorts newest-first, the
+    // prefix was the 50 NEWEST collections, so a holding in an older one was reported as "nothing
+    // held" and each new registration evicted another. The read is windowed now, so nothing drops.
     const cards = Array.from({ length: MAX_QUERY_LIMIT + 5 }, (_, i) => ({
       instance: addr(i + 1),
       vault: addr(1000 + i), // each unique → vaults also exceed the cap
     }))
     const { instances, vaultAddrs, truncated } = derivePortfolioInputs(cards)
-    expect(instances).toHaveLength(MAX_QUERY_LIMIT)
-    expect(vaultAddrs).toHaveLength(MAX_QUERY_LIMIT)
-    expect(truncated).toBe(true)
+    expect(instances).toHaveLength(MAX_QUERY_LIMIT + 5)
+    expect(vaultAddrs).toHaveLength(MAX_QUERY_LIMIT + 5)
+    expect(instances).toContain(addr(1)) // the oldest — the one the prefix slice evicted first
+    expect(truncated).toBe(false)
   })
 
   it('handles an empty card list', () => {
@@ -228,5 +233,132 @@ describe('VaultsPanel truncation notice', () => {
       }),
     )
     expect(screen.queryByTestId('vaults-truncated')).not.toBeInTheDocument()
+  })
+})
+
+describe('fetchPortfolioDataBatched', () => {
+  /**
+   * A read that mirrors the aggregator's own bound (`instances.length > MAX_QUERY_LIMIT ||
+   * vaultAddrs.length > MAX_QUERY_LIMIT` → revert) and answers as the contract does: instances
+   * produce the ERC404 / ERC1155 / auction legs, vaults produce the vault leg, and `totalClaimable`
+   * is the sum of what THAT call saw.
+   */
+  function boundedRead() {
+    const widths: [number, number][] = []
+    const read = async (
+      instances: `0x${string}`[],
+      vaultAddrs: `0x${string}`[],
+    ): Promise<PortfolioData> => {
+      widths.push([instances.length, vaultAddrs.length])
+      if (instances.length > MAX_QUERY_LIMIT || vaultAddrs.length > MAX_QUERY_LIMIT) {
+        throw new Error('TooManyInstances')
+      }
+      return [
+        instances.map((instance) => ({
+          instance,
+          name: '',
+          tokenBalance: 1n,
+          nftBalance: 0n,
+          stakedBalance: 0n,
+          pendingRewards: 2n,
+        })),
+        instances.map((instance) => ({ instance, name: '', editionIds: [1n], balances: [1n] })),
+        vaultAddrs.map((vault) => ({
+          vault,
+          name: '',
+          contribution: 0n,
+          shares: 0n,
+          claimable: 3n,
+        })),
+        BigInt(instances.length) * 2n + BigInt(vaultAddrs.length) * 3n,
+        instances.map((instance) => ({
+          instance,
+          name: '',
+          tokenId: 1n,
+          amount: 1n,
+          isCreatorDeposit: false,
+          endTime: 0n,
+          settleable: false,
+          reclaimable: false,
+        })),
+      ] as unknown as PortfolioData
+    }
+    return { read, widths }
+  }
+
+  it('covers every instance and vault past the cap, in order', async () => {
+    const instances = Array.from({ length: 123 }, (_, i) => addr(i + 1))
+    const vaults = Array.from({ length: 60 }, (_, i) => addr(1000 + i))
+    const { read, widths } = boundedRead()
+
+    const data = await fetchPortfolioDataBatched(read, instances, vaults)
+
+    expect(data[0].map((h) => h.instance)).toEqual(instances)
+    expect(data[1].map((h) => h.instance)).toEqual(instances)
+    expect(data[2].map((v) => v.vault)).toEqual(vaults)
+    expect(data[4].map((p) => p.instance)).toEqual(instances)
+    // The scalar composes: every address is counted exactly once across the windows.
+    expect(data[3]).toBe(BigInt(instances.length) * 2n + BigInt(vaults.length) * 3n)
+    // Instance and vault windows are ZIPPED, not crossed: 7 passes, not 7 × 3.
+    expect(widths).toEqual([
+      [20, 20],
+      [20, 20],
+      [20, 20],
+      [20, 0],
+      [20, 0],
+      [20, 0],
+      [3, 0],
+    ])
+  })
+
+  it('returns the same answer at a perturbed window width', async () => {
+    const instances = Array.from({ length: 123 }, (_, i) => addr(i + 1))
+    const vaults = Array.from({ length: 60 }, (_, i) => addr(1000 + i))
+    const wide = await fetchPortfolioDataBatched(boundedRead().read, instances, vaults)
+    const narrow = await fetchPortfolioDataBatched(boundedRead().read, instances, vaults, 7)
+    expect(narrow[0].map((h) => h.instance)).toEqual(wide[0].map((h) => h.instance))
+    expect(narrow[2].map((v) => v.vault)).toEqual(wide[2].map((v) => v.vault))
+    expect(narrow[3]).toBe(wide[3])
+  })
+
+  it('issues no read when there is nothing to ask about', async () => {
+    const { read, widths } = boundedRead()
+    expect(await fetchPortfolioDataBatched(read, [], [])).toEqual([[], [], [], 0n, []])
+    expect(widths).toEqual([])
+  })
+})
+
+// noesis-327: the notice sat BELOW the `isPortfolioEmpty` early return, so the one case where it is
+// load-bearing — a portfolio hidden entirely, rendering "nothing held yet" — was the one case it
+// could never appear in. A partially-hidden portfolio warns; a fully-hidden one asserted the
+// opposite.
+describe('HeldPanel truncation notice', () => {
+  afterEach(cleanup)
+
+  const empty: PortfolioData = [[], [], [], 0n, []]
+
+  it('renders the notice alongside the empty state when truncated', () => {
+    render(
+      createElement(HeldPanel, { data: empty, isPending: false, isError: false, truncated: true }),
+    )
+    expect(screen.getByTestId('portfolio-empty')).toBeInTheDocument()
+    expect(screen.getByTestId('portfolio-truncated')).toBeInTheDocument()
+  })
+
+  it('says what was CHECKED, not what is shown — nothing is shown in the empty case', () => {
+    render(
+      createElement(HeldPanel, { data: empty, isPending: false, isError: false, truncated: true }),
+    )
+    expect(screen.getByTestId('portfolio-truncated')).toHaveTextContent(
+      /only the first 50 collections were checked/i,
+    )
+    expect(screen.queryByText(/showing the first 50/i)).not.toBeInTheDocument()
+  })
+
+  it('omits the notice when the read covered everything', () => {
+    render(
+      createElement(HeldPanel, { data: empty, isPending: false, isError: false, truncated: false }),
+    )
+    expect(screen.queryByTestId('portfolio-truncated')).not.toBeInTheDocument()
   })
 })

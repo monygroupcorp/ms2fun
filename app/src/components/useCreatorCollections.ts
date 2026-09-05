@@ -1,12 +1,18 @@
 import { useQuery } from '@tanstack/react-query'
 import { usePublicClient } from 'wagmi'
-import { masterRegistryV1Abi, queryAggregatorAbi } from '../generated/contracts'
+import { masterRegistryV1Abi } from '../generated/contracts'
 import { deployBlock, forkAddresses, forkChainId } from '../lib/addresses'
+import { fetchProjectCardsBatched } from '../lib/discovery/batchRead'
 import { scanBackward } from '../lib/logScan'
 import type { ProjectCard } from '../lib/discovery/types'
 
 export type { ProjectCard }
 
+/**
+ * One creator's collections. Hydrated in `MAX_QUERY_LIMIT`-wide windows for the same reason the
+ * global index is: `getProjectCardsBatch` reverts on a longer array, and a prolific creator crosses
+ * the cap on their own without the registry having to (see `lib/discovery/batchRead.ts`).
+ */
 export function useCreatorCollections(creator: `0x${string}` | undefined): {
   data: ProjectCard[] | undefined
   isPending: boolean
@@ -45,16 +51,7 @@ export function useCreatorCollections(creator: `0x${string}` | undefined): {
         }
       }
 
-      if (instances.length === 0) return []
-
-      const cards = await client.readContract({
-        address: forkAddresses.QueryAggregator,
-        abi: queryAggregatorAbi,
-        functionName: 'getProjectCardsBatch',
-        args: [instances],
-      })
-
-      return cards as ProjectCard[]
+      return fetchProjectCardsBatched(client, instances)
     },
   })
 
