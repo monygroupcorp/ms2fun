@@ -8,7 +8,8 @@ import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy
 import { Ownable } from "solady/auth/Ownable.sol";
 import { MockWETH } from "../../mocks/MockWETH.sol";
 
-/// @dev Minimal stand-in for a bonding instance — the escrow only reads these two getters.
+/// @dev Minimal stand-in for a bonding instance. The escrow only reads `graduated`;
+///      `bondingMaturityTime` is kept so the tests below can prove it is NOT read.
 contract MockBondInstance {
     bool public graduated;
     uint256 public bondingMaturityTime;
@@ -126,11 +127,14 @@ contract DeployBondEscrowTest is Test {
 
     function test_postBond_happyPath() public {
         _post(address(instance), creator, BOND);
-        (address c, uint256 amt, uint40 createdAt, bool settled) = escrow.bonds(address(instance));
+        (address c, uint256 amt, uint40 createdAt, bool settled, uint40 maxDur, uint32 grace) =
+            escrow.bonds(address(instance));
         assertEq(c, creator);
         assertEq(amt, BOND);
         assertEq(createdAt, uint40(block.timestamp));
         assertFalse(settled);
+        assertEq(maxDur, uint40(escrow.maxBondDuration()), "maxBondDuration snapshotted at post");
+        assertEq(grace, uint32(escrow.graceDays()), "graceDays snapshotted at post");
         assertEq(address(escrow).balance, BOND);
     }
 
@@ -183,7 +187,7 @@ contract DeployBondEscrowTest is Test {
 
     function test_postBond_exactValueSucceeds() public {
         _post(address(instance), creator, BOND);
-        (address c, uint256 amt,, bool settled) = escrow.bonds(address(instance));
+        (address c, uint256 amt,, bool settled,,) = escrow.bonds(address(instance));
         assertEq(c, creator);
         assertEq(amt, BOND);
         assertFalse(settled);
@@ -201,7 +205,7 @@ contract DeployBondEscrowTest is Test {
         escrow.refund(address(instance));
 
         assertEq(creator.balance - before, BOND);
-        (,,, bool settled) = escrow.bonds(address(instance));
+        (,,, bool settled,,) = escrow.bonds(address(instance));
         assertTrue(settled);
         assertEq(address(escrow).balance, 0);
     }
@@ -243,25 +247,129 @@ contract DeployBondEscrowTest is Test {
         assertEq(treasury.totalReceived(ProtocolTreasuryV1.Source.BOND_FORFEIT), BOND);
         assertEq(address(treasury).balance, BOND);
         assertEq(address(escrow).balance, 0);
-        (,,, bool settled) = escrow.bonds(address(instance));
+        (,,, bool settled,,) = escrow.bonds(address(instance));
         assertTrue(settled);
     }
 
-    function test_forfeit_maturitySetPath_usesMaturity() public {
+    function test_forfeit_maturityBeyondHardCap_doesNotExtendDeadline() public {
         _post(address(instance), creator, BOND);
         uint256 hardCap = block.timestamp + escrow.maxBondDuration();
-        // maturity beyond the hard cap → deadline anchors on maturity, not the hard cap.
-        uint256 maturity = hardCap + 60 days;
-        instance.setBondingMaturityTime(maturity);
-        uint256 deadline = maturity + escrow.graceDays() * 1 days;
+        // Same setup the old behaviour was pinned on: maturity 60 days beyond the hard cap. The
+        // deadline must stay on the hard cap, so the forfeit that used to revert here now lands.
+        instance.setBondingMaturityTime(hardCap + 60 days);
 
-        vm.warp(hardCap + escrow.graceDays() * 1 days + 1); // past hard-cap deadline but < maturity deadline
+        vm.warp(hardCap + escrow.graceDays() * 1 days + 1);
+        escrow.forfeit(address(instance));
+        assertEq(treasury.totalReceived(ProtocolTreasuryV1.Source.BOND_FORFEIT), BOND);
+        assertEq(address(escrow).balance, 0);
+    }
+
+    function test_forfeit_absurdMaturity_stillForfeitableAtHardCap() public {
+        _post(address(instance), creator, BOND);
+        uint256 deadline = block.timestamp + escrow.maxBondDuration() + escrow.graceDays() * 1 days;
+        // The decision case's own example: a creator parks maturity in the year 3000.
+        instance.setBondingMaturityTime(32_503_680_000);
+
+        vm.warp(deadline + 1);
+        vm.prank(stranger); // permissionless
+        escrow.forfeit(address(instance));
+        assertEq(treasury.totalReceived(ProtocolTreasuryV1.Source.BOND_FORFEIT), BOND);
+        assertEq(address(treasury).balance, BOND);
+    }
+
+    function test_forfeit_stillRevertsBeforeHardCapDeadline() public {
+        _post(address(instance), creator, BOND);
+        uint256 deadline = block.timestamp + escrow.maxBondDuration() + escrow.graceDays() * 1 days;
+        instance.setBondingMaturityTime(32_503_680_000);
+
+        // One second early still reverts — the fix must not make everything forfeitable.
+        vm.warp(deadline);
+        vm.expectRevert(DeployBondEscrow.NotYetForfeitable.selector);
+        escrow.forfeit(address(instance));
+    }
+
+    function test_refund_stillWinsAfterGraduation() public {
+        _post(address(instance), creator, BOND);
+        // Graduation lands long after the forfeit deadline: the bond is still the creator's.
+        vm.warp(block.timestamp + escrow.maxBondDuration() + escrow.graceDays() * 1 days + 365 days);
+        instance.setGraduated(true);
+
+        vm.expectRevert(DeployBondEscrow.AlreadyGraduated.selector);
+        escrow.forfeit(address(instance));
+
+        uint256 before = creator.balance;
+        escrow.refund(address(instance));
+        assertEq(creator.balance - before, BOND, "late graduation still refunds the creator");
+    }
+
+    // ── forfeit terms are snapshotted at post ──────────────────────────────
+
+    function test_forfeit_usesSnapshottedGraceDays() public {
+        _post(address(instance), creator, BOND);
+        uint256 deadline = block.timestamp + escrow.maxBondDuration() + escrow.graceDays() * 1 days;
+
+        // Owner lengthens the grace window AFTER the bond is posted. Reading the live value here
+        // would push this bond's deadline out; the recorded one must govern.
+        vm.prank(owner);
+        escrow.setGraceDays(3650);
+
+        vm.warp(deadline + 1);
+        escrow.forfeit(address(instance));
+        assertEq(treasury.totalReceived(ProtocolTreasuryV1.Source.BOND_FORFEIT), BOND);
+    }
+
+    function test_forfeit_usesSnapshottedMaxBondDuration() public {
+        _post(address(instance), creator, BOND);
+        uint256 deadline = block.timestamp + escrow.maxBondDuration() + escrow.graceDays() * 1 days;
+
+        // The direction that matters: the owner SHORTENS the term after the bond was posted. A
+        // live read would let the protocol forfeit this bond earlier than its posted terms.
+        vm.prank(owner);
+        escrow.setMaxBondDuration(1 days);
+
+        vm.warp(deadline);
         vm.expectRevert(DeployBondEscrow.NotYetForfeitable.selector);
         escrow.forfeit(address(instance));
 
         vm.warp(deadline + 1);
         escrow.forfeit(address(instance));
         assertEq(treasury.totalReceived(ProtocolTreasuryV1.Source.BOND_FORFEIT), BOND);
+    }
+
+    function test_settersStillGovernNewBonds() public {
+        _post(address(instance), creator, BOND);
+
+        vm.prank(owner);
+        escrow.setMaxBondDuration(10 days);
+        vm.prank(owner);
+        escrow.setGraceDays(2);
+
+        MockBondInstance later = new MockBondInstance();
+        _post(address(later), creator, BOND);
+        uint256 laterDeadline = block.timestamp + 10 days + 2 days;
+
+        // The new bond picks up the new terms — the snapshot records values, it does not freeze them.
+        vm.warp(laterDeadline);
+        vm.expectRevert(DeployBondEscrow.NotYetForfeitable.selector);
+        escrow.forfeit(address(later));
+
+        vm.warp(laterDeadline + 1);
+        escrow.forfeit(address(later));
+        assertEq(treasury.totalReceived(ProtocolTreasuryV1.Source.BOND_FORFEIT), BOND);
+
+        // ...and the first bond is still on its own, longer, recorded terms.
+        vm.expectRevert(DeployBondEscrow.NotYetForfeitable.selector);
+        escrow.forfeit(address(instance));
+    }
+
+    function test_postBond_revertsWhenTermsDoNotFitTheRecord() public {
+        vm.prank(owner);
+        escrow.setMaxBondDuration(uint256(type(uint40).max) + 1);
+        vm.prank(owner);
+        escrow.setBondAmount(BOND);
+        vm.expectRevert(DeployBondEscrow.BondTermsOutOfRange.selector);
+        vm.prank(factory);
+        escrow.postBond{ value: BOND }(address(instance), creator);
     }
 
     function test_forfeit_revertsIfGraduated() public {
@@ -295,7 +403,7 @@ contract DeployBondEscrowTest is Test {
         vm.prank(owner);
         escrow.release(address(instance));
         assertEq(creator.balance - before, BOND);
-        (,,, bool settled) = escrow.bonds(address(instance));
+        (,,, bool settled,,) = escrow.bonds(address(instance));
         assertTrue(settled);
     }
 
@@ -330,7 +438,7 @@ contract DeployBondEscrowTest is Test {
         // flag + nonReentrant guard still make a second payout impossible.
         escrow.refund(address(instance));
 
-        (,,, bool settled) = escrow.bonds(address(instance));
+        (,,, bool settled,,) = escrow.bonds(address(instance));
         assertTrue(settled);
         assertEq(address(escrow).balance, 0);
         assertEq(address(attacker).balance, 0, "no plain ETH lands on the rejecting attacker");
@@ -359,7 +467,7 @@ contract DeployBondEscrowTest is Test {
         assertEq(address(rejecter).balance, 0, "no plain ETH lands on the rejecting creator");
         assertEq(weth.balanceOf(address(rejecter)), BOND, "bond delivered as WETH to the same creator");
         assertEq(address(escrow).balance, 0, "escrow fully paid out");
-        (,,, bool settled) = escrow.bonds(address(instance));
+        (,,, bool settled,,) = escrow.bonds(address(instance));
         assertTrue(settled);
     }
 
@@ -377,7 +485,7 @@ contract DeployBondEscrowTest is Test {
         assertEq(address(rejecter).balance, 0, "no plain ETH lands on the rejecting creator");
         assertEq(weth.balanceOf(address(rejecter)), BOND, "bond delivered as WETH to the same creator");
         assertEq(address(escrow).balance, 0, "escrow fully paid out");
-        (,,, bool settled) = escrow.bonds(address(instance));
+        (,,, bool settled,,) = escrow.bonds(address(instance));
         assertTrue(settled);
     }
 

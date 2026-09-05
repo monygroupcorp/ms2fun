@@ -1139,7 +1139,7 @@ contract ERC404FactoryTest is Test {
         assertEq(treasury.balance, INSTANCE_CREATION_FEE, "full fee to treasury");
         assertEq(address(factory).balance, 0, "factory holds no ETH");
         assertEq(address(escrow).balance, 0, "nothing escrowed when lever off");
-        (, uint256 amt, uint40 createdAt,) = escrow.bonds(instance);
+        (, uint256 amt, uint40 createdAt,,,) = escrow.bonds(instance);
         assertEq(amt, 0);
         assertEq(createdAt, 0, "no bond record when lever off");
     }
@@ -1163,7 +1163,7 @@ contract ERC404FactoryTest is Test {
         assertEq(address(escrow).balance, bond, "bond escrowed");
         assertEq(treasury.balance, excess, "excess to treasury");
         assertEq(address(factory).balance, 0, "factory holds no ETH");
-        (address c, uint256 amt,, bool settled) = escrow.bonds(instance);
+        (address c, uint256 amt,, bool settled,,) = escrow.bonds(instance);
         assertEq(c, creator1, "creator recorded as owner");
         assertEq(amt, bond);
         assertFalse(settled);

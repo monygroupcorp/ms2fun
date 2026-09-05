@@ -6,11 +6,10 @@ import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
 import { SmartTransferLib } from "../../libraries/SmartTransferLib.sol";
 import { ProtocolTreasuryV1 } from "../../treasury/ProtocolTreasuryV1.sol";
 
-/// @dev Minimal read surface the escrow needs from a bonding instance. Both are public state
-///      getters on ERC404BondingInstance — no new graduation trigger is introduced here.
+/// @dev Minimal read surface the escrow needs from a bonding instance: a public state getter on
+///      ERC404BondingInstance — no new graduation trigger is introduced here.
 interface IBondInstance {
     function graduated() external view returns (bool);
-    function bondingMaturityTime() external view returns (uint256);
 }
 
 /**
@@ -37,6 +36,7 @@ contract DeployBondEscrow is Ownable, ReentrancyGuard {
     error NotGraduated();
     error AlreadyGraduated();
     error NotYetForfeitable();
+    error BondTermsOutOfRange();
 
     // ── Types ───────────────────────────────────────────────────────────────
     struct Bond {
@@ -44,6 +44,11 @@ contract DeployBondEscrow is Ownable, ReentrancyGuard {
         uint256 amount; // escrowed ETH
         uint40 createdAt; // post timestamp; also the sentinel (0 == no bond)
         bool settled; // refunded / forfeited / released — terminal, blocks double-spend
+        // The forfeit terms in force at `createdAt`, recorded so that neither party can move this
+        // bond's deadline afterwards. Appended last and narrowed so all four pack into the slot
+        // `createdAt` already opens — the snapshot costs no extra storage word at post time.
+        uint40 maxBondDuration; // seconds, as `maxBondDuration` read at post
+        uint32 graceDays; // days, as `graceDays` read at post
     }
 
     // ── Immutable wiring ──────────────────────────────────────────────────────
@@ -64,10 +69,11 @@ contract DeployBondEscrow is Ownable, ReentrancyGuard {
     /// @notice Bond required per create. **Default 0 = lever OFF** (byte-identical to today's
     ///         create path). Owner-tuned; sized against MINNOW raises when turned on.
     uint256 public bondAmount;
-    /// @notice Grace window (in days) added on top of the forfeit deadline. Owner-tuned.
+    /// @notice Grace window (in days) added on top of the forfeit deadline. Owner-tuned; recorded
+    ///         onto each bond at post, so a change here governs FUTURE bonds only.
     uint256 public graceDays = 30;
-    /// @notice Hard cap on how long a bond can sit before it becomes forfeitable even if the
-    ///         instance never set a bonding maturity time. Owner-tuned.
+    /// @notice How long a bond may sit before it becomes forfeitable. Owner-tuned; recorded onto
+    ///         each bond at post, so a change here governs FUTURE bonds only.
     uint256 public maxBondDuration = 180 days;
 
     /// @notice instance => escrowed bond record.
@@ -105,9 +111,18 @@ contract DeployBondEscrow is Ownable, ReentrancyGuard {
         if (msg.value == 0) revert NoBondValue();
         if (msg.value != bondAmount) revert IncorrectBondValue();
         if (bonds[instance].createdAt != 0) revert BondAlreadyPosted();
+        // The setters are unbounded `uint256`; refuse to record a term that would not survive the
+        // narrowing rather than silently truncating one — a truncated term shortens a real deadline.
+        if (maxBondDuration > type(uint40).max || graceDays > type(uint32).max) revert BondTermsOutOfRange();
 
-        bonds[instance] =
-            Bond({ creator: creator, amount: msg.value, createdAt: uint40(block.timestamp), settled: false });
+        bonds[instance] = Bond({
+            creator: creator,
+            amount: msg.value,
+            createdAt: uint40(block.timestamp),
+            settled: false,
+            maxBondDuration: uint40(maxBondDuration),
+            graceDays: uint32(graceDays)
+        });
         emit BondPosted(instance, creator, msg.value);
     }
 
@@ -129,17 +144,20 @@ contract DeployBondEscrow is Ownable, ReentrancyGuard {
     }
 
     /// @notice Forfeit a bond to the treasury once the deadline has passed without graduation.
-    ///         Permissionless. Deadline = max(bondingMaturityTime, createdAt + maxBondDuration) +
-    ///         graceDays; the max() covers the maturity-0 case (bonding never activated).
+    ///         Permissionless. Deadline = `createdAt` plus the `maxBondDuration` and `graceDays`
+    ///         recorded on the bond when it was posted.
+    /// @dev The forfeit deadline is fixed by the protocol-owned parameters in force at bond
+    ///      creation. No instance-side, creator-settable value may extend it, and no later
+    ///      protocol action may move it. In particular the instance's `bondingMaturityTime` — an
+    ///      owner-or-agent setter with no upper bound — is deliberately not read here: anchoring
+    ///      on it let a creator push the deadline past any protocol cap and strand the escrow.
     function forfeit(address instance) external nonReentrant {
         Bond storage b = bonds[instance];
         if (b.createdAt == 0) revert NoBond();
         if (b.settled) revert BondAlreadySettled();
         if (IBondInstance(instance).graduated()) revert AlreadyGraduated();
 
-        uint256 maturity = IBondInstance(instance).bondingMaturityTime();
-        uint256 hardCap = uint256(b.createdAt) + maxBondDuration;
-        uint256 deadline = (maturity > hardCap ? maturity : hardCap) + graceDays * 1 days;
+        uint256 deadline = uint256(b.createdAt) + b.maxBondDuration + uint256(b.graceDays) * 1 days;
         if (block.timestamp <= deadline) revert NotYetForfeitable();
 
         b.settled = true; // effects before interaction — blocks re-entrant double-forfeit
