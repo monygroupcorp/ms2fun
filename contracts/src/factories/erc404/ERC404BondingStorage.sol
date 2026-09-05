@@ -322,6 +322,35 @@ abstract contract ERC404BondingStorage is DN404, Ownable, ReentrancyGuard {
     ///         (noesis-091, enforced by `test/factories/erc404/eip170-diet-gate.sh`).
     string public contractURI;
 
+    // ── Exit tax (noesis-194) ────────────────────────────────────────────────────────────────────
+    // Both legs are ACCRUED here and claimed later, never pushed from `sellBonding`. `sellBonding` is a
+    // user path: a creator whose `owner()` is a reverting contract, or a vault whose
+    // `receiveContribution` reverts (full, below-min, or upgraded), would otherwise make every sell
+    // revert. Same shape as the graduation stash-and-retry on the deployer modules.
+    //
+    // Both counters are ETH held in this instance's balance and are NOT part of the bonding `reserve`,
+    // so `withdrawDust` treats them as locked liabilities alongside `stakingReserve` — the owner can
+    // never sweep an accrued leg. Appended at the END of the layout, never inserted: `ERC404BondingOps`
+    // inherits this same base and runs in the instance's storage under delegatecall.
+
+    /// @notice Exit-tax proceeds accrued for the alignment vault, payable by `claimExitTax(false)`.
+    uint256 public pendingVaultExitTax;
+
+    /// @notice Exit-tax proceeds accrued for the creator, payable by `claimExitTax(true)`.
+    uint256 public pendingCreatorExitTax;
+
+    // ── Exit-tax constants (noesis-194) — protocol-fixed, no per-launch configuration surface ──────
+
+    /// @dev Supply level above which a sell pays the exit tax, in bps of the buyable bonding pool
+    ///      (`maxSupply - liquidityReserve - freeMintAllocation * unit`). Price on the curve is a
+    ///      monotone function of `totalBondingSupply`, so a supply threshold IS a price threshold and
+    ///      needs no price math, oracle or extra read. A protocol constant by ruling: the creator does
+    ///      not pick it, there is no band, and nothing is added to `initialize` or the factory.
+    uint256 internal constant EXIT_TAX_THRESHOLD_BPS = 8500;
+
+    /// @dev Exit-tax rate in bps, charged on the above-threshold LEG of a sell only.
+    uint256 internal constant EXIT_TAX_BPS = 1000;
+
     // ── Reroll events (emitted by Ops in the instance's context under delegatecall) ─────────────
     event RerollInitiated(address indexed user, uint256 tokenAmount, uint256[] exemptedNFTIds);
     event RerollCompleted(address indexed user, uint256 tokensReturned);
@@ -376,6 +405,16 @@ abstract contract ERC404BondingStorage is DN404, Ownable, ReentrancyGuard {
     event AgentDelegationChanged(bool enabled);
     event StakingActivated(address indexed stakingModule);
     event ModuleSet(bytes32 indexed role, address module);
+
+    // ── Exit-tax events (noesis-194) ─────────────────────────────────────────────────────────────
+
+    /// @notice A sell above the exit-tax threshold accrued `vaultCut` and `creatorCut` out of its gross
+    ///         refund, for later claim. The tax's protocol leg is paid immediately and is reported by
+    ///         `BondingFeePaid`, the same event the below-threshold skim has always used.
+    event ExitTaxAccrued(address indexed seller, uint256 vaultCut, uint256 creatorCut);
+
+    /// @notice An accrued exit-tax leg was delivered to `recipient`.
+    event ExitTaxClaimed(address indexed recipient, uint256 amount);
 
     // ── DN404 unit override (shared: DN404 internals in both the instance and Ops read this) ────
     function _unit() internal view override returns (uint256) {

@@ -48,6 +48,8 @@ import { LibString } from "solady/utils/LibString.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { SmartTransferLib } from "../../libraries/SmartTransferLib.sol";
 import { BondingCurveMath } from "./libraries/BondingCurveMath.sol";
+import { RevenueSplitLib } from "../../shared/libraries/RevenueSplitLib.sol";
+import { Currency } from "v4-core/types/Currency.sol";
 import { ILiquidityDeployerModule, IGraduationSkipNFTTarget } from "../../interfaces/ILiquidityDeployerModule.sol";
 import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
 import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
@@ -588,14 +590,12 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle, IGra
         uint256 balance = balanceOf(msg.sender);
         if (balance < amount) revert InsufficientBalance();
 
-        uint256 refund = BondingCurveMath.calculateRefund(curveParams, totalBondingSupply, amount);
-        // Bonding sell fee (F3 follow-up): take bondingFeeBps from the seller's proceeds into protocol
-        // revenue. The protocol fee is charged on curve EXIT only — buys are fee-free. This monetizes
-        // exits, including free-mint redemptions that dilute the reserve (F3, risk-accepted), without
-        // touching curve solvency: the full `refund` still leaves `reserve`, split between seller and
-        // treasury, so reserve == balance is preserved. No treasury set ⇒ no skim (seller gets full refund).
-        uint256 sellFee = protocolTreasury != address(0) ? (refund * bondingFeeBps) / 10000 : 0; // round down: favors seller
-        uint256 netRefund = refund - sellFee;
+        // Gross refund plus the four-way split of what is withheld from it (see `_exitSplit`). Below the
+        // exit-tax threshold this is exactly today's arithmetic: one `calculateRefund` over the whole
+        // amount and one `bondingFeeBps` skim to the treasury.
+        (uint256 refund, uint256 protocolCut, uint256 vaultCut, uint256 creatorCut) =
+            _exitSplit(totalBondingSupply, amount, maxBondingSupply);
+        uint256 netRefund = refund - protocolCut - vaultCut - creatorCut;
         // minRefund is the seller's slippage floor on what they RECEIVE (net of fee); `reserve` must
         // still cover the gross `refund` it is debited by.
         if (netRefund < minRefund || reserve < refund) revert InvalidRefund();
@@ -604,9 +604,21 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle, IGra
         totalBondingSupply -= amount;
         reserve -= refund;
 
-        if (sellFee > 0) {
-            SafeTransferLib.safeTransferETH(protocolTreasury, sellFee);
-            emit BondingFeePaid(msg.sender, sellFee);
+        // Value conservation is unchanged: the gross `refund` still leaves `reserve` in full, now
+        // divided four ways (seller, protocol, vault, creator) instead of two, so `reserve` stays
+        // fully backed. The vault and creator legs are the one difference — they stay in this
+        // instance's balance as tracked liabilities until claimed, so the backing invariant reads
+        // `balance == reserve + stakingReserve + pendingVaultExitTax + pendingCreatorExitTax`, which
+        // is exactly the sum `withdrawDust` treats as locked.
+        if (vaultCut > 0 || creatorCut > 0) {
+            pendingVaultExitTax += vaultCut;
+            pendingCreatorExitTax += creatorCut;
+            emit ExitTaxAccrued(msg.sender, vaultCut, creatorCut);
+        }
+
+        if (protocolCut > 0) {
+            SafeTransferLib.safeTransferETH(protocolTreasury, protocolCut);
+            emit BondingFeePaid(msg.sender, protocolCut);
         }
 
         // Revocation must not brick the trade. `postForAction` refuses a caller the registry no longer
@@ -619,6 +631,97 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle, IGra
 
         SmartTransferLib.smartTransferETH(msg.sender, netRefund, weth);
         emit BondingSale(msg.sender, amount, netRefund, false);
+    }
+
+    // ┌─────────────────────────┐
+    // │        Exit tax         │
+    // └─────────────────────────┘
+
+    /// @dev Gross refund for selling `amount` at supply `S`, and the split of what is withheld from it.
+    ///      The tax applies PER LEG, never as a cliff: a sell that starts above the threshold and ends
+    ///      below it is split at the threshold — the portion from `S` down to the threshold is taxed at
+    ///      `EXIT_TAX_BPS` and split 1/19/80 protocol/vault/creator (`RevenueSplitLib.split`, the same
+    ///      primitive as graduation), the remainder below the threshold pays today's `bondingFeeBps`.
+    ///      `calculateRefund` is an integral over a supply interval, so this is two calls over adjacent
+    ///      intervals rather than new math, and splitting a sell into two transactions at the threshold
+    ///      therefore costs the seller the same total (within integral rounding).
+    /// @dev Entirely below the threshold, `taxed == 0` collapses this to the single whole-amount
+    ///      `calculateRefund` and single `bondingFeeBps` skim that the earlier implementation ran.
+    ///      No treasury set ⇒ nothing is withheld at all, exactly as before (seller gets full refund).
+    /// @return refund      Gross ETH leaving `reserve`.
+    /// @return protocolCut Paid straight to `protocolTreasury` (existing behavior, unchanged).
+    /// @return vaultCut    Accrued for the alignment vault.
+    /// @return creatorCut  Accrued for the creator; absorbs the split's rounding dust.
+    /// @param S        Current `totalBondingSupply`.
+    /// @param amount   Coin being sold.
+    /// @param poolSize The buyable bonding pool the threshold is a fraction of. Passed in because
+    ///                 `sellBonding` has already computed it (`maxBondingSupply`).
+    function _exitSplit(uint256 S, uint256 amount, uint256 poolSize)
+        private
+        view
+        returns (uint256 refund, uint256 protocolCut, uint256 vaultCut, uint256 creatorCut)
+    {
+        uint256 threshold = (poolSize * EXIT_TAX_THRESHOLD_BPS) / 10000;
+        uint256 taxed = S > threshold ? S - threshold : 0;
+        if (taxed > amount) taxed = amount;
+        bool withhold = protocolTreasury != address(0);
+        // Loaded ONCE and shared by both legs: `calculateRefund` takes `Params memory`, so reading
+        // `curveParams` at each call site would emit a second storage->memory copy for no behavior.
+        BondingCurveMath.Params memory c = curveParams;
+
+        if (taxed > 0) {
+            refund = BondingCurveMath.calculateRefund(c, S, taxed);
+            if (withhold) {
+                // round down: favors the seller
+                RevenueSplitLib.Split memory s = RevenueSplitLib.split((refund * EXIT_TAX_BPS) / 10000);
+                protocolCut = s.protocolCut;
+                vaultCut = s.vaultCut;
+                creatorCut = s.remainder;
+            }
+        }
+        if (taxed < amount) {
+            uint256 plain = BondingCurveMath.calculateRefund(c, S - taxed, amount - taxed);
+            refund += plain;
+            if (withhold) protocolCut += (plain * bondingFeeBps) / 10000; // round down: favors seller
+        }
+    }
+
+    /// @notice Deliver one accrued leg of the exit tax — the creator's when `creatorLeg` is true, the
+    ///         alignment vault's otherwise. Permissionless, like the graduation vault-cut retry: anyone
+    ///         may push the accrued ETH to its bound destination.
+    /// @dev The two legs are INDEPENDENTLY claimable (one entry point, one leg per call), so a
+    ///      destination that rejects its own leg can never hold the other hostage — and neither can hold
+    ///      a SELL hostage, which is why both legs accrue instead of being pushed from `sellBonding`.
+    ///      A single entry point with a leg selector rather than two functions, for EIP-170 headroom.
+    /// @dev The counter is zeroed BEFORE the external call (checks-effects-interactions). A vault that
+    ///      still rejects the contribution reverts the whole transaction and the accrual is restored —
+    ///      idempotent, no ETH is lost. The target-revocation gate matches the graduation rail: a
+    ///      de-curated (or unset) vault is not force-fed, its leg goes to the protocol treasury. The
+    ///      creator leg goes out through `smartTransferETH`, so a creator address that cannot receive
+    ///      ETH is paid in WETH rather than stranding the leg.
+    /// @param creatorLeg True to pay the creator leg, false to pay the alignment-vault leg.
+    function claimExitTax(bool creatorLeg) external nonReentrant {
+        uint256 amount = creatorLeg ? pendingCreatorExitTax : pendingVaultExitTax;
+        if (amount == 0) revert NothingToClaim();
+
+        address to;
+        if (creatorLeg) {
+            pendingCreatorExitTax = 0;
+            to = owner();
+            SmartTransferLib.smartTransferETH(to, amount, weth);
+        } else {
+            pendingVaultExitTax = 0;
+            to = address(vault);
+            if (to == address(0) || !masterRegistry.isVaultRegistered(to)) {
+                to = protocolTreasury;
+                SmartTransferLib.smartTransferETH(to, amount, weth);
+            } else {
+                IAlignmentVault(payable(to)).receiveContribution{ value: amount }(
+                    Currency.wrap(address(0)), amount, address(this)
+                );
+            }
+        }
+        emit ExitTaxClaimed(to, amount);
     }
 
     // ┌─────────────────────────┐

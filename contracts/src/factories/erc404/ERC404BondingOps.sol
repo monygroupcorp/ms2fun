@@ -559,7 +559,9 @@ contract ERC404BondingOps is ERC404BondingStorage {
     ///      the previously-locked gap remainder has become recoverable surplus here.
     function withdrawDust() external onlyOwner nonReentrant {
         uint256 bal = address(this).balance;
-        uint256 locked = reserve + stakingReserve;
+        // Accrued exit-tax legs are owed to the vault and the creator and sit in this balance outside
+        // `reserve` until claimed, so they are locked here alongside `stakingReserve` (noesis-194).
+        uint256 locked = reserve + stakingReserve + pendingVaultExitTax + pendingCreatorExitTax;
         // Guard against underflow: never withdraw if balance is at/below the locked liabilities.
         if (bal <= locked) revert NothingToWithdraw();
         uint256 surplus = bal - locked;
