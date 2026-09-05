@@ -1,22 +1,22 @@
 import { Link } from 'wouter'
-import { truncateAddress } from '../../lib/format'
 import { meetsThreshold } from '../threadMessages'
 import { usePostThreshold } from '../useMessageFeed'
+import { ActivityMessage } from '../activity/ActivityMessage'
+import { StateBlock } from '../ui/StateBlock'
 import { useGlobalActivity } from './useGlobalActivity'
 import styles from './ActivityPreview.module.css'
 
 const PREVIEW_LIMIT = 5
 
-const MESSAGE_TYPE_LABELS: Record<number, string> = {
-  1: 'REPLY',
-  2: 'QUOTE',
-  3: 'REACT',
-}
-
 /**
  * Recent-activity preview for the home landing surface. Reads the same global feed the board uses
  * (cache-shared) and shows the latest few posts read-only, each linking to its channel/sender, with
- * a link into the full board to compose. Kept lightweight: no threading, no reply/react controls.
+ * a link into the full board to compose. Kept lightweight: no threading, no reply/endorse controls
+ * — so `ActivityMessage` is rendered without its actions.
+ *
+ * No vault set is passed: deriving one costs the whole collections index (`useAllVaults`), which a
+ * five-row preview should not pull onto the landing page. Vault channels fall back to collection
+ * links here; wall posts route correctly regardless, since that is read off the message itself.
  */
 export function ActivityPreview() {
   const { data, isPending, isError } = useGlobalActivity()
@@ -35,35 +35,24 @@ export function ActivityPreview() {
         </Link>
       </div>
 
-      {isPending && <p className={styles.note}>loading activity…</p>}
-      {isError && <p className={styles.note}>activity unreachable — is the fork up?</p>}
+      {isPending && <StateBlock variant="loading">loading activity…</StateBlock>}
+
+      {isError && <StateBlock variant="error">activity unreachable — is the fork up?</StateBlock>}
 
       {!isPending && !isError && latest.length === 0 && (
-        <p className={styles.note} data-testid="home-activity-empty">
+        <StateBlock variant="empty" boxed testId="home-activity-empty">
           no activity yet — be the first to post on the board.
-        </p>
+        </StateBlock>
       )}
 
       {!isPending && !isError && latest.length > 0 && (
-        <ul className={styles.list} data-testid="home-activity">
+        <div className={styles.list} data-testid="home-activity">
           {latest.map((m) => (
-            <li key={String(m.messageId)} className={styles.item}>
-              <div className={styles.meta}>
-                <Link href={`/profile/${m.sender}`} className={styles.senderLink}>
-                  {truncateAddress(m.sender)}
-                </Link>
-                <span className={styles.arrow}>→</span>
-                <Link href={`/collection/${m.instance}`} className={styles.channelLink}>
-                  {truncateAddress(m.instance)}
-                </Link>
-                {MESSAGE_TYPE_LABELS[m.messageType] !== undefined && (
-                  <span className="badge">{MESSAGE_TYPE_LABELS[m.messageType]}</span>
-                )}
-              </div>
-              {m.content.length > 0 && <p className={styles.content}>{m.content}</p>}
-            </li>
+            <article key={String(m.messageId)} className="noesis-post">
+              <ActivityMessage message={m} />
+            </article>
           ))}
-        </ul>
+        </div>
       )}
     </section>
   )

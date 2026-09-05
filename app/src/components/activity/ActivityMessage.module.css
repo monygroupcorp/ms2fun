@@ -1,0 +1,72 @@
+/* The post itself is the `.noesis-post` device (signature.css) — name, channel, .ptext and the
+   nested `.reply` rule all live there. This module carries only what the device does not name. */
+
+.link {
+  text-decoration: none;
+}
+
+/* The event verb, in the device's own right-hand `.age` slot. Repeated here so the row still reads
+   correctly outside a `[data-brand='noesis']` subtree. */
+.verb {
+  margin-left: auto;
+  color: var(--color-text-subtle);
+  letter-spacing: 0.06em;
+}
+
+/* Quote-card — a considered quote carrying the referenced work's swatch + channel. */
+.quoteCard {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width-thick, 2px) solid var(--color-border);
+  text-decoration: none;
+  color: var(--color-text-muted);
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+}
+
+.quoteCard:hover {
+  color: var(--color-text);
+}
+
+.quoteRef {
+  letter-spacing: 0.04em;
+}
+
+.swatch {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border: var(--border-width-thick, 2px) solid currentColor;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.actionBar {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-md);
+}
+
+.replyBtn {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  background-color: transparent;
+  border: none;
+  padding: var(--space-1) 0;
+  cursor: pointer;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.replyBtn:hover {
+  color: var(--color-text);
+}

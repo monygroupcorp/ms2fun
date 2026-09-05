@@ -10,7 +10,7 @@
  */
 import { useAccount } from 'wagmi'
 import { useBoardCart, ZERO_BYTES32 } from './board/boardCart'
-import styles from './MessageFeed.module.css'
+import styles from './ReactButton.module.css'
 
 export function ReactButton({
   targetId,
