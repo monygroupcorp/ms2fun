@@ -4,6 +4,7 @@ import type { ContractFunctionReturnType } from 'viem'
 import { queryAggregatorAbi } from '../../generated/contracts'
 import { forkAddresses, forkChainId } from '../../lib/addresses'
 import { useAllCollections } from '../../lib/discovery'
+import { chunk, MAX_QUERY_LIMIT, QUERY_WINDOW } from '../../lib/discovery/batchRead'
 
 /**
  * usePortfolio (W-F) — the connected wallet's holdings across ALL registered collections.
@@ -18,8 +19,10 @@ import { useAllCollections } from '../../lib/discovery'
  * auction-escrow leg (index 4). Read by INDEX, not by position-in-a-tuple-you-remember.
  *
  * The aggregator caps each address-array at `MAX_QUERY_LIMIT` (50) on-chain; passing more reverts.
- * We therefore slice both arrays to MAX and set `truncated` when either was clipped, so the page
- * can warn that some holdings are not shown. (A paged variant is future work — not part of W-F.)
+ * We therefore read in windows of at most that width and concatenate, rather than clipping. Clipping
+ * a NEWEST-FIRST index meant asking about the 50 most recent collections: a position in an older one
+ * was answered "nothing held", and each new registration past 50 evicted another, with no user
+ * action. Windowing removes the question of WHICH 50 by asking about all of them.
  *
  * Read idiom mirrors `useAllCollectionsRaw`: a React Query around `publicClient.readContract`,
  * keyed on chainId + user + the instance/vault sets so a chain reset or account switch refetches.
@@ -27,8 +30,7 @@ import { useAllCollections } from '../../lib/discovery'
 
 const ZERO = '0x0000000000000000000000000000000000000000'
 
-/** Aggregator hard cap on each address-array argument (QueryAggregator.MAX_QUERY_LIMIT). */
-export const MAX_QUERY_LIMIT = 50
+export { MAX_QUERY_LIMIT }
 
 export type PortfolioData = ContractFunctionReturnType<
   typeof queryAggregatorAbi,
@@ -58,30 +60,73 @@ export interface PortfolioInputs {
  * - `instances` = every card's instance address.
  * - `vaultAddrs` = the deduped set of NON-zero vault addresses (a vault is shared across many
  *   instances; the aggregator wants the distinct vaults to read positions once each).
- * - Both arrays are capped at `MAX_QUERY_LIMIT`; `truncated` is true if either was clipped.
+ * - Neither array is clipped: `fetchPortfolioDataBatched` windows them at the aggregator's cap, so
+ *   the read covers every collection. `truncated` is retained as the signal the panels warn on and
+ *   is false by construction here — nothing on this path drops a collection any more.
  *
  * Extracted from the hook so it can be unit-tested without a chain.
  */
 export function derivePortfolioInputs(
   cards: { instance: `0x${string}`; vault: `0x${string}` }[],
 ): PortfolioInputs {
-  const allInstances = cards.map((c) => c.instance)
+  const instances = cards.map((c) => c.instance)
 
   const seen = new Set<string>()
-  const allVaults: `0x${string}`[] = []
+  const vaultAddrs: `0x${string}`[] = []
   for (const c of cards) {
     const v = c.vault.toLowerCase()
     if (c.vault !== ZERO && !seen.has(v)) {
       seen.add(v)
-      allVaults.push(c.vault)
+      vaultAddrs.push(c.vault)
     }
   }
 
-  const instances = allInstances.slice(0, MAX_QUERY_LIMIT)
-  const vaultAddrs = allVaults.slice(0, MAX_QUERY_LIMIT)
-  const truncated = allInstances.length > MAX_QUERY_LIMIT || allVaults.length > MAX_QUERY_LIMIT
+  return { instances, vaultAddrs, truncated: false }
+}
 
-  return { instances, vaultAddrs, truncated }
+/** Empty portfolio in the aggregator's five-value shape. */
+const EMPTY_PORTFOLIO = [[], [], [], 0n, []] as unknown as PortfolioData
+
+/**
+ * `getPortfolioData` over unbounded instance/vault sets, in windows of at most `QUERY_WINDOW`.
+ *
+ * The five return values compose cleanly across windows because each address contributes to exactly
+ * one of them: instances produce the ERC404, ERC1155 and auction legs, vaults produce the vault leg,
+ * and `totalClaimable` is the sum of the ERC404 pending rewards and the vault claimables the call
+ * saw. Every address appears in exactly one window, so concatenating the arrays and summing the
+ * scalar reproduces the single-call answer exactly.
+ *
+ * Instance and vault windows are zipped rather than crossed — pass `i` carries instance window `i`
+ * and vault window `i`, with an empty array once one side runs out — so the read costs
+ * `max(ceil(i/50), ceil(v/50))` round-trips, not their product.
+ */
+export async function fetchPortfolioDataBatched(
+  read: (instances: `0x${string}`[], vaultAddrs: `0x${string}`[]) => Promise<PortfolioData>,
+  instances: readonly `0x${string}`[],
+  vaultAddrs: readonly `0x${string}`[],
+  width: number = QUERY_WINDOW,
+): Promise<PortfolioData> {
+  const instanceWindows = chunk(instances, width)
+  const vaultWindows = chunk(vaultAddrs, width)
+  const passes = Math.max(instanceWindows.length, vaultWindows.length)
+  if (passes === 0) return EMPTY_PORTFOLIO
+
+  const erc404: Erc404Holding[] = []
+  const erc1155: Erc1155Holding[] = []
+  const vaults: VaultPosition[] = []
+  const auctions: AuctionPosition[] = []
+  let totalClaimable = 0n
+
+  for (let i = 0; i < passes; i++) {
+    const page = await read(instanceWindows[i] ?? [], vaultWindows[i] ?? [])
+    erc404.push(...page[0])
+    erc1155.push(...page[1])
+    vaults.push(...page[2])
+    totalClaimable += page[3]
+    auctions.push(...page[4])
+  }
+
+  return [erc404, erc1155, vaults, totalClaimable, auctions] as unknown as PortfolioData
 }
 
 /**
@@ -135,7 +180,11 @@ export interface UsePortfolioResult {
   data: PortfolioData | undefined
   isPending: boolean
   isError: boolean
-  /** True when the underlying collection index exceeded MAX_QUERY_LIMIT and was clipped. */
+  /**
+   * True when the collection index was clipped and holdings may be missing. False by construction
+   * since the read was windowed (noesis-327) — kept as the panels' fail-safe so any future path that
+   * does drop collections has a correct notice already wired to it.
+   */
   truncated: boolean
   /** No connected wallet — caller should render the connect gate. */
   noWallet: boolean
@@ -148,12 +197,6 @@ export function usePortfolio(user: `0x${string}` | undefined): UsePortfolioResul
   const { instances, vaultAddrs, truncated } = derivePortfolioInputs(cards ?? [])
 
   const enabled = !!client && !!user && cards !== undefined
-  if (truncated) {
-    console.warn(
-      `[usePortfolio] collection index exceeds MAX_QUERY_LIMIT (${MAX_QUERY_LIMIT}); ` +
-        `holdings beyond the cap are not shown.`,
-    )
-  }
 
   const { data, isPending, isError } = useQuery({
     queryKey: portfolioQueryKey(forkChainId, user, instances, vaultAddrs),
@@ -161,13 +204,17 @@ export function usePortfolio(user: `0x${string}` | undefined): UsePortfolioResul
     staleTime: 30_000,
     queryFn: async (): Promise<PortfolioData> => {
       if (!client || !user) throw new Error('portfolio query ran without client/user')
-      const result = await client.readContract({
-        address: forkAddresses.QueryAggregator,
-        abi: queryAggregatorAbi,
-        functionName: 'getPortfolioData',
-        args: [user, instances, vaultAddrs],
-      })
-      return result as PortfolioData
+      return fetchPortfolioDataBatched(
+        async (windowInstances, windowVaults) =>
+          (await client.readContract({
+            address: forkAddresses.QueryAggregator,
+            abi: queryAggregatorAbi,
+            functionName: 'getPortfolioData',
+            args: [user, windowInstances, windowVaults],
+          })) as PortfolioData,
+        instances,
+        vaultAddrs,
+      )
     },
   })
 
