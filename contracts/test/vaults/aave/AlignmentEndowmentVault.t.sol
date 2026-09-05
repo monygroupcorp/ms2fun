@@ -6,6 +6,7 @@ import { LibClone } from "solady/utils/LibClone.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 import { AlignmentEndowmentVault } from "../../../src/vaults/aave/AlignmentEndowmentVault.sol";
 import { IAlignmentRegistry } from "../../../src/master/interfaces/IAlignmentRegistry.sol";
+import { AlignmentRegistryV1 } from "../../../src/master/AlignmentRegistryV1.sol";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Inline mocks (all-in-one file to avoid collision with shared mock directory)
@@ -196,10 +197,13 @@ contract MockMasterRegistry {
 
 /// @dev Alignment-registry mock with a settable ambassador set, so `execute` auth can be driven and the
 ///      `removeAmbassador` backstop exercised, plus the canonical community payout the vault resolves its
-///      target sink from. The vault reads `isAmbassador` and `getCommunityPayout`.
+///      target sink from. The vault reads `isAmbassador`, `isAlignmentTargetActive` and `getCommunityPayout`.
 contract MockAmbassadorRegistry {
     mapping(uint256 => mapping(address => bool)) private _amb;
     mapping(uint256 => address) private _communityPayout;
+    /// @dev Stored inverted so an unconfigured target reads as CURATED, matching a registry whose targets
+    ///      are active from registration; only `deactivateAlignmentTarget` below flips one off.
+    mapping(uint256 => bool) private _decurated;
 
     function setAmbassador(uint256 targetId, address account, bool flag) external {
         _amb[targetId][account] = flag;
@@ -222,6 +226,16 @@ contract MockAmbassadorRegistry {
 
     function isAmbassador(uint256 targetId, address account) external view returns (bool) {
         return _amb[targetId][account];
+    }
+
+    /// @dev Mirrors AlignmentRegistryV1.deactivateAlignmentTarget: one-way, and it does NOT clear the
+    ///      ambassador set — that is exactly the state the freeze has to be proved against.
+    function deactivateAlignmentTarget(uint256 targetId) external {
+        _decurated[targetId] = true;
+    }
+
+    function isAlignmentTargetActive(uint256 targetId) external view returns (bool) {
+        return !_decurated[targetId];
     }
 }
 
@@ -1768,5 +1782,184 @@ contract AlignmentEndowmentVaultTest is Test {
         assertEq(fresh.totalEscrowedPrincipal(), 0, "no escrowed principal");
         assertEq(fresh.totalVestedDeployable(), 0, "no vested principal");
         assertEq(fresh.deployableCorpus(), 0, "zero basis reports zero corpus");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 18. De-curation freezes the ambassador seat's spending, without stranding the corpus
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// @dev The ambassador seat is an appointment made because the protocol curates the target, so
+    ///      withdrawing curation withdraws the discretion that came with it — for every seat at once,
+    ///      rather than one `removeAmbassador` call at a time. The appointment itself is untouched:
+    ///      `isAmbassador` still answers true, which is what makes this a check on the target and not a
+    ///      restatement of the auth check above it.
+    function test_execute_frozenAfterDecuration() public {
+        _mixedPosition(); // 1 ETH vested corpus, 1 ETH escrowed
+
+        ambassadorRegistry.deactivateAlignmentTarget(TARGET_ID);
+
+        assertTrue(ambassadorRegistry.isAmbassador(TARGET_ID, ambassador), "the seat itself survives de-curation");
+        vm.prank(ambassador);
+        vm.expectRevert(AlignmentEndowmentVault.TargetDecurated.selector);
+        vault.execute(makeAddr("sink"), 1 ether, "");
+
+        assertEq(vault.totalVestedDeployable(), 1 ether, "corpus unspent");
+    }
+
+    /// @dev Non-vacuity for the test above: the same call on the same position succeeds while the target
+    ///      is curated. Deleting the `isAlignmentTargetActive` gate turns the revert test green-to-red;
+    ///      this one pins that the gate is the only thing standing between them.
+    function test_execute_stillWorksWhileCurated() public {
+        _mixedPosition();
+        address sink = makeAddr("sink");
+
+        vm.prank(ambassador);
+        vault.execute(sink, 1 ether, "");
+
+        assertEq(sink.balance, 1 ether, "a curated target still deploys its corpus");
+    }
+
+    /// @dev The freeze is on SPENDING, not on the seat. A de-curated community can still correct the text
+    ///      and logo it shows — `updateAlignmentTarget` is `onlyOwnerOrAmbassador` and reads no `active`
+    ///      flag — which is what "they can operate what has been given to them" means in practice.
+    function test_decuration_leavesTheSeatsMetadataPowerIntact() public {
+        AlignmentRegistryV1 realRegistry = new AlignmentRegistryV1(address(weth));
+        realRegistry.initialize(address(this));
+
+        IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);
+        assets[0] =
+            IAlignmentRegistry.AlignmentAsset({ token: alignmentToken, symbol: "EXEC", info: "", metadataURI: "" });
+        uint256 id = realRegistry.registerAlignmentTarget("Remilia", "", "", assets);
+        realRegistry.addAmbassador(id, ambassador);
+        realRegistry.deactivateAlignmentTarget(id);
+
+        assertFalse(realRegistry.isAlignmentTargetActive(id), "target de-curated");
+        assertEq(realRegistry.ambassadorCount(id), 1, "the outstanding seat is still counted");
+
+        vm.prank(ambassador);
+        realRegistry.updateAlignmentTarget(id, "still ours", "");
+        assertEq(realRegistry.getAlignmentTarget(id).description, "still ours", "metadata power survives");
+    }
+
+    /// @dev The freeze would be a permanent strand on its own: `migratePosition` moves the ESCROWED tranche
+    ///      only, so with `execute` closed the vested corpus has no other exit and de-curation is one-way.
+    ///      `releaseCorpusToCommunity` is that exit — permissionless, whole-corpus, and to the registry's
+    ///      own sink rather than an address the caller picks.
+    function test_releaseCorpusToCommunity_deliversTheFrozenCorpusToTheRegistrySink() public {
+        _mixedPosition();
+        address sink = makeAddr("community_sink");
+        ambassadorRegistry.setCommunityPayout(TARGET_ID, sink);
+        ambassadorRegistry.deactivateAlignmentTarget(TARGET_ID);
+
+        uint256 released = vault.releaseCorpusToCommunity();
+
+        assertEq(released, 1 ether, "the whole vested corpus is released");
+        assertEq(sink.balance, 1 ether, "and it lands at the community's own sink");
+        assertEq(vault.totalVestedDeployable(), 0, "corpus emptied");
+        assertEq(vault.totalEscrowedPrincipal(), 1 ether, "escrowed principal untouched");
+    }
+
+    /// @dev A stranger may call it, because the call carries no choice: no amount argument, no destination
+    ///      argument. That is what makes leaving it open safe rather than a gift to a de-curated seat.
+    function test_releaseCorpusToCommunity_isPermissionlessButNotADirection() public {
+        _mixedPosition();
+        address sink = makeAddr("community_sink");
+        ambassadorRegistry.setCommunityPayout(TARGET_ID, sink);
+        ambassadorRegistry.deactivateAlignmentTarget(TARGET_ID);
+
+        vm.prank(stranger);
+        vault.releaseCorpusToCommunity();
+
+        assertEq(sink.balance, 1 ether, "the stranger moved it to the community, not to themselves");
+        assertEq(stranger.balance, 0, "and gained nothing by calling");
+    }
+
+    /// @dev It is the de-curation exit and nothing else: while the target is curated the corpus is the
+    ///      target's to deploy, and this must not become a way to force it out from under them.
+    function test_releaseCorpusToCommunity_revertsWhileTheTargetIsStillCurated() public {
+        _mixedPosition();
+        ambassadorRegistry.setCommunityPayout(TARGET_ID, makeAddr("community_sink"));
+
+        vm.expectRevert(AlignmentEndowmentVault.TargetStillCurated.selector);
+        vault.releaseCorpusToCommunity();
+    }
+
+    /// @dev With no sink wired the corpus waits rather than being force-sent somewhere arbitrary. The
+    ///      registry keeps `setCommunityPayout` open on an inactive target precisely so this is recoverable
+    ///      after the fact, so the same call must then succeed.
+    function test_releaseCorpusToCommunity_waitsForASinkThenDelivers() public {
+        // A clone with no fallback payout either, so `_targetSink()` really is unset.
+        AlignmentEndowmentVault bare = _deployVault(address(0));
+        MockOwnable b = new MockOwnable(alice);
+        vm.prank(alice);
+        bare.receiveContribution{ value: 1 ether }(nativeCurrency, 1 ether, address(b));
+        vm.warp(block.timestamp + VEST);
+        bare.vest(address(b));
+        assertEq(bare.totalVestedDeployable(), 1 ether, "corpus vested");
+
+        ambassadorRegistry.deactivateAlignmentTarget(TARGET_ID);
+
+        vm.expectRevert(AlignmentEndowmentVault.CommunityPayoutNotSet.selector);
+        bare.releaseCorpusToCommunity();
+        assertEq(bare.totalVestedDeployable(), 1 ether, "corpus still held, not dropped");
+
+        address sink = makeAddr("late_sink");
+        ambassadorRegistry.setCommunityPayout(TARGET_ID, sink);
+        bare.releaseCorpusToCommunity();
+
+        assertEq(sink.balance, 1 ether, "a sink wired after de-curation still collects");
+        assertEq(bare.totalVestedDeployable(), 0, "corpus emptied");
+    }
+
+    /// @dev On an impaired position the release writes the vested tranche DOWN to its realizable share
+    ///      rather than releasing against a nominal basis the position cannot back. Without the write-down
+    ///      `totalVestedDeployable` would keep the nominal figure and carry an unbacked residual no later
+    ///      call could redeem; here one call empties it.
+    function test_releaseCorpusToCommunity_impaired_writesTheTrancheDownAndEmptiesIt() public {
+        _contributeBenefactor(10 ether); // A → vests
+        _contributeNewBenefactor(address(0xCAFE), 10 ether); // B → stays escrowed
+        vm.warp(block.timestamp + VEST);
+        vault.vest(address(benefactorContract));
+        assertEq(vault.totalVestedDeployable(), 10 ether, "nominal vested tranche");
+        assertEq(vault.totalEscrowedPrincipal(), 10 ether, "escrowed tranche");
+
+        stata.simulateLoss(10 ether); // 50% impairment
+        vm.deal(address(weth), 100 ether);
+
+        address sink = makeAddr("community_sink");
+        ambassadorRegistry.setCommunityPayout(TARGET_ID, sink);
+        ambassadorRegistry.deactivateAlignmentTarget(TARGET_ID);
+
+        vm.expectEmit(false, false, false, true);
+        emit ImpairmentRealized(5000, block.timestamp);
+        uint256 released = vault.releaseCorpusToCommunity();
+
+        assertApproxEqAbs(released, 5 ether, 1e9, "vested tranche's realizable half is what leaves");
+        assertApproxEqAbs(sink.balance, 5 ether, 1e9, "and it lands at the community sink");
+        assertLe(vault.totalVestedDeployable(), 1e9, "tranche written down and emptied, no unbacked residual");
+    }
+
+    /// @dev Harvest-first, for the reason `execute` does it: releasing the LAST principal would otherwise
+    ///      trap the pending yield behind `_crystallizeYield`'s `totalInAave == 0` guard. Here the escrowed
+    ///      tranche is gone (migrated) so the release empties the position entirely.
+    function test_releaseCorpusToCommunity_crystallizesYieldBeforeEmptyingThePosition() public {
+        _contributeBenefactor(1 ether);
+        vm.warp(block.timestamp + VEST);
+        vault.vest(address(benefactorContract)); // 1 ETH vested, nothing escrowed
+
+        _simulateYield(1 ether); // unharvested
+
+        address sink = makeAddr("community_sink");
+        ambassadorRegistry.setCommunityPayout(TARGET_ID, sink);
+        ambassadorRegistry.deactivateAlignmentTarget(TARGET_ID);
+
+        uint256 treasuryBefore = treasury.balance;
+        vault.releaseCorpusToCommunity();
+
+        // Vested class splits 99 target / 1 protocol, so the sink collects its yield leg on top of the
+        // corpus and the protocol still gets its 1%. Nothing is left behind an emptied position.
+        assertEq(treasury.balance - treasuryBefore, 0.01 ether, "protocol leg realized before the release");
+        assertEq(sink.balance, 1 ether + 0.99 ether, "target leg + corpus both delivered");
+        assertEq(vault.totalVestedDeployable(), 0, "corpus emptied");
     }
 }

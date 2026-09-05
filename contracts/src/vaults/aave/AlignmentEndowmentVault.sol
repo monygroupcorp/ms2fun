@@ -92,6 +92,13 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     error ForbiddenExecuteTarget();
     /// @dev The vault has been escrow-migrated (decommissioned): intake and vesting are permanently closed.
     error VaultMigrated();
+    /// @dev The alignment target has been de-curated, so the ambassador seat's discretionary deploy power
+    ///      over the vested corpus is frozen. The corpus is not stranded: `releaseCorpusToCommunity()`
+    ///      still delivers it, to the community's own registry-pinned sink rather than to an arbitrary call.
+    error TargetDecurated();
+    /// @dev `releaseCorpusToCommunity()` is the de-curation exit and nothing else: while the target is still
+    ///      curated the corpus is the target's to deploy through `execute`.
+    error TargetStillCurated();
 
     // ┌─────────────────────────┐
     // │       Constants         │
@@ -202,6 +209,10 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     event CapitalDeployed(
         address indexed ambassador, address indexed to, uint256 value, bytes4 selector, uint256 timestamp
     );
+    /// @notice Emitted when a de-curated target's remaining vested corpus is delivered to its community sink.
+    ///         Distinct from `CapitalDeployed` so the two ways corpus leaves — an ambassador's discretionary
+    ///         call and this non-discretionary release — stay separable off-chain despite sharing a counter.
+    event CorpusReleased(address indexed payout, uint256 amount);
 
     constructor() {
         // Lock the implementation; clones initialize via initialize().
@@ -725,10 +736,12 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     ///         its ambassadors — may deploy up to `deployableCorpus()` with an ARBITRARY external call:
     ///         any `to`, any `value` (≤ corpus), any `data`. No whitelist, no creator/owner approval, no
     ///         forbidden actions (withdraw-to-EOA is `execute(eoa, amount, "")`). The tithe is freely given;
-    ///         the target is sovereign over what has vested. The sole backstop against a rogue ambassador is
-    ///         the platform owner's `removeAmbassador` on the alignment registry, which revokes deploy rights
-    ///         for any capital not yet moved. Escrowed (unvested) principal is UNTOUCHABLE here — the bound
-    ///         is the vested corpus only.
+    ///         the target is sovereign over what has vested — for as long as the protocol curates it. Two
+    ///         backstops against a rogue ambassador, both on the alignment registry and both revoking deploy
+    ///         rights over capital not yet moved: `removeAmbassador`, which unseats one address, and
+    ///         `deactivateAlignmentTarget`, which freezes every seat at once and routes the remaining corpus
+    ///         to `releaseCorpusToCommunity` instead. Escrowed (unvested) principal is UNTOUCHABLE here —
+    ///         the bound is the vested corpus only.
     /// @dev    Auth resolves LIVE against the canonical alignment registry
     ///         (`masterRegistry.alignmentRegistry().isAmbassador(targetId, msg.sender)`) so a platform
     ///         re-point of the alignment registry is honored and there is no stale-cache risk. Strict
@@ -758,6 +771,13 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
 
         IAlignmentRegistry ar = masterRegistry.alignmentRegistry();
         if (!ar.isAmbassador(targetId, msg.sender)) revert NotAuthorized();
+        // De-curation freezes the seat's spending power. The ambassador seat is an appointment made
+        // BECAUSE the protocol curates the target; withdrawing the curation withdraws the discretion that
+        // came with it, and it does so for every ambassador at once rather than requiring the owner to
+        // race a rogue key through `removeAmbassador` one address at a time. What the target already
+        // deployed stays the target's to operate — that capital has left this vault. What has not left
+        // is no longer spendable by arbitrary call; `releaseCorpusToCommunity()` is its exit instead.
+        if (!ar.isAlignmentTargetActive(targetId)) revert TargetDecurated();
 
         // RE-B1: the `value` bound alone does NOT bind the corpus — an ambassador could pass `value = 0`
         // (trivially ≤ corpus) and route through `data` to make the vault call `transfer`/`withdraw`/
@@ -809,6 +829,76 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
             }
         }
         return result;
+    }
+
+    /// @notice Deliver a DE-CURATED target's remaining vested corpus to that community's payout sink.
+    /// @dev    The companion to the `execute` freeze, and the reason the freeze does not strand anything.
+    ///         `migratePosition` moves the ESCROWED tranche only — it says so, and it must, since the vested
+    ///         tranche is the target's money and not the protocol's to relocate. So once `execute` is closed
+    ///         the vested corpus has no other way out, and de-curation is one-way: without this it would sit
+    ///         in the Aave position for the life of the contract.
+    ///
+    ///         Permissionless, and non-discretionary in both arguments it does not take: the amount is the
+    ///         whole corpus and the destination is always `_targetSink()` (the registry's
+    ///         `getCommunityPayout(targetId)`, falling back to this clone's stored copy), never
+    ///         caller-supplied. That is what makes it safe to leave open to anyone — it is a delivery, not a
+    ///         spend, so it hands a de-curated ambassador nothing they did not already have. Reverts
+    ///         `CommunityPayoutNotSet` while no sink is wired; the corpus keeps waiting, and
+    ///         `AlignmentRegistryV1.setCommunityPayout` deliberately stays callable on an inactive target so
+    ///         the sink can still be wired after the fact.
+    ///
+    ///         Impairment is realized on the same law as `migratePosition`: on a position worth less than its
+    ///         principal basis the vested tranche is WRITTEN DOWN to its realizable share before the redeem,
+    ///         so the release cannot draw on the escrowed tranche's backing. The write-down is what makes one
+    ///         call enough — leaving the nominal basis in place would leave an unbacked residual behind that
+    ///         every later call could only chip at.
+    /// @return amount The wei delivered (0 when the corpus is already empty).
+    function releaseCorpusToCommunity() external nonReentrant returns (uint256 amount) {
+        IAlignmentRegistry ar = masterRegistry.alignmentRegistry();
+        if (ar.isAlignmentTargetActive(targetId)) revert TargetStillCurated();
+
+        address payout = _targetSink();
+        if (payout == address(0)) revert CommunityPayoutNotSet();
+
+        // Harvest-first, for the same two reasons `execute` does it: the yield accrued up to now must be
+        // apportioned at the PRE-release class weights, and draining the last principal would otherwise trap
+        // pending yield behind `_crystallizeYield`'s `totalInAave == 0` guard.
+        _crystallizeYield();
+
+        uint256 vested = totalVestedDeployable;
+        if (vested == 0) return 0;
+
+        uint256 basis = totalEscrowedPrincipal + vested;
+        uint256 value = _stataValue();
+        if (value < basis) {
+            uint256 shortfallBps = ((basis - value) * BPS) / basis;
+            emit ImpairmentRealized(shortfallBps, block.timestamp);
+            // Same write-down `migratePosition` performs, and it must be written to storage, not just used
+            // as a local bound: releasing only the realizable share while `totalVestedDeployable` kept the
+            // nominal figure would leave a residual with no backing in the position, which no later call
+            // could ever redeem and which a later `vest()` would compound.
+            uint256 realizableVested = (value * vested) / basis;
+            if (realizableVested < vested) {
+                vested = realizableVested;
+                totalVestedDeployable = realizableVested;
+            }
+        }
+
+        uint256 got = _redeem(vested);
+        if (got + REDEEM_DUST < vested) revert RedeemShortfall();
+
+        // ── Effects before the send (CEI) ──
+        // Debit by `got`, as `execute` does: the sub-wei redeem dust stays in the position as still-releasable
+        // principal rather than leaking into the next harvest's yield legs. `_totalDeployedByTarget` is the
+        // "moved out on the target's behalf" counter and this is such a move; `CorpusReleased` against
+        // `CapitalDeployed` is what tells the two apart.
+        totalVestedDeployable -= got;
+        _totalDeployedByTarget += got;
+
+        // Force-send: a community sink that rejects ETH must not make its own corpus unreleasable.
+        SafeTransferLib.forceSafeTransferETH(payout, got);
+        emit CorpusReleased(payout, got);
+        return got;
     }
 
     // ┌─────────────────────────┐

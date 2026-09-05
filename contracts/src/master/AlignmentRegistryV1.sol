@@ -198,16 +198,20 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     ///         owner-only configuration writers that require an active target — `setAcquireRoute` and
     ///         `setReferencePool` — revert `TargetNotFound`. Already-stored config for the target is
     ///         left in place; it is simply no longer reachable as active.
-    ///         What `active = false` does NOT gate — the two residuals an operator must read this as
-    ///         leaving behind:
+    ///         Ambassador SPENDING is gated too, without clearing the appointments. The appointments
+    ///         themselves survive — `isAmbassador` still answers true and `ambassadorCount` still counts
+    ///         them, so the seat's metadata power (`updateAlignmentTarget`) keeps working and the
+    ///         community can still correct its own description. What stops is the money: an endowment
+    ///         vault's `execute` reads `isAlignmentTargetActive` alongside `isAmbassador` and reverts
+    ///         `TargetDecurated` once this clears, so withdrawing curation freezes every ambassador's
+    ///         discretionary deploy at once rather than leaving the owner to race a rogue key through
+    ///         `removeAmbassador` one address at a time. A frozen corpus is not a stranded one: the
+    ///         vault's `releaseCorpusToCommunity` then delivers it to the community's own sink.
+    ///         What `active = false` does NOT gate — the residual an operator must read this as leaving
+    ///         behind:
     ///          - `setCommunityPayout`. A de-curated target's vaults may still hold an accrued community
     ///            cut whose only exit resolves the payout from this registry, so the sink stays settable
     ///            for as long as that money exists. See the note on that function.
-    ///          - Ambassador deploy rights. Appointed ambassadors are NOT cleared here, and
-    ///            `AlignmentEndowmentVault.execute` reads only `isAmbassador` — it never consults
-    ///            `isAlignmentTargetActive`. After de-curation an ambassador can still move the
-    ///            endowment's deployable corpus. The lever that revokes this is `removeAmbassador`,
-    ///            called per ambassador; `ambassadorCount` reports how many are outstanding.
     function deactivateAlignmentTarget(uint256 targetId) external override onlyOwner {
         if (alignmentTargets[targetId].approvedAt == 0) revert TargetNotFound();
         alignmentTargets[targetId].active = false;
@@ -271,9 +275,10 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     }
 
     /// @notice How many ambassadors are currently appointed on `targetId`.
-    /// @dev    Deploy rights survive de-curation, so this is what an operator needs at the moment they
-    ///         withdraw curation: the number of `removeAmbassador` calls still owed before nobody can
-    ///         spend the target's endowment corpus.
+    /// @dev    The appointments survive de-curation even though the spending power does not, so this is
+    ///         what an operator needs at the moment they withdraw curation: the number of seats that keep
+    ///         their metadata authority over the target, and the number of `removeAmbassador` calls owed
+    ///         to end that too.
     function ambassadorCount(uint256 targetId) external view override returns (uint256) {
         return alignmentTargetAmbassadors[targetId].length;
     }
