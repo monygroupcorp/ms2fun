@@ -169,6 +169,15 @@ contract QueryAggregator is SafeOwnableUUPS {
         uint256 totalSupply;
         uint256 maxSupply;
         bool isActive;
+        // The moment this collection's buy path OPENS, when that moment is still ahead of the block the
+        // card was read at; 0 otherwise. It is the second half of a status a buyer can act on: `isActive`
+        // false answers "can I buy it now?" but not "will I ever be able to?", and the two states it
+        // conflates want opposite things said about them — a curve that has graduated or an edition run
+        // that has sold out is over, while a drop scheduled for Friday is worth coming back for. Read
+        // together: active => now, `opensAt` non-zero => then, neither => nothing to wait for.
+        // Compared against `block.timestamp` HERE rather than handed to the caller as a raw schedule, so
+        // a client with a skewed clock cannot disagree with the chain about which of the three it is in.
+        uint256 opensAt;
         // F-F.4: currently unused — no card hydration path (ERC404/ERC721/ERC1155) assigns extraData,
         // so it is always empty bytes. Vestige of the removed getCardData() 5-tuple. The frontend must
         // NOT decode it. Kept as a reserved forward-compat field; do not populate without a spec update.
@@ -567,11 +576,14 @@ contract QueryAggregator is SafeOwnableUUPS {
         if (typeHash == TYPE_ERC404) {
             // Atomic external self-call: any revert in the underlying reads yields a zero card, not a
             // batch revert (the batch loops call _hydrateProject unwrapped, so reads MUST be revert-safe).
-            try this.erc404CardData(card.instance) returns (uint256 price, uint256 supply, uint256 max, bool active) {
+            try this.erc404CardData(card.instance) returns (
+                uint256 price, uint256 supply, uint256 max, bool active, uint256 opensAt
+            ) {
                 card.currentPrice = price;
                 card.totalSupply = supply;
                 card.maxSupply = max;
                 card.isActive = active;
+                card.opensAt = opensAt;
             } catch { }
         } else if (typeHash == TYPE_ERC721) {
             try this.erc721CardData(card.instance) returns (uint256 price, uint256 supply, uint256 max, bool active) {
@@ -579,6 +591,12 @@ contract QueryAggregator is SafeOwnableUUPS {
                 card.totalSupply = supply;
                 card.maxSupply = max;
                 card.isActive = active;
+                // `opensAt` stays 0 for the auction family, and there is nothing to compute: an auction
+                // has no scheduled start. `_startAuction` stamps `startTime` with `block.timestamp` the
+                // moment a piece reaches the head of its line (on queueing into an empty line, or when
+                // the piece ahead of it settles), so a future start time never exists to be read. A
+                // collection with pieces queued behind a live head is Live already; one with nothing
+                // running is waiting on a creator, not on a clock, and 0 says exactly that.
             } catch { }
         } else {
             // ERC1155: compute from edition storage directly.
@@ -587,9 +605,9 @@ contract QueryAggregator is SafeOwnableUUPS {
     }
 
     /// @notice Atomic ERC404 bonding-card reader. `currentPrice` = cost of the next NFT-unit
-    ///         (`calculateCost(params, supply, unit)`, matching how buys are priced); `isActive` mirrors
-    ///         the frontend phase machine (bonding open AND started AND not graduated). External so the
-    ///         caller can try/catch the whole group as one unit. Not for direct use.
+    ///         (`calculateCost(params, supply, unit)`, matching how buys are priced); `active` = a buy
+    ///         placed at this block would succeed; `opensAt` = when one first could, if that is still
+    ///         ahead. External so the caller can try/catch the whole group as one unit. Not for direct use.
     /// @dev `max` is the BUYABLE ceiling, not `maxSupply`. The buy path caps at
     ///      `maxSupply - liquidityReserve - freeMintAllocation * unit` (ERC404BondingInstance:520) and
     ///      reverts `ExceedsBonding()` past it, so reporting raw `maxSupply` here advertised coin that
@@ -600,7 +618,7 @@ contract QueryAggregator is SafeOwnableUUPS {
     function erc404CardData(address instance)
         external
         view
-        returns (uint256 price, uint256 supply, uint256 max, bool active)
+        returns (uint256 price, uint256 supply, uint256 max, bool active, uint256 opensAt)
     {
         IERC404Card c = IERC404Card(instance);
         supply = c.totalBondingSupply();
@@ -610,7 +628,22 @@ contract QueryAggregator is SafeOwnableUUPS {
         // Clamped rather than left to underflow: a configuration that reserves the whole supply has a
         // buyable ceiling of zero, which is the truth, and a revert here would blank the card instead.
         max = reserved >= maxSupply_ ? 0 : maxSupply_ - reserved;
-        active = c.bondingActive() && block.timestamp >= c.bondingOpenTime() && !c.graduated();
+        // `bondingOpenTime` is the buy path's own gate (ERC404BondingInstance:518 reverts TooEarly()
+        // below it), and arming is what turns a bare timestamp into a promise: `setBondingActive`
+        // refuses until an open time is set, and graduation clears the flag. So an armed, ungraduated
+        // curve whose open time has not arrived is a real Soon; anything else is not one, whatever
+        // `bondingOpenTime` happens to hold.
+        bool armed = c.bondingActive();
+        bool graduated_ = c.graduated();
+        uint256 openTime_ = c.bondingOpenTime();
+        // `supply < max` completes the predicate against the ceiling computed just above. A curve
+        // bought out to that ceiling is not graduated and stays armed — nothing on chain flips for it —
+        // yet every further buy reverts ExceedsBonding(). Without this term such a curve advertised
+        // itself as buyable forever, which is the one thing "active" is supposed to promise. It also
+        // brings the family into line with its siblings, which have always required a reachable buy:
+        // the ERC-1155 leg wants `minted < supply` on an open edition, the ERC-721 leg a live auction.
+        active = armed && !graduated_ && block.timestamp >= openTime_ && supply < max;
+        if (armed && !graduated_ && block.timestamp < openTime_) opensAt = openTime_;
         if (unit_ > 0) {
             (uint256 k, uint256 pole, uint256 nf) = c.curveParams();
             price = BondingCurveMath.calculateCost(BondingCurveMath.Params(k, pole, nf), supply, unit_);
@@ -905,6 +938,12 @@ contract QueryAggregator is SafeOwnableUUPS {
             card.totalSupply = totalMinted;
             card.maxSupply = maxSupply;
             card.isActive = isActive || hasOpenUnlimited;
+            // The earliest edition still shut, if any — the loop already found it to quote its price.
+            // Reported whether or not another edition is open, because it is a fact about the
+            // collection rather than a display flag; a reader that wants one status resolves `isActive`
+            // first. Bounded by MAX_EDITIONS_PER_CARD like every other figure on this card: an edition
+            // past the loop's window opens without being announced here.
+            if (nextOpenTime != type(uint256).max) card.opensAt = nextOpenTime;
         } catch { }
     }
 

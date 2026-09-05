@@ -41,6 +41,7 @@ export function CollectionHeroPreview({
       name: name?.trim() || 'Your Collection',
       creator: MOCK_ADDR,
       isActive: true,
+      opensAt: 0n, // the preview shows a collection mid-flight, so: Live, nothing pending
       currentPrice: 1_000_000_000n,
       totalSupply: 3n,
       maxSupply: 100n,

@@ -11,6 +11,7 @@ import {
 import type { ProjectCard } from '../useCreatorCollections'
 import type { CollectionMetadata } from '../../lib/metadata'
 import { activeNetworkName } from '../../lib/network'
+import { cardStatus } from '../../lib/cardStatus'
 import styles from '../../routes/CollectionPage.module.css'
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
@@ -21,6 +22,7 @@ export type CollectionHeroCard = Pick<
   | 'name'
   | 'creator'
   | 'isActive'
+  | 'opensAt'
   | 'currentPrice'
   | 'totalSupply'
   | 'maxSupply'
@@ -51,13 +53,17 @@ export function CollectionHero({ instance, card, metadata, primary }: Collection
   const cap = card.maxSupply ?? 0n
   const meterPct = cap > 0n ? Math.min(100, Number((minted * 100n) / cap)) : 0
   const hasVault = card.vault !== ZERO_ADDRESS
+  // Same vocabulary as the browse chip, so a collection does not change its story between the grid
+  // and its own page. Absent status drops the segment rather than filling it: "Collections · Ethereum"
+  // is a breadcrumb, "Collections / Ended · Ethereum" was an epitaph.
+  const status = cardStatus(card)
   const vaultLabel = card.vaultName || 'Alignment'
 
   return (
     <div className={styles.shell}>
       <aside className={styles.specimen}>
         <p className={styles.kicker}>
-          Collections / {card.isActive ? 'Live' : 'Ended'} · {activeNetworkName}
+          Collections{status ? ` / ${status}` : ''} · {activeNetworkName}
         </p>
         <h1 className={styles.title}>{title}</h1>
         <p className={styles.by}>

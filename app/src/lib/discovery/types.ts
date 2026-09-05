@@ -27,10 +27,18 @@ export type ProjectCard = ContractFunctionReturnType<
  *  - 'name'    → alphabetical (case-insensitive)
  *
  * `search`: case-insensitive substring, matched against `name` OR `creator`.
+ *
+ * `status`: the three buckets of `lib/cardStatus`, so a filter selects exactly the cards that draw
+ * that chip and nothing else.
+ *  - 'live'  → buyable at the block the cards were read
+ *  - 'soon'  → not yet buyable, with an opening still ahead of that block
+ *  - 'ended' → neither: sold out, graduated, settled, or never armed. The bucket the chip is silent
+ *              about; it still gets a filter, because "show me what is over" is a real question even
+ *              when the answer needs no badge on each card.
  */
 export interface CollectionFilters {
   type?: 'ALL' | 'ERC1155' | 'ERC721' | 'ERC404'
-  status?: 'ALL' | 'active' | 'ended'
+  status?: 'ALL' | 'live' | 'soon' | 'ended'
   vault?: `0x${string}`
   search?: string
   sort?: 'recent' | 'tvl' | 'name'
