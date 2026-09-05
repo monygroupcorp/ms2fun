@@ -11,9 +11,10 @@ import type { ProjectCard } from './types'
  * the argument length, so a caller that hands over "every instance the registry ever logged" does
  * not degrade past the limit — it reverts, and keeps reverting, because the registry only grows.
  *
- * The fix is entirely client-side: slice the address list into windows of at most `MAX_QUERY_LIMIT`
- * and concatenate the results. Semantics are unchanged (every instance is still read, in the same
- * order); the cost is `ceil(n / width)` round-trips instead of one.
+ * The fix is entirely client-side: slice the address list into windows no wider than the cap and
+ * concatenate the results. Semantics are unchanged (every instance is still read, in the same
+ * order); the cost is `ceil(n / width)` round-trips instead of one. The width actually used is
+ * `QUERY_WINDOW` below, which sits under the contract cap because gas binds before the cap does.
  */
 
 /** Aggregator hard cap on each address-array argument (`QueryAggregator.MAX_QUERY_LIMIT`). */

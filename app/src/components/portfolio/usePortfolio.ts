@@ -19,7 +19,7 @@ import { chunk, MAX_QUERY_LIMIT, QUERY_WINDOW } from '../../lib/discovery/batchR
  * auction-escrow leg (index 4). Read by INDEX, not by position-in-a-tuple-you-remember.
  *
  * The aggregator caps each address-array at `MAX_QUERY_LIMIT` (50) on-chain; passing more reverts.
- * We therefore read in windows of at most that width and concatenate, rather than clipping. Clipping
+ * We therefore read in `QUERY_WINDOW`-wide windows and concatenate, rather than clipping. Clipping
  * a NEWEST-FIRST index meant asking about the 50 most recent collections: a position in an older one
  * was answered "nothing held", and each new registration past 50 evicted another, with no user
  * action. Windowing removes the question of WHICH 50 by asking about all of them.
@@ -98,7 +98,7 @@ const EMPTY_PORTFOLIO = [[], [], [], 0n, []] as unknown as PortfolioData
  *
  * Instance and vault windows are zipped rather than crossed — pass `i` carries instance window `i`
  * and vault window `i`, with an empty array once one side runs out — so the read costs
- * `max(ceil(i/50), ceil(v/50))` round-trips, not their product.
+ * `max(ceil(i/width), ceil(v/width))` round-trips, not their product.
  */
 export async function fetchPortfolioDataBatched(
   read: (instances: `0x${string}`[], vaultAddrs: `0x${string}`[]) => Promise<PortfolioData>,
