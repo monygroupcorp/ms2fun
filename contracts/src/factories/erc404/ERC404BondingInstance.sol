@@ -546,7 +546,11 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle, IGra
         _transfer(address(this), msg.sender, amount);
         reserve += totalCost;
 
-        if (messageData.length > 0) {
+        // Revocation must not brick the trade. `postForAction` refuses a caller the registry no longer
+        // approves, and `revokeInstance` is exactly that flip, so a bare call here would revert a
+        // commented buy that still succeeds uncommented. Pre-checking only that one read keeps the skip
+        // narrow: every other reason `postForAction` can revert still reverts the buy.
+        if (messageData.length > 0 && masterRegistry.isInstanceFromApprovedFactory(address(this))) {
             globalMessageRegistry.postForAction(msg.sender, address(this), messageData);
         }
 
@@ -605,7 +609,11 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle, IGra
             emit BondingFeePaid(msg.sender, sellFee);
         }
 
-        if (messageData.length > 0) {
+        // Revocation must not brick the trade. `postForAction` refuses a caller the registry no longer
+        // approves, and `revokeInstance` is exactly that flip, so a bare call here would revert a
+        // commented sell that still succeeds uncommented. Pre-checking only that one read keeps the skip
+        // narrow: every other reason `postForAction` can revert still reverts the sell.
+        if (messageData.length > 0 && masterRegistry.isInstanceFromApprovedFactory(address(this))) {
             globalMessageRegistry.postForAction(msg.sender, address(this), messageData);
         }
 

@@ -215,6 +215,15 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
     ///           address so its slug stays reserved and cannot be squatted — see that function's own
     ///           docstring, which is the authority on the exclusion. Resolution and display are
     ///           separate concerns.
+    ///         - DELIBERATELY NOT HONORED: trade execution. Every ERC-404 / ERC-1155 / ERC-721 instance
+    ///           forwards a user's comment to `GlobalMessageRegistry.postForAction` on its buy / sell /
+    ///           mint / bid path, and that call gates on `isInstanceFromApprovedFactory`. The instances
+    ///           pre-check the same read and SKIP the post rather than letting it revert, so revocation
+    ///           silences a revoked instance's comments without stopping its trades — a buy behaves the
+    ///           same whether or not the buyer attached one. Revocation is a listing decision, not a
+    ///           freeze: it is not a trading halt, and this contract has no mechanism that is.
+    ///           `GlobalMessageRegistry.post` is permissionless in any case, so the coupling never
+    ///           silenced the instance's social surface — it only broke the commented trade.
     ///         Because the flag is a one-way storage write, revocation is not a reversible moderation
     ///         action: recovery means registering a NEW instance, not reviving this one, and it needs a
     ///         new name — the revoked instance's `nameHash` stays claimed in `nameHashes`.

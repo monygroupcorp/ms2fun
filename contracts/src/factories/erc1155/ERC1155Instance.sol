@@ -538,7 +538,11 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         totalProceeds += totalCost;
 
         // Forward message to global registry
-        if (messageData.length > 0) {
+        // Revocation must not brick the trade. `postForAction` refuses a caller the registry no longer
+        // approves, and `revokeInstance` is exactly that flip, so a bare call here would revert a
+        // commented mint that still succeeds uncommented. Pre-checking only that one read keeps the skip
+        // narrow: every other reason `postForAction` can revert still reverts the mint.
+        if (messageData.length > 0 && masterRegistry.isInstanceFromApprovedFactory(address(this))) {
             globalMessageRegistry.postForAction(msg.sender, address(this), messageData);
         }
 

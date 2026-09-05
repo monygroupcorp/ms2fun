@@ -122,8 +122,10 @@ contract MockMasterRegistry is IMasterRegistry {
         return true; // Always return true in mock for testing
     }
 
-    function isInstanceFromApprovedFactory(address) external view override returns (bool) {
-        return true; // Always return true in mock for testing
+    function isInstanceFromApprovedFactory(address instance) external view override returns (bool) {
+        // True by default, as every historic caller of this mock expects; false once `revokeInstance`
+        // has been called for the address, which is the one flip MasterRegistryV1 performs.
+        return !_revoked[instance];
     }
 
     // Registered-instance tracking. Default (unset) is registered=true to preserve the historic
@@ -137,7 +139,7 @@ contract MockMasterRegistry is IMasterRegistry {
     }
 
     function isRegisteredInstance(address instance) external view override returns (bool) {
-        return !_forcedUnregistered[instance];
+        return !_forcedUnregistered[instance] && !_revoked[instance];
     }
 
     function migrateVault(address, address) external override { }
@@ -170,7 +172,14 @@ contract MockMasterRegistry is IMasterRegistry {
 
     function updateInstanceMetadata(address, string calldata) external override { }
 
-    function revokeInstance(address) external override { }
+    // Revocation tracking. MasterRegistryV1.revokeInstance is a one-way storage write that turns both
+    // `isInstanceFromApprovedFactory` and `isRegisteredInstance` false; the mock mirrors that so suites
+    // can exercise what a revoked instance can still do.
+    mapping(address => bool) private _revoked;
+
+    function revokeInstance(address instance) external override {
+        _revoked[instance] = true;
+    }
 
     // Agent tracking for testing
     mapping(address => bool) private _agents;
