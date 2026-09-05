@@ -441,8 +441,15 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
      * @notice Claim accumulated vault fees and forward to creator
      * @return totalClaimed Amount of ETH claimed
      */
+    // slither-disable-next-line unused-return
     function claimVaultFees() external onlyOwner nonReentrant returns (uint256 totalClaimed) {
-        totalClaimed = vault.claimFees();
+        // Vaults pay the benefactor by pushing ETH; the return value is a report, not a receipt.
+        // Measure the amount by balance-delta rather than trusting it — this contract custodies
+        // queued creators' deposits and every live high bid, so forwarding an unbacked figure
+        // would pay the owner out of that escrow.
+        uint256 before = address(this).balance;
+        vault.claimFees();
+        totalClaimed = address(this).balance - before;
         if (totalClaimed == 0) revert NoFeesToClaim();
         SmartTransferLib.smartTransferETH(owner(), totalClaimed, weth);
     }
