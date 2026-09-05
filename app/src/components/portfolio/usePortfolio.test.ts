@@ -350,9 +350,16 @@ describe('HeldPanel truncation notice', () => {
       createElement(HeldPanel, { data: empty, isPending: false, isError: false, truncated: true }),
     )
     expect(screen.getByTestId('portfolio-truncated')).toHaveTextContent(
-      /only the first 50 collections were checked/i,
+      /some collections could not be checked/i,
     )
-    expect(screen.queryByText(/showing the first 50/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/showing the first/i)).not.toBeInTheDocument()
+  })
+
+  it('names no collection count — the read width is not a number the copy may pin', () => {
+    render(
+      createElement(HeldPanel, { data: empty, isPending: false, isError: false, truncated: true }),
+    )
+    expect(screen.getByTestId('portfolio-truncated').textContent).not.toMatch(/\d/)
   })
 
   it('omits the notice when the read covered everything', () => {
