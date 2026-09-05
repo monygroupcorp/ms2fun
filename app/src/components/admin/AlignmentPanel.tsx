@@ -362,8 +362,9 @@ function DeactivateTargetRow() {
   const targetId = parseTargetId(raw)
   const canSubmit = targetId !== undefined
 
-  // Deploy rights outlive de-curation, so the count of ambassadors still appointed is what the operator
-  // needs in front of them at the moment they deactivate — see the residual note below.
+  // Deactivating freezes every ambassador's deploy rights at once, but it does not unseat anyone: the
+  // appointments, and the metadata authority that comes with them, outlive de-curation. The count of
+  // seats still appointed is what the operator needs in front of them — see the residual note below.
   const { data: ambassadorCount } = useReadAlignmentRegistryV1AmbassadorCount({
     address: REGISTRY,
     args: canSubmit ? [targetId] : undefined,
@@ -387,9 +388,12 @@ function DeactivateTargetRow() {
         {canSubmit && ambassadorCount !== undefined && (
           <p className={styles.residual} data-testid="admin-deactivate-ambassador-residual">
             <span className={styles.mono}>{ambassadorCount.toString()}</span> ambassador
-            {ambassadorCount === 1n ? '' : 's'} still appointed. Deactivating does not revoke them:
-            an ambassador keeps the right to deploy an endowment vault&rsquo;s corpus for this
-            target. Remove each one to end that.
+            {ambassadorCount === 1n ? '' : 's'} still appointed. Deactivating freezes their spending
+            &mdash; no ambassador can deploy an endowment vault&rsquo;s corpus for a de-curated
+            target &mdash; but it does not unseat them: each keeps the right to edit this
+            target&rsquo;s description and metadata pointer. Remove each one to end that. A frozen
+            corpus is not stranded: it goes to this target&rsquo;s community payout address, so set
+            one if it has none.
           </p>
         )}
         <TxButton

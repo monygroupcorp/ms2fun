@@ -17,10 +17,12 @@
  *  - **The metadata pointer is checked before it is sent** against the same allowlist the contract
  *    enforces, so a bad scheme costs a disabled button instead of a reverted transaction.
  *
- * What this surface does NOT offer, and says so: ambassadorship of a target also authorises
+ * What this surface does NOT offer, and says so: ambassadorship of a CURATED target also authorises
  * `AlignmentEndowmentVault.execute` on that community's yield-family vaults — an arbitrary external
  * call spending up to the vested corpus. That is a sovereign-capital action, not metadata, and it is
- * not given a button here.
+ * not given a button here. De-curating the target freezes that power (the vault reads
+ * `isAlignmentTargetActive` alongside `isAmbassador`) while leaving these fields working, so this
+ * panel is exactly the part of the seat that survives.
  */
 import { useState } from 'react'
 import { alignmentRegistryV1Abi } from '../../generated/contracts'
@@ -63,11 +65,13 @@ export function AmbassadorPanel({
           can change it.
         </p>
         <p className={styles.scope}>
-          The seat carries more than these fields: on this community&apos;s endowment vaults it also
-          authorises deploying <strong>vested</strong> principal by arbitrary call. That is not
-          offered here. The platform owner can revoke the seat at any time, and this surface asks
-          the registry who holds it rather than trusting a stored list, so a revoked seat loses its
-          controls.
+          The seat carries more than these fields: for as long as the protocol curates this
+          community, it also authorises deploying <strong>vested</strong> principal from its
+          endowment vaults by arbitrary call. That is not offered here. Two things end it: the
+          platform owner can revoke the seat at any time, and de-curating the community freezes
+          every seat&apos;s spending at once while leaving these fields alone. This surface asks the
+          registry who holds the seat rather than trusting a stored list, so a revoked seat loses
+          its controls.
         </p>
         {mine.map((t) => (
           <UpdateTargetRow
