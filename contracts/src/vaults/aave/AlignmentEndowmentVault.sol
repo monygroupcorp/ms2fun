@@ -52,8 +52,9 @@ interface IOwnable {
  *          vested   class →  0 creator / 99 target / 1 protocol   (creator exited; protocol keeps 1%)
  *        Hard bps constants, no setter (the ratio is sacred). The creator leg flows through a
  *        per-benefactor MasterChef accumulator (`accCreatorYieldPerPrincipal` + `rewardDebt`, weighted
- *        by escrowed principal) and is pulled via `claimYieldPurse()`. Target leg → `communityPayout`
- *        (native ETH). Protocol leg → `protocolTreasury`.
+ *        by escrowed principal) and is pulled via `claimYieldPurse()`. Target leg → the registry's
+ *        community payout for `targetId`, resolved at send time (native ETH). Protocol leg →
+ *        `protocolTreasury`.
  *      - **Impairment socialization** (pro-rata-on-shortfall) is preserved for escrowed principal in the
  *        redeeming emergency path (`migratePosition`). Once vested, the corpus is the target's; its risk
  *        is the venue the target deploys into, so escrow impairment no longer applies to it.
@@ -125,7 +126,7 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     address public protocolTreasury; // 1% protocol cut sink
     IMasterRegistry public masterRegistry; // agent authorization
     address public alignmentToken; // satisfies registerVault's alignmentToken() check
-    address public communityPayout; // target sink (registry-pinned at deploy, owner-updatable)
+    address public communityPayout; // target sink FALLBACK (seeded at deploy, owner-updatable) — see `_targetSink`
     uint256 public targetId; // the alignment target this clone serves (for the stat surface / events)
 
     // ── Per-benefactor accounting ─────────────────────────────────────────────
@@ -170,7 +171,7 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     uint256 public totalVestedDeployable; // Σ vested principal still in the position, awaiting deploy
     /// @notice Creator-yield-per-escrowed-principal accumulator, scaled by 1e18 (MasterChef).
     uint256 public accCreatorYieldPerPrincipal;
-    /// @notice Target-leg yield (native ETH wei) held by the vault because `communityPayout` is unset at
+    /// @notice Target-leg yield (native ETH wei) held by the vault because `_targetSink()` was unset at
     ///         crystallize time. Delivered by the permissionless `flushTargetFees()` once a sink exists.
     uint256 public accumulatedTargetFees;
 
@@ -179,7 +180,7 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     uint256 internal _totalVested; // monotonic Σ of all principal ever vested
     uint256 internal _totalDeployedByTarget; // Σ deployed by the target (deployment is a separate item; 0 here)
     uint256 internal _totalYieldToCreators; // Σ creator leg routed to the accumulator
-    uint256 internal _totalYieldToTarget; // Σ target leg routed to communityPayout
+    uint256 internal _totalYieldToTarget; // Σ target leg routed to the target sink
     uint256 internal _totalProtocolFees; // Σ protocol leg routed to protocolTreasury
 
     // ┌─────────────────────────┐
@@ -192,7 +193,7 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     event ImpairmentRealized(uint256 shortfallBps, uint256 timestamp);
     event CommunityPayoutUpdated(address indexed payout);
     event Migrated(address indexed to, uint256 amount);
-    /// @notice Emitted when a crystallized target leg is held in the vault because `communityPayout` is unset.
+    /// @notice Emitted when a crystallized target leg is held in the vault because the target sink is unset.
     event TargetFeesAccrued(uint256 amount, uint256 totalAccrued);
     /// @notice Emitted when the accrued target leg is delivered to the community sink.
     event TargetFeesFlushed(address indexed payout, uint256 amount);
@@ -232,7 +233,8 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         masterRegistry = IMasterRegistry(_masterRegistry);
         alignmentToken = _alignmentToken;
         targetId = _targetId;
-        // May be zero here and set later via `setCommunityPayout`; until then the target leg accrues into
+        // The FALLBACK sink only: `_targetSink()` prefers the registry's live answer. May be zero here and
+        // set later on either side; until some sink exists the target leg accrues into
         // `accumulatedTargetFees` and is delivered by `flushTargetFees()`.
         communityPayout = _communityPayout;
 
@@ -345,7 +347,7 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         // reclassified escrowed→vested. Otherwise the yield that accrued while the principal was escrowed —
         // which the split law routes 80 creator / 19 target / 1 protocol — would be apportioned by the NEXT
         // harvest at the post-vest weight (0 creator / 99 target / 1 protocol), stripping the creator leg to
-        // `communityPayout` and diluting every still-escrowed benefactor. Mirrors `migratePosition`'s
+        // the target sink and diluting every still-escrowed benefactor. Mirrors `migratePosition`'s
         // guards→crystallize→mutate order; inlined (not `this.harvest()`) because both are `nonReentrant`.
         // Under pagination this runs once per page; it is idempotent at a given position value (the second
         // call reads zero pending yield and returns), so the ordering invariant holds on every page.
@@ -477,7 +479,7 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
             // Booked at ACCRUAL, like its sibling legs: the counter means "routed to this class", and a
             // flush is a pure delivery step.
             _totalYieldToTarget += targetLeg;
-            address payout = communityPayout;
+            address payout = _targetSink();
             if (payout == address(0)) {
                 // No sink wired yet: hold the target leg in the vault instead of reverting. Crystallize is
                 // the first statement of deposit, vest, harvest and execute, so a revert here would close
@@ -527,15 +529,15 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     // │   Target fee flush      │
     // └─────────────────────────┘
 
-    /// @notice Deliver the target-leg yield accrued while `communityPayout` was unset to the current sink.
-    /// @dev    Permissionless — the destination is always this clone's `communityPayout`, never
-    ///         caller-supplied, so there is no redirect surface. Reverts `CommunityPayoutNotSet` while the
-    ///         sink is unset; the balance keeps accruing until then. `nonReentrant` + CEI: the accumulator
-    ///         is zeroed before the send, so a re-entrant call moves nothing. Force-send, so a sink that
-    ///         rejects ETH cannot make the balance unflushable.
+    /// @notice Deliver the target-leg yield accrued while the target sink was unset to the current sink.
+    /// @dev    Permissionless — the destination is always `_targetSink()`, never caller-supplied, so there
+    ///         is no redirect surface. Reverts `CommunityPayoutNotSet` while the sink is unset; the balance
+    ///         keeps accruing until then. `nonReentrant` + CEI: the accumulator is zeroed before the send,
+    ///         so a re-entrant call moves nothing. Force-send, so a sink that rejects ETH cannot make the
+    ///         balance unflushable.
     /// @return amount The wei delivered (0 when nothing was accrued).
     function flushTargetFees() external nonReentrant returns (uint256 amount) {
-        address payout = communityPayout;
+        address payout = _targetSink();
         if (payout == address(0)) revert CommunityPayoutNotSet();
 
         amount = accumulatedTargetFees;
@@ -550,6 +552,19 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     // ┌─────────────────────────┐
     // │   Internal helpers      │
     // └─────────────────────────┘
+
+    /// @dev Where this clone's target leg is owed, resolved at SEND time.
+    ///      The canonical answer is the alignment registry's `getCommunityPayout(targetId)`: it is the
+    ///      one address the community controls, and the three LP vault families already read it on every
+    ///      send. This clone stores a copy, seeded by the factory from that same registry at deploy, and
+    ///      keeps it only as the fallback for a target whose registry entry has not been wired yet — and
+    ///      as the escape hatch the factory's `setVaultCommunityPayout` writes. Reading the copy first
+    ///      would pin the sink at deploy: after a registry re-point every already-deployed clone would go
+    ///      on force-sending to the superseded address, with nothing to claw back and no revert to notice.
+    function _targetSink() internal view returns (address) {
+        address canonical = masterRegistry.alignmentRegistry().getCommunityPayout(targetId);
+        return canonical != address(0) ? canonical : communityPayout;
+    }
 
     /// @dev Move a benefactor's accrued-but-unsettled creator yield into their purse and re-baseline
     ///      their `rewardDebt` to the current accumulator at their CURRENT escrow weight.
@@ -593,7 +608,10 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     // │   Admin                 │
     // └─────────────────────────┘
 
-    /// @notice Update where this clone's target cut is sent (owner = factory).
+    /// @notice Update this clone's FALLBACK target sink (owner = factory).
+    /// @dev    The registry's `getCommunityPayout(targetId)` wins whenever it is set, so this writes the
+    ///         address used only while the target has no registry entry. It is not a redirect: it cannot
+    ///         divert a leg away from a community that has wired its own sink.
     function setCommunityPayout(address payout) external onlyOwner {
         if (payout == address(0)) revert InvalidAddress();
         communityPayout = payout;
@@ -822,7 +840,7 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         return _totalYieldToCreators;
     }
 
-    /// @notice Cumulative target-leg yield routed to `communityPayout`.
+    /// @notice Cumulative target-leg yield routed to the target sink.
     function totalYieldToTarget() external view returns (uint256) {
         return _totalYieldToTarget;
     }
