@@ -564,7 +564,7 @@ function BondStatusRow({ instance }: { instance: `0x${string}` }) {
   })
   const tx = useTxAction({ onSuccess: () => void refetch(), instance })
 
-  // bonds(instance) tuple: [creator, amount, createdAt, settled]
+  // bonds(instance) tuple: [creator, amount, createdAt, settled, maxBondDuration, graceDays]
   const amount = bond?.[1] ?? 0n
   const createdAt = bond?.[2] ?? 0
   const settled = bond?.[3] ?? false
