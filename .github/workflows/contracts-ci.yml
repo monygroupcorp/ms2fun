@@ -52,6 +52,19 @@ jobs:
       - name: Format check
         run: forge fmt --check
 
+      # INV-1 (docs/RISK_REGISTER.md, contracts/docs/spec/ZROUTER_AMOUNTLIMIT.md): zRouter is a
+      # shared permissionless router and every leg pulls its input with transferFrom, so any
+      # allowance left standing on it is spendable by any later caller. The gate refuses an
+      # unbounded approval, one not sized to the swap it guards, one whose swap is in another
+      # transaction, and one paired with an exact-out leg. --self-test runs first, against one
+      # fixture per shape: a gate that stopped detecting a shape must red the build rather than
+      # pass quietly. Placed before the build because it is a source scan -- it needs no
+      # dependencies and no compiler, and failing it early costs nothing.
+      - name: zRouter allowance gate (INV-1)
+        run: |
+          ./scripts/zrouter-approval-gate.sh --self-test
+          ./scripts/zrouter-approval-gate.sh
+
       - name: Build contracts
         run: forge build
 
