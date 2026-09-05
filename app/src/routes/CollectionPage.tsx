@@ -11,6 +11,7 @@ import { FeaturedPanel } from '../components/featured/FeaturedPanel'
 import { resolveCollectionSurfaces } from '../components/collection/types/collectionSurfaces'
 import { ProjectStyle } from '../components/collection/ProjectStyle'
 import { CollectionHero } from '../components/collection/CollectionHero'
+import { cardStatus } from '../lib/cardStatus'
 import {
   CollectionChainProvider,
   useCollectionAddresses,
@@ -23,6 +24,9 @@ import { MintBar } from '../components/ui/MintBar'
 import { ShareLink } from '../components/ui/ShareLink'
 import { txErrorReason } from '../components/ui/useTxAction'
 import styles from './CollectionPage.module.css'
+
+/** The mint bar's own voice for the three states of `cardStatus` — lower case, one word each. */
+const MINTBAR_SUB = { Live: 'open', Soon: 'soon', none: 'ended' } as const
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 
@@ -314,11 +318,14 @@ function CollectionBody({ instance }: { instance: `0x${string}` }) {
               </span>
             }
             sub={
+              // Uncapped collections have no "N left" to show, so this slot carries their state —
+              // the same three the browse chip draws from, in this bar's lower-case voice. Read off
+              // `card.isActive` alone it called an unopened auction or a scheduled unlimited edition
+              // "ended", which is the one thing this surface must not do to a collection that has not
+              // happened yet.
               cap > 0n
                 ? `${formatSupplyCount(cap - minted, card.contractType)} left`
-                : card.isActive
-                  ? 'open'
-                  : 'ended'
+                : MINTBAR_SUB[cardStatus(card) ?? 'none']
             }
             action={<a href="#mint">{card.contractType === 'ERC721' ? 'Bid' : 'Mint'}</a>}
           />

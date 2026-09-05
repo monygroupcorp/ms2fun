@@ -28,6 +28,7 @@ function card(overrides: Partial<ProjectCard>): ProjectCard {
     totalSupply: 0n,
     maxSupply: 0n,
     isActive: true,
+    opensAt: 0n,
     extraData: '0x',
     featuredRank: 0n,
     featuredExpires: 0n,
