@@ -38,31 +38,16 @@ jobs:
         with:
           version: v1.5.1
 
-      # contracts/lib is gitignored with NO committed submodule gitlinks
-      # (contracts/.gitmodules is an orphaned manifest of URLs with no commit pins),
-      # so actions/checkout fetches nothing — we clone each dep by hand. This mirrors
-      # G7's 11-dep block VERBATIM, plus the two deps that `forge test` needs which a
-      # src-only build does not: forge-std and aave-address-book (G7's src/ build imports
-      # neither; test/ does). Result: all 13 lib dirs match the primary checkout.
-      # NOTE (known follow-up): deps are unpinned — forge install pulls default-branch
-      # HEAD, so an upstream breaking change could red this gate with no local repro.
-      # Proper fix = pin deps (foundry.lock / real gitlinks); tracked separately.
+      # contracts/lib is gitignored with NO committed submodule gitlinks, so
+      # actions/checkout fetches nothing and every dependency has to be cloned here.
+      # The revisions live in contracts/scripts/lib-pins.txt and are pinned to exact
+      # commits, so this gate compiles the same dependency code on every run and an
+      # upstream push cannot red it. `all` is the full set: the 11 that src/ needs plus
+      # forge-std and aave-address-book, which `forge test` imports and a src-only build
+      # does not. app-ci's G7 step installs the `src` subset from the same file, so the
+      # two jobs cannot drift apart.
       - name: Install contracts/lib deps
-        run: |
-          forge install \
-            OpenZeppelin/openzeppelin-contracts \
-            transmissions11/solmate \
-            vectorized/solady \
-            Uniswap/v4-core \
-            vectorized/dn404 \
-            Uniswap/v3-core \
-            Uniswap/v3-periphery \
-            Uniswap/v2-core \
-            z-fi/zamm \
-            z-fi/zRouter \
-            radeksvarz/createx-forge \
-            foundry-rs/forge-std \
-            bgd-labs/aave-address-book
+        run: ./scripts/install-libs.sh all
 
       - name: Format check
         run: forge fmt --check
