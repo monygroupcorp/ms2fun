@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { cardStatus } from '../cardStatus'
 import type { CollectionFilters, ProjectCard } from './types'
 import { useAllCollectionsRaw } from './useAllCollectionsRaw'
 
@@ -10,6 +11,10 @@ import { useAllCollectionsRaw } from './useAllCollectionsRaw'
  *
  * Search matches `name` or `creator` as a case-insensitive substring, which is what the search
  * box on /collections advertises.
+ *
+ * Status filters through `lib/cardStatus`, the one function the browse chip also renders from — the
+ * Live bucket is exactly the set of cards showing a Live chip, Soon likewise, and Ended is the set
+ * showing none.
  *
  * Sort behaviour:
  *  - 'recent' (default) → reverse discovery order (newest registered first).
@@ -39,9 +44,12 @@ export function useAllCollections(filters?: CollectionFilters): {
       const typeFilter = filters?.type ?? 'ALL'
       if (typeFilter !== 'ALL' && c.contractType !== typeFilter) return false
 
-      // status
-      if (filters?.status === 'active' && !c.isActive) return false
-      if (filters?.status === 'ended' && c.isActive) return false
+      // status — read through `cardStatus`, the same function the chip renders from, so a card can
+      // never sit in a bucket whose name it does not wear. 'ended' is the bucket that draws no chip.
+      const status = filters?.status ?? 'ALL'
+      if (status === 'live' && cardStatus(c) !== 'Live') return false
+      if (status === 'soon' && cardStatus(c) !== 'Soon') return false
+      if (status === 'ended' && cardStatus(c) !== null) return false
 
       // vault (exact address match, case-insensitive — c.vault is EIP-55 checksummed from the
       // contract read; filters.vault may arrive lowercase, e.g. from a route param)

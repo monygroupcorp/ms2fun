@@ -70,11 +70,14 @@ contract StatusMockFQM {
 
 /// @notice The status a card advertises must be a state a buyer can act on.
 ///
-///         Two ways it was not. An ERC-1155 card computed `isActive` from supply alone, so a
-///         collection whose every edition was still scheduled advertised as buyable while both mint
-///         entry points reverted `EditionNotOpen()`. And an ERC-404 card reported `maxSupply` as its
-///         ceiling while the buy path caps strictly lower, so a curve bought to exhaustion showed a
-///         partly-full meter and a non-zero remainder that no further buy could reach.
+///         Ways it was not. An ERC-1155 card computed `isActive` from supply alone, so a collection
+///         whose every edition was still scheduled advertised as buyable while both mint entry points
+///         reverted `EditionNotOpen()`. An ERC-404 card reported `maxSupply` as its ceiling while the
+///         buy path caps strictly lower, so a curve bought to exhaustion showed a partly-full meter
+///         and a non-zero remainder that no further buy could reach — and went on calling itself
+///         active with every buy reverting `ExceedsBonding()`. And a card carried one boolean where
+///         the surface needs three states: a collection that has not opened yet is not the same news
+///         as one that is over, and `isActive == false` said both. `opensAt` separates them.
 contract QueryAggregatorCardStatusTest is Test {
     QueryAggregator internal agg;
     MockMasterRegistry internal registry;
@@ -259,15 +262,157 @@ contract QueryAggregatorCardStatusTest is Test {
         inst.buyBonding{ value: 1000 ether }(UNIT, 1000 ether, false, bytes(""), bytes(""), 0);
     }
 
-    /// The gate does not touch `isActive`: a curve that is open, started and ungraduated stays active
-    /// whether or not it has been bought out. What "active" means for that state is a separate
-    /// question, deliberately not answered here.
-    function test_erc404_ceiling_change_leaves_isactive_alone() public {
+    /// A curve bought out to its ceiling is finished, and the card says so. Nothing on chain flips
+    /// for it — it is not graduated, `bondingActive` is still true — so the flag has to come from the
+    /// ceiling, and the assertion below that every further buy reverts is what "finished" means here.
+    function test_erc404_curve_bought_to_its_cap_is_not_active() public {
         ERC404BondingInstance inst = _deployCurve();
-        assertTrue(_card(address(inst)).isActive, "open, started, ungraduated => active");
+        assertTrue(_card(address(inst)).isActive, "open, started, ungraduated, room left => active");
 
         uint256 ceiling = MAX_SUPPLY - inst.liquidityReserve() - inst.freeMintAllocation() * UNIT;
         _buy(inst, ceiling);
-        assertTrue(_card(address(inst)).isActive, "exhausting the curve does not flip isActive");
+
+        assertTrue(inst.bondingActive(), "state precondition: the instance still calls itself armed");
+        assertFalse(inst.graduated(), "state precondition: and it has not graduated");
+        assertFalse(_card(address(inst)).isActive, "a curve with nothing left to sell is not active");
+    }
+
+    /*//////////////////////////////////////////////////////////////
+              opensAt: SOON IS ITS OWN STATE, NOT "NOT LIVE"
+    //////////////////////////////////////////////////////////////*/
+
+    /// @dev `_deployCurve` warps onto the open time so its buys land. This one stops short, leaving the
+    ///      instance armed with an opening still ahead of it — the state a Soon chip is drawn from.
+    function _deployCurveOpeningIn(uint256 delay) internal returns (ERC404BondingInstance inst, uint256 openTime) {
+        vm.startPrank(owner);
+        ERC404BondingInstance impl = new ERC404BondingInstance(address(new ERC404BondingOps()));
+        inst = ERC404BondingInstance(payable(LibClone.clone(address(impl))));
+        inst.initialize(
+            owner,
+            address(0xBEEF),
+            ERC404BondingInstance.BondingParams({
+                maxSupply: MAX_SUPPLY,
+                unit: UNIT,
+                liquidityReserveBps: LIQUIDITY_RESERVE_BPS,
+                declaredMaxAllowanceBps: 0,
+                curve: BondingCurveMath.Params({ kCoeff: 0.025 ether, poleWad: 1.0438e18, normalizationFactor: 1e7 })
+            }),
+            address(0x600),
+            address(0),
+            address(new DN404Mirror(owner))
+        );
+        inst.initializeProtocol(
+            ERC404BondingInstance.ProtocolParams({
+                globalMessageRegistry: address(0x700),
+                protocolTreasury: address(0xFEE),
+                masterRegistry: address(0x400),
+                bondingFeeBps: 100,
+                weth: address(0xBEEF)
+            })
+        );
+        inst.initializeMetadata("Soon", "SOON", "", "", "");
+        openTime = block.timestamp + delay;
+        inst.setBondingOpenTime(openTime);
+        inst.setBondingActive(true);
+        vm.stopPrank();
+    }
+
+    /// An armed curve whose open time is ahead: not buyable, but coming — and the card names when.
+    function test_erc404_armed_before_open_time_reports_when_it_opens() public {
+        (ERC404BondingInstance inst, uint256 openTime) = _deployCurveOpeningIn(3 days);
+
+        QueryAggregator.ProjectCard memory card = _card(address(inst));
+        assertFalse(card.isActive, "before the open time nothing can be bought");
+        assertEq(card.opensAt, openTime, "and the card carries the moment it can be");
+    }
+
+    /// The same curve once the clock arrives: buyable now, and nothing left to wait for.
+    function test_erc404_clears_opensat_once_it_opens() public {
+        (ERC404BondingInstance inst, uint256 openTime) = _deployCurveOpeningIn(3 days);
+        vm.warp(openTime);
+
+        QueryAggregator.ProjectCard memory card = _card(address(inst));
+        assertTrue(card.isActive, "at the open time it is live");
+        assertEq(card.opensAt, 0, "a live curve has no pending opening");
+    }
+
+    /// A future open time is not by itself a promise. Disarmed, the same timestamp is a setting nobody
+    /// has acted on, and the card must not invite a buyer back for it.
+    function test_erc404_disarmed_before_open_time_is_not_soon() public {
+        (ERC404BondingInstance inst,) = _deployCurveOpeningIn(3 days);
+        vm.prank(owner);
+        inst.setBondingActive(false);
+
+        QueryAggregator.ProjectCard memory card = _card(address(inst));
+        assertFalse(card.isActive, "disarmed => not buyable");
+        assertEq(card.opensAt, 0, "and not scheduled either");
+    }
+
+    /// A finished curve is neither: no buy now, and none to come back for.
+    function test_erc404_exhausted_curve_has_neither_state() public {
+        ERC404BondingInstance inst = _deployCurve();
+        _buy(inst, MAX_SUPPLY - inst.liquidityReserve() - inst.freeMintAllocation() * UNIT);
+
+        QueryAggregator.ProjectCard memory card = _card(address(inst));
+        assertFalse(card.isActive, "nothing to buy");
+        assertEq(card.opensAt, 0, "and nothing to wait for");
+    }
+
+    /// Every edition still shut: the card carries the EARLIEST of them, so "soon" has a date behind it.
+    function test_erc1155_all_editions_unopened_reports_the_earliest_opening() public {
+        StatusMockERC1155 inst = new StatusMockERC1155();
+        uint256 later = block.timestamp + 14 days;
+        uint256 earlier = block.timestamp + 7 days;
+        inst.addEdition(PRICE_B, 10, 0, later);
+        inst.addEdition(PRICE_A, 5, 0, earlier);
+
+        QueryAggregator.ProjectCard memory card = _card(address(inst));
+        assertFalse(card.isActive, "nothing open yet");
+        assertEq(card.opensAt, earlier, "the earliest opener, not the last one listed");
+    }
+
+    /// An open collection with nothing scheduled behind it: live, with no pending opening to report.
+    function test_erc1155_fully_open_collection_reports_no_pending_opening() public {
+        StatusMockERC1155 inst = new StatusMockERC1155();
+        inst.addEdition(PRICE_A, 10, 0, 0);
+
+        QueryAggregator.ProjectCard memory card = _card(address(inst));
+        assertTrue(card.isActive, "open and mintable");
+        assertEq(card.opensAt, 0, "nothing pending");
+    }
+
+    /// A finished mint: open, sold out, nothing scheduled. Neither state — the collection is over.
+    function test_erc1155_finished_mint_has_neither_state() public {
+        StatusMockERC1155 inst = new StatusMockERC1155();
+        inst.addEdition(PRICE_A, 10, 10, 0);
+
+        QueryAggregator.ProjectCard memory card = _card(address(inst));
+        assertFalse(card.isActive, "sold out");
+        assertEq(card.opensAt, 0, "and nothing more is coming");
+    }
+
+    /// Live now AND more to come: both facts are reported. `opensAt` describes the collection, it is
+    /// not a display flag, so it is not suppressed by `isActive` — a reader picks its own precedence.
+    function test_erc1155_open_edition_with_a_scheduled_sibling_reports_both() public {
+        StatusMockERC1155 inst = new StatusMockERC1155();
+        uint256 scheduled = block.timestamp + 7 days;
+        inst.addEdition(PRICE_A, 10, 0, 0);
+        inst.addEdition(PRICE_B, 5, 0, scheduled);
+
+        QueryAggregator.ProjectCard memory card = _card(address(inst));
+        assertTrue(card.isActive, "the open edition is buyable now");
+        assertEq(card.opensAt, scheduled, "and the shut sibling's date is still carried");
+    }
+
+    /// Warping past the opening clears it, on the same instance — the field tracks the clock rather
+    /// than being stamped once at read time.
+    function test_erc1155_opening_clears_when_the_time_arrives() public {
+        StatusMockERC1155 inst = new StatusMockERC1155();
+        uint256 opensAt = block.timestamp + 7 days;
+        inst.addEdition(PRICE_A, 10, 0, opensAt);
+
+        assertEq(_card(address(inst)).opensAt, opensAt, "before: scheduled");
+        vm.warp(opensAt);
+        assertEq(_card(address(inst)).opensAt, 0, "after: nothing pending");
     }
 }

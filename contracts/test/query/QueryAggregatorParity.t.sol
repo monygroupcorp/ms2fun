@@ -326,7 +326,9 @@ contract QueryAggregatorParityTest is Test {
 
         QueryAggregator.ProjectCard memory card = _card(address(inst));
         assertEq(card.maxSupply, 0, "whole supply reserved => ceiling 0");
-        assertTrue(card.isActive, "the clamp must not blank the rest of the card");
+        assertGt(card.currentPrice, 0, "the clamp must not blank the rest of the card");
+        assertFalse(card.isActive, "a curve with no buyable coin is not active, armed and open or not");
+        assertEq(card.opensAt, 0, "and not soon either: it is open, there is simply nothing to sell");
     }
 
     /// Fallback parity (067 F-F.1 / 084 §6): a broken card read must degrade to the documented
