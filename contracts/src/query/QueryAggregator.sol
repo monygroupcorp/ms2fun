@@ -83,6 +83,8 @@ interface IERC404Staking {
 interface IERC404Card {
     function totalBondingSupply() external view returns (uint256);
     function maxSupply() external view returns (uint256);
+    function liquidityReserve() external view returns (uint256);
+    function freeMintAllocation() external view returns (uint256);
     function unit() external view returns (uint256);
     function bondingActive() external view returns (bool);
     function bondingOpenTime() external view returns (uint256);
@@ -588,6 +590,13 @@ contract QueryAggregator is SafeOwnableUUPS {
     ///         (`calculateCost(params, supply, unit)`, matching how buys are priced); `isActive` mirrors
     ///         the frontend phase machine (bonding open AND started AND not graduated). External so the
     ///         caller can try/catch the whole group as one unit. Not for direct use.
+    /// @dev `max` is the BUYABLE ceiling, not `maxSupply`. The buy path caps at
+    ///      `maxSupply - liquidityReserve - freeMintAllocation * unit` (ERC404BondingInstance:520) and
+    ///      reverts `ExceedsBonding()` past it, so reporting raw `maxSupply` here advertised coin that
+    ///      no buy could ever reach: a curve bought to exhaustion showed a partly-full meter and a
+    ///      non-zero remainder while every further buy reverted. The reserve is non-zero for every
+    ///      creatable instance, so the gap was never hypothetical. Same expression the frontend already
+    ///      calls the buyable ceiling in `costInverse.ts`.
     function erc404CardData(address instance)
         external
         view
@@ -595,9 +604,13 @@ contract QueryAggregator is SafeOwnableUUPS {
     {
         IERC404Card c = IERC404Card(instance);
         supply = c.totalBondingSupply();
-        max = c.maxSupply();
-        active = c.bondingActive() && block.timestamp >= c.bondingOpenTime() && !c.graduated();
         uint256 unit_ = c.unit();
+        uint256 maxSupply_ = c.maxSupply();
+        uint256 reserved = c.liquidityReserve() + c.freeMintAllocation() * unit_;
+        // Clamped rather than left to underflow: a configuration that reserves the whole supply has a
+        // buyable ceiling of zero, which is the truth, and a revert here would blank the card instead.
+        max = reserved >= maxSupply_ ? 0 : maxSupply_ - reserved;
+        active = c.bondingActive() && block.timestamp >= c.bondingOpenTime() && !c.graduated();
         if (unit_ > 0) {
             (uint256 k, uint256 pole, uint256 nf) = c.curveParams();
             price = BondingCurveMath.calculateCost(BondingCurveMath.Params(k, pole, nf), supply, unit_);
@@ -839,11 +852,14 @@ contract QueryAggregator is SafeOwnableUUPS {
             uint256 count = nextId - 1;
             if (count == 0) return;
             if (count > MAX_EDITIONS_PER_CARD) count = MAX_EDITIONS_PER_CARD; // F-D: bound the loop, never OOG the batch
-            uint256 floorPrice = type(uint256).max;
+            uint256 floorPrice = type(uint256).max; // floor over editions that are OPEN
+            uint256 nextOpenTime = type(uint256).max; // earliest openTime among editions still shut
+            uint256 nextOpenPrice; // that edition's price, quoted when nothing is open yet
             uint256 totalMinted;
             uint256 maxSupply;
             bool isActive;
             bool hasUnlimited;
+            bool hasOpenUnlimited;
             for (uint256 i = 1; i <= count; i++) {
                 try this.readEdition(card.instance, i) returns (IERC1155EditionReader.Edition memory ed) {
                     // F-F.3: card price is the floor of the LIVE per-edition prices, not the floor of
@@ -855,24 +871,40 @@ contract QueryAggregator is SafeOwnableUUPS {
                     try this.readEditionPrice(card.instance, i) returns (uint256 p) {
                         edPrice = p;
                     } catch { }
-                    if (edPrice < floorPrice) floorPrice = edPrice;
+                    // An edition whose openTime has not arrived reverts EditionNotOpen() at both mint
+                    // entry points (ERC1155Instance:284 and :501), so it can contribute neither a
+                    // buyable price nor an active flag. `openTime == 0` is the ungated case and every
+                    // timestamp clears it. Both siblings already gate on time and only this leg did
+                    // not: ERC404 ANDs in bondingOpenTime, ERC721 requires block.timestamp < endTime.
+                    bool open = block.timestamp >= ed.openTime;
+                    if (open) {
+                        if (edPrice < floorPrice) floorPrice = edPrice;
+                    } else if (ed.openTime < nextOpenTime) {
+                        nextOpenTime = ed.openTime;
+                        nextOpenPrice = edPrice;
+                    }
                     totalMinted += ed.minted;
                     if (ed.supply == 0) {
                         hasUnlimited = true;
+                        if (open) hasOpenUnlimited = true;
                     } else {
                         maxSupply += ed.supply;
-                        if (ed.minted < ed.supply) isActive = true;
+                        if (open && ed.minted < ed.supply) isActive = true;
                     }
                 } catch { }
             }
-            if (hasUnlimited) maxSupply = 0;
-            // Honest active flag: active iff any UNLIMITED edition exists OR any LIMITED edition still
-            // has minted < supply. `isActive` already captured the LIMITED case in the loop; OR in the
-            // unlimited case here. A fully-minted, all-limited collection correctly reports inactive.
-            card.currentPrice = floorPrice == type(uint256).max ? 0 : floorPrice;
+            if (hasUnlimited) maxSupply = 0; // unbounded whether or not it has opened yet
+            // Honest active flag: active iff some edition is OPEN and mintable — any open UNLIMITED
+            // edition, or any open LIMITED edition still holding minted < supply. A collection whose
+            // every edition is scheduled for a future date correctly reports inactive; before this
+            // gate it advertised as buyable a collection whose every buy reverted.
+            // Price when nothing is open yet: the earliest opener's price, not 0 — a scheduled drop
+            // that has not started is not a free one.
+            card.currentPrice =
+                floorPrice != type(uint256).max ? floorPrice : (nextOpenTime != type(uint256).max ? nextOpenPrice : 0);
             card.totalSupply = totalMinted;
             card.maxSupply = maxSupply;
-            card.isActive = isActive || hasUnlimited;
+            card.isActive = isActive || hasOpenUnlimited;
         } catch { }
     }
 

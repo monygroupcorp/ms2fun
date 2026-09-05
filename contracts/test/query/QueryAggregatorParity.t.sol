@@ -22,10 +22,20 @@ contract ParityMockERC404 {
     uint256 public totalBondingSupply;
     uint256 public maxSupply;
     uint256 public unit;
+    // The two legs the buy path deducts from maxSupply to get the buyable ceiling. Default 0 so the
+    // pre-existing cases keep ceiling == maxSupply; `setReserves` exercises the non-zero shape, which
+    // is what every creatable instance actually has.
+    uint256 public liquidityReserve;
+    uint256 public freeMintAllocation;
     bool public bondingActive;
     uint256 public bondingOpenTime;
     bool public graduated;
     BondingCurveMath.Params internal _params;
+
+    function setReserves(uint256 liquidityReserve_, uint256 freeMintAllocation_) external {
+        liquidityReserve = liquidityReserve_;
+        freeMintAllocation = freeMintAllocation_;
+    }
 
     constructor(
         uint256 supply_,
@@ -65,6 +75,8 @@ contract ParityMockERC404Reverting {
     uint256 public totalBondingSupply = 500e18;
     uint256 public maxSupply = 10_000e18;
     uint256 public unit = 1_000_000 * 1e18;
+    uint256 public liquidityReserve = 0;
+    uint256 public freeMintAllocation = 0;
 
     function instanceType() external pure returns (bytes32) {
         return keccak256("erc404");
@@ -243,8 +255,8 @@ contract QueryAggregatorParityTest is Test {
 
         // direct per-instance reads
         uint256 supply = inst.totalBondingSupply();
-        uint256 max = inst.maxSupply();
         uint256 unit_ = inst.unit();
+        uint256 max = _buyableCeiling(inst);
         bool expectedActive = inst.bondingActive() && block.timestamp >= inst.bondingOpenTime() && !inst.graduated();
         uint256 expectedPrice = unit_ > 0 ? BondingCurveMath.calculateCost(inst.params(), supply, unit_) : 0;
 
@@ -261,8 +273,8 @@ contract QueryAggregatorParityTest is Test {
         ParityMockERC404 inst = new ParityMockERC404(9_000e18, 10_000e18, 1_000_000 * 1e18, true, true, 0, p);
 
         uint256 supply = inst.totalBondingSupply();
-        uint256 max = inst.maxSupply();
         uint256 unit_ = inst.unit();
+        uint256 max = _buyableCeiling(inst);
         bool expectedActive = inst.bondingActive() && block.timestamp >= inst.bondingOpenTime() && !inst.graduated();
         uint256 expectedPrice = BondingCurveMath.calculateCost(inst.params(), supply, unit_);
 
@@ -277,13 +289,44 @@ contract QueryAggregatorParityTest is Test {
             new ParityMockERC404(0, 10_000e18, 1_000_000 * 1e18, true, false, block.timestamp + 1000, p);
 
         uint256 supply = inst.totalBondingSupply();
-        uint256 max = inst.maxSupply();
+        uint256 max = _buyableCeiling(inst);
         bool expectedActive = inst.bondingActive() && block.timestamp >= inst.bondingOpenTime() && !inst.graduated();
         // supply 0 => calculateCost at supply 0 for one unit
         uint256 expectedPrice = BondingCurveMath.calculateCost(inst.params(), supply, inst.unit());
 
         assertFalse(expectedActive, "state precondition: preopen => inactive");
         _assertCardEq(_card(address(inst)), expectedPrice, supply, max, expectedActive, "erc404-preopen");
+    }
+
+    /// Parity with a NON-ZERO reserve, which is the shape of every creatable instance: the card's
+    /// `max` is the ceiling the buy path enforces, not `maxSupply`. Buying is capped at
+    /// `maxSupply - liquidityReserve - freeMintAllocation * unit` (ERC404BondingInstance:520), so a
+    /// card reporting raw `maxSupply` advertises coin no buy can reach.
+    function test_parity_erc404_ceiling_excludes_reserved_supply() public {
+        BondingCurveMath.Params memory p = _defaultParams();
+        uint256 unit_ = 1e18;
+        ParityMockERC404 inst = new ParityMockERC404(500e18, 10_000e18, unit_, true, false, 0, p);
+        inst.setReserves(1_000e18, 2); // 1000 wad reserved for LP, 2 NFT-units reserved for free mints
+
+        uint256 expectedMax = _buyableCeiling(inst);
+        assertEq(expectedMax, 10_000e18 - 1_000e18 - 2 * unit_, "state precondition: ceiling below maxSupply");
+        assertLt(expectedMax, inst.maxSupply(), "state precondition: reserve is real");
+
+        uint256 supply = inst.totalBondingSupply();
+        uint256 expectedPrice = BondingCurveMath.calculateCost(inst.params(), supply, unit_);
+        _assertCardEq(_card(address(inst)), expectedPrice, supply, expectedMax, true, "erc404-reserved");
+    }
+
+    /// A configuration reserving the whole supply has a buyable ceiling of zero, and the lens reports
+    /// that rather than reverting — the never-brick doctrine holds through the new subtraction.
+    function test_parity_erc404_ceiling_clamps_at_zero() public {
+        BondingCurveMath.Params memory p = _defaultParams();
+        ParityMockERC404 inst = new ParityMockERC404(0, 10_000e18, 1_000_000 * 1e18, true, false, 0, p);
+        inst.setReserves(10_000e18, 0);
+
+        QueryAggregator.ProjectCard memory card = _card(address(inst));
+        assertEq(card.maxSupply, 0, "whole supply reserved => ceiling 0");
+        assertTrue(card.isActive, "the clamp must not blank the rest of the card");
     }
 
     /// Fallback parity (067 F-F.1 / 084 §6): a broken card read must degrade to the documented
@@ -393,6 +436,13 @@ contract QueryAggregatorParityTest is Test {
         });
     }
 
+    /// The ceiling a buy can actually reach, derived from the instance's own getters — the same
+    /// expression ERC404BondingInstance:520 enforces before it reverts ExceedsBonding().
+    function _buyableCeiling(ParityMockERC404 inst) internal view returns (uint256) {
+        uint256 reserved = inst.liquidityReserve() + inst.freeMintAllocation() * inst.unit();
+        return reserved >= inst.maxSupply() ? 0 : inst.maxSupply() - reserved;
+    }
+
     /// Independent re-implementation of _hydrateERC1155CardData from the instance's own getEdition reads.
     function _expectedErc1155Card(ParityMockERC1155 inst)
         internal
@@ -402,24 +452,34 @@ contract QueryAggregatorParityTest is Test {
         uint256 count = inst.nextEditionId() - 1;
         if (count == 0) return (0, 0, 0, false);
         uint256 floorPrice = type(uint256).max;
+        uint256 nextOpenTime = type(uint256).max;
+        uint256 nextOpenPrice;
         uint256 totalMinted;
         uint256 maxSupply;
         bool isActive;
         bool hasUnlimited;
+        bool hasOpenUnlimited;
         for (uint256 i = 1; i <= count; i++) {
             IERC1155EditionReader.Edition memory ed = inst.getEdition(i);
-            if (ed.basePrice < floorPrice) floorPrice = ed.basePrice;
+            bool open = block.timestamp >= ed.openTime;
+            if (open) {
+                if (ed.basePrice < floorPrice) floorPrice = ed.basePrice;
+            } else if (ed.openTime < nextOpenTime) {
+                nextOpenTime = ed.openTime;
+                nextOpenPrice = ed.basePrice;
+            }
             totalMinted += ed.minted;
             if (ed.supply == 0) {
                 hasUnlimited = true;
+                if (open) hasOpenUnlimited = true;
             } else {
                 maxSupply += ed.supply;
-                if (ed.minted < ed.supply) isActive = true;
+                if (open && ed.minted < ed.supply) isActive = true;
             }
         }
         if (hasUnlimited) maxSupply = 0;
-        isActive = isActive || hasUnlimited;
-        price = floorPrice == type(uint256).max ? 0 : floorPrice;
+        isActive = isActive || hasOpenUnlimited;
+        price = floorPrice != type(uint256).max ? floorPrice : (nextOpenTime != type(uint256).max ? nextOpenPrice : 0);
         supply = totalMinted;
         max = maxSupply;
         active = isActive;

@@ -9619,8 +9619,22 @@ export const ierc404CardAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'freeMintAllocation',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'graduated',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'liquidityReserve',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
   {
@@ -24744,12 +24758,30 @@ export const useReadIerc404CardCurveParams =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc404CardAbi}__ and `functionName` set to `"freeMintAllocation"`
+ */
+export const useReadIerc404CardFreeMintAllocation =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc404CardAbi,
+    functionName: 'freeMintAllocation',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc404CardAbi}__ and `functionName` set to `"graduated"`
  */
 export const useReadIerc404CardGraduated = /*#__PURE__*/ createUseReadContract({
   abi: ierc404CardAbi,
   functionName: 'graduated',
 })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc404CardAbi}__ and `functionName` set to `"liquidityReserve"`
+ */
+export const useReadIerc404CardLiquidityReserve =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc404CardAbi,
+    functionName: 'liquidityReserve',
+  })
 
 /**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc404CardAbi}__ and `functionName` set to `"maxSupply"`
