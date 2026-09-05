@@ -36,9 +36,9 @@ function HeroLanding() {
           <span className="text-chromatic-strong">alignment</span> launchpad.
         </h1>
         <p className={styles.heroSub}>
-          Onchain releases that are <b>forced to align.</b> Deploy a collection and ~20% of every
-          fee binds, by contract, to the work that inspired you. No promises — just commitment you
-          can read onchain.
+          Onchain releases that are <b>forced to align.</b> Deploy a collection and a fixed share of
+          every fee routes to the work that inspired you — 19% on liquidity collections, 80% on
+          endowment ones. The ratio is set in the contract, and nobody can change it.
         </p>
         <div className={styles.heroActions}>
           <Link href="/launch" className={styles.heroPrimary}>
@@ -69,7 +69,7 @@ function HeroLanding() {
             <span>
               Fee split<small>a contract constant, not a creator setting</small>
             </span>
-            <span className="v">~20%</span>
+            <span className="v">19% / 80%</span>
           </div>
           <div className="noesis-ledger-row">
             <span className="n">03</span>
@@ -80,7 +80,7 @@ function HeroLanding() {
                 graduation
               </small>
             </span>
-            <span className="v">by contract</span>
+            <span className="v">at settlement</span>
           </div>
         </div>
         <div className={`noesis-bind ${styles.heroBind}`}>
@@ -89,10 +89,12 @@ function HeroLanding() {
           </div>
           <div className="arrow">→</div>
           <div className="cell vault">
-            alignment vault<b>~20%</b>
+            alignment vault<b>fixed share</b>
           </div>
         </div>
-        <p className={styles.heroFoot}>▪ contract-enforced · no promises, just commitment</p>
+        <p className={styles.heroFoot}>
+          ▪ the split is contract-enforced · the destination is a listing you can read
+        </p>
       </aside>
     </div>
   )
@@ -143,7 +145,7 @@ export function HomePage() {
           )}
           {isError && (
             <StateBlock variant="error" boxed>
-              discovery unreachable — is the fork up?
+              discovery unreachable — no response from the network.
             </StateBlock>
           )}
 

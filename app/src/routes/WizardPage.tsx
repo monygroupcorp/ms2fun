@@ -713,8 +713,9 @@ export function WizardPage() {
             <div className={styles.decision}>
               <h2 className={styles.question}>How should this align?</h2>
               <p className={styles.lede}>
-                Every launch binds <b>~20% of its fees</b> to an alignment vault — on mint and every
-                resale, forever. Pick the <b>community</b> you&rsquo;re aligning to, then its{' '}
+                Every launch routes <b>a fixed share of its fees</b> to an alignment vault, on mint
+                and every resale — 19% on liquidity collections, 80% on endowment ones, at a ratio
+                nobody can change. Pick the <b>community</b> you&rsquo;re aligning to, then its{' '}
                 <b>vault</b>. This is what makes it not a grift.
               </p>
               <AlignmentTargetPicker
@@ -736,11 +737,11 @@ export function WizardPage() {
                     </div>
                     <div className="arrow">→</div>
                     <div className="cell vault">
-                      {vaultLabel} vault<b>~20%</b>
+                      {vaultLabel} vault<b>{selectedVault?.family === 'lp' ? '19%' : '80%'}</b>
                     </div>
                   </div>
                   <p className={styles.bindNote}>
-                    Vault: contract-enforced. <b>Can&rsquo;t be undone</b> after deploy.
+                    The share is contract-enforced. <b>It can&rsquo;t be changed</b> after deploy.
                   </p>
                 </>
               )}
@@ -815,12 +816,16 @@ export function WizardPage() {
                 </div>
                 <div className={styles.summaryRow}>
                   <dt>Aligned to</dt>
-                  <dd>{vault ? `${vaultLabel} · ~20%` : '—'}</dd>
+                  <dd>
+                    {vault
+                      ? `${vaultLabel} · ${selectedVault?.family === 'lp' ? '19%' : '80%'}`
+                      : '—'}
+                  </dd>
                 </div>
               </dl>
               <div className={styles.permanence}>
                 <span aria-hidden>▪ </span>Deploying is <b>permanent</b>. The contract, the modules,
-                and the <b>~20% alignment</b> are fixed on-chain —{' '}
+                and the <b>alignment share</b> are fixed on-chain —{' '}
                 <b>they can&rsquo;t be undone.</b>
               </div>
               {noPieceArt && (
@@ -906,7 +911,9 @@ export function WizardPage() {
             </div>
             <div className="mr">
               <span>Aligned</span>
-              <b>{vault ? `${vaultLabel} · ~20%` : '—'}</b>
+              <b>
+                {vault ? `${vaultLabel} · ${selectedVault?.family === 'lp' ? '19%' : '80%'}` : '—'}
+              </b>
             </div>
           </div>
         </aside>
