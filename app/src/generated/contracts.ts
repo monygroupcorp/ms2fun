@@ -290,6 +290,13 @@ export const alignmentEndowmentVaultAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'releaseCorpusToCommunity',
+    outputs: [{ name: 'amount', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'renounceOwnership',
     outputs: [],
     stateMutability: 'payable',
@@ -537,6 +544,25 @@ export const alignmentEndowmentVaultAbi = [
       },
     ],
     name: 'ContributionReceived',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'payout',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'CorpusReleased',
   },
   {
     type: 'event',
@@ -824,6 +850,8 @@ export const alignmentEndowmentVaultAbi = [
   { type: 'error', inputs: [], name: 'NotVested' },
   { type: 'error', inputs: [], name: 'RedeemShortfall' },
   { type: 'error', inputs: [], name: 'Reentrancy' },
+  { type: 'error', inputs: [], name: 'TargetDecurated' },
+  { type: 'error', inputs: [], name: 'TargetStillCurated' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
   { type: 'error', inputs: [], name: 'VaultMigrated' },
 ] as const
@@ -15584,6 +15612,15 @@ export const useWriteAlignmentEndowmentVaultReceiveContribution =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"releaseCorpusToCommunity"`
+ */
+export const useWriteAlignmentEndowmentVaultReleaseCorpusToCommunity =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'releaseCorpusToCommunity',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"renounceOwnership"`
  */
 export const useWriteAlignmentEndowmentVaultRenounceOwnership =
@@ -15716,6 +15753,15 @@ export const useSimulateAlignmentEndowmentVaultReceiveContribution =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"releaseCorpusToCommunity"`
+ */
+export const useSimulateAlignmentEndowmentVaultReleaseCorpusToCommunity =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'releaseCorpusToCommunity',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"renounceOwnership"`
  */
 export const useSimulateAlignmentEndowmentVaultRenounceOwnership =
@@ -15791,6 +15837,15 @@ export const useWatchAlignmentEndowmentVaultContributionReceivedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: alignmentEndowmentVaultAbi,
     eventName: 'ContributionReceived',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"CorpusReleased"`
+ */
+export const useWatchAlignmentEndowmentVaultCorpusReleasedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentEndowmentVaultAbi,
+    eventName: 'CorpusReleased',
   })
 
 /**
