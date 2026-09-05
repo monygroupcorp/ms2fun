@@ -67,7 +67,10 @@ function HeroLanding() {
           <div className="noesis-ledger-row">
             <span className="n">02</span>
             <span>
-              Fee split<small>a contract constant, not a creator setting</small>
+              Fee split
+              <small>
+                19% liquidity, 80% endowment — a contract constant, not a creator setting
+              </small>
             </span>
             <span className="v">19% / 80%</span>
           </div>
