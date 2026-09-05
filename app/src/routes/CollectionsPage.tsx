@@ -61,7 +61,6 @@ export function CollectionsPage() {
   const sortOptions: { value: SortFilter; label: string }[] = [
     { value: 'recent', label: 'Recent' },
     { value: 'name', label: 'Name' },
-    { value: 'tvl', label: 'TVL' },
   ]
 
   return (

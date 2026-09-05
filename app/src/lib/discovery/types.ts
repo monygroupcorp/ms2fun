@@ -21,10 +21,10 @@ export type ProjectCard = ContractFunctionReturnType<
  *
  * `sort`:
  *  - 'recent'  → discovery order (registeredAt desc; registry logs are oldest-first so we reverse)
- *  - 'tvl'     → not yet available on ProjectCard; field is accepted but treated as 'recent'
- *                 until a tvl field is added to the contract return; see graceful-omit note in
- *                 useAllCollections.ts
  *  - 'name'    → alphabetical (case-insensitive)
+ *
+ * There is deliberately no 'tvl' option: `ProjectCard` carries no value figure, so a TVL sort
+ * would have to invent one. Add it back only alongside a real per-instance figure on the card.
  *
  * `search`: case-insensitive substring, matched against `name` OR `creator`.
  */
@@ -33,5 +33,5 @@ export interface CollectionFilters {
   status?: 'ALL' | 'active' | 'ended'
   vault?: `0x${string}`
   search?: string
-  sort?: 'recent' | 'tvl' | 'name'
+  sort?: 'recent' | 'name'
 }
