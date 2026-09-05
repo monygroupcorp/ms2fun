@@ -4,8 +4,11 @@
  * mirror of the on-chain math); bracket params + pool floor are read LIVE from the factory so the
  * preview tracks owner-tuned regimes (falling back to the protocol defaults while loading).
  *
- * Also carries the sub-2-ETH honesty nudge: minnow raises carve ~nothing — the art path (editions/
- * auctions) on a cash-now (Liquidity) vault pays the creator 80% of settlements.
+ * Also carries the dead-band honesty nudge: raises below the pool floor's reach carve ~nothing —
+ * the art path (editions/auctions) on a cash-now (Liquidity) vault pays the creator 80% of
+ * settlements. The threshold is computed from the live `minPoolEth`, never hardcoded: the floor is
+ * an owner-settable parameter, and a fixed figure beside a live table goes wrong silently the first
+ * time it is moved.
  */
 import { formatEther } from 'viem'
 import {
@@ -14,6 +17,7 @@ import {
 } from '../../generated/contracts'
 import { forkAddresses, forkChainId } from '../../lib/addresses'
 import {
+  carveDeadBandRaise,
   carveDisclosurePreview,
   DEFAULT_CARVE_BRACKETS,
   DEFAULT_MIN_POOL_ETH,
@@ -90,9 +94,10 @@ export function CarveDisclosure({ declaredValue }: { declaredValue: string | und
         first buy.
       </p>
       <p className={styles.nudge}>
-        Raising under ~2 ETH? The carve is structurally near zero there — if you want money today,
-        the art path (editions / auctions) on a cash-now (Liquidity) vault pays you 80% of every
-        settlement (an endowment / Yield vault keeps the 19% creator split).
+        Raising under {fmt(carveDeadBandRaise(minPoolEth))} ETH? The carve is near zero there — the
+        pool floor takes the whole LP share first. If you want money today, the art path (editions /
+        auctions) on a cash-now (Liquidity) vault pays you 80% of every settlement (an endowment /
+        Yield vault keeps the 19% creator split).
       </p>
     </div>
   )

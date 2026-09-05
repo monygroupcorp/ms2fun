@@ -24,7 +24,7 @@ export function Erc721AuctionSurface({ instance }: { instance: `0x${string}` }) 
 
   if (isPending) return <p className={styles.note}>loading auctions…</p>
   if (isError || !data)
-    return <p className={styles.note}>could not load auctions — is the fork up?</p>
+    return <p className={styles.note}>could not load auctions — no response from the network.</p>
 
   if (data.auctions.length === 0) {
     return (

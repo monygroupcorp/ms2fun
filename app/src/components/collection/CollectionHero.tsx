@@ -105,12 +105,13 @@ export function CollectionHero({ instance, card, metadata, primary }: Collection
               </div>
               <div className="arrow">→</div>
               <div className="cell vault">
-                {vaultLabel} vault<b>~20%</b>
+                {vaultLabel} vault<b>fixed share</b>
               </div>
             </div>
             <p className={styles.who}>
-              Aligned to <b>{vaultLabel}</b> — ~20% of fees bind to its vault on every mint,
-              forever. <b>The creator can&rsquo;t walk.</b>
+              Aligned to <b>{vaultLabel}</b> — a fixed share of fees routes to its vault on every
+              mint: 19% on liquidity collections, 80% on endowment ones.{' '}
+              <b>The creator can&rsquo;t change the split.</b>
             </p>
           </div>
         )}

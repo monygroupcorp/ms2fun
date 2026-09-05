@@ -131,7 +131,7 @@ export function renderCollectionRouteState(
         <div className={styles.page}>
           <CrumbBack />
           <StateBlock variant="error">
-            couldn&apos;t resolve this collection — is the fork up?
+            couldn&apos;t resolve this collection — no response from the network.
           </StateBlock>
         </div>
       )
@@ -222,7 +222,9 @@ function CollectionBody({ instance }: { instance: `0x${string}` }) {
 
       {isPending && <StateBlock variant="loading">hanging the work…</StateBlock>}
       {isError && (
-        <StateBlock variant="error">couldn't load collection — is the fork up?</StateBlock>
+        <StateBlock variant="error">
+          couldn't load collection — no response from the network.
+        </StateBlock>
       )}
 
       {isNotFound && <StateBlock variant="empty">collection not found</StateBlock>}

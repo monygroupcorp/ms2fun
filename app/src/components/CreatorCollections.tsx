@@ -14,7 +14,11 @@ export function CreatorCollections({ creator }: CreatorCollectionsProps) {
 
   if (isPending) return <StateBlock variant="loading">hanging the work…</StateBlock>
   if (isError)
-    return <StateBlock variant="error">couldn&apos;t load collections — is the fork up?</StateBlock>
+    return (
+      <StateBlock variant="error">
+        couldn&apos;t load collections — no response from the network.
+      </StateBlock>
+    )
 
   if (!data || data.length === 0) {
     return (

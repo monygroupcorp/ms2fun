@@ -36,9 +36,9 @@ function HeroLanding() {
           <span className="text-chromatic-strong">alignment</span> launchpad.
         </h1>
         <p className={styles.heroSub}>
-          Onchain releases that are <b>forced to align.</b> Deploy a collection and ~20% of every
-          fee binds, by contract, to the work that inspired you. No promises — just commitment you
-          can read onchain.
+          Onchain releases that are <b>forced to align.</b> Deploy a collection and a fixed share of
+          every fee routes to the work that inspired you — 19% on liquidity collections, 80% on
+          endowment ones. The ratio is set in the contract, and nobody can change it.
         </p>
         <div className={styles.heroActions}>
           <Link href="/launch" className={styles.heroPrimary}>
@@ -143,7 +143,7 @@ export function HomePage() {
           )}
           {isError && (
             <StateBlock variant="error" boxed>
-              discovery unreachable — is the fork up?
+              discovery unreachable — no response from the network.
             </StateBlock>
           )}
 

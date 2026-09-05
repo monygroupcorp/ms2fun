@@ -237,13 +237,14 @@ function FramedArt({ image, alt }: { image: string | undefined; alt: string }) {
 }
 
 /** The alignment honesty line — on a token page it states the RESALE bind (every secondary sale),
- * the token page's reason to exist. The ~20% is the protocol constant. */
+ * the token page's reason to exist. The SHARE is the protocol constant (no setter, no owner path);
+ * the payee is owner-settable, so this line claims the ratio and never the destination. */
 function AlignmentLine({ vaultName }: { vaultName?: string | undefined }) {
   return (
     <p className={styles.alignLine}>
-      <span aria-hidden>▪ </span>~20% of every resale binds to{' '}
-      <b>{vaultName || 'its alignment vault'}</b>, on-chain. The alignment travels with the work,
-      forever — <b>it can&rsquo;t be undone.</b>
+      <span aria-hidden>▪ </span>A fixed share of every resale routes to{' '}
+      <b>{vaultName || 'its alignment vault'}</b>, on-chain — 19% on liquidity collections, 80% on
+      endowment ones. <b>The ratio is set in the contract.</b>
     </p>
   )
 }
@@ -281,7 +282,11 @@ function Erc404Token({ instance, id, collectionName, creator, vaultName }: Token
 
   if (isPending) return <StateBlock variant="loading">hanging the work…</StateBlock>
   if (isError)
-    return <StateBlock variant="error">couldn&apos;t load token — is the fork up?</StateBlock>
+    return (
+      <StateBlock variant="error">
+        couldn&apos;t load token — no response from the network.
+      </StateBlock>
+    )
 
   return (
     <article className={styles.wall}>
@@ -360,7 +365,11 @@ function Erc721Token({ instance, id, collectionName, creator, vaultName }: Token
 
   if (isPending) return <StateBlock variant="loading">hanging the work…</StateBlock>
   if (isError || !data)
-    return <StateBlock variant="error">couldn&apos;t load token — is the fork up?</StateBlock>
+    return (
+      <StateBlock variant="error">
+        couldn&apos;t load token — no response from the network.
+      </StateBlock>
+    )
 
   const a = data.auction
   const state = deriveAuctionState(

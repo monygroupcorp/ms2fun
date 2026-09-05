@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   carveAllowance,
   carveCreatorNet,
+  carveDeadBandRaise,
   carveDisclosurePreview,
   DEFAULT_CARVE_BRACKETS,
   DEFAULT_MIN_POOL_ETH,
@@ -195,6 +196,25 @@ describe('carveCreatorNet (agrees with graduationPreview().creator, bit-for-bit)
     expect(carveCreatorNet(1n)).toBe(1n)
     for (const gross of [1n, 99n, 100n, 101n, 12_345_678_901n]) {
       expect(carveCreatorNet(gross) + gross / 100n + (gross * 19n) / 100n).toBe(gross)
+    }
+  })
+})
+
+describe('carveDeadBandRaise (the threshold the wizard nudge prints)', () => {
+  it('is the raise whose LP 80 exactly meets the pool floor — 1.25 ETH at the default floor', () => {
+    expect(carveDeadBandRaise(DEFAULT_MIN_POOL_ETH)).toBe(eth(1.25))
+    expect(lpShare(carveDeadBandRaise(DEFAULT_MIN_POOL_ETH))).toBe(DEFAULT_MIN_POOL_ETH)
+    expect(effectiveCarveEth(carveDeadBandRaise(DEFAULT_MIN_POOL_ETH), 10_000, 10_000)).toBe(0n)
+  })
+
+  it('tracks an owner-moved floor, which is the whole reason it is not a constant', () => {
+    for (const floor of [eth(0.5), eth(2), eth(7.5)]) {
+      const band = carveDeadBandRaise(floor)
+      expect(lpShare(band)).toBe(floor)
+      expect(effectiveCarveEth(band, 10_000, 10_000, DEFAULT_CARVE_BRACKETS, floor)).toBe(0n)
+      expect(
+        effectiveCarveEth(band + eth(1), 10_000, 10_000, DEFAULT_CARVE_BRACKETS, floor),
+      ).toBeGreaterThan(0n)
     }
   })
 })
