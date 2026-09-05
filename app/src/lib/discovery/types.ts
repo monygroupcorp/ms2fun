@@ -25,6 +25,8 @@ export type ProjectCard = ContractFunctionReturnType<
  *                 until a tvl field is added to the contract return; see graceful-omit note in
  *                 useAllCollections.ts
  *  - 'name'    → alphabetical (case-insensitive)
+ *
+ * `search`: case-insensitive substring, matched against `name` OR `creator`.
  */
 export interface CollectionFilters {
   type?: 'ALL' | 'ERC1155' | 'ERC721' | 'ERC404'
