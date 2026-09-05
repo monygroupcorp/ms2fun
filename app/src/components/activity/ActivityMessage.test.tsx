@@ -92,4 +92,23 @@ describe('ActivityMessage', () => {
     expect(screen.getByTestId('board-react')).toBeInTheDocument()
     expect(screen.queryByTestId('board-reply-toggle')).not.toBeInTheDocument()
   })
+
+  it('is one row on its own — a surface hands over a message, not a container', () => {
+    render(<ActivityMessage message={message()} />)
+    expect(screen.getByTestId('board-thread')).toBeInTheDocument()
+    expect(screen.queryByTestId('board-reply')).not.toBeInTheDocument()
+  })
+
+  it('hangs replies inside the row they answer, so threading is the row’s business', () => {
+    render(
+      <ActivityMessage
+        message={message()}
+        replies={[message({ messageId: 2n, messageType: 1, content: 'quite' })]}
+      />,
+    )
+    const row = screen.getByTestId('board-thread')
+    const reply = screen.getByTestId('board-reply')
+    expect(row).toContainElement(reply)
+    expect(reply).toHaveTextContent('quite')
+  })
 })
