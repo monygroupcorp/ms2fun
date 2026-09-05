@@ -650,7 +650,8 @@ function usePendingRequests(): {
  * request registry's own `owner()` (distinct from AlignmentRegistryV1's owner) so it renders whenever
  * the connected wallet owns the request contract. Lists each pending request with the two D7 admin txs:
  * (1) register the target on AlignmentRegistryV1 from the proposed data, then (2) approve the request
- * (refunds the requester's deposit + delists) — plus a reject control with a forfeit toggle.
+ * against the target id that register produced (refunds the requester's deposit + delists) — plus a
+ * reject control with a forfeit toggle.
  */
 export function TargetRequestsPanel() {
   const { isOwner } = useOwnerGate(REQUEST_REGISTRY)
@@ -677,11 +678,15 @@ export function TargetRequestsPanel() {
 
 function PendingRequestRow({ req, onChanged }: { req: PendingRequest; onChanged: () => void }) {
   const [forfeit, setForfeit] = useState(false)
+  // The target id step 1 produced. approveRequest binds the approval to it, so the admin names the
+  // target this request was granted rather than the contract inferring one from the token.
+  const [targetIdRaw, setTargetIdRaw] = useState('')
   const registerTx = useTxAction()
   const approveTx = useTxAction({ onSuccess: onChanged })
   const rejectTx = useTxAction({ onSuccess: onChanged })
 
   const canRegister = req.title.trim() !== '' && req.assets.length > 0
+  const approveTargetId = parseTargetId(targetIdRaw)
 
   function handleRegister(): void {
     if (!canRegister) return
@@ -707,7 +712,7 @@ function PendingRequestRow({ req, onChanged }: { req: PendingRequest; onChanged:
   return (
     <ActionRow
       label={`request #${req.id}`}
-      hint="register the target from this request, then approve to refund the deposit (two txs, D7)"
+      hint="register the target from this request, then approve it against the target id that register produced (two txs, D7)"
     >
       <div className={styles.form}>
         <dl className={styles.readout} data-testid={`request-${req.id}-readout`}>
@@ -761,21 +766,33 @@ function PendingRequestRow({ req, onChanged }: { req: PendingRequest; onChanged:
           errorText="register failed — try again"
           testId={`request-${req.id}-register`}
         />
+        <input
+          className={styles.input}
+          type="text"
+          inputMode="numeric"
+          value={targetIdRaw}
+          onChange={(e) => setTargetIdRaw(e.target.value)}
+          placeholder="target id from step 1"
+          aria-label={`target id for request ${req.id}`}
+          data-testid={`request-${req.id}-target-id`}
+        />
         <TxButton
           state={approveTx.state}
-          onClick={() =>
+          onClick={() => {
+            if (approveTargetId === undefined) return
             approveTx.send({
               address: REQUEST_REGISTRY,
               abi: alignmentTargetRequestRegistryAbi,
               functionName: 'approveRequest',
-              args: [req.id],
+              args: [req.id, approveTargetId],
               chainId: forkChainId,
             })
-          }
+          }}
           label="2 · approve (refund deposit)"
           className="btn btn-secondary"
           successLabel="approved — deposit refunded to the requester."
           onReset={approveTx.reset}
+          disabled={approveTargetId === undefined}
           errorText="approve failed — try again"
           testId={`request-${req.id}-approve`}
         />

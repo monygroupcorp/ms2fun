@@ -42,10 +42,12 @@ contract AlignmentTargetRequestRegistryTest is Test {
     }
 
     /// @dev Simulate the admin having registered a target for `tok` (the register step of the two-tx
-    ///      approve flow) so `approveRequest` sees the token as active.
+    ///      approve flow): the target is active and its asset set carries the token, which is what
+    ///      `registerAlignmentTarget` produces and what `approveRequest` now checks.
     function _register(address tok, uint256 targetId) internal {
         registry.pushTokenTarget(tok, targetId);
         registry.setTargetActive(targetId, true);
+        registry.setTokenInTarget(targetId, tok, true);
     }
 
     // ── Submit ────────────────────────────────────────────────────────────────
@@ -166,7 +168,7 @@ contract AlignmentTargetRequestRegistryTest is Test {
         uint256 balBefore = alice.balance;
 
         vm.prank(owner);
-        reg.approveRequest(id);
+        reg.approveRequest(id, 99);
 
         AlignmentTargetRequestRegistry.Request memory r = reg.getRequest(id);
         assertEq(uint8(r.status), uint8(AlignmentTargetRequestRegistry.Status.Approved));
@@ -198,7 +200,7 @@ contract AlignmentTargetRequestRegistryTest is Test {
         _register(token, 99);
 
         vm.prank(owner);
-        reg.approveRequest(id); // must NOT revert despite the bad receiver
+        reg.approveRequest(id, 99); // must NOT revert despite the bad receiver
         assertEq(reg.refunds(address(bad)), DEPOSIT, "credited");
 
         // The bad receiver's own claim reverts (its problem, not the protocol's).
@@ -211,16 +213,16 @@ contract AlignmentTargetRequestRegistryTest is Test {
         uint256 id = _submit(alice, token);
         vm.prank(bob);
         vm.expectRevert();
-        reg.approveRequest(id);
+        reg.approveRequest(id, 99);
     }
 
     function test_approve_revertsIfNotPending() public {
         uint256 id = _submit(alice, token);
         _register(token, 99);
         vm.startPrank(owner);
-        reg.approveRequest(id);
+        reg.approveRequest(id, 99);
         vm.expectRevert(AlignmentTargetRequestRegistry.NotPending.selector);
-        reg.approveRequest(id);
+        reg.approveRequest(id, 99);
         vm.stopPrank();
     }
 
@@ -229,9 +231,77 @@ contract AlignmentTargetRequestRegistryTest is Test {
         // No register step → the target doesn't exist yet → approve must not refund + delist.
         vm.prank(owner);
         vm.expectRevert(AlignmentTargetRequestRegistry.TargetNotRegistered.selector);
-        reg.approveRequest(id);
+        reg.approveRequest(id, 99);
         assertEq(reg.pendingCount(), 1, "request stays pending");
         assertEq(address(reg).balance, DEPOSIT, "deposit still escrowed");
+    }
+
+    /// @dev The approval names the target it was granted for, and the request records it.
+    function test_approve_recordsAndEmitsTargetId() public {
+        uint256 id = _submit(alice, token);
+        _register(token, 99);
+
+        assertEq(reg.getRequest(id).targetId, 0, "unset while pending");
+
+        vm.expectEmit(true, true, true, true, address(reg));
+        emit AlignmentTargetRequestRegistry.RequestApproved(id, alice, 99, DEPOSIT);
+        vm.prank(owner);
+        reg.approveRequest(id, 99);
+
+        assertEq(reg.getRequest(id).targetId, 99, "receipt names the target");
+    }
+
+    /// @dev The approval must be granted against a target the request could have produced. A second
+    ///      pending request cannot be settled against the first one's target: the check is on the
+    ///      target's asset set, not on the requested token being active somewhere.
+    ///      Non-vacuity: drop the `isTokenInTarget` check and bob's approval succeeds.
+    function test_approve_revertsWhenTokenNotInThatTarget() public {
+        address other = makeAddr("otherToken");
+        uint256 idAlice = _submit(alice, token);
+        uint256 idBob = _submit(bob, other);
+        _register(token, 99); // one register step, for alice's token only
+
+        vm.prank(owner);
+        vm.expectRevert(AlignmentTargetRequestRegistry.TokenNotInTarget.selector);
+        reg.approveRequest(idBob, 99);
+        assertEq(reg.pendingCount(), 2, "bob's request stays pending");
+        assertEq(address(reg).balance, 2 * DEPOSIT, "both deposits still escrowed");
+
+        vm.prank(owner);
+        reg.approveRequest(idAlice, 99); // the request that target was registered for settles
+        assertEq(reg.getRequest(idAlice).targetId, 99);
+    }
+
+    /// @dev An active target elsewhere is not an approval. The old gate asked whether the requested
+    ///      token was active under ANY target, which a target registered for someone else satisfies.
+    function test_approve_revertsWhenNamedTargetIsInactive() public {
+        uint256 id = _submit(alice, token);
+        registry.pushTokenTarget(token, 99); // token is active under target 99...
+        registry.setTargetActive(99, true);
+        registry.setTokenInTarget(99, token, true);
+        registry.setTokenInTarget(7, token, true); // ...but target 7 was never registered
+
+        vm.prank(owner);
+        vm.expectRevert(AlignmentTargetRequestRegistry.TargetNotRegistered.selector);
+        reg.approveRequest(id, 7);
+        assertEq(reg.pendingCount(), 1, "request stays pending");
+    }
+
+    /// @dev Two requests naming the same token are both legitimately approvable against the target that
+    ///      carries it — the token check cannot separate them. What changed is the record: each receipt
+    ///      now names the target it was approved against instead of implying one.
+    function test_approve_sameTokenTwiceIsRecordedAgainstTheNamedTarget() public {
+        uint256 id1 = _submit(alice, token);
+        uint256 id2 = _submit(bob, token);
+        _register(token, 99);
+
+        vm.startPrank(owner);
+        reg.approveRequest(id1, 99);
+        reg.approveRequest(id2, 99);
+        vm.stopPrank();
+
+        assertEq(reg.getRequest(id1).targetId, 99);
+        assertEq(reg.getRequest(id2).targetId, 99, "second approval names the target it was settled on");
     }
 
     // ── Reject ────────────────────────────────────────────────────────────────
@@ -264,6 +334,22 @@ contract AlignmentTargetRequestRegistryTest is Test {
         vm.prank(alice);
         reg.withdrawRefund();
         assertEq(alice.balance, aBefore + DEPOSIT, "withdrawn");
+    }
+
+    /// @dev The forfeit leg is force-sent: a treasury that can't take a plain send cannot wedge a
+    ///      spam-reject. There is no such treasury in any shipped config — this pins the property.
+    function test_reject_forfeitSurvivesATreasuryThatRejectsETH() public {
+        RevertingReceiver stubborn = new RevertingReceiver();
+        vm.prank(owner);
+        reg.setProtocolTreasury(address(stubborn));
+
+        uint256 id = _submit(alice, token);
+        vm.prank(owner);
+        reg.rejectRequest(id, true);
+
+        assertEq(address(stubborn).balance, DEPOSIT, "forfeited despite the reverting receive()");
+        assertEq(address(reg).balance, 0, "nothing stranded in the registry");
+        assertEq(uint8(reg.getRequest(id).status), uint8(AlignmentTargetRequestRegistry.Status.Rejected));
     }
 
     function test_reject_onlyOwner() public {
@@ -334,7 +420,7 @@ contract AlignmentTargetRequestRegistryTest is Test {
 
         _register(makeAddr("b"), 99);
         vm.prank(owner);
-        reg.approveRequest(id2); // remove middle
+        reg.approveRequest(id2, 99); // remove middle
 
         uint256[] memory pend = reg.getPending();
         assertEq(pend.length, 2);
