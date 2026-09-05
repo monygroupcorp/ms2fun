@@ -222,7 +222,7 @@ function RegistryRow({ card }: { card: ProjectCard }) {
         {aligned ? (
           <>
             <span className="s" />
-            {aligned} · ~20%
+            {aligned}
           </>
         ) : (
           '—'

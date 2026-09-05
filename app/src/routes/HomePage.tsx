@@ -69,7 +69,7 @@ function HeroLanding() {
             <span>
               Fee split<small>a contract constant, not a creator setting</small>
             </span>
-            <span className="v">~20%</span>
+            <span className="v">19% / 80%</span>
           </div>
           <div className="noesis-ledger-row">
             <span className="n">03</span>
@@ -80,7 +80,7 @@ function HeroLanding() {
                 graduation
               </small>
             </span>
-            <span className="v">by contract</span>
+            <span className="v">at settlement</span>
           </div>
         </div>
         <div className={`noesis-bind ${styles.heroBind}`}>
@@ -89,10 +89,12 @@ function HeroLanding() {
           </div>
           <div className="arrow">→</div>
           <div className="cell vault">
-            alignment vault<b>~20%</b>
+            alignment vault<b>fixed share</b>
           </div>
         </div>
-        <p className={styles.heroFoot}>▪ contract-enforced · no promises, just commitment</p>
+        <p className={styles.heroFoot}>
+          ▪ the split is contract-enforced · the destination is a listing you can read
+        </p>
       </aside>
     </div>
   )

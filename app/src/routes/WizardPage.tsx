@@ -737,11 +737,11 @@ export function WizardPage() {
                     </div>
                     <div className="arrow">→</div>
                     <div className="cell vault">
-                      {vaultLabel} vault<b>~20%</b>
+                      {vaultLabel} vault<b>{selectedVault?.family === 'lp' ? '19%' : '80%'}</b>
                     </div>
                   </div>
                   <p className={styles.bindNote}>
-                    Vault: contract-enforced. <b>Can&rsquo;t be undone</b> after deploy.
+                    The share is contract-enforced. <b>It can&rsquo;t be changed</b> after deploy.
                   </p>
                 </>
               )}
@@ -911,7 +911,9 @@ export function WizardPage() {
             </div>
             <div className="mr">
               <span>Aligned</span>
-              <b>{vault ? `${vaultLabel} · ~20%` : '—'}</b>
+              <b>
+                {vault ? `${vaultLabel} · ${selectedVault?.family === 'lp' ? '19%' : '80%'}` : '—'}
+              </b>
             </div>
           </div>
         </aside>

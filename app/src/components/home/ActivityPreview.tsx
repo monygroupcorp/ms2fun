@@ -38,7 +38,9 @@ export function ActivityPreview() {
       {isPending && <StateBlock variant="loading">loading activity…</StateBlock>}
 
       {isError && (
-        <StateBlock variant="error">activity unreachable — no response from the network.</StateBlock>
+        <StateBlock variant="error">
+          activity unreachable — no response from the network.
+        </StateBlock>
       )}
 
       {!isPending && !isError && latest.length === 0 && (
