@@ -5,6 +5,7 @@
  * post/postBatch accept ANY address as a channel, so it's just MessageFeed + MessageComposer keyed on
  * the vault address.
  */
+import { useMemo } from 'react'
 import { Link, useParams } from 'wouter'
 import { formatEther } from 'viem'
 import { truncateAddress } from '../lib/format'
@@ -35,6 +36,9 @@ export function VaultPage() {
 
   const overview = useVaultOverview(vault)
   const { data: collections } = useAllCollections(vault ? { vault } : undefined)
+  // Every message in this feed is posted to the vault's own channel, so the one address it needs to
+  // recognise as a vault is known here — no collections-wide vault index required.
+  const vaultChannel = useMemo(() => (vault ? new Set([vault.toLowerCase()]) : undefined), [vault])
   // The target's display art lives in its metadataURI (data:/ipfs:/ar:).
   const targetMeta = useCollectionMetadata(overview.target?.metadataURI)
 
@@ -149,6 +153,7 @@ export function VaultPage() {
           <section data-testid="vault-board">
             <MessageFeed
               filter={{ instance: vault }}
+              vaults={vaultChannel}
               footer={<MessageComposer channel={vault} />}
             />
           </section>

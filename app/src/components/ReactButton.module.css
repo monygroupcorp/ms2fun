@@ -1,0 +1,33 @@
+/* The endorse control. Lived in MessageFeed.module.css, which this component reached into from
+   outside; it owns its own rules now. The mono "▪ endorsed · N" mark itself is `.noesis-endorse`
+   in signature.css — this is only the button around it. */
+
+.reactBtn {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  background-color: transparent;
+  border: 1px solid var(--color-border);
+  padding: var(--space-1) var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  cursor: pointer;
+  border-radius: var(--radius-none);
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+.reactBtn:hover:not(:disabled),
+.reactBtn[aria-pressed='true'] {
+  border-color: var(--color-text);
+  color: var(--color-text);
+}
+
+.reactBtn:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.reactCount {
+  font-variant-numeric: tabular-nums;
+}
