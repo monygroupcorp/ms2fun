@@ -106,3 +106,29 @@ describe('useAllCollections search', () => {
     expect(result.current.data).toEqual([])
   })
 })
+
+// ── every sort the control offers is a real, distinct ordering (noesis-326 clause 4) ────────────
+//
+// The /collections TVL chip was removed because it silently aliased 'recent'. These pin that the
+// two sorts left are each backed by a field on the card, and that they genuinely differ — a sort
+// that quietly falls through to another would fail the last case here.
+
+describe('useAllCollections sort', () => {
+  it("orders 'recent' newest-registered first (discovery order reversed)", () => {
+    const { result } = renderHook(() => useAllCollections({ sort: 'recent' }))
+    expect(result.current.data?.map((c) => c.name)).toEqual(['Unrelated card', 'Aligned card'])
+  })
+
+  it("orders 'name' alphabetically", () => {
+    const { result } = renderHook(() => useAllCollections({ sort: 'name' }))
+    expect(result.current.data?.map((c) => c.name)).toEqual(['Aligned card', 'Unrelated card'])
+  })
+
+  it('gives a different order per sort, so no chip aliases another', () => {
+    const recent = renderHook(() => useAllCollections({ sort: 'recent' }))
+    const byName = renderHook(() => useAllCollections({ sort: 'name' }))
+    expect(recent.result.current.data?.map((c) => c.name)).not.toEqual(
+      byName.result.current.data?.map((c) => c.name),
+    )
+  })
+})
