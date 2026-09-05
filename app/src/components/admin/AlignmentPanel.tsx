@@ -22,6 +22,7 @@ import { formatEther } from 'viem'
 import {
   alignmentRegistryV1Abi,
   alignmentTargetRequestRegistryAbi,
+  useReadAlignmentRegistryV1AmbassadorCount,
   useReadAlignmentRegistryV1GetAlignmentTarget,
   useReadAlignmentRegistryV1GetAmbassadors,
   useReadAlignmentRegistryV1GetCommunityPayout,
@@ -361,6 +362,15 @@ function DeactivateTargetRow() {
   const targetId = parseTargetId(raw)
   const canSubmit = targetId !== undefined
 
+  // Deploy rights outlive de-curation, so the count of ambassadors still appointed is what the operator
+  // needs in front of them at the moment they deactivate — see the residual note below.
+  const { data: ambassadorCount } = useReadAlignmentRegistryV1AmbassadorCount({
+    address: REGISTRY,
+    args: canSubmit ? [targetId] : undefined,
+    chainId: forkChainId,
+    query: { enabled: canSubmit },
+  })
+
   return (
     <ActionRow label="deactivate target" hint="mark a target inactive (irreversible from here)">
       <div className={styles.form}>
@@ -374,6 +384,14 @@ function DeactivateTargetRow() {
           disabled={tx.isBusy}
           aria-label="deactivate target id"
         />
+        {canSubmit && ambassadorCount !== undefined && (
+          <p className={styles.residual} data-testid="admin-deactivate-ambassador-residual">
+            <span className={styles.mono}>{ambassadorCount.toString()}</span> ambassador
+            {ambassadorCount === 1n ? '' : 's'} still appointed. Deactivating does not revoke them:
+            an ambassador keeps the right to deploy an endowment vault&rsquo;s corpus for this
+            target. Remove each one to end that.
+          </p>
+        )}
         <TxButton
           state={tx.state}
           onClick={() => {

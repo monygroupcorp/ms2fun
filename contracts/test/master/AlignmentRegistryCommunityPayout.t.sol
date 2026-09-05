@@ -58,6 +58,22 @@ contract AlignmentRegistryCommunityPayoutTest is Test {
         assertEq(registry.getCommunityPayout(targetId), address(0));
     }
 
+    /// A de-curated target's sink stays settable. Its vaults may still hold an accrued community cut
+    /// whose only exit resolves this address, and `deactivateAlignmentTarget` is one-way — so gating the
+    /// setter on `active` would seal that ETH in for the life of the contract.
+    function test_SetCommunityPayout_AllowedOnInactiveTarget() public {
+        uint256 targetId = _registerTarget();
+
+        vm.prank(daoOwner);
+        registry.deactivateAlignmentTarget(targetId);
+
+        vm.prank(daoOwner);
+        registry.setCommunityPayout(targetId, payoutAddr);
+
+        assertEq(registry.getCommunityPayout(targetId), payoutAddr);
+        assertFalse(registry.isAlignmentTargetActive(targetId), "and the target is still de-curated");
+    }
+
     /// Owner can update payout to a different address.
     function test_SetCommunityPayout_Update() public {
         uint256 targetId = _registerTarget();
@@ -97,17 +113,5 @@ contract AlignmentRegistryCommunityPayoutTest is Test {
         vm.prank(daoOwner);
         vm.expectRevert(AlignmentRegistryV1.TargetNotFound.selector);
         registry.setCommunityPayout(999, payoutAddr);
-    }
-
-    /// Deactivated target reverts with TargetNotFound.
-    function test_SetCommunityPayout_RevertOnInactiveTarget() public {
-        uint256 targetId = _registerTarget();
-
-        vm.prank(daoOwner);
-        registry.deactivateAlignmentTarget(targetId);
-
-        vm.prank(daoOwner);
-        vm.expectRevert(AlignmentRegistryV1.TargetNotFound.selector);
-        registry.setCommunityPayout(targetId, payoutAddr);
     }
 }

@@ -77,6 +77,10 @@ contract MockAlignmentRegistry is IAlignmentRegistry {
         return new address[](0);
     }
 
+    function ambassadorCount(uint256) external pure override returns (uint256) {
+        return 0;
+    }
+
     function isAmbassador(uint256, address) external pure override returns (bool) {
         return false;
     }

@@ -179,6 +179,43 @@ contract AlignmentTargetsTest is Test {
         assertEq(ambassadors.length, 2);
     }
 
+    /// `ambassadorCount` tracks the appointed set through both writers.
+    function test_AmbassadorCount_TracksAddAndRemove() public {
+        uint256 targetId = _createRemiliaTarget();
+        assertEq(alignmentRegistry.ambassadorCount(targetId), 0, "none appointed at registration");
+
+        vm.prank(daoOwner);
+        alignmentRegistry.addAmbassador(targetId, remiliaMultisig);
+        vm.prank(daoOwner);
+        alignmentRegistry.addAmbassador(targetId, remiliaMultisig2);
+        assertEq(alignmentRegistry.ambassadorCount(targetId), 2, "both appointed");
+
+        vm.prank(daoOwner);
+        alignmentRegistry.removeAmbassador(targetId, remiliaMultisig);
+        assertEq(alignmentRegistry.ambassadorCount(targetId), 1, "removal is reflected");
+    }
+
+    /// The reason the count exists: de-curation does not clear the appointed set, and the deploy right
+    /// an ambassador holds over an endowment vault's corpus reads `isAmbassador` alone. `removeAmbassador`
+    /// is the only lever that ends it, and the count says how many calls that still takes.
+    function test_Decuration_LeavesAmbassadorsAppointed() public {
+        uint256 targetId = _createRemiliaTarget();
+
+        vm.prank(daoOwner);
+        alignmentRegistry.addAmbassador(targetId, remiliaMultisig);
+
+        vm.prank(daoOwner);
+        alignmentRegistry.deactivateAlignmentTarget(targetId);
+
+        assertFalse(alignmentRegistry.isAlignmentTargetActive(targetId), "de-curated");
+        assertTrue(alignmentRegistry.isAmbassador(targetId, remiliaMultisig), "still an ambassador");
+        assertEq(alignmentRegistry.ambassadorCount(targetId), 1, "and the operator can see it");
+
+        vm.prank(daoOwner);
+        alignmentRegistry.removeAmbassador(targetId, remiliaMultisig);
+        assertEq(alignmentRegistry.ambassadorCount(targetId), 0, "removeAmbassador is the lever");
+    }
+
     // ============ Vault Registration with Alignment Target Tests ============
 
     function test_RegisterVault_WithApprovedTarget() public {
