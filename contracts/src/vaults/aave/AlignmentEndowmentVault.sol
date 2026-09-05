@@ -166,7 +166,12 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     mapping(address => uint256) public escrowedPrincipal;
     /// @notice A benefactor's principal that has VESTED (now the target's deployable corpus).
     mapping(address => uint256) public vestedPrincipal;
-    /// @notice First-deposit timestamp; the benefactor's principal vests at `depositTime + VEST_DURATION`.
+    /// @notice First-deposit timestamp, written once and never overwritten. It is NOT the clock the
+    ///         benefactor's principal runs on: RE-B3 gave every deposit its own tranche, and `vest()`
+    ///         matures each one at its own `depositTs + VEST_DURATION`. So `depositTime + VEST_DURATION`
+    ///         is the EARLIEST any of this benefactor's principal can vest, and says nothing about a
+    ///         top-up made later. Nothing on-chain reads this mapping; it is a stat surface only, and a
+    ///         reader that needs "has it all vested?" must ask `escrowedPrincipal`/`principalOf` instead.
     mapping(address => uint256) public depositTime;
     /// @notice MasterChef reward debt (settled snapshot of `escrowedPrincipal * acc / 1e18`).
     mapping(address => uint256) public rewardDebt;
