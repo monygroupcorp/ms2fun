@@ -148,7 +148,8 @@ export function VaultsPage() {
       <header className={styles.head}>
         <h1 className={styles.title}>Alignment</h1>
         <p className={styles.sub}>
-          Every collection binds ~20% of its fees to an alignment vault, by contract. These are the
+          Every collection routes a fixed share of its fees to an alignment vault — 19% on liquidity
+          collections, 80% on endowment ones, at a ratio nobody can change. These are the
           communities that money flows to — open one to see its venues and its vaults.
         </p>
         <div className={styles.tvl} data-testid="vaults-tvl">
@@ -165,7 +166,7 @@ export function VaultsPage() {
         <section className={styles.targets} data-testid="alignment-targets">
           <h2 className={styles.sectionTitle}>Alignment targets</h2>
           <p className={styles.sectionSub}>
-            The communities collections bind to — ~20% of fees flow to these.
+            The communities collections bind to — 19% or 80% of fees flow to these, by vault family.
           </p>
           <ul className={styles.targetGrid}>
             {communities.map((c) => (
