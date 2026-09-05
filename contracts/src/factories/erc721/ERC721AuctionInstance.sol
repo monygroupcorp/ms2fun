@@ -119,6 +119,10 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
     event UnsoldReclaimed(uint24 indexed tokenId, uint256 creatorRefund, uint256 protocolCut);
     event AgentDelegationChanged(bool enabled);
     event VaultContributionFailed(address indexed vault, uint256 amount);
+    /// @dev Emitted when a previously stashed tithe is successfully re-sent to the vault by
+    ///      `flushPendingVaultCut`. Pairs with `VaultContributionFailed` so a reader summing the two
+    ///      arrives at the live `pendingVaultCut` rather than a figure that only ever grows.
+    event VaultContributionRetried(address indexed vault, uint256 amount);
     /// @dev Emitted when the vault's alignment target has been revoked (`isVaultRegistered` false) and the
     ///      19% tithe is routed to `protocolTreasury` instead of the de-curated vault. Settle still succeeds.
     event VaultCutRedirected(address indexed vault, address indexed treasury, uint256 amount);
@@ -472,6 +476,7 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
             emit VaultCutRedirected(address(vault), protocolTreasury, pending);
         } else {
             vault.receiveContribution{ value: pending }(Currency.wrap(address(0)), pending, address(this));
+            emit VaultContributionRetried(address(vault), pending);
         }
     }
 
