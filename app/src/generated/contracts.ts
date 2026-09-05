@@ -1519,7 +1519,10 @@ export const alignmentTargetRequestRegistryAbi = [
   },
   {
     type: 'function',
-    inputs: [{ name: 'id', internalType: 'uint256', type: 'uint256' }],
+    inputs: [
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'targetId', internalType: 'uint256', type: 'uint256' },
+    ],
     name: 'approveRequest',
     outputs: [],
     stateMutability: 'nonpayable',
@@ -1569,6 +1572,7 @@ export const alignmentTargetRequestRegistryAbi = [
             internalType: 'enum AlignmentTargetRequestRegistry.Status',
             type: 'uint8',
           },
+          { name: 'targetId', internalType: 'uint256', type: 'uint256' },
         ],
       },
     ],
@@ -1857,6 +1861,12 @@ export const alignmentTargetRequestRegistryAbi = [
         indexed: true,
       },
       {
+        name: 'targetId',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: true,
+      },
+      {
         name: 'refunded',
         internalType: 'uint256',
         type: 'uint256',
@@ -1974,6 +1984,7 @@ export const alignmentTargetRequestRegistryAbi = [
   { type: 'error', inputs: [], name: 'TargetNotRegistered' },
   { type: 'error', inputs: [], name: 'TokenAlreadyActive' },
   { type: 'error', inputs: [], name: 'TokenNotInAssets' },
+  { type: 'error', inputs: [], name: 'TokenNotInTarget' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
 ] as const
 
