@@ -1,0 +1,44 @@
+/* AmbassadorPanel — the appointed ambassador's own controls on a community's page. Mirrors the
+   admin console's form layout (full-width inputs stacked above their TxButton) so the two surfaces
+   for the same registry write look like the same thing. */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  align-items: stretch;
+  width: 100%;
+}
+
+.input {
+  font-family: var(--font-mono);
+  padding: var(--padding-sm);
+  border: 1px solid var(--border-secondary);
+  background: transparent;
+  color: var(--text-primary);
+  min-width: 0;
+  width: 100%;
+}
+
+.invalid {
+  border-color: var(--color-error, var(--border-secondary));
+}
+
+/* What the seat is, stated above the controls rather than in a tooltip: an ambassador is being
+   handed authority, and the authority is wider than these two fields. */
+.scope {
+  margin: 0 0 var(--gap-sm);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.scope strong {
+  color: var(--text-primary);
+}
+
+.fieldNote {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption, var(--font-size-body-sm));
+  color: var(--text-secondary);
+}
