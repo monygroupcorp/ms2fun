@@ -8,6 +8,9 @@ import { useAllCollectionsRaw } from './useAllCollectionsRaw'
  * Wraps `useAllCollectionsRaw` (cached React Query fetch) and applies `CollectionFilters` via
  * `useMemo` — no additional network round-trips.
  *
+ * Search matches `name` or `creator` as a case-insensitive substring, which is what the search
+ * box on /collections advertises.
+ *
  * Sort behaviour:
  *  - 'recent' (default) → reverse discovery order (newest registered first).
  *    `registeredAt` is a uint256 block-timestamp; logs are returned oldest-first so reversing
@@ -45,9 +48,13 @@ export function useAllCollections(filters?: CollectionFilters): {
       if (filters?.vault !== undefined && c.vault?.toLowerCase() !== filters.vault.toLowerCase())
         return false
 
-      // search (name, case-insensitive substring)
+      // search (name OR creator address, case-insensitive substring). The box on /collections
+      // reads "Search collections, creators…", so a pasted creator address — full or a prefix —
+      // has to hit; matching `name` alone returned "no results", which reads as "this creator has
+      // nothing" rather than "this box does not search that".
       const q = filters?.search?.trim().toLowerCase() ?? ''
-      if (q !== '' && !c.name.toLowerCase().includes(q)) return false
+      if (q !== '' && !c.name.toLowerCase().includes(q) && !c.creator.toLowerCase().includes(q))
+        return false
 
       return true
     })
