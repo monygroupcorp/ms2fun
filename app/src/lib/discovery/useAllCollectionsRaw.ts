@@ -7,9 +7,10 @@ import { scanAllInstances } from './scanInstances'
 
 /**
  * Raw fetch — no filters, no sort. Scans the registry for ALL live instances, then hydrates them
- * via `QueryAggregator.getProjectCardsBatch` in windows of at most `MAX_QUERY_LIMIT` — the
- * aggregator reverts on a longer array, and the registry only grows, so a single whole-array call
- * fails permanently past the cap (see `batchRead.ts`).
+ * via `QueryAggregator.getProjectCardsBatch` in `QUERY_WINDOW`-wide windows — the aggregator reverts
+ * past its cap, and the registry only grows, so a single whole-array call fails permanently once it
+ * is crossed. The window is narrower than the contract cap because gas binds first (see
+ * `batchRead.ts`).
  *
  * Query key: `['all-collections', forkChainId, forkAddresses.MasterRegistryV1]`
  *

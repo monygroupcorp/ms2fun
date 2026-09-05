@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { PublicClient } from 'viem'
 import { deployBlock } from '../addresses'
-import { scanAllInstances } from './scanInstances'
+import { scanAllInstances, scanCreatorInstances } from './scanInstances'
 
 const addr = (n: number): `0x${string}` => `0x${n.toString(16).padStart(40, '0')}` as `0x${string}`
 
@@ -31,6 +31,7 @@ function clientWith(added: FakeLog[], revoked: FakeLog[], latest: bigint) {
       toBlock,
     }: {
       eventName: string
+      args?: { creator?: `0x${string}` }
       fromBlock: bigint
       toBlock: bigint
     }) => {
@@ -43,7 +44,7 @@ function clientWith(added: FakeLog[], revoked: FakeLog[], latest: bigint) {
     getBlockNumber: async () => latest,
     getContractEvents,
   } as unknown as PublicClient
-  return { client, calls }
+  return { client, calls, getContractEvents }
 }
 
 describe('scanAllInstances', () => {
@@ -99,5 +100,37 @@ describe('scanAllInstances', () => {
   it('returns an empty list when nothing was ever registered', async () => {
     const { client } = clientWith([], [], latest)
     expect(await scanAllInstances(client)).toEqual([])
+  })
+})
+
+describe('scanCreatorInstances', () => {
+  const latest = deployBlock + 10n
+  const creator = addr(0xc1)
+
+  it('subtracts a revoked instance from one creator listing', async () => {
+    // The creator profile scanned CreatorInstanceAdded alone, so a revoked collection kept its slot
+    // here after vanishing from every other surface — hydrating with an empty name and a zero
+    // creator, which strips the attribution instead of removing the collection.
+    const { client } = clientWith(
+      [
+        log(addr(1), deployBlock + 1n),
+        log(addr(2), deployBlock + 2n),
+        log(addr(3), deployBlock + 3n),
+      ],
+      [log(addr(2), deployBlock + 4n)],
+      latest,
+    )
+    expect(await scanCreatorInstances(client, creator)).toEqual([addr(1), addr(3)])
+  })
+
+  it('narrows the added scan to the creator but never the revoked scan', async () => {
+    // `InstanceRevoked(address indexed instance)` carries no creator, so filtering it by one would
+    // silently match nothing and resurrect every revoked collection on the profile.
+    const { client, getContractEvents } = clientWith([log(addr(1), deployBlock + 1n)], [], latest)
+    await scanCreatorInstances(client, creator)
+
+    const byEvent = new Map(getContractEvents.mock.calls.map(([arg]) => [arg.eventName, arg.args]))
+    expect(byEvent.get('CreatorInstanceAdded')).toEqual({ creator })
+    expect(byEvent.get('InstanceRevoked')).toBeUndefined()
   })
 })

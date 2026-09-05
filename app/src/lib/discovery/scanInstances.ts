@@ -15,6 +15,11 @@ interface RegistryEvent {
  * Scans `MasterRegistryV1.CreatorInstanceAdded` and `InstanceRevoked` and returns the ordered,
  * deduped list of instance addresses that are still registered, in discovery (chronological) order.
  *
+ * Pass `creator` to narrow the added-event scan to one creator's instances; omit it for the whole
+ * registry. Revocation is never narrowed: `InstanceRevoked(address indexed instance)` carries no
+ * creator, so every revocation in range is collected and subtracted. Subtracting a superset is
+ * correct — the extra addresses are not in this creator's added-set to begin with.
+ *
  * Both events are read in ONE walk of the block range — each window fetches the added and the
  * revoked logs for that window — so the revoked set costs no extra range traversal.
  *
@@ -32,7 +37,10 @@ interface RegistryEvent {
  * Pure async function — no React, no hooks — so it runs from any context (React Query queryFn, Node
  * scripts, tests).
  */
-export async function scanAllInstances(client: PublicClient): Promise<`0x${string}`[]> {
+async function scanLiveInstances(
+  client: PublicClient,
+  creator?: `0x${string}`,
+): Promise<`0x${string}`[]> {
   const latest = await client.getBlockNumber()
   const events = await scanBackward<RegistryEvent>(
     async (fromBlock, toBlock) => {
@@ -41,6 +49,7 @@ export async function scanAllInstances(client: PublicClient): Promise<`0x${strin
           address: forkAddresses.MasterRegistryV1,
           abi: masterRegistryV1Abi,
           eventName: 'CreatorInstanceAdded',
+          ...(creator ? { args: { creator } } : {}),
           fromBlock,
           toBlock,
         }),
@@ -97,4 +106,22 @@ export async function scanAllInstances(client: PublicClient): Promise<`0x${strin
   // `revokedInstances[instance] = true` and the registry exposes no un-revoke, so a revocation is
   // terminal for that address however the logs happen to interleave.
   return revoked.size === 0 ? instances : instances.filter((inst) => !revoked.has(inst))
+}
+
+/** Every still-registered instance in the registry, in discovery order. */
+export function scanAllInstances(client: PublicClient): Promise<`0x${string}`[]> {
+  return scanLiveInstances(client)
+}
+
+/**
+ * One creator's still-registered instances, in discovery order.
+ *
+ * Shares `scanLiveInstances` with the global index so the creator profile cannot drift back to
+ * listing revoked collections: there is one scanner, and it subtracts revocations.
+ */
+export function scanCreatorInstances(
+  client: PublicClient,
+  creator: `0x${string}`,
+): Promise<`0x${string}`[]> {
+  return scanLiveInstances(client, creator)
 }
