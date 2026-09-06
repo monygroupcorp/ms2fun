@@ -6,7 +6,8 @@ type StateVariant = 'loading' | 'empty' | 'error'
  * The shared loading / empty / error state. Every surface used to hand-roll a
  * `<p className={styles.note}>…</p>` with a per-page `.note` rule; this unifies the
  * styling (and the loading pulse + error contrast + reduced-motion handling) in one
- * place. Messages stay caller-supplied — they name what failed, and never instruct: a visitor cannot act on a network fault.
+ * place. Messages stay caller-supplied — they name what failed, and never instruct: a
+ * visitor cannot act on a network fault.
  *
  * Visual layer is the NOESIS `.noesis-state` device (vendored signature.css), which
  * maps 1:1 onto these props: `loading`→pulse+▪, `error`→✕+left accent (`role=alert`),
