@@ -1,6 +1,7 @@
 import { Link } from 'wouter'
 import { meetsThreshold } from '../threadMessages'
 import { usePostThreshold } from '../useMessageFeed'
+import { ActivityBox } from '../activity/ActivityBox'
 import { ActivityMessage } from '../activity/ActivityMessage'
 import { StateBlock } from '../ui/StateBlock'
 import { useGlobalActivity } from './useGlobalActivity'
@@ -11,8 +12,10 @@ const PREVIEW_LIMIT = 5
 /**
  * Recent-activity preview for the home landing surface. Reads the same global feed the board uses
  * (cache-shared) and shows the latest few posts read-only, each linking to its channel/sender, with
- * a link into the full board to compose. Kept lightweight: no threading, no reply/endorse controls
- * — so `ActivityMessage` is rendered without its actions.
+ * a link into the full board to compose. It is the same chat box (`ActivityBox`) the feed and the
+ * salon are drawn in — a glimpse into the room, not a second design for the same thing. Kept
+ * lightweight: no threading, no reply/endorse controls, and the well is left empty because you
+ * speak on the board.
  *
  * No vault set is passed: deriving one costs the whole collections index (`useAllVaults`), which a
  * five-row preview should not pull onto the landing page. Vault channels fall back to collection
@@ -28,36 +31,35 @@ export function ActivityPreview() {
 
   return (
     <section className={styles.section}>
-      <div className={styles.header}>
-        <h2 className={styles.sectionTitle}>RECENT ACTIVITY</h2>
-        <Link href="/board" className={styles.boardLink} data-testid="board-link">
-          Open board →
-        </Link>
-      </div>
+      <ActivityBox
+        room="Recent activity"
+        status={
+          <Link href="/board" data-testid="board-link">
+            Open board →
+          </Link>
+        }
+        logTestId="home-activity"
+      >
+        {isPending && <StateBlock variant="loading">loading activity…</StateBlock>}
 
-      {isPending && <StateBlock variant="loading">loading activity…</StateBlock>}
+        {isError && (
+          <StateBlock variant="error">
+            activity unreachable — no response from the network.
+          </StateBlock>
+        )}
 
-      {isError && (
-        <StateBlock variant="error">
-          activity unreachable — no response from the network.
-        </StateBlock>
-      )}
+        {!isPending && !isError && latest.length === 0 && (
+          <StateBlock variant="empty" boxed testId="home-activity-empty">
+            no activity yet — be the first to post on the board.
+          </StateBlock>
+        )}
 
-      {!isPending && !isError && latest.length === 0 && (
-        <StateBlock variant="empty" boxed testId="home-activity-empty">
-          no activity yet — be the first to post on the board.
-        </StateBlock>
-      )}
-
-      {!isPending && !isError && latest.length > 0 && (
-        <div className={styles.list} data-testid="home-activity">
-          {latest.map((m) => (
-            <article key={String(m.messageId)} className="noesis-post">
-              <ActivityMessage message={m} />
-            </article>
-          ))}
-        </div>
-      )}
+        {/* Newest first in the DOM; the transcript reverses it, so the newest post sits on the
+            floor of the box the way the live edge of a room does. */}
+        {!isPending &&
+          !isError &&
+          latest.map((m) => <ActivityMessage key={String(m.messageId)} message={m} />)}
+      </ActivityBox>
     </section>
   )
 }

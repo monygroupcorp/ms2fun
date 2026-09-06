@@ -4,12 +4,14 @@
  * be three renderings of the same `MessagePosted` event, each with its own meta line, its own
  * message-type labels and its own channel links; this is that one thing.
  *
- * It draws the signature `.noesis-post` device (styles/noesis/signature.css) — the wall-label look
- * is stated once in the brand layer and inherited, not re-invented per surface. The CALLER owns the
- * container (`<article className="noesis-post">`) and the threading: a reply goes inside the
- * caller's `.reply` wrapper, which is the device's own class.
+ * It draws one line of the chat box's transcript (`ActivityBox`): a mono byline, the channel it was
+ * said in, then what was said, running on and wrapping under a hanging indent. It used to draw the
+ * vendored `.noesis-post` wall label — a byline row, a paragraph beneath, a 2px rule under each —
+ * which read as a register rather than as a room.
  *
- * Actions (endorse + reply) are opt-in, so a read-only surface renders nothing interactive.
+ * The row owns its own container and its replies, so a surface hands over a message (and its
+ * replies, where it threads) and nothing else. Actions (endorse + reply) are opt-in, so a read-only
+ * surface renders nothing interactive.
  */
 import { useState } from 'react'
 import { Link } from 'wouter'
@@ -22,39 +24,72 @@ import { Linkify } from '../ui/Linkify'
 import { channelRef, messageVerb } from './messageMeta'
 import styles from './ActivityMessage.module.css'
 
+/** Endorse + reply affordances. Omitted on read-only surfaces (home's preview). */
+type Actions = { view: ThreadView; connected: boolean }
+
 export function ActivityMessage({
+  message,
+  replies = [],
+  vaults,
+  actions,
+}: {
+  message: FeedMessage
+  /** Replies to nest under the line, on the surfaces that thread. */
+  replies?: readonly FeedMessage[]
+  /** Known vault addresses, lowercased — see `channelRef`. Omit and vault channels read as collections. */
+  vaults?: Set<string> | undefined
+  actions?: Actions | undefined
+}) {
+  return (
+    <article className={styles.post} data-testid="board-thread">
+      <MessageLine message={message} vaults={vaults} actions={actions} />
+
+      {replies.map((reply) => (
+        <div key={String(reply.messageId)} className={styles.reply} data-testid="board-reply">
+          <MessageLine message={reply} vaults={vaults} actions={actions} />
+        </div>
+      ))}
+    </article>
+  )
+}
+
+function MessageLine({
   message,
   vaults,
   actions,
 }: {
   message: FeedMessage
-  /** Known vault addresses, lowercased — see `channelRef`. Omit and vault channels read as collections. */
-  vaults?: Set<string> | undefined
-  /** Endorse + reply affordances. Omitted on read-only surfaces (home's preview). */
-  actions?: { view: ThreadView; connected: boolean } | undefined
+  vaults: Set<string> | undefined
+  actions: Actions | undefined
 }) {
   const chan = channelRef(message, vaults)
 
   return (
     <>
-      <div className="phead">
-        <Link href={`/profile/${message.sender}`} className={`name ${styles.link}`}>
+      <p className={styles.line}>
+        <Link href={`/profile/${message.sender}`} className={styles.name}>
           {truncateAddress(message.sender)}
         </Link>
 
         {/* A wall post is a general-board post (channel = the sender's own wall), not a collection
             pointer — read it as "· on the salon" linking to their wall, never a dead collection. */}
-        <Link href={chan.href} className={`ch ${styles.link}`}>
+        <Link href={chan.href} className={styles.channel}>
           {chan.isWall ? `· on ${chan.label}` : `→ ${chan.label}`}
         </Link>
 
-        {/* The event, in the device's right-hand slot. A plain post says nothing — the row already
-            reads as one — so only a reply/quote/endorsement is named, and it is named the same way
-            on a flat surface as on a threaded one. */}
+        {/* The event. A plain post says nothing — the line already reads as one — so only a
+            reply/quote/endorsement is named, and it is named the same way on a flat surface as on
+            a threaded one. */}
         {message.messageType !== 0 && (
-          <span className={`age ${styles.verb}`}>{messageVerb(message.messageType)}</span>
+          <span className={styles.verb}>{messageVerb(message.messageType)}</span>
         )}
-      </div>
+
+        {message.content.length > 0 && (
+          <span className={styles.say}>
+            <Linkify text={message.content} />
+          </span>
+        )}
+      </p>
 
       {/* Quote — a card carrying the referenced work's swatch (mono until colour is wired). */}
       {message.messageType === 2 && (
@@ -62,12 +97,6 @@ export function ActivityMessage({
           <span className={styles.swatch} aria-hidden />
           <span className={styles.quoteRef}>re: {chan.label}</span>
         </Link>
-      )}
-
-      {message.content.length > 0 && (
-        <p className="ptext">
-          <Linkify text={message.content} />
-        </p>
       )}
 
       {actions !== undefined && (

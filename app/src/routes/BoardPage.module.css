@@ -41,12 +41,7 @@
   margin: 0;
 }
 
-.composeSection {
-  margin-bottom: var(--space-8);
-  padding-bottom: var(--space-6);
-  border-bottom: var(--border-width-thick, 2px) solid var(--color-border);
-}
-
+/* Sits in the chat box's well, under the composer. */
 .composeNote {
   font-family: var(--brand-font-mono);
   font-size: var(--font-size-caption);
@@ -165,12 +160,11 @@
   color: var(--color-bg);
 }
 
-.feedSection {
-  margin-top: var(--space-4);
-}
-
-/* Activity — the flat on-chain register: one mono row per event, attributed. */
+/* Activity — the flat on-chain register: one mono row per event, attributed. Reversed like the
+   transcript it shares a window with, so the newest event rests on the floor in both views. */
 .register {
+  display: flex;
+  flex-direction: column-reverse;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -214,13 +208,8 @@
   }
 }
 
-/* Posts — the device (.noesis-post) draws each post's wall-label look; the page only stacks them. */
-.list {
-  display: flex;
-  flex-direction: column;
-}
-
-/* Tier 1B: "load older" pager under the feed — fetches the next reverse window. */
+/* Tier 1B: "load older" pager — fetches the next reverse window. It is last in the transcript's
+   DOM, so the reversed pane puts it at the top of the scrollback. */
 .loadOlder {
   display: flex;
   justify-content: center;
