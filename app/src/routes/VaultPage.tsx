@@ -1,7 +1,9 @@
 /**
  * VaultPage (`/vault/:address`) — one vault's detail: family + bound alignment target, live stats
- * (honest TVL — real principal for endowment vaults, pool status for LP), the collections aligned to
- * it, and a board channel (post about the vault). The board channel is free: GlobalMessageRegistry's
+ * (honest TVL — real principal for endowment vaults, pool status for LP), where the community's cut
+ * is owed and the permissionless calls that deliver it (`CommunityPayoutPanel`), the collections
+ * aligned to it, and a board channel (post about the vault). The board channel is free:
+ * GlobalMessageRegistry's
  * post/postBatch accept ANY address as a channel, so it's just MessageFeed + MessageComposer keyed on
  * the vault address.
  */
@@ -11,6 +13,7 @@ import { formatEther } from 'viem'
 import { truncateAddress } from '../lib/format'
 import { useAllCollections } from '../lib/discovery'
 import { useVaultOverview, vaultFamilyLabel } from '../components/vault/useVaultOverview'
+import { CommunityPayoutPanel } from '../components/vault/CommunityPayoutPanel'
 import { useCollectionMetadata } from '../components/useCollectionMetadata'
 import { IpfsImage } from '../components/ui/IpfsImage'
 import { MessageFeed } from '../components/MessageFeed'
@@ -128,6 +131,13 @@ export function VaultPage() {
               </div>
             </section>
           )}
+
+          {/* Where the community's cut is owed, and the permissionless calls that deliver it. */}
+          <CommunityPayoutPanel
+            vault={vault}
+            targetId={overview.targetId}
+            isEndowment={overview.isEndowment}
+          />
 
           {/* Aligned collections */}
           <section data-testid="vault-collections">
