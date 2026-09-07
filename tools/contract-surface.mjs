@@ -12,7 +12,13 @@
 // actually move -- the built ABIs under contracts/out, and the app source that calls them -- so
 // the answer is a command's exit code rather than a paragraph.
 //
-// What this proves: that a non-test app source file names the function against that contract's ABI.
+// What this proves: that a non-test app source FILE both names the function and speaks to that
+// contract's ABI. The granularity is the file, not the call, because a name handed down as a prop
+// (`functionName="setMetadataURI"`) is resolved in a child that no regex can follow -- so a file
+// importing several ABIs credits each of them for each of its names, and a claim can be one file too
+// generous. It is never one file too stingy, which is the direction that matters: an over-credit is
+// visible to anyone who opens the file the report names, whereas an under-credit would push a live
+// function into the skip list and state a falsehood there.
 // What it does NOT prove, and no static check can: that the path WORKS when a wallet walks it.
 // Reachability is the cheap half; the walk is the half a human still owes.
 //
@@ -50,6 +56,19 @@ const abiIdent = (name) => {
   return `${head.toLowerCase()}${name.slice(head.length)}Abi`;
 };
 const pascal = (s) => s[0].toUpperCase() + s.slice(1);
+
+// wagmi runs the FUNCTION half through change-case's pascalCase, which splits on case boundaries and
+// lowercases the rest of every word -- so `setMetadataURI` becomes `SetMetadataUri` and, less
+// obviously, `rerollSelectedNFTs` becomes `RerollSelectedNfTs` (the split falls inside `NFTs`).
+// Deriving the hook name with a plain capitalise misses every function whose name carries an
+// acronym, which is how a shipped reroll button reads as a function nobody calls.
+const changeCasePascal = (s) =>
+  s.replace(/([\p{Ll}\d])(\p{Lu})/gu, '$1\0$2')
+    .replace(/(\p{Lu})(\p{Lu}\p{Ll})/gu, '$1\0$2')
+    .split(/[\0_]+/) // `_` is a word separator too: MAX_QUERY_LIMIT -> MaxQueryLimit, sealed_ -> Sealed
+    .filter(Boolean)
+    .map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase())
+    .join('');
 
 function loadAbi(entry) {
   const file = entry.artifact ?? `${entry.name}.sol`;
@@ -98,19 +117,81 @@ let files;
 try { files = walk(APP_SRC); }
 catch (e) { die(`cannot read ${relative(ROOT, APP_SRC)}: ${e.message}`); }
 
+// The app names a function three ways, and a detector that knows only the first reports a live panel
+// as a function nobody calls. That is the failure mode that turns this gate into fiction, because the
+// skip rule someone then writes to silence it states a falsehood in the open.
+//   functionName: 'setBondingActive'                                  the plain call
+//   functionName="setMetadataURI"                                     handed to a shared editor as a prop
+//   functionName: fn  with  fn: 'addAmbassador' | 'removeAmbassador'  forwarded from a union
+// A union yields every literal in it: the caller picks one at runtime, so the path exists for all of them.
+const LITERAL = /['"`]([A-Za-z0-9_$]+)['"`]/g;
+
+// Only one unbroken `'a' | 'b'` run starting exactly here, so the next property never bleeds in.
+const unionAt = (text, from) => {
+  const run = text.slice(from).match(/^(['"`][A-Za-z0-9_$]+['"`](?:\s*\|\s*['"`][A-Za-z0-9_$]+['"`])*)/);
+  return run ? [...run[1].matchAll(LITERAL)].map((m) => m[1]) : [];
+};
+
+function callNames(text) {
+  const names = new Set();
+  for (const m of text.matchAll(/\b(?:functionName|eventName)\s*[:=]\s*\{?\s*/g)) {
+    const at = m.index + m[0].length;
+    const direct = unionAt(text, at);
+    if (direct.length) { for (const n of direct) names.add(n); continue; }
+    // The name is forwarded from a variable. Take the literals of that identifier's union annotation
+    // in the same file, which is where a shared component declares which calls it stands for.
+    const ident = text.slice(at).match(/^([A-Za-z_$][A-Za-z0-9_$]*)/);
+    if (!ident) continue;
+    for (const decl of text.matchAll(new RegExp(`\\b${ident[1]}\\s*\\??\\s*:\\s*`, 'g')))
+      for (const n of unionAt(text, decl.index + decl[0].length)) names.add(n);
+  }
+  return names;
+}
+
 const index = files.map((path) => {
   const text = readFileSync(path, 'utf8');
   return {
     path: relative(ROOT, path),
-    // `functionName: 'buyBonding'` -- the viem/wagmi call form.
-    names: new Set([...text.matchAll(/(?:functionName|eventName)\s*:\s*['"`]([A-Za-z0-9_$]+)['"`]/g)].map((m) => m[1])),
-    // `abi: erc404BondingInstanceAbi` and its import -- which contract the call is against.
-    abis: new Set([...text.matchAll(/\b([a-z][A-Za-z0-9]*Abi)\b/g)].map((m) => m[1])),
+    names: callNames(text),
+    // `abi: erc404BondingInstanceAbi` and its import -- which contract the call is against. A
+    // hand-written slice is named either way in this codebase (`vaultSummaryAbi`, `STYLE_ABI`), and
+    // a regex that knew only the camelCase half made every SCREAMING_CASE slice invisible.
+    abis: new Set([...text.matchAll(/\b([a-z][A-Za-z0-9]*Abi|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*_ABI)\b/g)].map((m) => m[1])),
     // `useReadErc404BondingInstanceBondingActive()` -- the generated-hook call form, which names
     // the contract and the function in one identifier.
     hooks: new Set([...text.matchAll(/\buse(?:Read|Write|Simulate|WatchContractEvent)([A-Za-z0-9]+)\b/g)].map((m) => m[1])),
   };
 });
+
+// ---------------------------------------------------------------- the derivation checks itself
+
+// The hook-name derivation above is a guess at somebody else's casing rule, and its failure is
+// silent: get it wrong and every function of a contract reads as unclaimed, which reads as a gap in
+// the app, which invites a skip rule stating something false. So check it. The generated bindings
+// are read here ONLY as a table of names -- never as a UI path, which is why the source walk still
+// skips that directory -- and every hook name this script builds for a contract wagmi generated
+// bindings for must be one wagmi actually emitted.
+const GENERATED = join(APP_SRC, 'generated', 'contracts.ts');
+let generated;
+try { generated = readFileSync(GENERATED, 'utf8'); }
+catch (e) {
+  die(`cannot read ${relative(ROOT, GENERATED)}: ${e.message}\n` +
+      `  generate first:  cd app && pnpm wagmi:generate`);
+}
+const emitted = new Set(
+  [...generated.matchAll(/export const use(?:Read|Write|Simulate|WatchContractEvent)([A-Za-z0-9]+)\b/g)].map((m) => m[1]),
+);
+const wrong = [];
+for (const row of surface) {
+  const ident = abiIdent(row.contract);
+  if (!generated.includes(`export const ${ident}`)) continue; // no bindings for it; nothing to check
+  const hook = `${pascal(ident.replace(/Abi$/, ''))}${changeCasePascal(row.fn)}`;
+  if (!emitted.has(hook)) wrong.push(`  ${row.contract}.${row.fn} -> use*${hook}`);
+}
+if (wrong.length)
+  die(`the hook-name derivation disagrees with the generated bindings for ${wrong.length} function(s).\n` +
+      `Every count below would be wrong, so nothing is reported. Fix changeCasePascal/abiIdent first:\n` +
+      wrong.slice(0, 20).join('\n'));
 
 // ---------------------------------------------------------------- interfaces A-K
 
@@ -153,7 +234,7 @@ const aliasesFor = (contract) =>
 for (const row of surface) {
   const ident = abiIdent(row.contract);
   const idents = [ident, ...aliasesFor(row.contract)];
-  const hook = `${pascal(ident.replace(/Abi$/, ''))}${pascal(row.fn)}`;
+  const hook = `${pascal(ident.replace(/Abi$/, ''))}${changeCasePascal(row.fn)}`;
   row.paths = index
     .filter((f) => (idents.some((i) => f.abis.has(i)) && f.names.has(row.fn)) || f.hooks.has(hook))
     .map((f) => f.path);
