@@ -1,0 +1,146 @@
+{
+  "$comment": [
+    "The hand-written half of the interface A-K coverage map, read by tools/contract-surface.mjs.",
+    "Three things live here and nothing else: which contracts a wallet can reach, which app",
+    "directory belongs to which interface, and which functions are deliberately outside the app.",
+    "Everything else -- the function list, the UI paths, the counts -- is derived from the built",
+    "ABIs and the app source, because those two move and a table does not."
+  ],
+
+  "contracts": [
+    { "$comment": "Deployed once by contracts/script/DeployCore.sol. PromotionBadges is excluded on purpose: DeployCore parks it pre-testnet and never constructs it, so it has no surface a wallet can reach." },
+    { "name": "MasterRegistryV1", "artifact": "MasterRegistryV1.sol" },
+    { "name": "AlignmentRegistryV1", "artifact": "AlignmentRegistryV1.sol" },
+    { "name": "AlignmentTargetRequestRegistry", "artifact": "AlignmentTargetRequestRegistry.sol" },
+    { "name": "ComponentRegistry", "artifact": "ComponentRegistry.sol" },
+    { "name": "ProfileRegistry", "artifact": "ProfileRegistry.sol" },
+    { "name": "GlobalMessageRegistry", "artifact": "GlobalMessageRegistry.sol" },
+    { "name": "FeaturedQueueManager", "artifact": "FeaturedQueueManager.sol" },
+    { "name": "ProtocolTreasuryV1", "artifact": "ProtocolTreasuryV1.sol" },
+    { "name": "QueryAggregator", "artifact": "QueryAggregator.sol" },
+    { "name": "ERC404Factory", "artifact": "ERC404Factory.sol" },
+    { "name": "ERC1155Factory", "artifact": "ERC1155Factory.sol" },
+    { "name": "ERC721AuctionFactory", "artifact": "ERC721AuctionFactory.sol" },
+    { "name": "CurveParamsComputer", "artifact": "CurveParamsComputer.sol" },
+    { "name": "DeployBondEscrow", "artifact": "DeployBondEscrow.sol" },
+    { "name": "LaunchManager", "artifact": "LaunchManager.sol" },
+    { "name": "ERC404StakingModule", "artifact": "ERC404StakingModule.sol" },
+    { "name": "LiquidityDeployerModule", "artifact": "LiquidityDeployerModule.sol" },
+    { "name": "ZAMMLiquidityDeployerModule", "artifact": "ZAMMLiquidityDeployerModule.sol" },
+    { "name": "CypherLiquidityDeployerModule", "artifact": "CypherLiquidityDeployerModule.sol" },
+    { "name": "MerkleGatingModule", "artifact": "MerkleGatingModule.sol" },
+    { "name": "MetadataOverlayModule", "artifact": "MetadataOverlayModule.sol" },
+    { "name": "MetadataResolverRouter", "artifact": "MetadataResolverRouter.sol" },
+    { "name": "TokenTierBandResolver", "artifact": "TokenTierBandResolver.sol" },
+    { "name": "TierRevealModule", "artifact": "TierRevealModule.sol" },
+    { "name": "DynamicPricingModule", "artifact": "DynamicPricingModule.sol" },
+    { "name": "UniswapVaultPriceValidator", "artifact": "UniswapVaultPriceValidator.sol" },
+    { "name": "UniTitheHookFactory", "artifact": "UniTitheHookFactory.sol" },
+
+    { "$comment": "Deployed once each, and the only way a creator gets a vault." },
+    { "name": "AlignmentEndowmentVaultFactory", "artifact": "AlignmentEndowmentVaultFactory.sol" },
+    { "name": "UniAlignmentVaultFactory", "artifact": "UniAlignmentVaultFactory.sol" },
+    { "name": "ZAMMAlignmentVaultFactory", "artifact": "ZAMMAlignmentVaultFactory.sol" },
+    { "name": "CypherAlignmentVaultFactory", "artifact": "CypherAlignmentVaultFactory.sol" },
+
+    { "$comment": "One per creation. These carry most of the surface a buyer or creator ever touches." },
+    { "name": "ERC404BondingInstance", "artifact": "ERC404BondingInstance.sol" },
+    { "name": "ERC404BondingOps", "artifact": "ERC404BondingOps.sol" },
+    { "name": "ERC1155Instance", "artifact": "ERC1155Instance.sol" },
+    { "name": "ERC721AuctionInstance", "artifact": "ERC721AuctionInstance.sol" },
+    { "name": "AlignmentEndowmentVault", "artifact": "AlignmentEndowmentVault.sol" },
+    { "name": "UniAlignmentVault", "artifact": "UniAlignmentVault.sol" },
+    { "name": "ZAMMAlignmentVault", "artifact": "ZAMMAlignmentVault.sol" },
+    { "name": "CypherAlignmentVault", "artifact": "CypherAlignmentVault.sol" }
+  ],
+
+  "interfaces": {
+    "A": {
+      "name": "Discovery & home",
+      "paths": [
+        "app/src/routes/HomePage.tsx", "app/src/routes/CollectionsPage.tsx", "app/src/routes/LearnPage.tsx",
+        "app/src/components/home", "app/src/components/CollectionsBrowse.tsx", "app/src/components/CollectionCard.tsx",
+        "app/src/lib/discovery", "app/src/lib/learn", "app/src/components/useCollection.ts",
+        "app/src/components/useCollectionMetadata.ts", "app/src/lib/collection", "app/src/lib/metadata"
+      ]
+    },
+    "B": {
+      "name": "Launch / create",
+      "paths": ["app/src/routes/WizardPage.tsx", "app/src/components/wizard", "app/src/lib/wizard", "app/src/lib/merkle.ts"]
+    },
+    "C": {
+      "name": "Per-type trading",
+      "paths": [
+        "app/src/components/collection/erc404", "app/src/components/collection/erc1155",
+        "app/src/components/collection/erc721", "app/src/components/exec404",
+        "app/src/components/Exec404SwapPanel.tsx", "app/src/components/Exec404Activity.tsx",
+        "app/src/components/Exec404Stats.tsx", "app/src/routes/Exec404Page.tsx",
+        "app/src/lib/exec404.ts", "app/src/lib/carve.ts", "app/src/lib/carveReceipt.ts"
+      ]
+    },
+    "D": {
+      "name": "Detail pages + NFT art/galleries",
+      "paths": [
+        "app/src/routes/CollectionPage.tsx", "app/src/routes/EditionDetailPage.tsx",
+        "app/src/routes/TokenDetailPage.tsx", "app/src/components/collection", "app/src/lib/share"
+      ]
+    },
+    "E": {
+      "name": "Creator admin (per-instance)",
+      "paths": [
+        "app/src/components/collection/erc404/Erc404AdminPanel.tsx",
+        "app/src/components/collection/erc1155/CreatorAdminPanel.tsx",
+        "app/src/components/collection/erc721/Erc721AdminPanel.tsx"
+      ]
+    },
+    "F": {
+      "name": "Portfolio & holdings",
+      "paths": ["app/src/components/portfolio", "app/src/components/CreatorCollections.tsx"]
+    },
+    "G": {
+      "name": "Vault & yield",
+      "paths": ["app/src/routes/VaultPage.tsx", "app/src/routes/VaultsPage.tsx", "app/src/routes/TargetPage.tsx", "app/src/routes/RequestTargetPage.tsx", "app/src/components/vault", "app/src/lib/vaults", "app/src/lib/tithe", "app/src/lib/targetRequests.ts"]
+    },
+    "H": {
+      "name": "Featured-queue management",
+      "paths": ["app/src/components/featured", "app/src/lib/featuredOrder.ts"]
+    },
+    "I": {
+      "name": "Social / board",
+      "paths": [
+        "app/src/routes/BoardPage.tsx", "app/src/components/board", "app/src/components/MessageFeed.tsx",
+        "app/src/components/MessageComposer.tsx", "app/src/components/ReplyComposer.tsx",
+        "app/src/components/ReactButton.tsx", "app/src/components/useMessageFeed.ts",
+        "app/src/components/threadMessages.ts", "app/src/lib/actionMessage.ts", "app/src/lib/linkify.ts"
+      ]
+    },
+    "J": {
+      "name": "Profiles",
+      "paths": [
+        "app/src/routes/ProfilePage.tsx", "app/src/components/ProfileEditForm.tsx",
+        "app/src/components/ProfileView.tsx", "app/src/components/useProfileMetadata.ts",
+        "app/src/components/useCreatorCollections.ts"
+      ]
+    },
+    "K": {
+      "name": "Protocol admin console",
+      "paths": ["app/src/routes/AdminPage.tsx", "app/src/components/admin"]
+    }
+  },
+
+  "aliases": {
+    "$comment": "Hand-written ABI slices in app/src, and the deployed contracts each one addresses. A slice is a real UI path -- useVaultsSummary declares a three-fragment vault ABI because the full one trips TS2589 -- but nothing in the file says which contract it speaks to, so it is said here.",
+    "vaultSummaryAbi": ["AlignmentEndowmentVault", "UniAlignmentVault", "ZAMMAlignmentVault", "CypherAlignmentVault"],
+    "vaultTypeAbi": ["AlignmentEndowmentVault", "UniAlignmentVault", "ZAMMAlignmentVault", "CypherAlignmentVault"],
+    "alignmentTargetIdAbi": ["AlignmentEndowmentVault", "UniAlignmentVault", "ZAMMAlignmentVault", "CypherAlignmentVault"],
+    "contributionReceivedAbi": ["AlignmentEndowmentVault", "UniAlignmentVault", "ZAMMAlignmentVault", "CypherAlignmentVault"],
+    "vaultCutRedirectedAbi": ["AlignmentEndowmentVault", "UniAlignmentVault", "ZAMMAlignmentVault", "CypherAlignmentVault"],
+    "vaultContributionFailedInstanceAbi": ["ERC404BondingInstance", "ERC1155Instance", "ERC721AuctionInstance"],
+    "vaultContributionFailedModuleAbi": ["LiquidityDeployerModule", "ZAMMLiquidityDeployerModule", "CypherLiquidityDeployerModule"],
+    "ownerAbi": ["*"]
+  },
+
+  "skip": [
+    { "$comment": "The old coverage map's interface L, restated as rules. Each says why the function is outside the app, not that nobody got to it yet -- an entry here is a claim, and a rule matching nothing fails the gate as loudly as an unclaimed function." }
+  ]
+}
