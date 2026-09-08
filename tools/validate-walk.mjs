@@ -153,7 +153,10 @@ for (const [role, what] of Object.entries(manifest.roles)) {
 // An invite is rendered per role, so a role has to be something a person can actually be sent as:
 // it needs steps of its own, and it needs a list of what to turn up with. Without the second the
 // invite is "walk act B" and the tester discovers at step 3 that they needed a live collection.
-const actRoles = new Set(manifest.acts.map((act) => act.role));
+for (const act of manifest.acts) {
+  if (!act.steps?.length) fail(`act ${act.id} has no steps`);
+}
+const actRoles = new Set(manifest.acts.filter((act) => act.steps?.length).map((act) => act.role));
 for (const role of Object.keys(manifest.roles)) {
   if (!actRoles.has(role)) fail(`role ${role} owns no act — an invite for it would print an empty walk`);
   if (!manifest.prerequisites?.[role]?.length) fail(`role ${role}: no prerequisites — an invite cannot say what to bring`);
