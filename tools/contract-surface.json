@@ -1439,7 +1439,7 @@
     },
     {
       "match": "*.symbol",
-      "why": "The ERC-20/721 ticker. Collections are named, linked and searched by their registry `name` throughout; the symbol appears nowhere, so nothing reads it."
+      "why": "The ERC-20/721 ticker. Collections are named, linked and searched by their registry `name` throughout: the wizard lets a creator set a ticker at create, and nothing in the app ever reads it back."
     },
     {
       "match": "*.balanceOf",
