@@ -50,6 +50,10 @@ vi.mock('../useCollectionChain', () => ({
 const mockInvalidateQueries = vi.hoisted(() => vi.fn())
 vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
+  // ArtPointerNotice probes the art pointer through react-query. The panel is mounted whole here
+  // (test 2 asserts no row is over-gated), so the hook must resolve — an idle query is enough: the
+  // mocked `useCollectionMetadata` returns undefined, so the notice renders nothing either way.
+  useQuery: () => ({ data: undefined, isPending: false }),
 }))
 
 const mockWriteContract = vi.hoisted(() => vi.fn())

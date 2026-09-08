@@ -41,8 +41,11 @@ interface IOwnable {
  *
  *      - **Principal is a PERMANENT donation.** There is NO refund path — a benefactor's pledged
  *        principal never returns to them. It is committed to the alignment target forever.
- *      - **Principal vests over 6 months per benefactor** (`VEST_DURATION`, measured from the
- *        benefactor's first deposit). Before vest the principal is *escrowed*; at vest it becomes the
+ *      - **Principal vests over 6 months per DEPOSIT** (`VEST_DURATION`, measured from each deposit,
+ *        not from the benefactor's first one — RE-B3). A top-up starts a fresh window of its own, so
+ *        one benefactor's escrow can hold several clocks at once and "has it all vested?" is answered
+ *        by `escrowedPrincipal`/`principalOf` reaching 0, never by a date.
+ *        Before vest the principal is *escrowed*; at vest it becomes the
  *        target's *deployable* corpus. Vest mechanic (b): vested principal STAYS in the Aave position
  *        earning until the target deploys it (deployment = spec 2c / a separate item) — it is never
  *        idle. The position therefore holds two principal classes at once: `escrowedPrincipal` and
@@ -166,7 +169,12 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     mapping(address => uint256) public escrowedPrincipal;
     /// @notice A benefactor's principal that has VESTED (now the target's deployable corpus).
     mapping(address => uint256) public vestedPrincipal;
-    /// @notice First-deposit timestamp; the benefactor's principal vests at `depositTime + VEST_DURATION`.
+    /// @notice First-deposit timestamp, written once and never overwritten. It is NOT the clock the
+    ///         benefactor's principal runs on: RE-B3 gave every deposit its own tranche, and `vest()`
+    ///         matures each one at its own `depositTs + VEST_DURATION`. So `depositTime + VEST_DURATION`
+    ///         is the EARLIEST any of this benefactor's principal can vest, and says nothing about a
+    ///         top-up made later. Nothing on-chain reads this mapping; it is a stat surface only, and a
+    ///         reader that needs "has it all vested?" must ask `escrowedPrincipal`/`principalOf` instead.
     mapping(address => uint256) public depositTime;
     /// @notice MasterChef reward debt (settled snapshot of `escrowedPrincipal * acc / 1e18`).
     mapping(address => uint256) public rewardDebt;
@@ -322,10 +330,13 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     // │   Vesting               │
     // └─────────────────────────┘
 
-    /// @notice Realize a benefactor's vest once `depositTime + VEST_DURATION` has elapsed. Permissionless
-    ///         (anyone may poke it — it moves no value to the caller). Settles and STOPS the benefactor's
-    ///         creator-yield accrual, then moves their principal from the escrowed class to the target's
-    ///         deployable class. Mechanic (b): the principal STAYS in the Aave position (no redeem) and
+    /// @notice Realize whichever of a benefactor's deposits have reached their OWN
+    ///         `depositTs + VEST_DURATION`; deposits still inside their window keep their clock and stay
+    ///         escrowed, so a call that vests something is not a call that vested everything. Permissionless
+    ///         (anyone may poke it — it moves no value to the caller). Settles, then moves the MATURED
+    ///         amount from the escrowed class to the target's deployable class and re-baselines the rest:
+    ///         creator-yield accrual stops on what vested and continues on what is still escrowed.
+    ///         Mechanic (b): the principal STAYS in the Aave position (no redeem) and
     ///         from here earns 0 creator / 99 target / 1 protocol until the target deploys it.
     ///         Walks the benefactor's whole tranche array in one call. A benefactor whose array has grown
     ///         large enough that a full walk no longer fits in a block uses `vest(address,uint256)` instead.

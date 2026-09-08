@@ -54,14 +54,22 @@ function VaultPanelInner({ vault, state }: VaultPanelInnerProps) {
   const isBusy = sigPending || isConfirming
   const yieldZero = state.yield === 0n
 
-  const maturityDate =
-    state.maturity > 0n ? new Date(Number(state.maturity) * 1000).toLocaleDateString() : '—'
+  const earliestMaturityDate =
+    state.earliestMaturity > 0n
+      ? new Date(Number(state.earliestMaturity) * 1000).toLocaleDateString()
+      : '—'
 
+  // Each deposit vests on its own clock and the vault exposes no view of them, so the panel states
+  // the earliest date any principal can vest rather than a completed vest it cannot verify. The
+  // only completed-vest claim left is `fullyVested`, which is `principalOf == 0` — nothing escrowed.
   const maturityLabel = (() => {
     if (state.depositTime === 0n) return '—'
-    if (state.matured) return 'vested ✓'
-    return `${maturityDate} (26-week vest)`
+    if (state.fullyVested) return 'vested ✓'
+    return `earliest ${earliestMaturityDate}`
   })()
+
+  const vestWeeks = state.vestDuration > 0n ? Number(state.vestDuration / 604800n) : 0
+  const showsEarliest = state.depositTime > 0n && !state.fullyVested
 
   return (
     <Disclosure summary="COMMUNITY ENDOWMENT" testId="vault-panel">
@@ -74,6 +82,11 @@ function VaultPanelInner({ vault, state }: VaultPanelInnerProps) {
         <div className={styles.stat}>
           <span className={styles.statLabel}>maturity</span>
           <span className={styles.statValue}>{maturityLabel}</span>
+          {showsEarliest && (
+            <span className={styles.statNote}>
+              {vestWeeks > 0 ? `${vestWeeks}-week vest — ` : ''}each top-up vests on its own clock
+            </span>
+          )}
         </div>
         <div className={styles.stat}>
           <span className={styles.statLabel}>harvestable yield</span>

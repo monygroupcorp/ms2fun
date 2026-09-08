@@ -33,6 +33,7 @@ import {
 import { useCollection } from '../../useCollection'
 import { useCollectionMetadata } from '../../useCollectionMetadata'
 import { useCollectionAddresses, useCollectionChainId } from '../useCollectionChain'
+import { ArtPointerNotice } from '../ArtPointerNotice'
 import { carveCreatorNet, parseBps } from '../../../lib/carve'
 import { carveSettlementFromLogs } from '../../../lib/carveReceipt'
 import { collectionToDataUri } from '../../../lib/metadata'
@@ -131,6 +132,7 @@ export function Erc404AdminPanel({ instance }: Erc404AdminPanelProps) {
           placeholder="ipfs://, ar://, https://, or data:"
           testId="erc404-admin-metadata"
         />
+        <ArtPointerNotice instance={instance} />
         <ActivateStakingRow instance={instance} />
         {bonding && <DeployLiquidityRow instance={instance} closesSaleEarly={closesSaleEarly} />}
         <BondStatusRow instance={instance} />

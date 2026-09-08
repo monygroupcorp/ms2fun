@@ -18,11 +18,19 @@ export interface EndowmentState {
   isEndowment: boolean
   /** This benefactor's live escrowed (pre-vest) principal (`principalOf`); drops to 0 once vested. */
   principal: bigint
+  /** FIRST-deposit timestamp only. The vault gives every deposit its own clock, so this is not the
+   *  clock the whole holding runs on — see `earliestMaturity`. */
   depositTime: bigint
-  /** Vest completion time = `depositTime + VEST_DURATION`; escrowed principal vests to the target then. */
-  maturity: bigint
-  /** True once the vest window has elapsed (principal has vested / is vestable to the target). */
-  matured: boolean
+  /** The vault's per-tranche vest window (`VEST_DURATION`), in seconds. */
+  vestDuration: bigint
+  /** The EARLIEST time any of this benefactor's principal can vest = `depositTime + VEST_DURATION`.
+   *  Deposits made after the first vest later, each on its own clock, and the vault exposes no view
+   *  of those clocks (`_escrowTranches` is internal), so a true next maturity is not computable here. */
+  earliestMaturity: bigint
+  /** True only when nothing of this benefactor's principal is still escrowed (`principalOf == 0`).
+   *  This is the only completed-vest claim the app can make from what the vault exposes: a past
+   *  `earliestMaturity` says the first tranche could vest, never that every tranche has. */
+  fullyVested: boolean
   yield: bigint
   /** Live escrowed principal across all benefactors (`totalPrincipalLocked`). */
   totalPrincipal: bigint
@@ -107,10 +115,13 @@ export function useEndowment(
   const resolvedDepositTime = depositTime ?? 0n
   const resolvedVestDuration = vestDuration ?? 0n
 
-  const maturity = resolvedDepositTime > 0n ? resolvedDepositTime + resolvedVestDuration : 0n
+  const earliestMaturity =
+    resolvedDepositTime > 0n ? resolvedDepositTime + resolvedVestDuration : 0n
 
-  const nowSeconds = BigInt(Math.floor(Date.now() / 1000))
-  const matured = resolvedDepositTime > 0n && nowSeconds >= maturity
+  // `matured` used to be `now >= depositTime + VEST_DURATION`, which asserts the whole holding has
+  // vested on the strength of the FIRST deposit's clock. Every deposit vests independently, so the
+  // only completed-vest claim the exposed state supports is "nothing is escrowed any more".
+  const fullyVested = resolvedDepositTime > 0n && resolvedPrincipal === 0n
 
   const isPending =
     typePending ||
@@ -126,8 +137,9 @@ export function useEndowment(
     isEndowment,
     principal: resolvedPrincipal,
     depositTime: resolvedDepositTime,
-    maturity,
-    matured,
+    vestDuration: resolvedVestDuration,
+    earliestMaturity,
+    fullyVested,
     yield: accumulatedFees ?? 0n,
     totalPrincipal: totalPrincipal ?? 0n,
     communityPayout: communityPayout ?? undefined,
