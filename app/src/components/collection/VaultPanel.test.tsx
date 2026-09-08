@@ -29,6 +29,22 @@ vi.mock('wagmi', () => ({
   useWaitForTransactionReceipt: () => ({ isLoading: false, isSuccess: false }),
 }))
 
+// The claim/vest/deliver row has its own suite in VaultPanel.actions.test.tsx. Here it is stubbed
+// down to a visitor's view so these tests stay about the maturity stat alone.
+vi.mock('../ui/useOwnerGate', () => ({
+  useOwnerGate: () => ({ isOwner: false, owner: undefined, connected: undefined }),
+}))
+vi.mock('../ui/useTxAction', () => ({
+  useTxAction: () => ({
+    send: vi.fn(),
+    reset: vi.fn(),
+    state: 'idle',
+    isBusy: false,
+    hash: undefined,
+    reason: undefined,
+  }),
+}))
+
 vi.mock('../../generated/contracts', () => ({
   useReadAlignmentEndowmentVaultVaultType: () => ({ data: 'AaveEndowment', isPending: false }),
   useReadAlignmentEndowmentVaultPrincipalOf: () => ({
@@ -48,6 +64,10 @@ vi.mock('../../generated/contracts', () => ({
   useReadAlignmentEndowmentVaultTotalPrincipalLocked: () => ({ data: 0n, isPending: false }),
   useReadAlignmentEndowmentVaultCommunityPayout: () => ({ data: COMMUNITY, isPending: false }),
   useReadAlignmentEndowmentVaultVestDuration: () => ({ data: VEST_DURATION, isPending: false }),
+  useReadAlignmentEndowmentVaultPendingYieldOf: () => ({ data: 0n, refetch: vi.fn() }),
+  useReadAlignmentEndowmentVaultVestedOf: () => ({ data: 0n, refetch: vi.fn() }),
+  useReadAlignmentEndowmentVaultAccumulatedTargetFees: () => ({ data: 0n, refetch: vi.fn() }),
+  alignmentEndowmentVaultAbi: [],
   useWriteAlignmentEndowmentVaultHarvest: () => ({
     writeContract: vi.fn(),
     data: undefined,

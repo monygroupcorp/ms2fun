@@ -11,6 +11,9 @@ import {
   useReadAlignmentEndowmentVaultTotalPrincipalLocked,
   useReadAlignmentEndowmentVaultCommunityPayout,
   useReadAlignmentEndowmentVaultVestDuration,
+  useReadAlignmentEndowmentVaultPendingYieldOf,
+  useReadAlignmentEndowmentVaultVestedOf,
+  useReadAlignmentEndowmentVaultAccumulatedTargetFees,
 } from '../../generated/contracts'
 import { useCollectionChainId } from './useCollectionChain'
 
@@ -32,6 +35,19 @@ export interface EndowmentState {
    *  `earliestMaturity` says the first tranche could vest, never that every tranche has. */
   fullyVested: boolean
   yield: bigint
+  /**
+   * THIS benefactor's claimable creator yield (`pendingYieldOf`) — settled purse plus the accrual
+   * still live on their escrow weight. Distinct from `yield`, which is the vault-wide accumulator:
+   * one collection's creator can only ever pull this.
+   */
+  claimable: bigint
+  /** This benefactor's principal that has already vested into the target's deployable corpus. */
+  vested: bigint
+  /**
+   * Target-leg yield the vault accrued while the community sink was unset. Permissionless to
+   * deliver (`flushTargetFees`) once a sink exists; it keeps accruing until then.
+   */
+  undeliveredTargetFees: bigint
   /** Live escrowed principal across all benefactors (`totalPrincipalLocked`). */
   totalPrincipal: bigint
   communityPayout: `0x${string}` | undefined
@@ -106,10 +122,35 @@ export function useEndowment(
       query: { enabled: enabled && isEndowment },
     })
 
+  const { data: claimable, refetch: refetchClaimable } =
+    useReadAlignmentEndowmentVaultPendingYieldOf({
+      ...(vault ? { address: vault } : {}),
+      chainId,
+      args: [benefactor ?? ZERO_ADDRESS],
+      query: { enabled: enabled && !!benefactor && isEndowment },
+    })
+
+  const { data: vested, refetch: refetchVested } = useReadAlignmentEndowmentVaultVestedOf({
+    ...(vault ? { address: vault } : {}),
+    chainId,
+    args: [benefactor ?? ZERO_ADDRESS],
+    query: { enabled: enabled && !!benefactor && isEndowment },
+  })
+
+  const { data: undeliveredTargetFees, refetch: refetchTargetFees } =
+    useReadAlignmentEndowmentVaultAccumulatedTargetFees({
+      ...(vault ? { address: vault } : {}),
+      chainId,
+      query: { enabled: enabled && isEndowment },
+    })
+
   const refetch = useCallback(() => {
     void refetchPrincipal()
     void refetchFees()
-  }, [refetchPrincipal, refetchFees])
+    void refetchClaimable()
+    void refetchVested()
+    void refetchTargetFees()
+  }, [refetchPrincipal, refetchFees, refetchClaimable, refetchVested, refetchTargetFees])
 
   const resolvedPrincipal = principal ?? 0n
   const resolvedDepositTime = depositTime ?? 0n
@@ -141,6 +182,9 @@ export function useEndowment(
     earliestMaturity,
     fullyVested,
     yield: accumulatedFees ?? 0n,
+    claimable: claimable ?? 0n,
+    vested: vested ?? 0n,
+    undeliveredTargetFees: undeliveredTargetFees ?? 0n,
     totalPrincipal: totalPrincipal ?? 0n,
     communityPayout: communityPayout ?? undefined,
     isPending,
