@@ -18,7 +18,7 @@
  */
 import { useMemo, useState } from 'react'
 import { formatEther, type Log } from 'viem'
-import { useBlock, useWaitForTransactionReceipt } from 'wagmi'
+import { useBalance, useBlock, useWaitForTransactionReceipt } from 'wagmi'
 import {
   deployBondEscrowAbi,
   erc404BondingInstanceAbi,
@@ -33,7 +33,9 @@ import {
   useReadErc404BondingInstanceGatingModule,
   useReadErc404BondingInstanceGraduated,
   useReadErc404BondingInstancePreviewCarve,
+  useReadErc404BondingInstanceReserve,
   useReadErc404BondingInstanceStakingActive,
+  useReadErc404BondingInstanceStakingReserve,
 } from '../../../generated/contracts'
 import { formatPrice } from '../../../lib/format'
 import { useCollection } from '../../useCollection'
@@ -146,6 +148,7 @@ export function Erc404AdminPanel({ instance }: Erc404AdminPanelProps) {
         <MetadataArtistPanel instance={instance} />
         <MigrateVaultRow instance={instance} />
         <ClaimAllFeesRow instance={instance} />
+        <WithdrawDustRow instance={instance} />
         <StrandedTitheRow instance={instance} />
         <SetAgentDelegationRow instance={instance} />
         <AllowlistConfigRow instance={instance} />
@@ -696,6 +699,74 @@ function ClaimAllFeesRow({ instance }: { instance: `0x${string}` }) {
         className="btn btn-secondary"
         testId="erc404-admin-claim-all-fees"
       />
+    </ActionRow>
+  )
+}
+
+// ── sweep the surplus a fee claim leaves behind ────────────────────────────────
+
+function WithdrawDustRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
+  const { data: balance, refetch: refetchBalance } = useBalance({ address: instance, chainId })
+  const { data: reserve, refetch: refetchReserve } = useReadErc404BondingInstanceReserve({
+    address: instance,
+    chainId: chainId,
+  })
+  const { data: stakingReserve, refetch: refetchStaking } =
+    useReadErc404BondingInstanceStakingReserve({ address: instance, chainId: chainId })
+  const tx = useTxAction({
+    onSuccess: () => {
+      void refetchBalance()
+      void refetchReserve()
+      void refetchStaking()
+    },
+    instance,
+  })
+
+  // The contract's own guard, mirrored: everything above the two tracked liabilities is sweepable,
+  // and it reverts `NothingToWithdraw` at or below them. `reserve` backs sellBonding refunds and
+  // `stakingReserve` is ETH owed to stakers — neither is the creator's to take, ever.
+  const locked = (reserve ?? 0n) + (stakingReserve ?? 0n)
+  const known = balance !== undefined && reserve !== undefined && stakingReserve !== undefined
+  const surplus = known && balance.value > locked ? balance.value - locked : 0n
+
+  return (
+    <ActionRow
+      label="sweep surplus"
+      hint={
+        !known
+          ? 'recover ETH held here that backs neither a sell refund nor a staker'
+          : surplus === 0n
+            ? 'nothing to sweep — every wei here backs a sell refund or a staker'
+            : `${formatEther(surplus)} ETH here backs neither a sell refund nor a staker. Claiming fees leaves it behind; this is what takes it.`
+      }
+    >
+      <div className={styles.control}>
+        <TxButton
+          state={tx.state}
+          onClick={() =>
+            tx.send({
+              address: instance,
+              abi: erc404BondingInstanceAbi,
+              functionName: 'withdrawDust',
+              args: [],
+              chainId: chainId,
+            })
+          }
+          label="sweep surplus"
+          className="btn btn-secondary"
+          receipt={
+            surplus > 0n
+              ? { verb: 'surplus swept', net: { label: 'you received', wei: surplus } }
+              : undefined
+          }
+          onReset={tx.reset}
+          disabled={known && surplus === 0n}
+          disabledHint="the sweep reverts with nothing above the locked balances"
+          errorText="sweep failed — try again"
+          testId="erc404-admin-withdraw-dust"
+        />
+      </div>
     </ActionRow>
   )
 }

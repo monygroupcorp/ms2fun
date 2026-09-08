@@ -250,6 +250,7 @@
         "app/src/routes/TargetPage.tsx",
         "app/src/routes/RequestTargetPage.tsx",
         "app/src/components/vault",
+        "app/src/components/target",
         "app/src/lib/vaults",
         "app/src/lib/tithe",
         "app/src/lib/targetRequests.ts"
@@ -1400,6 +1401,402 @@
     {
       "match": "ERC1155Instance.genesisVault",
       "why": "The vault an instance was CREATED with, kept so the revenue split can stay keyed to the family it was launched under even after a migration. The app reads the instance's current `vault` and the registry's vault list; which one was first is a fact for the split, not for a reader."
+    },
+    {
+      "$comment": "--- per-instance reads the QueryAggregator supersedes: a card, a page or a portfolio is one call ---"
+    },
+    {
+      "match": "*.name",
+      "why": "Carried on the aggregator's ProjectCard, which every card, browse row and collection page is hydrated from. Reading it per instance is the N+1 the aggregator exists to collapse."
+    },
+    {
+      "match": "*.creator",
+      "why": "Carried on the ProjectCard. See name."
+    },
+    {
+      "match": "*.vault",
+      "why": "The instance's active alignment vault, carried on the ProjectCard and used to link the collection to its vault page. See name."
+    },
+    {
+      "match": "*.metadataURI",
+      "why": "Carried on the ProjectCard, and resolved to art through useCollectionMetadata. See name."
+    },
+    {
+      "match": "*.getCurrentPrice",
+      "why": "The card's `currentPrice`, computed lens-side per instance type by the aggregator so a browse window is one call. See name."
+    },
+    {
+      "match": "*.getEdition",
+      "why": "Folded into `QueryAggregator.getERC1155EditionsBatch`, which useEditions takes in one request rather than one read per edition."
+    },
+    {
+      "match": "*.editions",
+      "why": "The storage array behind getEdition. See getEdition."
+    },
+    {
+      "match": "*.getAllEditionIds",
+      "why": "Editions are 1-indexed and contiguous, so useEditions reads the count and asks the aggregator for that range. The id list is a second round trip for something already known."
+    },
+    {
+      "match": "*.symbol",
+      "why": "The ERC-20/721 ticker. Collections are named, linked and searched by their registry `name` throughout; the symbol appears nowhere, so nothing reads it."
+    },
+    {
+      "match": "*.balanceOf",
+      "why": "A per-holder balance read. Holdings reach the app through the aggregator's portfolio batch, which answers for every collection at once; the per-instance read is the N+1 it replaces."
+    },
+    {
+      "match": "*.getGlobalMessageRegistry",
+      "why": "An instance's pointer at the board registry. The app already knows every protocol address from lib/addresses. See masterRegistry."
+    },
+    {
+      "match": "*.dynamicPricingModule",
+      "why": "A wired module address. The price it computes is on the card. See masterRegistry."
+    },
+    {
+      "match": "*.deployBondEscrow",
+      "why": "A wired address. See masterRegistry."
+    },
+    {
+      "match": "*.implementation",
+      "why": "The clone template a factory stamps from -- a deploy fact. See vaultImplementation."
+    },
+    {
+      "match": "*.alignmentHookFactory",
+      "why": "A wired address (the factory that stamps a graduated pool's tithe hook). See masterRegistry."
+    },
+    {
+      "match": "*.v4PoolManager",
+      "why": "A wired venue address. See poolManager."
+    },
+    {
+      "$comment": "--- the auction queue's internals: the app reads the head of each line, not the queue ---"
+    },
+    {
+      "match": "*.auctions",
+      "why": "The storage mapping behind `getAuction`, which the auction surfaces and the aggregator both read. See getInstanceInfo."
+    },
+    {
+      "match": "*.lineQueues",
+      "why": "The per-line queue of pieces waiting behind the live auction. Only a line's HEAD can hold a bid or be settled, and `getActiveAuction(line)` names it -- which is why the aggregator reads heads rather than walking queues, and why the galleries do too. Surfacing the tail would cost an unbounded walk to list pieces nothing can yet be done to."
+    },
+    {
+      "match": "*.lineQueueHead",
+      "why": "The cursor into lineQueues. See lineQueues."
+    },
+    {
+      "match": "*.getQueueLength",
+      "why": "How many pieces are queued on a line. See lineQueues."
+    },
+    {
+      "$comment": "--- marketplace-facing metadata: written for other people's sites to read ---"
+    },
+    {
+      "match": "*.contractURI",
+      "why": "The collection-level metadata pointer marketplaces read (OpenSea's convention). It exists so a collection looks right somewhere else; this app renders the registry's own name and the instance's `metadataURI` art directly."
+    },
+    {
+      "match": "*.setContractURI",
+      "why": "Sets the marketplace-facing pointer above. The creator-admin panels set what this app renders -- `setMetadataURI` and `setStyle`; a second metadata URI whose only reader is another site is a listing chore, not a collection control."
+    },
+    {
+      "$comment": "--- storage getters behind the named accessor the app already reads ---"
+    },
+    {
+      "match": "AlignmentRegistryV1.alignmentTargets",
+      "why": "The storage mapping behind `getAlignmentTarget`, which the vault page, the target page and the admin console all read."
+    },
+    {
+      "match": "AlignmentRegistryV1.alignmentTargetAmbassadors",
+      "why": "The storage array behind `getAmbassadors`, which the console reads (and `ambassadorCount` bounds)."
+    },
+    {
+      "match": "AlignmentRegistryV1.communityPayout",
+      "why": "The storage mapping behind `getCommunityPayout`, which the console reads and sets."
+    },
+    {
+      "match": "ProtocolTreasuryV1.totalReceived",
+      "why": "The storage mapping behind `getRevenueBySource`, which the treasury panel reads to break revenue down by source."
+    },
+    {
+      "match": "ProtocolTreasuryV1.totalWithdrawn",
+      "why": "A lifetime counter of everything ever withdrawn. The panel reports the live balance, which is what a withdrawal acts on."
+    },
+    {
+      "match": "MetadataOverlayModule.defaultPayout",
+      "why": "The storage mapping behind the module's payout accessor. See getInstanceInfo."
+    },
+    {
+      "match": "ERC404StakingModule.stakingEnabled",
+      "why": "`getStakingInfo(instance, user)` returns this alongside the stake, the total and the pending reward in ONE call, and the staking panel takes that. Each field read on its own is the round trip it exists to save."
+    },
+    {
+      "match": "ERC404StakingModule.stakedBalance",
+      "why": "Returned by getStakingInfo. See stakingEnabled."
+    },
+    {
+      "match": "ERC404StakingModule.totalStaked",
+      "why": "Returned by getStakingInfo. See stakingEnabled."
+    },
+    {
+      "match": "ERC404StakingModule.calculatePendingRewards",
+      "why": "The same accrual getStakingInfo returns as `pendingRewards`. See stakingEnabled."
+    },
+    {
+      "match": "ERC404StakingModule.rewardsAccrued",
+      "why": "The settled half of the accrual behind getStakingInfo's `pendingRewards`, which reports settled plus live. See stakingEnabled."
+    },
+    {
+      "match": "ERC404StakingModule.streamLeak",
+      "why": "Reward stream that could not accrue because nothing was staked at the time. It is released back to the instance by `settleAndReleaseLeak`, whose caller is the instance."
+    },
+    {
+      "match": "ERC404StakingModule.pendingStreamLeak",
+      "why": "What settleAndReleaseLeak would release right now, for that call to size itself against. See streamLeak."
+    },
+    {
+      "$comment": "--- checks and indexes other contracts run: the caller is a contract, and the answer gates its own logic ---"
+    },
+    {
+      "match": "AlignmentRegistryV1.hasActiveTarget",
+      "why": "The duplicate guard the request registry runs before accepting a proposal: does this token already belong to any ACTIVE target. Its caller is that registry, and what a requester sees is the refusal it produces."
+    },
+    {
+      "match": "AlignmentRegistryV1.isTokenInTarget",
+      "why": "A membership check against one target, run by the vaults and the registry itself. The app lists a target's assets from `getAlignmentTarget`."
+    },
+    {
+      "match": "AlignmentRegistryV1.tokenToTargetIds",
+      "why": "The reverse index behind hasActiveTarget. See it."
+    },
+    {
+      "match": "AlignmentRegistryV1.getReferencePool",
+      "why": "The pool a vault prices its swap against, read by the vault mid-transaction to floor the caller's slippage bound. See maxPriceDeviationBps."
+    },
+    {
+      "match": "ComponentRegistry.isApprovedComponent",
+      "why": "The approval check a factory runs on a module before it will wire it. The wizard asks the opposite question -- `getApprovedComponentsByTag`, which returns the modules a slot may offer -- so it never has to test one it did not just receive."
+    },
+    {
+      "match": "ComponentRegistry.isApproved",
+      "why": "The storage mapping behind isApprovedComponent. See it."
+    },
+    {
+      "match": "ComponentRegistry.isApprovedForTag",
+      "why": "The same check narrowed to a slot's tag. See isApprovedComponent."
+    },
+    {
+      "match": "ComponentRegistry.componentTag",
+      "why": "Which slot a component was approved for, behind getApprovedComponentsByTag. See isApprovedComponent."
+    },
+    {
+      "match": "ComponentRegistry.allComponents",
+      "why": "Every component ever registered, approved or not. The wizard offers a slot the APPROVED set for its tag; the full roster is the registry's own bookkeeping."
+    },
+    {
+      "match": "MasterRegistryV1.revokedInstances",
+      "why": "The revocation flag other contracts and the registry's own reads consult. The app never renders a revoked instance -- the browse and profile surfaces drop them upstream -- so nothing downstream asks."
+    },
+    {
+      "match": "MasterRegistryV1.emergencyRevoker",
+      "why": "Who may emergency-revoke. The console SETS it (`setEmergencyRevoker`) and the registry enforces it; a wallet's own authority shows up as the action succeeding, not as an address read back."
+    },
+    {
+      "match": "MerkleGatingModule.getRoots",
+      "why": "The roots an edition's allowlist was configured with. Eligibility in the app is resolved from the list the creator published alongside the collection's metadata, and the proof built from it -- the on-chain roots are what that proof is checked AGAINST, inside the mint."
+    },
+    {
+      "match": "MerkleGatingModule.getTierOpenTimes",
+      "why": "When each allowlist tier opens, enforced by the module inside the mint. See getRoots."
+    },
+    {
+      "match": "MerkleGatingModule.claimed",
+      "why": "How much of an allowance an address has already taken, decremented by the module inside the mint. See getRoots."
+    },
+    {
+      "match": "QueryAggregator.featuredQueueManager",
+      "why": "A wired address. See masterRegistry."
+    },
+    {
+      "match": "UniTitheHookFactory.deployedHook",
+      "why": "The CREATE2 index the factory checks before deploying a hook, so a pool's tithe hook is never deployed twice. Its caller is the liquidity module, mid-graduation."
+    },
+    {
+      "match": "UniTitheHookFactory.hookFlags",
+      "why": "The permission bits a v4 hook address has to encode. Used to mine the salt at deploy time."
+    },
+    {
+      "match": "UniTitheHookFactory.hookOwner",
+      "why": "A wired address. See masterRegistry."
+    },
+    {
+      "$comment": "--- pricing and curve maths the app recomputes client-side, because a chart is a thousand points ---"
+    },
+    {
+      "match": "CurveParamsComputer.computeCurveParams",
+      "why": "Solves a curve's parameters from a creator's inputs. The wizard previews a curve by sampling it locally (curveSampler.ts) and the factory computes the real ones inside the create transaction, so the preview costs no round trips and the launched curve is never a client's arithmetic."
+    },
+    {
+      "match": "CurveParamsComputer.computeCurveParamsFromBondingSupply",
+      "why": "The same solve from a bonding supply rather than an NFT count. See computeCurveParams."
+    },
+    {
+      "match": "CurveParamsComputer.solvePole",
+      "why": "The Newton solve inside computeCurveParams. See it."
+    },
+    {
+      "match": "CurveParamsComputer.graduationMultipleAt",
+      "why": "The graduation multiple a given pole implies -- a step of the solve above. See computeCurveParams."
+    },
+    {
+      "match": "CurveParamsComputer.targetGraduationMultiple",
+      "why": "The multiple the solve aims at for a given reserve. See computeCurveParams."
+    },
+    {
+      "match": "CurveParamsComputer.kWeight",
+      "why": "A tuning constant of the solve, owner-settable on the computer. It shapes a curve the wizard shows in full; the constant behind the shape is not a figure a creator picks."
+    },
+    {
+      "match": "CurveParamsComputer.poleWad",
+      "why": "The solve's default pole. See kWeight."
+    },
+    {
+      "match": "DynamicPricingModule.calculatePrice",
+      "why": "An edition's current price under its pricing curve. The aggregator's card carries `currentPrice`, computed lens-side, so a browse window prices every collection in one call."
+    },
+    {
+      "match": "DynamicPricingModule.calculateBatchCost",
+      "why": "The cost of minting N at once, which the mint panel quotes from the instance rather than the module behind it. See calculatePrice."
+    },
+    {
+      "match": "ERC404Factory.effectiveCarveEth",
+      "why": "What a creator's carve request would actually pay out at a given raise. The admin panel quotes the carve from the instance's own `previewCarve`, which nets it against the collection's declared maximum -- the figure the creator is deciding on."
+    },
+    {
+      "match": "*.computeInstanceAddress",
+      "why": "The CREATE3 address a salt would produce. The wizard mints a fresh salt and sends the create, then reads the instance out of the receipt; predicting the address first would be a round trip to learn something the transaction is about to say."
+    },
+    {
+      "$comment": "--- the featured queue's ledger, folded into the card the browse surfaces already read ---"
+    },
+    {
+      "match": "FeaturedQueueManager.getFeaturedInstances",
+      "why": "The queue's own ranked listing. Every browse surface reads collections from the aggregator, whose card carries `featuredRank` and `featuredExpires` per instance, and sorts by them (featuredOrder.ts) -- so featuring is one field of a read the page was making anyway, not a second listing to merge against it."
+    },
+    {
+      "match": "FeaturedQueueManager.getEffectiveRank",
+      "why": "A slot's rank net of decay. It is the `featuredRank` on the card, and `getRentalInfo` returns it for the one instance the featured panel is looking at. See getFeaturedInstances."
+    },
+    {
+      "match": "FeaturedQueueManager.slots",
+      "why": "The storage mapping behind getRentalInfo, which the featured panel reads."
+    },
+    {
+      "match": "FeaturedQueueManager.queueLength",
+      "why": "How many slots are currently rented. See getFeaturedInstances."
+    },
+    {
+      "$comment": "--- the board registry and the treasury: intake by other contracts, and one owner payout surface ---"
+    },
+    {
+      "match": "GlobalMessageRegistry.post",
+      "why": "The single-message post. Every board action in the app -- a post, a reply, a reaction -- is queued into the board cart and committed as one `postBatch`, which preserves `msg.sender` across the whole session and costs one signature instead of one per action. The single-post entry point is what postBatch is built out of."
+    },
+    {
+      "match": "GlobalMessageRegistry.postForAction",
+      "why": "A message posted BY an instance on a user's behalf during an action (`instance != msg.sender` reverts). It is how a buy or a settlement writes itself onto the board; the app reads those messages, it does not send them."
+    },
+    {
+      "match": "GlobalMessageRegistry.messageCount",
+      "why": "The registry's total message count. The feeds page backwards from the head by log scan, which is what a feed needs; a global total is not a figure any surface shows."
+    },
+    {
+      "match": "GlobalMessageRegistry.withdrawETH",
+      "why": "Sweeps the board registry's accumulated post value to the OWNER's own wallet -- not to ProtocolTreasuryV1, which is the one balance the console's treasury surface manages. Where that ETH should land is a revenue decision; until it is one, a second pay-the-owner button in the console is not the app's to offer."
+    },
+    {
+      "match": "ProtocolTreasuryV1.deposit",
+      "why": "Source-attributed ETH intake. Its callers are the protocol's own contracts, tagging where revenue came from; a wallet sending ETH here lands in the untagged `receive()` instead."
+    },
+    {
+      "match": "ProtocolTreasuryV1.onERC721Received",
+      "why": "The ERC-721 receiver hook, called by a token contract during a safe transfer INTO the treasury. It exists so the transfer does not revert."
+    },
+    {
+      "$comment": "--- retired mechanisms, kept in-tree so existing deployments stay readable ---"
+    },
+    {
+      "match": "TierRevealModule.tiers",
+      "why": "TierRevealModule was retired (noesis-141). Its bindings stay generated so a collection deployed against it still renders, but nothing new resolves through it and no surface configures one."
+    },
+    {
+      "match": "TierRevealModule.tierCount",
+      "why": "See tiers."
+    },
+    {
+      "match": "TokenTierBandResolver.bands",
+      "why": "The band table sealed at construction: `initTierBands` is factory-only and set-once, because mutable weights would retroactively reprice every outstanding band NFT. The app reads a token's art through `tokenURI`, which walks the resolver chain, so the table is applied without ever being addressed."
+    },
+    {
+      "match": "TokenTierBandResolver.bandCount",
+      "why": "See bands."
+    },
+    {
+      "$comment": "--- instance-side escrow and band bookkeeping ---"
+    },
+    {
+      "match": "ERC404BondingInstance.bandNextFree",
+      "why": "The next unissued id within a tier's band. The instance allocates from it inside a mint; nothing outside chooses an id."
+    },
+    {
+      "match": "ERC404BondingInstance.bandOutstanding",
+      "why": "How many of a band's ids are still held. See bandNextFree."
+    },
+    {
+      "match": "ERC404BondingInstance.totalTierEscrow",
+      "why": "Coin the instance holds against issued band NFTs -- the liability that makes a band redeemable. The holder's surface is their own position; this is the aggregate backing it."
+    },
+    {
+      "match": "ERC404BondingInstance.totalPendingEscrowRelease",
+      "why": "Escrow that a burn has released and that is waiting to leave the instance. See totalTierEscrow."
+    },
+    {
+      "match": "ERC404BondingInstance.freeMintsClaimed",
+      "why": "A running counter of free mints taken, against the allocation the card already reports as reserved supply."
+    },
+    {
+      "match": "ERC404BondingInstance.gatingScope",
+      "why": "Which part of a collection its gating module covers, set once at create from the wizard's own choice. The mint surfaces ask the module whether THIS wallet may mint; the scope is what makes that question the right one to ask."
+    },
+    {
+      "match": "LiquidityDeployerModule.lpFeeRate",
+      "why": "The fee tier a graduated pool is created at. The trading panel reads the pool params it needs to route a swap (`poolFee`, `tickSpacing`, `feeOrHook`) off the module already; the rate under a pool that exists is on the venue."
+    },
+    {
+      "match": "LiquidityDeployerModule.hookFeeBips",
+      "why": "The tithe the graduated pool's hook takes on each swap, fixed at deploy. It is stated as the collection's alignment share wherever the split is claimed, from the split law rather than from a per-module read."
+    },
+    {
+      "$comment": "--- an escrow sweep that takes FROM the only party its surface is shown to ---"
+    },
+    {
+      "match": "DeployBondEscrow.forfeit",
+      "why": "Sends a creator's deploy bond to the protocol treasury once a curve missed its deadline without graduating. Permissionless, so the escrow can never be stranded -- but the app's only bond surface is that creator's own admin panel, where this would be a button asking them to hand over their own deposit. The refund, which is theirs, is the one that has a button there."
+    },
+    {
+      "$comment": "--- the aggregator's own helpers: external only so it can try/catch itself ---"
+    },
+    {
+      "match": "QueryAggregator.erc404CardData",
+      "why": "The aggregator calls this on ITSELF (`try this.erc404CardData(...)`) so one card's whole hydration can fail as a unit and leave the rest of a browse window intact. Its own natspec says `Not for direct use`; the app reads the batch functions that wrap it."
+    },
+    {
+      "match": "QueryAggregator.erc721CardData",
+      "why": "Self-called for the same reason. See erc404CardData."
+    },
+    {
+      "match": "QueryAggregator.erc721AuctionPositions",
+      "why": "Self-called from the portfolio batch, so an instance that is not an auction, reverts, or returns undecodable data yields no positions instead of failing the whole portfolio read. See erc404CardData."
     }
   ]
 }

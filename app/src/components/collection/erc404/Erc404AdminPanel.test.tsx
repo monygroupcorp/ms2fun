@@ -87,6 +87,7 @@ const mockPreviewCarve = vi.hoisted(() => vi.fn<(bps: bigint) => bigint | undefi
 
 vi.mock('wagmi', () => ({
   usePublicClient: () => undefined,
+  useBalance: () => ({ data: undefined, refetch: vi.fn() }),
   useWriteContract: () => ({
     writeContract: mockWriteContract,
     data: undefined,
@@ -126,6 +127,8 @@ vi.mock('../../../generated/contracts', () => ({
     data: mockPreviewCarve(cfg.args[0]),
   }),
   useReadErc404BondingInstanceStakingActive: () => ({ data: false, refetch: vi.fn() }),
+  useReadErc404BondingInstanceReserve: () => ({ data: 0n, refetch: vi.fn() }),
+  useReadErc404BondingInstanceStakingReserve: () => ({ data: 0n, refetch: vi.fn() }),
 }))
 
 const INSTANCE = '0x2222222222222222222222222222222222222222' as const

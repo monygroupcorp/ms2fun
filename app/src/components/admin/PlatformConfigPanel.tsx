@@ -44,6 +44,7 @@ import {
   useReadFeaturedQueueManagerMaxFeaturedSize,
   useReadFeaturedQueueManagerMinDuration,
   useReadErc404FactoryCarveBracketParams,
+  useReadErc404FactoryBondingFeeBps,
   useReadErc404FactoryMinPoolEth,
   useReadGlobalMessageRegistryPostThreshold,
 } from '../../generated/contracts'
@@ -582,9 +583,75 @@ function CarveEconomicsSection() {
 
   return (
     <AdminSection title="graduation economics (erc404)" testId="admin-carve-economics">
+      <BondingFeeRow />
       <MinPoolEthRow />
       <CarveBracketsRow />
     </AdminSection>
+  )
+}
+
+/**
+ * The protocol's cut of every bonding-curve buy. It sits beside the other two graduation knobs
+ * because it is the same kind of lever and the same role sets it; the contract caps it at 300 bps,
+ * so the hint says the ceiling rather than letting a set revert on it.
+ */
+function BondingFeeRow() {
+  const [bps, setBps] = useState('')
+  const { data: current, refetch } = useReadErc404FactoryBondingFeeBps({
+    address: forkAddresses.ERC404Factory,
+    chainId: forkChainId,
+  })
+  const tx = useTxAction({
+    onSuccess: () => {
+      setBps('')
+      void refetch()
+    },
+  })
+  const value = parseAmount(bps, 0) // raw basis points
+  const canSubmit = value !== undefined && value <= 300n
+
+  return (
+    <ActionRow
+      label="bonding fee"
+      hint={`protocol cut of every bonding-curve buy, in basis points (max 300). current: ${
+        current !== undefined ? `${current} bps` : '…'
+      }`}
+    >
+      <div className={styles.form}>
+        <AmountField
+          value={bps}
+          onChange={setBps}
+          placeholder="100"
+          unit="bps"
+          disabled={tx.isBusy}
+          ariaLabel="bonding fee in basis points"
+          testId="admin-bonding-fee-input"
+        />
+        <TxButton
+          state={tx.state}
+          onClick={() => {
+            if (value === undefined || value > 300n) return
+            tx.send({
+              address: forkAddresses.ERC404Factory,
+              abi: erc404FactoryAbi,
+              functionName: 'setBondingFeeBps',
+              args: [value],
+              chainId: forkChainId,
+            })
+          }}
+          label="set bonding fee"
+          className="btn btn-secondary"
+          successLabel="bonding fee set — tx confirmed."
+          onReset={tx.reset}
+          disabled={!canSubmit}
+          {...(value !== undefined && value > 300n
+            ? { disabledHint: 'the contract refuses anything above 300 bps' }
+            : {})}
+          errorText="set failed — try again"
+          testId="admin-set-bonding-fee"
+        />
+      </div>
+    </ActionRow>
   )
 }
 
