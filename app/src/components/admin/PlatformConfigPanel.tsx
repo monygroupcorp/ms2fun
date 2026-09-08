@@ -13,6 +13,11 @@
  * Safes), via useOwnerGate. A non-owner of a registry sees nothing for that section. Everything goes
  * through the Phase-0 useTxAction + TxButton idiom inside AdminSection / ActionRow.
  *
+ * Every numeric row states the value that is live on-chain in its hint (`current: …`) and refetches it
+ * on a confirmed write. A setter that shows nothing asks an operator to overwrite a number they
+ * cannot see, which is how a knob gets retuned to a figure it already held — or away from one somebody
+ * set deliberately last week.
+ *
  * Units (confirmed against src/generated/contracts.ts):
  *   - setDailyRate(uint256 _dailyRate) — ETH/day, parsed as 18-decimal wei.
  *   - setDailyDecayRate(uint256 _dailyDecayRate) — raw uint256 (entered raw, 0 decimals).
@@ -33,6 +38,11 @@ import {
   useReadDeployBondEscrowBondAmount,
   useReadDeployBondEscrowGraceDays,
   useReadDeployBondEscrowMaxBondDuration,
+  useReadFeaturedQueueManagerDailyDecayRate,
+  useReadFeaturedQueueManagerDailyRate,
+  useReadFeaturedQueueManagerMaxDuration,
+  useReadFeaturedQueueManagerMaxFeaturedSize,
+  useReadFeaturedQueueManagerMinDuration,
   useReadErc404FactoryCarveBracketParams,
   useReadErc404FactoryMinPoolEth,
   useReadGlobalMessageRegistryPostThreshold,
@@ -48,6 +58,19 @@ import styles from './PlatformConfigPanel.module.css'
 
 const SECONDS_PER_DAY = 86_400n
 const isAddress = (v: string): boolean => /^0x[0-9a-fA-F]{40}$/.test(v.trim())
+
+/**
+ * A seconds duration in the DAYS the field beside it is entered in. A bound that is not a whole
+ * number of days keeps its remainder in seconds rather than rounding to a figure the operator would
+ * then type back and change.
+ */
+function formatDays(seconds: bigint | undefined): string {
+  if (seconds === undefined) return '…'
+  const days = seconds / SECONDS_PER_DAY
+  const rest = seconds % SECONDS_PER_DAY
+  if (rest === 0n) return `${days}d`
+  return days > 0n ? `${days}d ${rest}s` : `${rest}s`
+}
 
 export function PlatformConfigPanel() {
   return (
@@ -79,12 +102,26 @@ function FeaturedConfigSection() {
 
 function DailyRateRow() {
   const [rate, setRate] = useState('')
-  const tx = useTxAction({ onSuccess: () => setRate('') })
+  const { data: current, refetch } = useReadFeaturedQueueManagerDailyRate({
+    address: forkAddresses.FeaturedQueueManager,
+    chainId: forkChainId,
+  })
+  const tx = useTxAction({
+    onSuccess: () => {
+      setRate('')
+      void refetch()
+    },
+  })
   const value = parseAmount(rate) // ETH/day → wei (18 decimals)
   const canSubmit = value !== undefined
 
   return (
-    <ActionRow label="daily rate" hint="rent charged per featured slot per day (ETH/day)">
+    <ActionRow
+      label="daily rate"
+      hint={`rent charged per featured slot per day (ETH/day). current: ${
+        current !== undefined ? formatEther(current) : '…'
+      } ETH`}
+    >
       <div className={styles.form}>
         <AmountField
           value={rate}
@@ -121,12 +158,26 @@ function DailyRateRow() {
 
 function DecayRateRow() {
   const [decay, setDecay] = useState('')
-  const tx = useTxAction({ onSuccess: () => setDecay('') })
+  const { data: current, refetch } = useReadFeaturedQueueManagerDailyDecayRate({
+    address: forkAddresses.FeaturedQueueManager,
+    chainId: forkChainId,
+  })
+  const tx = useTxAction({
+    onSuccess: () => {
+      setDecay('')
+      void refetch()
+    },
+  })
   const value = parseAmount(decay, 0) // raw uint256
   const canSubmit = value !== undefined
 
   return (
-    <ActionRow label="daily decay rate" hint="per-day decay applied to featured rent (raw uint)">
+    <ActionRow
+      label="daily decay rate"
+      hint={`per-day decay applied to featured rent (raw uint). current: ${
+        current !== undefined ? current.toString() : '…'
+      }`}
+    >
       <div className={styles.form}>
         <AmountField
           value={decay}
@@ -164,10 +215,15 @@ function DecayRateRow() {
 function DurationBoundsRow() {
   const [min, setMin] = useState('')
   const [max, setMax] = useState('')
+  const at = { address: forkAddresses.FeaturedQueueManager, chainId: forkChainId } as const
+  const { data: currentMin, refetch: refetchMin } = useReadFeaturedQueueManagerMinDuration(at)
+  const { data: currentMax, refetch: refetchMax } = useReadFeaturedQueueManagerMaxDuration(at)
   const tx = useTxAction({
     onSuccess: () => {
       setMin('')
       setMax('')
+      void refetchMin()
+      void refetchMax()
     },
   })
   // Entered as DAYS, sent as SECONDS (the contract stores bounds in seconds).
@@ -178,7 +234,9 @@ function DurationBoundsRow() {
   return (
     <ActionRow
       label="duration bounds"
-      hint="min / max featured duration in DAYS (sent on-chain as seconds)"
+      hint={`min / max featured duration in DAYS (sent on-chain as seconds). current: ${formatDays(
+        currentMin,
+      )} / ${formatDays(currentMax)}`}
     >
       <div className={styles.form}>
         <div className={styles.pair}>
@@ -228,12 +286,26 @@ function DurationBoundsRow() {
 
 function MaxSizeRow() {
   const [size, setSize] = useState('')
-  const tx = useTxAction({ onSuccess: () => setSize('') })
+  const { data: current, refetch } = useReadFeaturedQueueManagerMaxFeaturedSize({
+    address: forkAddresses.FeaturedQueueManager,
+    chainId: forkChainId,
+  })
+  const tx = useTxAction({
+    onSuccess: () => {
+      setSize('')
+      void refetch()
+    },
+  })
   const value = parseAmount(size, 0) // raw count
   const canSubmit = value !== undefined
 
   return (
-    <ActionRow label="max featured size" hint="maximum number of simultaneously-featured slots">
+    <ActionRow
+      label="max featured size"
+      hint={`maximum number of simultaneously-featured slots. current: ${
+        current !== undefined ? current.toString() : '…'
+      }`}
+    >
       <div className={styles.form}>
         <AmountField
           value={size}
