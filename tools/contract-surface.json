@@ -369,11 +369,18 @@
       "ERC1155Instance",
       "ERC721AuctionInstance"
     ],
-    "alignmentEndowmentVaultAbi": [
-      "UniAlignmentVault",
-      "ZAMMAlignmentVault",
-      "CypherAlignmentVault"
-    ],
+    "alignmentEndowmentVaultAbi": {
+      "contracts": [
+        "UniAlignmentVault",
+        "ZAMMAlignmentVault",
+        "CypherAlignmentVault"
+      ],
+      "functions": [
+        "vaultType",
+        "accumulatedFees",
+        "totalShares"
+      ]
+    },
     "lpVaultAbi": [
       "UniAlignmentVault",
       "ZAMMAlignmentVault",
@@ -1071,6 +1078,328 @@
     {
       "match": "MasterRegistryV1.instanceByNameHash",
       "why": "The reverse index behind resolveName, which the app reads."
+    },
+    {
+      "$comment": "--- the alignment vault's benefactor surface: every benefactor is a collection instance, never a wallet ---"
+    },
+    {
+      "match": "*.claimFees",
+      "why": "The vault pays a BENEFACTOR, and a benefactor is always a collection instance: the liquidity deployer modules register `p.instance` at graduation and the ERC-1155/721 instances register `address(this)` on every tithe. `msg.sender` is the benefactor here, so a wallet calling it holds no shares and reverts `NoShares`. The creator's path runs through their own instance -- `claimVaultFees` / `claimAllFees`, which every per-type admin panel offers and which forward the proceeds to the owner. The endowment family implements the selector by reverting `NotSupported`: it has no tradable shares, and its claim is `claimYieldPurse`, which the collection's vault panel calls."
+    },
+    {
+      "match": "*.claimFeesAsDelegate",
+      "why": "A delegate's batch claim across several benefactors. Only a benefactor may appoint a delegate (`delegateBenefactor`), and no benefactor is a wallet, so nothing in this deployment can appoint one and no address can be a delegate."
+    },
+    {
+      "match": "*.delegateBenefactor",
+      "why": "Appoints who receives a benefactor's payouts. `msg.sender` must already be a benefactor -- a collection instance -- and no instance forwards this call, so the delegation surface has no caller. The endowment reverts `NotSupported` outright. See claimFees."
+    },
+    {
+      "match": "*.getBenefactorDelegate",
+      "why": "The read paired with delegateBenefactor. Nothing can appoint a delegate here, so it answers the benefactor's own address for every benefactor."
+    },
+    {
+      "match": "*.calculateClaimableAmount",
+      "why": "The interface's claimable read, keyed by benefactor -- a collection instance. On the liquidity families it reports only what has already been crystallized into the fee accumulator: `claimFees` collects the position's new pool fees FIRST and pays more than this. Printed beside a creator's claim button it would under-quote their own money, which is worse than printing nothing. The endowment's equivalent is exact, and is the `pendingYieldOf` the vault panel shows."
+    },
+    {
+      "match": "*.getUnclaimedFees",
+      "why": "Uni's own name for calculateClaimableAmount -- the two compute the same expression against the same watermark. See calculateClaimableAmount."
+    },
+    {
+      "match": "*.getBenefactorContribution",
+      "why": "How much ETH one collection has tithed into this vault over its life. It buys the collection its share of the split, and the share is what pays; the figure a creator acts on is the claim their admin panel offers, not the basis behind it."
+    },
+    {
+      "match": "*.getBenefactorShares",
+      "why": "One collection's share of the vault's fee split. The vault page reports `totalShares`, which says how many claimants the pool is divided between; the per-collection slice is the ledger behind a claim rather than a number anyone acts on."
+    },
+    {
+      "match": "*.benefactorContribution",
+      "why": "The storage mapping behind getBenefactorContribution. See it."
+    },
+    {
+      "match": "*.benefactorTotalETH",
+      "why": "Uni's storage mapping behind getBenefactorContribution. See it."
+    },
+    {
+      "match": "*.benefactorShares",
+      "why": "The storage mapping behind getBenefactorShares. See it."
+    },
+    {
+      "match": "*.benefactorDelegate",
+      "why": "The storage mapping behind getBenefactorDelegate. See it."
+    },
+    {
+      "match": "*.escrowedPrincipal",
+      "why": "The storage mapping behind `principalOf`, which the collection's vault panel reads to show its pre-vest principal."
+    },
+    {
+      "match": "*.vestedPrincipal",
+      "why": "The storage mapping behind `vestedOf` -- principal that has already moved into the target's deployable corpus."
+    },
+    {
+      "match": "*.yieldPurse",
+      "why": "The SETTLED half of a benefactor's claimable creator yield. `pendingYieldOf`, which the vault panel reads, returns it plus the accrual not yet settled into it -- the figure the claim actually pays, and the only one worth showing."
+    },
+    {
+      "match": "*.shareValueAtLastClaim",
+      "why": "The MasterChef accumulator's per-benefactor watermark: the bookkeeping that makes a claim pay the delta rather than the lifetime total. It is not a quantity anyone holds."
+    },
+    {
+      "match": "*.lastClaimTimestamp",
+      "why": "When a benefactor last claimed. Recorded for the accumulator's own audit trail; nothing in the payout depends on it and no surface counts down from it."
+    },
+    {
+      "match": "*.currentPolicy",
+      "why": "The IAlignmentVault policy hook. Every family in this deployment returns empty bytes -- no vault carries a policy, so there is nothing for a surface to render."
+    },
+    {
+      "$comment": "--- a vault's own venue wiring and LP position: how it holds the money, not what it holds it for ---"
+    },
+    {
+      "match": "*.alignmentToken",
+      "why": "The token a vault aligns to, fixed at initialize from the target it was created for. The app names a vault's community from the registry (`getAlignmentTarget`), which carries the title, description and art a reader can act on; the bare token address is the same fact stripped of all of it."
+    },
+    {
+      "match": "*.alignmentTokenDecimals",
+      "why": "Cached at initialize so the vault's own arithmetic need not call out to the token. The app formats through viem, which is told the decimals it needs."
+    },
+    {
+      "match": "*.principalToken",
+      "why": "The token the vault's principal leg is denominated in -- a wired address. See masterRegistry."
+    },
+    {
+      "match": "*.stataToken",
+      "why": "The Aave static-aToken the endowment holds its position in -- a wired address. See masterRegistry."
+    },
+    {
+      "match": "*.positionManager",
+      "why": "A wired venue address (the LP position manager). See masterRegistry."
+    },
+    {
+      "match": "*.swapRouter",
+      "why": "A wired venue address (the periphery router the vault swaps through). See masterRegistry."
+    },
+    {
+      "match": "*.algebraFactory",
+      "why": "A wired venue address (the Algebra factory that names the vault's pool). See masterRegistry."
+    },
+    {
+      "match": "*.v3Factory",
+      "why": "A wired venue address (the v3 factory the price validator reads reference pools from). See masterRegistry."
+    },
+    {
+      "match": "*.zRouterFee",
+      "why": "The pool fee tier the vault acquires its alignment token through, fixed at construction. It describes a route the vault walks inside its own swap; nothing a user does chooses it or sees it."
+    },
+    {
+      "match": "*.zRouterTickSpacing",
+      "why": "The tick spacing paired with zRouterFee. See it."
+    },
+    {
+      "match": "*.v3PreferredFee",
+      "why": "The v3 fee tier preferred when quoting the vault's acquisition route. See zRouterFee."
+    },
+    {
+      "match": "*.maxPriceDeviationBps",
+      "why": "The manipulation bound a quote must pass before the vault swaps against it. It guards a transaction the vault sends itself; what a user sees is the price that passed it."
+    },
+    {
+      "match": "*.twapSecondsAgo",
+      "why": "The TWAP window the price validator averages over, paired with maxPriceDeviationBps. See it."
+    },
+    {
+      "match": "*.v4PoolKey",
+      "why": "The v4 pool the vault holds its position in. A vault is reported here by what it is FOR -- its target, its TVL, its claimants; the position itself is on the venue's own explorer, in more detail than a mirror here could keep true."
+    },
+    {
+      "match": "*.getPoolKey",
+      "why": "The accessor for the vault's pool key. See v4PoolKey."
+    },
+    {
+      "match": "*.poolId",
+      "why": "The vault's pool identifier. See v4PoolKey."
+    },
+    {
+      "match": "*.lpPool",
+      "why": "The vault's pool address. See v4PoolKey."
+    },
+    {
+      "match": "*.lpTokenId",
+      "why": "The NFT id of the vault's LP position. See v4PoolKey."
+    },
+    {
+      "match": "*.lpBalance",
+      "why": "The vault's LP balance in the venue's own units. See v4PoolKey."
+    },
+    {
+      "match": "*.totalLPUnits",
+      "why": "Liquidity units the vault has added across its position's life, in the venue's units. See v4PoolKey."
+    },
+    {
+      "match": "*.lastTickLower",
+      "why": "The lower bound of the range the vault last added to. See v4PoolKey."
+    },
+    {
+      "match": "*.lastTickUpper",
+      "why": "The upper bound of the range the vault last added to. See v4PoolKey."
+    },
+    {
+      "match": "*.tokenIsZero",
+      "why": "Whether the alignment token sorts as currency0 in the vault's pool. Ordering bookkeeping the vault needs to read its own position; it says nothing to a reader."
+    },
+    {
+      "match": "*.validateCurrentPoolKey",
+      "why": "A view that REVERTS rather than returning: the vault's self-check that its configured pool is still one it can safely add to. It is written for the deploy script's post-checks and for a caller simulating a convert, not for a render."
+    },
+    {
+      "match": "*.currentPositionValue",
+      "why": "The live redeemable value of the endowment's whole Aave position -- benefactors' escrow, the target's vested corpus, and yield not yet crystallized, in one number. The vault page reports principal and accrued fees separately, because those are the two a benefactor and a community each act on; the sum is the auditor's figure."
+    },
+    {
+      "$comment": "--- keeper actions: incentivized, and priced by the caller's own slippage bound ---"
+    },
+    {
+      "match": "*.convertAndAddLiquidity",
+      "why": "Turns the vault's pending ETH into liquidity, and pays the caller a reward for running it. It takes a caller-supplied `minOut`, so a button that picks one on a user's behalf is a button deciding how much of the vault's swap a searcher keeps. It is run by whoever wants the reward, with their own bound."
+    },
+    {
+      "match": "*.harvest",
+      "why": "Collects the position's fees and splits them, paying the caller for running it, behind a caller-supplied slippage bound. See convertAndAddLiquidity. (The endowment's `harvest()` takes no bound -- there is no swap in it -- and IS a button, on the collection's vault panel.)"
+    },
+    {
+      "$comment": "--- the vault's pre-conversion queue and its rounding residue ---"
+    },
+    {
+      "match": "*.pendingETH",
+      "why": "ETH received and not yet converted into liquidity, per benefactor. It is the state `convertAndAddLiquidity` consumes, and it moves on a keeper's schedule rather than anything a user does."
+    },
+    {
+      "match": "*.totalPendingETH",
+      "why": "The queue total behind pendingETH. See it."
+    },
+    {
+      "match": "*.pendingContribution",
+      "why": "A contribution received and awaiting conversion. See pendingETH."
+    },
+    {
+      "match": "*.conversionParticipants",
+      "why": "The benefactors who will be credited by the next conversion. See pendingETH."
+    },
+    {
+      "match": "*.lastConversionParticipantIndex",
+      "why": "The resume cursor a paginated conversion walks the participant list with. Internal to the keeper's own call."
+    },
+    {
+      "match": "*.accumulatedDustShares",
+      "why": "Share-rounding residue held back until it is worth distributing. Sub-unit bookkeeping the vault settles on its own."
+    },
+    {
+      "match": "*.dustDistributionThreshold",
+      "why": "The amount of residue that has to build up before the vault distributes it. See accumulatedDustShares."
+    },
+    {
+      "match": "*.vaultFeeCollectionInterval",
+      "why": "The vault's own rate limit on collecting pool fees. It is why a claim sometimes crystallizes nothing new; the claim path calls the collection itself, so nothing has to schedule it."
+    },
+    {
+      "match": "*.lastVaultFeeCollectionTime",
+      "why": "When the rate limit above last let a collection through. See vaultFeeCollectionInterval."
+    },
+    {
+      "$comment": "--- lifetime ledgers: what the vault has moved, for reconciling rather than acting on ---"
+    },
+    {
+      "match": "*.totalContributions",
+      "why": "Everything ever tithed into the vault. The page reports the figures a reader acts on -- accrued fees, benefactor shares, TVL; this is the ledger behind them, and a chain explorer is where a reconciliation is done."
+    },
+    {
+      "match": "*.totalEthLocked",
+      "why": "See totalContributions."
+    },
+    {
+      "match": "*.totalUniqueBenefactors",
+      "why": "The count of collections that have ever tithed here. The vault page lists the collections currently aligned to it, which is the set a reader can follow."
+    },
+    {
+      "match": "*.principalETH",
+      "why": "The vault's principal leg in ETH terms. See totalContributions."
+    },
+    {
+      "match": "*.totalEscrowedPrincipal",
+      "why": "Endowment principal still inside its vest window, across all benefactors. `totalPrincipalLocked` is what the vault page reads for TVL. See totalContributions."
+    },
+    {
+      "match": "*.totalVested",
+      "why": "Principal that has completed its vest. See totalContributions."
+    },
+    {
+      "match": "*.totalVestedDeployable",
+      "why": "Vested principal the target may still deploy. See totalContributions."
+    },
+    {
+      "match": "*.totalDeployedByTarget",
+      "why": "Vested principal the target has already spent. See totalContributions."
+    },
+    {
+      "match": "*.totalPrincipalCommittedAllTime",
+      "why": "Lifetime principal committed, never reduced. See totalContributions."
+    },
+    {
+      "match": "*.totalProtocolFees",
+      "why": "Lifetime protocol-leg yield routed to the treasury. See totalContributions."
+    },
+    {
+      "match": "*.totalYieldToCreators",
+      "why": "Lifetime creator-leg yield. See totalContributions."
+    },
+    {
+      "match": "*.totalYieldToTarget",
+      "why": "Lifetime target-leg yield delivered to the community sink. See totalContributions."
+    },
+    {
+      "$comment": "--- vault configuration reached through the factory that owns every vault it stamped ---"
+    },
+    {
+      "match": "AlignmentEndowmentVault.setCommunityPayout",
+      "why": "The vault's own copy of its community sink. Its `owner` is the FACTORY, not a person, so no wallet reaches it directly -- the factory's `setVaultCommunityPayout` is the door, and that is a protocol-owner action sent from contracts/script. The sink the app actually reads and the console actually sets is the registry's, `AlignmentRegistryV1.setCommunityPayout`, which is what the vault falls back to."
+    },
+    {
+      "match": "AlignmentEndowmentVaultFactory.setVaultCommunityPayout",
+      "why": "Re-points a deployed vault's stored community sink, as the factory that owns it. Protocol-owner configuration with the blast radius of every vault this factory stamped. See setMasterRegistry."
+    },
+    {
+      "match": "UniAlignmentVault.setDustDistributionThreshold",
+      "why": "Retunes the residue threshold on one vault. Its `owner` is the factory, so this is reached only through `UniAlignmentVaultFactory.setVaultDustDistributionThreshold`. See accumulatedDustShares."
+    },
+    {
+      "match": "UniAlignmentVaultFactory.setVaultDustDistributionThreshold",
+      "why": "Retunes a deployed vault's residue threshold, as the factory that owns it -- needed when a vault's alignment token does not use 18 decimals. Protocol-owner configuration, sent from contracts/script."
+    },
+    {
+      "match": "AlignmentEndowmentVaultFactory.canonicalVault",
+      "why": "The factory's one-vault-per-(target, token) index, which exists to REFUSE a duplicate at creation. The app lists vaults from the registry -- the roster this dedup protects -- rather than asking the factory which one is canonical."
+    },
+    {
+      "match": "AlignmentEndowmentVault.execute",
+      "why": "An arbitrary external call spending up to the target's vested corpus, authorised to the ambassador of a curated target. That is sovereign capital, and the ambassador panel says so at the point where it declines to offer it: a web build that can make this call is one stolen build artifact away from making it. De-curating the target freezes the power, and `releaseCorpusToCommunity` is the corpus's exit that survives."
+    },
+    {
+      "match": "UniswapVaultPriceValidator.quoteEthForTokensVia",
+      "why": "The validator's quote, called by the vault inside its own swap to floor the caller's `minOut`. Its caller is a vault, and what a user sees is the price that passed it."
+    },
+    {
+      "match": "UniswapVaultPriceValidator.calculateSwapProportion",
+      "why": "How much of a pending balance to swap so both legs of an LP add are covered. Arithmetic the vault performs on itself, mid-transaction."
+    },
+    {
+      "match": "UniswapVaultPriceValidator.calculateSwapProportionFromSqrtPrice",
+      "why": "The same split computed from a sqrt price the caller already holds. See calculateSwapProportion."
+    },
+    {
+      "match": "ERC1155Instance.genesisVault",
+      "why": "The vault an instance was CREATED with, kept so the revenue split can stay keyed to the family it was launched under even after a migration. The app reads the instance's current `vault` and the registry's vault list; which one was first is a fact for the split, not for a reader."
     }
   ]
 }

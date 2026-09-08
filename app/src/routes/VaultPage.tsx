@@ -103,7 +103,11 @@ export function VaultPage() {
           </section>
 
           {/* Cuts accrued here and not yet pushed to their pinned sinks (liquidity families). */}
-          <VaultDeliveries vault={vault} isEndowment={overview.isEndowment} />
+          <VaultDeliveries
+            vault={vault}
+            isEndowment={overview.isEndowment}
+            targetId={overview.targetId}
+          />
 
           {/* Bound alignment target */}
           {overview.target && (

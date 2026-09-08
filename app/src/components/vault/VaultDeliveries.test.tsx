@@ -17,6 +17,12 @@ const mockReads = vi.hoisted(() =>
 )
 vi.mock('wagmi', () => ({ useReadContracts: mockReads }))
 
+const mockTargetActive = vi.hoisted(() => vi.fn<() => { data: boolean | undefined }>())
+vi.mock('../../generated/contracts', () => ({
+  alignmentEndowmentVaultAbi: [],
+  useReadAlignmentRegistryV1IsAlignmentTargetActive: mockTargetActive,
+}))
+
 const mockSend = vi.hoisted(() => vi.fn())
 vi.mock('../ui/useTxAction', () => ({
   useTxAction: () => ({
@@ -42,12 +48,32 @@ afterEach(() => {
   cleanup()
   mockReads.mockReset()
   mockSend.mockReset()
+  mockTargetActive.mockReset()
 })
 
-test('an endowment vault renders nothing — it has neither push', () => {
+test('an endowment vault with a live target has neither push and no corpus exit', () => {
+  mockTargetActive.mockReturnValue({ data: true })
   reads(ok(10n ** 18n), ok(10n ** 18n))
-  render(<VaultDeliveries vault={VAULT} isEndowment />)
+  render(<VaultDeliveries vault={VAULT} isEndowment targetId={1n} />)
   expect(screen.queryByTestId('vault-deliveries')).not.toBeInTheDocument()
+})
+
+test('a de-curated endowment target releases its stranded corpus to the community', () => {
+  mockTargetActive.mockReturnValue({ data: false })
+  mockReads.mockReturnValue({ data: [ok(3n * 10n ** 18n)], refetch: vi.fn() })
+  render(<VaultDeliveries vault={VAULT} isEndowment targetId={1n} />)
+  expect(screen.getByText('3 ETH')).toBeInTheDocument()
+  fireEvent.click(screen.getByTestId('vault-release-corpus'))
+  expect(mockSend).toHaveBeenLastCalledWith(
+    expect.objectContaining({ address: VAULT, functionName: 'releaseCorpusToCommunity' }),
+  )
+})
+
+test('a de-curated target with an empty corpus offers nothing — the release would move zero', () => {
+  mockTargetActive.mockReturnValue({ data: false })
+  mockReads.mockReturnValue({ data: [ok(0n)], refetch: vi.fn() })
+  render(<VaultDeliveries vault={VAULT} isEndowment targetId={1n} />)
+  expect(screen.queryByTestId('vault-release-corpus')).not.toBeInTheDocument()
 })
 
 test('a vault that answers neither read is not one of the liquidity families, and is skipped', () => {

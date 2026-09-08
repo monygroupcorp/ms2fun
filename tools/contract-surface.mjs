@@ -239,14 +239,27 @@ const skipFor = (row) => skipRules.find((r) => r.hitsContract(row.contract) && r
 //
 // Both are named in the manifest's `aliases`, and both call forms are resolved: the `abi:` +
 // `functionName:` pair, and the generated hook whose identifier carries the contract name.
-const aliasesFor = (contract) =>
+// An alias entry is either a bare contract list (the identifier stands for those contracts across
+// their whole surface -- a slice written for them) or `{contracts, functions}`, which additionally
+// names the selectors it covers. The second form is what makes borrowing another family's binding
+// safe: `alignmentEndowmentVaultAbi` addresses a Uni vault for the three IAlignmentVault views the
+// two declare identically, and for nothing else. Without the bound, the endowment's no-argument
+// `harvest()` hook would credit the liquidity families' `harvest(uint256)` -- a different function,
+// behind a slippage bound the endowment's caller never supplies, on a panel that never renders for
+// them. That is an over-credit stating a path that does not exist.
+const aliasesFor = (contract, fn) =>
   Object.entries(manifest.aliases ?? {})
-    .filter(([, targets]) => Array.isArray(targets) && (targets.includes('*') || targets.includes(contract)))
+    .filter(([, v]) => {
+      const targets = Array.isArray(v) ? v : v?.contracts;
+      if (!Array.isArray(targets)) return false;
+      if (!targets.includes('*') && !targets.includes(contract)) return false;
+      return Array.isArray(v?.functions) ? v.functions.includes(fn) : true;
+    })
     .map(([ident]) => ident);
 
 for (const row of surface) {
   const ident = abiIdent(row.contract);
-  const idents = [ident, ...aliasesFor(row.contract)];
+  const idents = [ident, ...aliasesFor(row.contract, row.fn)];
   // A hand-written slice has no generated hooks, so its name yields one that matches nothing --
   // harmless, and cheaper than tracking which aliases are bindings and which are slices.
   const hooks = idents.map((i) => hookName(i, row.fn));

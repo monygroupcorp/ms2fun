@@ -14,13 +14,23 @@
  * accrued indefinitely with nothing on the vault's own page saying so. This is that page's row for
  * it: the amounts when there is something to deliver, and the button next to each.
  *
- * Endowment vaults are excluded — they accrue and deliver the target leg on their own terms
- * (`flushTargetFees`, on the collection's vault panel) and expose no protocol-cut push at all.
+ * An endowment vault splits on different weights and delivers its target leg through
+ * `flushTargetFees`, on the collection's own vault panel — so it has neither push here. It has one
+ * delivery of its own, and only in a terminal state: once its target is DE-CURATED, the corpus that
+ * vested into that community can no longer be spent by an ambassador (the vault freezes `execute` on
+ * an inactive target) and `releaseCorpusToCommunity` is the only way it moves. That call is
+ * permissionless and non-discretionary in both arguments it does not take — the whole corpus, to the
+ * registry's sink — so it hands a de-curated ambassador nothing, and leaving it uncalled strands the
+ * community's own money. It is offered here, on the page for the vault holding it.
  */
 import { useReadContracts } from 'wagmi'
 import { formatEther } from 'viem'
+import {
+  alignmentEndowmentVaultAbi,
+  useReadAlignmentRegistryV1IsAlignmentTargetActive,
+} from '../../generated/contracts'
 import { lpVaultAbi } from '../../lib/vaults/lpVaultAbi'
-import { forkChainId } from '../../lib/addresses'
+import { forkAddresses, forkChainId } from '../../lib/addresses'
 import { TxButton } from '../ui/TxButton'
 import { useTxAction } from '../ui/useTxAction'
 import styles from './VaultDeliveries.module.css'
@@ -28,9 +38,12 @@ import styles from './VaultDeliveries.module.css'
 export function VaultDeliveries({
   vault,
   isEndowment,
+  targetId,
 }: {
   vault: `0x${string}`
   isEndowment: boolean
+  /** The vault's bound target, from the registry. Undefined for an unregistered vault. */
+  targetId?: bigint | undefined
 }) {
   const at = { address: vault, abi: lpVaultAbi, chainId: forkChainId } as const
   // allowFailure: a vault that is not one of the three liquidity families answers neither read, and
@@ -47,7 +60,7 @@ export function VaultDeliveries({
   const targetFees = data?.[0]?.status === 'success' ? data[0].result : undefined
   const protocolFees = data?.[1]?.status === 'success' ? data[1].result : undefined
 
-  if (isEndowment) return null
+  if (isEndowment) return <CorpusRelease vault={vault} targetId={targetId} />
   if (targetFees === undefined && protocolFees === undefined) return null
   if (targetFees === 0n && (protocolFees ?? 0n) === 0n) return null
 
@@ -78,6 +91,79 @@ export function VaultDeliveries({
           testId="vault-deliver-protocol"
         />
       )}
+    </section>
+  )
+}
+
+/**
+ * The endowment's de-curation exit. Rendered only once BOTH conditions the contract checks hold —
+ * the target is inactive and there is a corpus left — because `releaseCorpusToCommunity` reverts
+ * `TargetStillCurated` on a live target and returns zero on an empty one, and a button that appears
+ * on every endowment vault to do nothing on almost all of them says nothing at all.
+ */
+function CorpusRelease({
+  vault,
+  targetId,
+}: {
+  vault: `0x${string}`
+  targetId: bigint | undefined
+}) {
+  const { data: active } = useReadAlignmentRegistryV1IsAlignmentTargetActive({
+    address: forkAddresses.AlignmentRegistryV1,
+    chainId: forkChainId,
+    args: targetId !== undefined ? [targetId] : undefined,
+    query: { enabled: targetId !== undefined },
+  })
+  const { data: corpus, refetch } = useReadContracts({
+    allowFailure: true,
+    contracts: [
+      {
+        address: vault,
+        abi: alignmentEndowmentVaultAbi,
+        functionName: 'deployableCorpus',
+        chainId: forkChainId,
+      },
+    ],
+    query: { enabled: active === false },
+  })
+  const tx = useTxAction({
+    onSuccess: () => {
+      void refetch()
+    },
+  })
+
+  const amount = corpus?.[0]?.status === 'success' ? corpus[0].result : undefined
+  if (active !== false || amount === undefined || amount === 0n) return null
+
+  return (
+    <section className={styles.section} data-testid="vault-deliveries">
+      <h2 className={styles.title}>Undelivered</h2>
+      <p className={styles.note}>
+        This vault&rsquo;s community was de-curated, which freezes any further spending from its
+        vested corpus. Releasing it sends the whole corpus to the community&rsquo;s own payout
+        address — the destination the registry pins, not one the caller picks. Anyone may send it.
+      </p>
+      <div className={styles.row}>
+        <span className={styles.label}>vested corpus</span>
+        <span className={styles.amount}>{formatEther(amount)} ETH</span>
+        <TxButton
+          state={tx.state}
+          onClick={() =>
+            tx.send({
+              address: vault,
+              abi: alignmentEndowmentVaultAbi,
+              functionName: 'releaseCorpusToCommunity',
+              chainId: forkChainId,
+            })
+          }
+          label="release to community"
+          className="btn btn-secondary"
+          successLabel="corpus released — tx confirmed."
+          onReset={tx.reset}
+          errorText="release failed — try again"
+          testId="vault-release-corpus"
+        />
+      </div>
     </section>
   )
 }
