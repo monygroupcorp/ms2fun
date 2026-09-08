@@ -5,9 +5,14 @@
  * generated `erc404BondingInstanceAbi` on the fork chain, refetching the relevant read on success.
  *
  * Actions: bonding lifecycle (active toggle, open/maturity time), metadata/style URIs, vault
- * (migrate, claim all fees), agent delegation, and (noesis-080) configure allowlist — shown only when
- * the instance has a gating module set (today the only deployed gating module IS MerkleGatingModule;
- * PasswordTierGating was dropped in noesis-065).
+ * (migrate, claim all fees, flush a stranded graduation tithe), agent delegation, and (noesis-080)
+ * configure allowlist — shown only when the instance has a gating module set (today the only deployed
+ * gating module IS MerkleGatingModule; PasswordTierGating was dropped in noesis-065).
+ *
+ * The stranded-tithe row is the one action here that is not the owner's alone: a graduation cut the
+ * alignment vault could not take is stashed on the liquidity module, and re-sending it is
+ * permissionless by design. It is laid out with the other vault rows because the owner is who notices,
+ * but anyone may send it.
  *
  * ABI note: the generated metadata setter is `setMetadataURI` (uppercase URI), not `setMetadataUri`.
  */
@@ -30,6 +35,7 @@ import {
   useReadErc404BondingInstancePreviewCarve,
   useReadErc404BondingInstanceStakingActive,
 } from '../../../generated/contracts'
+import { formatPrice } from '../../../lib/format'
 import { useCollection } from '../../useCollection'
 import { useCollectionMetadata } from '../../useCollectionMetadata'
 import { useCollectionAddresses, useCollectionChainId } from '../useCollectionChain'
@@ -55,6 +61,7 @@ import { useTxAction } from '../../ui/useTxAction'
 import { MetadataArtistPanel } from './MetadataArtistPanel'
 import { canDeployLiquidity, derivePhase } from './bondingPhase'
 import { useBondingData } from './useBondingData'
+import { useStrandedTithe } from './useStrandedTithe'
 import { useNowSec } from './useNowSec'
 import styles from './Erc404AdminPanel.module.css'
 
@@ -139,6 +146,7 @@ export function Erc404AdminPanel({ instance }: Erc404AdminPanelProps) {
         <MetadataArtistPanel instance={instance} />
         <MigrateVaultRow instance={instance} />
         <ClaimAllFeesRow instance={instance} />
+        <StrandedTitheRow instance={instance} />
         <SetAgentDelegationRow instance={instance} />
         <AllowlistConfigRow instance={instance} />
       </AdminSection>
@@ -687,6 +695,38 @@ function ClaimAllFeesRow({ instance }: { instance: `0x${string}` }) {
         onReset={tx.reset}
         className="btn btn-secondary"
         testId="erc404-admin-claim-all-fees"
+      />
+    </ActionRow>
+  )
+}
+
+// ── vault: flush a stranded graduation tithe (permissionless) ──────────────────
+
+function StrandedTitheRow({ instance }: { instance: `0x${string}` }) {
+  const { amount, canFlush, flush, tx } = useStrandedTithe(instance)
+
+  return (
+    <ActionRow
+      label="flush stranded tithe"
+      hint={
+        amount === undefined
+          ? 'permissionless — re-send a graduation cut the alignment vault could not take'
+          : amount === 0n
+            ? 'nothing stranded — the graduation cut was delivered'
+            : `${formatPrice(amount)} stranded on the liquidity module — permissionless to re-send`
+      }
+    >
+      <TxButton
+        state={tx.state}
+        onClick={flush}
+        label="flush tithe"
+        successLabel="stranded tithe re-sent — tx confirmed."
+        onReset={tx.reset}
+        className="btn btn-secondary"
+        disabled={!canFlush}
+        disabledHint="the flush reverts with nothing stashed"
+        errorText="flush failed — try again"
+        testId="erc404-admin-flush-tithe"
       />
     </ActionRow>
   )
