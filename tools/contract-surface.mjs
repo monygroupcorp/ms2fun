@@ -57,6 +57,10 @@ const abiIdent = (name) => {
 };
 const pascal = (s) => s[0].toUpperCase() + s.slice(1);
 
+// The generated hook identifier for one (ABI identifier, function) pair -- `alignmentEndowmentVaultAbi`
+// + `totalShares` -> `AlignmentEndowmentVaultTotalShares`, which `useRead…`/`useWrite…` prefix.
+const hookName = (ident, fn) => `${pascal(ident.replace(/Abi$/, ''))}${changeCasePascal(fn)}`;
+
 // wagmi runs the FUNCTION half through change-case's pascalCase, which splits on case boundaries and
 // lowercases the rest of every word -- so `setMetadataURI` becomes `SetMetadataUri` and, less
 // obviously, `rerollSelectedNFTs` becomes `RerollSelectedNfTs` (the split falls inside `NFTs`).
@@ -185,7 +189,7 @@ const wrong = [];
 for (const row of surface) {
   const ident = abiIdent(row.contract);
   if (!generated.includes(`export const ${ident}`)) continue; // no bindings for it; nothing to check
-  const hook = `${pascal(ident.replace(/Abi$/, ''))}${changeCasePascal(row.fn)}`;
+  const hook = hookName(ident, row.fn);
   if (!emitted.has(hook)) wrong.push(`  ${row.contract}.${row.fn} -> use*${hook}`);
 }
 if (wrong.length)
@@ -222,21 +226,36 @@ const skipFor = (row) => skipRules.find((r) => r.hitsContract(row.contract) && r
 
 // ---------------------------------------------------------------- resolve
 
-// A UI path may address a contract through a hand-written ABI slice rather than the generated
-// binding -- useVaultsSummary's three-fragment `vaultSummaryAbi` exists precisely because the full
-// vault ABI blows up TS inference. Those slices are named in the manifest, because which contract a
-// local slice speaks to is a fact about intent that no amount of reading the file recovers.
+// A UI path may address a contract through an ABI identifier that is not its own generated binding,
+// and which one it is cannot be recovered by reading the file:
+//
+//  - a hand-written slice -- useVaultsSummary's three-fragment `vaultSummaryAbi` exists precisely
+//    because the full vault ABI blows up TS inference;
+//  - ANOTHER contract's generated binding, where the two share an interface. The four alignment
+//    vaults all implement IAlignmentVault, so `useVaultOverview` reads vaultType/accumulatedFees/
+//    totalShares off any of them through the endowment family's binding: same selector, same
+//    address, one hook instead of four. Reading that as "nobody calls totalShares on a Uni vault"
+//    would push three live functions into the skip list and state a falsehood there.
+//
+// Both are named in the manifest's `aliases`, and both call forms are resolved: the `abi:` +
+// `functionName:` pair, and the generated hook whose identifier carries the contract name.
 const aliasesFor = (contract) =>
   Object.entries(manifest.aliases ?? {})
-    .filter(([, targets]) => targets.includes('*') || targets.includes(contract))
+    .filter(([, targets]) => Array.isArray(targets) && (targets.includes('*') || targets.includes(contract)))
     .map(([ident]) => ident);
 
 for (const row of surface) {
   const ident = abiIdent(row.contract);
   const idents = [ident, ...aliasesFor(row.contract)];
-  const hook = `${pascal(ident.replace(/Abi$/, ''))}${changeCasePascal(row.fn)}`;
+  // A hand-written slice has no generated hooks, so its name yields one that matches nothing --
+  // harmless, and cheaper than tracking which aliases are bindings and which are slices.
+  const hooks = idents.map((i) => hookName(i, row.fn));
   row.paths = index
-    .filter((f) => (idents.some((i) => f.abis.has(i)) && f.names.has(row.fn)) || f.hooks.has(hook))
+    .filter(
+      (f) =>
+        (idents.some((i) => f.abis.has(i)) && f.names.has(row.fn)) ||
+        hooks.some((h) => f.hooks.has(h)),
+    )
     .map((f) => f.path);
   row.interfaces = [...new Set(row.paths.map(interfaceOf).filter(Boolean))].sort();
   row.unplaced = row.paths.filter((p) => interfaceOf(p) === null);
