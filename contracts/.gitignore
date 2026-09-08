@@ -7,6 +7,11 @@ out/
 cache/
 broadcast/
 
+# Artifacts of the real-v4 regression config, which compiles the shared source graph under a
+# second solc and so is kept out of `out/` entirely (see foundry.v4.toml).
+out-v4/
+cache-v4/
+
 # Internal docs (promote to docs/spec/ or docs/examples/ when ready)
 docs/*
 !docs/spec/

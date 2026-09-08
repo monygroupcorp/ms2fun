@@ -15,10 +15,22 @@
 #
 #   FOUNDRY_CONFIG=foundry.v4.toml forge test --match-path test/hooks/UniAlignmentV4Hook_RealSettlement.t.sol
 #
+# WHY ITS OWN `out`/`cache_path` (not the default `out`/`cache`): under this config the shared
+# source graph is compiled by a DIFFERENT solc, and forge keeps both results by disambiguating the
+# second one with a path segment -- a contract already written to `out/<file>.sol/<Name>.json`
+# gains a second artifact at `out/<subdir>/<file>.sol/<Name>.json`. The wagmi binding generator
+# globs `out` by artifact path (app/wagmi.config.ts), and a glob written for the first path also
+# matches the second, so the same contract is resolved twice and generation aborts with
+# `Contract name "<Name>" must be unique.` Sharing `out` therefore made the bindings-drift gate
+# depend on what had been compiled before it: green from a clean tree, red for anyone who ran the
+# contracts gate first, since that gate ends with this config. A separate artifact directory keeps
+# the 0.8.28 set that the bindings are generated from single-version and order-independent.
+#
 # Remappings mirror foundry.toml so the shared source graph resolves identically.
 [profile.default]
 src = "src"
-out = "out"
+out = "out-v4"
+cache_path = "cache-v4"
 libs = ["lib"]
 auto_detect_solc = true
 optimizer = true
