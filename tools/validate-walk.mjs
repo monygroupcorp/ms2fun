@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // Gate the testnet walk against the app it describes. Read-only, no network, no model.
 //
-//   node tools/validate-walk.mjs            # the gate. exit 1 = findings
-//   node tools/validate-walk.mjs --print    # render the walk a tester follows
+//   node tools/validate-walk.mjs                     # the gate. exit 1 = findings
+//   node tools/validate-walk.mjs --print             # render the whole walk
+//   node tools/validate-walk.mjs --invite <role>     # the packet one tester is handed
+//   node tools/validate-walk.mjs --report <step id>  # the form a finding comes back on
 //
 // A walkthrough written by hand rots the week after it is written: a panel gains a button, a route
 // moves, a function is renamed, and the document goes on describing the app of the day it was
@@ -20,6 +22,14 @@
 //                 A panel moved to a different page turns this red.
 //   honesty       every site the scan could not resolve is acknowledged in blindSpots, so the walk
 //                 states its own coverage rather than implying it is total.
+//   invitability  every role owns steps and says what to bring, and the walk names where a finding
+//                 goes and what it has to carry. A role nobody can be invited as, or a walk that
+//                 collects nothing, turns this red.
+//
+// The three renderers read the same file the gate just checked, so the invite a tester is handed and
+// the form their defect comes back on cannot describe a walk the app no longer has. --invite refuses
+// on a chain whose deployment file still holds the zero placeholder: an invite to a dead link spends
+// a tester nobody gets to invite twice.
 //
 // What this does NOT cover, and no static check can: whether a step's instructions are followable,
 // whether its `expect` is the right acceptance bar, or whether anybody walked it. That is what the
@@ -140,6 +150,23 @@ for (const [role, what] of Object.entries(manifest.roles)) {
   }
 }
 
+// An invite is rendered per role, so a role has to be something a person can actually be sent as:
+// it needs steps of its own, and it needs a list of what to turn up with. Without the second the
+// invite is "walk act B" and the tester discovers at step 3 that they needed a live collection.
+const actRoles = new Set(manifest.acts.map((act) => act.role));
+for (const role of Object.keys(manifest.roles)) {
+  if (!actRoles.has(role)) fail(`role ${role} owns no act — an invite for it would print an empty walk`);
+  if (!manifest.prerequisites?.[role]?.length) fail(`role ${role}: no prerequisites — an invite cannot say what to bring`);
+}
+for (const role of Object.keys(manifest.prerequisites ?? {})) {
+  if (!manifest.roles[role]) fail(`prerequisites names role '${role}', which manifest.roles does not define`);
+}
+
+// The return path. A walk that collects nothing is a rehearsal, so the destination and the fields a
+// finding must carry are part of the manifest and are checked like anything else in it.
+if (!manifest.report?.destination?.trim()) fail('report.destination is empty — a walk with no return path collects nothing');
+if (!manifest.report?.include?.length) fail('report.include is empty — a finding with no required fields is a paragraph, not a row');
+
 const excused = new Map();
 for (const entry of manifest.outOfWalk ?? []) {
   if (!surface.writes.has(entry.call)) fail(`outOfWalk names ${entry.call}, which the app does not send — delete the line`);
@@ -167,7 +194,158 @@ for (const spot of manifest.blindSpots ?? []) {
   if (!live) fail(`blindSpots names ${spot.site}, which the scan now resolves — delete the line`);
 }
 
+/* ---- the chain an invite names --------------------------------------------------------------- */
+
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+const SEPOLIA = 11155111;
+const CHAIN_NAMES = { 1: 'Ethereum mainnet', 1337: 'the local anvil fork', [SEPOLIA]: 'Sepolia' };
+
+// Mirrors app/src/lib/addresses.ts: one deployment file per chain, keyed by the chain id the file
+// itself declares, and a chain counts as deployed when its MasterRegistryV1 is not the zero address
+// — every read path in the app starts at that registry, so a zero there is a dead app whatever else
+// the file carries. local-deployment.sepolia.json is the dev channel's substitution at the same
+// chain id and is left out here for the reason an ordinary build leaves it out: it is not the
+// network a remote tester can reach.
+function deployments() {
+  const byChain = new Map();
+  for (const file of ['app/src/config/local-deployment.json', 'app/src/config/sepolia-deployment.json']) {
+    const d = JSON.parse(readFileSync(file, 'utf8'));
+    const registry = d.contracts?.MasterRegistryV1 ?? ZERO_ADDRESS;
+    byChain.set(d.chainId, { ...d, file, registry, live: registry !== ZERO_ADDRESS });
+  }
+  return byChain;
+}
+
+function chainLine(chain) {
+  const name = CHAIN_NAMES[chain.chainId] ?? `chain ${chain.chainId}`;
+  return `${name} (${chain.chainId}) · MasterRegistryV1 ${chain.registry} · from block ${chain.deployBlock ?? 0}`;
+}
+
+const flag = (name) => {
+  const i = process.argv.indexOf(name);
+  return i === -1 ? undefined : process.argv[i + 1];
+};
+
 /* ---- render -------------------------------------------------------------------------------- */
+
+// The packet one named tester is handed: the role they walk, what to bring, the steps that are
+// theirs, the steps somebody else has to have walked first, and where a finding goes. It is derived
+// from the same manifest the gate just checked, so an invite cannot describe a walk the app no
+// longer has — and it refuses outright on a chain whose protocol is not deployed, because an invite
+// to a placeholder address is the dead link that wastes a tester's one first impression.
+const inviteRole = flag('--invite');
+if (inviteRole !== undefined) {
+  if (findings.length) {
+    console.log('\nNo invite printed: the findings above mean this walk no longer describes the app.');
+    process.exit(1);
+  }
+  if (!manifest.roles[inviteRole]) {
+    console.log(`\nNo invite printed: '${inviteRole}' is not a role. Roles: ${Object.keys(manifest.roles).join(', ')}`);
+    process.exit(1);
+  }
+  const chainId = Number.parseInt(flag('--chain') ?? String(SEPOLIA), 10);
+  const chain = deployments().get(chainId);
+  if (!chain) {
+    console.log(`\nNo invite printed: this build carries no deployment for chain ${chainId}. Known: ${[...deployments().keys()].join(', ')}`);
+    process.exit(1);
+  }
+  if (!chain.live) {
+    console.log(
+      `\nNo invite printed: ${chain.file} still holds the zero placeholder, so nothing is deployed on ` +
+        `${CHAIN_NAMES[chainId] ?? `chain ${chainId}`} yet. Deploy first; an invite to a dead link spends a tester ` +
+        `you only get to invite once.`,
+    );
+    process.exit(1);
+  }
+
+  const mine = manifest.acts.filter((act) => act.role === inviteRole);
+  const myIds = new Set(mine.flatMap((act) => act.steps.map((s) => s.id)));
+  const myStepCount = mine.reduce((n, act) => n + act.steps.length, 0);
+  const myBlocking = mine.reduce((n, act) => n + act.steps.filter((s) => s.blocking).length, 0);
+  // Steps lean on each other across acts ("given: the free allocation set in C-8"). Anything a step
+  // of this role names that belongs to another role is somebody else's turn, and saying so up front
+  // is the difference between a tester waiting and a tester filing a defect against the wait.
+  const upstream = new Set();
+  const prose = [
+    manifest.roles[inviteRole],
+    ...mine.map((act) => act.note ?? ''),
+    ...mine.flatMap((act) => act.steps.flatMap((s) => [s.title, s.given, s.do, s.expect])),
+  ].join(' ');
+  for (const m of prose.matchAll(/\b([OCBH]-\d+)\b/g)) {
+    if (!myIds.has(m[1])) upstream.add(m[1]);
+  }
+
+  console.log(`\n# ${manifest.title} — you are walking as the ${inviteRole}\n`);
+  console.log(`${manifest.purpose}\n`);
+  console.log(`## The chain\n\n${chainLine(chain)}\n`);
+  console.log(`## Who you are\n\n${manifest.roles[inviteRole]}\n`);
+  console.log('## What to bring\n');
+  for (const need of manifest.prerequisites[inviteRole]) console.log(`- ${need}`);
+  if (upstream.size) {
+    console.log('\n## What somebody else walks\n');
+    console.log('Your steps refer to these and none of them is yours. Where one is a precondition rather than a');
+    console.log('cross-reference, the step that needs it says so in its own `given`.\n');
+    // In walk order, not alphabetical — C-15 before C-2 reads as a typo, and the order a tester is
+    // told to wait for things in is the order somebody has to walk them in.
+    for (const step of steps.filter((s) => upstream.has(s.id))) {
+      console.log(`- ${step.id} (${step.act.role}) — ${step.title}`);
+    }
+  }
+  console.log(`\n## Your steps — ${myStepCount}, of which ${myBlocking} ${myBlocking === 1 ? 'is' : 'are'} blocking\n`);
+  for (const act of mine) {
+    console.log(`### Act ${act.id} — ${act.title}\n`);
+    if (act.note) console.log(`${act.note}\n`);
+    for (const step of act.steps) {
+      console.log(`- **${step.id}. ${step.title}**${step.blocking ? '   [blocking]' : ''}`);
+      console.log(`  - where: ${step.route === '*' ? 'anywhere in the app' : step.route}`);
+      console.log(`  - given: ${step.given}`);
+      console.log(`  - do: ${step.do}`);
+      console.log(`  - expect: ${step.expect}`);
+    }
+    console.log('');
+  }
+  console.log(`## When something is wrong\n\n${manifest.blockingRule}\n`);
+  console.log(`${manifest.report.destination}\n`);
+  if (manifest.report.secondary) console.log(`${manifest.report.secondary}\n`);
+  console.log('Send one report per step, and include:\n');
+  for (const field of manifest.report.include) console.log(`- ${field}`);
+  console.log(
+    `\nThe walk will fill the form in for you: node tools/validate-walk.mjs --report ${mine[0].steps[0].id} --chain ${chainId}\n`,
+  );
+  process.exit(0);
+}
+
+// One finding, in the shape a row is filed in. The step id, its route, the calls it sends, its own
+// acceptance bar and — the part a tester should never have to decide — whether it blocks a launch,
+// all filled in from the manifest, leaving only what the tester saw. A defect reported this way is
+// already a row; one reported as a paragraph has to be turned into one by somebody who was not there.
+const reportStep = flag('--report');
+if (reportStep !== undefined) {
+  const step = steps.find((s) => s.id === reportStep);
+  if (!step) {
+    console.log(`\n'${reportStep}' is not a step — --print lists every one of them.`);
+    process.exit(1);
+  }
+  const chainId = Number.parseInt(flag('--chain') ?? String(SEPOLIA), 10);
+  const chain = deployments().get(chainId);
+  console.log(`\n## ${step.id} — ${step.title}${step.blocking ? '   [blocking]' : ''}\n`);
+  console.log(`- chain: ${chain ? chainLine(chain) : `${chainId} — not a chain this build carries a deployment for`}`);
+  console.log(`- walked as: ${step.act.role}`);
+  console.log(`- where: ${step.route === '*' ? 'anywhere in the app' : step.route}`);
+  console.log(`- sends: ${step.calls.join(', ')}`);
+  console.log(`- the walk says to expect: ${step.expect}`);
+  console.log('- what I did:');
+  console.log('- what happened instead:');
+  console.log('- transaction hash, or the wallet error if it never sent:');
+  console.log(
+    `\n${
+      step.blocking
+        ? 'This step is blocking: if it failed, the row it opens has to be closed before launch.'
+        : 'This step is not blocking: the row it opens has to exist, and may still be open at launch.'
+    }\n`,
+  );
+  process.exit(0);
+}
 
 if (process.argv.includes('--print')) {
   const blockingCount = steps.filter((s) => s.blocking).length;
@@ -192,11 +370,15 @@ if (process.argv.includes('--print')) {
   for (const entry of manifest.outOfWalk ?? []) console.log(`- \`${entry.call}\` — ${entry.why}`);
   console.log('\n## What this walk does not see\n');
   for (const spot of manifest.blindSpots ?? []) console.log(`- \`${spot.site}\` — ${spot.why}`);
-  console.log(`\n## When something is wrong\n
-Write it down as a noesis row the moment you see it, with the step id, what you did, what you
-expected from this page, and what happened instead. A step marked [blocking] that fails is a row
-that has to be closed before launch; every other failure is a row that has to exist. ${blockingCount}
-of ${steps.length} steps are blocking.\n`);
+  console.log(`\n## When something is wrong\n`);
+  console.log(`${manifest.report.destination}\n`);
+  if (manifest.report.secondary) console.log(`${manifest.report.secondary}\n`);
+  console.log('Send one report per step, and include:\n');
+  for (const field of manifest.report.include) console.log(`- ${field}`);
+  console.log(
+    `\n\`node tools/validate-walk.mjs --report <step id>\` prints that list already filled in for one step.` +
+      ` ${blockingCount} of ${steps.length} steps are blocking.\n`,
+  );
 }
 
 /* ---- report -------------------------------------------------------------------------------- */

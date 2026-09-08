@@ -98,10 +98,15 @@ jobs:
       # tester cannot reach it, and every step's route has to actually reach the code that sends
       # its calls. A panel that gains a button, or a page that moves, fails here — which is the
       # point: the walk two testers follow cannot quietly stop being a description of the app.
-      # No network, no build artifacts; it reads app/src and the committed bindings.
+      # No network, no build artifacts; it reads app/src and the committed bindings. The second line
+      # renders the walk: the invite a tester is handed and the form their defect comes back on are
+      # rendered from this same file, so a renderer that cannot walk it is caught here rather than in
+      # front of the tester.
       - name: Testnet walk covers the app (G8)
         working-directory: ${{ github.workspace }}
-        run: node tools/validate-walk.mjs
+        run: |
+          node tools/validate-walk.mjs
+          node tools/validate-walk.mjs --print > /dev/null
 
       # The Playwright e2e suite (app/e2e/) is NOT part of this workflow. Most of its specs are
       # tagged @fork and read an anvil mainnet-fork on :8545 with the platform contracts deployed,

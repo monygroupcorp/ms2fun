@@ -9,6 +9,38 @@
     "artist": "holds the overlay-module role on a collection whose art is published in waves. Reached on a collection whose overlay module was wired at launch in C-1."
   },
   "blockingRule": "A step marked blocking:true is one whose failure stops a launch — money moves wrongly, or a person cannot complete a thing the app offered them. A failure on any step is filed as a noesis row either way; blocking says whether the row is allowed to stay open when the launch button is pressed.",
+  "prerequisites": {
+    "operator": [
+      "the wallet that owns the protocol on the chain you are walking — the address that ran the deploy",
+      "enough test ETH for about twenty transactions",
+      "the deployed addresses, which the app already carries for the chain it was built against"
+    ],
+    "creator": [
+      "a wallet with test ETH — enough to seed a pool, so ask for more than a faucet's default drip",
+      "one image file to launch with, under a few megabytes",
+      "nothing else: no allowlist, no approval, no prior standing"
+    ],
+    "collector": [
+      "a wallet with test ETH — a single faucet drip is enough for act B",
+      "a collection that is already live, which act C produces; if nobody has walked C yet, walk it first or ask for the address of one that has"
+    ],
+    "artist": [
+      "a wallet with test ETH",
+      "the overlay-module role on a live collection, which the creator grants during act C"
+    ]
+  },
+  "report": {
+    "destination": "Reply to the post you were invited from. That is the channel the invite came down, and it is where a reply is read.",
+    "secondary": "The app's own /board is public, permissionless and on-chain, so a report posted there is one anybody can read back. One trap: the feed shows only posts whose attached value clears the registry's postThreshold. The in-app composer defaults the amount to the live threshold, so post through the composer rather than by hand and your report will be visible.",
+    "include": [
+      "the step id — every finding is filed against one, and a finding with no step id is a finding nobody can walk back to",
+      "what you did, in the words you would use to do it again",
+      "what you expected, which is the step's own expect line, not your guess at it",
+      "what happened instead, with the screen you were on",
+      "the transaction hash if the wallet got as far as sending one, and the wallet's own error if it did not",
+      "the chain id and the address of MasterRegistryV1 the invite printed, so the run can be told from any other run"
+    ]
+  },
   "acts": [
     {
       "id": "O",
