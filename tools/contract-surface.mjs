@@ -29,6 +29,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { valueAfter } from './lib/walk-surface.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const MANIFEST = join(ROOT, 'tools', 'contract-surface.json');
@@ -121,33 +122,35 @@ let files;
 try { files = walk(APP_SRC); }
 catch (e) { die(`cannot read ${relative(ROOT, APP_SRC)}: ${e.message}`); }
 
-// The app names a function three ways, and a detector that knows only the first reports a live panel
+// The app names a function four ways, and a detector that knows only the first reports a live panel
 // as a function nobody calls. That is the failure mode that turns this gate into fiction, because the
 // skip rule someone then writes to silence it states a falsehood in the open.
 //   functionName: 'setBondingActive'                                  the plain call
 //   functionName="setMetadataURI"                                     handed to a shared editor as a prop
+//   functionName: isEndowment ? 'flushTargetFees' : 'withdrawTargetFees'   one panel, two contracts
 //   functionName: fn  with  fn: 'addAmbassador' | 'removeAmbassador'  forwarded from a union
-// A union yields every literal in it: the caller picks one at runtime, so the path exists for all of them.
+// So the value is read as an EXPRESSION and never as a literal shape, and every literal in it counts:
+// in a union or a ternary the caller picks one at runtime, so the path exists for all of them. This is
+// `valueAfter` from the walk's own scanner rather than a second reader, because the two gates
+// disagreeing about what a call site is, is exactly the way one of them starts stating a falsehood --
+// the ternary above was a live path in CommunityPayoutPanel that this file could not see and the walk
+// could, until they were made to read the same way.
 const LITERAL = /['"`]([A-Za-z0-9_$]+)['"`]/g;
 
-// Only one unbroken `'a' | 'b'` run starting exactly here, so the next property never bleeds in.
-const unionAt = (text, from) => {
-  const run = text.slice(from).match(/^(['"`][A-Za-z0-9_$]+['"`](?:\s*\|\s*['"`][A-Za-z0-9_$]+['"`])*)/);
-  return run ? [...run[1].matchAll(LITERAL)].map((m) => m[1]) : [];
-};
+const literalsAt = (text, from) => [...valueAfter(text, from).matchAll(LITERAL)].map((m) => m[1]);
 
 function callNames(text) {
   const names = new Set();
   for (const m of text.matchAll(/\b(?:functionName|eventName)\s*[:=]\s*\{?\s*/g)) {
     const at = m.index + m[0].length;
-    const direct = unionAt(text, at);
+    const direct = literalsAt(text, at);
     if (direct.length) { for (const n of direct) names.add(n); continue; }
     // The name is forwarded from a variable. Take the literals of that identifier's union annotation
     // in the same file, which is where a shared component declares which calls it stands for.
     const ident = text.slice(at).match(/^([A-Za-z_$][A-Za-z0-9_$]*)/);
     if (!ident) continue;
     for (const decl of text.matchAll(new RegExp(`\\b${ident[1]}\\s*\\??\\s*:\\s*`, 'g')))
-      for (const n of unionAt(text, decl.index + decl[0].length)) names.add(n);
+      for (const n of literalsAt(text, decl.index + decl[0].length)) names.add(n);
   }
   return names;
 }
