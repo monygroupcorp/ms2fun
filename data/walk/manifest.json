@@ -52,7 +52,10 @@
           "id": "O-1",
           "title": "register the factories and the vault kinds",
           "route": "/admin",
-          "calls": ["masterRegistryV1Abi.registerFactory", "masterRegistryV1Abi.registerVault"],
+          "calls": [
+            "masterRegistryV1Abi.registerFactory",
+            "masterRegistryV1Abi.registerVault"
+          ],
           "given": "a fresh deploy, connected as the protocol owner",
           "do": "in the master-registry panel, register each deployed factory address and each vault implementation",
           "expect": "each one appears in the panel's own list afterwards, and /launch offers the newly registered kind",
@@ -65,13 +68,14 @@
           "calls": [
             "erc404FactoryAbi.setMinPoolEth",
             "erc404FactoryAbi.setCarveBrackets",
+            "erc404FactoryAbi.setBondingFeeBps",
             "deployBondEscrowAbi.setBondAmount",
             "deployBondEscrowAbi.setGraceDays",
             "deployBondEscrowAbi.setMaxBondDuration",
             "globalMessageRegistryAbi.setPostThreshold"
           ],
           "given": "the factories are registered",
-          "do": "in the platform-config panel, set each value, then reload the page",
+          "do": "in the platform-config panel, set each value, then reload the page. The bonding fee is in basis points and the contract refuses anything above 300 — try 400 first and the button stays disabled with the ceiling named, rather than sending a transaction that reverts",
           "expect": "every value reads back the number that was set — not a default, and not the previous value",
           "blocking": true
         },
@@ -121,7 +125,10 @@
           "id": "O-6",
           "title": "approve a component, then revoke it",
           "route": "/admin",
-          "calls": ["componentRegistryAbi.approveComponent", "componentRegistryAbi.revokeComponent"],
+          "calls": [
+            "componentRegistryAbi.approveComponent",
+            "componentRegistryAbi.revokeComponent"
+          ],
           "given": "a deployed module address (the merkle gating module will do)",
           "do": "approve it, confirm a creator can select it in C-6, then revoke it",
           "expect": "after revocation the module is no longer offered to a creator, and a collection already using it keeps working",
@@ -145,7 +152,10 @@
           "id": "O-8",
           "title": "revoke a collection, and correct one that is wrong",
           "route": "/admin",
-          "calls": ["masterRegistryV1Abi.revokeInstance", "masterRegistryV1Abi.updateInstanceMetadata"],
+          "calls": [
+            "masterRegistryV1Abi.revokeInstance",
+            "masterRegistryV1Abi.updateInstanceMetadata"
+          ],
           "given": "at least two launched collections from act C",
           "do": "correct one collection's metadata pointer, then revoke the other",
           "expect": "the corrected collection renders its new art; the revoked one disappears from /collections and from every listing, and its own page says why",
@@ -155,7 +165,10 @@
           "id": "O-9",
           "title": "retire a factory and a vault kind",
           "route": "/admin",
-          "calls": ["masterRegistryV1Abi.deactivateFactory", "masterRegistryV1Abi.deactivateVault"],
+          "calls": [
+            "masterRegistryV1Abi.deactivateFactory",
+            "masterRegistryV1Abi.deactivateVault"
+          ],
           "given": "collections already launched from that factory",
           "do": "deactivate one factory and one vault kind",
           "expect": "/launch stops offering them, and every collection already launched from them still loads and still trades",
@@ -165,7 +178,9 @@
           "id": "O-10",
           "title": "de-curate a target that is already carrying money",
           "route": "/admin",
-          "calls": ["alignmentRegistryV1Abi.deactivateAlignmentTarget"],
+          "calls": [
+            "alignmentRegistryV1Abi.deactivateAlignmentTarget"
+          ],
           "given": "a target with at least one aligned collection that has taken fees",
           "do": "deactivate the target",
           "expect": "no new collection can align to it, and the money already accrued to it can still be sent to its community payout",
@@ -184,6 +199,33 @@
           "do": "withdraw each of the three",
           "expect": "the destination balance rises by the amount the panel said, to the wei",
           "blocking": true
+        },
+        {
+          "id": "O-12",
+          "title": "price the target-request queue",
+          "route": "/admin",
+          "calls": [
+            "alignmentTargetRequestRegistryAbi.setRequestDeposit",
+            "alignmentTargetRequestRegistryAbi.setMaxPending",
+            "alignmentTargetRequestRegistryAbi.setRequestTTL"
+          ],
+          "given": "the alignment panel is reachable, and at least one request has been submitted in B-15 so the queue is not empty",
+          "do": "in the alignment panel's request-queue rows, set the deposit, the maximum number of pending requests, and the TTL in days. Then reload, and submit a request as the collector in B-15 against the new numbers",
+          "expect": "each row reads back what was set — the deposit in ETH, the count, and the TTL rendered in days rather than seconds. A submission escrows the new deposit, and one past the new maximum is refused by the contract rather than accepted and stranded",
+          "blocking": true
+        },
+        {
+          "id": "O-13",
+          "title": "appoint an ambassador, then take the seat back",
+          "route": "/admin",
+          "calls": [
+            "alignmentRegistryV1Abi.addAmbassador",
+            "alignmentRegistryV1Abi.removeAmbassador"
+          ],
+          "given": "a curated alignment target from O-4, and a second wallet address to appoint",
+          "do": "in the alignment panel's ambassador row, add the address against the target id. Have that wallet walk H-2. Then remove it and have the same wallet try H-2 again",
+          "expect": "the appointed wallet can edit the target in H-2 and the removed one cannot — the edit is refused by the contract rather than accepted and ignored. The seat survives de-curation: after O-10 the ambassador can still edit the description, and only the spending is frozen",
+          "blocking": true
         }
       ]
     },
@@ -197,7 +239,9 @@
           "id": "C-1",
           "title": "launch an ERC-404 bonding collection",
           "route": "/launch",
-          "calls": ["erc404FactoryAbi.createInstance"],
+          "calls": [
+            "erc404FactoryAbi.createInstance"
+          ],
           "given": "testnet ETH and an image",
           "do": "walk the wizard end to end and send the deploy",
           "expect": "the wizard's quoted cost is what the wallet asks for; on success it lands on the collection's own page, reachable again from /collections",
@@ -207,7 +251,9 @@
           "id": "C-2",
           "title": "launch an ERC-1155 edition collection",
           "route": "/launch",
-          "calls": ["erc1155FactoryAbi.createInstance"],
+          "calls": [
+            "erc1155FactoryAbi.createInstance"
+          ],
           "given": "the same",
           "do": "pick the edition family and deploy with at least one edition",
           "expect": "the collection page shows the edition, and its mint button is offered only once the edition has opened",
@@ -217,7 +263,9 @@
           "id": "C-3",
           "title": "launch an ERC-721 auction collection",
           "route": "/launch",
-          "calls": ["erc721AuctionFactoryAbi.createInstance"],
+          "calls": [
+            "erc721AuctionFactoryAbi.createInstance"
+          ],
           "given": "the same",
           "do": "pick the auction family and deploy",
           "expect": "the collection page shows an empty auction queue, and C-9 is offered",
@@ -227,7 +275,9 @@
           "id": "C-4",
           "title": "ask for a yield vault at launch",
           "route": "/launch",
-          "calls": ["alignmentRegistryV1Abi.requestVault"],
+          "calls": [
+            "alignmentRegistryV1Abi.requestVault"
+          ],
           "given": "an alignment target from O-4 with no vault of the kind you want",
           "do": "request the vault from the wizard's alignment step",
           "expect": "the wizard says the vault is pending rather than pretending it exists, and the launch can still complete",
@@ -251,7 +301,9 @@
           "id": "C-6",
           "title": "gate a mint behind an allowlist",
           "route": "/:chainId/:slug",
-          "calls": ["merkleGatingModuleAbi.configureFor"],
+          "calls": [
+            "merkleGatingModuleAbi.configureFor"
+          ],
           "given": "a collection of yours and a list of addresses, one of them the collector's",
           "do": "configure the gate from the creator panel",
           "expect": "the listed address can mint and an unlisted one is told it is not on the list before it spends gas",
@@ -290,7 +342,9 @@
           "id": "C-9",
           "title": "queue a piece for auction",
           "route": "/:chainId/:slug",
-          "calls": ["erc721AuctionInstanceAbi.queuePiece"],
+          "calls": [
+            "erc721AuctionInstanceAbi.queuePiece"
+          ],
           "given": "your ERC-721 collection from C-3",
           "do": "queue a piece with a reserve",
           "expect": "the auction starts and the page shows a running clock a bidder can act against",
@@ -300,7 +354,9 @@
           "id": "C-10",
           "title": "take the creator's share out",
           "route": "/:chainId/:slug",
-          "calls": ["erc1155InstanceAbi.withdraw"],
+          "calls": [
+            "erc1155InstanceAbi.withdraw"
+          ],
           "given": "editions have been minted in B-7",
           "do": "withdraw from the creator panel",
           "expect": "the wallet receives what the panel said was withdrawable, and the panel then reads zero",
@@ -326,7 +382,9 @@
           "id": "C-12",
           "title": "retry a vault contribution that failed",
           "route": "/:chainId/:slug",
-          "calls": ["erc1155InstanceAbi.retryVaultContribution"],
+          "calls": [
+            "erc1155InstanceAbi.retryVaultContribution"
+          ],
           "given": "a collection whose alignment vault was unreachable when a sale settled — reachable by aligning to a target whose vault is deactivated in O-9",
           "do": "retry from the creator panel",
           "expect": "the pending figure falls to zero and the vault receives it; the retry is reconcilable from the events, not only from the number on screen",
@@ -364,7 +422,10 @@
           "id": "C-15",
           "title": "graduate the curve",
           "route": "/:chainId/:slug",
-          "calls": ["erc404BondingInstanceAbi.deployLiquidity", "erc404BondingInstanceAbi.activateStaking"],
+          "calls": [
+            "erc404BondingInstanceAbi.deployLiquidity",
+            "erc404BondingInstanceAbi.activateStaking"
+          ],
           "given": "the curve from C-1 bought out to its graduation point in B-1",
           "do": "deploy liquidity, then activate staking",
           "expect": "the collection page swaps the curve panel for the graduated-venue panel of B-6, names the venue it deployed to, and staking becomes available in B-5",
@@ -374,10 +435,50 @@
           "id": "C-16",
           "title": "get the deploy bond back",
           "route": "/:chainId/:slug",
-          "calls": ["deployBondEscrowAbi.refund"],
+          "calls": [
+            "deployBondEscrowAbi.refund"
+          ],
           "given": "a bonded launch that met its condition",
           "do": "claim the refund from the creator panel",
           "expect": "the bond returns in full, and the panel is honest about the deadline it was measured against",
+          "blocking": true
+        },
+        {
+          "id": "C-17",
+          "title": "sweep the surplus a fee claim leaves behind",
+          "route": "/:chainId/:slug",
+          "calls": [
+            "erc404BondingInstanceAbi.withdrawDust"
+          ],
+          "given": "an ERC-404 collection from C-1 that has been traded in B-1 and whose fees were claimed in C-11",
+          "do": "in the creator admin panel, read the sweep-surplus row and press it",
+          "expect": "the row names the amount that backs neither a sell refund nor a staker, and the sweep pays exactly that. With nothing above those two reserves the button is disabled and says so, instead of sending a transaction the contract reverts. Selling back in B-1 after the sweep still pays out in full — the sweep must never have touched the sell reserve",
+          "blocking": true
+        },
+        {
+          "id": "C-18",
+          "title": "re-send a vault cut that never landed, on both families that strand one",
+          "route": "/:chainId/:slug",
+          "calls": [
+            "erc721AuctionInstanceAbi.flushPendingVaultCut"
+          ],
+          "given": "an ERC-721 auction collection from C-3 with an auction settled in B-9, and a graduated ERC-404 collection from C-15 — both aligned to a vault",
+          "do": "in the auction collection's creator admin panel, read the stranded-tithe row and press flush if it names an amount. Then do the same on the ERC-404 collection, whose row sends the same call against the liquidity module it graduated through rather than against the instance. If either says nothing is stranded, say so in the row — that is the expected reading when every settlement delivered",
+          "expect": "a stranded amount leaves for the vault and the row falls to nothing stranded, on whichever family had one. With nothing stranded the button is disabled rather than reverting. The call is permissionless on both, so it works from a wallet that owns nothing — walk it once from the creator and once from the collector wallet",
+          "blocking": true
+        },
+        {
+          "id": "C-19",
+          "title": "pull the endowment yield, vest the principal, deliver the community share",
+          "route": "/:chainId/:slug",
+          "calls": [
+            "alignmentEndowmentVaultAbi.claimYieldPurse",
+            "alignmentEndowmentVaultAbi.vest",
+            "alignmentEndowmentVaultAbi.flushTargetFees"
+          ],
+          "given": "a collection on an endowment vault — C-4 asked for one at launch — with yield harvested into it in B-11",
+          "do": "on the collection page, open the community-endowment panel. Press claim yield as the collection owner, then look at it again from a wallet that is not the owner. Press vest once the vest window has elapsed and principal is still escrowed, and deliver community share when one is shown as undelivered",
+          "expect": "the claim pays the owner and the accrued figure falls to zero; from any other wallet the claim button is not on the page at all, rather than present and reverting. Vest moves the matured principal into the community corpus and ends this collection's accrual, which the panel says before it is pressed. The delivery is disabled while no community payout is wired, and names that as the reason",
           "blocking": true
         }
       ]
@@ -392,7 +493,10 @@
           "id": "B-1",
           "title": "buy on the curve, then sell back",
           "route": "/:chainId/:slug",
-          "calls": ["erc404BondingInstanceAbi.buyBonding", "erc404BondingInstanceAbi.sellBonding"],
+          "calls": [
+            "erc404BondingInstanceAbi.buyBonding",
+            "erc404BondingInstanceAbi.sellBonding"
+          ],
           "given": "an armed, open ERC-404 collection from C-5",
           "do": "buy for a small amount, watch the holdings panel, then sell part of it back",
           "expect": "the coin balance and the NFTs both move in the same transaction; the quote shown before signing is what settles, within the slippage stated on screen",
@@ -402,7 +506,9 @@
           "id": "B-2",
           "title": "claim a free mint on the curve",
           "route": "/:chainId/:slug",
-          "calls": ["erc404BondingInstanceAbi.claimFreeMint"],
+          "calls": [
+            "erc404BondingInstanceAbi.claimFreeMint"
+          ],
           "given": "a collection launched with a free allocation",
           "do": "claim it, then try to claim a second time",
           "expect": "the first claim lands; the second is refused before it is signed, and an exhausted pool says it is claimed out rather than offering a claim",
@@ -426,7 +532,10 @@
           "id": "B-4",
           "title": "reroll a piece, and stop receiving them",
           "route": "/:chainId/:slug",
-          "calls": ["erc404BondingInstanceAbi.rerollSelectedNFTs", "erc404BondingInstanceAbi.setSkipNFT"],
+          "calls": [
+            "erc404BondingInstanceAbi.rerollSelectedNFTs",
+            "erc404BondingInstanceAbi.setSkipNFT"
+          ],
           "given": "at least two NFTs from B-1",
           "do": "reroll one, then turn skip-NFT on and buy again",
           "expect": "the rerolled piece changes; with skip on, a buy moves coin and mints no NFT",
@@ -467,7 +576,9 @@
           "id": "B-7",
           "title": "mint an edition",
           "route": "/:chainId/:slug/edition/:id",
-          "calls": ["erc1155InstanceAbi.mint"],
+          "calls": [
+            "erc1155InstanceAbi.mint"
+          ],
           "given": "an open edition from C-2",
           "do": "mint one, then mint several in one transaction, with a message attached",
           "expect": "the cost quoted is what is charged; the message appears in the collection's feed",
@@ -477,7 +588,9 @@
           "id": "B-8",
           "title": "claim a free edition",
           "route": "/:chainId/:slug/edition/:id",
-          "calls": ["erc1155InstanceAbi.claimFreeMint"],
+          "calls": [
+            "erc1155InstanceAbi.claimFreeMint"
+          ],
           "given": "the free allocation set in C-8",
           "do": "claim, then attempt a second claim",
           "expect": "as B-2 — the second is refused before signing, and an exhausted allocation says so",
@@ -515,7 +628,9 @@
           "id": "B-11",
           "title": "harvest the alignment vault",
           "route": "/:chainId/:slug",
-          "calls": ["alignmentEndowmentVaultAbi.harvest"],
+          "calls": [
+            "alignmentEndowmentVaultAbi.harvest"
+          ],
           "given": "an aligned collection whose vault has accrued yield",
           "do": "harvest from the vault panel",
           "expect": "the yield reaches the community payout set in O-4, and the panel does not claim a principal is fully vested while a tranche clock is still running",
@@ -540,7 +655,9 @@
           "id": "B-13",
           "title": "post to the board",
           "route": "*",
-          "calls": ["globalMessageRegistryAbi.postBatch"],
+          "calls": [
+            "globalMessageRegistryAbi.postBatch"
+          ],
           "given": "the post threshold set in O-2",
           "do": "on /board, add several posts to the cart, then send them together from the cart bar",
           "expect": "the fee charged matches the number of posts; every post appears in the feed it was addressed to",
@@ -550,7 +667,10 @@
           "id": "B-14",
           "title": "set a profile, then clear it",
           "route": "/profile",
-          "calls": ["profileRegistryAbi.setProfile", "profileRegistryAbi.clearProfile"],
+          "calls": [
+            "profileRegistryAbi.setProfile",
+            "profileRegistryAbi.clearProfile"
+          ],
           "given": "a connected wallet",
           "do": "set a name and avatar, check it renders on a collection you touched, then clear it",
           "expect": "the name replaces the raw address everywhere it was showing, and clearing puts the address back",
@@ -573,7 +693,10 @@
           "id": "B-16",
           "title": "deliver the community's accrued fees",
           "route": "/vault/:address",
-          "calls": ["communityPayoutAbi.withdrawTargetFees", "communityPayoutAbi.flushTargetFees"],
+          "calls": [
+            "communityPayoutAbi.withdrawTargetFees",
+            "communityPayoutAbi.flushTargetFees"
+          ],
           "given": "a vault whose target carries the community payout address set in O-4, with fees accrued to it by the trading in B-1",
           "do": "open the vault from /vaults and press deliver — the button sends flushTargetFees on an endowment vault and withdrawTargetFees on a Cypher, ZAMM or Uni one, so walk whichever kind the deploy has and say which in the row",
           "expect": "the waiting amount falls to zero and the payout address receives it; with no payout address set the button is disabled and says the delivery is waiting on one, rather than sending a transaction that reverts",
@@ -583,11 +706,37 @@
           "id": "B-17",
           "title": "release the vested corpus to the community",
           "route": "/vault/:address",
-          "calls": ["communityPayoutAbi.releaseCorpusToCommunity"],
+          "calls": [
+            "communityPayoutAbi.releaseCorpusToCommunity"
+          ],
           "given": "an endowment vault reached in B-16 whose corpus has vested — the Cypher, ZAMM and Uni families do not offer this and their panel does not show the control",
           "do": "press release, then press it a second time with nothing left to release",
           "expect": "the first release sends the deployable corpus to the payout address; the second is refused by a disabled button that says no vested corpus is left, not by a revert",
           "blocking": true
+        },
+        {
+          "id": "B-18",
+          "title": "deliver the protocol's accrued cut",
+          "route": "/vault/:address",
+          "calls": [
+            "lpVaultAbi.withdrawProtocolFees"
+          ],
+          "given": "a Uni, ZAMM or Cypher vault that has taken trading fees — the same vault B-16 delivers the community share from",
+          "do": "open the vault from /vaults and press deliver on the protocol-cut section",
+          "expect": "the undelivered figure falls to zero and the treasury the vault was wired with receives it. The call takes no destination, so pressing it from a stranger's wallet sends the money to the same place — walk it from a wallet that owns nothing and check the treasury balance, not the sender's. With nothing accrued the section is not on the page at all",
+          "blocking": true
+        },
+        {
+          "id": "B-19",
+          "title": "expire your own stale target request and get the deposit back",
+          "route": "/request-target",
+          "calls": [
+            "alignmentTargetRequestRegistryAbi.pruneExpired"
+          ],
+          "given": "a request submitted in B-15 that the operator has neither approved nor rejected, and a TTL set in O-12 short enough to elapse during the walk",
+          "do": "on /request-target, find the request under your own requests and press expire & refund. Then claim the refund with the row B-15 already walks",
+          "expect": "the button appears only once the TTL has elapsed on a still-pending request — before that there is no button, not a disabled one. After it, the request leaves the pending queue and the deposit is claimable. It is permissionless, so a second wallet can expire the same request and the refund still goes to whoever submitted it",
+          "blocking": false
         }
       ]
     },
@@ -615,7 +764,9 @@
           "id": "H-2",
           "title": "an ambassador edits the target they were given",
           "route": "/target/:id",
-          "calls": ["alignmentRegistryV1Abi.updateAlignmentTarget"],
+          "calls": [
+            "alignmentRegistryV1Abi.updateAlignmentTarget"
+          ],
           "given": "an ambassador address added to a target by the operator",
           "do": "connect as the ambassador and edit the target from its own page",
           "expect": "the ambassador reaches the edit form and no owner-only control; after the target is de-curated in O-10, the ambassador can still operate what exists and cannot deploy anything new",
@@ -629,10 +780,22 @@
       "call": "zRouterAbi.swapV2",
       "why": "/exec404 trades CULT EXECUTIVES, a mainnet contract this protocol did not deploy. There is no testnet counterpart to trade, so nothing on that page can be walked on a deployed testnet."
     },
-    { "call": "erc20Abi.approve", "why": "the allowance leg of the same /exec404 trade — see zRouterAbi.swapV2." },
-    { "call": "exec404Abi.balanceMint", "why": "an EXEC404 contract call on /exec404 — see zRouterAbi.swapV2." },
-    { "call": "exec404Abi.transfer", "why": "an EXEC404 contract call on /exec404 — see zRouterAbi.swapV2." },
-    { "call": "exec404MirrorAbi.transferFrom", "why": "an EXEC404 mirror call on /exec404 — see zRouterAbi.swapV2." }
+    {
+      "call": "erc20Abi.approve",
+      "why": "the allowance leg of the same /exec404 trade — see zRouterAbi.swapV2."
+    },
+    {
+      "call": "exec404Abi.balanceMint",
+      "why": "an EXEC404 contract call on /exec404 — see zRouterAbi.swapV2."
+    },
+    {
+      "call": "exec404Abi.transfer",
+      "why": "an EXEC404 contract call on /exec404 — see zRouterAbi.swapV2."
+    },
+    {
+      "call": "exec404MirrorAbi.transferFrom",
+      "why": "an EXEC404 mirror call on /exec404 — see zRouterAbi.swapV2."
+    }
   ],
   "blindSpots": [
     {
@@ -640,8 +803,8 @@
       "why": "the abi is picked at runtime from a FACTORY table, so the scan cannot pair it. It is an estimateContractGas read, not a write, and the write it estimates is covered by C-1/C-2/C-3."
     },
     {
-      "site": "app/src/components/admin/AlignmentPanel.tsx:444",
-      "why": "the function name is a parameter of the panel's own send helper, typed 'addAmbassador' | 'removeAmbassador', so the scan pairs it with no abi. Both are operator writes on /admin reached from the ambassador row; they are walked by hand there and are not counted in the surface, which is what this line acknowledges."
+      "site": "app/src/components/collection/erc404/useStrandedTithe.ts:91",
+      "why": "the abi is picked at runtime from the venue the collection graduated to — one of three liquidity deployer modules — so the scan cannot pair it. The write is flushPendingVaultCut on whichever module holds the stranded cut; it is walked as C-18 on the auction family, and the ERC-404 row beside it sends the same call against the module instead of the instance."
     }
   ]
 }
