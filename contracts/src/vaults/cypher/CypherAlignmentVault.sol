@@ -395,9 +395,10 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         uint256 poolSqrt = existingSqrtPrice;
         uint256 refSqrt = referenceSqrtPrice;
         uint256 sqrtDiff = poolSqrt > refSqrt ? poolSqrt - refSqrt : refSqrt - poolSqrt;
-        // A sqrt-space gap wider than the reference itself is a price at least 4x off (or under a
-        // quarter of) the reference, past any admissible band since the knob is capped at 2000 bps.
-        // Rejecting it here also keeps the exact comparison below inside a uint256.
+        // Only reachable above the reference, where a sqrt gap wider than the reference itself is a
+        // price more than 4x it — past any admissible band, since the knob is capped at 2000 bps.
+        // Below it the gap can never reach the reference, so the exact comparison takes that side
+        // alone. Rejecting the high tail here keeps that comparison inside a uint256.
         if (sqrtDiff > refSqrt) revert LpPoolPriceDeviation();
         // |P_e - P_r| / P_r == |s_e - s_r| * (s_e + s_r) / s_r^2. Divided by the reference in one
         // full-width step so the s^2 term never has to fit in a word; what remains is <= 3 * s_r.
