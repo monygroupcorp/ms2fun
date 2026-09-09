@@ -10,7 +10,10 @@
  *   - updateAlignmentTarget(targetId, description, metadataURI)
  *   - deactivateAlignmentTarget(targetId)
  *   - addAmbassador / removeAmbassador(targetId, address)
- *   - setCommunityPayout(targetId, payout)
+ *   - setCommunityPayout(targetId, payout) — WRITE-ONCE. The registry pins a target's payout from zero
+ *     exactly once and reverts every later change, so this console can create a community's payout and
+ *     can never redirect one. Moving a pinned payout is `rotateCommunityPayout`, callable only by the
+ *     address currently receiving it, which is by definition not the owner — so it has no row here.
  *
  * A single "inspect target" id drives the context reads (getAlignmentTarget / getAmbassadors /
  * getCommunityPayout) so the admin can see current state before mutating it.
@@ -503,7 +506,7 @@ function AmbassadorRow() {
   )
 }
 
-// ── setCommunityPayout(uint256,address) ─────────────────────────────────────────
+// ── setCommunityPayout(uint256,address) — write-once, no owner-side redirect ────
 
 function CommunityPayoutRow() {
   const [raw, setRaw] = useState('')
@@ -517,7 +520,7 @@ function CommunityPayoutRow() {
   return (
     <ActionRow
       label="community payout"
-      hint="set the payout address for a target's community share"
+      hint="pin the address for a target's community share — once only, and permanent from here: the protocol cannot move a payout after it is set"
     >
       <div className={styles.form}>
         <input
@@ -551,12 +554,12 @@ function CommunityPayoutRow() {
               chainId: forkChainId,
             })
           }}
-          label="set payout"
+          label="pin payout"
           className="btn btn-secondary"
-          successLabel="payout set — tx confirmed."
+          successLabel="payout pinned — tx confirmed."
           onReset={tx.reset}
           disabled={!ok}
-          errorText="set payout failed — try again"
+          errorText="pin payout failed — a target that already has a payout keeps it; only the address receiving it can move it on"
           testId="admin-set-payout"
         />
       </div>

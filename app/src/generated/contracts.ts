@@ -1169,6 +1169,16 @@ export const alignmentRegistryV1Abi = [
     type: 'function',
     inputs: [
       { name: 'targetId', internalType: 'uint256', type: 'uint256' },
+      { name: 'newPayout', internalType: 'address', type: 'address' },
+    ],
+    name: 'rotateCommunityPayout',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'targetId', internalType: 'uint256', type: 'uint256' },
       { name: 'token', internalType: 'address', type: 'address' },
       {
         name: 'route',
@@ -1378,6 +1388,21 @@ export const alignmentRegistryV1Abi = [
         type: 'uint256',
         indexed: true,
       },
+      { name: 'from', internalType: 'address', type: 'address', indexed: true },
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+    ],
+    name: 'CommunityPayoutRotated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'targetId',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: true,
+      },
       {
         name: 'payout',
         internalType: 'address',
@@ -1498,6 +1523,8 @@ export const alignmentRegistryV1Abi = [
   },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'AmbassadorAlreadyAssigned' },
+  { type: 'error', inputs: [], name: 'CommunityPayoutAlreadySet' },
+  { type: 'error', inputs: [], name: 'CommunityPayoutNotSet' },
   { type: 'error', inputs: [], name: 'InvalidAddress' },
   { type: 'error', inputs: [], name: 'InvalidMetadataURI' },
   { type: 'error', inputs: [], name: 'InvalidReferenceKind' },
@@ -16387,6 +16414,15 @@ export const useWriteAlignmentRegistryV1RequestVault =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"rotateCommunityPayout"`
+ */
+export const useWriteAlignmentRegistryV1RotateCommunityPayout =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentRegistryV1Abi,
+    functionName: 'rotateCommunityPayout',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"setAcquireRoute"`
  */
 export const useWriteAlignmentRegistryV1SetAcquireRoute =
@@ -16537,6 +16573,15 @@ export const useSimulateAlignmentRegistryV1RequestVault =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"rotateCommunityPayout"`
+ */
+export const useSimulateAlignmentRegistryV1RotateCommunityPayout =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentRegistryV1Abi,
+    functionName: 'rotateCommunityPayout',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"setAcquireRoute"`
  */
 export const useSimulateAlignmentRegistryV1SetAcquireRoute =
@@ -16648,6 +16693,15 @@ export const useWatchAlignmentRegistryV1AmbassadorRemovedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: alignmentRegistryV1Abi,
     eventName: 'AmbassadorRemoved',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `eventName` set to `"CommunityPayoutRotated"`
+ */
+export const useWatchAlignmentRegistryV1CommunityPayoutRotatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentRegistryV1Abi,
+    eventName: 'CommunityPayoutRotated',
   })
 
 /**

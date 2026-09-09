@@ -89,6 +89,13 @@ contract MockAlignmentRegistry is IAlignmentRegistry {
         communityPayouts[targetId] = payout;
     }
 
+    /// @dev Mirrors the real registry's authority — only the current sink may move the payout on — so a
+    ///      consumer test cannot pass here on a rotation the deployed registry would reject.
+    function rotateCommunityPayout(uint256 targetId, address newPayout) external override {
+        require(msg.sender == communityPayouts[targetId], "not payout");
+        communityPayouts[targetId] = newPayout;
+    }
+
     function getCommunityPayout(uint256 targetId) external view override returns (address) {
         return communityPayouts[targetId];
     }
