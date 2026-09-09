@@ -378,6 +378,11 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     ///      deliberately NO escape: an off-price pool is a hard revert (the acquire/seed price authority is
     ///      the canonical reference alone). The griefer-created-off-price DoS is a KNOWN, SEPARATE
     ///      follow-up spec — it is NOT solved here by inventing an owner-vetted or self-spot trust surface.
+    ///
+    ///      The deviation is measured on PRICE, the scale `maxPriceDeviationBps` carries everywhere else
+    ///      it is read — including `_floorTargetOut` on this same call. Comparing the sqrtPriceX96 deltas
+    ///      directly would spend a price-space bound in sqrt space and admit a band roughly twice as wide
+    ///      as the label, asymmetric about the reference and dependent on token ordering.
     function _validateExistingPool(address pool, uint160 referenceSqrtPrice)
         private
         returns (uint160 validatedSqrtPrice)
@@ -387,10 +392,18 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
             IAlgebraPool(pool).initialize(referenceSqrtPrice);
             return referenceSqrtPrice;
         }
-        uint256 diff = existingSqrtPrice > referenceSqrtPrice
-            ? existingSqrtPrice - referenceSqrtPrice
-            : referenceSqrtPrice - existingSqrtPrice;
-        if (diff * 10_000 > uint256(referenceSqrtPrice) * maxPriceDeviationBps) revert LpPoolPriceDeviation();
+        uint256 poolSqrt = existingSqrtPrice;
+        uint256 refSqrt = referenceSqrtPrice;
+        uint256 sqrtDiff = poolSqrt > refSqrt ? poolSqrt - refSqrt : refSqrt - poolSqrt;
+        // Only reachable above the reference, where a sqrt gap wider than the reference itself is a
+        // price more than 4x it — past any admissible band, since the knob is capped at 2000 bps.
+        // Below it the gap can never reach the reference, so the exact comparison takes that side
+        // alone. Rejecting the high tail here keeps that comparison inside a uint256.
+        if (sqrtDiff > refSqrt) revert LpPoolPriceDeviation();
+        // |P_e - P_r| / P_r == |s_e - s_r| * (s_e + s_r) / s_r^2. Divided by the reference in one
+        // full-width step so the s^2 term never has to fit in a word; what remains is <= 3 * s_r.
+        uint256 scaledPriceDiff = FixedPointMathLib.fullMulDiv(sqrtDiff, poolSqrt + refSqrt, refSqrt);
+        if (scaledPriceDiff * 10_000 > refSqrt * maxPriceDeviationBps) revert LpPoolPriceDeviation();
         validatedSqrtPrice = existingSqrtPrice;
     }
 
