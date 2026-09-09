@@ -21,6 +21,18 @@
 // call (a functionName held in a variable, an encoded calldata blob passed to a router). Those are
 // reported as `unresolved` rather than silently omitted, because a surface that under-reports reads
 // exactly like a surface that is fully walked.
+//
+// So `functionName:` is read as an EXPRESSION and never as a literal shape. A bare literal names one
+// function; a ternary of literals names both arms, because a person can send either; anything with no
+// literal in it names none and is reported. Matching only `functionName: '...'` would have silently
+// dropped the other two forms — not reported them — which is the single failure this file exists to
+// prevent.
+//
+// A literal-union PROP TYPE (`functionName: 'setStyle' | 'setMetadataURI'`) is read the same way, and
+// deliberately. A generic sub-panel takes the name as a prop and sends it by shorthand, so the type is
+// the only place in the source that enumerates what that panel can send; reading it turns a write that
+// no scan could otherwise see into a named one. Widen such a prop to `string` and the value carries no
+// literal, so it reports as unresolved rather than quietly leaving the surface.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -77,6 +89,49 @@ function blankNonCode(src) {
 }
 
 const lineOf = (src, index) => src.slice(0, index).split('\n').length;
+
+// A value continues across a line break when either side of the break is one of these — the two ways
+// a formatter can split a ternary or a union. Without this a wrapped value would be cut at the first
+// line and read as fewer names than it has.
+const CONTINUES = new Set(['?', ':', '|', '&', '+']);
+
+/**
+ * The text of the property value that starts at `i`, up to whatever ends it: a `,` or `;` outside
+ * brackets, a closing bracket, or a line break the value does not run through. Brackets are balanced
+ * and string literals skipped, so a value spanning a call or an object is returned whole.
+ *
+ * The line break matters. Object properties in this app are comma-separated, but the members of a
+ * TYPE are separated by the break alone (`functionName: 'a' | 'b'` followed by `label: string`), and
+ * a scan that reads to the next comma would swallow the rest of the type and report its literals as
+ * function names.
+ */
+function valueAfter(src, i) {
+  const start = i;
+  let depth = 0;
+  while (i < src.length) {
+    const c = src[i];
+    if (c === "'" || c === '"' || c === '`') {
+      const quote = c;
+      i += 1;
+      while (i < src.length && src[i] !== quote) i += src[i] === '\\' ? 2 : 1;
+      i += 1;
+      continue;
+    }
+    if (c === '(' || c === '[' || c === '{') depth += 1;
+    else if (c === ')' || c === ']' || c === '}') {
+      if (depth === 0) break;
+      depth -= 1;
+    } else if ((c === ',' || c === ';') && depth === 0) break;
+    else if (c === '\n' && depth === 0) {
+      const before = src.slice(start, i).trimEnd().slice(-1);
+      const after = src.slice(i).replace(/^\s+/, '').slice(0, 1);
+      if (!CONTINUES.has(before) && !CONTINUES.has(after)) break;
+    }
+    i += 1;
+  }
+  return src.slice(start, i);
+}
+
 
 /**
  * Function entries of every `export const <name>Abi = [...]` in `text`, as
@@ -230,11 +285,19 @@ export function scanCallSites(root) {
     ]
       .map((m) => ({ index: m.index, abi: configs.get(m[1]) ?? m[1] }))
       .sort((a, b) => a.index - b.index);
-    for (const m of code.matchAll(/\bfunctionName:\s*'([^']+)'/g)) {
+    for (const m of code.matchAll(/\bfunctionName:\s*/g)) {
+      const value = valueAfter(code, m.index + m[0].length);
+      const names = [...value.matchAll(/'([^']+)'/g)].map((q) => q[1]);
+      const line = lineOf(code, m.index);
       let owner;
       for (const a of abiAt) { if (a.index < m.index) owner = a; else break; }
-      if (owner) sites.push({ file: rel, line: lineOf(code, m.index), abi: owner.abi, fn: m[1] });
-      else unresolved.push({ file: rel, line: lineOf(code, m.index), fn: m[1] });
+      // A value carrying no literal at all is the dynamic case: name it by its own source text so the
+      // blind-spot line a reader has to write says which expression it is acknowledging.
+      if (!names.length) { unresolved.push({ file: rel, line, fn: value.trim().replace(/\s+/g, ' ') }); continue; }
+      for (const fn of names) {
+        if (owner) sites.push({ file: rel, line, abi: owner.abi, fn });
+        else unresolved.push({ file: rel, line, fn });
+      }
     }
   }
   return { sites, unresolved };
