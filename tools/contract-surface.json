@@ -387,6 +387,11 @@
       "ZAMMAlignmentVault",
       "CypherAlignmentVault"
     ],
+    "benefactorPositionAbi": [
+      "UniAlignmentVault",
+      "ZAMMAlignmentVault",
+      "CypherAlignmentVault"
+    ],
     "communityPayoutAbi": [
       "AlignmentEndowmentVault",
       "UniAlignmentVault",
@@ -1087,39 +1092,39 @@
       "why": "The reverse index behind resolveName, which the app reads."
     },
     {
-      "$comment": "--- the alignment vault's benefactor surface: every benefactor is a collection instance, never a wallet ---"
+      "$comment": "--- the alignment vault's benefactor surface. A benefactor is an ADDRESS, not necessarily a collection instance: UniAlignmentVault and ZAMMAlignmentVault credit `msg.sender` straight out of `receive()`, and all three liquidity families credit whatever address `receiveContribution` names, which carries no caller gate. So a wallet that sends a vault ETH holds real shares, a real claim and a real delegation, and the three liquidity families' benefactor surface is the vault page's `BenefactorPosition`. Only the endowment family is skipped here, and for a contract reason: it implements the three writes by reverting `NotSupported`. ---"
     },
     {
-      "match": "*.claimFees",
-      "why": "The vault pays a BENEFACTOR, and a benefactor is always a collection instance: the liquidity deployer modules register `p.instance` at graduation and the ERC-1155/721 instances register `address(this)` on every tithe. `msg.sender` is the benefactor here, so a wallet calling it holds no shares and reverts `NoShares`. The creator's path runs through their own instance -- `claimVaultFees` / `claimAllFees`, which every per-type admin panel offers and which forward the proceeds to the owner. The endowment family implements the selector by reverting `NotSupported`: it has no tradable shares, and its claim is `claimYieldPurse`, which the collection's vault panel calls."
+      "match": "AlignmentEndowmentVault.claimFees",
+      "why": "`revert NotSupported()`. The endowment has no tradable shares to pay a per-caller claim against; its claim is `claimYieldPurse`, which the collection's vault panel calls. The liquidity families' `claimFees` IS a button, on the vault page's benefactor position."
     },
     {
-      "match": "*.claimFeesAsDelegate",
-      "why": "A delegate's batch claim across several benefactors. Only a benefactor may appoint a delegate (`delegateBenefactor`), and no benefactor is a wallet, so nothing in this deployment can appoint one and no address can be a delegate."
+      "match": "AlignmentEndowmentVault.claimFeesAsDelegate",
+      "why": "`revert NotSupported()`. No shares to claim against and no delegation to claim under. See claimFees."
     },
     {
-      "match": "*.delegateBenefactor",
-      "why": "Appoints who receives a benefactor's payouts. `msg.sender` must already be a benefactor -- a collection instance -- and no instance forwards this call, so the delegation surface has no caller. The endowment reverts `NotSupported` outright. See claimFees."
+      "match": "AlignmentEndowmentVault.delegateBenefactor",
+      "why": "`revert NotSupported()`. The endowment has no delegation: a collection's yield is pulled by its own owner through `claimYieldPurse`. See claimFees."
     },
     {
-      "match": "*.getBenefactorDelegate",
-      "why": "The read paired with delegateBenefactor. Nothing can appoint a delegate here, so it answers the benefactor's own address for every benefactor."
+      "match": "AlignmentEndowmentVault.getBenefactorDelegate",
+      "why": "`external pure`, returning the benefactor itself. The read paired with a delegation this family does not have. See delegateBenefactor."
     },
     {
-      "match": "*.calculateClaimableAmount",
-      "why": "The interface's claimable read, keyed by benefactor -- a collection instance. On the liquidity families it reports only what has already been crystallized into the fee accumulator: `claimFees` collects the position's new pool fees FIRST and pays more than this. Printed beside a creator's claim button it would under-quote their own money, which is worse than printing nothing. The endowment's equivalent is exact, and is the `pendingYieldOf` the vault panel shows."
+      "match": "AlignmentEndowmentVault.calculateClaimableAmount",
+      "why": "The interface's claimable read. On the endowment the figure a creator acts on is `pendingYieldOf`, which is exact and which the collection's vault panel shows; this one is the interface's generic equivalent behind it."
     },
     {
       "match": "*.getUnclaimedFees",
-      "why": "Uni's own name for calculateClaimableAmount -- the two compute the same expression against the same watermark. See calculateClaimableAmount."
+      "why": "Uni's own name for calculateClaimableAmount -- the two compute the same expression against the same watermark. The vault page's benefactor position reads `calculateClaimableAmount`, which every liquidity family answers, rather than branching on the family to read one contract's synonym."
     },
     {
-      "match": "*.getBenefactorContribution",
-      "why": "How much ETH one collection has tithed into this vault over its life. It buys the collection its share of the split, and the share is what pays; the figure a creator acts on is the claim their admin panel offers, not the basis behind it."
+      "match": "AlignmentEndowmentVault.getBenefactorContribution",
+      "why": "The interface's generic contribution read. On the endowment a benefactor IS always a collection instance -- there is no `receive()` crediting path into it -- and the figures its creator acts on are `principalOf`, `vestedOf` and `pendingYieldOf`, which the collection's vault panel shows. This is the generic equivalent behind them."
     },
     {
-      "match": "*.getBenefactorShares",
-      "why": "One collection's share of the vault's fee split. The vault page reports `totalShares`, which says how many claimants the pool is divided between; the per-collection slice is the ledger behind a claim rather than a number anyone acts on."
+      "match": "AlignmentEndowmentVault.getBenefactorShares",
+      "why": "The interface's generic share read, answered by a family that has no tradable shares. See getBenefactorContribution."
     },
     {
       "match": "*.benefactorContribution",

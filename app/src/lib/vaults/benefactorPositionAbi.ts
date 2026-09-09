@@ -13,10 +13,6 @@
  * `claimYieldPurse` / `vest`, which `VaultPanel` already offers. Pointing a claim button at an
  * endowment would be a button that cannot do anything but revert, so the panel this slice feeds
  * renders for the liquidity families only.
- *
- * `getUnclaimedFees` is Uni's alone. Keeping it here is safe rather than sloppy: a slice credits a
- * contract only for selectors that contract's own ABI actually carries, so ZAMM and Cypher are not
- * credited for a function they do not have.
  */
 export const benefactorPositionAbi = [
   {
@@ -43,13 +39,6 @@ export const benefactorPositionAbi = [
   {
     type: 'function',
     name: 'calculateClaimableAmount',
-    inputs: [{ name: 'benefactor', type: 'address' }],
-    outputs: [{ type: 'uint256' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'getUnclaimedFees',
     inputs: [{ name: 'benefactor', type: 'address' }],
     outputs: [{ type: 'uint256' }],
     stateMutability: 'view',
