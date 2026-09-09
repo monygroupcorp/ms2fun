@@ -25,14 +25,21 @@
  * pre-flight quote.
  *
  * The writes are the other half of the same interface:
- *  - **claim** — `claimFees()`, paying the caller their own accrued share. A money action, so it
- *    confirms with a receipt carrying the figure rather than a bare "done".
- *  - **delegate** — `delegateBenefactor(address)`, naming an address that may claim for them. Set
- *    to the zero address to revoke, which is how the contract spells "nobody".
- *  - **claim for others** — `claimFeesAsDelegate(address[])`, offered only to a wallet that some
- *    benefactor has actually delegated TO. The app cannot enumerate who delegated to whom (the
- *    vault stores the mapping one way and exposes no index), so this takes the addresses to claim
- *    for as input rather than pretending to a list it cannot build.
+ *  - **claim** — `claimFees()`, crediting the caller's own accrued share.
+ *  - **delegate** — `delegateBenefactor(address)`, naming a delegate. Set to the zero address to
+ *    revoke, which is how the contract spells "nobody".
+ *  - **claim for others** — `claimFeesAsDelegate(address[])`, for a wallet some benefactor has
+ *    delegated TO. The app cannot enumerate who delegated to whom (the vault stores the mapping one
+ *    way and publishes no index), so this takes the addresses as input rather than pretending to a
+ *    list it cannot build.
+ *
+ * Delegation on these vaults REDIRECTS THE MONEY; it is not a permission grant, and the panel says
+ * so plainly because the name does not. With a delegate set, `claimFees()` pays the delegate and
+ * not the benefactor who called it (`recipient = benefactorDelegate[benefactor]`, falling back to
+ * the benefactor only when unset), and `claimFeesAsDelegate` pays its whole lump sum to
+ * `msg.sender`. All three families agree on this. Someone who reads "delegate" as "let my ops
+ * wallet press the button for me" and sets one has in fact assigned their yield away, so the
+ * warning belongs next to the input rather than in a doc nobody opens.
  *
  * The endowment family is out of scope here and that is a contract fact, not an omission: it
  * implements all three of these writes by reverting `NotSupported`, having no tradable shares and
@@ -153,14 +160,14 @@ export function BenefactorPosition({ vault, isEndowment }: BenefactorPositionPro
           </dd>
         </div>
         <div className={styles.row}>
-          <dt className={styles.label}>claims delegated to</dt>
+          <dt className={styles.label}>claims paid to</dt>
           <dd className={styles.value} data-testid="vault-position-delegate">
             {delegate === undefined ? (
               '—'
             ) : delegateSet ? (
               <span className={styles.mono}>{delegate}</span>
             ) : (
-              <span className={styles.unset}>nobody — only this wallet can claim its share</span>
+              <span className={styles.unset}>this wallet — no delegate set</span>
             )}
           </dd>
         </div>
@@ -192,14 +199,16 @@ export function BenefactorPosition({ vault, isEndowment }: BenefactorPositionPro
         />
         <p className={styles.note}>
           A minimum, not a quote: the claim first sweeps the fees the position has earned since the
-          last one, so it pays this figure or more. Pays this wallet its own share — a delegate may
-          press it for you, and nobody can redirect where it lands.
+          last one, so it pays this figure or more.
+          {delegateSet
+            ? ' While a delegate is set, this pays the delegate below — not this wallet.'
+            : ' It pays this wallet.'}
         </p>
       </div>
 
       <div className={styles.action} data-testid="vault-position-delegate-action">
         <label className={styles.label} htmlFor="vault-delegate-input">
-          delegate claims to
+          pay this wallet&rsquo;s claims to
         </label>
         <input
           id="vault-delegate-input"
@@ -227,15 +236,16 @@ export function BenefactorPosition({ vault, isEndowment }: BenefactorPositionPro
           onReset={delegateTx.reset}
           testId="vault-position-delegate-btn"
         />
-        <p className={styles.note}>
-          A delegate may call the claim above on your behalf. The ETH still goes to you — delegation
-          moves who can press the button, never where the money lands.
+        <p className={styles.note} data-testid="vault-position-delegate-warning">
+          This redirects the money, not just the button. While a delegate is set, every claim on
+          this position pays them instead of this wallet — including one you press yourself. Revoke
+          by clearing the box.
         </p>
       </div>
 
       {delegateSet && (
         <p className={styles.note} data-testid="vault-position-delegated-note">
-          {truncateAddress(delegate)} can currently claim for this wallet.
+          {truncateAddress(delegate)} currently receives this wallet&rsquo;s claims.
         </p>
       )}
 
@@ -272,8 +282,9 @@ export function BenefactorPosition({ vault, isEndowment }: BenefactorPositionPro
           testId="vault-position-claim-for-btn"
         />
         <p className={styles.note}>
-          Each one pays that benefactor, not you. The vault stores delegation one way and publishes
-          no index of it, so the addresses are named here rather than guessed at.
+          The whole sum is paid to this wallet, which is what being their delegate means. Every
+          address must have named this wallet or the transaction reverts. The vault publishes no
+          index of who delegated to whom, so they are named here rather than guessed at.
         </p>
       </div>
     </section>

@@ -107,11 +107,37 @@ test('a wallet with no stake is told so, rather than shown a zero position as a 
   expect(screen.getByTestId('vault-position-empty')).toBeInTheDocument()
 })
 
-test('no delegate set reads as nobody, not as a blank', () => {
+test('no delegate set reads as this wallet, not as a blank', () => {
   mockAccount.mockReturnValue({ address: WALLET })
   position({ delegate: ok(ZERO) })
   render(<BenefactorPosition vault={VAULT} isEndowment={false} />)
-  expect(screen.getByTestId('vault-position-delegate')).toHaveTextContent('nobody')
+  expect(screen.getByTestId('vault-position-delegate')).toHaveTextContent('this wallet')
+})
+
+// Delegation on these vaults redirects the payout: claimFees pays benefactorDelegate[caller] when
+// one is set, and claimFeesAsDelegate pays its lump sum to msg.sender. All three families agree.
+// "Delegate" reads like a permission, so the panel has to say otherwise or it misleads about money.
+test('the delegate input warns that it moves the money, not just the button', () => {
+  mockAccount.mockReturnValue({ address: WALLET })
+  position()
+  render(<BenefactorPosition vault={VAULT} isEndowment={false} />)
+  expect(screen.getByTestId('vault-position-delegate-warning')).toHaveTextContent(
+    /redirects the money/i,
+  )
+})
+
+test('with a delegate set, the claim says the delegate is paid — not this wallet', () => {
+  mockAccount.mockReturnValue({ address: WALLET })
+  position({ delegate: ok(DELEGATE) })
+  render(<BenefactorPosition vault={VAULT} isEndowment={false} />)
+  expect(screen.getByText(/pays the delegate below/i)).toBeInTheDocument()
+})
+
+test('with no delegate set, the claim says it pays this wallet', () => {
+  mockAccount.mockReturnValue({ address: WALLET })
+  position({ delegate: ok(ZERO) })
+  render(<BenefactorPosition vault={VAULT} isEndowment={false} />)
+  expect(screen.getByText(/It pays this wallet\./)).toBeInTheDocument()
 })
 
 test('claimFees takes no argument — a delegate presses it, nobody redirects it', () => {
