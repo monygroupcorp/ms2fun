@@ -2949,6 +2949,31 @@ export const cypherLiquidityDeployerModuleAbi = [
         indexed: true,
       },
       {
+        name: 'treasury',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'PendingVaultCutRedirected',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
         name: 'instance',
         internalType: 'address',
         type: 'address',
@@ -4555,6 +4580,31 @@ export const erc1155InstanceAbi = [
       },
     ],
     name: 'OwnershipTransferred',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'treasury',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'PendingVaultCutRedirected',
   },
   {
     type: 'event',
@@ -8333,6 +8383,31 @@ export const erc721AuctionInstanceAbi = [
     anonymous: false,
     inputs: [
       {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'treasury',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'PendingVaultCutRedirected',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
         name: 'tokenId',
         internalType: 'uint24',
         type: 'uint24',
@@ -10555,6 +10630,31 @@ export const liquidityDeployerModuleAbi = [
       },
     ],
     name: 'OwnershipTransferred',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'treasury',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'PendingVaultCutRedirected',
   },
   {
     type: 'event',
@@ -14457,6 +14557,31 @@ export const zammLiquidityDeployerModuleAbi = [
         indexed: true,
       },
       {
+        name: 'treasury',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'PendingVaultCutRedirected',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
         name: 'instance',
         internalType: 'address',
         type: 'address',
@@ -18089,6 +18214,15 @@ export const useWatchCypherLiquidityDeployerModuleOwnershipTransferredEvent =
   })
 
 /**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"PendingVaultCutRedirected"`
+ */
+export const useWatchCypherLiquidityDeployerModulePendingVaultCutRedirectedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: cypherLiquidityDeployerModuleAbi,
+    eventName: 'PendingVaultCutRedirected',
+  })
+
+/**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"VaultContributionFailed"`
  */
 export const useWatchCypherLiquidityDeployerModuleVaultContributionFailedEvent =
@@ -19750,6 +19884,15 @@ export const useWatchErc1155InstanceOwnershipTransferredEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc1155InstanceAbi,
     eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"PendingVaultCutRedirected"`
+ */
+export const useWatchErc1155InstancePendingVaultCutRedirectedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155InstanceAbi,
+    eventName: 'PendingVaultCutRedirected',
   })
 
 /**
@@ -23537,6 +23680,15 @@ export const useWatchErc721AuctionInstanceOwnershipTransferredEvent =
   })
 
 /**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"PendingVaultCutRedirected"`
+ */
+export const useWatchErc721AuctionInstancePendingVaultCutRedirectedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc721AuctionInstanceAbi,
+    eventName: 'PendingVaultCutRedirected',
+  })
+
+/**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"PieceQueued"`
  */
 export const useWatchErc721AuctionInstancePieceQueuedEvent =
@@ -25829,6 +25981,15 @@ export const useWatchLiquidityDeployerModuleOwnershipTransferredEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: liquidityDeployerModuleAbi,
     eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"PendingVaultCutRedirected"`
+ */
+export const useWatchLiquidityDeployerModulePendingVaultCutRedirectedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'PendingVaultCutRedirected',
   })
 
 /**
@@ -29590,6 +29751,15 @@ export const useWatchZammLiquidityDeployerModuleOwnershipTransferredEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: zammLiquidityDeployerModuleAbi,
     eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `eventName` set to `"PendingVaultCutRedirected"`
+ */
+export const useWatchZammLiquidityDeployerModulePendingVaultCutRedirectedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: zammLiquidityDeployerModuleAbi,
+    eventName: 'PendingVaultCutRedirected',
   })
 
 /**

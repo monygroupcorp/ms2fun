@@ -165,6 +165,13 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     /// @dev Emitted when the vault's alignment target has been revoked (`isVaultRegistered` false) and the
     ///      19% tithe is routed to `protocolTreasury` instead of the de-curated vault. Mint still succeeds.
     event VaultCutRedirected(address indexed vault, address indexed treasury, uint256 amount);
+    /// @notice A vault cut that had been stashed by a failed push was redirected to the protocol
+    ///         treasury on the retry, because the vault's alignment target was revoked while it sat.
+    /// @dev Distinct from `VaultCutRedirected`, which the PRIMARY path emits when a cut is redirected
+    ///      as it is earned. Both move the same money to the same place, but only one of them is new
+    ///      revenue: a tithe report that saw a single event for both would double-count every cut that
+    ///      was stashed once and redirected later. This is the retry.
+    event PendingVaultCutRedirected(address indexed vault, address indexed treasury, uint256 amount);
 
     event EditionMetadataUpdated(uint256 indexed editionId, string metadataURI);
     /// @dev ERC-1155 required event. Emitted wherever an edition's metadata URI is set: at creation
@@ -632,7 +639,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         // mirroring the `withdraw` primary path. For an active target, re-send to the vault as before.
         if (!masterRegistry.isVaultRegistered(address(vault))) {
             SmartTransferLib.smartTransferETH(protocolTreasury, pending, weth);
-            emit VaultCutRedirected(address(vault), protocolTreasury, pending);
+            emit PendingVaultCutRedirected(address(vault), protocolTreasury, pending);
         } else {
             vault.receiveContribution{ value: pending }(Currency.wrap(address(0)), pending, address(this));
             emit VaultContributionRetried(address(vault), pending);

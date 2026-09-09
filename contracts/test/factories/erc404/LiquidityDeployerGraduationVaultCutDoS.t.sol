@@ -2,6 +2,8 @@
 pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
+import { Vm } from "forge-std/Vm.sol";
+import { TitheSignals } from "../../helpers/TitheSignals.sol";
 import { LiquidityDeployerModule } from "../../../src/factories/erc404/LiquidityDeployerModule.sol";
 import { ILiquidityDeployerModule } from "../../../src/interfaces/ILiquidityDeployerModule.sol";
 import { MockToggleVault } from "../../mocks/MockToggleVault.sol";
@@ -179,7 +181,7 @@ contract LiquidityDeployerGraduationVaultCutDoSTest is Test {
         registry.setVaultRegistered(address(vault), false);
 
         vm.expectEmit(true, true, false, true);
-        emit LiquidityDeployerModule.VaultCutRedirected(address(vault), treasury, VAULT_CUT);
+        emit LiquidityDeployerModule.PendingVaultCutRedirected(address(vault), treasury, VAULT_CUT);
         vm.prank(makeAddr("rando")); // permissionless
         harness.flushPendingVaultCut(address(mi));
 
@@ -187,5 +189,60 @@ contract LiquidityDeployerGraduationVaultCutDoSTest is Test {
         assertEq(address(vault).balance, 0, "de-curated vault received nothing");
         (, uint256 stashedAfter) = harness.pendingVaultCut(address(mi));
         assertEq(stashedAfter, 0, "stash cleared");
+    }
+
+    /// @notice The two redirects are distinguishable in the log. Drives BOTH branches — a cut redirected
+    ///         as it is earned, and a stashed cut redirected on flush — and asserts each path emits its
+    ///         own signal and only its own. Same money, same destination, but one is new revenue and the
+    ///         other is a re-route of revenue already reported; a tithe report reading a single event for
+    ///         both would count that cut twice.
+    function test_redirectSignals_primaryAndFlush_differ() public {
+        assertTrue(
+            LiquidityDeployerModule.VaultCutRedirected.selector
+                != LiquidityDeployerModule.PendingVaultCutRedirected.selector,
+            "the two redirect signals are distinct topics"
+        );
+
+        // ── Branch 1: redirected as it is earned. ──
+        MockVault live = new MockVault();
+        registry.setVaultRegistered(address(live), false); // revoked before the cut is even earned
+        address treasury = makeAddr("earnedTreasury");
+        ILiquidityDeployerModule.DeployParams memory pe = _params(address(live));
+        pe.protocolTreasury = treasury;
+        vm.recordLogs();
+        harness.postUnlock(pe, _amounts());
+        Vm.Log[] memory primary = vm.getRecordedLogs();
+        assertEq(
+            TitheSignals.count(primary, LiquidityDeployerModule.VaultCutRedirected.selector),
+            1,
+            "primary path emits the earned signal"
+        );
+        assertEq(
+            TitheSignals.count(primary, LiquidityDeployerModule.PendingVaultCutRedirected.selector),
+            0,
+            "primary path does not claim to be a retry"
+        );
+
+        // ── Branch 2: stashed while the target was live, redirected on flush. ──
+        MockToggleVault broken = new MockToggleVault(); // broken -> forces the stash
+        MockInstance mi = new MockInstance(address(broken));
+        ILiquidityDeployerModule.DeployParams memory pf = _params(address(broken));
+        pf.instance = address(mi);
+        vm.deal(address(harness), VAULT_CUT); // fund the second cut
+        harness.postUnlock(pf, _amounts()); // target still live: the broken vault reverts, cut is stashed
+        registry.setVaultRegistered(address(broken), false); // revoked after the stash
+        vm.recordLogs();
+        harness.flushPendingVaultCut(address(mi));
+        Vm.Log[] memory flushed = vm.getRecordedLogs();
+        assertEq(
+            TitheSignals.count(flushed, LiquidityDeployerModule.PendingVaultCutRedirected.selector),
+            1,
+            "flush path emits the retry signal"
+        );
+        assertEq(
+            TitheSignals.count(flushed, LiquidityDeployerModule.VaultCutRedirected.selector),
+            0,
+            "flush path is not reported as new revenue"
+        );
     }
 }

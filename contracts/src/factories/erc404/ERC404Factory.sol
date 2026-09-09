@@ -401,6 +401,20 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         // Per-module sealed config.
         if (cfg.tier != address(0)) {
             if (!componentRegistry.isApprovedForTag(cfg.tier, FeatureUtils.TIER)) revert UnapprovedResolver();
+
+            // The tier module must sit IN the resolution chain this create is sealing — either as the
+            // resolver itself or as one of the router children wired above. `cfg.tier` only names where
+            // the band art is sealed; it wires nothing. A tier module outside the chain is sealed with a
+            // full art table that no `tokenURI` lookup can ever reach, while the economic ladder IS
+            // written onto the instance — so the bands mint, price and burn as tiers but render as
+            // ordinary ids forever. That is the mirror of the empty-ladder state rejected just below,
+            // and like it the seal is create-only, so nothing can repair it afterwards.
+            bool tierInChain = cfg.tier == cfg.resolver;
+            for (uint256 i = 0; !tierInChain && i < cfg.childResolvers.length; i++) {
+                tierInChain = cfg.childResolvers[i] == cfg.tier;
+            }
+            if (!tierInChain) revert InvalidBand();
+
             // A tier module with no ladder produces an instance whose `tierBands` is empty, which the
             // instance's gas short-circuit reads as "opted out of tiers" — mintUp/mintDown/escrow and
             // the burn-safety hook all become permanent no-ops, and the ladder seal is create-only so
