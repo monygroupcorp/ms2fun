@@ -3,7 +3,7 @@
 //
 //   node tools/validate-walk.mjs                     # the gate. exit 1 = findings
 //   node tools/validate-walk.mjs --print             # render the whole walk
-//   node tools/validate-walk.mjs --invite <role>     # the packet one tester is handed
+//   node tools/validate-walk.mjs --invite <role> --at <url>   # the packet one tester is handed
 //   node tools/validate-walk.mjs --report <step id>  # the form a finding comes back on
 //   node tools/validate-walk.mjs --selftest          # the renderers, against a fixture deploy
 //
@@ -234,6 +234,49 @@ function chainLine(chain) {
   return `${name} (${chain.chainId}) · MasterRegistryV1 ${chain.registry} · from block ${chain.deployBlock ?? 0}`;
 }
 
+// Where a tester actually opens the app. It is not derivable here and must never be guessed: this
+// build ships two distributions and they are not reached the same way (app/vite.config.ts, and the
+// Router branch at app/src/App.tsx). The server-backed target history-routes, so a step at
+// /:chainId/:slug lives at https://<host>/11155111/<slug>. The pinned target hash-routes — a public
+// gateway has no SPA fallback and answers a deep path with its own 404 — so the same step lives at
+// https://<host>/#/11155111/<slug>. Half the walk is deep links, so the wrong shape is 22 steps of
+// a tester meeting a gateway 404 and reporting the walk broken. Whoever served the build knows
+// which they served; --at makes them say it once, and every link in the packet comes off it.
+function parseAt(raw) {
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    return { error: `--at ${raw} is not a URL` };
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    return { error: `--at ${raw} is not an http(s) address, and a tester opens it in a browser` };
+  }
+  return { at: raw.endsWith('/') ? raw : `${raw}/` };
+}
+
+// The route as a thing a person can click, with the chain id the invite is for filled in and every
+// remaining parameter left as an angle-bracketed blank — `<slug>` reads as something to supply,
+// where `:slug` reads as a URL somebody forgot to finish.
+function stepWhere(step, chainId, at) {
+  if (step.route === '*') return 'anywhere in the app';
+  const path = step.route.replace(':chainId', String(chainId)).replace(/:(\w+)/g, '<$1>');
+  return at ? `${at}${path.replace(/^\//, '')}` : path;
+}
+
+// The origin the app names as its own, so the refusal below can show a real example rather than a
+// hostname somebody has to remember. Gated already: app/scripts/check-share-card.ts requires og:url
+// to be present and to share one origin with the image tags.
+function canonicalOrigin() {
+  const m = readFileSync('app/index.html', 'utf8').match(/<meta property="og:url" content="([^"]+)"/);
+  if (!m) return null;
+  try {
+    return new URL(m[1]).origin;
+  } catch {
+    return null;
+  }
+}
+
 const flag = (name) => {
   const i = process.argv.indexOf(name);
   return i === -1 ? undefined : process.argv[i + 1];
@@ -246,8 +289,8 @@ const flag = (name) => {
 // and the only way to see an invite was to have a deployment, which no build has yet had: the whole
 // invite path had never once executed, and its first run would have been in front of a tester.
 
-const stepLines = (step) => [
-  `  - where: ${step.route === '*' ? 'anywhere in the app' : step.route}`,
+const stepLines = (step, chainId, at) => [
+  `  - where: ${stepWhere(step, chainId, at)}`,
   `  - given: ${step.given}`,
   `  - do: ${step.do}`,
   `  - expect: ${step.expect}`,
@@ -258,7 +301,7 @@ const stepLines = (step) => [
 // from the same manifest the gate just checked, so an invite cannot describe a walk the app no
 // longer has — and its caller refuses outright on a chain whose protocol is not deployed, because an
 // invite to a placeholder address is the dead link that wastes a tester's one first impression.
-function renderInvite(role, chain) {
+function renderInvite(role, chain, at) {
   const out = [];
   const say = (line = '') => out.push(line);
 
@@ -282,6 +325,9 @@ function renderInvite(role, chain) {
   say(`\n# ${manifest.title} — you are walking as the ${role}\n`);
   say(`${manifest.purpose}\n`);
   say(`## The chain\n\n${chainLine(chain)}\n`);
+  say(`## Where to open it\n\n${at}\n`);
+  say('Every link below is on that address. If one of them answers with a page that is not the app,\n'
+    + 'that is a finding too — report it against the step whose link it was.\n');
   say(`## Who you are\n\n${manifest.roles[role]}\n`);
   say('## What to bring\n');
   for (const need of manifest.prerequisites[role]) say(`- ${need}`);
@@ -301,7 +347,7 @@ function renderInvite(role, chain) {
     if (act.note) say(`${act.note}\n`);
     for (const step of act.steps) {
       say(`- **${step.id}. ${step.title}**${step.blocking ? '   [blocking]' : ''}`);
-      for (const line of stepLines(step)) say(line);
+      for (const line of stepLines(step, chain.chainId, at)) say(line);
     }
     say('');
   }
@@ -330,7 +376,7 @@ function renderInvite(role, chain) {
 // acceptance bar and — the part a tester should never have to decide — whether it blocks a launch,
 // all filled in from the manifest, leaving only what the tester saw. A defect reported this way is
 // already a row; one reported as a paragraph has to be turned into one by somebody who was not there.
-function renderReport(step, chainId, chain) {
+function renderReport(step, chainId, chain, at) {
   const out = [];
   const say = (line = '') => out.push(line);
   say(`\n## ${step.id} — ${step.title}${step.blocking ? '   [blocking]' : ''}\n`);
@@ -347,7 +393,7 @@ function renderReport(step, chainId, chain) {
     }`,
   );
   say(`- walked as: ${step.act.role}`);
-  say(`- where: ${step.route === '*' ? 'anywhere in the app' : step.route}`);
+  say(`- where: ${stepWhere(step, chainId, at)}`);
   say(`- sends: ${step.calls.join(', ')}`);
   say(`- the walk says to expect: ${step.expect}`);
   say('- what I did:');
@@ -419,6 +465,8 @@ if (process.argv.includes('--selftest')) {
   // is reporting on a packet nobody should send. The gate's own findings are one of these claims.
   check(findings.length === 0, 'the walk still describes the app — the gate above found nothing');
 
+  const fixtureAt = 'https://walk.invalid/#/';
+
   const fixture = {
     chainId: SEPOLIA,
     file: '(fixture — no deployment file)',
@@ -430,7 +478,7 @@ if (process.argv.includes('--selftest')) {
   for (const role of Object.keys(manifest.roles)) {
     let lines;
     try {
-      lines = renderInvite(role, fixture);
+      lines = renderInvite(role, fixture, fixtureAt);
     } catch (err) {
       check(false, `--invite ${role} threw: ${err.message}`);
       continue;
@@ -438,6 +486,7 @@ if (process.argv.includes('--selftest')) {
     const text = lines.join('\n');
     check(text.includes(chainLine(fixture)), `--invite ${role} names the chain it is walking`);
     check(text.includes('## What to bring'), `--invite ${role} says what to bring`);
+    check(text.includes(fixtureAt), `--invite ${role} says where to open the app`);
     check(/## Your steps — [1-9]/.test(text), `--invite ${role} carries at least one step`);
     // The three lines that turn a walked failure into a row. They used to be reachable only by
     // running this tool, which a tester cannot do.
@@ -450,6 +499,23 @@ if (process.argv.includes('--selftest')) {
     const owned = manifest.acts.filter((a) => a.role === role).flatMap((a) => a.steps);
     for (const step of owned) {
       check(text.includes(`**${step.id}.`), `--invite ${role} carries its own step ${step.id}`);
+      // A route pattern is not a place. Every step a tester is sent to has to be somewhere they can
+      // open, with the chain id filled in and nothing left that reads as an unfinished URL.
+      const where = stepWhere(step, fixture.chainId, fixtureAt);
+      check(
+        step.route === '*' || where.startsWith(fixtureAt),
+        `--invite ${role}: step ${step.id} points at the address the invite named`,
+      );
+      check(!/\/:/.test(where), `--invite ${role}: step ${step.id} leaves no ':param' in the link`);
+      // The chain id is the one parameter the invite knows the answer to, so it is the one that has
+      // to be filled and not merely turned into a blank for the tester to work out.
+      if (step.route.includes(':chainId')) {
+        check(
+          where.includes(`/${fixture.chainId}/`) && !where.includes('<chainId>'),
+          `--invite ${role}: step ${step.id} carries the chain id, not a blank for it`,
+        );
+      }
+      check(text.includes(`- where: ${where}`), `--invite ${role}: step ${step.id} shows that link`);
     }
     // Every id in the "somebody else walks" section is a real step of another role. The section is
     // built by a regex over prose, so a typo'd id would send a tester waiting on nothing.
@@ -463,7 +529,7 @@ if (process.argv.includes('--selftest')) {
   for (const step of steps) {
     let lines;
     try {
-      lines = renderReport(step, SEPOLIA, fixture);
+      lines = renderReport(step, SEPOLIA, fixture, fixtureAt);
     } catch (err) {
       check(false, `--report ${step.id} threw: ${err.message}`);
       continue;
@@ -492,6 +558,22 @@ if (process.argv.includes('--selftest')) {
     check(/No invite printed/.test(r.stdout), `--invite says why it refused chain ${chain.chainId}`);
   }
 
+  // The other half of the address rule: an invite with no --at prints nothing at all, and one with
+  // an address a browser cannot open is refused rather than rendered into a packet.
+  const someRole = Object.keys(manifest.roles)[0];
+  for (const [args, what] of [
+    [['--invite', someRole], 'an invite with no --at is refused'],
+    [['--invite', someRole, '--at', 'not-a-url'], 'an invite whose --at is not a URL is refused'],
+    [['--invite', someRole, '--at', 'ftp://walk.invalid/'], 'an invite whose --at is not http(s) is refused'],
+  ]) {
+    const r = spawnSync(process.execPath, [process.argv[1], ...args], { encoding: 'utf8' });
+    check(r.status === 1, what);
+    // Naming --at, not just refusing: every chain this build carries holds the zero registry, so a
+    // refusal that only says "No invite printed" is one this claim would pass on for the wrong
+    // reason. That is exactly what it did until the --at check was lifted above the chain lookup.
+    check(/No invite printed:[^]*--at/.test(r.stdout), `${what}, and says --at is why`);
+  }
+
   const failed = claims.filter((c) => !c.ok).length;
   console.log(
     `\n${claims.length} claims about what a tester is handed · ${Object.keys(manifest.roles).length} invites rendered · ` +
@@ -512,6 +594,26 @@ if (inviteRole !== undefined) {
     console.log(`\nNo invite printed: '${inviteRole}' is not a role. Roles: ${Object.keys(manifest.roles).join(', ')}`);
     process.exit(1);
   }
+  const rawAt = flag('--at');
+  if (rawAt === undefined) {
+    const origin = canonicalOrigin();
+    console.log(
+      '\nNo invite printed: --at is missing, and it is the address the tester opens. It is not guessed' +
+        '\nhere, because this build ships two distributions that are not reached the same way — the' +
+        '\nserver-backed target history-routes and the pinned one hash-routes, since a public gateway' +
+        '\nhas no SPA fallback (app/vite.config.ts, and the Router branch in app/src/App.tsx). Half this' +
+        '\nwalk is deep links, so the wrong shape is twenty-two steps of gateway 404 reported back as a' +
+        '\nbroken walk. Pass the one you actually served:' +
+        '\n\n  --at https://<host>/            for the server-backed build' +
+        `\n  --at ${origin ?? 'https://<host>'}/#/   for the pinned build\n`,
+    );
+    process.exit(1);
+  }
+  const parsedAt = parseAt(rawAt);
+  if (parsedAt.error) {
+    console.log(`\nNo invite printed: ${parsedAt.error}.`);
+    process.exit(1);
+  }
   const chainId = Number.parseInt(flag('--chain') ?? String(SEPOLIA), 10);
   const chain = deployments().get(chainId);
   if (!chain) {
@@ -526,7 +628,7 @@ if (inviteRole !== undefined) {
     );
     process.exit(1);
   }
-  for (const line of renderInvite(inviteRole, chain)) console.log(line);
+  for (const line of renderInvite(inviteRole, chain, parsedAt.at)) console.log(line);
   process.exit(0);
 }
 
@@ -538,7 +640,16 @@ if (reportStep !== undefined) {
     process.exit(1);
   }
   const chainId = Number.parseInt(flag('--chain') ?? String(SEPOLIA), 10);
-  for (const line of renderReport(step, chainId, deployments().get(chainId))) console.log(line);
+  // Optional here, unlike on an invite: a row filed from the repo after the fact is still worth
+  // rendering when nobody remembers which address the run was on. Without it the route stays a
+  // pattern, which is honest — a link nobody can open is worse than a route somebody can resolve.
+  const rawAt = flag('--at');
+  const parsedAt = rawAt === undefined ? {} : parseAt(rawAt);
+  if (parsedAt.error) {
+    console.log(`\nNo report printed: ${parsedAt.error}.`);
+    process.exit(1);
+  }
+  for (const line of renderReport(step, chainId, deployments().get(chainId), parsedAt.at)) console.log(line);
   process.exit(0);
 }
 
