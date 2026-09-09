@@ -19,9 +19,9 @@ contract CurveParamsComputerTest is Test {
 
     /// @dev Shipped presets (DeployCore): NICHE / STANDARD / HYPE, all at reserve = 1000 bps.
     uint256 internal constant NICHE_TARGET = 5 ether;
-    uint256 internal constant NICHE_UNIT = 1_000_000_000;
+    uint256 internal constant NICHE_UNIT = 1_000_000;
     uint256 internal constant STANDARD_TARGET = 25 ether;
-    uint256 internal constant STANDARD_UNIT = 1_000_000;
+    uint256 internal constant STANDARD_UNIT = 100_000;
     uint256 internal constant HYPE_TARGET = 50 ether;
     uint256 internal constant HYPE_UNIT = 1_000;
 
@@ -91,24 +91,53 @@ contract CurveParamsComputerTest is Test {
     // 1. The preset x nftCount matrix
     // ============================================
 
-    /// @dev NICHE admits at most 79 NFTs (DN404 uint96 total-supply ceiling at 1e9 units/NFT), so
-    ///      the matrix does not assert on counts that cannot be created on chain.
+    /// @dev The piece ceiling each rung imposes: `type(uint96).max / (unitPerNFT * 1e18)`, because
+    ///      `maxSupply = nftCount * unitPerNFT * 1e18` and DN404 stores total supply in a `uint96`.
+    ///      The matrix asserts no count above these, since such a collection reverts at create.
+    uint256 internal constant NICHE_CEILING = 79_228;
+    uint256 internal constant STANDARD_CEILING = 792_281;
+    uint256 internal constant HYPE_CEILING = 79_228_162;
+
+    /// @dev The ladder itself. The three units are a decade apart, and each is exactly the largest
+    ///      unit whose ceiling the constants above name — so a retune of any rung that forgets to move
+    ///      its ceiling, or that closes the spacing, fails here before it reaches a creator.
+    function test_Ladder_UnitsAreADecadeApartAndTheirCeilingsAreExact() public pure {
+        assertEq(STANDARD_UNIT * 10, NICHE_UNIT, "NICHE is one decade above STANDARD");
+        assertEq(HYPE_UNIT * 100, STANDARD_UNIT, "STANDARD is two decades above HYPE");
+
+        uint256 maxTotalSupply = type(uint96).max;
+        uint256[3] memory units = [NICHE_UNIT, STANDARD_UNIT, HYPE_UNIT];
+        uint256[3] memory ceilings = [NICHE_CEILING, STANDARD_CEILING, HYPE_CEILING];
+        for (uint256 i = 0; i < units.length; i++) {
+            assertEq(maxTotalSupply / (units[i] * 1e18), ceilings[i], "ceiling is the uint96 quotient");
+            // Two-sided: the ceiling fits and one more piece does not. An off-by-one here is a create
+            // the wizard would have told the creator was fine.
+            assertLe(ceilings[i] * units[i] * 1e18, maxTotalSupply, "the ceiling itself must fit");
+            assertGt((ceilings[i] + 1) * units[i] * 1e18, maxTotalSupply, "one past the ceiling must not");
+        }
+    }
+
+    /// @dev NICHE's unit moved 1e9 -> 1e6, which is a THOUSANDFOLD move in the supply the solver is
+    ///      handed — so the top of its range is walked here rather than argued about. 79,228 is the
+    ///      last count the rung admits at all.
     function test_Matrix_Niche() public view {
-        uint256[3] memory counts = [uint256(1), 10, 79];
+        uint256[5] memory counts = [uint256(1), 10, 1000, 10_000, NICHE_CEILING];
         for (uint256 i = 0; i < counts.length; i++) {
             _assertCell(counts[i], NICHE_TARGET, NICHE_UNIT, RESERVE_BPS);
         }
     }
 
+    /// @dev STANDARD's unit moved 1e6 -> 1e5; its ceiling is now 792,281, and that is the cell that
+    ///      did not exist before this re-spacing.
     function test_Matrix_Standard() public view {
-        uint256[4] memory counts = [uint256(10), 100, 1000, 10000];
+        uint256[5] memory counts = [uint256(10), 100, 1000, 10000, STANDARD_CEILING];
         for (uint256 i = 0; i < counts.length; i++) {
             _assertCell(counts[i], STANDARD_TARGET, STANDARD_UNIT, RESERVE_BPS);
         }
     }
 
     function test_Matrix_Hype() public view {
-        uint256[4] memory counts = [uint256(10), 100, 1000, 10000];
+        uint256[5] memory counts = [uint256(10), 100, 1000, 10000, HYPE_CEILING];
         for (uint256 i = 0; i < counts.length; i++) {
             _assertCell(counts[i], HYPE_TARGET, HYPE_UNIT, RESERVE_BPS);
         }
