@@ -103,6 +103,13 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     /// @notice The vault's alignment target was revoked (`isVaultRegistered` false); the graduation tithe was
     ///         routed to `protocolTreasury` instead of the de-curated vault (noesis-126).
     event VaultCutRedirected(address indexed vault, address indexed treasury, uint256 amount);
+    /// @notice A stashed vault cut was redirected to the instance's protocol treasury on the retry,
+    ///         because the vault's alignment target was revoked while the cut sat pending.
+    /// @dev Distinct from `VaultCutRedirected`, which the graduation path emits when a cut is
+    ///      redirected as it is earned. Both move the same money to the same place, but only one of
+    ///      them is new revenue: a tithe report that saw a single event for both would double-count
+    ///      every cut that was stashed once and redirected later. This is the retry.
+    event PendingVaultCutRedirected(address indexed vault, address indexed treasury, uint256 amount);
 
     struct PoolSetupResult {
         uint256 tokenId;
@@ -321,7 +328,7 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
             // brick-proof so a non-receiving treasury cannot strand the retry.
             address treasury = IFactoryInstance(instance).protocolTreasury();
             SafeTransferLib.forceSafeTransferETH(treasury, pc.amount);
-            emit VaultCutRedirected(pc.vault, treasury, pc.amount);
+            emit PendingVaultCutRedirected(pc.vault, treasury, pc.amount);
         } else {
             CypherAlignmentVault(payable(pc.vault)).receiveContribution{ value: pc.amount }(
                 Currency.wrap(address(0)), pc.amount, instance
