@@ -239,11 +239,12 @@
           "route": "/:chainId/:slug",
           "calls": [
             "erc404BondingInstanceAbi.setBondingOpenTime",
+            "erc404BondingInstanceAbi.setBondingMaturityTime",
             "erc404BondingInstanceAbi.setBondingActive"
           ],
           "given": "your own ERC-404 collection from C-1",
-          "do": "set an open time a few minutes out, arm bonding, and try to buy before that time",
-          "expect": "the buy is not offered before the open time — the app refuses it rather than letting the chain revert it — and becomes available on its own once the time passes",
+          "do": "set an open time a few minutes out and a maturity after it, arm bonding, and try to buy before the open time",
+          "expect": "the buy is not offered before the open time — the app refuses it rather than letting the chain revert it — and becomes available on its own once the time passes; a maturity at or before the open time is refused in the form, not on-chain",
           "blocking": true
         },
         {
@@ -263,6 +264,7 @@
           "calls": [
             "erc404BondingInstanceAbi.setStyle",
             "erc1155InstanceAbi.setStyle",
+            "erc404BondingInstanceAbi.setMetadataURI",
             "masterRegistryV1Abi.updateInstanceMetadata"
           ],
           "given": "a launched collection",
@@ -566,6 +568,26 @@
           "do": "submit two requests, have O-5 approve one and reject the other, then withdraw the refund on the rejected one",
           "expect": "the deposit is taken at submit and returned in full on the rejected request; the approved one's deposit is accounted for where the page says it goes",
           "blocking": true
+        },
+        {
+          "id": "B-16",
+          "title": "deliver the community's accrued fees",
+          "route": "/vault/:address",
+          "calls": ["communityPayoutAbi.withdrawTargetFees", "communityPayoutAbi.flushTargetFees"],
+          "given": "a vault whose target carries the community payout address set in O-4, with fees accrued to it by the trading in B-1",
+          "do": "open the vault from /vaults and press deliver — the button sends flushTargetFees on an endowment vault and withdrawTargetFees on a Cypher, ZAMM or Uni one, so walk whichever kind the deploy has and say which in the row",
+          "expect": "the waiting amount falls to zero and the payout address receives it; with no payout address set the button is disabled and says the delivery is waiting on one, rather than sending a transaction that reverts",
+          "blocking": true
+        },
+        {
+          "id": "B-17",
+          "title": "release the vested corpus to the community",
+          "route": "/vault/:address",
+          "calls": ["communityPayoutAbi.releaseCorpusToCommunity"],
+          "given": "an endowment vault reached in B-16 whose corpus has vested — the Cypher, ZAMM and Uni families do not offer this and their panel does not show the control",
+          "do": "press release, then press it a second time with nothing left to release",
+          "expect": "the first release sends the deployable corpus to the payout address; the second is refused by a disabled button that says no vested corpus is left, not by a revert",
+          "blocking": true
         }
       ]
     },
@@ -616,6 +638,10 @@
     {
       "site": "app/src/components/wizard/useDeployGasEstimate.ts:63",
       "why": "the abi is picked at runtime from a FACTORY table, so the scan cannot pair it. It is an estimateContractGas read, not a write, and the write it estimates is covered by C-1/C-2/C-3."
+    },
+    {
+      "site": "app/src/components/admin/AlignmentPanel.tsx:444",
+      "why": "the function name is a parameter of the panel's own send helper, typed 'addAmbassador' | 'removeAmbassador', so the scan pairs it with no abi. Both are operator writes on /admin reached from the ambassador row; they are walked by hand there and are not counted in the surface, which is what this line acknowledges."
     }
   ]
 }
