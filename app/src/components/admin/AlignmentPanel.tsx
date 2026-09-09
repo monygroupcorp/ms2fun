@@ -438,18 +438,18 @@ function AmbassadorRow() {
   const accountTrim = account.trim()
   const ok = targetId !== undefined && ADDR_RE.test(accountTrim)
 
+  const at = { address: REGISTRY, abi: alignmentRegistryV1Abi, chainId: forkChainId } as const
+
+  // The parameter is named for the field it becomes, so the union above is the source's own
+  // enumeration of what this row can send — which is what tools/lib/walk-surface.mjs reads. Called
+  // anything else, both writes leave the walk's denominator and have to be acknowledged as a blind
+  // spot instead of being walked.
   function send(
     tx: ReturnType<typeof useTxAction>,
-    fn: 'addAmbassador' | 'removeAmbassador',
+    functionName: 'addAmbassador' | 'removeAmbassador',
   ): void {
     if (!ok || targetId === undefined) return
-    tx.send({
-      address: REGISTRY,
-      abi: alignmentRegistryV1Abi,
-      functionName: fn,
-      args: [targetId, accountTrim as `0x${string}`],
-      chainId: forkChainId,
-    })
+    tx.send({ ...at, functionName, args: [targetId, accountTrim as `0x${string}`] })
   }
 
   return (

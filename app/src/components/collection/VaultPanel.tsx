@@ -160,14 +160,10 @@ function EndowmentActions({ vault, benefactor, state }: VaultPanelInnerProps) {
   const vestWindowOpen =
     state.earliestMaturity > 0n && BigInt(Math.floor(Date.now() / 1000)) >= state.earliestMaturity
 
+  const at = { address: vault, abi: alignmentEndowmentVaultAbi, chainId } as const
+
   const send = (tx: ReturnType<typeof useTxAction>, functionName: 'claimYieldPurse' | 'vest') =>
-    tx.send({
-      address: vault,
-      abi: alignmentEndowmentVaultAbi,
-      functionName,
-      args: [benefactor],
-      chainId,
-    })
+    tx.send({ ...at, functionName, args: [benefactor] })
 
   return (
     <div className={styles.actions} data-testid="vault-panel-actions">
@@ -212,14 +208,7 @@ function EndowmentActions({ vault, benefactor, state }: VaultPanelInnerProps) {
         <div className={styles.actionRow}>
           <TxButton
             state={flushTx.state}
-            onClick={() =>
-              flushTx.send({
-                address: vault,
-                abi: alignmentEndowmentVaultAbi,
-                functionName: 'flushTargetFees',
-                chainId,
-              })
-            }
+            onClick={() => flushTx.send({ ...at, functionName: 'flushTargetFees' })}
             label="deliver community share"
             className="btn btn-secondary"
             successLabel="community share delivered — tx confirmed."
