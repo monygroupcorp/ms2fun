@@ -37,6 +37,8 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     error ReferencePoolUnusable();
     error ReferencePoolTokenMismatch();
     error InvalidMetadataURI();
+    error CommunityPayoutAlreadySet();
+    error CommunityPayoutNotSet();
 
     // ── Events ──
     /// @notice A caller asked the protocol to deploy a curated vault for `token` under `targetId`.
@@ -100,7 +102,8 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     /// @dev Passes if the caller is the owner OR an appointed ambassador of `targetId`. Ambassadors are trusted
     ///      with the SAFE metadata field of the target they represent (description/metadataURI) and nothing else —
     ///      fund- and price-authority setters (`setCommunityPayout`, `setAcquireRoute`, `setReferencePool`) stay
-    ///      strictly `onlyOwner`. Reverts with `Unauthorized` (the same error `onlyOwner` uses) otherwise.
+    ///      strictly `onlyOwner`, and `rotateCommunityPayout` is neither — it answers only to the address the
+    ///      payout already points at. Reverts with `Unauthorized` (the same error `onlyOwner` uses) otherwise.
     modifier onlyOwnerOrAmbassador(uint256 targetId) {
         if (msg.sender != owner() && !_isAmbassador[targetId][msg.sender]) revert Unauthorized();
         _;
@@ -198,6 +201,9 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     ///         owner-only configuration writers that require an active target — `setCommunityPayout`,
     ///         `setAcquireRoute`, `setReferencePool` — revert `TargetNotFound`. Already-stored config
     ///         for the target is left in place; it is simply no longer reachable as active.
+    ///         What it deliberately does NOT gate: `rotateCommunityPayout`. A payout already pinned stays
+    ///         movable by the community holding it, so de-curation cannot be used to freeze somebody
+    ///         else's sink at an address they have lost.
     function deactivateAlignmentTarget(uint256 targetId) external override onlyOwner {
         if (alignmentTargets[targetId].approvedAt == 0) revert TargetNotFound();
         alignmentTargets[targetId].active = false;
@@ -273,17 +279,52 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     // ============ Community Payout ============
 
     /**
-     * @notice Set the community payout address for an active alignment target
+     * @notice Pin the community payout address for an active alignment target. WRITE-ONCE.
+     * @dev    The owner curates a target's payout exactly once, zero to nonzero; every later call reverts
+     *         `CommunityPayoutAlreadySet`. The payout is the community's money, and the protocol holds no
+     *         capability to move it after it is pinned — so a stolen owner key cannot redirect a single wei
+     *         of a curated community's yield, because there is no function that would let it.
+     *
+     *         There is deliberately no owner-side correction path. An owner lever that exists to fix a
+     *         mistyped first address IS the redirect capability under a friendlier name, and it is the
+     *         first thing a stolen key would reach for. A wrong first address is therefore permanent from
+     *         the owner's side: the address itself can move the payout on with `rotateCommunityPayout`,
+     *         and where even that is impossible the recovery is a NEW curated target, never a rewrite.
      * @param targetId ID of the alignment target
-     * @param payout   Address that receives the community's share from the Aave endowment vault
+     * @param payout   Address that receives the community's share from the endowment vaults
      */
     function setCommunityPayout(uint256 targetId, address payout) external override onlyOwner {
         if (alignmentTargets[targetId].approvedAt == 0) revert TargetNotFound();
         if (!alignmentTargets[targetId].active) revert TargetNotFound();
         if (payout == address(0)) revert InvalidAddress();
+        if (communityPayout[targetId] != address(0)) revert CommunityPayoutAlreadySet();
 
         communityPayout[targetId] = payout;
         emit CommunityPayoutSet(targetId, payout);
+    }
+
+    /**
+     * @notice Move a community's payout onward. Callable ONLY by the address currently receiving it.
+     * @dev    The community's own hand on its own money: a DAO that rotates its multisig moves its payout
+     *         here itself, and no other party — not the owner, not an ambassador — can move it for them.
+     *         Authority is the current sink, so the caller is by construction the party the funds already
+     *         flow to; there is nothing to steal by calling this that the caller does not already receive.
+     *
+     *         Deliberately NOT gated on `alignmentTargets[targetId].active`. De-curation is a curation
+     *         decision, the pinned sink keeps receiving whatever the vaults still hold for it, and gating
+     *         rotation on `active` would hand the owner back the lever this function exists to remove:
+     *         deactivate the target, and the community could never move its own payout again.
+     * @param targetId  ID of the alignment target (must already have a payout pinned)
+     * @param newPayout Address that receives the community's share from here on
+     */
+    function rotateCommunityPayout(uint256 targetId, address newPayout) external override {
+        address current = communityPayout[targetId];
+        if (current == address(0)) revert CommunityPayoutNotSet();
+        if (msg.sender != current) revert Unauthorized();
+        if (newPayout == address(0)) revert InvalidAddress();
+
+        communityPayout[targetId] = newPayout;
+        emit CommunityPayoutRotated(targetId, current, newPayout);
     }
 
     /**
