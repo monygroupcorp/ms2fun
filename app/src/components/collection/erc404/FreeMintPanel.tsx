@@ -107,7 +107,7 @@ export function FreeMintPanel({ instance, gatingActive, refetch }: FreeMintPanel
           {allowlist.status === 'no-list' && 'allowlist not yet configured by the creator'}
           {allowlist.status === 'not-eligible' && 'this wallet is not on the allowlist'}
           {allowlist.status === 'eligible' &&
-            `allowlisted — up to ${allowlist.maxQty?.toString() ?? '0'} per wallet`}
+            `allowlisted — up to ${allowlist.maxQtyNfts?.toString() ?? '0'} NFTs per wallet`}
         </p>
       )}
       <button

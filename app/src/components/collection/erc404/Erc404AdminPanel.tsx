@@ -29,6 +29,7 @@ import {
   useReadErc404BondingInstanceGraduated,
   useReadErc404BondingInstancePreviewCarve,
   useReadErc404BondingInstanceStakingActive,
+  useReadErc404BondingInstanceUnit,
 } from '../../../generated/contracts'
 import { useCollection } from '../../useCollection'
 import { useCollectionMetadata } from '../../useCollectionMetadata'
@@ -740,6 +741,11 @@ function SetAgentDelegationRow({ instance }: { instance: `0x${string}` }) {
 // (PasswordTierGating was dropped in noesis-065). ERC404 has no per-edition concept: editionId/tierIndex
 // are always 0. Two independently-retryable transactions — see the erc1155/CreatorAdminPanel.tsx twin
 // for the full rationale (configureFor auth vs updateInstanceMetadata's creator-vs-owner asymmetry).
+//
+// The cap is authored in NFTs and rooted at `unit()` (noesis-266): this family forwards coin, at wei
+// scale, to the gating module, so a leaf holding the creator's raw number would deny every listed
+// wallet. Nothing can be rooted before `unit()` lands — a root built at the wrong scale is submitted
+// on-chain and only reveals itself when buyers report reverts.
 
 function AllowlistConfigRow({ instance }: { instance: `0x${string}` }) {
   const chainId = useCollectionChainId()
@@ -752,6 +758,7 @@ function AllowlistConfigRow({ instance }: { instance: `0x${string}` }) {
   // new metadataURI on the collection page's next mount/refetch; nothing to force here.
   const { data: card } = useCollection(instance, { chainId, addresses })
   const metadata = useCollectionMetadata(card?.metadataURI)
+  const { data: unit } = useReadErc404BondingInstanceUnit({ address: instance, chainId: chainId })
 
   const [mode, setMode] = useState<'hosted' | 'paste'>('hosted')
   const [input, setInput] = useState('')
@@ -764,10 +771,13 @@ function AllowlistConfigRow({ instance }: { instance: `0x${string}` }) {
   if (!hasGatingModule(gatingModule)) return null
 
   async function handleCheck(): Promise<void> {
+    if (unit === undefined) return
     setChecking(true)
     try {
       const result =
-        mode === 'hosted' ? await buildAllowlistFromUri(input) : buildAllowlistFromPaste(input)
+        mode === 'hosted'
+          ? await buildAllowlistFromUri(input, unit)
+          : buildAllowlistFromPaste(input, unit)
       setBuild(result)
     } finally {
       setChecking(false)
@@ -803,7 +813,7 @@ function AllowlistConfigRow({ instance }: { instance: `0x${string}` }) {
 
   const summary =
     build !== undefined && !isAllowlistBuildError(build)
-      ? `${build.count} addresses · root ${build.root.slice(0, 10)}… ✓${
+      ? `${build.count} addresses · caps read as NFTs, rooted in coin · root ${build.root.slice(0, 10)}… ✓${
           build.invalid.length > 0 ? ` (${build.invalid.length} invalid rows skipped)` : ''
         }`
       : undefined
@@ -813,7 +823,7 @@ function AllowlistConfigRow({ instance }: { instance: `0x${string}` }) {
   return (
     <ActionRow
       label="configure allowlist"
-      hint="submit a merkle root on-chain and persist the listURI (two transactions)"
+      hint="submit a merkle root on-chain and persist the listURI (two transactions). maxQty is a number of NFTs — one row per wallet, and the cap is scaled to this collection's coin for you."
     >
       <div className={styles.control}>
         <div>
@@ -861,7 +871,7 @@ function AllowlistConfigRow({ instance }: { instance: `0x${string}` }) {
               setInput(e.target.value)
               setBuild(undefined)
             }}
-            placeholder={'one per line: 0xADDRESS,maxQty'}
+            placeholder={'one per line: 0xADDRESS,maxQty — maxQty in NFTs, e.g. 0xabc…,5'}
             rows={4}
             aria-label="pasted allowlist"
             data-testid="erc404-allowlist-paste"
@@ -871,7 +881,7 @@ function AllowlistConfigRow({ instance }: { instance: `0x${string}` }) {
           type="button"
           className="btn btn-secondary"
           onClick={() => void handleCheck()}
-          disabled={checking || input.trim() === ''}
+          disabled={checking || input.trim() === '' || unit === undefined}
           data-testid="erc404-allowlist-check"
         >
           {checking ? 'checking…' : 'check'}

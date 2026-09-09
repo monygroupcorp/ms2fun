@@ -56,6 +56,41 @@ export function leafHash(address: `0x${string}`, maxQty: bigint): Hex {
   )
 }
 
+/**
+ * The scale for a family whose instances forward an NFT COUNT to the gating module — no scaling at all.
+ * ERC-1155 instances forward `1` for a single claim and `amount` for a batch, both already NFT-denominated
+ * (`ERC1155Instance.canMint` call sites), so their leaves commit the creator's number verbatim.
+ */
+export const NO_QTY_SCALE = 1n
+
+/**
+ * Turn a creator-authored per-wallet cap (in NFTs, which is what the admin panel asks for and what the
+ * hosted list states) into the denomination the gating module actually compares it against.
+ *
+ * `MerkleGatingModule.canMint` checks `claimed + amount > maxQty` where `amount` is whatever the calling
+ * instance forwards, and the two families do not agree on what that is:
+ *   - ERC-1155 forwards an NFT count            → `qtyScale` is `NO_QTY_SCALE`, the cap passes through.
+ *   - ERC-404 forwards COIN, at wei scale — a curve purchase, or `unit` for one NFT's free mint
+ *                                               → `qtyScale` is the instance's `unit()`, coin per NFT.
+ *
+ * So an ERC-404 cap of "5 NFTs" must reach the leaf as `5 * unit`. The scale is always an explicit
+ * argument: nothing here infers a family from the shape of a number, because a wrong guess produces a
+ * leaf that verifies and then denies (or over-grants) every listed wallet.
+ *
+ * Both halves of the allowlist path — building the tree and resolving a member's proof — call THIS
+ * function. If they ever disagreed on units the proofs would simply stop verifying, which looks exactly
+ * like the bug this scaling exists to fix, so there is deliberately only one place to change.
+ */
+export function scaleQty(maxQty: bigint, qtyScale: bigint): bigint {
+  if (qtyScale < 1n) throw new Error('qty scale must be a positive integer')
+  return maxQty * qtyScale
+}
+
+/** `scaleQty` over a whole allowlist, returning a new array; addresses and order are untouched. */
+export function scaleAllowlist(entries: AllowlistEntry[], qtyScale: bigint): AllowlistEntry[] {
+  return entries.map((e) => ({ address: e.address, maxQty: scaleQty(e.maxQty, qtyScale) }))
+}
+
 /** Commutative (sorted-pair) parent hash — matches Solady MerkleProofLib. */
 function hashPair(a: Hex, b: Hex): Hex {
   return a.toLowerCase() <= b.toLowerCase() ? keccak256(concat([a, b])) : keccak256(concat([b, a]))

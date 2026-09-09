@@ -45,6 +45,7 @@ import {
   toMerkleConfig,
   type AllowlistBuildOutcome,
 } from '../../../lib/collection/allowlistConfig'
+import { NO_QTY_SCALE } from '../../../lib/merkle'
 import { hasGatingModule } from './gatingMint'
 import { AdminSection, ActionRow } from '../../ui/AdminSection'
 import { AmountField } from '../../ui/AmountField'
@@ -631,8 +632,12 @@ function AllowlistConfigRow({ instance }: { instance: `0x${string}` }) {
   async function handleCheck(): Promise<void> {
     setChecking(true)
     try {
+      // NO_QTY_SCALE: an ERC1155 instance forwards an NFT count to the gating module, so the cap the
+      // creator types is already in the leaf's denomination (see merkle.ts's scaleQty).
       const result =
-        mode === 'hosted' ? await buildAllowlistFromUri(input) : buildAllowlistFromPaste(input)
+        mode === 'hosted'
+          ? await buildAllowlistFromUri(input, NO_QTY_SCALE)
+          : buildAllowlistFromPaste(input, NO_QTY_SCALE)
       setBuild(result)
     } finally {
       setChecking(false)
