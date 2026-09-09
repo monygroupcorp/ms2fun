@@ -1,9 +1,9 @@
 /**
  * VaultPage (`/vault/:address`) — one vault's detail: family + bound alignment target, live stats
  * (honest TVL — real principal for endowment vaults, pool status for LP), where the community's cut
- * is owed and the permissionless calls that deliver it (`CommunityPayoutPanel`), anything else the
- * vault has accrued and not yet delivered (`VaultDeliveries`), the collections aligned to it, and a
- * board channel (post about the vault). The board channel is free: GlobalMessageRegistry's
+ * is owed and the permissionless calls that deliver it (`CommunityPayoutPanel`), the protocol's own
+ * accrued cut (`VaultDeliveries`), the collections aligned to it, and a board channel (post about
+ * the vault). The board channel is free: GlobalMessageRegistry's
  * post/postBatch accept ANY address as a channel, so it's just MessageFeed + MessageComposer keyed on
  * the vault address.
  */
@@ -102,12 +102,8 @@ export function VaultPage() {
             </div>
           </section>
 
-          {/* Cuts accrued here and not yet pushed to their pinned sinks (liquidity families). */}
-          <VaultDeliveries
-            vault={vault}
-            isEndowment={overview.isEndowment}
-            targetId={overview.targetId}
-          />
+          {/* The protocol's 1%, accrued here and not yet pushed to its treasury (liquidity only). */}
+          <VaultDeliveries vault={vault} isEndowment={overview.isEndowment} />
 
           {/* Bound alignment target */}
           {overview.target && (

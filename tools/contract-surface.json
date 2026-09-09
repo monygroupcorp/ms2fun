@@ -386,6 +386,12 @@
       "UniAlignmentVault",
       "ZAMMAlignmentVault",
       "CypherAlignmentVault"
+    ],
+    "communityPayoutAbi": [
+      "AlignmentEndowmentVault",
+      "UniAlignmentVault",
+      "ZAMMAlignmentVault",
+      "CypherAlignmentVault"
     ]
   },
   "skip": [
