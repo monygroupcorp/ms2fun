@@ -553,7 +553,7 @@ export function SwapPanel({
           {buyAllowlist.status === 'no-list' && 'allowlist not yet configured by the creator'}
           {buyAllowlist.status === 'not-eligible' && 'this wallet is not on the allowlist'}
           {buyAllowlist.status === 'eligible' &&
-            `allowlisted — up to ${buyAllowlist.maxQty?.toString() ?? '0'} per wallet`}
+            `allowlisted — up to ${buyAllowlist.maxQtyNfts?.toString() ?? '0'} NFTs' worth per wallet`}
         </p>
       )}
 

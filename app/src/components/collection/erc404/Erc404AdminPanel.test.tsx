@@ -106,6 +106,8 @@ vi.mock('../../../generated/contracts', () => ({
     data: mockPreviewCarve(cfg.args[0]),
   }),
   useReadErc404BondingInstanceStakingActive: () => ({ data: false, refetch: vi.fn() }),
+  // `unit()` — coin per whole NFT. The allowlist row roots its tree at this scale (noesis-266).
+  useReadErc404BondingInstanceUnit: () => ({ data: 10n ** 24n }),
 }))
 
 const INSTANCE = '0x2222222222222222222222222222222222222222' as const
