@@ -18,6 +18,11 @@ import {
     TooEarly
 } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
 import { ERC404BondingOps } from "../../../src/factories/erc404/ERC404BondingOps.sol";
+import {
+    SetBondingMaturityTimeFailed,
+    MaturityTooFarAfterOpenTime,
+    MAX_BONDING_DURATION
+} from "../../../src/factories/erc404/ERC404BondingStorage.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
 import { CurveParamsComputer } from "../../../src/factories/erc404/CurveParamsComputer.sol";
 import { BondingCurveMath } from "../../../src/factories/erc404/libraries/BondingCurveMath.sol";
@@ -198,6 +203,46 @@ contract ERC404BondingInstanceTest is Test {
         vm.expectRevert();
         instance.setBondingOpenTime(block.timestamp + 1 days);
         vm.stopPrank();
+    }
+
+    /// @notice The upper bound is inclusive: a maturity exactly `MAX_BONDING_DURATION` after the open
+    ///         time is the longest schedule the setter accepts, and it lands.
+    function test_SetBondingMaturityTime_AtUpperBoundAccepted() public {
+        vm.startPrank(owner);
+        uint256 openTime = block.timestamp + 1 days;
+        instance.setBondingOpenTime(openTime);
+        instance.setBondingMaturityTime(openTime + MAX_BONDING_DURATION);
+        vm.stopPrank();
+        assertEq(instance.bondingMaturityTime(), openTime + MAX_BONDING_DURATION, "maturity at the bound stored");
+    }
+
+    /// @notice One second past the bound is refused and the field does not move. Through the instance
+    ///         the refusal surfaces as the trampoline's `SetBondingMaturityTimeFailed`; the Ops layer
+    ///         underneath is called directly so the specific error, `MaturityTooFarAfterOpenTime`, is
+    ///         observed by selector rather than inferred. The bound is measured from `bondingOpenTime`,
+    ///         not from `block.timestamp`, so the open time is set a day out to make that distinction
+    ///         visible: `openTime + MAX + 1` is refused even though it is only `MAX` from now.
+    function test_SetBondingMaturityTime_OneSecondPastUpperBoundRefused() public {
+        vm.startPrank(owner);
+        uint256 openTime = block.timestamp + 1 days;
+        instance.setBondingOpenTime(openTime);
+        vm.expectRevert(SetBondingMaturityTimeFailed.selector);
+        instance.setBondingMaturityTime(openTime + MAX_BONDING_DURATION + 1);
+        vm.stopPrank();
+        assertEq(instance.bondingMaturityTime(), 0, "refused maturity must leave the field unset");
+
+        // Same clock, same values, against a bare Ops deployment so the revert is not collapsed by the
+        // trampoline. An uninitialized Ownable reads owner() == address(0), which is who calls here.
+        ERC404BondingOps ops = new ERC404BondingOps();
+        vm.startPrank(address(0));
+        ops.setBondingOpenTime(openTime);
+        vm.expectRevert(MaturityTooFarAfterOpenTime.selector);
+        ops.setBondingMaturityTime(openTime + MAX_BONDING_DURATION + 1);
+        // Control on the same deployment: the bound itself is accepted, so the refusal above is the
+        // upper bound and nothing else.
+        ops.setBondingMaturityTime(openTime + MAX_BONDING_DURATION);
+        vm.stopPrank();
+        assertEq(ops.bondingMaturityTime(), openTime + MAX_BONDING_DURATION);
     }
 
     function test_SetBondingActive() public {
