@@ -31,8 +31,24 @@ contract MockBenefactor {
 // exercises the creator-owner path, not the agent path.
 // ---------------------------------------------------------------------------
 contract MockMasterRegistry {
+    address public alignmentRegistry;
+
+    function setAlignmentRegistry(address registry) external {
+        alignmentRegistry = registry;
+    }
+
     function isAgent(address) external pure returns (bool) {
         return false;
+    }
+}
+
+// Minimal alignment-registry stub. The vault reads its target sink from here on every send and keeps no
+// copy of its own, so this is the only place the community payout can live.
+contract MockSinkRegistry {
+    mapping(uint256 => address) public getCommunityPayout;
+
+    function setCommunityPayout(uint256 targetId, address payout) external {
+        getCommunityPayout[targetId] = payout;
     }
 }
 
@@ -65,12 +81,13 @@ contract AlignmentEndowmentVaultForkTest is Test {
     // ── Test participants ────────────────────────────────────────────────────
     address internal owner; // vault owner (factory stand-in)
     address internal treasury; // protocolTreasury (1% protocol)
-    address internal community; // communityPayout (target sink)
+    address internal community; // the target sink, held in the registry stub the vault reads
     address internal creator; // benefactor's Ownable.owner() — receives creator yield
 
     AlignmentEndowmentVault internal vault;
     MockBenefactor internal benefactor; // acts as the aligned collection instance
     MockMasterRegistry internal masterRegistry;
+    MockSinkRegistry internal sinkRegistry;
 
     function setUp() public {
         // Skip cleanly if no fork is active (WETH bytecode absent on a blank node).
@@ -91,13 +108,16 @@ contract AlignmentEndowmentVaultForkTest is Test {
         vm.etch(creator, "");
 
         masterRegistry = new MockMasterRegistry();
+        sinkRegistry = new MockSinkRegistry();
+        masterRegistry.setAlignmentRegistry(address(sinkRegistry));
+        sinkRegistry.setCommunityPayout(TARGET_ID, community);
         benefactor = new MockBenefactor(creator);
 
         address alignmentToken = makeAddr("alignmentToken");
 
         address impl = address(new AlignmentEndowmentVault());
         AlignmentEndowmentVault clone = AlignmentEndowmentVault(payable(LibClone.clone(impl)));
-        clone.initialize(owner, WETH, STATA, treasury, address(masterRegistry), alignmentToken, TARGET_ID, community);
+        clone.initialize(owner, WETH, STATA, treasury, address(masterRegistry), alignmentToken, TARGET_ID);
         vault = clone;
     }
 

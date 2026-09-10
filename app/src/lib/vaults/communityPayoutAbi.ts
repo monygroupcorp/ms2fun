@@ -17,9 +17,11 @@
  *   - `deployableCorpus()` / `releaseCorpusToCommunity()` — endowment only: the vested corpus an
  *     ambassador may deploy while the target is curated, and the one exit it has once the target is
  *     de-curated and `execute` is frozen.
- *   - `communityPayout()` — endowment only: the clone's own stored sink, seeded from the registry at
- *     deploy. The vault's `_targetSink()` prefers the registry's live answer and falls back to this,
- *     so a reader that consults only the registry calls an endowment vault unwired when it is not.
+ *
+ * There is deliberately no vault-side sink read. The endowment clone used to expose a `communityPayout()`
+ * of its own — an owner-writable copy `_targetSink()` fell back to whenever the registry answered zero —
+ * and reading it here would show an address the community never chose and cannot rotate. The registry's
+ * `getCommunityPayout(targetId)` is now the whole answer on every family.
  *
  * Every write here is permissionless and takes no destination argument — the sink is read from the
  * registry inside the call — so exposing them is a delivery button, not an authority.
@@ -30,13 +32,6 @@ export const communityPayoutAbi = [
     name: 'accumulatedTargetFees',
     inputs: [],
     outputs: [{ type: 'uint256' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'communityPayout',
-    inputs: [],
-    outputs: [{ type: 'address' }],
     stateMutability: 'view',
   },
   {

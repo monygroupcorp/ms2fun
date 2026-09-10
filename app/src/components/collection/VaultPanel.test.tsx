@@ -62,12 +62,14 @@ vi.mock('../../generated/contracts', () => ({
     refetch: vi.fn(),
   }),
   useReadAlignmentEndowmentVaultTotalPrincipalLocked: () => ({ data: 0n, isPending: false }),
-  useReadAlignmentEndowmentVaultCommunityPayout: () => ({ data: COMMUNITY, isPending: false }),
+  useReadAlignmentEndowmentVaultTargetId: () => ({ data: 7n, isPending: false }),
   useReadAlignmentEndowmentVaultVestDuration: () => ({ data: VEST_DURATION, isPending: false }),
   useReadAlignmentEndowmentVaultPendingYieldOf: () => ({ data: 0n, refetch: vi.fn() }),
   useReadAlignmentEndowmentVaultVestedOf: () => ({ data: 0n, refetch: vi.fn() }),
   useReadAlignmentEndowmentVaultAccumulatedTargetFees: () => ({ data: 0n, refetch: vi.fn() }),
   alignmentEndowmentVaultAbi: [],
+  // The community sink is registry state — the vault keeps no copy of it and exposes no read for one.
+  useReadAlignmentRegistryV1GetCommunityPayout: () => ({ data: COMMUNITY, isPending: false }),
   useWriteAlignmentEndowmentVaultHarvest: () => ({
     writeContract: vi.fn(),
     data: undefined,

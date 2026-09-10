@@ -6,7 +6,7 @@ import { ERC404BondingInstance } from "../src/factories/erc404/ERC404BondingInst
 import { ERC721AuctionInstance } from "../src/factories/erc721/ERC721AuctionInstance.sol";
 import { LaunchManager } from "../src/factories/erc404/LaunchManager.sol";
 import { MetadataOverlayModule } from "../src/metadata/MetadataOverlayModule.sol";
-import { SeedAnvilShared, IOwnable, IEndowmentPayout, ArtistEndowments } from "./SeedAnvilShared.sol";
+import { SeedAnvilShared, IOwnable, EndowmentSink, ArtistEndowments } from "./SeedAnvilShared.sol";
 
 /// @dev The DN404 mirror's ERC-721 surface — NFT counts and ownership live here, not on the token.
 /// @dev The endowment vault's principal accounting. Read as a DELTA across the settlements rather
@@ -582,7 +582,7 @@ contract SeedAnvilBuys is SeedAnvilShared {
         ERC721AuctionInstance a = ERC721AuctionInstance(payable(inst));
         address payout = ArtistEndowments.payout(slug);
         require(
-            IEndowmentPayout(vault).communityPayout() == payout,
+            EndowmentSink.sinkOf(vault) == payout,
             "artist endowment: the vault pays somewhere other than this artist's derived fixture address"
         );
         require(
@@ -624,10 +624,7 @@ contract SeedAnvilBuys is SeedAnvilShared {
         vm.startBroadcast(deployerKey);
         IEndowmentHarvest(vault).harvest();
         vm.stopBroadcast();
-        require(
-            IEndowmentPayout(vault).communityPayout() == payout,
-            "artist endowment: the payout sink moved during harvest"
-        );
+        require(EndowmentSink.sinkOf(vault) == payout, "artist endowment: the payout sink moved during harvest");
 
         console.log("ARTIST endowment settled:", inst);
         console.log("  principal escrowed by settlement (wei):", endowed);
@@ -746,7 +743,7 @@ contract SeedAnvilBuys is SeedAnvilShared {
             "artist endowment: the vault holds no meaningful principal"
         );
         require(
-            IEndowmentPayout(vault).communityPayout() == ArtistEndowments.payout(slug),
+            EndowmentSink.sinkOf(vault) == ArtistEndowments.payout(slug),
             "artist endowment: the vault pays somewhere other than this artist's derived fixture address"
         );
     }

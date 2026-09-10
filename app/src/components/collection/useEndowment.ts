@@ -9,12 +9,14 @@ import {
   useReadAlignmentEndowmentVaultDepositTime,
   useReadAlignmentEndowmentVaultAccumulatedFees,
   useReadAlignmentEndowmentVaultTotalPrincipalLocked,
-  useReadAlignmentEndowmentVaultCommunityPayout,
+  useReadAlignmentEndowmentVaultTargetId,
   useReadAlignmentEndowmentVaultVestDuration,
   useReadAlignmentEndowmentVaultPendingYieldOf,
   useReadAlignmentEndowmentVaultVestedOf,
   useReadAlignmentEndowmentVaultAccumulatedTargetFees,
+  useReadAlignmentRegistryV1GetCommunityPayout,
 } from '../../generated/contracts'
+import { forkAddresses } from '../../lib/addresses'
 import { useCollectionChainId } from './useCollectionChain'
 
 export interface EndowmentState {
@@ -50,6 +52,9 @@ export interface EndowmentState {
   undeliveredTargetFees: bigint
   /** Live escrowed principal across all benefactors (`totalPrincipalLocked`). */
   totalPrincipal: bigint
+  /** Where this vault's community leg is owed, read from the alignment registry rather than from the
+   *  vault. The vault holds no sink of its own — it resolves this same registry answer at send time —
+   *  so this is the address the money actually reaches, and the one the community can rotate. */
   communityPayout: `0x${string}` | undefined
   isPending: boolean
   refetch: () => void
@@ -108,11 +113,18 @@ export function useEndowment(
       query: { enabled: enabled && isEndowment },
     })
 
+  const { data: targetId, isPending: targetPending } = useReadAlignmentEndowmentVaultTargetId({
+    ...(vault ? { address: vault } : {}),
+    chainId,
+    query: { enabled: enabled && isEndowment },
+  })
+
   const { data: communityPayout, isPending: communityPending } =
-    useReadAlignmentEndowmentVaultCommunityPayout({
-      ...(vault ? { address: vault } : {}),
+    useReadAlignmentRegistryV1GetCommunityPayout({
+      address: forkAddresses.AlignmentRegistryV1,
       chainId,
-      query: { enabled: enabled && isEndowment },
+      ...(targetId !== undefined ? { args: [targetId] as const } : {}),
+      query: { enabled: enabled && isEndowment && targetId !== undefined },
     })
 
   const { data: vestDuration, isPending: maturityPending } =
@@ -171,6 +183,7 @@ export function useEndowment(
         depositPending ||
         feesPending ||
         totalPending ||
+        targetPending ||
         communityPending ||
         maturityPending))
 
@@ -186,7 +199,10 @@ export function useEndowment(
     vested: vested ?? 0n,
     undeliveredTargetFees: undeliveredTargetFees ?? 0n,
     totalPrincipal: totalPrincipal ?? 0n,
-    communityPayout: communityPayout ?? undefined,
+    communityPayout:
+      communityPayout !== undefined && communityPayout !== ZERO_ADDRESS
+        ? communityPayout
+        : undefined,
     isPending,
     refetch,
   }
