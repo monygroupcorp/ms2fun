@@ -1702,6 +1702,52 @@ contract AlignmentEndowmentVaultTest is Test {
         vault.releaseCorpusToCommunity();
     }
 
+    /// @dev The two exits are mutually exclusive by construction — `execute` needs the target CURATED,
+    ///      `releaseCorpusToCommunity` needs it DE-CURATED — so "the corpus is not stranded" holds only
+    ///      while at least one of them is actually open. On a curated target with no ambassador appointed,
+    ///      neither is: `execute` reverts `NotAuthorized` for every caller and the release reverts
+    ///      `TargetStillCurated`. Nothing permissionless reopens it. That state is not a defect (the seat
+    ///      may simply not be filled yet) but it is owner-dependent, and this pins that dependence so a
+    ///      later change cannot quietly turn a temporary gap into the permanent one the release path was
+    ///      written to prevent. The exit is a registry write and nothing else, in either direction.
+    function test_corpus_isUnreachableWhileCuratedWithNoAmbassador() public {
+        _contributeBenefactor(2 ether); // one flat pool; every wei of it is the corpus
+        address sink = makeAddr("community_sink");
+        ambassadorRegistry.setCommunityPayout(TARGET_ID, sink);
+
+        // The seat is vacated while the target stays curated — the one state neither door covers.
+        ambassadorRegistry.removeAmbassador(TARGET_ID, ambassador);
+        assertFalse(ambassadorRegistry.isAmbassador(TARGET_ID, ambassador), "no seat is filled");
+        assertTrue(ambassadorRegistry.isAlignmentTargetActive(TARGET_ID), "and the target is still curated");
+
+        // Door 1: the discretionary deploy is shut to the former seat and to everyone else alike.
+        vm.prank(ambassador);
+        vm.expectRevert(AlignmentEndowmentVault.NotAuthorized.selector);
+        vault.execute(sink, 1 ether, "");
+
+        vm.prank(stranger);
+        vm.expectRevert(AlignmentEndowmentVault.NotAuthorized.selector);
+        vault.execute(sink, 1 ether, "");
+
+        // Door 2: the de-curation exit is shut precisely because the target is still curated.
+        vm.prank(stranger);
+        vm.expectRevert(AlignmentEndowmentVault.TargetStillCurated.selector);
+        vault.releaseCorpusToCommunity();
+
+        assertEq(vault.totalPrincipal(), 2 ether, "the corpus sits where it was");
+        assertEq(sink.balance, 0, "and it has reached nobody");
+
+        // Only a registry write reopens either door. De-curation reopens the release, and the corpus
+        // lands at the community's own sink — so the state is a wait on the owner, not a strand.
+        ambassadorRegistry.deactivateAlignmentTarget(TARGET_ID);
+        vm.prank(stranger);
+        uint256 released = vault.releaseCorpusToCommunity();
+
+        assertEq(released, 2 ether, "the whole corpus leaves once a door is opened");
+        assertEq(sink.balance, 2 ether, "at the registry-pinned sink");
+        assertEq(vault.totalPrincipal(), 0, "and nothing is left behind as basis");
+    }
+
     /// @dev With no sink wired the corpus waits rather than being force-sent somewhere arbitrary. The
     ///      registry keeps `setCommunityPayout` open on an inactive target precisely so this is recoverable
     ///      after the fact, so the same call must then succeed. Waiting is the only option the vault has:
