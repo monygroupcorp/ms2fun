@@ -5,15 +5,20 @@
  * generated `erc404BondingInstanceAbi` on the fork chain, refetching the relevant read on success.
  *
  * Actions: bonding lifecycle (active toggle, open/maturity time), metadata/style URIs, vault
- * (migrate, claim all fees), agent delegation, and (noesis-080) configure allowlist — shown only when
- * the instance has a gating module set (today the only deployed gating module IS MerkleGatingModule;
- * PasswordTierGating was dropped in noesis-065).
+ * (migrate, claim all fees, flush a stranded graduation tithe), agent delegation, and (noesis-080)
+ * configure allowlist — shown only when the instance has a gating module set (today the only deployed
+ * gating module IS MerkleGatingModule; PasswordTierGating was dropped in noesis-065).
+ *
+ * The stranded-tithe row is the one action here that is not the owner's alone: a graduation cut the
+ * alignment vault could not take is stashed on the liquidity module, and re-sending it is
+ * permissionless by design. It is laid out with the other vault rows because the owner is who notices,
+ * but anyone may send it.
  *
  * ABI note: the generated metadata setter is `setMetadataURI` (uppercase URI), not `setMetadataUri`.
  */
 import { useMemo, useState } from 'react'
 import { formatEther, type Log } from 'viem'
-import { useBlock, useWaitForTransactionReceipt } from 'wagmi'
+import { useBalance, useBlock, useWaitForTransactionReceipt } from 'wagmi'
 import {
   deployBondEscrowAbi,
   erc404BondingInstanceAbi,
@@ -28,9 +33,12 @@ import {
   useReadErc404BondingInstanceGatingModule,
   useReadErc404BondingInstanceGraduated,
   useReadErc404BondingInstancePreviewCarve,
+  useReadErc404BondingInstanceReserve,
   useReadErc404BondingInstanceStakingActive,
+  useReadErc404BondingInstanceStakingReserve,
   useReadErc404BondingInstanceUnit,
 } from '../../../generated/contracts'
+import { formatPrice } from '../../../lib/format'
 import { useCollection } from '../../useCollection'
 import { useCollectionMetadata } from '../../useCollectionMetadata'
 import { useCollectionAddresses, useCollectionChainId } from '../useCollectionChain'
@@ -56,6 +64,7 @@ import { useTxAction } from '../../ui/useTxAction'
 import { MetadataArtistPanel } from './MetadataArtistPanel'
 import { canDeployLiquidity, derivePhase } from './bondingPhase'
 import { useBondingData } from './useBondingData'
+import { useStrandedTithe } from './useStrandedTithe'
 import { useNowSec } from './useNowSec'
 import styles from './Erc404AdminPanel.module.css'
 
@@ -140,6 +149,8 @@ export function Erc404AdminPanel({ instance }: Erc404AdminPanelProps) {
         <MetadataArtistPanel instance={instance} />
         <MigrateVaultRow instance={instance} />
         <ClaimAllFeesRow instance={instance} />
+        <WithdrawDustRow instance={instance} />
+        <StrandedTitheRow instance={instance} />
         <SetAgentDelegationRow instance={instance} />
         <AllowlistConfigRow instance={instance} />
       </AdminSection>
@@ -688,6 +699,106 @@ function ClaimAllFeesRow({ instance }: { instance: `0x${string}` }) {
         onReset={tx.reset}
         className="btn btn-secondary"
         testId="erc404-admin-claim-all-fees"
+      />
+    </ActionRow>
+  )
+}
+
+// ── sweep the surplus a fee claim leaves behind ────────────────────────────────
+
+function WithdrawDustRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
+  const { data: balance, refetch: refetchBalance } = useBalance({ address: instance, chainId })
+  const { data: reserve, refetch: refetchReserve } = useReadErc404BondingInstanceReserve({
+    address: instance,
+    chainId: chainId,
+  })
+  const { data: stakingReserve, refetch: refetchStaking } =
+    useReadErc404BondingInstanceStakingReserve({ address: instance, chainId: chainId })
+  const tx = useTxAction({
+    onSuccess: () => {
+      void refetchBalance()
+      void refetchReserve()
+      void refetchStaking()
+    },
+    instance,
+  })
+
+  // The contract's own guard, mirrored: everything above the two tracked liabilities is sweepable,
+  // and it reverts `NothingToWithdraw` at or below them. `reserve` backs sellBonding refunds and
+  // `stakingReserve` is ETH owed to stakers — neither is the creator's to take, ever.
+  const locked = (reserve ?? 0n) + (stakingReserve ?? 0n)
+  const known = balance !== undefined && reserve !== undefined && stakingReserve !== undefined
+  const surplus = known && balance.value > locked ? balance.value - locked : 0n
+
+  return (
+    <ActionRow
+      label="sweep surplus"
+      hint={
+        !known
+          ? 'recover ETH held here that backs neither a sell refund nor a staker'
+          : surplus === 0n
+            ? 'nothing to sweep — every wei here backs a sell refund or a staker'
+            : `${formatEther(surplus)} ETH here backs neither a sell refund nor a staker. Claiming fees leaves it behind; this is what takes it.`
+      }
+    >
+      <div className={styles.control}>
+        <TxButton
+          state={tx.state}
+          onClick={() =>
+            tx.send({
+              address: instance,
+              abi: erc404BondingInstanceAbi,
+              functionName: 'withdrawDust',
+              args: [],
+              chainId: chainId,
+            })
+          }
+          label="sweep surplus"
+          className="btn btn-secondary"
+          receipt={
+            surplus > 0n
+              ? { verb: 'surplus swept', net: { label: 'you received', wei: surplus } }
+              : undefined
+          }
+          onReset={tx.reset}
+          disabled={known && surplus === 0n}
+          disabledHint="the sweep reverts with nothing above the locked balances"
+          errorText="sweep failed — try again"
+          testId="erc404-admin-withdraw-dust"
+        />
+      </div>
+    </ActionRow>
+  )
+}
+
+// ── vault: flush a stranded graduation tithe (permissionless) ──────────────────
+
+function StrandedTitheRow({ instance }: { instance: `0x${string}` }) {
+  const { amount, canFlush, flush, tx } = useStrandedTithe(instance)
+
+  return (
+    <ActionRow
+      label="flush stranded tithe"
+      hint={
+        amount === undefined
+          ? 'permissionless — re-send a graduation cut the alignment vault could not take'
+          : amount === 0n
+            ? 'nothing stranded — the graduation cut was delivered'
+            : `${formatPrice(amount)} stranded on the liquidity module — permissionless to re-send`
+      }
+    >
+      <TxButton
+        state={tx.state}
+        onClick={flush}
+        label="flush tithe"
+        successLabel="stranded tithe re-sent — tx confirmed."
+        onReset={tx.reset}
+        className="btn btn-secondary"
+        disabled={!canFlush}
+        disabledHint="the flush reverts with nothing stashed"
+        errorText="flush failed — try again"
+        testId="erc404-admin-flush-tithe"
       />
     </ActionRow>
   )

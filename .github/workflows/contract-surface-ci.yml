@@ -1,0 +1,66 @@
+name: contract-surface
+
+# Every external contract function has a UI path, or a stated reason it does not. This is the gate
+# for that claim, and it exists because the claim used to be a hand-typed table — true on the day it
+# was written and silent about every day after. `tools/contract-surface.mjs` derives the same map
+# from the two things that actually move: the built ABIs, and the app source that calls them.
+#
+# So it has to run on BOTH sides. A contract change can add an external function nobody wired; an app
+# change can delete the only panel that reached one. Either leaves the map claiming something that is
+# no longer true, and a map nobody re-derives is the table again.
+#
+# Read-only, no network, no RPC key, no model in the loop. It does NOT prove a path WORKS when a
+# wallet walks it — reachability is the cheap half, and the walk is the half a human still owes.
+
+on:
+  push:
+    paths:
+      - 'contracts/src/**'
+      - 'app/src/**'
+      - 'tools/contract-surface.mjs'
+      - 'tools/contract-surface.json'
+      - '.github/workflows/contract-surface-ci.yml'
+  pull_request:
+    paths:
+      - 'contracts/src/**'
+      - 'app/src/**'
+      - 'tools/contract-surface.mjs'
+      - 'tools/contract-surface.json'
+      - '.github/workflows/contract-surface-ci.yml'
+
+jobs:
+  surface:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Pinned to v1.5.1, matching contracts-ci and app-ci's G7 — three jobs reading the same
+      # artifacts should not be compiling them with three toolchains.
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.5.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # contracts/lib is gitignored with no committed gitlinks, so checkout fetches nothing.
+      # `all`, not `src`: the map reads an artifact for every contract the manifest names, and a
+      # partial build leaves one missing — which the tool reports as "not built", correctly, and
+      # which would read here as a red gate about the workflow rather than about the repo.
+      - name: Install contracts/lib deps
+        working-directory: contracts
+        run: ./scripts/install-libs.sh all
+
+      - name: Build contracts
+        working-directory: contracts
+        run: forge build
+
+      # Exit 1 on an unclaimed function, a skip rule that matches nothing left in the surface, or a
+      # UI path in a directory no interface claims. All three are the same failure in different
+      # clothes: the map has stopped describing the repo.
+      - name: Contract surface is fully accounted for
+        run: node tools/contract-surface.mjs
