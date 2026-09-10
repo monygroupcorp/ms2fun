@@ -28,11 +28,11 @@ contract MockMRFam {
     }
 }
 
-/// @notice Family-aware settlement split, driven at the instance level down each branch by swapping
-///         the vault's `vaultType()`. Liquidity → creator-80; yield → 1/80/19 (endowment,
-///         unregressed); unknown → revert. Liquidity-80 for real vaults is additionally covered by
-///         the factory settle/withdraw tests (which use the "UniswapV4LP" UniAlignmentVault).
-contract FamilyAwareSplitTest is Test {
+/// @notice Settlement split at the instance level, driven down each branch by swapping the vault's
+///         `vaultType()`. The split is FAMILY-BLIND — 1% protocol / 19% vault / 80% creator, whichever
+///         family the pinned genesis vault belongs to — so the branches must agree to the wei. The family
+///         read survives only as a deploy-config guard, so an unknown `vaultType()` still reverts.
+contract FamilyBlindSplitTest is Test {
     address internal constant CREATOR = address(0xC1);
     address internal constant BUYER = address(0xB2);
     address internal constant TREASURY = address(0xFEE);
@@ -77,7 +77,7 @@ contract FamilyAwareSplitTest is Test {
         inst.mint{ value: 1 ether }(1, 1, bytes(""), "", 0);
     }
 
-    function test_1155_yieldFamily_keeps_1_80_19() public {
+    function test_1155_yieldFamily_takes_1_19_80() public {
         (ERC1155Instance inst, MockFamilyVault vault) = _deploy1155("AaveEndowment");
 
         uint256 vaultBefore = address(vault).balance;
@@ -87,13 +87,15 @@ contract FamilyAwareSplitTest is Test {
         vm.prank(CREATOR);
         inst.withdraw(1 ether);
 
+        // The endowment's inverted 1/80/19 is gone with the vesting duality it fed: the vault takes the
+        // same 19% here it takes everywhere.
         assertEq(TREASURY.balance - treasuryBefore, 0.01 ether, "protocol 1%");
-        assertEq(address(vault).balance - vaultBefore, 0.8 ether, "yield vault 80% (endowment)");
-        assertEq(CREATOR.balance - creatorBefore, 0.19 ether, "yield creator 19%");
+        assertEq(address(vault).balance - vaultBefore, 0.19 ether, "endowment vault 19%");
+        assertEq(CREATOR.balance - creatorBefore, 0.8 ether, "endowment creator 80%");
     }
 
-    function test_1155_liquidityFamily_flips_creator_80() public {
-        // A non-Uni liquidity venue exercises the same flip through classification.
+    function test_1155_liquidityFamily_takes_1_19_80() public {
+        // A non-Uni liquidity venue settles identically — that is the point.
         (ERC1155Instance inst, MockFamilyVault vault) = _deploy1155("CypherLP");
 
         uint256 vaultBefore = address(vault).balance;
@@ -115,8 +117,8 @@ contract FamilyAwareSplitTest is Test {
         inst.withdraw(1 ether);
     }
 
-    function test_1155_bothBranches_conserveValue() public {
-        // Sum of every leg equals the withdrawn amount on both branches (no wei leak/mint).
+    function test_1155_bothFamilies_conserveValue() public {
+        // Sum of every leg equals the withdrawn amount whichever family is bound (no wei leak/mint).
         _assert1155Conserves("AaveEndowment");
         _assert1155Conserves("ZAMMLP");
     }
@@ -163,7 +165,7 @@ contract FamilyAwareSplitTest is Test {
         vm.warp(a.endTime);
     }
 
-    function test_721_yieldFamily_keeps_1_80_19() public {
+    function test_721_yieldFamily_takes_1_19_80() public {
         (ERC721AuctionInstance inst, MockFamilyVault vault) = _deploy721("AaveEndowment");
 
         uint256 vaultBefore = address(vault).balance;
@@ -173,12 +175,12 @@ contract FamilyAwareSplitTest is Test {
         inst.settleAuction(1);
 
         assertEq(TREASURY.balance - treasuryBefore, 0.01 ether, "protocol 1%");
-        assertEq(address(vault).balance - vaultBefore, 0.8 ether, "yield vault 80% (endowment)");
-        // Creator receives the queued deposit refund (0.1) plus the 19% creator leg.
-        assertEq(CREATOR.balance - creatorBefore, 0.1 ether + 0.19 ether, "yield creator 19% + deposit");
+        assertEq(address(vault).balance - vaultBefore, 0.19 ether, "endowment vault 19%");
+        // Creator receives the queued deposit refund (0.1) plus the 80% creator leg.
+        assertEq(CREATOR.balance - creatorBefore, 0.1 ether + 0.8 ether, "endowment creator 80% + deposit");
     }
 
-    function test_721_liquidityFamily_flips_creator_80() public {
+    function test_721_liquidityFamily_takes_1_19_80() public {
         (ERC721AuctionInstance inst, MockFamilyVault vault) = _deploy721("ZAMMLP");
 
         uint256 vaultBefore = address(vault).balance;

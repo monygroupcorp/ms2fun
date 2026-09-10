@@ -275,13 +275,12 @@ contract SeedAnvil is SeedAnvilShared {
     uint256 constant FIGMATA_BID_MAX = 4.025 ether;
 
     // ── The artist endowments ───────────────────────────────────────────────────────────────
-    // Two auction collections, one per artist target, and the auction family is not a stylistic
-    // choice: the 80% endowment leg is `splitMintFor(amount, liquidityFamily = false)`, reachable
-    // from the ERC-1155 and ERC-721 settlement paths only. An ERC404 curve bound to an endowment
-    // vault would render a vault panel that nothing ever feeds.
+    // Two auction collections, one per artist target. The auction family is what feeds an endowment
+    // vault with real principal: the vault leg is `RevenueSplitLib.split`'s 19%, routed to the bound
+    // vault from the ERC-1155 and ERC-721 settlement paths.
     //
     // Small on purpose. These exist to make the target list argue something and to give each artist
-    // vault real escrowed principal to render — not to be large. The duration mirrors the other
+    // vault real principal to render — not to be large. The duration mirrors the other
     // auction row so the orchestrator's first advance can settle the openers, which is the only way
     // principal reaches the endowment through the 80% leg rather than as a donation.
     uint8 constant ARTIST_LINES = 2;
@@ -1875,7 +1874,7 @@ contract SeedAnvil is SeedAnvilShared {
             name: "pixelady-figmata",
             metadataURI: _catalogMeta(
                 "Pixelady Figmata",
-                "The endowment demo. This collection is auction-native, and every hammer price here splits 80/19/1 - the 80 is not the creator's cut, it is permanent principal escrowed in an endowment vault that supplies it to Aave and streams the yield to the community this collection is aligned to. Settle an auction and watch the principal appear in the vault panel. Demonstration collection with illustrative figures; the pieces carry real, content-addressed art.",
+                "The endowment demo. This collection is auction-native, and every hammer price here splits 1/19/80 - the 19 is permanent principal committed to an endowment vault that supplies it to Aave and streams the yield to the community this collection is aligned to. Settle an auction and watch the principal appear in the vault panel. Demonstration collection with illustrative figures; the pieces carry real, content-addressed art.",
                 ART_FIGMATA,
                 CatalogFacts({
                     standsInFor: "an auction-native collection",
@@ -1946,13 +1945,13 @@ contract SeedAnvil is SeedAnvilShared {
     ///      `AlignmentEndowmentVault` buys nobody's token: it wraps ETH to WETH, supplies it to Aave,
     ///      and `harvest()` splits the yield between the benefactor's claimable purse and the target's
     ///      `communityPayout`. Its `alignmentToken` exists only to satisfy `registerVault`'s check.
-    ///      So an artist endowment is escrowed principal streaming yield to a payout address — which
+    ///      So an artist endowment is permanent principal streaming yield to a payout address — which
     ///      is what "exaltation" should mean, and it needs no token to exist for the artist. It is
     ///      also the framing that describes what this vault family does: the family has no swap path
     ///      at all, so a collection bound here never buys anything on anyone's behalf.
     ///
-    ///      THE AUCTION FAMILY IS FORCED, not chosen. The 80% leg is reachable from a settlement path
-    ///      only, so a curve bound to an endowment vault would render a panel nothing feeds.
+    ///      THE AUCTION FAMILY IS FORCED, not chosen. The vault leg is reachable from a settlement
+    ///      path only, so a curve bound to an endowment vault would render a panel nothing feeds.
     ///
     ///      ART: these two are not standing in for real collections, so their pieces take the seed's
     ///      own pinned IPFS bases — one each, and neither is the base of a collection sitting beside
@@ -1967,7 +1966,7 @@ contract SeedAnvil is SeedAnvilShared {
             ArtistEndowments.PARADILF_SLUG,
             ArtistEndowments.PARADILF_TITLE,
             "PDLFC",
-            "An artist endowment, shown end to end. Bid, and when the auction settles 80% of the hammer price does not go to the creator and does not go into a liquidity pool - it is escrowed as permanent principal in a vault that supplies it to Aave and streams the yield to the artist. The principal is never spent, so the payment does not stop. This is a demonstration collection: the artist payout is a generated fixture address and the alignment token beside it is a fixture too.",
+            "An artist endowment, shown end to end. Bid, and when the auction settles 19% of the hammer price does not go to the creator and does not go into a liquidity pool - it becomes permanent principal in a vault that supplies it to Aave and streams the yield to the artist. This is a demonstration collection: the artist payout is a generated fixture address and the alignment token beside it is a fixture too.",
             ART_RELIC_I,
             ART_BASE_SIMIAN
         );
@@ -1977,14 +1976,14 @@ contract SeedAnvil is SeedAnvilShared {
             ArtistEndowments.PETRAVOICE_SLUG,
             ArtistEndowments.PETRAVOICE_TITLE,
             "PTRAC",
-            "Aligned to an artist, and the endowment pays them. Settlements escrow 80% of each hammer price as permanent principal and the yield streams to their payout address. Demonstration collection: fixture payout, fixture token.",
+            "Aligned to an artist, and the endowment pays them. Settlements commit 19% of each hammer price as permanent principal and the yield streams to their payout address. Demonstration collection: fixture payout, fixture token.",
             ART_RELIC_II,
             ART_BASE_DOODLE
         );
     }
 
     /// @dev One artist endowment collection: create, queue, bid. Phase 2 settles — which is what turns
-    ///      a hammer price into escrowed principal — and asserts the vault actually took it.
+    ///      a hammer price into permanent principal — and asserts the vault actually took it.
     function _seedArtistEndowment(
         Deployed memory d,
         address vault,

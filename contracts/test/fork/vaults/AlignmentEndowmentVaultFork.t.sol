@@ -46,18 +46,31 @@ contract MockMasterRegistry {
 // copy of its own, so this is the only place the community payout can live.
 contract MockSinkRegistry {
     mapping(uint256 => address) public getCommunityPayout;
+    mapping(uint256 => mapping(address => bool)) internal _ambassadors;
 
     function setCommunityPayout(uint256 targetId, address payout) external {
         getCommunityPayout[targetId] = payout;
+    }
+
+    function setAmbassador(uint256 targetId, address account, bool flag) external {
+        _ambassadors[targetId][account] = flag;
+    }
+
+    function isAmbassador(uint256 targetId, address account) external view returns (bool) {
+        return _ambassadors[targetId][account];
+    }
+
+    function isAlignmentTargetActive(uint256) external pure returns (bool) {
+        return true;
     }
 }
 
 /**
  * @title AlignmentEndowmentVaultFork
- * @notice Fork integration test for the reworked AlignmentEndowmentVault (specs 2a + 2b) against REAL
- *         Aave V3 on mainnet. Exercises: deposit round-trip, the two-class yield split via harvest,
- *         the per-benefactor vest transition, and multi-benefactor creator-yield accrual across a vest
- *         boundary — end-to-end through real Aave.
+ * @notice Fork integration test for the AlignmentEndowmentVault against REAL Aave V3 on mainnet.
+ *         Exercises: deposit round-trip, the flat yield split via harvest, an ambassador withdrawal out
+ *         of the real position, and pro-rata creator-yield accrual across it — end-to-end through real
+ *         Aave.
  *
  * Run (with a fork URL set):
  *   forge test --match-path "test/fork/vaults/AlignmentEndowmentVaultFork.t.sol" \
@@ -76,13 +89,13 @@ contract AlignmentEndowmentVaultForkTest is Test {
     address internal constant STATA = 0x0bfc9d54Fc184518A81162F8fB99c2eACa081202;
 
     uint256 internal constant TARGET_ID = 42;
-    uint256 internal constant VEST = 26 weeks;
 
     // ── Test participants ────────────────────────────────────────────────────
     address internal owner; // vault owner (factory stand-in)
     address internal treasury; // protocolTreasury (1% protocol)
     address internal community; // the target sink, held in the registry stub the vault reads
     address internal creator; // benefactor's Ownable.owner() — receives creator yield
+    address internal ambassador; // seated on the target: eligibility to withdraw the corpus
 
     AlignmentEndowmentVault internal vault;
     MockBenefactor internal benefactor; // acts as the aligned collection instance
@@ -112,6 +125,8 @@ contract AlignmentEndowmentVaultForkTest is Test {
         masterRegistry.setAlignmentRegistry(address(sinkRegistry));
         sinkRegistry.setCommunityPayout(TARGET_ID, community);
         benefactor = new MockBenefactor(creator);
+        ambassador = makeAddr("ambassador");
+        sinkRegistry.setAmbassador(TARGET_ID, ambassador, true);
 
         address alignmentToken = makeAddr("alignmentToken");
 
@@ -131,8 +146,8 @@ contract AlignmentEndowmentVaultForkTest is Test {
         vm.deal(address(this), amount);
         vault.receiveContribution{ value: amount }(Currency.wrap(address(0)), amount, address(benefactor));
 
-        assertEq(vault.escrowedPrincipal(address(benefactor)), amount, "escrowed principal mismatch");
-        assertEq(vault.totalEscrowedPrincipal(), amount, "totalEscrowed mismatch");
+        assertEq(vault.principalOf(address(benefactor)), amount, "principal mismatch");
+        assertEq(vault.totalPrincipal(), amount, "totalPrincipal mismatch");
 
         uint256 shares = _stataBalanceOf(address(vault));
         assertGt(shares, 0, "vault should hold stataToken shares");
@@ -142,16 +157,16 @@ contract AlignmentEndowmentVaultForkTest is Test {
     }
 
     // ────────────────────────────────────────────────────────────────────────
-    // Test 2 — Yield realization: escrowed two-class split (best-effort on a fork)
+    // Test 2 — Yield realization: the flat split (best-effort on a fork)
     // ────────────────────────────────────────────────────────────────────────
 
     /**
      * @notice harvest() against real Aave. On a single fork block interest is typically ~0, so harvest is
-     *         a clean no-op; if the fork state carries accrued interest, the escrowed class splits
-     *         80 creator / 19 target / 1 protocol — the creator leg accrues to the benefactor's purse
-     *         (claimable), and target + protocol receive ETH.
+     *         a clean no-op; if the fork state carries accrued interest, it splits 80 creator / 19 target /
+     *         1 protocol — the creator leg accrues to the benefactor's purse (claimable), and target +
+     *         protocol receive ETH.
      */
-    function test_harvest_escrowedSplitOrCleanNoop() public {
+    function test_harvest_flatSplitOrCleanNoop() public {
         uint256 amount = 1 ether;
 
         vm.deal(address(this), amount);
@@ -173,7 +188,7 @@ contract AlignmentEndowmentVaultForkTest is Test {
             assertGt(treasury.balance - treasuryBefore, 0, "protocol should receive its cut");
             assertGt(vault.pendingYieldOf(address(benefactor)), 0, "creator leg accrued to purse");
             // principal intact
-            assertEq(vault.escrowedPrincipal(address(benefactor)), amount, "principal intact after harvest");
+            assertEq(vault.principalOf(address(benefactor)), amount, "principal intact after harvest");
         } else {
             assertEq(community.balance, communityBefore, "no yield -> no target transfer");
             assertEq(treasury.balance, treasuryBefore, "no yield -> no protocol transfer");
@@ -182,83 +197,69 @@ contract AlignmentEndowmentVaultForkTest is Test {
     }
 
     // ────────────────────────────────────────────────────────────────────────
-    // Test 3 — Vest transition through real Aave (mechanic b: stays in position)
+    // Test 3 — A withdrawal through real Aave debits exactly what left
     // ────────────────────────────────────────────────────────────────────────
 
-    function test_vest_transitionThroughRealAave() public {
+    /// @notice The corpus is the whole principal from the block it lands, and an ambassador's withdrawal
+    ///         redeems it out of the real Aave position. What is debited is what actually left.
+    function test_withdraw_throughRealAave() public {
         uint256 amount = 1 ether;
 
         vm.deal(address(this), amount);
         vault.receiveContribution{ value: amount }(Currency.wrap(address(0)), amount, address(benefactor));
+        assertEq(vault.deployableCorpus(), amount, "the whole deposit is deployable at once");
 
-        uint256 principalBasisBefore = vault.totalEscrowedPrincipal() + vault.totalVestedDeployable();
+        address sink = makeAddr("deploy_sink");
+        vm.etch(sink, "");
+        uint256 half = amount / 2;
 
-        vm.warp(block.timestamp + VEST);
-        vault.vest(address(benefactor)); // permissionless
+        vm.prank(ambassador);
+        vault.execute(sink, half, "");
 
-        // Accounting moved escrowed → vested, for exactly `amount`.
-        assertEq(vault.escrowedPrincipal(address(benefactor)), 0, "escrow cleared");
-        assertEq(vault.vestedPrincipal(address(benefactor)), amount, "vested set");
-        assertEq(vault.totalVestedDeployable(), amount, "totalVested set");
+        assertEq(sink.balance, half, "the redeemed ETH reached the sink");
+        assertEq(vault.totalPrincipal(), amount - half, "basis debited by what left");
+        assertEq(vault.principalOf(address(benefactor)), amount - half, "and the donor's share fell with it");
 
-        // Mechanic (b): the PRINCIPAL is not redeemed at vest — it is reclassified in place. The principal
-        // basis is conserved across the transition, and the Aave position still covers it.
-        //
-        // The share COUNT is not the right observable here: `vest()` crystallizes yield first
-        // (`AlignmentEndowmentVault._crystallizeYield`), which redeems the accrued YIELD from Aave and so
-        // legitimately reduces the share balance. What must not move is the principal.
-        assertEq(
-            vault.totalEscrowedPrincipal() + vault.totalVestedDeployable(),
-            principalBasisBefore,
-            "principal basis conserved across vest"
-        );
         uint256 positionAfter = _stataConvertToAssets(_stataBalanceOf(address(vault)));
-        assertGe(positionAfter + 2, amount, "principal remains in the Aave position (only yield redeemed)");
+        assertGe(positionAfter + 2, amount - half, "the rest is still in the Aave position");
     }
 
     // ────────────────────────────────────────────────────────────────────────
-    // Test 4 — Multi-benefactor creator accrual across a vest boundary
+    // Test 4 — Multi-benefactor creator accrual is pro-rata, and stays so after a withdrawal
     // ────────────────────────────────────────────────────────────────────────
 
     /**
-     * @notice Two benefactors escrowed; one vests. A subsequent harvest accrues the creator leg only to
-     *         the still-escrowed benefactor — the vested one earns nothing further. Verified end-to-end
-     *         against real Aave. Directional on a fork (real yield magnitude is unknown), so we assert the
-     *         vested benefactor's claimable is FROZEN across the harvest while the escrowed one's grows.
+     * @notice Two benefactors, equal principal, so the creator leg divides evenly — and it keeps dividing
+     *         evenly after a withdrawal takes half the pool, because the withdrawal came out of the pool
+     *         rather than out of one of them. Directional on a fork (real yield magnitude is unknown), so
+     *         the assertion is on the shape: both grow, and they grow together.
      */
-    function test_multiBenefactor_accrualAcrossVestBoundary() public {
+    function test_multiBenefactor_accrualIsProRataAcrossAWithdrawal() public {
         MockBenefactor benefactorB = new MockBenefactor(makeAddr("creatorB"));
 
         vm.deal(address(this), 2 ether);
         vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, address(benefactor));
         vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, address(benefactorB));
 
-        // A vests, B stays escrowed.
-        vm.warp(block.timestamp + VEST);
-        vault.vest(address(benefactor));
-        assertEq(vault.totalEscrowedPrincipal(), 1 ether, "only B remains escrowed");
-        assertEq(vault.totalVestedDeployable(), 1 ether, "A vested");
+        address sink = makeAddr("deploy_sink");
+        vm.etch(sink, "");
+        vm.prank(ambassador);
+        vault.execute(sink, 1 ether, ""); // half the pool leaves
 
-        // Snapshot both claimable balances the instant A's accrual stops.
-        uint256 pendingAAtVest = vault.pendingYieldOf(address(benefactor));
-        uint256 pendingBAtVest = vault.pendingYieldOf(address(benefactorB));
+        assertEq(vault.principalOf(address(benefactor)), 0.5 ether, "A halved");
+        assertEq(vault.principalOf(address(benefactorB)), 0.5 ether, "B halved with it");
 
-        // Let interest notionally accrue, then harvest.
+        uint256 pendingABefore = vault.pendingYieldOf(address(benefactor));
+        uint256 pendingBBefore = vault.pendingYieldOf(address(benefactorB));
+
         vm.warp(block.timestamp + 30 days);
         vault.harvest();
 
-        uint256 pendingAAfterHarvest = vault.pendingYieldOf(address(benefactor));
-        uint256 pendingBAfterHarvest = vault.pendingYieldOf(address(benefactorB));
+        uint256 pendingAAfter = vault.pendingYieldOf(address(benefactor));
+        uint256 pendingBAfter = vault.pendingYieldOf(address(benefactorB));
 
-        // The vested benefactor (A) accrues NO FURTHER creator yield: their claimable balance is frozen at
-        // the purse `vest()` settled for them (already-earned, pre-vest, booked by design) and does not move
-        // across a later harvest. The still-escrowed benefactor (B) keeps accruing.
-        //
-        // Asserting A's claimable is zero would be a different — and false — claim: `pendingYieldOf` is the
-        // settled purse plus the live accrual, and only the LIVE term is zeroed by vesting
-        // (`escrowedPrincipal[A] == 0`).
-        assertGt(pendingBAfterHarvest, pendingBAtVest, "escrowed benefactor keeps accruing across harvest");
-        assertEq(pendingAAfterHarvest, pendingAAtVest, "vested benefactor accrues no further creator yield");
+        assertGt(pendingAAfter, pendingABefore, "A keeps accruing on what is left");
+        assertEq(pendingAAfter - pendingABefore, pendingBAfter - pendingBBefore, "and both accrue equally");
     }
 
     // ────────────────────────────────────────────────────────────────────────

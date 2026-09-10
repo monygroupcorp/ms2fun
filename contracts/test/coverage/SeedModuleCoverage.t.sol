@@ -654,13 +654,10 @@ contract SeedModuleCoverageTest is Test {
         );
     }
 
-    /// @dev THE 80% ENDOWMENT IS EXPRESSIBLE IN EXACTLY ONE PLACE, and this is the assertion that
-    ///      says so. The split is selected by the bound vault's FAMILY, and the endowment branch is
-    ///      reachable only from a settlement path — so the auction row bound to the endowment vault
-    ///      splits 80/19/1 while every curve row, bound to a liquidity-family vault, splits 1/19/80
-    ///      and cannot be reshaped into the other. Asserting the family alone would be weaker: the
-    ///      split each family actually produces is checked here too.
-    function test_catalogAuction_isTheOnlyRowThatCanExpressTheEndowment() public view {
+    /// @dev The catalog still binds one row to the endowment vault and the rest to liquidity vaults, and
+    ///      the family classification still answers for each. What it no longer decides is the money: the
+    ///      endowment's inverted 1/80/19 mint split is gone, so both families settle 1/19/80.
+    function test_catalogAuction_bindsTheEndowmentVaultButNoLongerASeparateSplit() public view {
         string memory endowmentType = IAlignmentVault(payable(d.cultAaveVault)).vaultType();
         string memory liquidityType = IAlignmentVault(payable(d.cultUniVault)).vaultType();
         assertFalse(
@@ -670,10 +667,9 @@ contract SeedModuleCoverageTest is Test {
             RevenueSplitLib.isLiquidityFamily(liquidityType), "catalog: the curve rows' vault is not a liquidity vault"
         );
 
-        RevenueSplitLib.Split memory endowed = RevenueSplitLib.splitMintFor(1 ether, false);
-        RevenueSplitLib.Split memory aligned = RevenueSplitLib.splitMintFor(1 ether, true);
-        assertEq(endowed.vaultCut, 0.8 ether, "catalog: the endowment family no longer routes 80% to the vault");
-        assertEq(aligned.vaultCut, 0.19 ether, "catalog: the liquidity family no longer routes 19% to the vault");
+        // The split is the same for both, and that is the point: the family still classifies the vault,
+        // it just no longer changes what the money does.
+        assertEq(RevenueSplitLib.split(1 ether).vaultCut, 0.19 ether, "catalog: a family no longer bends the split");
     }
 
     /// @dev The editions are TRUNCATED, and the truncation is the one thing that must never be

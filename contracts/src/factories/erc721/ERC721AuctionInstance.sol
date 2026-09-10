@@ -367,14 +367,12 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
         // Refund creator's deposit (force-transfer so a non-receiving owner cannot permanently strand the bidder's funds)
         SafeTransferLib.forceSafeTransferETH(owner(), auction.minBid);
 
-        // Split winning bid by the collection's vault family (ADR-0003, family-aware):
-        // liquidity-family → 1% protocol / 19% vault / 80% creator; yield-family (endowment) →
-        // 1% protocol / 80% vault / 19% creator. Unknown vaultType reverts (UnknownVaultFamily).
-        // The family is read from the PINNED genesis vault, never the live `vault` (audit finding #2):
-        // a migration swaps `vault`, but the split must stay keyed to what buyers paid in against, so a
-        // vault change can never flip an endowment collection's 1/80/19 to 1/19/80.
-        bool liquidityFamily = RevenueSplitLib.isLiquidityFamily(IAlignmentVault(payable(genesisVault)).vaultType());
-        RevenueSplitLib.Split memory s = RevenueSplitLib.splitMintFor(auction.highBid, liquidityFamily);
+        // The winning bid splits family-blind: 1% protocol / 19% vault / 80% creator, whatever the vault
+        // is. The family read stays, and only as a deploy-config guard — an unrecognized `vaultType()` on
+        // the PINNED genesis vault (never the live `vault`, audit finding #2) still reverts
+        // `UnknownVaultFamily` rather than settling against a vault nobody classified.
+        RevenueSplitLib.isLiquidityFamily(IAlignmentVault(payable(genesisVault)).vaultType());
+        RevenueSplitLib.Split memory s = RevenueSplitLib.split(auction.highBid);
 
         if (s.protocolCut > 0 && protocolTreasury != address(0)) {
             // force-transfer so a reverting treasury cannot brick the line (matches vaultCut hardening)

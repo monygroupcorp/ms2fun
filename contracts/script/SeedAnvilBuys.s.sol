@@ -108,13 +108,15 @@ contract SeedAnvilBuys is SeedAnvilShared {
     uint256 internal constant FIGMATA_FOLLOW_BID = 0.25 ether;
 
     /// @dev The artist collections' opening auctions, settled here — which is what turns a hammer
-    ///      price into escrowed endowment principal for the artist.
+    ///      price into permanent endowment principal for the artist.
     uint24 internal constant ARTIST_OPENING_AUCTIONS = 2;
     uint256 internal constant ARTIST_FOLLOW_BID = 0.2 ether;
-    /// @dev Floor on what settling one artist collection must actually escrow. Not an accuracy claim
+    /// @dev Floor on what settling one artist collection must actually commit. Not an accuracy claim
     ///      about anything: it is the difference between a vault panel with a real position in it and
-    ///      one showing dust, and phase 1's bids are sized well above it.
-    uint256 internal constant ARTIST_MIN_ENDOWED = 3 ether;
+    ///      one showing dust, and phase 1's bids are sized well above it. Settlement routes the vault
+    ///      19% of each hammer price — the flat split every family takes — so the floor is sized to
+    ///      that, not to the 80% the endowment family used to take before the split went family-blind.
+    uint256 internal constant ARTIST_MIN_ENDOWED = 0.7 ether;
     uint256 internal constant PERSON_KEY = 0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a;
 
     function run() public {
@@ -157,7 +159,7 @@ contract SeedAnvilBuys is SeedAnvilShared {
         console.log("ERC404 : vapor mid-curve + staked; cinder/molten/quench bought (reserve > 0, graduate-ready)");
         console.log("ERC404 : carve reserve >= 3 ETH; stacked NFTs held by ADMIN + overlay authored");
         console.log("CATALOG: three curves filled to a quarter, the small row bought out (ungraduated)");
-        console.log("ARTIST : both endowments settled, principal escrowed, harvest split to the artist payout");
+        console.log("ARTIST : both endowments settled, principal committed, harvest split to the artist payout");
         console.log("block.timestamp now:", block.timestamp);
     }
 
@@ -607,7 +609,7 @@ contract SeedAnvilBuys is SeedAnvilShared {
         vm.stopBroadcast();
 
         uint256 endowed = IEndowmentPrincipal(vault).totalPrincipalCommittedAllTime() - before;
-        require(endowed >= ARTIST_MIN_ENDOWED, "artist endowment: settling the auctions escrowed too little principal");
+        require(endowed >= ARTIST_MIN_ENDOWED, "artist endowment: settling the auctions committed too little principal");
 
         // THE YIELD LEG, EXERCISED — AND WHAT IT DOES NOT PROVE. `harvest()` crystallizes what the
         // position has earned and routes the target share to `communityPayout`; the creator share
@@ -627,7 +629,7 @@ contract SeedAnvilBuys is SeedAnvilShared {
         require(EndowmentSink.sinkOf(vault) == payout, "artist endowment: the payout sink moved during harvest");
 
         console.log("ARTIST endowment settled:", inst);
-        console.log("  principal escrowed by settlement (wei):", endowed);
+        console.log("  principal committed by settlement (wei):", endowed);
         console.log("  payout sink:", payout);
     }
 
@@ -735,7 +737,7 @@ contract SeedAnvilBuys is SeedAnvilShared {
         console.log("  endowment principal committed all-time (wei):", principal);
     }
 
-    /// @dev One artist endowment's standing state: principal escrowed, and the payout still pointing
+    /// @dev One artist endowment's standing state: principal committed, and the payout still pointing
     ///      at the artist's derived fixture address.
     function _assertArtistEndowmentStanding(address vault, string memory slug) internal view {
         require(

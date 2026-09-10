@@ -330,12 +330,11 @@ contract AlignmentEndowmentVaultTest is Test {
     Currency public nativeCurrency = Currency.wrap(address(0));
 
     uint256 constant ONE_ETH = 1 ether;
-    uint256 constant VEST = 26 weeks;
 
     // ── Events ───────────────────────────────────────────────────────────────
     event ContributionReceived(address indexed benefactor, uint256 amount);
     event PrincipalDeposited(address indexed benefactor, uint256 amount, uint256 indexed targetId, uint256 timestamp);
-    event PrincipalVested(address indexed benefactor, uint256 amount, uint256 timestamp);
+    event FundingRoundOpened(uint256 indexed round, uint256 timestamp);
     event YieldDistributed(uint256 creatorLeg, uint256 targetLeg, uint256 protocolLeg, uint256 timestamp);
     event YieldClaimed(address indexed benefactor, address indexed recipient, uint256 amount);
     event ImpairmentRealized(uint256 shortfallBps, uint256 timestamp);
@@ -365,7 +364,7 @@ contract AlignmentEndowmentVaultTest is Test {
 
         masterRegistry.setAgent(agent, true);
 
-        // Deterministic base timestamp so vest math is stable.
+        // Deterministic base timestamp.
         vm.warp(1_000_000);
     }
 
@@ -420,7 +419,7 @@ contract AlignmentEndowmentVaultTest is Test {
         assertEq(vault.alignmentToken(), alignmentToken);
         assertEq(vault.targetId(), TARGET_ID);
         assertEq(vault.owner(), vaultOwner);
-        assertEq(vault.VEST_DURATION(), VEST);
+        assertEq(vault.fundingRound(), 0);
     }
 
     function test_initialize_revertsIfCalledAgain() public {
@@ -443,28 +442,24 @@ contract AlignmentEndowmentVaultTest is Test {
     // 2. receiveContribution — happy + revert
     // ═══════════════════════════════════════════════════════════════════════
 
-    function test_contribution_creditsEscrowedPrincipal() public {
+    function test_contribution_creditsPrincipal() public {
         _contributeBenefactor(ONE_ETH);
-        assertEq(vault.escrowedPrincipal(address(benefactorContract)), ONE_ETH);
-        assertEq(vault.totalEscrowedPrincipal(), ONE_ETH);
         assertEq(vault.principalOf(address(benefactorContract)), ONE_ETH);
+        assertEq(vault.totalPrincipal(), ONE_ETH);
         assertEq(vault.totalPrincipalCommittedAllTime(), ONE_ETH);
         assertEq(vault.totalPrincipalLocked(), ONE_ETH);
     }
 
-    function test_contribution_setsDepositTimeOnFirst() public {
-        _contributeBenefactor(ONE_ETH);
-        assertEq(vault.depositTime(address(benefactorContract)), 1_000_000);
-    }
-
-    function test_contribution_doesNotResetDepositTimeOnSecond() public {
+    /// @dev A top-up is just more principal in the same bucket. It starts no clock of its own, because
+    ///      there is no clock: the second ETH is worth exactly what the first is from the block it lands.
+    function test_contribution_topUpAddsToTheSameBucket() public {
         _contributeBenefactor(ONE_ETH);
         vm.warp(2_000_000);
         _contributeBenefactor(ONE_ETH);
-        assertEq(vault.depositTime(address(benefactorContract)), 1_000_000, "depositTime must not reset");
-        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 2 * ONE_ETH);
-        assertEq(vault.totalEscrowedPrincipal(), 2 * ONE_ETH);
+        assertEq(vault.principalOf(address(benefactorContract)), 2 * ONE_ETH);
+        assertEq(vault.totalPrincipal(), 2 * ONE_ETH);
         assertEq(vault.totalPrincipalCommittedAllTime(), 2 * ONE_ETH);
+        assertEq(vault.deployableCorpus(), 2 * ONE_ETH, "all of it is deployable, immediately");
     }
 
     function test_contribution_emitsBothEvents() public {
@@ -520,7 +515,7 @@ contract AlignmentEndowmentVaultTest is Test {
         (bool ok,) =
             address(vault).call(abi.encodeWithSignature("withdrawPrincipal(address)", address(benefactorContract)));
         assertFalse(ok, "withdrawPrincipal must not exist");
-        assertEq(vault.escrowedPrincipal(address(benefactorContract)), ONE_ETH);
+        assertEq(vault.principalOf(address(benefactorContract)), ONE_ETH);
     }
 
     /// @dev The old MATURITY_DURATION refund constant is gone.
@@ -529,200 +524,154 @@ contract AlignmentEndowmentVaultTest is Test {
         assertFalse(ok, "MATURITY_DURATION must not exist");
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // 4. Vesting
-    // ═══════════════════════════════════════════════════════════════════════
-
-    function test_vest_revertsBeforeDuration() public {
+    /// @dev And so is the whole vesting surface. Principal is one bucket with no second class to move to,
+    ///      so nothing may answer for a clock, an escrow tranche, or a vested balance — a reintroduced
+    ///      state transition would have to appear here first.
+    function test_permanence_noVestingSurface() public {
         _contributeBenefactor(ONE_ETH);
-        vm.warp(block.timestamp + VEST - 1);
-        vm.expectRevert(AlignmentEndowmentVault.NotVested.selector);
-        vault.vest(address(benefactorContract));
+        string[6] memory gone = [
+            "VEST_DURATION()",
+            "vest(address)",
+            "vest(address,uint256)",
+            "vestedOf(address)",
+            "totalVested()",
+            "depositTime(address)"
+        ];
+        for (uint256 i; i < gone.length; ++i) {
+            bytes memory data = bytes(gone[i]);
+            bytes4 sel = bytes4(keccak256(data));
+            (bool ok,) =
+                address(vault).call(abi.encodePacked(sel, uint256(uint160(address(benefactorContract))), uint256(1)));
+            assertFalse(ok, gone[i]);
+        }
     }
 
-    function test_vest_revertsNoPrincipal() public {
-        vm.expectRevert(AlignmentEndowmentVault.NoPrincipal.selector);
-        vault.vest(address(benefactorContract));
+    // ═══════════════════════════════════════════════════════════════════════
+    // 4. One bucket: a withdrawal is pooled, so it lands pro-rata
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// @dev The law that replaced the clock. A slice stops earning when it is PHYSICALLY WITHDRAWN and at
+    ///      no other moment: the withdrawal is taken from the pool, so every benefactor's live principal
+    ///      falls in the same proportion, and their weight in the next harvest falls with it.
+    function test_withdrawal_landsProRataOnEveryBenefactor() public {
+        _contributeBenefactor(1 ether); // A, weight 1
+        MockOwnable b = _contributeNewBenefactor(address(0xCAFE), 3 ether); // B, weight 3
+        assertEq(vault.totalPrincipal(), 4 ether);
+
+        vm.prank(ambassador);
+        vault.execute(makeAddr("sink"), 2 ether, ""); // half the pool leaves
+
+        assertEq(vault.totalPrincipal(), 2 ether, "pool halved");
+        assertEq(vault.principalOf(address(benefactorContract)), 0.5 ether, "A halved, not zeroed");
+        assertEq(vault.principalOf(address(b)), 1.5 ether, "B halved, not spared");
+
+        // The creator leg still divides 1:3 — the withdrawal changed the size of the pie, not the slices.
+        _simulateYield(1 ether);
+        vault.harvest();
+        assertEq(vault.pendingYieldOf(address(benefactorContract)), 0.2 ether, "A keeps its 1/4");
+        assertEq(vault.pendingYieldOf(address(b)), 0.6 ether, "B keeps its 3/4");
     }
 
-    function test_vest_movesEscrowedToVested_permissionless() public {
-        _contributeBenefactor(ONE_ETH);
-        vm.warp(block.timestamp + VEST);
+    /// @dev And a benefactor who arrives AFTER a withdrawal is priced against the pool as it actually is,
+    ///      not as it was. Pre-fix arithmetic (minting weight 1:1 with the deposit) would hand the newcomer
+    ///      1/2 of the creator leg here while they fund 2/3 of the position.
+    function test_depositAfterWithdrawal_isPricedAgainstTheLivePool() public {
+        _contributeBenefactor(4 ether); // A funds the pool
+        vm.prank(ambassador);
+        vault.execute(makeAddr("sink"), 3 ether, ""); // 3 of A's 4 ETH is spent
+        assertEq(vault.principalOf(address(benefactorContract)), 1 ether, "A has 1 ETH left in the pool");
+
+        MockOwnable b = _contributeNewBenefactor(address(0xCAFE), 2 ether); // B funds 2 of the 3 ETH now here
+        assertEq(vault.totalPrincipal(), 3 ether);
+        assertEq(vault.principalOf(address(b)), 2 ether, "B's principal is what B put in");
+        assertEq(vault.principalOf(address(benefactorContract)), 1 ether, "A's is what A has left");
+
+        _simulateYield(3 ether);
+        vault.harvest(); // creator leg = 2.4 ETH, split 1:2
+        assertEq(vault.pendingYieldOf(address(benefactorContract)), 0.8 ether, "A earns on its 1 ETH");
+        assertEq(vault.pendingYieldOf(address(b)), 1.6 ether, "B earns on its 2 ETH");
+    }
+
+    /// @dev A corpus spent to the last wei and then re-funded. The spent shares must not price (or dilute)
+    ///      the new money — a new benefactor into an empty pool funds all of it and earns all of the
+    ///      creator leg — and the yield the spent shares already earned must survive the reset in full.
+    function test_refundingAnEmptiedCorpus_opensAFreshRoundWithoutLosingEarnedYield() public {
+        _contributeBenefactor(2 ether);
+        _simulateYield(1 ether);
+        vault.harvest(); // A earns the whole 0.8 creator leg
+        assertEq(vault.pendingYieldOf(address(benefactorContract)), 0.8 ether);
+
+        vm.prank(ambassador);
+        vault.execute(makeAddr("sink"), 2 ether, ""); // the corpus is spent to the wei
+        assertEq(vault.totalPrincipal(), 0, "pool empty");
+        assertEq(vault.principalOf(address(benefactorContract)), 0, "A's ETH is gone, so A's principal is");
 
         vm.expectEmit(true, false, false, true);
-        emit PrincipalVested(address(benefactorContract), ONE_ETH, block.timestamp);
-        vm.prank(stranger); // permissionless
-        vault.vest(address(benefactorContract));
+        emit FundingRoundOpened(1, block.timestamp);
+        MockOwnable b = _contributeNewBenefactor(address(0xCAFE), 5 ether);
+        assertEq(vault.fundingRound(), 1);
+        assertEq(vault.principalOf(address(b)), 5 ether, "B funds the whole pool");
+        assertEq(vault.principalOf(address(benefactorContract)), 0, "A's spent shares buy no part of it");
 
-        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 0, "escrow cleared");
-        assertEq(vault.totalEscrowedPrincipal(), 0);
-        assertEq(vault.vestedPrincipal(address(benefactorContract)), ONE_ETH, "vested set");
-        assertEq(vault.vestedOf(address(benefactorContract)), ONE_ETH);
-        assertEq(vault.totalVestedDeployable(), ONE_ETH);
-        assertEq(vault.totalVested(), ONE_ETH);
-        // Still counted as the benefactor's all-time contribution (permanent, no refund).
-        assertEq(vault.getBenefactorContribution(address(benefactorContract)), ONE_ETH);
+        // A's already-earned 0.8 ETH is untouched by the reset and still claimable.
+        assertEq(vault.pendingYieldOf(address(benefactorContract)), 0.8 ether, "earned yield survives the round");
+
+        _simulateYield(1 ether);
+        vault.harvest();
+        assertEq(vault.pendingYieldOf(address(b)), 0.8 ether, "B takes the whole creator leg of the new round");
+        assertEq(vault.pendingYieldOf(address(benefactorContract)), 0.8 ether, "and A accrues nothing more on nothing");
+
+        vm.prank(alice);
+        assertEq(vault.claimYieldPurse(address(benefactorContract)), 0.8 ether, "A can still pull it");
     }
 
-    /// @dev After vest, the benefactor accrues NO creator yield on that principal.
-    function test_vest_stopsCreatorAccrual() public {
-        _contributeBenefactor(ONE_ETH);
-        vm.warp(block.timestamp + VEST);
-        vault.vest(address(benefactorContract));
+    /// @dev A rogue ambassador draining the pool to a sliver and letting it be re-funded, over and over.
+    ///      Each cycle prices the next deposit against a near-empty pool, which mints it a proportionally
+    ///      enormous share count — correct arithmetic that, compounded, would overflow `amount · shares`
+    ///      and brick intake permanently. The price floor ends the round instead, so intake survives any
+    ///      number of cycles and each newcomer still owns the pool they funded.
+    function test_drainToASliver_repeatedly_doesNotBrickIntake() public {
+        for (uint256 i; i < 8; ++i) {
+            MockOwnable b = _contributeNewBenefactor(address(uint160(0xD000 + i)), 1 ether);
+            assertEq(vault.principalOf(address(b)), 1 ether, "the depositor owns the pool they funded");
 
-        _simulateYield(ONE_ETH);
+            uint256 corpus = vault.deployableCorpus();
+            vm.prank(ambassador);
+            vault.execute(makeAddr("sink"), corpus - 1, ""); // leave a single wei behind
+
+            assertEq(vault.totalPrincipal(), 0, "a pool worth a sliver of its shares ends the round");
+        }
+    }
+
+    /// @dev The yield split does not wait for an ambassador. Assignment is eligibility to withdraw, not
+    ///      withdrawal, so a target with no seated ambassador still pays 80/19/1 from the first harvest.
+    function test_yieldSplitDoesNotWaitForAnAmbassador() public {
+        ambassadorRegistry.setAmbassador(TARGET_ID, ambassador, false);
+        _contributeBenefactor(1 ether);
+
+        uint256 communityBefore = communityPayout.balance;
+        _simulateYield(1 ether);
         vault.harvest();
 
-        assertEq(vault.pendingYieldOf(address(benefactorContract)), 0, "no creator accrual post-vest");
+        assertEq(vault.pendingYieldOf(address(benefactorContract)), 0.8 ether, "creator leg paid");
+        assertEq(communityPayout.balance - communityBefore, 0.19 ether, "community leg paid");
+
+        // The corpus is simply not withdrawable yet — that, and only that, is what the seat gates.
+        vm.prank(ambassador);
+        vm.expectRevert(AlignmentEndowmentVault.NotAuthorized.selector);
+        vault.execute(makeAddr("sink"), 1 ether, "");
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 4b. Paginated vest — the tranche array is unbounded and openly appendable
+    // 5. harvest — one flat split (wei-exact)
     // ═══════════════════════════════════════════════════════════════════════
 
-    /// @dev `receiveContribution` is permissionless, so ANY address can append tranches to ANY benefactor's
-    ///      escrow array. These build that array from a third party at the minimum deposit size.
-    function _grindTranches(uint256 n) internal {
-        vm.deal(stranger, stranger.balance + n);
-        for (uint256 k; k < n; ++k) {
-            vm.prank(stranger);
-            vault.receiveContribution{ value: 1 }(nativeCurrency, 1, address(benefactorContract));
-        }
-    }
-
-    /// @dev Two batches with independent clocks: the first is matured at vest time, the second is not.
-    function _mixedMaturityTranches(uint256 maturedCount, uint256 unmaturedCount, uint256 unit) internal {
-        for (uint256 k; k < maturedCount; ++k) {
-            _contributeBenefactor(unit);
-        }
-        vm.warp(block.timestamp + VEST / 2);
-        for (uint256 k; k < unmaturedCount; ++k) {
-            _contributeBenefactor(unit);
-        }
-        vm.warp(block.timestamp + VEST / 2 + 1);
-    }
-
-    function test_vest_paginated_zeroMaxReverts() public {
-        _contributeBenefactor(ONE_ETH);
-        vm.warp(block.timestamp + VEST);
-        vm.expectRevert(AlignmentEndowmentVault.AmountMustBePositive.selector);
-        vault.vest(address(benefactorContract), 0);
-    }
-
-    /// @dev A page wide enough to cover the whole array is a full sweep and keeps the one-argument semantics.
-    function test_vest_paginated_fullPageMatchesUnbounded() public {
-        _contributeBenefactor(ONE_ETH);
-        vm.warp(block.timestamp + VEST);
-
-        vm.prank(stranger);
-        vault.vest(address(benefactorContract), 100);
-
-        assertEq(vault.vestedPrincipal(address(benefactorContract)), ONE_ETH, "vested");
-        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 0, "escrow cleared");
-    }
-
-    /// @dev Coverage decides `NotVested`: a full sweep with nothing matured reverts; a bounded page that
-    ///      has only seen a window of the array succeeds, moves no principal, and lets the caller page on.
-    function test_vest_paginated_pageWithoutMaturedTranche_doesNotRevert() public {
-        for (uint256 k; k < 6; ++k) {
-            _contributeBenefactor(0.1 ether);
-        }
-
-        vm.expectRevert(AlignmentEndowmentVault.NotVested.selector);
-        vault.vest(address(benefactorContract), 6); // covers the array → full-sweep semantics
-
-        vault.vest(address(benefactorContract), 2); // a window only → succeeds
-        assertEq(vault.vestedPrincipal(address(benefactorContract)), 0, "nothing vested by that page");
-        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 0.6 ether, "escrow untouched");
-    }
-
-    /// @dev The core of the bounded walk. Matured tranches are removed by swap-and-pop, which leaves
-    ///      unmatured entries sitting in the slots a page has already passed. With the narrowest possible
-    ///      page (one tranche per call) the walk must still reach every matured tranche.
-    function test_vest_paginated_narrowestPageReachesEveryMaturedTranche() public {
-        _mixedMaturityTranches(3, 3, ONE_ETH);
-
-        for (uint256 call; call < 12; ++call) {
-            vault.vest(address(benefactorContract), 1);
-        }
-
-        assertEq(vault.vestedPrincipal(address(benefactorContract)), 3 * ONE_ETH, "all matured principal vested");
-        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 3 * ONE_ETH, "unmatured principal untouched");
-        assertEq(vault.totalVestedDeployable(), 3 * ONE_ETH);
-    }
-
-    /// @dev N bounded calls must vest exactly what one unbounded call would have, over a mixed array.
-    function test_vest_paginated_multiCallEqualsUnbounded() public {
-        _mixedMaturityTranches(10, 10, 0.1 ether);
-
-        uint256 snap = vm.snapshotState();
-        vault.vest(address(benefactorContract));
-        uint256 vestedOnce = vault.vestedPrincipal(address(benefactorContract));
-        uint256 escrowOnce = vault.escrowedPrincipal(address(benefactorContract));
-        uint256 deployableOnce = vault.totalVestedDeployable();
-        uint256 totalEscrowOnce = vault.totalEscrowedPrincipal();
-        vm.revertToState(snap);
-
-        for (uint256 call; call < 30; ++call) {
-            vault.vest(address(benefactorContract), 3);
-        }
-
-        assertEq(vault.vestedPrincipal(address(benefactorContract)), vestedOnce, "vested total matches");
-        assertEq(vault.escrowedPrincipal(address(benefactorContract)), escrowOnce, "escrow remainder matches");
-        assertEq(vault.totalVestedDeployable(), deployableOnce, "deployable corpus matches");
-        assertEq(vault.totalEscrowedPrincipal(), totalEscrowOnce, "total escrow matches");
-    }
-
-    /// @dev The griefing case: a third party lengthens the array until a full walk no longer fits a block.
-    ///      The vest stays reachable because the caller chooses the walk length, and the cost of a page does
-    ///      not scale with the array — the walk a page performs is what the caller paid for, nothing more.
-    function test_vest_paginated_staysBoundedAsArrayGrows() public {
-        _contributeBenefactor(ONE_ETH);
-        vm.warp(block.timestamp + VEST);
-        uint256 base = vm.snapshotState();
-
-        _grindTranches(200);
-        uint256 small = vm.snapshotState();
-        uint256 unboundedSmall = _gasOfUnboundedVest();
-        vm.revertToState(small);
-        uint256 pagedSmall = _gasOfPagedVest(4);
-
-        vm.revertToState(base);
-
-        _grindTranches(800);
-        uint256 large = vm.snapshotState();
-        uint256 unboundedLarge = _gasOfUnboundedVest();
-        vm.revertToState(large);
-        uint256 pagedLarge = _gasOfPagedVest(4);
-
-        assertEq(vault.vestedPrincipal(address(benefactorContract)), ONE_ETH, "paged call vested the matured tranche");
-        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 800, "third-party tranches stay escrowed");
-        assertGt(unboundedLarge - unboundedSmall, 300_000, "a full walk's cost scales with third-party appends");
-        assertApproxEqAbs(pagedLarge, pagedSmall, 5000, "a page's cost does not");
-    }
-
-    function _gasOfUnboundedVest() internal returns (uint256 used) {
-        uint256 g = gasleft();
-        vault.vest(address(benefactorContract));
-        used = g - gasleft();
-    }
-
-    function _gasOfPagedVest(uint256 maxTranches) internal returns (uint256 used) {
-        uint256 g = gasleft();
-        vault.vest(address(benefactorContract), maxTranches);
-        used = g - gasleft();
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // 5. harvest — two-class split (wei-exact)
-    // ═══════════════════════════════════════════════════════════════════════
-
-    /// @dev Escrowed-only class: 80 creator / 19 target / 1 protocol. Two benefactors, unequal weight;
-    ///      each pendingYieldOf is exact to the wei.
-    function test_harvest_escrowedClass_splitAndAccumulatorExact() public {
+    /// @dev 80 creator / 19 target / 1 protocol, on whatever principal is in the position. Two
+    ///      benefactors, unequal weight; each pendingYieldOf is exact to the wei.
+    function test_harvest_flatSplitAndAccumulatorExact() public {
         _contributeBenefactor(1 ether); // A = benefactorContract (weight 1)
         MockOwnable b = _contributeNewBenefactor(address(0xCAFE), 3 ether); // B (weight 3)
-        assertEq(vault.totalEscrowedPrincipal(), 4 ether);
+        assertEq(vault.totalPrincipal(), 4 ether);
 
         uint256 communityBefore = communityPayout.balance;
         uint256 treasuryBefore = treasury.balance;
@@ -745,51 +694,24 @@ contract AlignmentEndowmentVaultTest is Test {
         assertEq(vault.totalProtocolFees(), 0.01 ether);
     }
 
-    /// @dev Vested-only class: 0 creator / 99 target / 1 protocol.
-    function test_harvest_vestedClass_split() public {
+    /// @dev The split does not drift with time, with the number of harvests, or with anything else. Ten
+    ///      harvests a year apart pay the same weights as the first.
+    function test_harvest_splitIsTheSameForever() public {
         _contributeBenefactor(1 ether);
-        vm.warp(block.timestamp + VEST);
-        vault.vest(address(benefactorContract));
 
-        uint256 communityBefore = communityPayout.balance;
-        uint256 treasuryBefore = treasury.balance;
+        for (uint256 i; i < 10; ++i) {
+            vm.warp(block.timestamp + 52 weeks);
+            uint256 communityBefore = communityPayout.balance;
+            uint256 treasuryBefore = treasury.balance;
+            uint256 creatorBefore = vault.pendingYieldOf(address(benefactorContract));
 
-        _simulateYield(1 ether);
+            _simulateYield(1 ether);
+            vault.harvest();
 
-        vm.expectEmit(false, false, false, true);
-        emit YieldDistributed(0, 0.99 ether, 0.01 ether, block.timestamp);
-        vault.harvest();
-
-        assertEq(communityPayout.balance - communityBefore, 0.99 ether, "target leg 99% on vested");
-        assertEq(treasury.balance - treasuryBefore, 0.01 ether, "protocol leg 1%");
-        assertEq(vault.pendingYieldOf(address(benefactorContract)), 0, "no creator leg on vested");
-    }
-
-    /// @dev Mixed position: A vested (weight 1), B escrowed (weight 1). Yield apportioned by class.
-    function test_harvest_mixedClasses_split() public {
-        _contributeBenefactor(1 ether); // A
-        MockOwnable b = _contributeNewBenefactor(address(0xCAFE), 1 ether); // B
-        vm.warp(block.timestamp + VEST);
-        vault.vest(address(benefactorContract)); // A → vested; B stays escrowed
-
-        assertEq(vault.totalEscrowedPrincipal(), 1 ether);
-        assertEq(vault.totalVestedDeployable(), 1 ether);
-
-        uint256 communityBefore = communityPayout.balance;
-        uint256 treasuryBefore = treasury.balance;
-
-        _simulateYield(1 ether); // total basis 2 ETH → escrowedYield = vestedYield = 0.5
-
-        // escrowed 0.5 → 0.4 creator / 0.095 target / 0.005 proto
-        // vested   0.5 → 0     creator / 0.495 target / 0.005 proto
-        vm.expectEmit(false, false, false, true);
-        emit YieldDistributed(0.4 ether, 0.59 ether, 0.01 ether, block.timestamp);
-        vault.harvest();
-
-        assertEq(communityPayout.balance - communityBefore, 0.59 ether, "target = 0.095 + 0.495");
-        assertEq(treasury.balance - treasuryBefore, 0.01 ether, "protocol = 0.005 + 0.005");
-        assertEq(vault.pendingYieldOf(address(b)), 0.4 ether, "B (escrowed) gets full creator leg");
-        assertEq(vault.pendingYieldOf(address(benefactorContract)), 0, "A (vested) gets none");
+            assertEq(communityPayout.balance - communityBefore, 0.19 ether, "target leg still 19%");
+            assertEq(treasury.balance - treasuryBefore, 0.01 ether, "protocol leg still 1%");
+            assertEq(vault.pendingYieldOf(address(benefactorContract)) - creatorBefore, 0.8 ether, "creator still 80%");
+        }
     }
 
     function test_harvest_noYieldIsNoop() public {
@@ -1042,13 +964,15 @@ contract AlignmentEndowmentVaultTest is Test {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 7. Impairment socialization on migrate (escrow-only)
+    // 7. Impairment socialization on migrate
     // ═══════════════════════════════════════════════════════════════════════
 
+    /// @dev One bucket, so a haircut is socialized by construction: the basis is written down to what the
+    ///      position can realize and the whole of it is relocated. There is no class to be paid first.
     function test_migrate_impaired_socializesProRata() public {
         _contributeBenefactor(10 ether);
-        _contributeNewBenefactor(address(0xCAFE), 10 ether);
-        assertEq(vault.totalEscrowedPrincipal(), 20 ether);
+        MockOwnable b = _contributeNewBenefactor(address(0xCAFE), 10 ether);
+        assertEq(vault.totalPrincipal(), 20 ether);
 
         // 50% impairment.
         stata.simulateLoss(10 ether);
@@ -1057,30 +981,31 @@ contract AlignmentEndowmentVaultTest is Test {
         address recovery = makeAddr("recovery");
         vm.deal(recovery, 0);
 
-        // Escrowed share = value(10) * escrowed(20)/basis(20) = 10 ETH redeemed to recovery.
         vm.prank(vaultOwner);
         vm.expectEmit(false, false, false, true);
         emit ImpairmentRealized(5000, block.timestamp);
         vault.migratePosition(recovery);
 
-        assertApproxEqAbs(recovery.balance, 10 ether, 1e9, "escrow tranche (impaired) moved to recovery");
-        // RE-B2: the escrow BASIS is zeroed and the vault is decommissioned (migrated) — the escrow tranche
-        // has left the position, so keeping a live basis would brick harvest/vest/execute. Per-benefactor
-        // escrow entries are frozen-inert (a mapping cannot be iterated); the on-chain ledger + `Migrated`
-        // event remain the record for reconstructing each benefactor's stake at the new venue.
-        assertEq(vault.totalEscrowedPrincipal(), 0, "escrow basis zeroed on migrate");
+        assertApproxEqAbs(recovery.balance, 10 ether, 1e9, "the whole impaired position moved to recovery");
+        // The basis is zeroed and the vault is decommissioned — the principal has left the position, so
+        // keeping a live basis would brick harvest. Per-benefactor share entries are frozen-inert (a mapping
+        // cannot be iterated); the on-chain ledger + `Migrated` event remain the record for reconstructing
+        // each benefactor's stake at the new venue, and the shares still divide it 1:1 here.
+        assertEq(vault.totalPrincipal(), 0, "basis zeroed on migrate");
         assertTrue(vault.migrated(), "vault decommissioned");
-        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 10 ether, "per-benefactor entry frozen-inert");
+        assertEq(
+            vault.principalShares(address(benefactorContract)),
+            vault.principalShares(address(b)),
+            "equal donors keep equal frozen shares"
+        );
     }
 
-    /// @dev migrate moves only the escrowed tranche; the vested tranche stays in the position.
-    function test_migrate_escrowOnly_leavesVested() public {
-        _contributeBenefactor(1 ether); // A → will vest
-        _contributeNewBenefactor(address(0xCAFE), 1 ether); // B → stays escrowed
-        vm.warp(block.timestamp + VEST);
-        vault.vest(address(benefactorContract));
-        assertEq(vault.totalEscrowedPrincipal(), 1 ether);
-        assertEq(vault.totalVestedDeployable(), 1 ether);
+    /// @dev migrate takes the position with it: there is no second tranche left behind, because there is no
+    ///      second tranche.
+    function test_migrate_relocatesTheWholePosition() public {
+        _contributeBenefactor(1 ether);
+        _contributeNewBenefactor(address(0xCAFE), 1 ether);
+        assertEq(vault.totalPrincipal(), 2 ether);
 
         address recovery = makeAddr("recovery");
         vm.deal(recovery, 0);
@@ -1088,10 +1013,9 @@ contract AlignmentEndowmentVaultTest is Test {
         vm.prank(vaultOwner);
         vault.migratePosition(recovery);
 
-        // Only the escrowed 1 ETH is redeemed; vested 1 ETH remains as position value.
-        assertApproxEqAbs(recovery.balance, 1 ether, 2, "only escrow tranche moved");
-        assertApproxEqAbs(vault.currentPositionValue(), 1 ether, 2, "vested tranche left in position");
-        assertEq(vault.totalVestedDeployable(), 1 ether, "vested accounting intact");
+        assertApproxEqAbs(recovery.balance, 2 ether, 2, "the whole basis moved");
+        assertApproxEqAbs(vault.currentPositionValue(), 0, 2, "nothing left in the position");
+        assertEq(vault.deployableCorpus(), 0, "and nothing left to deploy");
     }
 
     function test_migrate_revertsZeroRecipient() public {
@@ -1108,7 +1032,7 @@ contract AlignmentEndowmentVaultTest is Test {
         vault.migratePosition(stranger);
     }
 
-    function test_migrate_revertsNoEscrow() public {
+    function test_migrate_revertsNoPrincipal() public {
         vm.prank(vaultOwner);
         vm.expectRevert(AlignmentEndowmentVault.NoPrincipal.selector);
         vault.migratePosition(makeAddr("recovery"));
@@ -1189,7 +1113,6 @@ contract AlignmentEndowmentVaultTest is Test {
         _contributeBenefactor(2 ether);
         assertEq(vault.totalPrincipalLocked(), 2 ether);
         assertEq(vault.totalPrincipalCommittedAllTime(), 2 ether);
-        assertEq(vault.totalVested(), 0);
         assertEq(vault.totalDeployedByTarget(), 0);
         assertApproxEqAbs(vault.currentPositionValue(), 2 ether, 2);
 
@@ -1200,11 +1123,13 @@ contract AlignmentEndowmentVaultTest is Test {
         assertEq(vault.totalYieldToTarget(), 0.19 ether);
         assertEq(vault.totalProtocolFees(), 0.01 ether);
 
-        vm.warp(block.timestamp + VEST);
-        vault.vest(address(benefactorContract));
-        assertEq(vault.totalVested(), 2 ether);
+        vm.prank(ambassador);
+        vault.execute(makeAddr("sink"), 2 ether, "");
+        assertEq(vault.totalDeployedByTarget(), 2 ether);
         assertEq(vault.totalPrincipalLocked(), 0);
-        assertEq(vault.vestedOf(address(benefactorContract)), 2 ether);
+        // The all-time counter is the one number a withdrawal does not move: it records what was given.
+        assertEq(vault.totalPrincipalCommittedAllTime(), 2 ether);
+        assertEq(vault.principalOf(address(benefactorContract)), 0);
     }
 
     function test_totalShares_equalsPrincipalBasis() public {
@@ -1244,19 +1169,12 @@ contract AlignmentEndowmentVaultTest is Test {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 12. execute — target-sovereign deployment of vested corpus (spec 2c)
+    // 12. execute — target-sovereign deployment of the corpus
     // ═══════════════════════════════════════════════════════════════════════
 
-    /// @dev Contribute `amount` from benefactorContract and vest it into the deployable corpus.
-    function _vest(uint256 amount) internal {
-        _contributeBenefactor(amount);
-        vm.warp(block.timestamp + VEST);
-        vault.vest(address(benefactorContract));
-    }
-
     function test_execute_ambassadorDeploysUpToCorpus() public {
-        _vest(2 ether);
-        assertEq(vault.deployableCorpus(), 2 ether, "corpus == vested principal");
+        _contributeBenefactor(2 ether);
+        assertEq(vault.deployableCorpus(), 2 ether, "corpus == principal");
 
         address sink = makeAddr("sink");
         vm.prank(ambassador);
@@ -1264,54 +1182,45 @@ contract AlignmentEndowmentVaultTest is Test {
 
         assertEq(sink.balance, 2 ether, "full corpus deployed");
         assertEq(vault.deployableCorpus(), 0, "corpus emptied");
-        assertEq(vault.totalVestedDeployable(), 0);
+        assertEq(vault.totalPrincipal(), 0);
         assertEq(vault.totalDeployedByTarget(), 2 ether, "deploy counter updated");
     }
 
+    /// @dev The pivot, stated as a test: every wei of principal is reachable the block it arrives. There is
+    ///      no untouchable class and no waiting period — the ambassador seat plus live curation is the whole
+    ///      gate, and it is checked against the whole pool.
+    function test_execute_reachesFreshlyDepositedPrincipal() public {
+        MockOwnable b = _contributeNewBenefactor(address(0xCAFE), 1 ether);
+        _contributeBenefactor(1 ether); // deposited in this very block
+
+        assertEq(vault.deployableCorpus(), 2 ether, "the corpus is the whole pool");
+
+        address sink = makeAddr("sink");
+        vm.prank(ambassador);
+        vault.execute(sink, 2 ether, "");
+
+        assertEq(sink.balance, 2 ether, "including principal that has been here for zero seconds");
+        assertEq(vault.principalOf(address(b)), 0);
+        assertEq(vault.principalOf(address(benefactorContract)), 0);
+        assertApproxEqAbs(vault.currentPositionValue(), 0, 2, "position drained");
+    }
+
     function test_execute_revertsNonAmbassador() public {
-        _vest(1 ether);
+        _contributeBenefactor(1 ether);
         vm.prank(stranger);
         vm.expectRevert(AlignmentEndowmentVault.NotAuthorized.selector);
         vault.execute(makeAddr("sink"), 1 ether, "");
     }
 
     function test_execute_revertsOverCorpus() public {
-        _vest(1 ether);
+        _contributeBenefactor(1 ether);
         vm.prank(ambassador);
         vm.expectRevert(AlignmentEndowmentVault.ExceedsDeployableCorpus.selector);
         vault.execute(makeAddr("sink"), 1 ether + 1, "");
-    }
-
-    /// @dev The escrowed (unvested) tranche is UNTOUCHABLE by execute even for an ambassador: the corpus
-    ///      bound is the vested principal only, and a full-corpus deploy leaves escrowed accounting and the
-    ///      remaining position value intact.
-    function test_execute_cannotReachEscrowedPrincipal() public {
-        _contributeBenefactor(1 ether); // A → will vest
-        MockOwnable b = _contributeNewBenefactor(address(0xCAFE), 1 ether); // B → stays escrowed
-        vm.warp(block.timestamp + VEST);
-        vault.vest(address(benefactorContract)); // A vested; B escrowed
-        assertEq(vault.deployableCorpus(), 1 ether, "corpus is the vested tranche only");
-        assertEq(vault.totalEscrowedPrincipal(), 1 ether);
-
-        // Cannot reach beyond the vested 1 ETH even though 2 ETH sits in the shared position.
-        vm.prank(ambassador);
-        vm.expectRevert(AlignmentEndowmentVault.ExceedsDeployableCorpus.selector);
-        vault.execute(makeAddr("sink"), 1 ether + 1, "");
-
-        // Deploying the full vested corpus leaves B's escrowed principal + the position untouched.
-        address sink = makeAddr("sink");
-        vm.prank(ambassador);
-        vault.execute(sink, 1 ether, "");
-
-        assertEq(sink.balance, 1 ether);
-        assertEq(vault.totalVestedDeployable(), 0);
-        assertEq(vault.escrowedPrincipal(address(b)), 1 ether, "escrowed principal untouched");
-        assertEq(vault.totalEscrowedPrincipal(), 1 ether, "escrowed total untouched");
-        assertApproxEqAbs(vault.currentPositionValue(), 1 ether, 2, "only the vested tranche left");
     }
 
     function test_execute_withdrawToEOA() public {
-        _vest(1 ether);
+        _contributeBenefactor(1 ether);
         address eoa = makeAddr("eoa_sink");
         assertEq(eoa.code.length, 0);
 
@@ -1326,7 +1235,7 @@ contract AlignmentEndowmentVaultTest is Test {
     /// @dev An aligned-token buy routed through a mock DEX: ETH deploys, tokens credit the recipient, the
     ///      deploy counter + corpus update, and CapitalDeployed carries the call selector.
     function test_execute_alignedTokenBuyThroughDex() public {
-        _vest(3 ether);
+        _contributeBenefactor(3 ether);
         MockDeployDEX dex = new MockDeployDEX();
         address recipient = makeAddr("token_recipient");
         bytes memory data = abi.encodeWithSelector(MockDeployDEX.buy.selector, recipient);
@@ -1339,12 +1248,12 @@ contract AlignmentEndowmentVaultTest is Test {
         assertEq(dex.totalEthIn(), 2 ether, "DEX received the deployed ETH");
         assertEq(dex.tokenBalanceOf(recipient), 2 ether, "aligned tokens credited to recipient");
         assertEq(vault.totalDeployedByTarget(), 2 ether, "deploy counter updated");
-        assertEq(vault.totalVestedDeployable(), 1 ether, "corpus decremented by the deploy");
+        assertEq(vault.totalPrincipal(), 1 ether, "corpus decremented by the deploy");
     }
 
     /// @dev The sole backstop: owner `removeAmbassador` on the alignment registry revokes execute rights.
     function test_execute_removeAmbassadorRevokes() public {
-        _vest(1 ether);
+        _contributeBenefactor(1 ether);
         ambassadorRegistry.removeAmbassador(TARGET_ID, ambassador);
         vm.prank(ambassador);
         vm.expectRevert(AlignmentEndowmentVault.NotAuthorized.selector);
@@ -1354,7 +1263,7 @@ contract AlignmentEndowmentVaultTest is Test {
     /// @dev Auth resolves LIVE through `masterRegistry.alignmentRegistry()`: a re-point of the alignment
     ///      registry is honored immediately (no cache), and a grant on the live registry enables execute.
     function test_execute_authResolvesLiveThroughMasterRegistry() public {
-        _vest(1 ether);
+        _contributeBenefactor(1 ether);
 
         // Re-point to a fresh registry where `ambassador` is not (yet) authorized → auth fails live.
         MockAmbassadorRegistry fresh = new MockAmbassadorRegistry();
@@ -1374,7 +1283,7 @@ contract AlignmentEndowmentVaultTest is Test {
     /// @dev A malicious deployment target that re-enters execute cannot double-spend: nonReentrant blocks
     ///      the re-entry, and CEI means the corpus was already decremented exactly once before the call.
     function test_execute_reentrancyCannotDoubleSpend() public {
-        _vest(2 ether);
+        _contributeBenefactor(2 ether);
         ReentrantDeployer attacker = new ReentrantDeployer(vault);
         // The attacker must pass auth for the re-entry to actually exercise the nonReentrant guard.
         ambassadorRegistry.setAmbassador(TARGET_ID, address(attacker), true);
@@ -1386,41 +1295,42 @@ contract AlignmentEndowmentVaultTest is Test {
         assertFalse(attacker.reentrySucceeded(), "re-entry blocked by nonReentrant");
         assertEq(address(attacker).balance, 1 ether, "attacker received exactly one deployment");
         assertEq(vault.totalDeployedByTarget(), 1 ether, "single spend recorded");
-        assertEq(vault.totalVestedDeployable(), 1 ether, "corpus decremented once (2 - 1)");
+        assertEq(vault.totalPrincipal(), 1 ether, "corpus decremented once (2 - 1)");
     }
 
     /// @dev A callee that reverts bubbles its revert and rolls back the whole deploy (no partial spend).
     function test_execute_bubblesCalleeRevertAndRollsBack() public {
-        _vest(1 ether);
+        _contributeBenefactor(1 ether);
         RejectETH r = new RejectETH();
         vm.prank(ambassador);
         vm.expectRevert();
         vault.execute(address(r), 1 ether, "");
 
         // Effects rolled back with the revert.
-        assertEq(vault.totalVestedDeployable(), 1 ether, "corpus intact after failed deploy");
+        assertEq(vault.totalPrincipal(), 1 ether, "corpus intact after failed deploy");
         assertEq(vault.totalDeployedByTarget(), 0, "counter intact after failed deploy");
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 13. RE-B1 — execute cannot reach ESCROWED principal via calldata
+    // 13. execute may not route around the accounting via calldata
     // ═══════════════════════════════════════════════════════════════════════
 
-    /// @dev Set up a mixed position: A vested (1 ETH deployable corpus), B escrowed (1 ETH permanent), so
-    ///      the shared stataToken position holds 2 ETH and the escrowed tranche is the drain target.
-    function _mixedPosition() internal returns (MockOwnable b) {
-        _contributeBenefactor(1 ether); // A → will vest
-        b = _contributeNewBenefactor(address(0xCAFE), 1 ether); // B → stays escrowed (permanent)
-        vm.warp(block.timestamp + VEST);
-        vault.vest(address(benefactorContract)); // A vested; B escrowed
+    /// @dev A pooled position with two donors, so a drain would take money that is not the caller's to
+    ///      take, and the vault also holds native ETH for other people (a creator purse) that a
+    ///      calldata-routed drain would leave unbacked.
+    function _pooledPosition() internal returns (MockOwnable b) {
+        _contributeBenefactor(1 ether);
+        b = _contributeNewBenefactor(address(0xCAFE), 1 ether);
+        _simulateYield(1 ether);
+        vault.harvest(); // 0.8 ETH now sits in the vault as creator purses
     }
 
-    /// @dev THE RE-B1 drain: an authorized ambassador passes `value = 0` (trivially ≤ corpus) and routes an
-    ///      ERC-20 `transfer` of the vault's ENTIRE stataToken share balance through `data`. Pre-fix this
-    ///      moved all shares (escrowed + vested) to an attacker in one tx. It must now revert and leave the
-    ///      position — and B's escrowed principal — completely intact.
+    /// @dev THE DRAIN: an authorized ambassador passes `value = 0` (trivially ≤ corpus) and routes an
+    ///      ERC-20 `transfer` of the vault's ENTIRE stataToken share balance through `data`. That moves
+    ///      principal out with no debit to `totalPrincipal` — the basis desyncs and the creator purses the
+    ///      vault is holding stop being backed. It must revert and leave the position intact.
     function test_execute_revertsDrainViaStataTokenCalldata() public {
-        _mixedPosition();
+        _pooledPosition();
         uint256 sharesBefore = stata.balanceOf(address(vault));
         assertGt(sharesBefore, 0, "vault holds the position shares");
 
@@ -1431,16 +1341,16 @@ contract AlignmentEndowmentVaultTest is Test {
         vm.expectRevert(AlignmentEndowmentVault.ForbiddenExecuteTarget.selector);
         vault.execute(address(stata), 0, drain);
 
-        // No shares moved; escrowed (permanent) principal untouched.
+        // No shares moved; the basis and the purses it backs are intact.
         assertEq(stata.balanceOf(address(vault)), sharesBefore, "position shares unchanged after attempted drain");
         assertEq(stata.balanceOf(attacker), 0, "attacker received nothing");
-        assertEq(vault.totalEscrowedPrincipal(), 1 ether, "escrowed principal intact");
+        assertEq(vault.totalPrincipal(), 2 ether, "principal basis intact");
     }
 
     /// @dev The WETH the vault holds an unbounded approval on is also a forbidden target (approve/transfer
     ///      route to principal), as is the vault itself (self-call). Both revert ForbiddenExecuteTarget.
     function test_execute_revertsForbiddenWethAndSelfTargets() public {
-        _mixedPosition();
+        _pooledPosition();
 
         vm.prank(ambassador);
         vm.expectRevert(AlignmentEndowmentVault.ForbiddenExecuteTarget.selector);
@@ -1453,129 +1363,59 @@ contract AlignmentEndowmentVaultTest is Test {
         vault.execute(address(vault), 0, "");
     }
 
-    /// @dev The denylist is additive: legit value-only deployment of the vested corpus to an arbitrary `to`
-    ///      (an EOA here) still succeeds and the escrowed tranche is untouched.
+    /// @dev The denylist is additive: legit value-only deployment to an arbitrary `to` (an EOA here) still
+    ///      succeeds, and the creator purses the vault holds are not dipped into to fund it.
     function test_execute_legitValueDeployStillWorksAfterDenylist() public {
-        MockOwnable b = _mixedPosition();
+        MockOwnable b = _pooledPosition();
         address eoa = makeAddr("legit_sink");
 
         vm.prank(ambassador);
-        vault.execute(eoa, 1 ether, ""); // full vested corpus, value-only
+        vault.execute(eoa, 2 ether, ""); // the whole corpus, value-only
 
-        assertEq(eoa.balance, 1 ether, "legit value-only deploy to EOA still works");
-        assertEq(vault.totalVestedDeployable(), 0, "corpus deployed");
-        assertEq(vault.escrowedPrincipal(address(b)), 1 ether, "escrowed principal untouched");
-        assertEq(vault.totalEscrowedPrincipal(), 1 ether, "escrowed total untouched");
+        assertEq(eoa.balance, 2 ether, "legit value-only deploy to EOA still works");
+        assertEq(vault.totalPrincipal(), 0, "corpus deployed");
+        assertEq(address(vault).balance, 0.8 ether, "the creator purses were not spent to fund it");
+        assertEq(vault.pendingYieldOf(address(b)), 0.4 ether, "and they are still owed");
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 14. RE-B2 — migrate zeroes escrow basis + decommissions (no brick / no re-open)
+    // 14. migrate zeroes the basis + decommissions (no brick / no re-open)
     // ═══════════════════════════════════════════════════════════════════════
 
-    /// @dev After an escrow migrate the basis is zeroed so harvest/execute stay self-consistent on the vested
-    ///      tranche (no stale-basis brick), and intake + vesting are permanently closed.
+    /// @dev After a migrate the basis is zeroed so nothing reads a phantom position, and intake is
+    ///      permanently closed.
     function test_migrate_zeroesBasisAndDecommissions() public {
-        _contributeBenefactor(1 ether); // A → will vest
-        MockOwnable b = _contributeNewBenefactor(address(0xCAFE), 1 ether); // B → escrowed
-        vm.warp(block.timestamp + VEST);
-        vault.vest(address(benefactorContract)); // A vested (corpus 1 ETH); B escrowed (1 ETH)
-        assertEq(vault.totalEscrowedPrincipal(), 1 ether);
-        assertEq(vault.totalVestedDeployable(), 1 ether);
+        _contributeBenefactor(1 ether);
+        MockOwnable b = _contributeNewBenefactor(address(0xCAFE), 1 ether);
+        assertEq(vault.totalPrincipal(), 2 ether);
 
         vm.prank(vaultOwner);
         vault.migratePosition(makeAddr("recovery"));
 
-        assertEq(vault.totalEscrowedPrincipal(), 0, "escrow basis zeroed");
+        assertEq(vault.totalPrincipal(), 0, "basis zeroed");
         assertTrue(vault.migrated(), "vault decommissioned");
-        assertEq(vault.totalVestedDeployable(), 1 ether, "vested corpus retained");
+        assertEq(vault.deployableCorpus(), 0, "nothing left to deploy");
 
-        // harvest does NOT brick: yield on the retained vested tranche still distributes (basis is sane).
-        _simulateYield(1 ether);
-        uint256 communityBefore = communityPayout.balance;
+        // harvest does NOT brick — it is a no-op against an empty position rather than a revert.
         vault.harvest();
-        assertGt(communityPayout.balance - communityBefore, 0, "harvest still distributes (not bricked)");
-
-        // execute still works on the retained vested corpus (no RedeemShortfall from a phantom basis).
-        address sink = makeAddr("sink");
-        vm.prank(ambassador);
-        vault.execute(sink, 1 ether, "");
-        assertEq(sink.balance, 1 ether, "vested corpus still deployable post-migrate");
 
         // Intake is closed: a post-migrate deposit cannot re-open the dead position.
         vm.deal(alice, alice.balance + 1 ether);
         vm.prank(alice);
         vm.expectRevert(AlignmentEndowmentVault.VaultMigrated.selector);
         vault.receiveContribution{ value: 1 ether }(nativeCurrency, 1 ether, address(b));
-
-        // Vesting is closed: the stale escrow tranche cannot vest into a phantom deployable corpus.
-        vm.expectRevert(AlignmentEndowmentVault.VaultMigrated.selector);
-        vault.vest(address(b));
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 15. RE-B3 — per-deposit vesting clocks (a late top-up is not vested early)
+    // 16. migrate harvest-first + impairment write-down; execute forwards `got`
     // ═══════════════════════════════════════════════════════════════════════
 
-    /// @dev A second deposit made when the FIRST tranche has already matured is NOT instantly vestable: only
-    ///      the first tranche vests, the fresh amount keeps its own 26-week clock. Pre-fix (single depositTime,
-    ///      never reset) the whole escrow vested at once, robbing the top-up of its creator-earning window.
-    function test_vest_perDepositClock_lateTopUpNotVestedEarly() public {
-        uint256 t0 = block.timestamp;
-        _contributeBenefactor(1 ether); // tranche A @ t0
-
-        vm.warp(t0 + VEST); // A matured
-        _contributeBenefactor(1 ether); // tranche B @ t0 + VEST (fresh clock)
-        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 2 ether);
-
-        // Only A vests; B stays escrowed with its own clock.
-        vault.vest(address(benefactorContract));
-        assertEq(vault.vestedPrincipal(address(benefactorContract)), 1 ether, "only the matured tranche vested");
-        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 1 ether, "fresh top-up still escrowed");
-        assertEq(vault.totalVested(), 1 ether);
-
-        // Poking vest again now reverts — B is not yet mature (would have been instantly vestable pre-fix).
-        vm.expectRevert(AlignmentEndowmentVault.NotVested.selector);
-        vault.vest(address(benefactorContract));
-
-        // B vests only after its OWN 26 weeks elapse.
-        vm.warp(t0 + 2 * VEST);
-        vault.vest(address(benefactorContract));
-        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 0, "B vested on its own clock");
-        assertEq(vault.vestedPrincipal(address(benefactorContract)), 2 ether);
-    }
-
-    /// @dev A brand-new deposit made AFTER a full vest starts a fresh window — it is not instantly vestable
-    ///      just because an earlier tranche's clock (the never-reset `depositTime`) already elapsed.
-    function test_vest_postFullVestDepositIsNotInstant() public {
-        uint256 t0 = block.timestamp;
-        _contributeBenefactor(1 ether); // A @ t0
-        vm.warp(t0 + VEST);
-        vault.vest(address(benefactorContract)); // A fully vested; escrow empty
-        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 0);
-
-        // New deposit at t0 + VEST. depositTime is still t0, so the OLD code would treat this as already
-        // past `depositTime + VEST` and vest it in the same block. The per-tranche clock forbids that.
-        _contributeBenefactor(1 ether); // B @ t0 + VEST
-        vm.expectRevert(AlignmentEndowmentVault.NotVested.selector);
-        vault.vest(address(benefactorContract));
-
-        // B matures only at t0 + 2*VEST.
-        vm.warp(t0 + 2 * VEST);
-        vault.vest(address(benefactorContract));
-        assertEq(vault.vestedPrincipal(address(benefactorContract)), 2 ether, "B vested on its own fresh clock");
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // 16. noesis-118 — migrate harvest-first + impairment socialization; execute forwards `got`
-    // ═══════════════════════════════════════════════════════════════════════
-
-    /// @dev Fix 1 (yield-misdirection): `migratePosition` crystallizes the escrow class's pending Aave yield
-    ///      (split 80/19/1 into the accumulator legs) BEFORE redeeming escrow principal to `to`. The recovery
-    ///      address must receive PRINCIPAL only — the yield stays in the legs, not swept out. Pre-fix, the
-    ///      pro-rata `escrowValue` was computed off the yield-inflated position value and force-sent to `to`.
-    function test_migrate_harvestsEscrowYieldFirst_noSweepToRecovery() public {
-        _contributeBenefactor(10 ether); // escrowed only
-        _simulateYield(1 ether); // position 11, basis 10 → 1 ETH pending escrow-class yield
+    /// @dev `migratePosition` crystallizes the pending Aave yield (split 80/19/1 into the legs) BEFORE
+    ///      redeeming principal to `to`. The recovery address must receive PRINCIPAL only — the yield stays
+    ///      in the legs, not swept out.
+    function test_migrate_harvestsYieldFirst_noSweepToRecovery() public {
+        _contributeBenefactor(10 ether);
+        _simulateYield(1 ether); // position 11, basis 10 → 1 ETH pending yield
 
         uint256 communityBefore = communityPayout.balance;
         uint256 treasuryBefore = treasury.balance;
@@ -1586,7 +1426,7 @@ contract AlignmentEndowmentVaultTest is Test {
         vm.prank(vaultOwner);
         vault.migratePosition(recovery);
 
-        // Escrow yield split 80/19/1 into the legs — NOT swept to the recovery address.
+        // Yield split 80/19/1 into the legs — NOT swept to the recovery address.
         assertEq(vault.pendingYieldOf(address(benefactorContract)), 0.8 ether, "creator leg booked (not swept)");
         assertEq(vault.totalYieldToCreators(), 0.8 ether);
         assertEq(communityPayout.balance - communityBefore, 0.19 ether, "target leg 19% routed to community");
@@ -1594,162 +1434,122 @@ contract AlignmentEndowmentVaultTest is Test {
         assertEq(vault.totalYieldToTarget(), 0.19 ether);
         assertEq(vault.totalProtocolFees(), 0.01 ether);
 
-        // recovery receives the escrow PRINCIPAL (10 ETH), NOT principal + yield (11 ETH).
-        assertApproxEqAbs(recovery.balance, 10 ether, 2, "recovery gets escrow principal only, not the yield");
-    }
-
-    /// @dev Fix 2 (stale-vested-basis): on an IMPAIRED migrate the vested tranche now backs only its
-    ///      `value·vested/basis` realizable WETH, so `deployableCorpus()` must be scaled down to match —
-    ///      otherwise a later `execute(corpus)` reverts `RedeemShortfall` and strands the residual. After the
-    ///      socialization a full-corpus `execute` settles cleanly with nothing stuck.
-    function test_migrate_impaired_socializesOntoVestedTranche_executeNoShortfall() public {
-        _contributeBenefactor(10 ether); // A → will vest
-        _contributeNewBenefactor(address(0xCAFE), 10 ether); // B → stays escrowed
-        vm.warp(block.timestamp + VEST);
-        vault.vest(address(benefactorContract)); // A vested (corpus 10); B escrowed (10)
-        assertEq(vault.totalVestedDeployable(), 10 ether);
-        assertEq(vault.totalEscrowedPrincipal(), 10 ether);
-
-        // 50% solvency impairment: position value 20 → 10.
-        stata.simulateLoss(10 ether);
-        vm.deal(address(weth), 100 ether); // ensure redemptions settle in ETH
-
-        address recovery = makeAddr("recovery");
-        vm.deal(recovery, 0);
-
-        vm.prank(vaultOwner);
-        vault.migratePosition(recovery);
-
-        // Escrow pro-rata: value(10)·escrowed(10)/basis(20) = 5 ETH redeemed to recovery.
-        assertApproxEqAbs(recovery.balance, 5 ether, 2, "escrow pro-rata redeemed to recovery");
-        // Fix 2: vested tranche scaled to realizable value(10)·vested(10)/basis(20) = 5 ETH.
-        assertEq(vault.totalVestedDeployable(), 5 ether, "vested scaled to realizable on impairment");
-        assertEq(vault.deployableCorpus(), 5 ether, "corpus reflects realizable, not stale full vested");
-        assertTrue(vault.migrated(), "vault decommissioned");
-
-        // The full (scaled) corpus deploys WITHOUT RedeemShortfall, and nothing is stranded.
-        address sink = makeAddr("sink");
-        uint256 corpus = vault.deployableCorpus(); // cache: a call in the arg would consume the prank
-        vm.prank(ambassador);
-        vault.execute(sink, corpus, "");
-
-        assertApproxEqAbs(sink.balance, 5 ether, 2, "full realizable corpus deployed, no shortfall");
-        assertEq(vault.totalVestedDeployable(), 0, "corpus emptied - no residual stuck");
-        assertApproxEqAbs(vault.currentPositionValue(), 0, 2, "position fully drained, nothing stranded");
-    }
-
-    /// @dev Pre-fix guard: without the socialization the stale full corpus would revert the same execute with
-    ///      `RedeemShortfall`. This asserts the post-fix corpus (5 ETH) is exactly the realizable value and a
-    ///      request for the OLD full 10 ETH is now correctly rejected as exceeding the corpus.
-    function test_migrate_impaired_oldFullCorpusNowExceedsScaledCorpus() public {
-        _contributeBenefactor(10 ether);
-        _contributeNewBenefactor(address(0xCAFE), 10 ether);
-        vm.warp(block.timestamp + VEST);
-        vault.vest(address(benefactorContract));
-
-        stata.simulateLoss(10 ether); // 50% impairment
-        vm.deal(address(weth), 100 ether);
-
-        vm.prank(vaultOwner);
-        vault.migratePosition(makeAddr("recovery"));
-
-        // The pre-fix stale corpus (10 ETH) is no longer deployable — it now exceeds the socialized corpus.
-        vm.prank(ambassador);
-        vm.expectRevert(AlignmentEndowmentVault.ExceedsDeployableCorpus.selector);
-        vault.execute(makeAddr("sink"), 10 ether, "");
+        // recovery receives the PRINCIPAL (10 ETH), NOT principal + yield (11 ETH).
+        assertApproxEqAbs(recovery.balance, 10 ether, 2, "recovery gets principal only, not the yield");
     }
 
     /// @dev Fix 3 (execute redeem-dust): on a dusty redeem (`got = value − dust`, within `REDEEM_DUST`)
     ///      `execute` forwards `got`, NOT `value` — so the ~dust shortfall is never covered from the vault's
     ///      OTHER native ETH (a creator `yieldPurse`). The un-redeemed dust stays as deployable corpus.
     function test_execute_dustyRedeem_forwardsGot_noYieldPurseDip() public {
-        _vest(1 ether); // vested-only corpus = 1 ETH
+        _contributeBenefactor(1 ether); // corpus = 1 ETH
         assertEq(vault.deployableCorpus(), 1 ether);
 
         // The vault holds OTHER native ETH (a creator yieldPurse / stray ETH) that execute must not dip.
         uint256 otherEth = 5 ether;
         vm.deal(address(vault), otherEth);
 
-        // Force a dusty redeem: maxWithdraw returns value − dust, so `_redeem(1 ETH)` yields got = 1 ETH − dust.
+        // Force a dusty redeem: maxWithdraw returns value − dust, so `_redeem(0.5 ETH)` yields
+        // got = 0.5 ETH − dust. Deploy half the corpus, so what is left sits far above the price floor
+        // and the round stays open — the retained dust is the thing under test here.
         uint256 dust = 1e6; // == REDEEM_DUST — tolerated (no RedeemShortfall)
-        stata.setMaxWithdrawCap(1 ether - dust);
+        stata.setMaxWithdrawCap(0.5 ether - dust);
 
         address sink = makeAddr("dust_sink");
         vm.expectEmit(true, true, false, true);
-        emit CapitalDeployed(ambassador, sink, 1 ether - dust, bytes4(0), block.timestamp);
+        emit CapitalDeployed(ambassador, sink, 0.5 ether - dust, bytes4(0), block.timestamp);
+        vm.prank(ambassador);
+        vault.execute(sink, 0.5 ether, "");
+
+        // `to` receives what was ACTUALLY redeemed (got), not the requested value.
+        assertEq(sink.balance, 0.5 ether - dust, "sink receives got, not value");
+        // The vault's other native ETH is UNTOUCHED — no dust dip from the yieldPurse.
+        assertEq(address(vault).balance, otherEth, "yieldPurse / other native ETH untouched");
+        // The un-redeemed dust stays as still-deployable corpus (debited by got, not value).
+        assertEq(vault.totalPrincipal(), 0.5 ether + dust, "dust retained as corpus (debited by got)");
+        assertEq(vault.totalDeployedByTarget(), 0.5 ether - dust, "deploy counter tracks got");
+    }
+
+    /// @dev The other end of the same redeem: when the WHOLE corpus is deployed dustily, what is left is a
+    ///      sliver of the share count rather than a real balance, so the round closes instead of carrying a
+    ///      near-zero price into the next deposit. The residue is not destroyed — it stays in the position
+    ///      and the next harvest splits it 80/19/1.
+    function test_execute_dustyFullRedeem_closesTheRoundAndLeavesTheResidueAsYield() public {
+        _contributeBenefactor(1 ether);
+
+        uint256 dust = 1e6;
+        stata.setMaxWithdrawCap(1 ether - dust);
+
+        address sink = makeAddr("dust_sink");
         vm.prank(ambassador);
         vault.execute(sink, 1 ether, "");
 
-        // `to` receives what was ACTUALLY redeemed (got), not the requested value.
-        assertEq(sink.balance, 1 ether - dust, "sink receives got, not value");
-        // The vault's other native ETH is UNTOUCHED — no dust dip from the yieldPurse.
-        assertEq(address(vault).balance, otherEth, "yieldPurse / other native ETH untouched");
-        // The un-redeemed dust stays as still-deployable vested corpus (debited by got, not value).
-        assertEq(vault.totalVestedDeployable(), dust, "dust retained as corpus (debited by got)");
-        assertEq(vault.deployableCorpus(), dust);
-        assertEq(vault.totalDeployedByTarget(), 1 ether - dust, "deploy counter tracks got");
+        assertEq(sink.balance, 1 ether - dust, "sink receives got");
+        assertEq(vault.totalPrincipal(), 0, "a residue that small ends the round");
+        assertEq(vault.deployableCorpus(), 0, "and there is no corpus left to deploy");
+        assertEq(vault.accumulatedFees(), dust, "the residue is still there, now as harvestable yield");
+
+        // The next deposit therefore prices against an empty pool and owns all of it.
+        stata.setMaxWithdrawCap(0);
+        MockOwnable b = _contributeNewBenefactor(address(0xCAFE), 1 ether);
+        assertEq(vault.fundingRound(), 1, "a fresh round opened");
+        assertEq(vault.principalOf(address(b)), 1 ether, "the new benefactor funds the whole pool");
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 17. noesis-343 — deployableCorpus() is clamped to what the position can redeem
+    // 17. deployableCorpus() is clamped to what the position can redeem
     // ═══════════════════════════════════════════════════════════════════════
 
-    /// @dev Mixed position under a solvency haircut: A vested 10 ETH, B escrowed 10 ETH (basis 20), position
-    ///      value taken to 16 ETH by a 20% haircut. The vested tranche's pro-rata claim on that value is
-    ///      16·10/20 = 8 ETH, so `deployableCorpus()` must report 8 while the nominal `totalVestedDeployable`
-    ///      stays 10.
-    function _impairedMixedPosition() internal {
-        _contributeBenefactor(10 ether); // A → will vest
-        _contributeNewBenefactor(address(0xCAFE), 10 ether); // B → stays escrowed
-        vm.warp(block.timestamp + VEST);
-        vault.vest(address(benefactorContract));
-        assertEq(vault.totalVestedDeployable(), 10 ether, "vested tranche before the haircut");
-        assertEq(vault.totalEscrowedPrincipal(), 10 ether, "escrowed tranche before the haircut");
+    /// @dev A 20% solvency haircut on a 20 ETH pooled basis: the position is worth 16, so that — and not
+    ///      the nominal basis — is what may be deployed.
+    function _impairedPosition() internal {
+        _contributeBenefactor(10 ether);
+        _contributeNewBenefactor(address(0xCAFE), 10 ether);
+        assertEq(vault.totalPrincipal(), 20 ether, "basis before the haircut");
 
         stata.simulateLoss(4 ether); // 20% solvency haircut: 20 → 16
         vm.deal(address(weth), 100 ether); // ensure redemptions settle in ETH
         assertEq(vault.currentPositionValue(), 16 ether, "position value after the haircut");
     }
 
-    /// @dev The clamp: the reported corpus is the vested tranche's pro-rata claim on the live position value,
-    ///      not the nominal basis. The nominal tranche is untouched — this is an accounting bound on what is
-    ///      redeemable, not a socialization of the loss onto the vested class.
-    function test_deployableCorpus_impaired_clampsToRealizableProRata() public {
-        _impairedMixedPosition();
+    /// @dev The clamp: the reported corpus is the live position value, not the nominal basis. The basis
+    ///      itself is untouched by a READ — this is an accounting bound on what is redeemable, applied as a
+    ///      write-down only on the paths that actually move money.
+    function test_deployableCorpus_impaired_clampsToPositionValue() public {
+        _impairedPosition();
 
-        assertEq(vault.deployableCorpus(), 8 ether, "corpus clamped to value(16)*vested(10)/basis(20)");
-        assertEq(vault.totalVestedDeployable(), 10 ether, "nominal vested tranche is not written down");
+        assertEq(vault.deployableCorpus(), 16 ether, "corpus clamped to the live position value");
+        assertEq(vault.totalPrincipal(), 20 ether, "the nominal basis is not written down by a read");
     }
 
-    /// @dev THE HEADLINE. Deploying the nominal (un-clamped) corpus on an impaired position must be rejected
-    ///      by the corpus bound. Before the clamp this call succeeded and paid out 100% of nominal from a
-    ///      position that could not back it; it must now revert `ExceedsDeployableCorpus` — and specifically
-    ///      NOT `RedeemShortfall`, which would leave the request half-processed against a stale bound.
-    function test_execute_impaired_nominalCorpusRevertsExceedsDeployableCorpus() public {
-        _impairedMixedPosition();
+    /// @dev THE HEADLINE. Deploying the nominal (un-clamped) basis on an impaired position must be rejected
+    ///      by the corpus bound — and specifically NOT by `RedeemShortfall`, which would leave the request
+    ///      half-processed against a stale bound.
+    function test_execute_impaired_nominalBasisRevertsExceedsDeployableCorpus() public {
+        _impairedPosition();
 
         vm.prank(ambassador);
         vm.expectRevert(AlignmentEndowmentVault.ExceedsDeployableCorpus.selector);
-        vault.execute(makeAddr("sink"), 10 ether, "");
+        vault.execute(makeAddr("sink"), 20 ether, "");
 
         // Nothing moved: the whole position is still in place behind the rejected request.
         assertEq(vault.currentPositionValue(), 16 ether, "position untouched by the rejected deploy");
-        assertEq(vault.totalVestedDeployable(), 10 ether, "corpus basis untouched by the rejected deploy");
+        assertEq(vault.totalPrincipal(), 20 ether, "basis untouched by the rejected deploy");
     }
 
     /// @dev The clamped figure is deployable in full and settles without a shortfall.
     function test_execute_impaired_clampedCorpusDeploysCleanly() public {
-        _impairedMixedPosition();
+        _impairedPosition();
 
         address sink = makeAddr("sink");
         uint256 corpus = vault.deployableCorpus(); // cache: a call in the arg would consume the prank
         vm.prank(ambassador);
         vault.execute(sink, corpus, "");
 
-        assertEq(sink.balance, 8 ether, "the full clamped corpus reached the sink");
-        assertEq(vault.totalVestedDeployable(), 2 ether, "nominal tranche debited by what actually left");
-        assertEq(vault.totalDeployedByTarget(), 8 ether, "deploy counter tracks what left");
-        assertEq(vault.currentPositionValue(), 8 ether, "the escrowed tranche's value remains in the position");
+        assertEq(sink.balance, 16 ether, "the full clamped corpus reached the sink");
+        assertEq(vault.totalPrincipal(), 4 ether, "basis debited by what actually left");
+        assertEq(vault.totalDeployedByTarget(), 16 ether, "deploy counter tracks what left");
+        assertApproxEqAbs(vault.currentPositionValue(), 0, 2, "the position is emptied");
     }
 
     /// @dev Idempotency — the property the view shape exists for. At an unchanged position value the answer
@@ -1757,10 +1557,10 @@ contract AlignmentEndowmentVaultTest is Test {
     ///      interleaved. A write-down applied on a permissionless path would instead converge downward on
     ///      each call; a view has no state to re-apply.
     function test_deployableCorpus_impaired_isIdempotentAcrossReadsAndHarvests() public {
-        _impairedMixedPosition();
+        _impairedPosition();
 
         uint256 first = vault.deployableCorpus();
-        assertEq(first, 8 ether, "clamped corpus");
+        assertEq(first, 16 ether, "clamped corpus");
 
         for (uint256 i = 0; i < 5; i++) {
             vault.harvest(); // permissionless, and a no-op while the position is below basis
@@ -1768,31 +1568,28 @@ contract AlignmentEndowmentVaultTest is Test {
             assertEq(vault.deployableCorpus(), first, "corpus unchanged by a repeated read");
         }
 
-        assertEq(vault.totalVestedDeployable(), 10 ether, "nominal tranche never written down by a read");
+        assertEq(vault.totalPrincipal(), 20 ether, "nominal basis never written down by a read");
     }
 
     /// @dev Healthy position: the clamp is a strict no-op. Unharvested yield above the basis does NOT raise
-    ///      the corpus either — the `min(...)` floor keeps the yield legs out of `execute`'s reach.
+    ///      the corpus either — the clamp keeps the yield legs out of `execute`'s reach.
     function test_deployableCorpus_healthy_clampIsNoOp() public {
         _contributeBenefactor(10 ether);
         _contributeNewBenefactor(address(0xCAFE), 10 ether);
-        vm.warp(block.timestamp + VEST);
-        vault.vest(address(benefactorContract));
 
-        assertEq(vault.deployableCorpus(), vault.totalVestedDeployable(), "no-op at value == basis");
-        assertEq(vault.deployableCorpus(), 10 ether);
+        assertEq(vault.deployableCorpus(), vault.totalPrincipal(), "no-op at value == basis");
+        assertEq(vault.deployableCorpus(), 20 ether);
 
         _simulateYield(2 ether); // position 22 vs basis 20 — all of it is yield, none of it is corpus
-        assertEq(vault.deployableCorpus(), 10 ether, "unharvested yield does not raise the corpus");
-        assertEq(vault.deployableCorpus(), vault.totalVestedDeployable(), "still exactly the nominal tranche");
+        assertEq(vault.deployableCorpus(), 20 ether, "unharvested yield does not raise the corpus");
+        assertEq(vault.deployableCorpus(), vault.totalPrincipal(), "still exactly the nominal basis");
     }
 
-    /// @dev An empty vault has a zero basis: the clamp's divisor guard returns 0 rather than reverting.
+    /// @dev An empty vault has a zero basis: the clamp's guard returns 0 rather than reverting.
     function test_deployableCorpus_zeroBasis_returnsZeroAndDoesNotRevert() public {
         AlignmentEndowmentVault fresh = _deployVault();
 
-        assertEq(fresh.totalEscrowedPrincipal(), 0, "no escrowed principal");
-        assertEq(fresh.totalVestedDeployable(), 0, "no vested principal");
+        assertEq(fresh.totalPrincipal(), 0, "no principal");
         assertEq(fresh.deployableCorpus(), 0, "zero basis reports zero corpus");
     }
 
@@ -1806,7 +1603,7 @@ contract AlignmentEndowmentVaultTest is Test {
     ///      `isAmbassador` still answers true, which is what makes this a check on the target and not a
     ///      restatement of the auth check above it.
     function test_execute_frozenAfterDecuration() public {
-        _mixedPosition(); // 1 ETH vested corpus, 1 ETH escrowed
+        _contributeBenefactor(1 ether);
 
         ambassadorRegistry.deactivateAlignmentTarget(TARGET_ID);
 
@@ -1815,14 +1612,14 @@ contract AlignmentEndowmentVaultTest is Test {
         vm.expectRevert(AlignmentEndowmentVault.TargetDecurated.selector);
         vault.execute(makeAddr("sink"), 1 ether, "");
 
-        assertEq(vault.totalVestedDeployable(), 1 ether, "corpus unspent");
+        assertEq(vault.totalPrincipal(), 1 ether, "corpus unspent");
     }
 
     /// @dev Non-vacuity for the test above: the same call on the same position succeeds while the target
     ///      is curated. Deleting the `isAlignmentTargetActive` gate turns the revert test green-to-red;
     ///      this one pins that the gate is the only thing standing between them.
     function test_execute_stillWorksWhileCurated() public {
-        _mixedPosition();
+        _contributeBenefactor(1 ether);
         address sink = makeAddr("sink");
 
         vm.prank(ambassador);
@@ -1853,28 +1650,28 @@ contract AlignmentEndowmentVaultTest is Test {
         assertEq(realRegistry.getAlignmentTarget(id).description, "still ours", "metadata power survives");
     }
 
-    /// @dev The freeze would be a permanent strand on its own: `migratePosition` moves the ESCROWED tranche
-    ///      only, so with `execute` closed the vested corpus has no other exit and de-curation is one-way.
-    ///      `releaseCorpusToCommunity` is that exit — permissionless, whole-corpus, and to the registry's
-    ///      own sink rather than an address the caller picks.
+    /// @dev The freeze would be a permanent strand on its own: `migratePosition` is an owner emergency and
+    ///      not a route the community can ask for, so with `execute` closed the corpus has no other exit and
+    ///      de-curation is one-way. `releaseCorpusToCommunity` is that exit — permissionless, whole-corpus,
+    ///      and to the registry's own sink rather than an address the caller picks.
     function test_releaseCorpusToCommunity_deliversTheFrozenCorpusToTheRegistrySink() public {
-        _mixedPosition();
+        _contributeBenefactor(1 ether);
+        _contributeNewBenefactor(address(0xCAFE), 1 ether);
         address sink = makeAddr("community_sink");
         ambassadorRegistry.setCommunityPayout(TARGET_ID, sink);
         ambassadorRegistry.deactivateAlignmentTarget(TARGET_ID);
 
         uint256 released = vault.releaseCorpusToCommunity();
 
-        assertEq(released, 1 ether, "the whole vested corpus is released");
-        assertEq(sink.balance, 1 ether, "and it lands at the community's own sink");
-        assertEq(vault.totalVestedDeployable(), 0, "corpus emptied");
-        assertEq(vault.totalEscrowedPrincipal(), 1 ether, "escrowed principal untouched");
+        assertEq(released, 2 ether, "the whole corpus is released");
+        assertEq(sink.balance, 2 ether, "and it lands at the community's own sink");
+        assertEq(vault.totalPrincipal(), 0, "corpus emptied");
     }
 
     /// @dev A stranger may call it, because the call carries no choice: no amount argument, no destination
     ///      argument. That is what makes leaving it open safe rather than a gift to a de-curated seat.
     function test_releaseCorpusToCommunity_isPermissionlessButNotADirection() public {
-        _mixedPosition();
+        _contributeBenefactor(1 ether);
         address sink = makeAddr("community_sink");
         ambassadorRegistry.setCommunityPayout(TARGET_ID, sink);
         ambassadorRegistry.deactivateAlignmentTarget(TARGET_ID);
@@ -1889,7 +1686,7 @@ contract AlignmentEndowmentVaultTest is Test {
     /// @dev It is the de-curation exit and nothing else: while the target is curated the corpus is the
     ///      target's to deploy, and this must not become a way to force it out from under them.
     function test_releaseCorpusToCommunity_revertsWhileTheTargetIsStillCurated() public {
-        _mixedPosition();
+        _contributeBenefactor(1 ether);
         ambassadorRegistry.setCommunityPayout(TARGET_ID, makeAddr("community_sink"));
 
         vm.expectRevert(AlignmentEndowmentVault.TargetStillCurated.selector);
@@ -1908,35 +1705,30 @@ contract AlignmentEndowmentVaultTest is Test {
         MockOwnable b = new MockOwnable(alice);
         vm.prank(alice);
         bare.receiveContribution{ value: 1 ether }(nativeCurrency, 1 ether, address(b));
-        vm.warp(block.timestamp + VEST);
-        bare.vest(address(b));
-        assertEq(bare.totalVestedDeployable(), 1 ether, "corpus vested");
+        assertEq(bare.totalPrincipal(), 1 ether, "corpus funded");
 
         ambassadorRegistry.deactivateAlignmentTarget(TARGET_ID);
 
         vm.expectRevert(AlignmentEndowmentVault.CommunityPayoutNotSet.selector);
         bare.releaseCorpusToCommunity();
-        assertEq(bare.totalVestedDeployable(), 1 ether, "corpus still held, not dropped");
+        assertEq(bare.totalPrincipal(), 1 ether, "corpus still held, not dropped");
 
         address sink = makeAddr("late_sink");
         ambassadorRegistry.setCommunityPayout(TARGET_ID, sink);
         bare.releaseCorpusToCommunity();
 
         assertEq(sink.balance, 1 ether, "a sink wired after de-curation still collects");
-        assertEq(bare.totalVestedDeployable(), 0, "corpus emptied");
+        assertEq(bare.totalPrincipal(), 0, "corpus emptied");
     }
 
-    /// @dev On an impaired position the release writes the vested tranche DOWN to its realizable share
-    ///      rather than releasing against a nominal basis the position cannot back. Without the write-down
-    ///      `totalVestedDeployable` would keep the nominal figure and carry an unbacked residual no later
-    ///      call could redeem; here one call empties it.
-    function test_releaseCorpusToCommunity_impaired_writesTheTrancheDownAndEmptiesIt() public {
-        _contributeBenefactor(10 ether); // A → vests
-        _contributeNewBenefactor(address(0xCAFE), 10 ether); // B → stays escrowed
-        vm.warp(block.timestamp + VEST);
-        vault.vest(address(benefactorContract));
-        assertEq(vault.totalVestedDeployable(), 10 ether, "nominal vested tranche");
-        assertEq(vault.totalEscrowedPrincipal(), 10 ether, "escrowed tranche");
+    /// @dev On an impaired position the release writes the basis DOWN to what the position can realize
+    ///      rather than releasing against a nominal figure it cannot back. Without the write-down
+    ///      `totalPrincipal` would keep the nominal number and carry an unbacked residual no later call
+    ///      could redeem; here one call empties it.
+    function test_releaseCorpusToCommunity_impaired_writesTheBasisDownAndEmptiesIt() public {
+        _contributeBenefactor(10 ether);
+        _contributeNewBenefactor(address(0xCAFE), 10 ether);
+        assertEq(vault.totalPrincipal(), 20 ether, "nominal basis");
 
         stata.simulateLoss(10 ether); // 50% impairment
         vm.deal(address(weth), 100 ether);
@@ -1949,19 +1741,15 @@ contract AlignmentEndowmentVaultTest is Test {
         emit ImpairmentRealized(5000, block.timestamp);
         uint256 released = vault.releaseCorpusToCommunity();
 
-        assertApproxEqAbs(released, 5 ether, 1e9, "vested tranche's realizable half is what leaves");
-        assertApproxEqAbs(sink.balance, 5 ether, 1e9, "and it lands at the community sink");
-        assertLe(vault.totalVestedDeployable(), 1e9, "tranche written down and emptied, no unbacked residual");
+        assertApproxEqAbs(released, 10 ether, 1e9, "the realizable half is what leaves");
+        assertApproxEqAbs(sink.balance, 10 ether, 1e9, "and it lands at the community sink");
+        assertLe(vault.totalPrincipal(), 1e9, "basis written down and emptied, no unbacked residual");
     }
 
     /// @dev Harvest-first, for the reason `execute` does it: releasing the LAST principal would otherwise
-    ///      trap the pending yield behind `_crystallizeYield`'s `totalInAave == 0` guard. Here the escrowed
-    ///      tranche is gone (migrated) so the release empties the position entirely.
+    ///      trap the pending yield behind `_crystallizeYield`'s `totalPrincipal == 0` guard.
     function test_releaseCorpusToCommunity_crystallizesYieldBeforeEmptyingThePosition() public {
         _contributeBenefactor(1 ether);
-        vm.warp(block.timestamp + VEST);
-        vault.vest(address(benefactorContract)); // 1 ETH vested, nothing escrowed
-
         _simulateYield(1 ether); // unharvested
 
         address sink = makeAddr("community_sink");
@@ -1971,10 +1759,11 @@ contract AlignmentEndowmentVaultTest is Test {
         uint256 treasuryBefore = treasury.balance;
         vault.releaseCorpusToCommunity();
 
-        // Vested class splits 99 target / 1 protocol, so the sink collects its yield leg on top of the
-        // corpus and the protocol still gets its 1%. Nothing is left behind an emptied position.
+        // The flat split runs first, so the sink collects its 19% on top of the corpus, the protocol gets
+        // its 1%, and the creator's 80% is booked to the purse. Nothing is left behind an emptied position.
         assertEq(treasury.balance - treasuryBefore, 0.01 ether, "protocol leg realized before the release");
-        assertEq(sink.balance, 1 ether + 0.99 ether, "target leg + corpus both delivered");
-        assertEq(vault.totalVestedDeployable(), 0, "corpus emptied");
+        assertEq(vault.pendingYieldOf(address(benefactorContract)), 0.8 ether, "creator leg booked");
+        assertEq(sink.balance, 1 ether + 0.19 ether, "target leg + corpus both delivered");
+        assertEq(vault.totalPrincipal(), 0, "corpus emptied");
     }
 }
