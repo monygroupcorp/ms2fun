@@ -64,6 +64,11 @@ remappings = [
 #
 # A profile with no selector is not a gate. If a new profile is added here, wire it or say
 # where it is run by hand.
+#
+# `deep` having no selector is a deliberate, tracked deferral, not an oversight: it is entry 2
+# of `docs/PRE-MAINNET-CHECKLIST.md`, which must be read before any mainnet deploy. It
+# discharges only when the profile runs on a schedule AND a complete pass/fail has been
+# observed. Until then, quote no pass/fail number for this profile.
 [profile.ci.fuzz]
 runs = 1000
 

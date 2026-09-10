@@ -11,6 +11,11 @@ name: Deploy to GitHub Pages
 # NOT part of this change: ms2.fun currently serves the old pre-quarantine artifact wired to the
 # old contracts, and swapping what the brand domain serves is gated on the testnet deploy landing.
 # Until then this stays manual-only via workflow_dispatch.
+#
+# This deferral is tracked, not just described: it is entry 1 of
+# `contracts/docs/PRE-MAINNET-CHECKLIST.md`, which must be read before any mainnet deploy.
+# It discharges only when a pipeline has actually published at least once. noesis-449 owns
+# that work and is blocked on the Sepolia testnet deploy landing.
 on:
   workflow_dispatch:
 
