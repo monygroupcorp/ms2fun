@@ -67,6 +67,7 @@ contract MigrateOwnershipTest is Test {
     address internal targetRequestRegistry;
     address internal uniVaultFactory;
     address internal cypherVaultFactory;
+    address internal zrouter;
     address internal launchManager;
     address internal curveParamsComputer;
     address internal erc404Factory;
@@ -126,6 +127,7 @@ contract MigrateOwnershipTest is Test {
         alignmentRegistry = address(s.alignmentRegistry());
         targetRequestRegistry = address(s.targetRequestRegistry());
         uniVaultFactory = address(s.uniVaultFactory());
+        zrouter = address(s.zrouter());
         cypherVaultFactory = address(s.cypherVaultFactory());
         launchManager = address(s.launchManager());
         curveParamsComputer = address(s.curveParamsComputer());
@@ -181,6 +183,9 @@ contract MigrateOwnershipTest is Test {
         // Cypher liquidity-deployer module are not deployed here, so their env vars stay unset.
         vm.setEnv("UNI_VAULT_FACTORY", vm.toString(uniVaultFactory));
         vm.setEnv("CYPHER_VAULT_FACTORY", vm.toString(cypherVaultFactory));
+        // This config self-deploys the router (`cfg.zrouter == address(0)`), so it is deployer-owned
+        // and migrates. A network reusing the canonical external singleton leaves ZROUTER unset.
+        vm.setEnv("ZROUTER", vm.toString(zrouter));
     }
 
     // ── the SafeOwnableUUPS (two-step) set covered by the test config ─────────────────────────────

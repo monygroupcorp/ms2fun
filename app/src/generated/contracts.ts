@@ -14699,6 +14699,7 @@ export const zRouterAbi = [
           { name: 'nameNft', internalType: 'address', type: 'address' },
         ],
       },
+      { name: 'owner_', internalType: 'address', type: 'address' },
     ],
     stateMutability: 'payable',
   },

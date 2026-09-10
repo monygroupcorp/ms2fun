@@ -33,7 +33,7 @@ contract ZRouterMainnetEquivalenceForkTest is ForkTestBase {
         if (CANONICAL.code.length == 0) vm.skip(true);
 
         canonical = zRouter(payable(CANONICAL));
-        rebuilt = new zRouter(mainnetChainConfig());
+        rebuilt = new zRouter(mainnetChainConfig(), address(this));
 
         vm.deal(buyer, 1000 ether);
     }
