@@ -11,6 +11,7 @@ import { MasterRegistryV1 } from "../../src/master/MasterRegistryV1.sol";
 import { SafeOwnableUUPS } from "../../src/shared/SafeOwnableUUPS.sol";
 import { ERC404Factory } from "../../src/factories/erc404/ERC404Factory.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
+import { zRouter } from "../../src/peripherals/zRouter.sol";
 
 /// @dev Test-only subclass exposing MigrateOwnership's env-driven categorization and its migration
 ///      body so both can be exercised as the real script code.
@@ -67,6 +68,7 @@ contract MigrateOwnershipTest is Test {
     address internal targetRequestRegistry;
     address internal uniVaultFactory;
     address internal cypherVaultFactory;
+    address internal zrouter;
     address internal launchManager;
     address internal curveParamsComputer;
     address internal erc404Factory;
@@ -126,6 +128,7 @@ contract MigrateOwnershipTest is Test {
         alignmentRegistry = address(s.alignmentRegistry());
         targetRequestRegistry = address(s.targetRequestRegistry());
         uniVaultFactory = address(s.uniVaultFactory());
+        zrouter = address(s.zrouter());
         cypherVaultFactory = address(s.cypherVaultFactory());
         launchManager = address(s.launchManager());
         curveParamsComputer = address(s.curveParamsComputer());
@@ -181,6 +184,9 @@ contract MigrateOwnershipTest is Test {
         // Cypher liquidity-deployer module are not deployed here, so their env vars stay unset.
         vm.setEnv("UNI_VAULT_FACTORY", vm.toString(uniVaultFactory));
         vm.setEnv("CYPHER_VAULT_FACTORY", vm.toString(cypherVaultFactory));
+        // This config self-deploys the router (`cfg.zrouter == address(0)`), so it is deployer-owned
+        // and migrates. A network reusing the canonical external singleton leaves ZROUTER unset.
+        vm.setEnv("ZROUTER", vm.toString(zrouter));
     }
 
     // ── the SafeOwnableUUPS (two-step) set covered by the test config ─────────────────────────────
@@ -240,8 +246,20 @@ contract MigrateOwnershipTest is Test {
             assertEq(Ownable(safe[i]).owner(), timelock, "safe owner -> timelock");
         }
         for (uint256 i; i < plain.length; i++) {
+            // zRouter carries the same single-step `transferOwnership(address)` but exposes no
+            // `owner()` getter — a staticcall for one falls into its swap-callback fallback and
+            // reverts. Its landing is asserted through the onlyOwner gate just below instead.
+            if (plain[i] == zrouter) continue;
             assertEq(Ownable(plain[i]).owner(), timelock, "plain owner -> timelock");
         }
+
+        // zRouter: the timelock now passes `onlyOwner` and the deployer no longer does.
+        vm.prank(timelock);
+        zRouter(payable(zrouter)).trust(address(this), true);
+
+        vm.prank(deployer);
+        vm.expectRevert(zRouter.Unauthorized.selector);
+        zRouter(payable(zrouter)).trust(address(this), true);
     }
 
     // ── D3: emergency revoker moved off the deployer EOA to the timelock ─────────────────────────
@@ -364,9 +382,9 @@ contract MigrateOwnershipTest is Test {
         assertEq(safe[6], masterRegistry, "master is the last two-step element");
 
         address[] memory plain = h.plainOwnable();
-        // 15 required + uni and cypher vault factories (aave/zamm factories and the cypher
-        // liquidity-deployer module are not deployed in this config).
-        assertEq(plain.length, 17, "plain len");
+        // 15 required + uni and cypher vault factories + the self-deployed zRouter (aave/zamm
+        // factories and the cypher liquidity-deployer module are not deployed in this config).
+        assertEq(plain.length, 18, "plain len");
         assertEq(plain[0], targetRequestRegistry, "plain[0]");
         assertEq(plain[1], launchManager, "plain[1]");
         assertEq(plain[2], curveParamsComputer, "plain[2]");
@@ -384,6 +402,7 @@ contract MigrateOwnershipTest is Test {
         assertEq(plain[14], tokenTierBandResolver, "plain[14]");
         assertEq(plain[15], uniVaultFactory, "plain[15] uni");
         assertEq(plain[16], cypherVaultFactory, "plain[16] cypher");
+        assertEq(plain[17], zrouter, "plain[17] zrouter");
         assertEq(moduleCypherDeployer, address(0), "cypher liquidity module absent in this config");
     }
 
