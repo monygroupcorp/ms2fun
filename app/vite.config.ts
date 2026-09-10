@@ -12,8 +12,14 @@ import { precacheGlobs } from './precache.globs'
 //
 //   default   → ms2.fun. Server-backed static host, root-anchored (`base: '/'`), history routing,
 //               service worker on. Unchanged by this file's IPFS branch.
-//   'ipfs'    → the pinned distribution reached through noesis.gwei.domains. Served from under a
-//               gateway path prefix (`/ipfs/<cid>/...`), so:
+//   'ipfs'    → the share-safe distribution: a content-addressed pin, served from under a gateway
+//               path prefix (`/ipfs/<cid>/...`) at whatever origin fronts it. This target names no
+//               host on purpose — 2026-09-10: it previously documented itself as "reached through
+//               noesis.gwei.domains", which is a dead premise (that ENS-gateway front does not
+//               resolve to an address we control and has been moved off). Where the pin is fronted
+//               is still open; the target does not depend on the answer, and hash routing is what
+//               makes that true — a copied link resolves at any origin with no host rewrite rule,
+//               which is what took the origin block off share links. Under the prefix:
 //                 * `base: './'`   — every emitted asset URL is relative to the document.
 //                 * hash routing   — see `src/App.tsx`; a public gateway has no SPA fallback, so a
 //                                    history-mode deep link is a 404 from the gateway itself.
