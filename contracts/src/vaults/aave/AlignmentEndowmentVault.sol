@@ -136,7 +136,6 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     address public protocolTreasury; // 1% protocol cut sink
     IMasterRegistry public masterRegistry; // agent authorization
     address public alignmentToken; // satisfies registerVault's alignmentToken() check
-    address public communityPayout; // target sink FALLBACK (seeded at deploy, owner-updatable) — see `_targetSink`
     uint256 public targetId; // the alignment target this clone serves (for the stat surface / events)
 
     // ── Per-benefactor accounting ─────────────────────────────────────────────
@@ -206,7 +205,6 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     event YieldDistributed(uint256 creatorLeg, uint256 targetLeg, uint256 protocolLeg, uint256 timestamp);
     event YieldClaimed(address indexed benefactor, address indexed recipient, uint256 amount);
     event ImpairmentRealized(uint256 shortfallBps, uint256 timestamp);
-    event CommunityPayoutUpdated(address indexed payout);
     event Migrated(address indexed to, uint256 amount);
     /// @notice Emitted when a crystallized target leg is held in the vault because the target sink is unset.
     event TargetFeesAccrued(uint256 amount, uint256 totalAccrued);
@@ -235,8 +233,7 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         address _protocolTreasury,
         address _masterRegistry,
         address _alignmentToken,
-        uint256 _targetId,
-        address _communityPayout
+        uint256 _targetId
     ) external {
         if (_initialized) revert AlreadyInitialized();
         if (
@@ -252,10 +249,9 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         masterRegistry = IMasterRegistry(_masterRegistry);
         alignmentToken = _alignmentToken;
         targetId = _targetId;
-        // The FALLBACK sink only: `_targetSink()` prefers the registry's live answer. May be zero here and
-        // set later on either side; until some sink exists the target leg accrues into
-        // `accumulatedTargetFees` and is delivered by `flushTargetFees()`.
-        communityPayout = _communityPayout;
+        // The target sink is NOT seeded here. It lives in one place — the alignment registry — and is read
+        // live on every send (`_targetSink`). Until the registry pins one the target leg accrues into
+        // `accumulatedTargetFees`, and `flushTargetFees()` delivers it once a sink exists.
 
         // One-time max approval: the vault is the sole holder of its WETH, deposited each intake into
         // the stataToken. Cheaper + cleaner than re-approving per deposit.
@@ -575,17 +571,25 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     // │   Internal helpers      │
     // └─────────────────────────┘
 
-    /// @dev Where this clone's target leg is owed, resolved at SEND time.
-    ///      The canonical answer is the alignment registry's `getCommunityPayout(targetId)`: it is the
-    ///      one address the community controls, and the three LP vault families already read it on every
-    ///      send. This clone stores a copy, seeded by the factory from that same registry at deploy, and
-    ///      keeps it only as the fallback for a target whose registry entry has not been wired yet — and
-    ///      as the escape hatch the factory's `setVaultCommunityPayout` writes. Reading the copy first
-    ///      would pin the sink at deploy: after a registry re-point every already-deployed clone would go
-    ///      on force-sending to the superseded address, with nothing to claw back and no revert to notice.
+    /// @dev Where this clone's target leg is owed, resolved at SEND time, from the alignment registry's
+    ///      `getCommunityPayout(targetId)` and NOWHERE else — the same single read the three LP vault
+    ///      families already do.
+    ///
+    ///      This clone deliberately keeps no copy of the answer. It used to hold an owner-writable
+    ///      fallback, consulted whenever the registry's answer was zero, and that fallback was a live
+    ///      owner redirect wearing a fallback's clothes: the registry's payout is pinned by `onlyOwner`
+    ///      `setCommunityPayout`, so the owner also decides whether it is ever pinned at all. An owner who
+    ///      simply never pinned it kept the registry's answer at zero forever, and with it a sink they
+    ///      could re-point at will through the factory — while the community, having no pinned payout,
+    ///      had nothing to rotate and no way to pin one for itself. The write-once pin and payee-only
+    ///      `rotateCommunityPayout` in the registry only bind if this is the only address consulted.
+    ///
+    ///      Zero is therefore an honest answer, not a hole to paper over: it means no community sink
+    ///      exists yet. The target leg accrues in `accumulatedTargetFees` and the corpus waits, both
+    ///      delivered in full once the registry pins a sink, and neither reachable by anyone else in the
+    ///      meantime.
     function _targetSink() internal view returns (address) {
-        address canonical = masterRegistry.alignmentRegistry().getCommunityPayout(targetId);
-        return canonical != address(0) ? canonical : communityPayout;
+        return masterRegistry.alignmentRegistry().getCommunityPayout(targetId);
     }
 
     /// @dev Move a benefactor's accrued-but-unsettled creator yield into their purse and re-baseline
@@ -630,15 +634,9 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     // │   Admin                 │
     // └─────────────────────────┘
 
-    /// @notice Update this clone's FALLBACK target sink (owner = factory).
-    /// @dev    The registry's `getCommunityPayout(targetId)` wins whenever it is set, so this writes the
-    ///         address used only while the target has no registry entry. It is not a redirect: it cannot
-    ///         divert a leg away from a community that has wired its own sink.
-    function setCommunityPayout(address payout) external onlyOwner {
-        if (payout == address(0)) revert InvalidAddress();
-        communityPayout = payout;
-        emit CommunityPayoutUpdated(payout);
-    }
+    // There is deliberately no owner-side community-payout setter here. The target sink is the alignment
+    // registry's answer alone (see `_targetSink`); the owner pins it there once and the address receiving
+    // it rotates it thereafter, so this contract holds no capability to point a community's money anywhere.
 
     /// @notice Emergency (owner = factory): escrow-only Aave-reserve-deprecation migration. Redeems the
     ///         ESCROWED tranche's pro-rata share of the position to native ETH and force-sends it to `to`
@@ -851,9 +849,9 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     ///
     ///         Permissionless, and non-discretionary in both arguments it does not take: the amount is the
     ///         whole corpus and the destination is always `_targetSink()` (the registry's
-    ///         `getCommunityPayout(targetId)`, falling back to this clone's stored copy), never
-    ///         caller-supplied. That is what makes it safe to leave open to anyone — it is a delivery, not a
-    ///         spend, so it hands a de-curated ambassador nothing they did not already have. Reverts
+    ///         `getCommunityPayout(targetId)`, and nothing else), never caller-supplied. That is what makes
+    ///         it safe to leave open to anyone — it is a delivery, not a spend, so it hands a de-curated
+    ///         ambassador nothing they did not already have. Reverts
     ///         `CommunityPayoutNotSet` while no sink is wired; the corpus keeps waiting, and
     ///         `AlignmentRegistryV1.setCommunityPayout` deliberately stays callable on an inactive target so
     ///         the sink can still be wired after the fact.

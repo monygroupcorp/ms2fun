@@ -7,7 +7,7 @@ import { CREATEX } from "../../src/shared/CreateXConstants.sol";
 import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
 import { DeployCore } from "../../script/DeployCore.sol";
 import { SeedAnvil } from "../../script/SeedAnvil.s.sol";
-import { SeedAnvilShared, ArtistEndowments, IEndowmentPayout } from "../../script/SeedAnvilShared.sol";
+import { SeedAnvilShared, ArtistEndowments, EndowmentSink } from "../../script/SeedAnvilShared.sol";
 import { ERC1155Instance } from "../../src/factories/erc1155/ERC1155Instance.sol";
 import { ERC404BondingInstance } from "../../src/factories/erc404/ERC404BondingInstance.sol";
 import { MetadataResolverRouter } from "../../src/metadata/MetadataResolverRouter.sol";
@@ -851,7 +851,7 @@ contract SeedModuleCoverageTest is Test {
 
         for (uint256 i = 0; i < rows.length; i++) {
             assertEq(
-                IEndowmentPayout(vaults[i]).communityPayout(),
+                EndowmentSink.sinkOf(vaults[i]),
                 ArtistEndowments.payout(slugs[i]),
                 "artist: the endowment pays somewhere other than the artist's derived fixture address"
             );

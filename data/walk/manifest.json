@@ -771,6 +771,18 @@
           "do": "connect as the ambassador and edit the target from its own page",
           "expect": "the ambassador reaches the edit form and no owner-only control; after the target is de-curated in O-10, the ambassador can still operate what exists and cannot deploy anything new",
           "blocking": true
+        },
+        {
+          "id": "H-3",
+          "title": "a community moves its own payout",
+          "route": "/vault/:address",
+          "calls": [
+            "alignmentRegistryV1Abi.rotateCommunityPayout"
+          ],
+          "given": "the address O-4 pointed the community payout at, connected as that address, on a vault bound to that target",
+          "do": "open the vault, find the move-payout row under the payout address, enter a second address you control and send it; then connect as the FIRST address again and confirm the row is gone, and as the operator confirm /admin offers no way to move it either",
+          "expect": "the payout moves to the second address and the deliver button in B-16 then pays there; the row shows only to whoever is currently receiving the payout, so the first address loses it the moment it moves and the operator never had it. This is the one authority in the walk the protocol cannot exercise on a community's behalf: the operator pins a payout once in O-4 and can never move it, which is why the row lives here and not on /admin.",
+          "blocking": true
         }
       ]
     }

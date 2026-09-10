@@ -1369,12 +1369,7 @@
       "$comment": "--- vault configuration reached through the factory that owns every vault it stamped ---"
     },
     {
-      "match": "AlignmentEndowmentVault.setCommunityPayout",
-      "why": "The vault's own copy of its community sink. Its `owner` is the FACTORY, not a person, so no wallet reaches it directly -- the factory's `setVaultCommunityPayout` is the door, and that is a protocol-owner action sent from contracts/script. The sink the app actually reads and the console actually sets is the registry's, `AlignmentRegistryV1.setCommunityPayout`, which is what the vault falls back to."
-    },
-    {
-      "match": "AlignmentEndowmentVaultFactory.setVaultCommunityPayout",
-      "why": "Re-points a deployed vault's stored community sink, as the factory that owns it. Protocol-owner configuration with the blast radius of every vault this factory stamped. See setMasterRegistry."
+      "$comment": "AlignmentEndowmentVault.setCommunityPayout and AlignmentEndowmentVaultFactory.setVaultCommunityPayout used to be skipped here. Both are gone: the endowment vault kept an owner-writable copy of its community sink that `_targetSink()` fell back to whenever the registry read zero, and since pinning the registry's payout is itself owner-gated, an owner who never pinned one held a sink they could re-point at will over a community with nothing to rotate. The sink is now the registry's answer alone, on every vault family."
     },
     {
       "match": "UniAlignmentVault.setDustDistributionThreshold",

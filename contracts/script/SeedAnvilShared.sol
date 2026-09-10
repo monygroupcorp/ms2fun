@@ -28,10 +28,31 @@ interface IOwnable {
     function transferOwnership(address newOwner) external payable;
 }
 
-/// @dev The endowment vault's payout sink. Read back so a collection cannot be bound to a vault that
+/// @dev The endowment vault's payout sink, resolved the way the vault itself resolves it. The vault
+///      keeps no copy of the sink — `_targetSink()` reads the alignment registry's answer for the
+///      vault's own target id on every send — so this walks the same two hops rather than reading a
+///      vault getter that no longer exists. Read back so a collection cannot be bound to a vault that
 ///      pays somewhere other than the artist the registry pinned.
-interface IEndowmentPayout {
-    function communityPayout() external view returns (address);
+interface IEndowmentTarget {
+    function targetId() external view returns (uint256);
+    function masterRegistry() external view returns (address);
+}
+
+interface IEndowmentMasterRegistry {
+    function alignmentRegistry() external view returns (address);
+}
+
+interface IEndowmentSinkRegistry {
+    function getCommunityPayout(uint256 targetId) external view returns (address);
+}
+
+library EndowmentSink {
+    /// @dev The address `vault` would pay its community leg to right now.
+    function sinkOf(address vault) internal view returns (address) {
+        IEndowmentTarget v = IEndowmentTarget(vault);
+        address registry = IEndowmentMasterRegistry(v.masterRegistry()).alignmentRegistry();
+        return IEndowmentSinkRegistry(registry).getCommunityPayout(v.targetId());
+    }
 }
 
 /// @dev The one read the art acceptance test needs, on either token surface (the DN404 mirror for a

@@ -27,7 +27,7 @@ import { PoolIdLibrary } from "v4-core/types/PoolId.sol";
 import {
     SeedAnvilShared,
     ArtistEndowments,
-    IEndowmentPayout,
+    EndowmentSink,
     AnvilV4DepthSeeder,
     IUniswapV3PoolMinimal
 } from "./SeedAnvilShared.sol";
@@ -2000,7 +2000,7 @@ contract SeedAnvil is SeedAnvilShared {
         // endows somebody else, and nothing on the page would say so.
         require(vault != address(0), "artist endowment: no vault resolved for this target");
         require(
-            IEndowmentPayout(vault).communityPayout() == ArtistEndowments.payout(slug),
+            EndowmentSink.sinkOf(vault) == ArtistEndowments.payout(slug),
             "artist endowment: the vault pays somewhere other than this artist's derived fixture address"
         );
         _assertPieceBase(pieceBase, slug);

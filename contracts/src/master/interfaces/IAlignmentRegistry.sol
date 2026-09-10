@@ -60,7 +60,11 @@ interface IAlignmentRegistry {
     event AlignmentTargetUpdated(uint256 indexed targetId);
     event AmbassadorAdded(uint256 indexed targetId, address indexed ambassador);
     event AmbassadorRemoved(uint256 indexed targetId, address indexed ambassador);
+    /// @notice A target's payout was pinned for the first time. Write-once: there is no second `Set`.
     event CommunityPayoutSet(uint256 indexed targetId, address indexed payout);
+    /// @notice The address receiving a target's payout moved it onward itself. The only way a pinned
+    ///         payout ever changes, and it carries `from` so indexers can follow a community's chain.
+    event CommunityPayoutRotated(uint256 indexed targetId, address indexed from, address indexed to);
     event AcquireRouteSet(uint256 indexed targetId, address indexed token, Venue venue);
     event ReferencePoolSet(uint256 indexed targetId, address indexed token, address pool, uint8 kind);
 
@@ -92,8 +96,9 @@ interface IAlignmentRegistry {
     // Token Lookup
     function isTokenInTarget(uint256 targetId, address token) external view returns (bool);
 
-    // Community Payout
+    // Community Payout — pinned once by the owner, moved thereafter only by the address receiving it
     function setCommunityPayout(uint256 targetId, address payout) external;
+    function rotateCommunityPayout(uint256 targetId, address newPayout) external;
     function getCommunityPayout(uint256 targetId) external view returns (address);
 
     // Acquire Routing (owner-curated venue classification for a target's token)
