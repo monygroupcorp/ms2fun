@@ -173,16 +173,18 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
     event VaultContributionFailed(address indexed vault, address indexed instance, uint256 amount);
     /// @notice A previously-stashed graduation vault cut was successfully re-delivered.
     event VaultContributionRetried(address indexed vault, address indexed instance, uint256 amount);
-    /// @notice The vault's alignment target was revoked (`isVaultRegistered` false); the graduation tithe was
-    ///         routed to `protocolTreasury` instead of the de-curated vault (noesis-126).
-    event VaultCutRedirected(address indexed vault, address indexed treasury, uint256 amount);
-    /// @notice A stashed vault cut was redirected to the instance's protocol treasury on the retry,
-    ///         because the vault's alignment target was revoked while the cut sat pending.
-    /// @dev Distinct from `VaultCutRedirected`, which the graduation path emits when a cut is
-    ///      redirected as it is earned. Both move the same money to the same place, but only one of
+    /// @notice The vault's alignment target was de-curated (`isVaultRegistered` false); the graduation
+    ///         community cut was returned to the creator instead of feeding the de-curated vault.
+    /// @dev INVARIANT: de-curation may destroy value; it may not transfer value to the protocol. No
+    ///      `isVaultRegistered`-false branch in this contract routes to `protocolTreasury`.
+    event VaultCutReturnedToCreator(address indexed vault, address indexed creator, uint256 amount);
+    /// @notice A stashed vault cut was returned to the instance's creator on the retry, because the
+    ///         vault's alignment target was de-curated while the cut sat pending.
+    /// @dev Distinct topic from `VaultCutReturnedToCreator`, which the graduation path emits when a cut
+    ///      is returned as it is earned. Both move the same money to the same place, but only one of
     ///      them is new revenue: a tithe report that saw a single event for both would double-count
-    ///      every cut that was stashed once and redirected later. This is the retry.
-    event PendingVaultCutRedirected(address indexed vault, address indexed treasury, uint256 amount);
+    ///      every cut that was stashed once and returned later. This is the retry.
+    event PendingVaultCutReturnedToCreator(address indexed vault, address indexed creator, uint256 amount);
 
     /**
      * @notice Deploy V4 liquidity on behalf of an ERC404BondingInstance.
@@ -306,13 +308,19 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
         // pendingVaultCut[p.instance] for later delivery via flushPendingVaultCut — mirroring the
         // ERC1155/721 try/catch + pending-cut retry. Graduation completes; the tithe is deferred, not lost.
         if (r.vaultCut > 0 && p.vault != address(0)) {
-            // Target-revocation gate (noesis-126): if the alignment target was revoked (`isVaultRegistered`
-            // false), route the tithe to `protocolTreasury` instead of feeding the de-curated vault —
-            // mirroring the ERC1155/721 primary paths. forceSafeTransferETH is brick-proof (a treasury that
-            // rejects ETH cannot brick graduation). For an active target, keep the try/catch + stash retry.
+            // De-curation gate (noesis-126/noesis-435): if the alignment target was revoked
+            // (`isVaultRegistered` false), fold the community cut into the creator leg instead of feeding
+            // the de-curated vault — mirroring the ERC1155/721 primary paths.
+            // INVARIANT: de-curation may destroy value; it may not transfer value to the protocol. Losing
+            // the ability to pay a community is a consequence of curation; gaining their revenue is a
+            // conflict of interest, so this branch must never route to `protocolTreasury`. A creator
+            // betrayed by the community they aligned to gets their alignment share back — restitution, not
+            // windfall. The fold moves whatever `vaultCut` resolved to, never a hardcoded 19%, and the
+            // creator leg below force-transfers so the brick-proof property of this leg survives the fold.
+            // For an active target, keep the try/catch + stash retry.
             if (!masterRegistry.isVaultRegistered(p.vault)) {
-                SafeTransferLib.forceSafeTransferETH(p.protocolTreasury, r.vaultCut);
-                emit VaultCutRedirected(p.vault, p.protocolTreasury, r.vaultCut);
+                r.creatorCut += r.vaultCut;
+                emit VaultCutReturnedToCreator(p.vault, p.creator, r.vaultCut);
             } else {
                 try IAlignmentVault(payable(p.vault)).receiveContribution{ value: r.vaultCut }(
                     Currency.wrap(address(0)), r.vaultCut, p.instance
@@ -326,9 +334,11 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
                 }
             }
         }
-        // 80% of carve → creator
+        // 80% of carve → creator, plus any community cut folded in by the de-curation gate above.
+        // force-transfer (noesis-435): the folded leg was brick-proof before the fold and must stay so —
+        // a creator contract that rejects ETH cannot be allowed to brick graduation.
         if (r.creatorCut > 0) {
-            SafeTransferLib.safeTransferETH(p.creator, r.creatorCut);
+            SafeTransferLib.forceSafeTransferETH(p.creator, r.creatorCut);
         }
         // The two diverted legs, reported apart. `r.carvePaid` is the post-clamp figure for their SUM;
         // attribution is CARVE-FIRST — the creator's request is met first and the clamp residue absorbs
@@ -466,9 +476,9 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
 
     /// @notice Retry delivering a graduation vault cut that a reverting vault previously rejected.
     /// @dev Permissionless (mirrors the ERC721 flushPendingVaultCut authority model): the ETH goes to the
-    ///      vault bound at stash time UNLESS that target has since been revoked, in which case the
-    ///      target-revocation gate (noesis-126) redirects the tithe to `protocolTreasury` — the retry is not
-    ///      a redirect-free surface, it faces the same de-curation risk as the primary graduation send. The
+    ///      vault bound at stash time UNLESS that target has since been de-curated, in which case the
+    ///      de-curation gate (noesis-126/noesis-435) returns the cut to the instance's creator — the retry
+    ///      is not a redirect-free surface, it faces the same de-curation risk as the primary send. The
     ///      pending amount is zeroed BEFORE the external call (checks-effects-interactions); if the active
     ///      vault still reverts the whole transaction reverts and the stash is restored — idempotent, no ETH
     ///      is ever lost.
@@ -478,14 +488,17 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
         if (pc.amount == 0) revert NoPendingVaultCut();
         delete pendingVaultCut[instance];
         if (!masterRegistry.isVaultRegistered(pc.vault)) {
-            // Target revoked while stashed: redirect the tithe to the instance's protocol treasury rather
-            // than force-feed the de-curated vault. The instance's `protocolTreasury()` is the same address
-            // it passed as DeployParams.protocolTreasury at graduation (MasterRegistry verifies it non-zero
-            // at registration), so no per-cut treasury needs to be stashed. forceSafeTransferETH is
-            // brick-proof so a non-receiving treasury cannot strand the retry.
-            address treasury = IFactoryInstance(instance).protocolTreasury();
-            SafeTransferLib.forceSafeTransferETH(treasury, pc.amount);
-            emit PendingVaultCutRedirected(pc.vault, treasury, pc.amount);
+            // Target de-curated while stashed: return the cut to the instance's creator rather than
+            // force-feed the de-curated vault. The stashed cut is the same money as a fresh one and must
+            // not survive as a treasury path (noesis-435).
+            // The creator is read back through the instance for the same reason the treasury was — the
+            // instance's `owner()` is the address the primary graduation leg pays as `DeployParams.creator`
+            // — so `PendingCut` does not have to grow a field (it is a public mapping; a new member would
+            // change the generated getter for no benefit). forceSafeTransferETH is brick-proof so a
+            // creator that rejects ETH cannot strand the retry.
+            address creator = IFactoryInstance(instance).owner();
+            SafeTransferLib.forceSafeTransferETH(creator, pc.amount);
+            emit PendingVaultCutReturnedToCreator(pc.vault, creator, pc.amount);
         } else {
             IAlignmentVault(payable(pc.vault)).receiveContribution{ value: pc.amount }(
                 Currency.wrap(address(0)), pc.amount, instance
