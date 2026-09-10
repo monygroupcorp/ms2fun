@@ -2,6 +2,8 @@
 pragma solidity ^0.8.24;
 
 import { Test, console, console2 } from "forge-std/Test.sol";
+import { Vm } from "forge-std/Vm.sol";
+import { TitheSignals } from "../../helpers/TitheSignals.sol";
 import { ERC1155Factory } from "../../../src/factories/erc1155/ERC1155Factory.sol";
 import {
     ERC1155Instance,
@@ -609,6 +611,75 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         assertEq(instanceContract.pendingVaultCut(), 0, "redirect is not the pending-retry lane");
     }
 
+    /// noesis-269: the two redirects are distinguishable in the log. Drives BOTH branches — a cut
+    /// redirected at withdraw as it is earned, and a stashed cut redirected on `retryVaultContribution`
+    /// — and asserts each path emits its own signal and only its own. Same money, same destination, but
+    /// one is new revenue and the other is a re-route of revenue already reported; a tithe report
+    /// reading a single event for both would count that cut twice.
+    function test_RedirectSignals_PrimaryAndRetry_Differ() public {
+        assertTrue(
+            ERC1155Instance.VaultCutRedirected.selector != ERC1155Instance.PendingVaultCutRedirected.selector,
+            "the two redirect signals are distinct topics"
+        );
+
+        address treasury = address(0xF00D);
+        vm.prank(owner);
+        factory.setProtocolTreasury(treasury);
+        vm.deal(creator, 1 ether);
+        vm.deal(minter1, 10 ether);
+
+        // -- Branch 1: revoked before the withdraw, so the cut is redirected as it is earned. --
+        ERC1155Instance earned = _mintedInstance("Earned", address(vault));
+        mockRegistry.setVaultRegistered(address(vault), false);
+        vm.recordLogs();
+        vm.prank(creator);
+        earned.withdraw(1 ether);
+        Vm.Log[] memory primary = vm.getRecordedLogs();
+        assertEq(
+            TitheSignals.count(primary, ERC1155Instance.VaultCutRedirected.selector),
+            1,
+            "primary path emits the earned signal"
+        );
+        assertEq(
+            TitheSignals.count(primary, ERC1155Instance.PendingVaultCutRedirected.selector),
+            0,
+            "primary path does not claim to be a retry"
+        );
+
+        // -- Branch 2: stashed while the target was live, redirected on retry. --
+        MockToggleVault broken = new MockToggleVault();
+        ERC1155Instance stashed = _mintedInstance("Stashed", address(broken));
+        vm.prank(creator);
+        stashed.withdraw(1 ether); // target live + vault broken -> stashed, not redirected
+        assertEq(stashed.pendingVaultCut(), (1 ether * 19) / 100, "precondition: cut stashed while target live");
+        mockRegistry.setVaultRegistered(address(broken), false);
+        vm.recordLogs();
+        stashed.retryVaultContribution();
+        Vm.Log[] memory retried = vm.getRecordedLogs();
+        assertEq(
+            TitheSignals.count(retried, ERC1155Instance.PendingVaultCutRedirected.selector),
+            1,
+            "retry path emits the retry signal"
+        );
+        assertEq(
+            TitheSignals.count(retried, ERC1155Instance.VaultCutRedirected.selector),
+            0,
+            "retry path is not reported as new revenue"
+        );
+    }
+
+    /// @dev A collection bound to `boundVault` with one 1-ETH edition already minted, so a `withdraw(1 ether)`
+    ///      produces exactly one vault cut to follow.
+    function _mintedInstance(string memory name, address boundVault) internal returns (ERC1155Instance inst) {
+        vm.startPrank(creator);
+        address instance = factory.createInstance{ value: 0 }(_nextSalt(), _params(name, creator, boundVault));
+        inst = ERC1155Instance(payable(instance));
+        inst.addEdition("Piece 1", 1 ether, 0, "ipfs://piece1", ERC1155Instance.PricingModel.UNLIMITED, 0, 0, 0);
+        vm.stopPrank();
+        vm.prank(minter1);
+        inst.mint{ value: 1 ether }(1, 1, bytes(""), bytes(""), 0);
+    }
+
     /// noesis-126: a vault cut STASHED at withdraw (the vault reverted) while the target was live must NOT be
     /// force-fed to the vault on `retryVaultContribution` once the target has since been revoked — it is
     /// redirected to `protocolTreasury`, mirroring the `withdraw` primary path.
@@ -650,7 +721,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
 
         uint256 treasuryBefore = treasury.balance;
         vm.expectEmit(true, true, false, true, address(inst));
-        emit ERC1155Instance.VaultCutRedirected(address(brokenVault), treasury, expectedVault);
+        emit ERC1155Instance.PendingVaultCutRedirected(address(brokenVault), treasury, expectedVault);
         inst.retryVaultContribution(); // permissionless
 
         assertEq(treasury.balance - treasuryBefore, expectedVault, "retry redirected the tithe to treasury");

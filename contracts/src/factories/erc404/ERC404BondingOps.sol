@@ -513,7 +513,16 @@ contract ERC404BondingOps is ERC404BondingStorage {
         if (stakingActive) {
             address sm = address(stakingModule); // cache: one SLOAD for the module calls below
             uint256 delta = address(this).balance - before;
-            if (delta != 0) {
+            // Stop-crediting on revocation (noesis-259). The staking module gates `recordFeesReceived`
+            // behind `onlyRegisteredInstance`, so once this instance's registration is revoked a bare
+            // call reverts and takes the WHOLE sweep down with it — the vault pull above is undone and
+            // `settleAndReleaseLeak` below never runs, permanently stranding both the swept fees and any
+            // released stream leak. A revoked instance simply stops being credited: the delta is not
+            // streamed to stakers and, just below, not added to `stakingReserve` either, which leaves it
+            // as ordinary surplus the owner can recover through `withdrawDust`. Crediting the reserve
+            // without a matching stream would lock ETH nobody can ever accrue and nobody can sweep.
+            bool credited = delta != 0 && masterRegistry.isRegisteredInstance(address(this));
+            if (credited) {
                 IERC404StakingModule(sm).recordFeesReceived(delta);
             }
             // Single round-trip (noesis-127): settle the stream, read totalStaked for the noesis-061
@@ -521,12 +530,13 @@ contract ERC404BondingOps is ERC404BondingStorage {
             // a zero-stake gap that no staker can ever accrue). Folding the guard-read and the release
             // into one call keeps the instance under EIP-170.
             (uint256 totalStaked, uint256 leaked) = IStakingTotals(sm).settleAndReleaseLeak();
-            // Credit the staker-owed reserve ONLY when the module can distribute (totalStaked > 0),
-            // mirroring recordFeesReceived's own guard. When totalStaked == 0 the delta is genuine
-            // undistributable dust the module cannot pay out — leave it recoverable by withdrawDust.
+            // Credit the staker-owed reserve ONLY when the delta was actually streamed (`credited`) AND
+            // the module can distribute (totalStaked > 0), mirroring recordFeesReceived's own guard.
+            // When either fails the delta is genuine undistributable dust the module cannot pay out —
+            // leave it recoverable by withdrawDust.
             // `delta` is a conservative over-estimate of the true liability (the module truncates
             // rewardPerToken), the safe direction for a sweep guard.
-            if (delta != 0 && totalStaked != 0) {
+            if (credited && totalStaked != 0) {
                 stakingReserve += delta;
             }
             // Debit the released leak so it drops out of `stakingReserve` and withdrawDust can sweep it

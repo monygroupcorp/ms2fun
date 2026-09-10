@@ -173,10 +173,11 @@ contract SeedAnvil is SeedAnvilShared {
 
     // ERC404 side. The module's `amount` on the free-claim path is `unit` (one NFT's worth of
     // tokens), NOT an NFT count — so the cap encoded in the leaf is denominated in the same units.
-    // preset 1 is unitPerNFT = 1e6, and the created instance's `unit()` is asserted against this
-    // before the config is trusted, because the leaf (and therefore the root) is built BEFORE the
-    // instance exists.
-    uint256 constant SIGIL_UNIT = 1e6 * 1e18;
+    // preset 1 (STANDARD) is unitPerNFT = 1e5, and the created instance's `unit()` is asserted
+    // against this before the config is trusted, because the leaf (and therefore the root) is built
+    // BEFORE the instance exists. Re-space the preset ladder and this constant moves with it — the
+    // assert below is what makes that a seed failure rather than an unclaimable allowlist.
+    uint256 constant SIGIL_UNIT = 1e5 * 1e18;
     uint256 constant SIGIL_MAX_QTY = SIGIL_UNIT; // exactly one free claim's worth
     uint256 constant SIGIL_FREE_ALLOC = 3;
 
@@ -595,7 +596,7 @@ contract SeedAnvil is SeedAnvilShared {
     ///      Two details that are load-bearing rather than stylistic:
     ///        · the quotes are BACKSLASH-ESCAPED, because this string is embedded as a JSON string
     ///          value inside the collection metadata, which is itself an unencoded `data:` JSON URI;
-    ///        · `maxQty` is a QUOTED integer. The ERC404 cap is a token amount (1e24) and a JSON
+    ///        · `maxQty` is a QUOTED integer. The ERC404 cap is a token amount (1e23) and a JSON
     ///          number cannot carry it exactly; the parser accepts a numeric string for exactly this.
     function _allowlistListUri(address a, uint256 aQty, address b, uint256 bQty) internal pure returns (string memory) {
         return string.concat(

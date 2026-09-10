@@ -2,6 +2,8 @@
 pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
+import { Vm } from "forge-std/Vm.sol";
+import { TitheSignals } from "../../helpers/TitheSignals.sol";
 import { CypherLiquidityDeployerModule } from "../../../src/factories/erc404cypher/CypherLiquidityDeployerModule.sol";
 import { ILiquidityDeployerModule } from "../../../src/interfaces/ILiquidityDeployerModule.sol";
 import { MockERC20 } from "../../mocks/MockERC20.sol";
@@ -170,7 +172,9 @@ contract CypherGraduationVaultCutDoSTest is Test {
         uint256 treasuryBefore = protocolTreasury.balance;
 
         vm.expectEmit(true, true, false, true);
-        emit CypherLiquidityDeployerModule.VaultCutRedirected(address(vault), protocolTreasury, EXPECTED_VAULT_CUT);
+        emit CypherLiquidityDeployerModule.PendingVaultCutRedirected(
+            address(vault), protocolTreasury, EXPECTED_VAULT_CUT
+        );
         vm.prank(makeAddr("rando")); // permissionless
         deployer.flushPendingVaultCut(instance);
 
@@ -179,5 +183,53 @@ contract CypherGraduationVaultCutDoSTest is Test {
         assertEq(address(deployer).balance, 0, "module no longer holds the cut");
         (, uint256 stashedAmount) = deployer.pendingVaultCut(instance);
         assertEq(stashedAmount, 0, "stash cleared");
+    }
+
+    /// @notice The two redirects are distinguishable in the log. Drives BOTH branches — a cut redirected
+    ///         as it is earned, and a stashed cut redirected on flush — and asserts each path emits its
+    ///         own signal and only its own. Same money, same destination, but one is new revenue and the
+    ///         other is a re-route of revenue already reported; a tithe report reading a single event for
+    ///         both would count that cut twice.
+    function test_redirectSignals_primaryAndFlush_differ() public {
+        assertTrue(
+            CypherLiquidityDeployerModule.VaultCutRedirected.selector
+                != CypherLiquidityDeployerModule.PendingVaultCutRedirected.selector,
+            "the two redirect signals are distinct topics"
+        );
+
+        // -- Branch 1: redirected as it is earned. --
+        MockVault live = new MockVault();
+        registry.setVaultRegistered(address(live), false); // revoked before the cut is even earned
+        vm.recordLogs();
+        _graduate(address(live));
+        Vm.Log[] memory primary = vm.getRecordedLogs();
+        assertEq(
+            TitheSignals.count(primary, CypherLiquidityDeployerModule.VaultCutRedirected.selector),
+            1,
+            "primary path emits the earned signal"
+        );
+        assertEq(
+            TitheSignals.count(primary, CypherLiquidityDeployerModule.PendingVaultCutRedirected.selector),
+            0,
+            "primary path does not claim to be a retry"
+        );
+
+        // -- Branch 2: stashed while the target was live, redirected on flush. --
+        MockToggleVault broken = new MockToggleVault(); // broken -> forces the stash
+        _graduate(address(broken)); // target still live at stash time
+        registry.setVaultRegistered(address(broken), false); // revoked after the stash
+        vm.recordLogs();
+        deployer.flushPendingVaultCut(instance);
+        Vm.Log[] memory flushed = vm.getRecordedLogs();
+        assertEq(
+            TitheSignals.count(flushed, CypherLiquidityDeployerModule.PendingVaultCutRedirected.selector),
+            1,
+            "flush path emits the retry signal"
+        );
+        assertEq(
+            TitheSignals.count(flushed, CypherLiquidityDeployerModule.VaultCutRedirected.selector),
+            0,
+            "flush path is not reported as new revenue"
+        );
     }
 }

@@ -233,6 +233,14 @@ contract MetadataStackIntegrationTest is Test {
         );
     }
 
+    /// @dev The router child list for a tier-only stack. `cfg.tier` names where the band art is
+    ///      SEALED; it is this list that makes the tier reachable from a `tokenURI` lookup, and the
+    ///      factory refuses to seal art onto a module outside the chain.
+    function _tierChild() internal view returns (address[] memory rs) {
+        rs = new address[](1);
+        rs[0] = address(tier);
+    }
+
     function _children(address a, address b) internal pure returns (address[] memory rs) {
         rs = new address[](2);
         rs[0] = a;
@@ -494,6 +502,7 @@ contract MetadataStackIntegrationTest is Test {
         ERC404Factory.MetadataConfig memory meta;
         meta.resolver = address(router);
         meta.tier = address(tier);
+        meta.childResolvers = _tierChild(); // the tier must sit in the chain it seals art onto
         meta.tiers = tiers;
         address inst = _create("bandSeal", meta);
         assertTrue(tier.sealed_(inst), "band table seals at create");
@@ -515,6 +524,45 @@ contract MetadataStackIntegrationTest is Test {
         assertEq(e1, 17, "10 / 5 = 2 ids");
     }
 
+    /// @dev noesis-267 — the tier module named by `cfg.tier` must sit IN the resolution chain: it is
+    ///      either the resolver itself, or one of the router children. `cfg.tier` says only where the
+    ///      band art is sealed and wires nothing on its own, so a tier module outside the chain gets a
+    ///      full art table that no `tokenURI` lookup can reach, while the economic ladder IS sealed onto
+    ///      the instance — bands that mint, price and burn as tiers but render as ordinary ids forever,
+    ///      unrepairably (the seal is create-only). Refused at create, like the empty ladder it mirrors.
+    function test_wireMetadata_tierOutsideResolutionChain_reverts() public {
+        ERC404Factory.MetadataConfig memory meta;
+        meta.resolver = address(router);
+        meta.tier = address(tier);
+        meta.tiers = _oneTier(2, 0);
+        // meta.childResolvers left empty: the router resolves to nothing, so the tier is unreachable.
+        vm.expectRevert(InvalidBand.selector);
+        _create("tierOffChain", meta);
+    }
+
+    /// @dev The same ladder, with the tier wired as a router child, is the ordinary tiered create — so
+    ///      the rejection above is about REACHABILITY and not about the ladder or the module.
+    function test_wireMetadata_tierAsRouterChild_seals() public {
+        ERC404Factory.MetadataConfig memory meta;
+        meta.resolver = address(router);
+        meta.tier = address(tier);
+        meta.tiers = _oneTier(2, 0);
+        meta.childResolvers = _tierChild();
+        address inst = _create("tierAsChild", meta);
+        assertTrue(tier.sealed_(inst), "art seals when the tier is in the chain");
+    }
+
+    /// @dev The other accepted shape: the tier module used directly in the resolver slot, no router.
+    ///      `cfg.tier == cfg.resolver` is reachable by definition.
+    function test_wireMetadata_tierAsResolver_seals() public {
+        ERC404Factory.MetadataConfig memory meta;
+        meta.resolver = address(tier);
+        meta.tier = address(tier);
+        meta.tiers = _oneTier(2, 0);
+        address inst = _create("tierAsResolver", meta);
+        assertTrue(tier.sealed_(inst), "art seals when the tier IS the resolver");
+    }
+
     /// @dev A tier module wired with no ladder is the silent-no-op instance (empty `tierBands` reads
     ///      as "opted out of tiers"), and the seal is create-only, so it could never be repaired.
     ///      Refused at create.
@@ -522,6 +570,7 @@ contract MetadataStackIntegrationTest is Test {
         ERC404Factory.MetadataConfig memory meta;
         meta.resolver = address(router);
         meta.tier = address(tier);
+        meta.childResolvers = _tierChild(); // the tier must sit in the chain it seals art onto
         // meta.tiers left empty
         vm.expectRevert(InvalidBand.selector);
         _create("emptyLadder", meta);
@@ -533,6 +582,7 @@ contract MetadataStackIntegrationTest is Test {
         ERC404Factory.MetadataConfig memory meta;
         meta.resolver = address(router);
         meta.tier = address(tier);
+        meta.childResolvers = _tierChild(); // the tier must sit in the chain it seals art onto
         meta.tiers = _oneTier(11, 0); // nftCount 10 → 10 / 11 == 0 ids
         vm.expectRevert(InvalidBand.selector);
         _create("zeroSizedBand", meta);
@@ -544,6 +594,7 @@ contract MetadataStackIntegrationTest is Test {
         ERC404Factory.MetadataConfig memory meta;
         meta.resolver = address(router);
         meta.tier = address(tier);
+        meta.childResolvers = _tierChild(); // the tier must sit in the chain it seals art onto
         meta.tiers = _oneTier(0, 0);
         vm.expectRevert(InvalidBand.selector);
         _create("zeroWeight", meta);
@@ -559,6 +610,7 @@ contract MetadataStackIntegrationTest is Test {
         ERC404Factory.MetadataConfig memory meta;
         meta.resolver = address(router);
         meta.tier = address(tier);
+        meta.childResolvers = _tierChild(); // the tier must sit in the chain it seals art onto
         meta.tiers = tiers;
         vm.expectRevert(InitTierBandsFailed.selector);
         _create("flatLadder", meta);
@@ -574,6 +626,7 @@ contract MetadataStackIntegrationTest is Test {
         ERC404Factory.MetadataConfig memory meta;
         meta.resolver = address(router);
         meta.tier = address(tier);
+        meta.childResolvers = _tierChild(); // the tier must sit in the chain it seals art onto
         meta.tiers = _oneTier(2, 0); // full width: idLimit / 2 ids, packed from idLimit + 1
 
         _nonce++;

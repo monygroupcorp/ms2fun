@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import { Test, console } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
+import { TitheSignals } from "../../helpers/TitheSignals.sol";
 import { ERC721AuctionFactory } from "../../../src/factories/erc721/ERC721AuctionFactory.sol";
 import {
     ERC721AuctionInstance,
@@ -418,6 +419,84 @@ contract ERC721AuctionFactoryTest is Test {
         assertEq(inst.pendingVaultCut(), 0, "redirect is not the pending-retry lane");
     }
 
+    /// noesis-269: the two redirects are distinguishable in the log. Drives BOTH branches — a cut
+    /// redirected at settle as it is earned, and a stashed cut redirected on `flushPendingVaultCut` —
+    /// and asserts each path emits its own signal and only its own. Same money, same destination, but
+    /// one is new revenue and the other is a re-route of revenue already reported; a tithe report
+    /// reading a single event for both would count that cut twice.
+    function test_RedirectSignals_PrimaryAndFlush_Differ() public {
+        assertTrue(
+            ERC721AuctionInstance.VaultCutRedirected.selector
+                != ERC721AuctionInstance.PendingVaultCutRedirected.selector,
+            "the two redirect signals are distinct topics"
+        );
+
+        // -- Branch 1: revoked before the settle, so the cut is redirected as it is earned. --
+        ERC721AuctionInstance earned = _bidInstance(address(vault));
+        mockRegistry.setVaultRegistered(address(vault), false);
+        vm.recordLogs();
+        earned.settleAuction(1);
+        Vm.Log[] memory primary = vm.getRecordedLogs();
+        assertEq(
+            TitheSignals.count(primary, ERC721AuctionInstance.VaultCutRedirected.selector),
+            1,
+            "primary path emits the earned signal"
+        );
+        assertEq(
+            TitheSignals.count(primary, ERC721AuctionInstance.PendingVaultCutRedirected.selector),
+            0,
+            "primary path does not claim to be a retry"
+        );
+
+        // -- Branch 2: stashed while the target was live, redirected on flush. --
+        MockToggleVault broken = new MockToggleVault();
+        ERC721AuctionInstance stashed = _bidInstance(address(broken));
+        stashed.settleAuction(1); // target live + vault broken -> stashed, not redirected
+        assertEq(stashed.pendingVaultCut(), (1 ether * 19) / 100, "precondition: cut stashed while target live");
+        mockRegistry.setVaultRegistered(address(broken), false);
+        vm.recordLogs();
+        stashed.flushPendingVaultCut();
+        Vm.Log[] memory flushed = vm.getRecordedLogs();
+        assertEq(
+            TitheSignals.count(flushed, ERC721AuctionInstance.PendingVaultCutRedirected.selector),
+            1,
+            "flush path emits the retry signal"
+        );
+        assertEq(
+            TitheSignals.count(flushed, ERC721AuctionInstance.VaultCutRedirected.selector),
+            0,
+            "flush path is not reported as new revenue"
+        );
+    }
+
+    /// @dev A single-line collection bound to `boundVault` with one piece queued and a 1-ETH winning bid,
+    ///      warped to the auction end — so `settleAuction(1)` produces exactly one vault cut to follow.
+    function _bidInstance(address boundVault) internal returns (ERC721AuctionInstance inst) {
+        ERC721AuctionFactory.CreateParams memory p = ERC721AuctionFactory.CreateParams({
+            name: "Signal Collection",
+            metadataURI: "ipfs://meta",
+            creator: artist,
+            vault: boundVault,
+            symbol: "ART",
+            lines: 1,
+            baseDuration: BASE_DURATION,
+            timeBuffer: TIME_BUFFER,
+            bidIncrement: BID_INCREMENT
+        });
+        vm.deal(artist, 100 ether);
+        vm.prank(artist);
+        inst = ERC721AuctionInstance(payable(factory.createInstance{ value: 0 }(_nextSalt(), p)));
+
+        vm.prank(artist);
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
+
+        vm.deal(bidder1, 1 ether);
+        vm.prank(bidder1);
+        inst.createBid{ value: 1 ether }(1, bytes(""));
+
+        vm.warp(inst.getAuction(1).endTime);
+    }
+
     /// noesis-126: a vault cut STASHED at settle (the vault reverted) while the target was live must NOT be
     /// force-fed to the vault on `flushPendingVaultCut` once the target has since been revoked — it is
     /// redirected to `protocolTreasury`, mirroring the `settleAuction` primary path.
@@ -460,7 +539,7 @@ contract ERC721AuctionFactoryTest is Test {
 
         uint256 treasuryBefore = treasury.balance;
         vm.expectEmit(true, true, false, true, address(inst));
-        emit ERC721AuctionInstance.VaultCutRedirected(address(brokenVault), treasury, expectedVaultCut);
+        emit ERC721AuctionInstance.PendingVaultCutRedirected(address(brokenVault), treasury, expectedVaultCut);
         inst.flushPendingVaultCut(); // permissionless
 
         assertEq(treasury.balance - treasuryBefore, expectedVaultCut, "flush redirected the tithe to treasury");
