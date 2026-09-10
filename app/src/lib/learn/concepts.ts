@@ -326,6 +326,13 @@ Nothing about deploying without art is second-class: the contract, the alignment
 `,
     related: ['onchain-image-cost'],
   },
+  support: {
+    title: 'Reporting a problem',
+    summary: 'Where to report a defect in the launchpad, or ask about something that looks wrong.',
+    body: `
+Found a bug, or something in the app that doesn't match what the contracts do? **DM [@miladystation](https://x.com/miladystation) on x.com.**
+`,
+  },
 }
 
 export const CONCEPTS: Record<string, LearnConcept> = Object.fromEntries(
@@ -358,4 +365,5 @@ export const CONCEPT_GROUPS: { title: string; slugs: string[] }[] = [
     ],
   },
   { title: 'Collection page', slugs: ['onchain-image-cost', 'cover-vs-banner', 'withholding-art'] },
+  { title: 'Support', slugs: ['support'] },
 ]
