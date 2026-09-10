@@ -341,7 +341,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
     /**
      * @notice Convert accumulated pending ETH to alignment token and add liquidity to V4.
-     * @dev Public incentivized function - caller earns reward for execution.
+     * @dev Permissionless — the caller is paid nothing for the call.
      *      Uses priceValidator for manipulation checks and proportion calculation.
      *      Uses swapRouter for the actual DEX swap.
      * @param minOutTarget Minimum alignment tokens to receive (slippage protection)
