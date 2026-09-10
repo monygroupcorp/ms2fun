@@ -16,6 +16,10 @@ cache-v4/
 docs/*
 !docs/spec/
 !docs/examples/
+# The pre-mainnet checklist is neither a spec nor an example, and it is the one document here that
+# is useless if it is not in the repo: its whole purpose is to be found and read before a mainnet
+# deploy by someone who does not already know it exists (noesis-451).
+!docs/PRE-MAINNET-CHECKLIST.md
 archive/
 reference/
 
