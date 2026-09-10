@@ -234,7 +234,9 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         (uint160 sqrtPriceX96,,,) = StateLibrary.getSlot0(IPoolManager(_poolManager), PoolId.wrap(poolId));
 
         // A V4 alignment pool is native-ETH-paired: ETH = address(0) sorts first, so ETH is ALWAYS
-        // currency0. Pass ethIsCurrency0 = true to preserve the pre-refactor V4 numeraire exactly.
+        // currency0. Pass ethIsCurrency0 = true — this is the ordering of the V4 SPOT price only. It is
+        // NOT the ordering of the V3 WETH/token TWAP this spot is cross-checked against; that pool is
+        // ordered by `weth < token` and derives its own flag inside _swapProportionFromSqrtPrice.
         return _swapProportionFromSqrtPrice(token, tickLower, tickUpper, sqrtPriceX96, true);
     }
 
@@ -276,16 +278,18 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         // manipulation between the spot and the 30-min TWAP. The clamp is a SEPARATE backstop against
         // absolute mis-sizing (see _applyProportionGuards) — it must apply whether or not a TWAP exists.
         //
-        // The TWAP pool is Uniswap V3 WETH/`token`, ordered by `weth < token`. That is the SAME address
-        // comparison an Algebra caller uses to derive `ethIsCurrency0`, so the caller's flag already
-        // matches the TWAP pool's ordering; for the V4 path the flag is `true`, exactly the pre-refactor
-        // numeraire. Reusing it keeps spot and TWAP proportions on one numeraire without a second read.
-        uint160 twapSqrtPrice = _getTwapSqrtPriceX96(token);
+        // The TWAP pool is Uniswap V3 WETH/`token`, ordered by `weth < token` — which is NOT always the
+        // caller's ordering. An Algebra caller derives `ethIsCurrency0` from that same comparison and so
+        // does match, but the V4 entry point passes `true` unconditionally (a V4 native-ETH pool always
+        // has ETH = currency0), which is wrong for the V3 WETH/token pair whenever the alignment token
+        // sorts BELOW WETH. So each proportion uses the ordering of the pool it actually came from:
+        // the caller's flag for the spot, and the TWAP reader's own ordering for the TWAP.
+        (uint160 twapSqrtPrice, bool twapEthIsCurrency0) = _getTwapSqrtPriceX96(token);
         bool twapValid = false;
         uint256 twapProportion = 0;
         if (twapSqrtPrice != 0) {
             (twapValid, twapProportion) =
-                _computeProportionFromSqrtPrice(twapSqrtPrice, ethIsCurrency0, tickLower, tickUpper);
+                _computeProportionFromSqrtPrice(twapSqrtPrice, twapEthIsCurrency0, tickLower, tickUpper);
         }
 
         return _applyProportionGuards(spotProportion, twapValid, twapProportion);
@@ -400,8 +404,22 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     ///      so this can only mean the validator was deployed with a wrong or absent factory address.
     ///      That reverts instead of returning 0: silently degrading every vault behind a misconfigured
     ///      validator to the weaker clamp-only floor is the fail-open this function must not repeat.
-    function _getTwapSqrtPriceX96(address token) private view returns (uint160) {
+    ///
+    ///      Returns the NUMERAIRE ORDERING alongside the price. Every pool this scans is the V3
+    ///      WETH/`token` pair, whose token0 is canonically the lower address, so WETH is currency0 iff
+    ///      `weth < token` — the same comparison {quoteEthForTokensVia} makes for the pinned-pool read.
+    ///      Deriving it HERE, where the pool is read, is what keeps the TWAP proportion on the TWAP
+    ///      pool's own numeraire instead of borrowing the caller's, which need not agree: the V4 entry
+    ///      point's `ethIsCurrency0` is unconditionally `true` and is wrong for this pair whenever the
+    ///      alignment token sorts below WETH.
+    /// @return sqrtPriceX96 TWAP-derived sqrt price of the first eligible pool, or 0 if none qualifies
+    /// @return ethIsCurrency0 True iff WETH is token0 of that WETH/`token` pair (`weth < token`)
+    function _getTwapSqrtPriceX96(address token) private view returns (uint160, bool) {
         if (v3Factory.code.length == 0) revert PriceValidatorMisconfigured();
+
+        // Canonical ordering for the WETH/`token` pair the scan below queries; independent of fee tier
+        // and of whether any pool exists, so it is correct for the `return (0, ...)` no-pool case too.
+        bool ethIsCurrency0 = weth < token;
 
         uint24[3] memory feeTiers = [uint24(3000), uint24(500), uint24(10000)];
         uint32[] memory secondsAgos = new uint32[](2);
@@ -422,10 +440,12 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
 
             try IUniswapV3Pool(pool).observe(secondsAgos) returns (int56[] memory tickCumulatives, uint160[] memory) {
                 int56 delta = tickCumulatives[1] - tickCumulatives[0];
-                return TickMath.getSqrtPriceAtTick(_meanTickFromCumulativeDelta(delta, twapSecondsAgo));
+                return (
+                    TickMath.getSqrtPriceAtTick(_meanTickFromCumulativeDelta(delta, twapSecondsAgo)), ethIsCurrency0
+                );
             } catch { }
         }
 
-        return 0;
+        return (0, ethIsCurrency0);
     }
 }
