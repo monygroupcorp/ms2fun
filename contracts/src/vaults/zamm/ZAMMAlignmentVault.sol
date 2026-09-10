@@ -316,7 +316,8 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         uint256 lp;
     }
 
-    /// @notice Buy alignment token and add ETH+token to ZAMM. Anyone can call (incentivized).
+    /// @notice Buy alignment token and add ETH+token to ZAMM. Permissionless — the caller is paid
+    ///         nothing for the call.
     function convertAndAddLiquidity(uint256 minTokenOut, uint256 minEth, uint256 minToken)
         external
         nonReentrant
@@ -441,7 +442,8 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
     // ── harvest ───────────────────────────────────────────────────────────
 
-    /// @notice Harvest fee growth from ZAMM pool. Anyone can call (incentivized).
+    /// @notice Harvest fee growth from ZAMM pool. Permissionless — the caller is paid nothing for
+    ///         the call.
     /// @param minEthOut Minimum ETH to receive from token→ETH fee swap
     function harvest(uint256 minEthOut) external nonReentrant returns (uint256 feesCollected) {
         if (block.number == _lastHarvestBlock) revert HarvestSameBlock();
