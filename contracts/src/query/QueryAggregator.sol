@@ -882,6 +882,14 @@ contract QueryAggregator is SafeOwnableUUPS {
     // slither-disable-next-line calls-loop
     function _hydrateERC1155CardData(ProjectCard memory card) private view {
         try this.readNextEditionId(card.instance) returns (uint256 nextId) {
+            // noesis-320: `catch` traps errors raised in the external CALL, not panics raised here in
+            // the parent frame afterwards. A target answering 0 to nextEditionId() would underflow
+            // `nextId - 1` inside this success block, raising panic 0x11 in QueryAggregator itself and
+            // reverting all of getProjectCardsBatch — taking every healthy sibling card with it. This
+            // is the leg the file's own comments designate as the guarded fallback for instances the
+            // lens does not understand, and getProjectCardsBatch takes a caller-supplied address array.
+            // Guard the subtraction so the zero answer yields a zero card, like every other bad read.
+            if (nextId == 0) return;
             uint256 count = nextId - 1;
             if (count == 0) return;
             if (count > MAX_EDITIONS_PER_CARD) count = MAX_EDITIONS_PER_CARD; // F-D: bound the loop, never OOG the batch
