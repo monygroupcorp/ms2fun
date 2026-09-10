@@ -737,6 +737,42 @@
           "do": "on /request-target, find the request under your own requests and press expire & refund. Then claim the refund with the row B-15 already walks",
           "expect": "the button appears only once the TTL has elapsed on a still-pending request — before that there is no button, not a disabled one. After it, the request leaves the pending queue and the deposit is claimable. It is permissionless, so a second wallet can expire the same request and the refund still goes to whoever submitted it",
           "blocking": false
+        },
+        {
+          "id": "B-20",
+          "title": "see your own stake in a vault, and claim it",
+          "route": "/vault/:address",
+          "calls": [
+            "benefactorPositionAbi.claimFees"
+          ],
+          "given": "a Uni or ZAMM vault reached from /vaults that has taken trading fees from the graduated pool in B-1, and a wallet that has sent that vault at least 0.001 ETH directly. That send is a plain wallet transfer and not an app button — the app offers no way to contribute to a vault, and Uni and ZAMM credit whoever sends them ETH. Walk it once before the vault's pending ETH has been converted into shares and once after; conversion is a keeper's call, not a page's",
+          "do": "open the vault with that wallet connected and read the Your position section, then press claim in both states. Also open the same vault from a wallet that has never contributed",
+          "expect": "the section states this wallet's own contribution, shares, delegate and claimable, none of which are the vault-wide figures above it. Before conversion the shares read zero and claim is disabled saying a contribution becomes shares at the next conversion, rather than sending a transaction that reverts NoShares. After conversion the claim pays this wallet, and pays at least the claimable figure — it is labelled a minimum rather than a quote because the claim sweeps fresh fees first, so a payout larger than the figure is correct and a smaller one is a finding. A wallet that never contributed is told the figures are its own and not the vault's, instead of reading the vault's totals as if they were its position",
+          "blocking": true
+        },
+        {
+          "id": "B-21",
+          "title": "send your claims to another wallet, then take them back",
+          "route": "/vault/:address",
+          "calls": [
+            "benefactorPositionAbi.delegateBenefactor"
+          ],
+          "given": "the position walked in B-20, with shares and something claimable, plus a second address to hand the payout to",
+          "do": "type the second address into pay this wallet's claims to and set it. Then press claim from the benefactor's own wallet. Then clear the box, press revoke delegate, and claim again",
+          "expect": "before the transaction is sent the panel says plainly that this redirects the money and not merely the button, because the word delegate does not say so. Claims paid to then shows the delegate. The claim pressed afterwards from the benefactor's OWN wallet pays the delegate — check the delegate's balance and the benefactor's, and treat money arriving at the caller as the finding. Clearing the box revokes, the row returns to this wallet — no delegate set, and the next claim pays the benefactor again",
+          "blocking": true
+        },
+        {
+          "id": "B-22",
+          "title": "claim for the benefactors who named you",
+          "route": "/vault/:address",
+          "calls": [
+            "benefactorPositionAbi.claimFeesAsDelegate"
+          ],
+          "given": "the delegate address named in B-21, still set, connected as the wallet doing the walking, and a second benefactor address that has NOT named it",
+          "do": "on the same vault, paste the delegating benefactor's address into claim for benefactors who delegated to you and press claim for them. Then repeat with the address that never delegated, and once with the box empty",
+          "expect": "the whole sum arrives in the delegate's own wallet, which is what being a delegate means here, and the benefactor's balance does not move. The empty box leaves the button disabled asking for an address rather than sending nothing. The address that never delegated reverts, and the panel reports a failed claim — a success state on a transaction that reverted is the finding. The app builds no list of who delegated to whom because the vault publishes no such index, so the addresses being typed rather than offered is correct",
+          "blocking": true
         }
       ]
     },
