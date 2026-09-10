@@ -13,6 +13,12 @@ interface IFactoryInstance {
     /// @return The treasury contract address (must be non-zero)
     function protocolTreasury() external view returns (address);
 
+    /// @notice Returns the instance creator (Ownable owner), the address every creator-facing payout leg
+    ///         pays. Declared here so a shared module can read the creator back through the instance
+    ///         rather than stashing a per-cut copy of it.
+    /// @return The creator address
+    function owner() external view returns (address);
+
     /// @notice Returns the global message registry address
     /// @return The registry contract address
     function getGlobalMessageRegistry() external view returns (address);

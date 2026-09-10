@@ -410,9 +410,10 @@ contract MetadataOverlayModuleTest is Test {
         assertEq(artist.balance, artistBefore + 80);
     }
 
-    /// noesis-126 (site 6): if the instance's alignment target is revoked, the SPLIT vault tithe must be
-    /// redirected to `protocolTreasury` — NOT fed to the de-curated vault.
-    function test_unlock_splitRevokedTarget_RedirectsVaultCutToTreasury() public {
+    /// noesis-126 (site 6) / noesis-435: if the instance's alignment target is de-curated, the SPLIT
+    /// community cut must be returned to the ARTIST — NOT fed to the de-curated vault and NOT taken by the
+    /// protocol. De-curation may destroy value; it may not transfer value to the protocol.
+    function test_unlock_splitDecuratedTarget_ReturnsVaultCutToArtist() public {
         MockSplitVault vault = new MockSplitVault();
         inst.setVault(address(vault));
         inst.setTokenOwner(1, holder);
@@ -427,19 +428,19 @@ contract MetadataOverlayModuleTest is Test {
         uint256 treasuryBefore = treasury.balance;
         vm.prank(holder);
         vm.expectEmit(true, true, false, true, address(ov));
-        emit MetadataOverlayModule.VaultCutRedirected(address(vault), treasury, 19);
+        emit MetadataOverlayModule.VaultCutReturnedToCreator(address(vault), artist, 19);
         ov.unlock{ value: 100 }(address(inst), 1);
 
-        // 1% protocol + 19% redirected tithe both land at treasury; the vault gets nothing.
-        assertEq(treasury.balance, treasuryBefore + 20, "treasury got protocol cut + redirected tithe");
+        // Treasury gets its 1% and nothing more; the vault gets nothing; the artist gets 80 + the 19 back.
+        assertEq(treasury.balance, treasuryBefore + 1, "treasury gets its 1% and nothing more");
         assertEq(vault.received(), 0, "de-curated vault received nothing");
         assertEq(address(vault).balance, 0, "de-curated vault holds no ETH");
-        assertEq(artist.balance, artistBefore + 80, "artist share unchanged");
+        assertEq(artist.balance, artistBefore + 99, "artist got their 80 plus the returned community cut");
     }
 
-    /// noesis-126 (site 6): a revoked target whose instance also has a zero treasury must fold the vault cut
-    /// into the artist payout rather than force it to address(0) and strand the wei.
-    function test_unlock_splitRevokedTarget_ZeroTreasury_FoldsToArtist() public {
+    /// noesis-126 (site 6) / noesis-435: the fold is now unconditional on de-curation — a zero treasury
+    /// changes nothing about where the community cut goes, and the wei is never stranded.
+    function test_unlock_splitDecuratedTarget_ZeroTreasury_FoldsToArtist() public {
         MockSplitVault vault = new MockSplitVault();
         inst.setVault(address(vault));
         inst.setTreasury(address(0)); // codebase-tolerated zero treasury

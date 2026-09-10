@@ -2948,7 +2948,7 @@ export const cypherLiquidityDeployerModuleAbi = [
         indexed: true,
       },
       {
-        name: 'treasury',
+        name: 'creator',
         internalType: 'address',
         type: 'address',
         indexed: true,
@@ -2960,7 +2960,7 @@ export const cypherLiquidityDeployerModuleAbi = [
         indexed: false,
       },
     ],
-    name: 'PendingVaultCutRedirected',
+    name: 'PendingVaultCutReturnedToCreator',
   },
   {
     type: 'event',
@@ -3023,7 +3023,7 @@ export const cypherLiquidityDeployerModuleAbi = [
         indexed: true,
       },
       {
-        name: 'treasury',
+        name: 'creator',
         internalType: 'address',
         type: 'address',
         indexed: true,
@@ -3035,7 +3035,7 @@ export const cypherLiquidityDeployerModuleAbi = [
         indexed: false,
       },
     ],
-    name: 'VaultCutRedirected',
+    name: 'VaultCutReturnedToCreator',
   },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'ETHMismatch' },
@@ -4591,7 +4591,7 @@ export const erc1155InstanceAbi = [
         indexed: true,
       },
       {
-        name: 'treasury',
+        name: 'creator',
         internalType: 'address',
         type: 'address',
         indexed: true,
@@ -4603,7 +4603,7 @@ export const erc1155InstanceAbi = [
         indexed: false,
       },
     ],
-    name: 'PendingVaultCutRedirected',
+    name: 'PendingVaultCutReturnedToCreator',
   },
   {
     type: 'event',
@@ -4725,7 +4725,7 @@ export const erc1155InstanceAbi = [
         indexed: true,
       },
       {
-        name: 'treasury',
+        name: 'creator',
         internalType: 'address',
         type: 'address',
         indexed: true,
@@ -4737,7 +4737,7 @@ export const erc1155InstanceAbi = [
         indexed: false,
       },
     ],
-    name: 'VaultCutRedirected',
+    name: 'VaultCutReturnedToCreator',
   },
   {
     type: 'event',
@@ -8388,7 +8388,7 @@ export const erc721AuctionInstanceAbi = [
         indexed: true,
       },
       {
-        name: 'treasury',
+        name: 'creator',
         internalType: 'address',
         type: 'address',
         indexed: true,
@@ -8400,7 +8400,7 @@ export const erc721AuctionInstanceAbi = [
         indexed: false,
       },
     ],
-    name: 'PendingVaultCutRedirected',
+    name: 'PendingVaultCutReturnedToCreator',
   },
   {
     type: 'event',
@@ -8525,7 +8525,7 @@ export const erc721AuctionInstanceAbi = [
         indexed: true,
       },
       {
-        name: 'treasury',
+        name: 'creator',
         internalType: 'address',
         type: 'address',
         indexed: true,
@@ -8537,7 +8537,7 @@ export const erc721AuctionInstanceAbi = [
         indexed: false,
       },
     ],
-    name: 'VaultCutRedirected',
+    name: 'VaultCutReturnedToCreator',
   },
   { type: 'error', inputs: [], name: 'AccountBalanceOverflow' },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
@@ -10641,7 +10641,7 @@ export const liquidityDeployerModuleAbi = [
         indexed: true,
       },
       {
-        name: 'treasury',
+        name: 'creator',
         internalType: 'address',
         type: 'address',
         indexed: true,
@@ -10653,7 +10653,7 @@ export const liquidityDeployerModuleAbi = [
         indexed: false,
       },
     ],
-    name: 'PendingVaultCutRedirected',
+    name: 'PendingVaultCutReturnedToCreator',
   },
   {
     type: 'event',
@@ -10716,7 +10716,7 @@ export const liquidityDeployerModuleAbi = [
         indexed: true,
       },
       {
-        name: 'treasury',
+        name: 'creator',
         internalType: 'address',
         type: 'address',
         indexed: true,
@@ -10728,7 +10728,7 @@ export const liquidityDeployerModuleAbi = [
         indexed: false,
       },
     ],
-    name: 'VaultCutRedirected',
+    name: 'VaultCutReturnedToCreator',
   },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'ETHMismatch' },
@@ -12346,7 +12346,7 @@ export const metadataOverlayModuleAbi = [
         indexed: true,
       },
       {
-        name: 'treasury',
+        name: 'creator',
         internalType: 'address',
         type: 'address',
         indexed: true,
@@ -12358,7 +12358,7 @@ export const metadataOverlayModuleAbi = [
         indexed: false,
       },
     ],
-    name: 'VaultCutRedirected',
+    name: 'VaultCutReturnedToCreator',
   },
   {
     type: 'event',
@@ -14556,7 +14556,7 @@ export const zammLiquidityDeployerModuleAbi = [
         indexed: true,
       },
       {
-        name: 'treasury',
+        name: 'creator',
         internalType: 'address',
         type: 'address',
         indexed: true,
@@ -14568,7 +14568,7 @@ export const zammLiquidityDeployerModuleAbi = [
         indexed: false,
       },
     ],
-    name: 'PendingVaultCutRedirected',
+    name: 'PendingVaultCutReturnedToCreator',
   },
   {
     type: 'event',
@@ -14631,7 +14631,7 @@ export const zammLiquidityDeployerModuleAbi = [
         indexed: true,
       },
       {
-        name: 'treasury',
+        name: 'creator',
         internalType: 'address',
         type: 'address',
         indexed: true,
@@ -14643,7 +14643,7 @@ export const zammLiquidityDeployerModuleAbi = [
         indexed: false,
       },
     ],
-    name: 'VaultCutRedirected',
+    name: 'VaultCutReturnedToCreator',
   },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'ETHMismatch' },
@@ -18204,12 +18204,12 @@ export const useWatchCypherLiquidityDeployerModuleOwnershipTransferredEvent =
   })
 
 /**
- * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"PendingVaultCutRedirected"`
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"PendingVaultCutReturnedToCreator"`
  */
-export const useWatchCypherLiquidityDeployerModulePendingVaultCutRedirectedEvent =
+export const useWatchCypherLiquidityDeployerModulePendingVaultCutReturnedToCreatorEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: cypherLiquidityDeployerModuleAbi,
-    eventName: 'PendingVaultCutRedirected',
+    eventName: 'PendingVaultCutReturnedToCreator',
   })
 
 /**
@@ -18231,12 +18231,12 @@ export const useWatchCypherLiquidityDeployerModuleVaultContributionRetriedEvent 
   })
 
 /**
- * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"VaultCutRedirected"`
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"VaultCutReturnedToCreator"`
  */
-export const useWatchCypherLiquidityDeployerModuleVaultCutRedirectedEvent =
+export const useWatchCypherLiquidityDeployerModuleVaultCutReturnedToCreatorEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: cypherLiquidityDeployerModuleAbi,
-    eventName: 'VaultCutRedirected',
+    eventName: 'VaultCutReturnedToCreator',
   })
 
 /**
@@ -19877,12 +19877,12 @@ export const useWatchErc1155InstanceOwnershipTransferredEvent =
   })
 
 /**
- * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"PendingVaultCutRedirected"`
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"PendingVaultCutReturnedToCreator"`
  */
-export const useWatchErc1155InstancePendingVaultCutRedirectedEvent =
+export const useWatchErc1155InstancePendingVaultCutReturnedToCreatorEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc1155InstanceAbi,
-    eventName: 'PendingVaultCutRedirected',
+    eventName: 'PendingVaultCutReturnedToCreator',
   })
 
 /**
@@ -19940,12 +19940,12 @@ export const useWatchErc1155InstanceVaultContributionRetriedEvent =
   })
 
 /**
- * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"VaultCutRedirected"`
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"VaultCutReturnedToCreator"`
  */
-export const useWatchErc1155InstanceVaultCutRedirectedEvent =
+export const useWatchErc1155InstanceVaultCutReturnedToCreatorEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc1155InstanceAbi,
-    eventName: 'VaultCutRedirected',
+    eventName: 'VaultCutReturnedToCreator',
   })
 
 /**
@@ -23670,12 +23670,12 @@ export const useWatchErc721AuctionInstanceOwnershipTransferredEvent =
   })
 
 /**
- * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"PendingVaultCutRedirected"`
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"PendingVaultCutReturnedToCreator"`
  */
-export const useWatchErc721AuctionInstancePendingVaultCutRedirectedEvent =
+export const useWatchErc721AuctionInstancePendingVaultCutReturnedToCreatorEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc721AuctionInstanceAbi,
-    eventName: 'PendingVaultCutRedirected',
+    eventName: 'PendingVaultCutReturnedToCreator',
   })
 
 /**
@@ -23733,12 +23733,12 @@ export const useWatchErc721AuctionInstanceVaultContributionRetriedEvent =
   })
 
 /**
- * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"VaultCutRedirected"`
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"VaultCutReturnedToCreator"`
  */
-export const useWatchErc721AuctionInstanceVaultCutRedirectedEvent =
+export const useWatchErc721AuctionInstanceVaultCutReturnedToCreatorEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc721AuctionInstanceAbi,
-    eventName: 'VaultCutRedirected',
+    eventName: 'VaultCutReturnedToCreator',
   })
 
 /**
@@ -25974,12 +25974,12 @@ export const useWatchLiquidityDeployerModuleOwnershipTransferredEvent =
   })
 
 /**
- * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"PendingVaultCutRedirected"`
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"PendingVaultCutReturnedToCreator"`
  */
-export const useWatchLiquidityDeployerModulePendingVaultCutRedirectedEvent =
+export const useWatchLiquidityDeployerModulePendingVaultCutReturnedToCreatorEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: liquidityDeployerModuleAbi,
-    eventName: 'PendingVaultCutRedirected',
+    eventName: 'PendingVaultCutReturnedToCreator',
   })
 
 /**
@@ -26001,12 +26001,12 @@ export const useWatchLiquidityDeployerModuleVaultContributionRetriedEvent =
   })
 
 /**
- * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"VaultCutRedirected"`
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"VaultCutReturnedToCreator"`
  */
-export const useWatchLiquidityDeployerModuleVaultCutRedirectedEvent =
+export const useWatchLiquidityDeployerModuleVaultCutReturnedToCreatorEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: liquidityDeployerModuleAbi,
-    eventName: 'VaultCutRedirected',
+    eventName: 'VaultCutReturnedToCreator',
   })
 
 /**
@@ -27606,12 +27606,12 @@ export const useWatchMetadataOverlayModuleUnlockedEvent =
   })
 
 /**
- * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `eventName` set to `"VaultCutRedirected"`
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `eventName` set to `"VaultCutReturnedToCreator"`
  */
-export const useWatchMetadataOverlayModuleVaultCutRedirectedEvent =
+export const useWatchMetadataOverlayModuleVaultCutReturnedToCreatorEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: metadataOverlayModuleAbi,
-    eventName: 'VaultCutRedirected',
+    eventName: 'VaultCutReturnedToCreator',
   })
 
 /**
@@ -29744,12 +29744,12 @@ export const useWatchZammLiquidityDeployerModuleOwnershipTransferredEvent =
   })
 
 /**
- * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `eventName` set to `"PendingVaultCutRedirected"`
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `eventName` set to `"PendingVaultCutReturnedToCreator"`
  */
-export const useWatchZammLiquidityDeployerModulePendingVaultCutRedirectedEvent =
+export const useWatchZammLiquidityDeployerModulePendingVaultCutReturnedToCreatorEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: zammLiquidityDeployerModuleAbi,
-    eventName: 'PendingVaultCutRedirected',
+    eventName: 'PendingVaultCutReturnedToCreator',
   })
 
 /**
@@ -29771,12 +29771,12 @@ export const useWatchZammLiquidityDeployerModuleVaultContributionRetriedEvent =
   })
 
 /**
- * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `eventName` set to `"VaultCutRedirected"`
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `eventName` set to `"VaultCutReturnedToCreator"`
  */
-export const useWatchZammLiquidityDeployerModuleVaultCutRedirectedEvent =
+export const useWatchZammLiquidityDeployerModuleVaultCutReturnedToCreatorEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: zammLiquidityDeployerModuleAbi,
-    eventName: 'VaultCutRedirected',
+    eventName: 'VaultCutReturnedToCreator',
   })
 
 /**

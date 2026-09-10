@@ -51,6 +51,12 @@ export const contributionReceivedAbi = [
  * signature on every emitter (the three liquidity deployer modules, `ERC1155Instance`,
  * `ERC721AuctionInstance`, `MetadataOverlayModule`): the vault's alignment target was revoked and the
  * tithe was routed to `protocolTreasury` instead of the de-curated vault.
+ *
+ * HISTORICAL ONLY. The contracts no longer emit this topic: a de-curated target now returns the
+ * community cut to the creator, under a deliberately distinct pair of topics
+ * (`VaultCutReturnedToCreator` / `PendingVaultCutReturnedToCreator`) so a reader keyed on the old one
+ * reads nothing rather than mistaking the new behaviour for the old. This ABI is retained to decode
+ * logs emitted before that change; teaching the report the new topics is a separate item.
  */
 export const vaultCutRedirectedAbi = [
   {

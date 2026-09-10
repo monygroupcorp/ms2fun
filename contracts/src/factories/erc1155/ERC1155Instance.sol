@@ -162,16 +162,18 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
 
     event VaultContributionFailed(address indexed vault, uint256 amount);
     event VaultContributionRetried(address indexed vault, uint256 amount);
-    /// @dev Emitted when the vault's alignment target has been revoked (`isVaultRegistered` false) and the
-    ///      19% tithe is routed to `protocolTreasury` instead of the de-curated vault. Mint still succeeds.
-    event VaultCutRedirected(address indexed vault, address indexed treasury, uint256 amount);
-    /// @notice A vault cut that had been stashed by a failed push was redirected to the protocol
-    ///         treasury on the retry, because the vault's alignment target was revoked while it sat.
-    /// @dev Distinct from `VaultCutRedirected`, which the PRIMARY path emits when a cut is redirected
-    ///      as it is earned. Both move the same money to the same place, but only one of them is new
-    ///      revenue: a tithe report that saw a single event for both would double-count every cut that
-    ///      was stashed once and redirected later. This is the retry.
-    event PendingVaultCutRedirected(address indexed vault, address indexed treasury, uint256 amount);
+    /// @notice The vault's alignment target has been de-curated (`isVaultRegistered` false), so the
+    ///         community cut it would have funded was returned to the creator. Withdraw still succeeds.
+    /// @dev INVARIANT: de-curation may destroy value; it may not transfer value to the protocol. No
+    ///      `isVaultRegistered`-false branch in this contract routes to `protocolTreasury`.
+    event VaultCutReturnedToCreator(address indexed vault, address indexed creator, uint256 amount);
+    /// @notice A vault cut that had been stashed by a failed push was returned to the creator on the
+    ///         retry, because the vault's alignment target was de-curated while it sat.
+    /// @dev Distinct topic from `VaultCutReturnedToCreator`, which the PRIMARY path emits when a cut is
+    ///      returned as it is earned. Both move the same money to the same place, but only one of them
+    ///      is new revenue: a tithe report that saw a single event for both would double-count every
+    ///      cut that was stashed once and returned later. This is the retry.
+    event PendingVaultCutReturnedToCreator(address indexed vault, address indexed creator, uint256 amount);
 
     event EditionMetadataUpdated(uint256 indexed editionId, string metadataURI);
     /// @dev ERC-1155 required event. Emitted wherever an edition's metadata URI is set: at creation
@@ -595,17 +597,24 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         }
 
         // Vault cut — tracks this instance as benefactor.
-        // Target-revocation gate (noesis-113): if the vault's alignment target was revoked AFTER this
-        // instance bound (a rug discovered post-hoc), `isVaultRegistered` now reads false. Route the tithe
-        // to `protocolTreasury` instead of feeding the de-curated vault — the community 19% is preserved at
-        // the safe protocol sink, not stranded and not lost. The mint/withdraw still succeeds either way
-        // (never freeze the creator for the DAO's revocation). For an active target, keep the existing
-        // try/catch + pendingVaultCut retry path (a vault revert is a transient upgrade issue, not curation).
+        // De-curation gate (noesis-113/noesis-435): if the vault's alignment target was revoked AFTER this
+        // instance bound (a rug discovered post-hoc), `isVaultRegistered` now reads false. Fold the
+        // community cut into the creator's remainder instead of feeding the de-curated vault.
+        // INVARIANT: de-curation may destroy value; it may not transfer value to the protocol. Losing the
+        // ability to pay a community is a consequence of curation; gaining their revenue is a conflict of
+        // interest, so this branch must never route to `protocolTreasury`. A creator betrayed by the
+        // community they aligned to gets their alignment share back — restitution, not windfall. The
+        // mint/withdraw still succeeds either way (never freeze the creator for the DAO's revocation), and
+        // the fold moves whatever `vaultCut` resolved to for this family, never a hardcoded 19%. For an
+        // active target, keep the existing try/catch + pendingVaultCut retry path (a vault revert is a
+        // transient upgrade issue, not curation).
         uint256 vaultCutSent;
         if (s.vaultCut > 0) {
             if (!masterRegistry.isVaultRegistered(address(vault))) {
-                SmartTransferLib.smartTransferETH(protocolTreasury, s.vaultCut, weth);
-                emit VaultCutRedirected(address(vault), protocolTreasury, s.vaultCut);
+                // Folded into the remainder below, which is paid with the same brick-proof
+                // smartTransferETH the creator leg already uses.
+                s.remainder += s.vaultCut;
+                emit VaultCutReturnedToCreator(address(vault), owner(), s.vaultCut);
             } else {
                 // If the vault reverts (e.g. broken upgrade), accumulate for retry rather than
                 // blocking creator proceeds permanently.
@@ -634,12 +643,13 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         uint256 pending = pendingVaultCut;
         if (pending == 0) revert NoPendingVaultCut();
         pendingVaultCut = 0;
-        // Target-revocation gate (noesis-126): if the vault's alignment target was revoked while this cut was
-        // stashed, do not force-feed the de-curated vault on retry — route the tithe to `protocolTreasury`,
-        // mirroring the `withdraw` primary path. For an active target, re-send to the vault as before.
+        // De-curation gate (noesis-126/noesis-435): if the vault's alignment target was revoked while this
+        // cut was stashed, do not force-feed the de-curated vault on retry — return the cut to the creator,
+        // mirroring the `withdraw` primary path. The stashed cut is the same money as a fresh one and must
+        // not survive as a treasury path. For an active target, re-send to the vault as before.
         if (!masterRegistry.isVaultRegistered(address(vault))) {
-            SmartTransferLib.smartTransferETH(protocolTreasury, pending, weth);
-            emit PendingVaultCutRedirected(address(vault), protocolTreasury, pending);
+            SmartTransferLib.smartTransferETH(owner(), pending, weth);
+            emit PendingVaultCutReturnedToCreator(address(vault), owner(), pending);
         } else {
             vault.receiveContribution{ value: pending }(Currency.wrap(address(0)), pending, address(this));
             emit VaultContributionRetried(address(vault), pending);

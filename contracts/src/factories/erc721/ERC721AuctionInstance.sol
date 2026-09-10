@@ -123,16 +123,18 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
     ///      `flushPendingVaultCut`. Pairs with `VaultContributionFailed` so a reader summing the two
     ///      arrives at the live `pendingVaultCut` rather than a figure that only ever grows.
     event VaultContributionRetried(address indexed vault, uint256 amount);
-    /// @dev Emitted when the vault's alignment target has been revoked (`isVaultRegistered` false) and the
-    ///      19% tithe is routed to `protocolTreasury` instead of the de-curated vault. Settle still succeeds.
-    event VaultCutRedirected(address indexed vault, address indexed treasury, uint256 amount);
-    /// @notice A vault cut that had been stashed by a failed push was redirected to the protocol
-    ///         treasury on the retry, because the vault's alignment target was revoked while it sat.
-    /// @dev Distinct from `VaultCutRedirected`, which the PRIMARY path emits when a cut is redirected
-    ///      as it is earned. Both move the same money to the same place, but only one of them is new
-    ///      revenue: a tithe report that saw a single event for both would double-count every cut that
-    ///      was stashed once and redirected later. This is the retry.
-    event PendingVaultCutRedirected(address indexed vault, address indexed treasury, uint256 amount);
+    /// @notice The vault's alignment target has been de-curated (`isVaultRegistered` false), so the
+    ///         community cut it would have funded was returned to the creator. Settle still succeeds.
+    /// @dev INVARIANT: de-curation may destroy value; it may not transfer value to the protocol. No
+    ///      `isVaultRegistered`-false branch in this contract routes to `protocolTreasury`.
+    event VaultCutReturnedToCreator(address indexed vault, address indexed creator, uint256 amount);
+    /// @notice A vault cut that had been stashed by a failed push was returned to the creator on the
+    ///         retry, because the vault's alignment target was de-curated while it sat.
+    /// @dev Distinct topic from `VaultCutReturnedToCreator`, which the PRIMARY path emits when a cut is
+    ///      returned as it is earned. Both move the same money to the same place, but only one of them
+    ///      is new revenue: a tithe report that saw a single event for both would double-count every
+    ///      cut that was stashed once and returned later. This is the retry.
+    event PendingVaultCutReturnedToCreator(address indexed vault, address indexed creator, uint256 amount);
     event ContractURIUpdated();
 
     // ┌─────────────────────────┐
@@ -379,15 +381,22 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
             SafeTransferLib.forceSafeTransferETH(protocolTreasury, s.protocolCut);
         }
 
-        // Target-revocation gate (noesis-113): if the vault's alignment target was revoked AFTER this
-        // instance bound, `isVaultRegistered` reads false — route the 19% tithe to `protocolTreasury`
-        // (force-transfer, matching the protocolCut egress above) instead of feeding the de-curated vault.
-        // The community cut is preserved at the safe protocol sink, not stranded; the auction settle still
-        // succeeds either way (never freeze the line for the DAO's revocation). For an active target, keep
-        // the existing try/catch + pendingVaultCut retry (a vault revert is a transient upgrade issue).
+        // De-curation gate (noesis-113/noesis-435): if the vault's alignment target was revoked AFTER this
+        // instance bound, `isVaultRegistered` reads false — fold the community cut into the creator's
+        // remainder instead of feeding the de-curated vault.
+        // INVARIANT: de-curation may destroy value; it may not transfer value to the protocol. Losing the
+        // ability to pay a community is a consequence of curation; gaining their revenue is a conflict of
+        // interest, so this branch must never route to `protocolTreasury`. A creator betrayed by the
+        // community they aligned to gets their alignment share back — restitution, not windfall. The
+        // auction settle still succeeds either way (never freeze the line for the DAO's revocation), and
+        // the fold moves whatever `vaultCut` resolved to for this family, never a hardcoded 19%. For an
+        // active target, keep the existing try/catch + pendingVaultCut retry (a vault revert is a
+        // transient upgrade issue).
         if (s.vaultCut > 0 && !masterRegistry.isVaultRegistered(address(vault))) {
-            SafeTransferLib.forceSafeTransferETH(protocolTreasury, s.vaultCut);
-            emit VaultCutRedirected(address(vault), protocolTreasury, s.vaultCut);
+            // Folded into the remainder below, which is paid with the same brick-proof smartTransferETH
+            // the creator leg already uses.
+            s.remainder += s.vaultCut;
+            emit VaultCutReturnedToCreator(address(vault), owner(), s.vaultCut);
         } else {
             try vault.receiveContribution{ value: s.vaultCut }(Currency.wrap(address(0)), s.vaultCut, address(this)) { }
             catch {
@@ -475,12 +484,15 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
         uint256 pending = pendingVaultCut;
         if (pending == 0) revert NoFeesToClaim();
         pendingVaultCut = 0;
-        // Target-revocation gate (noesis-126): if the vault's alignment target was revoked while this cut was
-        // stashed, route the tithe to `protocolTreasury` (force-transfer, matching settleAuction) instead of
-        // force-feeding the de-curated vault on retry. For an active target, re-send to the vault as before.
+        // De-curation gate (noesis-126/noesis-435): if the vault's alignment target was revoked while this
+        // cut was stashed, return it to the creator instead of force-feeding the de-curated vault on retry,
+        // mirroring the `settleAuction` primary path. The stashed cut is the same money as a fresh one and
+        // must not survive as a treasury path. smartTransferETH keeps the leg brick-proof (a creator that
+        // rejects ETH is paid in WETH rather than stranding the retry). For an active target, re-send to
+        // the vault as before.
         if (!masterRegistry.isVaultRegistered(address(vault))) {
-            SafeTransferLib.forceSafeTransferETH(protocolTreasury, pending);
-            emit PendingVaultCutRedirected(address(vault), protocolTreasury, pending);
+            SmartTransferLib.smartTransferETH(owner(), pending, weth);
+            emit PendingVaultCutReturnedToCreator(address(vault), owner(), pending);
         } else {
             vault.receiveContribution{ value: pending }(Currency.wrap(address(0)), pending, address(this));
             emit VaultContributionRetried(address(vault), pending);

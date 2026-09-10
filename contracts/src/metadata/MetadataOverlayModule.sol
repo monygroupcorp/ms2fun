@@ -112,9 +112,11 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
     event SelectionChanged(address indexed instance, uint256 indexed id, uint256 ptr);
     event AutoLatestSet(address indexed instance, bool autoLatest);
     event OverlayConfigured(address indexed instance, bool autoLatest, Payout defaultPayout);
-    /// @notice The instance's alignment target was revoked (`isVaultRegistered` false); the SPLIT vault tithe
-    ///         was routed to `protocolTreasury` instead of the de-curated vault (noesis-126).
-    event VaultCutRedirected(address indexed vault, address indexed treasury, uint256 amount);
+    /// @notice The instance's alignment target was de-curated (`isVaultRegistered` false); the SPLIT
+    ///         community cut was returned to the artist instead of feeding the de-curated vault.
+    /// @dev INVARIANT: de-curation may destroy value; it may not transfer value to the protocol. No
+    ///      `isVaultRegistered`-false branch in this contract routes to `protocolTreasury`.
+    event VaultCutReturnedToCreator(address indexed vault, address indexed creator, uint256 amount);
 
     constructor(address _masterRegistry) {
         if (_masterRegistry == address(0)) revert InvalidAddress();
@@ -256,18 +258,18 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
         }
         if (s.vaultCut > 0) {
             if (vault != address(0)) {
-                // Target-revocation gate (noesis-126): if the instance's alignment target was revoked
-                // (`isVaultRegistered` false), route the tithe to `protocolTreasury` instead of feeding the
-                // de-curated vault — mirroring the graduation primary paths. forceSafeTransferETH is
-                // brick-proof. If the treasury is itself zero (only reachable for an unregistered instance),
-                // fold into the artist payout rather than sending to address(0) and stranding the wei.
+                // De-curation gate (noesis-126/noesis-435): if the instance's alignment target was
+                // de-curated (`isVaultRegistered` false), fold the community cut into the artist payout
+                // instead of feeding the de-curated vault — mirroring the graduation primary paths, and
+                // generalising the fold this branch already applied when the treasury was zero.
+                // INVARIANT: de-curation may destroy value; it may not transfer value to the protocol.
+                // Losing the ability to pay a community is a consequence of curation; gaining their
+                // revenue is a conflict of interest, so this branch must never route to
+                // `protocolTreasury`. An artist betrayed by the community they aligned to gets their
+                // alignment share back — restitution, not windfall.
                 if (!masterRegistry.isVaultRegistered(vault)) {
-                    if (treasury != address(0)) {
-                        SafeTransferLib.forceSafeTransferETH(treasury, s.vaultCut);
-                        emit VaultCutRedirected(vault, treasury, s.vaultCut);
-                    } else {
-                        toArtist += s.vaultCut;
-                    }
+                    toArtist += s.vaultCut;
+                    emit VaultCutReturnedToCreator(vault, artist, s.vaultCut);
                 } else {
                     // Credit the contribution to the instance as benefactor (graduation path). Isolate the
                     // send: a registered vault can still revert on a below-minimum contribution or a filled
