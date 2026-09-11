@@ -15,14 +15,7 @@ export const alignmentEndowmentVaultAbi = [
   {
     type: 'function',
     inputs: [],
-    name: 'VEST_DURATION',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    inputs: [],
-    name: 'accCreatorYieldPerPrincipal',
+    name: 'accCreatorYieldPerShare',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
@@ -121,24 +114,10 @@ export const alignmentEndowmentVaultAbi = [
   },
   {
     type: 'function',
-    inputs: [{ name: '', internalType: 'address', type: 'address' }],
-    name: 'depositTime',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
     inputs: [],
     name: 'description',
     outputs: [{ name: '', internalType: 'string', type: 'string' }],
     stateMutability: 'pure',
-  },
-  {
-    type: 'function',
-    inputs: [{ name: '', internalType: 'address', type: 'address' }],
-    name: 'escrowedPrincipal',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
-    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -154,9 +133,30 @@ export const alignmentEndowmentVaultAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'flushRoundResidue',
+    outputs: [{ name: 'amount', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'flushTargetFees',
     outputs: [{ name: 'amount', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'fundingRound',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'fundingRoundOf',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -263,6 +263,13 @@ export const alignmentEndowmentVaultAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'principalShares',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'protocolTreasury',
     outputs: [{ name: '', internalType: 'address', type: 'address' }],
@@ -310,6 +317,13 @@ export const alignmentEndowmentVaultAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'roundResidue',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'stataToken',
     outputs: [
       { name: '', internalType: 'contract IStataToken', type: 'address' },
@@ -340,7 +354,7 @@ export const alignmentEndowmentVaultAbi = [
   {
     type: 'function',
     inputs: [],
-    name: 'totalEscrowedPrincipal',
+    name: 'totalPrincipal',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
@@ -361,6 +375,13 @@ export const alignmentEndowmentVaultAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'totalPrincipalShares',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'totalProtocolFees',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
@@ -369,20 +390,6 @@ export const alignmentEndowmentVaultAbi = [
     type: 'function',
     inputs: [],
     name: 'totalShares',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    inputs: [],
-    name: 'totalVested',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    inputs: [],
-    name: 'totalVestedDeployable',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
@@ -420,37 +427,6 @@ export const alignmentEndowmentVaultAbi = [
     name: 'vaultType',
     outputs: [{ name: '', internalType: 'string', type: 'string' }],
     stateMutability: 'pure',
-  },
-  {
-    type: 'function',
-    inputs: [
-      { name: 'benefactor', internalType: 'address', type: 'address' },
-      { name: 'maxTranches', internalType: 'uint256', type: 'uint256' },
-    ],
-    name: 'vest',
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    inputs: [{ name: 'benefactor', internalType: 'address', type: 'address' }],
-    name: 'vest',
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    inputs: [{ name: 'benefactor', internalType: 'address', type: 'address' }],
-    name: 'vestedOf',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    inputs: [{ name: '', internalType: 'address', type: 'address' }],
-    name: 'vestedPrincipal',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
-    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -573,6 +549,25 @@ export const alignmentEndowmentVaultAbi = [
     anonymous: false,
     inputs: [
       {
+        name: 'round',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: true,
+      },
+      {
+        name: 'timestamp',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'FundingRoundOpened',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
         name: 'shortfallBps',
         internalType: 'uint256',
         type: 'uint256',
@@ -682,7 +677,32 @@ export const alignmentEndowmentVaultAbi = [
     anonymous: false,
     inputs: [
       {
-        name: 'benefactor',
+        name: 'round',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'totalResidue',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'RoundResidueAccrued',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'payout',
         internalType: 'address',
         type: 'address',
         indexed: true,
@@ -693,14 +713,8 @@ export const alignmentEndowmentVaultAbi = [
         type: 'uint256',
         indexed: false,
       },
-      {
-        name: 'timestamp',
-        internalType: 'uint256',
-        type: 'uint256',
-        indexed: false,
-      },
     ],
-    name: 'PrincipalVested',
+    name: 'RoundResidueFlushed',
   },
   {
     type: 'event',
@@ -819,7 +833,6 @@ export const alignmentEndowmentVaultAbi = [
   { type: 'error', inputs: [], name: 'NoPrincipal' },
   { type: 'error', inputs: [], name: 'NotAuthorized' },
   { type: 'error', inputs: [], name: 'NotSupported' },
-  { type: 'error', inputs: [], name: 'NotVested' },
   { type: 'error', inputs: [], name: 'RedeemShortfall' },
   { type: 'error', inputs: [], name: 'Reentrancy' },
   { type: 'error', inputs: [], name: 'TargetDecurated' },
@@ -6903,7 +6916,6 @@ export const erc404FactoryAbi = [
   },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'BandIdOverflow' },
-  { type: 'error', inputs: [], name: 'EndowmentVaultNotSupported' },
   { type: 'error', inputs: [], name: 'FreeMintAllocationExceedsBondingCap' },
   { type: 'error', inputs: [], name: 'FreeMintAllocationExceedsNftCount' },
   { type: 'error', inputs: [], name: 'InsufficientBond' },
@@ -15239,21 +15251,12 @@ export const useReadAlignmentEndowmentVault =
   /*#__PURE__*/ createUseReadContract({ abi: alignmentEndowmentVaultAbi })
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"VEST_DURATION"`
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"accCreatorYieldPerShare"`
  */
-export const useReadAlignmentEndowmentVaultVestDuration =
+export const useReadAlignmentEndowmentVaultAccCreatorYieldPerShare =
   /*#__PURE__*/ createUseReadContract({
     abi: alignmentEndowmentVaultAbi,
-    functionName: 'VEST_DURATION',
-  })
-
-/**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"accCreatorYieldPerPrincipal"`
- */
-export const useReadAlignmentEndowmentVaultAccCreatorYieldPerPrincipal =
-  /*#__PURE__*/ createUseReadContract({
-    abi: alignmentEndowmentVaultAbi,
-    functionName: 'accCreatorYieldPerPrincipal',
+    functionName: 'accCreatorYieldPerShare',
   })
 
 /**
@@ -15347,15 +15350,6 @@ export const useReadAlignmentEndowmentVaultDeployableCorpus =
   })
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"depositTime"`
- */
-export const useReadAlignmentEndowmentVaultDepositTime =
-  /*#__PURE__*/ createUseReadContract({
-    abi: alignmentEndowmentVaultAbi,
-    functionName: 'depositTime',
-  })
-
-/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"description"`
  */
 export const useReadAlignmentEndowmentVaultDescription =
@@ -15365,12 +15359,21 @@ export const useReadAlignmentEndowmentVaultDescription =
   })
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"escrowedPrincipal"`
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"fundingRound"`
  */
-export const useReadAlignmentEndowmentVaultEscrowedPrincipal =
+export const useReadAlignmentEndowmentVaultFundingRound =
   /*#__PURE__*/ createUseReadContract({
     abi: alignmentEndowmentVaultAbi,
-    functionName: 'escrowedPrincipal',
+    functionName: 'fundingRound',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"fundingRoundOf"`
+ */
+export const useReadAlignmentEndowmentVaultFundingRoundOf =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'fundingRoundOf',
   })
 
 /**
@@ -15464,6 +15467,15 @@ export const useReadAlignmentEndowmentVaultPrincipalOf =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"principalShares"`
+ */
+export const useReadAlignmentEndowmentVaultPrincipalShares =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'principalShares',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"protocolTreasury"`
  */
 export const useReadAlignmentEndowmentVaultProtocolTreasury =
@@ -15479,6 +15491,15 @@ export const useReadAlignmentEndowmentVaultRewardDebt =
   /*#__PURE__*/ createUseReadContract({
     abi: alignmentEndowmentVaultAbi,
     functionName: 'rewardDebt',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"roundResidue"`
+ */
+export const useReadAlignmentEndowmentVaultRoundResidue =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'roundResidue',
   })
 
 /**
@@ -15518,12 +15539,12 @@ export const useReadAlignmentEndowmentVaultTotalDeployedByTarget =
   })
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"totalEscrowedPrincipal"`
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"totalPrincipal"`
  */
-export const useReadAlignmentEndowmentVaultTotalEscrowedPrincipal =
+export const useReadAlignmentEndowmentVaultTotalPrincipal =
   /*#__PURE__*/ createUseReadContract({
     abi: alignmentEndowmentVaultAbi,
-    functionName: 'totalEscrowedPrincipal',
+    functionName: 'totalPrincipal',
   })
 
 /**
@@ -15545,6 +15566,15 @@ export const useReadAlignmentEndowmentVaultTotalPrincipalLocked =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"totalPrincipalShares"`
+ */
+export const useReadAlignmentEndowmentVaultTotalPrincipalShares =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'totalPrincipalShares',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"totalProtocolFees"`
  */
 export const useReadAlignmentEndowmentVaultTotalProtocolFees =
@@ -15560,24 +15590,6 @@ export const useReadAlignmentEndowmentVaultTotalShares =
   /*#__PURE__*/ createUseReadContract({
     abi: alignmentEndowmentVaultAbi,
     functionName: 'totalShares',
-  })
-
-/**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"totalVested"`
- */
-export const useReadAlignmentEndowmentVaultTotalVested =
-  /*#__PURE__*/ createUseReadContract({
-    abi: alignmentEndowmentVaultAbi,
-    functionName: 'totalVested',
-  })
-
-/**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"totalVestedDeployable"`
- */
-export const useReadAlignmentEndowmentVaultTotalVestedDeployable =
-  /*#__PURE__*/ createUseReadContract({
-    abi: alignmentEndowmentVaultAbi,
-    functionName: 'totalVestedDeployable',
   })
 
 /**
@@ -15614,24 +15626,6 @@ export const useReadAlignmentEndowmentVaultVaultType =
   /*#__PURE__*/ createUseReadContract({
     abi: alignmentEndowmentVaultAbi,
     functionName: 'vaultType',
-  })
-
-/**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"vestedOf"`
- */
-export const useReadAlignmentEndowmentVaultVestedOf =
-  /*#__PURE__*/ createUseReadContract({
-    abi: alignmentEndowmentVaultAbi,
-    functionName: 'vestedOf',
-  })
-
-/**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"vestedPrincipal"`
- */
-export const useReadAlignmentEndowmentVaultVestedPrincipal =
-  /*#__PURE__*/ createUseReadContract({
-    abi: alignmentEndowmentVaultAbi,
-    functionName: 'vestedPrincipal',
   })
 
 /**
@@ -15692,6 +15686,15 @@ export const useWriteAlignmentEndowmentVaultExecute =
   /*#__PURE__*/ createUseWriteContract({
     abi: alignmentEndowmentVaultAbi,
     functionName: 'execute',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"flushRoundResidue"`
+ */
+export const useWriteAlignmentEndowmentVaultFlushRoundResidue =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'flushRoundResidue',
   })
 
 /**
@@ -15776,15 +15779,6 @@ export const useWriteAlignmentEndowmentVaultTransferOwnership =
   })
 
 /**
- * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"vest"`
- */
-export const useWriteAlignmentEndowmentVaultVest =
-  /*#__PURE__*/ createUseWriteContract({
-    abi: alignmentEndowmentVaultAbi,
-    functionName: 'vest',
-  })
-
-/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__
  */
 export const useSimulateAlignmentEndowmentVault =
@@ -15824,6 +15818,15 @@ export const useSimulateAlignmentEndowmentVaultExecute =
   /*#__PURE__*/ createUseSimulateContract({
     abi: alignmentEndowmentVaultAbi,
     functionName: 'execute',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"flushRoundResidue"`
+ */
+export const useSimulateAlignmentEndowmentVaultFlushRoundResidue =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'flushRoundResidue',
   })
 
 /**
@@ -15908,15 +15911,6 @@ export const useSimulateAlignmentEndowmentVaultTransferOwnership =
   })
 
 /**
- * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"vest"`
- */
-export const useSimulateAlignmentEndowmentVaultVest =
-  /*#__PURE__*/ createUseSimulateContract({
-    abi: alignmentEndowmentVaultAbi,
-    functionName: 'vest',
-  })
-
-/**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__
  */
 export const useWatchAlignmentEndowmentVaultEvent =
@@ -15965,6 +15959,15 @@ export const useWatchAlignmentEndowmentVaultFeesClaimedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: alignmentEndowmentVaultAbi,
     eventName: 'FeesClaimed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"FundingRoundOpened"`
+ */
+export const useWatchAlignmentEndowmentVaultFundingRoundOpenedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentEndowmentVaultAbi,
+    eventName: 'FundingRoundOpened',
   })
 
 /**
@@ -16022,12 +16025,21 @@ export const useWatchAlignmentEndowmentVaultPrincipalDepositedEvent =
   })
 
 /**
- * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"PrincipalVested"`
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"RoundResidueAccrued"`
  */
-export const useWatchAlignmentEndowmentVaultPrincipalVestedEvent =
+export const useWatchAlignmentEndowmentVaultRoundResidueAccruedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: alignmentEndowmentVaultAbi,
-    eventName: 'PrincipalVested',
+    eventName: 'RoundResidueAccrued',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"RoundResidueFlushed"`
+ */
+export const useWatchAlignmentEndowmentVaultRoundResidueFlushedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentEndowmentVaultAbi,
+    eventName: 'RoundResidueFlushed',
   })
 
 /**
