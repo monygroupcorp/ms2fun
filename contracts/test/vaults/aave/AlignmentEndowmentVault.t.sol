@@ -1472,9 +1472,11 @@ contract AlignmentEndowmentVaultTest is Test {
 
     /// @dev The other end of the same redeem: when the WHOLE corpus is deployed dustily, what is left is a
     ///      sliver of the share count rather than a real balance, so the round closes instead of carrying a
-    ///      near-zero price into the next deposit. The residue is not destroyed — it stays in the position
-    ///      and the next harvest splits it 80/19/1.
-    function test_execute_dustyFullRedeem_closesTheRoundAndLeavesTheResidueAsYield() public {
+    ///      near-zero price into the next deposit. A close is a withdrawal: the residue is redeemed OUT of
+    ///      the position into `roundResidue` (corpus, delivered by `flushRoundResidue`), never left in Aave
+    ///      as harvestable yield — a zero basis over a non-empty position is the state the close exists to
+    ///      make unreachable.
+    function test_execute_dustyFullRedeem_closesTheRoundAndRedeemsTheResidueAsCorpus() public {
         _contributeBenefactor(1 ether);
 
         uint256 dust = 1e6;
@@ -1487,7 +1489,9 @@ contract AlignmentEndowmentVaultTest is Test {
         assertEq(sink.balance, 1 ether - dust, "sink receives got");
         assertEq(vault.totalPrincipal(), 0, "a residue that small ends the round");
         assertEq(vault.deployableCorpus(), 0, "and there is no corpus left to deploy");
-        assertEq(vault.accumulatedFees(), dust, "the residue is still there, now as harvestable yield");
+        assertEq(vault.roundResidue(), dust, "the residue left the position as corpus");
+        assertEq(vault.currentPositionValue(), 0, "nothing stays behind a zero basis");
+        assertEq(vault.accumulatedFees(), 0, "and none of it is harvestable yield");
 
         // The next deposit therefore prices against an empty pool and owns all of it.
         stata.setMaxWithdrawCap(0);
