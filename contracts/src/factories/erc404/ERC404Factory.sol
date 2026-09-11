@@ -119,6 +119,7 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     }
 
     bytes32 internal constant METADATA_RESOLVER = keccak256("metadata.resolver");
+    bytes32 internal constant EXIT_TAX_SINK = keccak256("exittax.sink");
 
     // slither-disable-next-line immutable-states
     IMasterRegistry public masterRegistry;
@@ -133,6 +134,14 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     /// @notice Refundable deploy-bond escrow (N12 lever). address(0) OR its `bondAmount() == 0`
     ///         means the lever is OFF and create behaves byte-identically to today.
     address public deployBondEscrow;
+
+    /// @notice Where an instance's exit-tax legs accrue (noesis-194 lever). address(0) means the lever
+    ///         is OFF: the instance's sink slot stays unwired and a sell pays exactly the
+    ///         `bondingFeeBps` skim it paid before the tax existed, at every supply level.
+    /// @dev Read at create and SEALED onto each instance (`initModule`, set-once), so changing this
+    ///      retargets future launches only — an existing collection's taxed legs can never be
+    ///      repointed, by this role or by the creator.
+    address public exitTaxSink;
 
     // ── Graduation-carve params ───────────────────────────────────────────────
     // These are the terms a create is made UNDER. An instance is sealed onto the values standing at its
@@ -214,6 +223,7 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     error InsufficientBond();
     event ProtocolTreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
     event DeployBondEscrowUpdated(address indexed oldEscrow, address indexed newEscrow);
+    event ExitTaxSinkUpdated(address indexed oldSink, address indexed newSink);
     event BondingFeeUpdated(uint256 newBps);
     event MinPoolEthUpdated(uint256 newMinPoolEth);
     event CarveBracketsUpdated(uint256 b1, uint256 b2, uint16 r1, uint16 r2, uint16 r3);
@@ -386,6 +396,11 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         // two inputs the ceiling is measured AGAINST stayed live, and a later `setMinPoolEth` moved the
         // economics of every collection already on chain.
         _sealCarveTerms(instance);
+        // Exit-tax sink (noesis-194). Sealed set-once like every other keyed module; unset leaves the
+        // instance with no exit tax at all, which is this lever's OFF position.
+        if (exitTaxSink != address(0)) {
+            ERC404BondingInstance(payable(instance)).initModule(EXIT_TAX_SINK, exitTaxSink);
+        }
         emit DeclaredMaxAllowance(instance, params.declaredMaxAllowanceBps);
         emit InstanceCreated(instance, params.owner, params.name, params.symbol, params.vault);
     }
@@ -644,6 +659,15 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         address old = deployBondEscrow;
         deployBondEscrow = _escrow;
         emit DeployBondEscrowUpdated(old, _escrow);
+    }
+
+    /// @notice Wire (or unwire) the exit-tax sink used by FUTURE launches. address(0) disables the
+    ///         exit tax for them. Already-created instances keep the sink they were sealed with,
+    ///         including none — the seal is what makes the lever safe to hold at the protocol level.
+    function setExitTaxSink(address _sink) external onlyRoles(PROTOCOL_ROLE) {
+        address old = exitTaxSink;
+        exitTaxSink = _sink;
+        emit ExitTaxSinkUpdated(old, _sink);
     }
 
     function setWeth(address _weth) external onlyRoles(PROTOCOL_ROLE) {
