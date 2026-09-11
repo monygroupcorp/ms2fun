@@ -35,14 +35,15 @@ contract EndowmentBasisZeroHandler is Test {
     uint256 internal constant REDEEM_DUST = 1e6; // mirror of the vault constant
 
     uint256 public yieldInjectedWhileEmpty; // Σ yield landed on a position with a zero basis, since it emptied
-    // What the position held the moment a call drained the basis to zero, LESS any principal that call did
-    // not account for leaving. Under a liquidity cap the harvest-first step inside execute / release takes
-    // `min(pending, cap)` of the yield and the rest stays in the position above a basis the same call
-    // empties — unchanged behaviour from before the cap lever existed here; the lever is what makes it
-    // visible. It is booked as yield only to the extent the principal is accounted for: the call's basis must
-    // have left the position wei for wei (`totalDeployedByTarget` + `roundResidue` deltas), and a shortfall
-    // beyond dust is SUBTRACTED, so the invariant — an equality, never "at most" — fails by exactly the
-    // principal a drain left behind.
+    // The yield a liquidity cap kept the harvest-first step from redeeming on the call that drained the basis
+    // to zero: `pending − min(pending, cap)`, from the PRE-CALL position value, basis and cap — never from the
+    // vault's own counters, which a mis-booked redeem keeps consistent with itself. Under a cap the crystallize
+    // inside execute / release takes `min(pending, cap)` and the rest stays in the position above a basis the
+    // same call empties: unchanged behaviour from before the cap lever existed here; the lever is what makes
+    // it visible. The one thing subtracted is the mock's own rounding, measured from the mock and the WETH
+    // balance, not from the vault (see `_bookStrandedIfDrained`). The invariant holds the position to this
+    // number EXACTLY (± dust), never "at most", so principal a drain left behind — whatever the counters
+    // say about it — is value the ghost does not explain.
     uint256 public yieldStrandedByCapOnDrain;
     uint256 public floorDrains; // drain-to-sliver deploys that landed
     bool public decurated;
@@ -53,6 +54,7 @@ contract EndowmentBasisZeroHandler is Test {
     uint256 public guardFired;
     bool public ghost_guardFiredAboveTheFloor;
     bool public ghost_depositMintedUnderTheFloor;
+    uint256 public calls; // every handler call, so `crunchUnderTheFloor` can wait for the random walk to run
 
     constructor(
         AlignmentEndowmentVault _vault,
@@ -90,16 +92,54 @@ contract EndowmentBasisZeroHandler is Test {
     }
 
     function deposit(uint256 seed, uint256 amount) external {
+        calls++;
         _deposit(seed, bound(amount, 1, 100 ether));
+    }
+
+    /// @notice Steer into the one state the deposit guard exists for. The random walk cannot reach it: it
+    ///         takes a floor-priced pool, a de-curation, and then a cap inside a window about 1e-9 of the
+    ///         corpus wide — wide enough for the partial to leave the price under the floor, narrow enough for
+    ///         the shortfall to exceed `REDEEM_DUST` so the close is skipped — and a random cap in
+    ///         `[0, value]` lands there never. So this builds it: a ≥ 1 ETH deposit (the open round then has
+    ///         ≥ 1e18 shares, since the price never exceeds 1), de-curation, a cap leaving exactly
+    ///         `REDEEM_DUST + 1` of basis behind — under the floor by construction — and a deposit into it.
+    ///         It waits out the first 300 calls so the execute surface stays live for most of every run, and
+    ///         acts on every call after that so no run of the default depth (500) ends without reaching the
+    ///         state; `afterInvariant` refuses the run that does.
+    function crunchUnderTheFloor(uint256 seed, uint256 amount) external {
+        calls++;
+        if (calls < 300) return;
+        amount = bound(amount, 1 ether, 10 ether);
+        stata.setMaxWithdrawCap(0);
+        try vault.harvest() { } catch { }
+        _deposit(seed, amount); // refused by the guard if the pool is already in the window — counted there
+        if (!decurated) {
+            ambassadorRegistry.deactivateAlignmentTarget(targetId);
+            decurated = true;
+        }
+        DrainSnap memory d = _snap();
+        if (d.basis <= REDEEM_DUST + 1) return;
+        stata.setMaxWithdrawCap(d.basis - (REDEEM_DUST + 1));
+        try vault.releaseCorpusToCommunity() {
+            _bookStrandedIfDrained(d);
+        } catch { }
+        _deposit(seed, amount);
     }
 
     function _deposit(uint256 seed, uint256 amount) internal {
         vm.deal(address(this), amount);
         bool under = _underTheFloor();
         bool wasEmpty = vault.totalPrincipal() == 0;
+        uint256 roundBefore = vault.fundingRound();
         try vault.receiveContribution{ value: amount }(Currency.wrap(address(0)), amount, _b(seed)) {
-            if (under) ghost_depositMintedUnderTheFloor = true;
-            if (wasEmpty) {
+            // A mint that opened a round priced against nothing: the basis was zero when the shares were
+            // priced. The mock can get there from a nonzero basis inside the call — its ceiling share-burn
+            // on the harvest-first yield redeem can take the last share at a tiny share count, and
+            // `_realizeImpairment` then writes the basis to 0 — so "under the floor" is judged on the round
+            // the shares were actually minted in.
+            bool opened = vault.fundingRound() != roundBefore;
+            if (under && !opened) ghost_depositMintedUnderTheFloor = true;
+            if (wasEmpty || opened) {
                 // Whatever the empty position held is now pending yield over a live basis; the next harvest
                 // takes it, so the zero-basis ghost starts over.
                 yieldInjectedWhileEmpty = 0;
@@ -117,47 +157,52 @@ contract EndowmentBasisZeroHandler is Test {
     ///         release partial, and a partial release on a floor-priced de-curated pool is the one state the
     ///         deposit guard exists for.
     function setLiquidityCap(uint256 cap) external {
+        calls++;
         uint256 value = vault.currentPositionValue();
         cap = bound(cap, 0, value == 0 ? 1 ether : value);
         stata.setMaxWithdrawCap(cap);
     }
 
-    /// @dev A snapshot before a call that may drain the basis: the basis as the call will write it down
-    ///      (`min(totalPrincipal, position value)`, what `_realizeImpairment` does first) and the two counters
-    ///      every departure of principal from the position is booked in.
+    /// @dev A snapshot before a call that may drain the basis, taken from the position and the mock — nothing
+    ///      the vault books: the basis, the position value, the cap, and the WETH the stata holds.
     struct DrainSnap {
         uint256 basis;
-        uint256 deployed;
-        uint256 residue;
+        uint256 value;
+        uint256 cap;
+        uint256 stataWeth;
     }
 
     function _snap() internal view returns (DrainSnap memory d) {
         d.basis = vault.totalPrincipal();
-        uint256 value = vault.currentPositionValue();
-        if (value < d.basis) d.basis = value;
-        d.deployed = vault.totalDeployedByTarget();
-        d.residue = vault.roundResidue();
+        d.value = vault.currentPositionValue();
+        d.cap = stata.maxWithdrawCap();
+        d.stataWeth = weth.balanceOf(address(stata));
     }
 
-    /// @dev If the call emptied the basis, book what the position still holds as the stranded yield — less
-    ///      whatever of the basis did NOT leave the position. Principal leaves by `execute`'s forward (booked
-    ///      in `totalDeployedByTarget`), by the release send (same counter, residue swept included) and by the
-    ///      close into `roundResidue`; so `Δdeployed + Δresidue` is the principal that left, and
-    ///      `basis − that` is principal still in the position with nothing owning it. Up to `REDEEM_DUST` of it
-    ///      is the ERC-4626 rounding the vault tolerates; beyond that it is subtracted from the yield the
-    ///      position is allowed to hold, and the equality below fails by exactly that amount.
+    /// @dev If the call emptied the basis, book the yield it had to leave behind: `pending − min(pending, cap)`
+    ///      from the pre-call numbers (a cap of 0 is no cap). The vault's counters are not consulted — a redeem
+    ///      that books more than it pulled keeps them consistent with the basis debit, and a ghost derived from
+    ///      them would call the wei it left behind "yield". What IS subtracted is the mock's rounding: its
+    ///      ceiling share-burn on withdraw can take more value off the position than the WETH it hands over, so
+    ///      `(value before − value after) − WETH delivered` is value the mock destroyed, measured from the mock
+    ///      and the WETH balance alone. Principal left in the position by ANY route then shows as value above
+    ///      this number, and the equality below fails by exactly that much.
     function _bookStrandedIfDrained(DrainSnap memory d) internal {
         if (d.basis == 0 || vault.totalPrincipal() != 0) return;
-        uint256 left = (vault.totalDeployedByTarget() - d.deployed) + vault.roundResidue() - d.residue;
-        uint256 unaccounted = d.basis > left ? d.basis - left : 0;
-        if (unaccounted <= REDEEM_DUST) unaccounted = 0;
-        uint256 value = vault.currentPositionValue();
-        yieldStrandedByCapOnDrain = value > unaccounted ? value - unaccounted : 0;
+        uint256 pending = d.value > d.basis ? d.value - d.basis : 0;
+        uint256 taken = d.cap == 0 || pending < d.cap ? pending : d.cap;
+        uint256 stranded = pending - taken;
+        uint256 valueAfter = vault.currentPositionValue();
+        uint256 delivered = d.stataWeth - weth.balanceOf(address(stata));
+        uint256 drop = d.value > valueAfter ? d.value - valueAfter : 0;
+        uint256 mockRounding = drop > delivered ? drop - delivered : 0;
+        yieldStrandedByCapOnDrain = stranded > mockRounding ? stranded - mockRounding : 0;
         yieldInjectedWhileEmpty = 0;
     }
 
     /// @notice Deploy any fraction of the corpus.
     function execute(uint256 amount) external {
+        calls++;
         uint256 corpus = vault.deployableCorpus();
         if (corpus == 0) return;
         amount = bound(amount, 1, corpus);
@@ -170,23 +215,27 @@ contract EndowmentBasisZeroHandler is Test {
 
     /// @notice Deploy all but a sliver — the shape that prices the pool at or under the floor.
     function executeLeaveSliver(uint256 sliver) external {
+        calls++;
         uint256 corpus = vault.deployableCorpus();
         if (corpus < 2) return;
         sliver = bound(sliver, 1, corpus < 1e10 ? corpus - 1 : 1e10);
+        uint256 residueBefore = vault.roundResidue();
         DrainSnap memory d = _snap();
         vm.prank(ambassador);
         try vault.execute(deploySink, corpus - sliver, "") {
             floorDrains++;
-            if (vault.roundResidue() > d.residue) closes++;
+            if (vault.roundResidue() > residueBefore) closes++;
             _bookStrandedIfDrained(d);
         } catch { }
     }
 
     function harvest(uint256) external {
+        calls++;
         try vault.harvest() { } catch { }
     }
 
     function accrueYield(uint256 amount) external {
+        calls++;
         amount = bound(amount, 1, 10 ether);
         vm.deal(address(weth), address(weth).balance + amount);
         weth.mint(address(this), amount);
@@ -200,6 +249,7 @@ contract EndowmentBasisZeroHandler is Test {
     }
 
     function induceImpairment(uint256 bps) external {
+        calls++;
         uint256 managed = stata.totalManaged();
         if (managed == 0) return;
         bps = bound(bps, 1, 9_000);
@@ -220,11 +270,13 @@ contract EndowmentBasisZeroHandler is Test {
     }
 
     function flushResidue(uint256) external {
+        calls++;
         try vault.flushRoundResidue() { } catch { }
     }
 
     /// @notice One-way: de-curate (freezes execute for the rest of the run) and release everything.
     function decurateAndRelease(uint256 seed) external {
+        calls++;
         if (!decurated) {
             if (seed % 8 != 0) return; // rare, so most runs keep the execute surface live
             ambassadorRegistry.deactivateAlignmentTarget(targetId);
@@ -279,7 +331,7 @@ contract EndowmentBasisZeroInvariantTest is StdInvariant, Test {
 
         handler = new EndowmentBasisZeroHandler(vault, weth, stata, ambassadorRegistry, ambassador, TARGET_ID, 3);
 
-        bytes4[] memory selectors = new bytes4[](9);
+        bytes4[] memory selectors = new bytes4[](10);
         selectors[0] = handler.deposit.selector;
         selectors[1] = handler.execute.selector;
         selectors[2] = handler.executeLeaveSliver.selector;
@@ -289,6 +341,7 @@ contract EndowmentBasisZeroInvariantTest is StdInvariant, Test {
         selectors[6] = handler.flushResidue.selector;
         selectors[7] = handler.decurateAndRelease.selector;
         selectors[8] = handler.setLiquidityCap.selector;
+        selectors[9] = handler.crunchUnderTheFloor.selector;
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
         targetContract(address(handler));
     }
@@ -323,6 +376,16 @@ contract EndowmentBasisZeroInvariantTest is StdInvariant, Test {
         if (!handler.decurated()) return;
         (bool ok,) = address(vault).call(abi.encodeCall(vault.flushRoundResidue, ()));
         assertFalse(ok, "endowment: flushRoundResidue reachable on a de-curated target");
+    }
+
+    /// @dev Coverage, not belief: a run of the default depth reached the guarded state at least once, or the
+    ///      two-sided ghost below proved nothing about the guard. Checked once the walk is past the point
+    ///      `crunchUnderTheFloor` starts steering (it acts from call 300; this asks from call 400) rather than
+    ///      in `afterInvariant`, so that a shrunk replay of some OTHER failure — a few calls long — is not
+    ///      itself failed here and the real sequence stays readable.
+    function invariant_depositGuardStateWasReached() public view {
+        if (handler.calls() < 400) return;
+        assertGe(handler.guardFired(), 1, "endowment: this run never reached the state the deposit guard exists for");
     }
 
     /// @dev The deposit guard fires exactly on the under-the-floor pool with principal in it, and nowhere else:
