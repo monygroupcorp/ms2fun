@@ -1662,6 +1662,10 @@
       "why": "The solve's default pole. See kWeight."
     },
     {
+      "match": "CurveParamsComputer.isReserveBpsAdmissible",
+      "why": "Whether a liquidity reserve is one the solve can reach. LaunchManager.setPreset asks it before storing a preset, and the app never sets presets (see setPreset); a creator picks a preset, not a reserve, so there is no reserve for the wizard to check."
+    },
+    {
       "match": "DynamicPricingModule.calculatePrice",
       "why": "An edition's current price under its pricing curve. The aggregator's card carries `currentPrice`, computed lens-side, so a browse window prices every collection in one call."
     },
