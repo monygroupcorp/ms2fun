@@ -528,6 +528,148 @@ contract AlignmentEndowmentVaultRoundResidueTest is Test {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
+    // The deferred-close window: a deposit there is refused by name, and nowhere else
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// @dev A floor-priced pool, de-curated, then released under a cap that leaves the redeem short by ONE wei
+    ///      more than `REDEEM_DUST`: the release delivers, the close is skipped, and the pool stays under the
+    ///      floor with a `REDEEM_DUST + 1` basis behind the old share count.
+    function _partialReleaseUnderTheFloor() internal returns (MockOwnable b) {
+        MockOwnable a = _benefactor(address(0xA11CE));
+        _deposit(a, 1 ether);
+        _execute(makeAddr("deploy_sink"), 1 ether - 1e9);
+        b = _benefactor(address(0xB0B));
+        _deposit(b, 1 ether);
+        ambassadorRegistry.deactivateAlignmentTarget(TARGET_ID);
+        stata.setMaxWithdrawCap(vault.totalPrincipal() - REDEEM_DUST - 1);
+        vault.releaseCorpusToCommunity();
+        assertEq(vault.totalPrincipal(), REDEEM_DUST + 1, "partial: the shortfall stays as live basis");
+        assertLt(vault.totalPrincipal() * 1e9, vault.totalPrincipalShares(), "under the floor");
+        assertEq(vault.fundingRound(), 0, "the close was skipped");
+    }
+
+    /// @dev THE SEQUENCE. Before the guard, the deposit here priced 1 ETH against a 1e6+1 wei basis and minted
+    ///      ~1e39 shares; repeating the crunch-release-deposit cycle minted ~1e51, then ~1e63, and the fourth
+    ///      cycle's deposit died in `amount · shares` with "panic: arithmetic underflow or overflow (0x11)" —
+    ///      intake bricked with no name on it, and `principalOf` for the 1e63-share holder overflowing too.
+    ///      Now: the deposit is refused as `RoundClosePending`, nothing is minted, and when liquidity returns
+    ///      one full release closes the round and the same deposit opens the next one at 1:1.
+    function test_crunch_depositInTheDeferredCloseWindowIsRefusedByNameAndHealsWithLiquidity() public {
+        MockOwnable b = _partialReleaseUnderTheFloor();
+        uint256 sharesBefore = vault.totalPrincipalShares();
+        uint256 roundBefore = vault.fundingRound();
+
+        MockOwnable c = _benefactor(address(0xC0C));
+        vm.expectRevert(AlignmentEndowmentVault.RoundClosePending.selector);
+        _deposit(c, 1 ether);
+        assertEq(vault.totalPrincipalShares(), sharesBefore, "nothing minted");
+        assertEq(vault.principalShares(address(c)), 0);
+
+        // Same refusal for as long as the crunch lasts: a named revert every time, never a panic, and the
+        // accounting behind the old shares still computes.
+        vm.expectRevert(AlignmentEndowmentVault.RoundClosePending.selector);
+        _deposit(c, 1 ether);
+        assertApproxEqAbs(
+            vault.principalOf(address(b)), REDEEM_DUST + 1, 1, "the old holder's principal still computes"
+        );
+
+        // Liquidity returns: the full release closes the round, and intake is open again at 1:1.
+        stata.setMaxWithdrawCap(0);
+        uint256 sinkBefore = communityPayout.balance;
+        assertEq(vault.releaseCorpusToCommunity(), REDEEM_DUST + 1, "the rest, closed");
+        assertEq(communityPayout.balance - sinkBefore, REDEEM_DUST + 1);
+        assertEq(vault.totalPrincipal(), 0);
+        assertEq(vault.roundResidue(), 0, "swept in the same call");
+        _deposit(c, 1 ether);
+        assertEq(vault.fundingRound(), roundBefore + 1, "fresh round");
+        assertEq(vault.principalShares(address(c)), 1 ether, "1:1");
+        assertEq(vault.totalPrincipalShares(), 1 ether);
+    }
+
+    /// @dev The guard does not fire on (a): `execute` closes the round at the floor, and the next deposit mints
+    ///      1:1 in a fresh round. Also (d): the deposits that built the pool were ordinary 1:1 mints.
+    function test_guard_doesNotFire_depositAfterExecuteClosesTheRound() public {
+        MockOwnable b = _closeAtFloor();
+        assertEq(vault.totalPrincipal(), 0, "closed");
+        assertGt(vault.totalPrincipalShares(), 0, "old shares still outstanding");
+        MockOwnable c = _benefactor(address(0xC0C));
+        _deposit(c, 3 ether);
+        assertEq(vault.fundingRound(), 1);
+        assertEq(vault.principalShares(address(c)), 3 ether, "1:1");
+        assertEq(vault.principalOf(address(b)), 0, "retired");
+        // and an ordinary deposit on the healthy pool that follows
+        _deposit(b, 2 ether);
+        assertEq(vault.principalShares(address(b)), 2 ether, "1:1 on a healthy pool");
+        assertEq(vault.totalPrincipal(), 5 ether);
+    }
+
+    /// @dev (b): a full release of a floor-priced pool closes the round on the same call; the next deposit
+    ///      mints 1:1. And a full release of a HEALTHY pool drains it to a zero basis, which is the ordinary
+    ///      round boundary the guard is not concerned with (`totalPrincipal == 0` is excluded by construction).
+    function test_guard_doesNotFire_depositAfterReleaseDrainsFully() public {
+        // Floor-priced, then released in full.
+        MockOwnable a = _benefactor(address(0xA11CE));
+        _deposit(a, 1 ether);
+        _execute(makeAddr("deploy_sink"), 1 ether - 1e9);
+        MockOwnable b = _benefactor(address(0xB0B));
+        _deposit(b, 1 ether);
+        ambassadorRegistry.deactivateAlignmentTarget(TARGET_ID);
+        uint256 corpus = vault.totalPrincipal();
+        assertEq(vault.releaseCorpusToCommunity(), corpus);
+        assertEq(vault.totalPrincipal(), 0);
+        MockOwnable c = _benefactor(address(0xC0C));
+        _deposit(c, 2 ether);
+        assertEq(vault.fundingRound(), 1);
+        assertEq(vault.principalShares(address(c)), 2 ether, "1:1");
+
+        // Healthy, released in full: zero basis, ordinary round boundary.
+        assertEq(vault.releaseCorpusToCommunity(), 2 ether);
+        assertEq(vault.totalPrincipal(), 0);
+        _deposit(c, 1 ether);
+        assertEq(vault.fundingRound(), 2);
+        assertEq(vault.principalShares(address(c)), 1 ether, "1:1");
+    }
+
+    /// @dev (c): the boundary is strict. A pool at EXACTLY the floor (`basis · 1e9 == shares`) is admissible —
+    ///      the close does not run there either — and the deposit mints at the floor price, 1e9 shares per wei.
+    function test_guard_doesNotFire_depositAtExactlyTheFloor() public {
+        MockOwnable a = _benefactor(address(0xA11CE));
+        _deposit(a, 1 ether);
+        _execute(makeAddr("deploy_sink"), 1 ether - 1e9);
+        assertEq(vault.totalPrincipal() * 1e9, vault.totalPrincipalShares(), "exactly the floor");
+        assertEq(vault.fundingRound(), 0, "no close at the boundary");
+        MockOwnable b = _benefactor(address(0xB0B));
+        _deposit(b, 1 ether);
+        assertEq(vault.principalShares(address(b)), 1e27, "admitted, at the floor price");
+        assertEq(vault.totalPrincipalShares(), 1e27 + 1e18);
+        assertEq(vault.totalPrincipal(), 1 ether + 1e9);
+        // One wei under the floor is the guard's territory, and only a withdrawal can put the pool there —
+        // and every withdrawal but a partial release closes it on the same call.
+        assertGe(vault.totalPrincipal() * 1e9, vault.totalPrincipalShares(), "still admissible after the mint");
+    }
+
+    /// @dev (e): a proportional partial release that leaves the pool ABOVE the floor is an ordinary withdrawal;
+    ///      the deposit after it mints at the new (lower) price, and the guard says nothing.
+    function test_guard_doesNotFire_depositAfterPartialReleaseAboveTheFloor() public {
+        MockOwnable a = _benefactor(address(0xA11CE));
+        _deposit(a, 4 ether);
+        ambassadorRegistry.deactivateAlignmentTarget(TARGET_ID);
+        stata.setMaxWithdrawCap(1 ether);
+        assertEq(vault.releaseCorpusToCommunity(), 1 ether, "partial");
+        assertEq(vault.totalPrincipal(), 3 ether);
+        assertEq(vault.totalPrincipalShares(), 4 ether);
+        assertGe(vault.totalPrincipal() * 1e9, vault.totalPrincipalShares(), "above the floor");
+        assertEq(vault.fundingRound(), 0);
+
+        MockOwnable b = _benefactor(address(0xB0B));
+        _deposit(b, 3 ether);
+        assertEq(vault.principalShares(address(b)), 4 ether, "3 ETH at 0.75 per share");
+        assertEq(vault.totalPrincipal(), 6 ether);
+        assertEq(vault.principalOf(address(a)), 3 ether);
+        assertEq(vault.principalOf(address(b)), 3 ether);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
     // migratePosition leaves the residue where it is, with both doors still open
     // ═══════════════════════════════════════════════════════════════════════
 

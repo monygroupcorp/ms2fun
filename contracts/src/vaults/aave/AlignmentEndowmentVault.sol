@@ -119,6 +119,10 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     /// @dev `releaseCorpusToCommunity()` is the de-curation exit and nothing else: while the target is still
     ///      curated the corpus is the target's to deploy through `execute`.
     error TargetStillCurated();
+    /// @dev A deposit found the pool priced under the share floor with principal still in it: a round close is
+    ///      owed and has not run yet. Reachable only while an Aave liquidity crunch holds a DE-CURATED pool
+    ///      under the floor (see the guard in `_deposit`); it clears when the crunch does.
+    error RoundClosePending();
 
     // ┌─────────────────────────┐
     // │       Constants         │
@@ -335,6 +339,37 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         // `migratePosition` / `releaseCorpusToCommunity` / `execute`: once written down, a later Aave
         // recovery is split 80/19/1 as yield, not restored as principal.
         _realizeImpairment();
+
+        // Refuse to mint against a pool that is under the share floor with principal still in it. That is a
+        // round whose close is OWED and has not run: `_closeRoundIfPriceCollapsed` runs after every
+        // withdrawal, so the only way to stand here is a withdrawal that debited the basis and skipped the
+        // close — and there is exactly one: `releaseCorpusToCommunity` on a PARTIAL redeem, which skips it
+        // because the close would need a second redeem the same crunch refuses. (`execute` has no partial
+        // path; a full release closes on the same call. An Aave impairment deeper than 1 − 1e-9 of the
+        // position would write the basis down to the same state, and the same execute or release closes it.)
+        // Pricing this deposit at `amount · shares / principal` in that state mints past the `Σ · 1e9` bound
+        // the floor exists to hold — measured: 1e39, 1e51, 1e63 shares on three crunch-and-deposit cycles,
+        // and the fourth deposit dies in `amount · shares` with an unnamed 0x11 panic, while `principalOf`
+        // for the 1e63-share holder overflows too. A named revert that heals when liquidity returns beats an
+        // overflow that never does.
+        //
+        // This is NOT the bound-at-mint that `_closeRoundIfPriceCollapsed` refuses at (2), though it is the
+        // same shape — a revert on permissionless intake — so the difference is stated here for the next
+        // reader: that bound was refused because an AMBASSADOR could create the reverting state with one
+        // `execute` down to 1 wei, permanently and at will, and the settlement paths' try/catch would let
+        // mints clear while the 19% leg silently stopped arriving. The ambassador cannot create THIS state:
+        // `execute` closes on the same call or reverts whole, and `execute` is frozen on a de-curated target
+        // besides. It takes three things at once — (i) a de-curated target, since the release is the only
+        // partial path; (ii) a crunch that holds Aave's available WETH short of the corpus by more than
+        // `REDEEM_DUST` at each release; (iii) a direct `receiveContribution` caller, since the instances route
+        // the tithe to `protocolTreasury` once the registry reports the target de-curated — and it ends with
+        // the crunch: the next full release closes the round and the deposit after it opens a fresh one at
+        // 1:1. The intake this refuses is a transient one on a de-curated target, and the instances'
+        // `pendingVaultCut` retry lane already treats a transient intake revert as safe; the alternative is
+        // an intake bricked for good.
+        if (totalPrincipal != 0 && totalPrincipal * MIN_SHARE_PRICE_INVERSE < totalPrincipalShares) {
+            revert RoundClosePending();
+        }
 
         weth.deposit{ value: amount }(); // approval is set once in initialize
         stataToken.deposit(amount, address(this));
