@@ -1,0 +1,25 @@
+/**
+ * The one revenue split every alignment vault family takes, mirrored bit-for-bit from
+ * `RevenueSplitLib.split` (floor division, protocol first, vault second, remainder absorbs the
+ * rounding dust): 1% protocol / 19% vault / 80% creator or LP, family-blind. The endowment's
+ * inverted 1/80/19 mint split went with the vesting/escrow duality it existed to feed — there is
+ * one split left and it does not vary with the vault's family, so there is one place in the app
+ * that computes it. Every UI preview of a settlement, a mint, or a sale imports this rather than
+ * re-deriving the fractions, so the day the split changes it changes here once.
+ */
+
+export const PROTOCOL_BPS = 100n
+export const VAULT_BPS = 1_900n
+export const BPS_DENOM = 10_000n
+
+export interface RevenueSplit {
+  protocol: bigint
+  vault: bigint
+  remainder: bigint
+}
+
+export function splitAmount(amount: bigint): RevenueSplit {
+  const protocol = (amount * PROTOCOL_BPS) / BPS_DENOM
+  const vault = (amount * VAULT_BPS) / BPS_DENOM
+  return { protocol, vault, remainder: amount - protocol - vault }
+}

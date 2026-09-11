@@ -733,7 +733,7 @@ export function WizardPage() {
                     </div>
                     <div className="arrow">→</div>
                     <div className="cell vault">
-                      {vaultLabel} vault<b>{selectedVault?.family === 'lp' ? '19%' : '80%'}</b>
+                      {vaultLabel} vault<b>19%</b>
                     </div>
                   </div>
                   <p className={styles.bindNote}>
@@ -812,11 +812,7 @@ export function WizardPage() {
                 </div>
                 <div className={styles.summaryRow}>
                   <dt>Aligned to</dt>
-                  <dd>
-                    {vault
-                      ? `${vaultLabel} · ${selectedVault?.family === 'lp' ? '19%' : '80%'}`
-                      : '—'}
-                  </dd>
+                  <dd>{vault ? `${vaultLabel} · 19%` : '—'}</dd>
                 </div>
               </dl>
               <div className={styles.permanence}>
@@ -907,9 +903,7 @@ export function WizardPage() {
             </div>
             <div className="mr">
               <span>Aligned</span>
-              <b>
-                {vault ? `${vaultLabel} · ${selectedVault?.family === 'lp' ? '19%' : '80%'}` : '—'}
-              </b>
+              <b>{vault ? `${vaultLabel} · 19%` : '—'}</b>
             </div>
           </div>
         </aside>
