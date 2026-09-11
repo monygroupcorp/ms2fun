@@ -1541,17 +1541,22 @@ contract AlignmentEndowmentVaultTest is Test {
         assertEq(vault.totalPrincipal(), 20 ether, "basis untouched by the rejected deploy");
     }
 
-    /// @dev The clamped figure is deployable in full and settles without a shortfall.
+    /// @dev The clamped figure is deployable in full and settles without a shortfall. The deploy realizes
+    ///      the impairment first (the same write-down migrate and release apply), so the 4 ETH the position
+    ///      lost does not survive as a ghost basis behind emptied shares: the basis ends at zero, as the
+    ///      position does.
     function test_execute_impaired_clampedCorpusDeploysCleanly() public {
         _impairedPosition();
 
         address sink = makeAddr("sink");
         uint256 corpus = vault.deployableCorpus(); // cache: a call in the arg would consume the prank
+        vm.expectEmit(false, false, false, true);
+        emit AlignmentEndowmentVault.ImpairmentRealized(2_000, block.timestamp);
         vm.prank(ambassador);
         vault.execute(sink, corpus, "");
 
         assertEq(sink.balance, 16 ether, "the full clamped corpus reached the sink");
-        assertEq(vault.totalPrincipal(), 4 ether, "basis debited by what actually left");
+        assertEq(vault.totalPrincipal(), 0, "written down to 16 and then debited by the 16 that left: no ghost basis");
         assertEq(vault.totalDeployedByTarget(), 16 ether, "deploy counter tracks what left");
         assertApproxEqAbs(vault.currentPositionValue(), 0, 2, "the position is emptied");
     }
