@@ -16,6 +16,27 @@ vi.mock('../useCollectionMetadata', () => ({
   useCollectionMetadata: () => undefined,
 }))
 
+// The picker no longer excludes any family — a target missing its yield vault now renders
+// YieldVaultRequestCard in the "not deployed" affordance (ERC404+endowment is a real pairing now,
+// per rth's ruling), which needs a wagmi context this test doesn't otherwise set up.
+vi.mock('wagmi', () => ({
+  useAccount: () => ({ address: undefined }),
+  useReadContract: () => ({ data: undefined }),
+  useWriteContract: () => ({
+    writeContract: vi.fn(),
+    data: undefined,
+    isPending: false,
+    isError: false,
+    reset: vi.fn(),
+  }),
+  useWaitForTransactionReceipt: () => ({ isLoading: false, isSuccess: false }),
+  usePublicClient: () => undefined,
+}))
+
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: () => ({ data: undefined }),
+}))
+
 afterEach(() => {
   cleanup()
   mockUseAlignmentTargets.mockReset()
@@ -74,9 +95,6 @@ function renderPicker(overrides?: { targets?: AlignmentTargetRow[]; vaults?: Reg
       isError={false}
       selectedVault={undefined}
       onSelectVault={onSelectVault}
-      // Excludes yield so the "not deployed" affordance never mounts YieldVaultRequestCard, which
-      // needs a wagmi provider this test doesn't set up.
-      excludeFamilies={['yield']}
     />,
   )
   return { onSelectVault }
