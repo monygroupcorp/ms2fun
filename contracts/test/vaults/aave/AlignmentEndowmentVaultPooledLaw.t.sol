@@ -206,17 +206,32 @@ contract AlignmentEndowmentVaultPooledLawTest is Test {
     // The round-closing bound: what a close is worth to the party who forces it
     // ═══════════════════════════════════════════════════════════════════════
 
-    /// @dev THE LAW: a slice stops earning — and stops being corpus — only when it is physically withdrawn.
-    ///      A round close zeroes the BASIS, not the position. When the pool is priced at the floor the close
-    ///      is one wei away, and everything still in the position (up to the whole of the last deposit) is
-    ///      reclassified from corpus into "yield": it vanishes from `principalOf` and `deployableCorpus`
-    ///      while the ETH is still in Aave, and the next harvest hands 80% of it to whichever benefactor
-    ///      deposits next. The contract's own comment bounds the residue at a billionth of the pool; that
-    ///      bound holds at price 1 and not at price 1e-9, which the design explicitly allows.
+    /// @dev THE LAW: a slice stops being corpus only when it is physically withdrawn, and a round close is
+    ///      a withdrawal — of the residue, as CORPUS, to the target's non-discretionary sink. Today the close
+    ///      zeroes the BASIS and leaves the ETH in Aave: when the pool is priced at the floor the close is one
+    ///      wei away, and everything still in the position (up to the whole of the last deposit) becomes
+    ///      position-value-above-basis, i.e. "yield", which the next harvest hands 80% of to whichever
+    ///      benefactor deposits next. The contract's own comment bounds the residue at a billionth of the
+    ///      pool; that holds at price 1 and not at price 1e-9, which the design explicitly allows.
     ///
     ///      Sequence: A funds 1 ETH; the ambassador deploys all but 1 gwei (price → 1e-9, round open);
-    ///      B funds 1 ETH; the ambassador deploys ONE WEI.
-    function test_priceFloor_aOneWeiWithdrawalMustNotReclassifyTheWholePoolAsYield() public {
+    ///      B funds 1 ETH; the ambassador deploys ONE WEI. The round closing there is correct (pinned green
+    ///      by `test_priceFloor_boundaryIsExactAndSharesAreBounded`, the control); what must also hold is
+    ///      that the residue LEFT THE POSITION with the close and is not reachable as anyone's yield.
+    ///
+    ///      PINS (every symbol exists at 9ae810c; RED there, for the stated reason):
+    ///        - `currentPositionValue()` ≈ 0 after the closing withdrawal — the residue was redeemed out.
+    ///          Today: ≈ 1 ETH, still in Aave with a zero basis.
+    ///        - the vault's native balance holds the residue — it was moved somewhere the contract counts.
+    ///          Today: 0.
+    ///        - a 1-wei benefactor into the next round, plus a harvest, claims NOTHING and the community
+    ///          sink receives nothing from that harvest. Today: 0.8 ETH to the raider, 0.19 to the sink.
+    ///      COVER (post-fix only; not expressible against 9ae810c because the accounting class does not
+    ///      exist there — to be added in their own commit once it does): the residue counter reads
+    ///      ≈ 1e18 + 1e9 − 1; the flush delivers exactly that to `_targetSink()` while curated and nothing
+    ///      else; `releaseCorpusToCommunity` sweeps it on de-curation (the sweep half is already pinned by
+    ///      `test_priceFloor_closedRoundResidueMustNotBeClaimableAsCreatorYield`).
+    function test_priceFloor_closingWithdrawalMovesTheResidueOutAsCorpusNotYield() public {
         MockOwnable a = _benefactor(address(0xA11CE));
         _deposit(a, 1 ether);
         _execute(1 ether - 1e9); // legit-looking near-total deploy; leaves the pool at the floor
@@ -225,14 +240,30 @@ contract AlignmentEndowmentVaultPooledLawTest is Test {
         _deposit(b, 1 ether);
         assertApproxEqAbs(vault.principalOf(address(b)), 1 ether, 2, "B owns the pool they funded");
 
-        _execute(1); // one wei
+        uint256 residue = 1 ether + 1e9 - 1;
+        uint256 vaultBalanceBefore = address(vault).balance;
 
-        // What the law requires: B's ETH is still in the position, so it is still B's principal and still
-        // the target's corpus.
-        uint256 inPosition = vault.currentPositionValue();
-        assertApproxEqAbs(inPosition, 1 ether + 1e9 - 1, 2, "the ETH is physically still here");
-        assertApproxEqAbs(vault.principalOf(address(b)), 1 ether, 1e9, "B's principal did not leave");
-        assertApproxEqAbs(vault.deployableCorpus(), inPosition, 2, "the corpus is still deployable");
+        _execute(1); // one wei: crosses the floor, the round closes (the control test pins that)
+        assertEq(vault.totalPrincipal(), 0, "round closed (same claim as the control)");
+
+        // PIN: the residue is no longer in the Aave position — it left as corpus, with the close.
+        assertApproxEqAbs(vault.currentPositionValue(), 0, 2, "the residue was redeemed out of the position");
+        // PIN: and it went somewhere the contract still counts — the vault's own balance, awaiting delivery.
+        assertApproxEqAbs(address(vault).balance - vaultBalanceBefore, residue, 2, "the residue is held as corpus");
+        // Correct post-close, and stated so the reader does not mistake them for the defect: B's ETH did
+        // physically leave the position, so B's live principal and the deployable corpus are both zero.
+        assertEq(vault.principalOf(address(b)), 0);
+        assertEq(vault.deployableCorpus(), 0);
+
+        // PIN: nothing of it is reachable as creator yield by the next round's first benefactor.
+        address raider = address(0xBAD);
+        MockOwnable c = _benefactor(raider);
+        _deposit(c, 1);
+        uint256 sinkBefore = communityPayout.balance;
+        vault.harvest();
+        assertEq(communityPayout.balance - sinkBefore, 0, "no 19% of B's principal reaches the sink as yield");
+        vm.prank(raider);
+        assertEq(vault.claimYieldPurse(address(c)), 0, "a one-wei benefactor claims nothing of B's principal");
     }
 
     /// @dev The other half of the same defect, stated from the winner's side: after the one-wei close, a
