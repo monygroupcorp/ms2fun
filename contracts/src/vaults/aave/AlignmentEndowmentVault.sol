@@ -62,7 +62,14 @@ interface IOwnable {
  *        withdraw path O(1) against an unbounded benefactor set.
  *      - **Impairment socialization** (pro-rata-on-shortfall) falls out of the same pooling: one
  *        bucket, one basis, so a position worth less than its basis is written down once and every
- *        benefactor's share of it moves together.
+ *        benefactor's share of it moves together. The write-down runs on every path that reads or
+ *        moves the basis, `execute` and deposit included, so a basis never outlives its ETH.
+ *      - **A round close is a withdrawal.** When a withdrawal leaves the pool priced under the share
+ *        floor the round ends, and the residual principal is REDEEMED OUT of the position into
+ *        `roundResidue` before the basis is zeroed — `totalPrincipal == 0` with ETH still in the
+ *        position is unreachable. That residue is still corpus: the curated target's sink collects it
+ *        through `flushRoundResidue`, and after de-curation `releaseCorpusToCommunity` sweeps it to
+ *        the community with everything else.
  *      - **migratePosition** is an Aave-reserve-deprecation emergency that preserves per-benefactor
  *        accounting ON-CHAIN (no off-chain reconcile).
  *
@@ -137,9 +144,11 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     ///      correspondingly enormous number of shares to the next depositor — correct arithmetic, but
     ///      repeated it compounds until `amount · shares` overflows and intake is bricked for good. Ending
     ///      the round instead keeps the price in [1e-9, 1], which bounds the share count at
-    ///      `Σ deposits · 1e9` and puts every product here far inside uint256. What the residue costs is
-    ///      bounded by the same ratio — at most a billionth of a pool that is being emptied anyway — and it
-    ///      is not destroyed: it stays in the Aave position and is split 80/19/1 by the next harvest.
+    ///      `Σ deposits · 1e9` and puts every product here far inside uint256. The floor is an OVERFLOW
+    ///      bound and nothing else: what a close does with the principal left in the pool is
+    ///      `_closeRoundIfPriceCollapsed`'s business, and that residue is NOT small — at a floor-priced pool
+    ///      it is the whole of the last deposit (bounded by `shares / 1e9 ≤ Σ deposits`, not by 1e-9 of
+    ///      anything), so it is withdrawn as corpus, never left behind to be read as yield.
     uint256 internal constant MIN_SHARE_PRICE_INVERSE = 1e9;
 
     // ┌─────────────────────────┐
@@ -182,6 +191,20 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     /// @notice Target-leg yield (native ETH wei) held by the vault because `_targetSink()` was unset at
     ///         crystallize time. Delivered by the permissionless `flushTargetFees()` once a sink exists.
     uint256 public accumulatedTargetFees;
+    /// @notice Corpus that a round close redeemed OUT of the Aave position and that the vault now holds as
+    ///         native ETH, awaiting delivery (see `_closeRoundIfPriceCollapsed`). This is principal that has
+    ///         physically left the position but not yet left the vault: it is in no benefactor's
+    ///         `principalOf`, not in `totalPrincipal`, not in `currentPositionValue()`, and not deployable.
+    ///         While the target is curated `flushRoundResidue()` delivers it to `_targetSink()`; once
+    ///         de-curated only `releaseCorpusToCommunity()` reaches it, and sweeps it with the corpus.
+    ///
+    ///         It is deliberately NOT folded into `accumulatedTargetFees`. That counter is the target's
+    ///         19% YIELD leg, and `flushTargetFees()` pays the target unconditionally — curated or not.
+    ///         This is CORPUS, and corpus on a de-curated target belongs to the community sink and not to
+    ///         the target: put the two in one counter and de-curation could no longer tell them apart, so
+    ///         anyone could flush a de-curated target's residual corpus to that target forever — the same
+    ///         survives-de-curation exit `releaseCorpusToCommunity` exists to close, through another door.
+    uint256 public roundResidue;
 
     /// @notice Which funding round the pool is on. A corpus that is spent to the last wei and then
     ///         re-funded starts a new round, because the old shares have no principal left behind them and
@@ -197,7 +220,7 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
 
     // ── Cumulative stat counters ──────────────────────────────────────────────
     uint256 internal _totalPrincipalCommittedAllTime; // monotonic Σ of all principal ever deposited
-    uint256 internal _totalDeployedByTarget; // Σ principal withdrawn on the target's behalf
+    uint256 internal _totalDeployedByTarget; // Σ principal that left the vault on the target's behalf: execute, flushRoundResidue, release
     uint256 internal _totalYieldToCreators; // Σ creator leg routed to the accumulator
     uint256 internal _totalYieldToTarget; // Σ target leg routed to the target sink
     uint256 internal _totalProtocolFees; // Σ protocol leg routed to protocolTreasury
@@ -216,6 +239,10 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     event TargetFeesAccrued(uint256 amount, uint256 totalAccrued);
     /// @notice Emitted when the accrued target leg is delivered to the community sink.
     event TargetFeesFlushed(address indexed payout, uint256 amount);
+    /// @notice Emitted when a round close redeems the residual corpus out of the position into `roundResidue`.
+    event RoundResidueAccrued(uint256 indexed round, uint256 amount, uint256 totalResidue);
+    /// @notice Emitted when `roundResidue` is delivered to the curated target's sink by `flushRoundResidue`.
+    event RoundResidueFlushed(address indexed payout, uint256 amount);
     /// @notice Emitted when the alignment target (via an ambassador) deploys corpus capital.
     ///         `selector` = the first 4 bytes of `data` (0x00000000 for a plain value transfer).
     event CapitalDeployed(
@@ -303,6 +330,11 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         // pre-deposit basis. `receiveContribution` (the only caller) is `nonReentrant`, so the external
         // `_redeem` + force-sends here cannot be re-entered.
         _crystallizeYield();
+        // Write an impaired basis down BEFORE pricing the new shares against it, so a newcomer buys in at
+        // what the position actually holds and the loss stays with the shares that held it. Same policy as
+        // `migratePosition` / `releaseCorpusToCommunity` / `execute`: once written down, a later Aave
+        // recovery is split 80/19/1 as yield, not restored as principal.
+        _realizeImpairment();
 
         weth.deposit{ value: amount }(); // approval is set once in initialize
         stataToken.deposit(amount, address(this));
@@ -457,6 +489,30 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         return amount;
     }
 
+    /// @notice Deliver the corpus residue of closed rounds (`roundResidue`) to the CURATED target's sink.
+    /// @dev    The sibling of `flushTargetFees`, with the same guards — permissionless, destination always
+    ///         `_targetSink()`, `nonReentrant`, counter zeroed before the send (CEI), force-send so a sink
+    ///         that rejects ETH cannot make the residue undeliverable — plus one it does not share: it
+    ///         reverts `TargetDecurated` once the target is de-curated. That is the whole point of keeping
+    ///         the residue out of `accumulatedTargetFees`: after de-curation this corpus is the community's,
+    ///         and `releaseCorpusToCommunity` is its only exit. While curated, delivering it here hands the
+    ///         ambassador nothing new — an `execute` of the same value to the same sink was already theirs.
+    /// @return amount The wei delivered (0 when nothing was accrued).
+    function flushRoundResidue() external nonReentrant returns (uint256 amount) {
+        if (!masterRegistry.alignmentRegistry().isAlignmentTargetActive(targetId)) revert TargetDecurated();
+        address payout = _targetSink();
+        if (payout == address(0)) revert CommunityPayoutNotSet();
+
+        amount = roundResidue;
+        if (amount == 0) return 0;
+        roundResidue = 0; // effect before interaction (CEI)
+        _totalDeployedByTarget += amount; // booked at departure, like every other booking on this counter
+
+        SafeTransferLib.forceSafeTransferETH(payout, amount);
+        emit RoundResidueFlushed(payout, amount);
+        return amount;
+    }
+
     // ┌─────────────────────────┐
     // │   Internal helpers      │
     // └─────────────────────────┘
@@ -537,15 +593,60 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     }
 
     /// @dev Close the round once a withdrawal has left the pool worth less than
-    ///      `1 / MIN_SHARE_PRICE_INVERSE` of its share count — see that constant. The basis goes to zero,
-    ///      which is what makes the next deposit open a fresh round; the residue stays in the position and
-    ///      the next harvest splits it as yield.
+    ///      `1 / MIN_SHARE_PRICE_INVERSE` of its share count — see that constant. A close is a WITHDRAWAL:
+    ///      the residual principal is redeemed out of the Aave position into the vault's own native balance
+    ///      and booked in `roundResidue`, and only then is the basis zeroed. That keeps the one invariant
+    ///      this function exists to hold: `totalPrincipal == 0` while ETH is still in the position is
+    ///      unreachable (up to `REDEEM_DUST` of ERC-4626 rounding). Zeroing the basis with the ETH still
+    ///      in Aave would leave the residue as position-value-above-basis, which the next harvest would
+    ///      split as yield — 80% of it to whoever opens the next round — and at a floor-priced pool that
+    ///      residue is the whole of the last deposit, not a sliver.
+    ///
+    ///      Why the residue is redeemed rather than the deposit bounded (REFUSED on the record, so it is
+    ///      not rediscovered as the clean idea):
+    ///        (1) any bound at mint is a new revert on a permissionless intake, and `receiveContribution`
+    ///            is the settlement leg of every mint on the platform;
+    ///        (2) REFUSING a deposit that would mint past `Σ · 1e9` shares lets one ambassador `execute`
+    ///            down to 1 wei and starve intake for good — and the settlement paths wrap the vault cut in
+    ///            try/catch, so mints keep clearing while the 19% leg silently stops arriving;
+    ///        (3) CAPPING the mint instead under-weights the newcomer, so shares whose ETH was physically
+    ///            withdrawn take a slice of the new deposit every cycle: ghost basis made routine, growing
+    ///            with each drain-and-refund.
+    ///
+    ///      Where this sits in checks-effects-interactions: it is called from `execute` and
+    ///      `releaseCorpusToCommunity` AFTER the withdrawal's own redeem and basis debit, and BEFORE the
+    ///      arbitrary external call (`execute`) / the force-send (`release`). The only external calls it
+    ///      makes are the redeem against the TRUSTED stataToken / WETH (`receive()` takes the unwrap
+    ///      inertly); no ETH leaves the vault here and no untrusted address is called, so a hostile or
+    ///      absent sink is never in this path. Delivery is the fee-flush shape — `flushRoundResidue`
+    ///      while curated, `releaseCorpusToCommunity` after — each `nonReentrant`, counter-zeroed-before-
+    ///      send, force-safe. The share state is untouched: the old shares stay outstanding and are
+    ///      retired lazily against `_accAtRoundEnd` when the next deposit opens a round, exactly as a
+    ///      drain-to-zero closes one; the accumulator is frozen at that deposit, not here, and every
+    ///      harvest that ran on these shares was crystallized before the closing withdrawal debited them.
+    ///
+    ///      A redeem short by more than `REDEEM_DUST` is an Aave liquidity event and reverts, the same
+    ///      rule the caller's own redeem is under — the close is part of that withdrawal and does not
+    ///      partially settle either.
     function _closeRoundIfPriceCollapsed() internal {
         uint256 shares = totalPrincipalShares;
         if (shares == 0) return;
         uint256 basis = totalPrincipal;
         if (basis == 0) return;
-        if (basis * MIN_SHARE_PRICE_INVERSE < shares) totalPrincipal = 0;
+        if (basis * MIN_SHARE_PRICE_INVERSE >= shares) return;
+
+        // ── Interaction with the trusted position only: the residue leaves Aave. ──
+        uint256 got = _redeem(basis);
+        if (got + REDEEM_DUST < basis) revert RedeemShortfall();
+
+        // ── Effects: it is now vault-held corpus, and the basis behind the shares is gone. ──
+        // NOT booked in `_totalDeployedByTarget` here. Both existing bookings (`execute`, release) are made
+        // against a DEPARTURE from the vault, with `CapitalDeployed` / `CorpusReleased` as the event that tells
+        // the doors apart; the residue has left the position but not the vault, and which door it leaves by
+        // is not yet decided. `flushRoundResidue` and the release sweep book it when it actually departs.
+        roundResidue += got;
+        totalPrincipal = 0;
+        emit RoundResidueAccrued(fundingRound, got, roundResidue);
     }
 
     /// @dev Write the principal basis down to what the position can actually realize, if it is impaired.
@@ -553,6 +654,14 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     ///      redeem cannot deliver, so the withdraw passes its bound and then hits `RedeemShortfall`,
     ///      stranding the residual permanently. One bucket, so the write-down lands on every benefactor's
     ///      share of it at once — that IS the socialization, there is nothing to apportion between classes.
+    ///
+    ///      Runs on every path that reads or moves the basis — `migratePosition`, `releaseCorpusToCommunity`,
+    ///      `execute` and `_deposit` — so the basis never outlives the ETH behind it. Leaving `execute` out
+    ///      let an ambassador drain an impaired position to nothing and leave the lost half standing as a
+    ///      GHOST BASIS: the emptied shares kept their weight, the next depositor bought in against a basis
+    ///      the position did not hold, and harvest was dead until the new money had doubled. The policy is
+    ///      the one migrate and release already applied and is stated, not argued: once written down, a
+    ///      later Aave recovery is split 80/19/1 as YIELD, not restored as principal.
     function _realizeImpairment() internal {
         uint256 basis = totalPrincipal;
         if (basis == 0) return;
@@ -579,6 +688,11 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     ///         rather than first-come. A shortfall beyond `REDEEM_DUST` is an Aave liquidity event →
     ///         revert so the owner can retry. Sends to an explicit `to` (the factory owner has no
     ///         `receive()`).
+    ///
+    ///         `roundResidue` is NOT swept here. It is corpus already out of the Aave position, so the
+    ///         reserve deprecation this call answers does not touch it, and it keeps both of its doors after
+    ///         a migrate: `flushRoundResidue` while the target is curated, `releaseCorpusToCommunity` after.
+    ///         Widening this owner call to reach it is a question of owner power, left as built.
     function migratePosition(address to) external onlyOwner nonReentrant {
         if (to == address(0)) revert InvalidAddress();
         if (totalPrincipal == 0) revert NoPrincipal();
@@ -680,6 +794,10 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         // force-sends precede the arbitrary external call, so CEI holds. Inlined (not `this.harvest()`)
         // because both are `nonReentrant`.
         _crystallizeYield();
+        // Write an impaired basis down BEFORE the deploy debits it, on the same law as `migratePosition`
+        // and `releaseCorpusToCommunity`. Without this a deploy that empties an impaired position leaves the
+        // lost half as a ghost basis that keeps earning on the next depositor's money.
+        _realizeImpairment();
 
         IAlignmentRegistry ar = masterRegistry.alignmentRegistry();
         if (!ar.isAmbassador(targetId, msg.sender)) revert NotAuthorized();
@@ -695,9 +813,23 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         // (trivially ≤ corpus) and route through `data` to make the vault call `transfer`/`withdraw`/
         // `approve` on its OWN principal-bearing tokens, moving principal out with no debit to
         // `totalPrincipal`. That desyncs the yield basis and leaves the native ETH this vault holds for
-        // other people — the creator purses and `accumulatedTargetFees` — unbacked. Deny the vault's
-        // principal-bearing targets (its stataToken position and the WETH it holds an unbounded approval
-        // on) and itself. Legit value-only deployment to any OTHER `to` (incl. an EOA) is unaffected.
+        // other people — the creator purses, `accumulatedTargetFees` and `roundResidue` — unbacked. Deny
+        // the vault's principal-bearing targets (its stataToken position and the WETH it holds an unbounded
+        // approval on) and itself. Legit value-only deployment to any OTHER `to` (incl. an EOA) is unaffected.
+        //
+        // This three-entry denylist is sufficient for the contract AS WRITTEN, and only conditionally so:
+        // its sufficiency rests on three invariants that live outside it, and a denylist that looks
+        // self-evidently complete is exactly how the next change removes an entry or leaves one out. A
+        // change that breaks any of these reopens the audited routes the denylist closes, and must be
+        // reviewed as such:
+        //   (a) the vault never grants a token approval other than WETH → stataToken (set once in
+        //       `initialize`), so no `transferFrom` on a third contract can reach the position through
+        //       `data`;
+        //   (b) the stataToken never gains a contract-signature (EIP-1271) permit path — StaticATokenV2's
+        //       permit is ECDSA-only and this vault has no `isValidSignature`, so `data` cannot mint a
+        //       permit that lets `to` pull the position later;
+        //   (c) no registry or factory ever trusts msg.sender-is-a-vault, so a call this vault is made to
+        //       place cannot exercise a privilege the vault holds elsewhere.
         if (to == address(stataToken) || to == address(weth) || to == address(this)) {
             revert ForbiddenExecuteTarget();
         }
@@ -768,8 +900,27 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     ///         Impairment is realized on the same law as `migratePosition`: on a position worth less than
     ///         its principal basis the basis is WRITTEN DOWN to its realizable value before the redeem.
     ///         The write-down is what makes one call enough — leaving the nominal basis in place would
-    ///         leave an unbacked residual behind that every later call could only chip at.
-    /// @return amount The wei delivered (0 when the corpus is already empty).
+    ///         leave an unbacked residual behind that every later call could only chip at. A LIQUIDITY
+    ///         shortfall is the one thing that can make it take more than one call: the redeem delivers
+    ///         what Aave has and the rest waits, still basis, for the next call — this exit never reverts on
+    ///         a crunch, because a de-curated corpus must always have a way out.
+    ///
+    ///         The delivery SWEEPS `roundResidue` along with the corpus. Residue is corpus that a round
+    ///         close already redeemed out of the position; on a de-curated target it belongs to the
+    ///         community exactly as the corpus still in the position does, and this is the only path that
+    ///         reaches it once `flushRoundResidue` is closed by de-curation. Nothing of a de-curated
+    ///         target's corpus, in the position or out of it, is left with a route to the target.
+    ///
+    ///         The `_closeRoundIfPriceCollapsed` call below is NOT redundant with the drain above it and
+    ///         stays. The redeem guard bounds what it can find at `≤ REDEEM_DUST` of basis, but that dust
+    ///         basis is exactly the overflow state the floor exists for: with the old share count still
+    ///         outstanding, a deposit (intake is open after de-curation) priced against a 1e6-wei basis
+    ///         mints `amount · shares / 1e6` shares, and this permissionless release can be repeated to
+    ///         compound it until `amount · shares` overflows and intake bricks. The close moves that dust
+    ///         into the residue (swept in the same call) and zeroes the basis so the next deposit opens a
+    ///         fresh round instead.
+    /// @return amount The wei delivered — corpus redeemed here plus the residue swept (0 when both are
+    ///         empty).
     function releaseCorpusToCommunity() external nonReentrant returns (uint256 amount) {
         IAlignmentRegistry ar = masterRegistry.alignmentRegistry();
         if (ar.isAlignmentTargetActive(targetId)) revert TargetStillCurated();
@@ -784,24 +935,44 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         _realizeImpairment();
 
         uint256 corpus = totalPrincipal;
-        if (corpus == 0) return 0;
+        uint256 got;
+        if (corpus != 0) {
+            // Take what Aave will give right now. This exit tolerates a PARTIAL where `execute` does not:
+            // execute's no-partial rule protects the ambassador's atomicity, but this call is repeatable,
+            // permissionless and fixed-destination, so a liquidity crunch must not hold a de-curated
+            // target's corpus hostage — it delivers what it can and the remainder stays LIVE basis for the
+            // next call, never a revert.
+            got = _redeem(corpus);
 
-        uint256 got = _redeem(corpus);
-        if (got + REDEEM_DUST < corpus) revert RedeemShortfall();
+            // ── Effects before the send (CEI) ──
+            // Debit by `got`, as `execute` does: what the redeem could not deliver stays in the position as
+            // still-releasable principal rather than leaking into the next harvest's yield legs.
+            // `_totalDeployedByTarget` is the "moved out on the target's behalf" counter and this is such a
+            // move; `CorpusReleased` against `CapitalDeployed` is what tells the two apart.
+            totalPrincipal -= got;
+            _totalDeployedByTarget += got;
+            // Close only on a full drain. A partial leaves a real basis behind, and a close there would need
+            // a second redeem the same crunch would refuse; the next full call closes the round instead.
+            // While the crunch holds the pool may sit under the floor — one crunch's worth of overshoot in
+            // what a deposit in that window mints, bounded by the next full release.
+            if (got + REDEEM_DUST >= corpus) _closeRoundIfPriceCollapsed(); // dust → `roundResidue`, swept below
+        }
 
-        // ── Effects before the send (CEI) ──
-        // Debit by `got`, as `execute` does: the sub-wei redeem dust stays in the position as
-        // still-releasable principal rather than leaking into the next harvest's yield legs.
-        // `_totalDeployedByTarget` is the "moved out on the target's behalf" counter and this is such a
-        // move; `CorpusReleased` against `CapitalDeployed` is what tells the two apart.
-        totalPrincipal -= got;
-        _totalDeployedByTarget += got;
-        _closeRoundIfPriceCollapsed();
+        // Sweep the residue of closed rounds — corpus already out of the position — into the same delivery.
+        // Effect before the send (CEI): a re-entrant call from the sink finds the counter at zero. Booked in
+        // `_totalDeployedByTarget` here, at departure, inside `CorpusReleased`'s amount.
+        uint256 residue = roundResidue;
+        if (residue != 0) {
+            roundResidue = 0;
+            _totalDeployedByTarget += residue;
+        }
+        amount = got + residue;
+        if (amount == 0) return 0;
 
         // Force-send: a community sink that rejects ETH must not make its own corpus unreleasable.
-        SafeTransferLib.forceSafeTransferETH(payout, got);
-        emit CorpusReleased(payout, got);
-        return got;
+        SafeTransferLib.forceSafeTransferETH(payout, amount);
+        emit CorpusReleased(payout, amount);
+        return amount;
     }
 
     // ┌─────────────────────────┐
@@ -818,7 +989,10 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         return _totalPrincipalCommittedAllTime;
     }
 
-    /// @notice Sum of principal withdrawn on the target's behalf (`execute` + `releaseCorpusToCommunity`).
+    /// @notice Sum of principal moved out of the VAULT on the target's behalf: `execute`,
+    ///         `releaseCorpusToCommunity` (corpus and swept residue alike) and `flushRoundResidue`. Every
+    ///         booking is made at a departure, under its departure event; a round close books nothing, because
+    ///         the residue it redeems is still in the vault.
     function totalDeployedByTarget() external view returns (uint256) {
         return _totalDeployedByTarget;
     }
