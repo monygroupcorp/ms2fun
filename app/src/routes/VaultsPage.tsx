@@ -165,8 +165,7 @@ export function VaultsPage() {
         <section className={styles.targets} data-testid="alignment-targets">
           <h2 className={styles.sectionTitle}>Alignment targets</h2>
           <p className={styles.sectionSub}>
-            The communities collections bind to — 19% of fees on liquidity collections, 80% on
-            endowment ones.
+            The communities collections bind to — 19% of every collection&rsquo;s fees route here.
           </p>
           <ul className={styles.targetGrid}>
             {communities.map((c) => (
