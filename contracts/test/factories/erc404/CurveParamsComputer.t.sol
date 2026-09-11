@@ -5,6 +5,8 @@ import { Test, console2 } from "forge-std/Test.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
 import { CurveParamsComputer } from "../../../src/factories/erc404/CurveParamsComputer.sol";
 import { BondingCurveMath } from "../../../src/factories/erc404/libraries/BondingCurveMath.sol";
+import { LaunchPresets } from "../../../script/LaunchPresets.sol";
+import { LaunchManager } from "../../../src/factories/erc404/LaunchManager.sol";
 
 /**
  * @title CurveParamsComputerTest
@@ -17,7 +19,9 @@ contract CurveParamsComputerTest is Test {
     CurveParamsComputer internal computer;
     address internal owner = address(0xA11CE);
 
-    /// @dev Shipped presets (DeployCore): NICHE / STANDARD / HYPE, all at reserve = 1000 bps.
+    /// @dev Shipped presets: NICHE / STANDARD / HYPE, all at reserve = 1000 bps. Restated here as
+    ///      plain constants because the matrix below reads better for it, and held to the ladder
+    ///      the protocol actually deploys by `test_Ladder_IsTheLadderTheProtocolDeploys`.
     uint256 internal constant NICHE_TARGET = 5 ether;
     uint256 internal constant NICHE_UNIT = 1_000_000;
     uint256 internal constant STANDARD_TARGET = 25 ether;
@@ -114,6 +118,27 @@ contract CurveParamsComputerTest is Test {
             // the wizard would have told the creator was fine.
             assertLe(ceilings[i] * units[i] * 1e18, maxTotalSupply, "the ceiling itself must fit");
             assertGt((ceilings[i] + 1) * units[i] * 1e18, maxTotalSupply, "one past the ceiling must not");
+        }
+    }
+
+    /// @dev The constants above are a restatement, and this is what makes them one: every rung is
+    ///      checked against `LaunchPresets`, which is what `DeployCore` writes to a chain and what
+    ///      `ValidateSepolia` asserts a live chain carries. Retune a rung there and this fails until
+    ///      the matrix below is re-walked, which is the point — the matrix is the evidence that the
+    ///      new numbers still solve.
+    function test_Ladder_IsTheLadderTheProtocolDeploys() public view {
+        uint256[3] memory targets = [NICHE_TARGET, STANDARD_TARGET, HYPE_TARGET];
+        uint256[3] memory units = [NICHE_UNIT, STANDARD_UNIT, HYPE_UNIT];
+        uint256[3] memory ceilings = [NICHE_CEILING, STANDARD_CEILING, HYPE_CEILING];
+
+        assertEq(LaunchPresets.COUNT, units.length, "the protocol ships exactly these rungs");
+        for (uint256 i = 0; i < units.length; i++) {
+            LaunchManager.Preset memory shipped = LaunchPresets.preset(i, address(computer));
+            assertEq(shipped.targetETH, targets[i], "targetETH matches the shipped preset");
+            assertEq(shipped.unitPerNFT, units[i], "unitPerNFT matches the shipped preset");
+            assertEq(shipped.liquidityReserveBps, RESERVE_BPS, "reserve matches the shipped preset");
+            assertTrue(shipped.active, "a shipped preset is active, or no create resolves it");
+            assertEq(LaunchPresets.maxNftSupply(units[i]), ceilings[i], "ceiling matches the shipped rung");
         }
     }
 

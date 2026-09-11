@@ -4,6 +4,8 @@ pragma solidity ^0.8.20;
 import { Test } from "forge-std/Test.sol";
 import { DeployCore } from "../../script/DeployCore.sol";
 import { ValidateSepolia } from "../../script/ValidateSepolia.s.sol";
+import { LaunchPresets } from "../../script/LaunchPresets.sol";
+import { LaunchManager } from "../../src/factories/erc404/LaunchManager.sol";
 import { CREATEX } from "../../src/shared/CreateXConstants.sol";
 import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
 import { MasterRegistryV1 } from "../../src/master/MasterRegistryV1.sol";
@@ -234,6 +236,67 @@ contract ValidateSepoliaTest is Test {
         this.createInstanceProbe();
 
         vm.expectRevert(bytes("preset 0: curve computer is not approved under the curve_computer tag"));
+        validator.run();
+    }
+
+    // ── The ladder a live chain carries ───────────────────────────────────
+
+    /// @dev The failure this covers is silent in a way the others are not: every gating check above
+    ///      describes a deployment that CANNOT launch, and a create reverting is its own alarm. A
+    ///      superseded `unitPerNFT` launches fine. It mints a collection permanently capped by the
+    ///      old rung — `ERC404Factory._deployAndInitialize` copies the preset into the instance's
+    ///      stored bonding params at create, so no later `setPreset` reaches it — and nothing on the
+    ///      chain says so. The validator is the only place that can catch it, and before this it
+    ///      logged `targetETH` and read the curve computer back without ever looking at the unit.
+    ///
+    ///      The mutation is the real one: 1e9 is the ladder Sepolia was deployed with in March, and
+    ///      1e6 is what the repo ships after the re-spacing. At 1e9 the rung admits 79 pieces.
+    function test_supersededUnitPerNFT_passesEveryOtherCheckAndFailsTheValidator() public {
+        LaunchManager lm = LaunchManager(address(s.launchManager()));
+        LaunchManager.Preset memory shipped = lm.getPreset(0);
+        assertEq(shipped.unitPerNFT, 1_000_000, "the deploy writes the re-spaced rung");
+
+        LaunchManager.Preset memory superseded = shipped;
+        superseded.unitPerNFT = 1_000_000_000;
+        vm.prank(address(s));
+        lm.setPreset(0, superseded);
+
+        // The collection this chain would now mint is capped at 79 pieces, and creating one is not
+        // an error: the drift is invisible to every other check the validator runs.
+        assertEq(LaunchPresets.maxNftSupply(superseded.unitPerNFT), 79, "the superseded rung admits 79 pieces");
+        this.createInstanceProbe();
+
+        vm.expectRevert(
+            bytes(
+                "preset 0: on-chain unitPerNFT is 1000000000 (a ceiling of 79 pieces), but this repo ships"
+                " 1000000 (79228 pieces). The owner must setPreset before any collection is created under it."
+            )
+        );
+        validator.run();
+    }
+
+    /// @dev The other two economic fields, so the assertion is the whole preset and not one column.
+    function test_driftedTargetETH_failsTheValidator() public {
+        LaunchManager lm = LaunchManager(address(s.launchManager()));
+        LaunchManager.Preset memory p = lm.getPreset(1);
+        p.targetETH = 26 ether;
+        vm.prank(address(s));
+        lm.setPreset(1, p);
+
+        vm.expectRevert(
+            bytes("preset 1: on-chain targetETH is 26000000000000000000, but this repo ships 25000000000000000000")
+        );
+        validator.run();
+    }
+
+    function test_driftedLiquidityReserveBps_failsTheValidator() public {
+        LaunchManager lm = LaunchManager(address(s.launchManager()));
+        LaunchManager.Preset memory p = lm.getPreset(2);
+        p.liquidityReserveBps = 1500;
+        vm.prank(address(s));
+        lm.setPreset(2, p);
+
+        vm.expectRevert(bytes("preset 2: on-chain liquidityReserveBps is 1500, but this repo ships 1000"));
         validator.run();
     }
 
