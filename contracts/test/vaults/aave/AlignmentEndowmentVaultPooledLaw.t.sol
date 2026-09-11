@@ -296,6 +296,65 @@ contract AlignmentEndowmentVaultPooledLawTest is Test {
         assertEq(claimed, 0, "a one-wei benefactor claims nothing of B's principal");
     }
 
+    /// @dev The accumulator is never reset across rounds — a fresh round starts at whatever
+    ///      `accCreatorYieldPerShare` reached in the last one, and a fresh-round depositor's `rewardDebt`
+    ///      is pinned to that live value at mint (`_deposit`: `rewardDebt[b] = principalShares[b] · acc /
+    ///      1e18`, immediately after the mint), so their first `_settle` computes `shares · acc_now − shares
+    ///      · acc_at_mint` and sees only what was harvested after they arrived. This drives it across TWO
+    ///      price-floor closes and asserts every benefactor's claim is exactly the creator leg of the
+    ///      harvests that ran while they had principal, ± accumulator-floor dust.
+    ///
+    ///      It is RED at 9ae810c for F1's reason, not the accumulator's: today a close leaves the residue
+    ///      in Aave, so the next round's first harvest pays 80% of it to that round's depositor (C claims
+    ///      ~1.6 ETH here, not 0.8). Under the ruled close (residue redeemed out and accrued as corpus) the
+    ///      only thing this test can still catch is the accumulator misleading a fresh-round depositor.
+    function test_roundClose_accumulatorStaysExactAcrossTwoResidueClosesForEveryBenefactor() public {
+        MockOwnable a = _benefactor(address(0xA11CE));
+        MockOwnable b = _benefactor(address(0xB0B));
+        MockOwnable c = _benefactor(address(0xC0C));
+        MockOwnable d = _benefactor(address(0xD0D));
+        MockOwnable e = _benefactor(address(0xE0E));
+
+        // Round 0: A earns one harvest; the pool is taken to the floor; B lands; one wei closes the round.
+        _deposit(a, 1 ether);
+        _yield(1 ether);
+        vault.harvest(); // A: 0.8
+        _execute(1 ether - 1e9);
+        _deposit(b, 1 ether); // B: nothing is harvested while B has principal
+        _execute(1);
+        assertEq(vault.totalPrincipal(), 0, "close #1");
+
+        // Round 1: C earns one harvest; same shape; D lands; one wei closes the round.
+        _deposit(c, 1 ether);
+        assertEq(vault.fundingRound(), 1);
+        _yield(1 ether);
+        vault.harvest(); // C: 0.8 and nothing else
+        _execute(1 ether - 1e9);
+        _deposit(d, 1 ether);
+        _execute(1);
+        assertEq(vault.totalPrincipal(), 0, "close #2");
+
+        // Round 2: E earns one harvest.
+        _deposit(e, 1 ether);
+        assertEq(vault.fundingRound(), 2);
+        _yield(1 ether);
+        vault.harvest(); // E: 0.8
+
+        assertApproxEqAbs(vault.pendingYieldOf(address(a)), 0.8 ether, 2, "A: round 0's harvest only");
+        assertEq(vault.pendingYieldOf(address(b)), 0, "B: no harvest ran on B's principal");
+        assertApproxEqAbs(vault.pendingYieldOf(address(c)), 0.8 ether, 2, "C: round 1's harvest only");
+        assertEq(vault.pendingYieldOf(address(d)), 0, "D: no harvest ran on D's principal");
+        assertApproxEqAbs(vault.pendingYieldOf(address(e)), 0.8 ether, 2, "E: round 2's harvest only");
+
+        // And the claims match the views, through the stale-share retirement, for the two oldest.
+        vm.prank(address(0xA11CE));
+        assertApproxEqAbs(vault.claimYieldPurse(address(a)), 0.8 ether, 2);
+        vm.prank(address(0xC0C));
+        assertApproxEqAbs(vault.claimYieldPurse(address(c)), 0.8 ether, 2);
+        vm.prank(address(0xB0B));
+        assertEq(vault.claimYieldPurse(address(b)), 0);
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // Impairment: a withdrawn slice must not keep earning through ghost basis
     // ═══════════════════════════════════════════════════════════════════════
