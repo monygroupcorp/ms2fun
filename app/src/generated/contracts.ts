@@ -2438,6 +2438,15 @@ export const curveParamsComputerAbi = [
   },
   {
     type: 'function',
+    inputs: [
+      { name: 'liquidityReserveBps', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'isReserveBpsAdmissible',
+    outputs: [{ name: 'admissible', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'kWeight',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
@@ -17631,6 +17640,15 @@ export const useReadCurveParamsComputerGraduationMultipleAt =
   /*#__PURE__*/ createUseReadContract({
     abi: curveParamsComputerAbi,
     functionName: 'graduationMultipleAt',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"isReserveBpsAdmissible"`
+ */
+export const useReadCurveParamsComputerIsReserveBpsAdmissible =
+  /*#__PURE__*/ createUseReadContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'isReserveBpsAdmissible',
   })
 
 /**
