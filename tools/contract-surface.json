@@ -1397,7 +1397,11 @@
     },
     {
       "match": "ERC1155Instance.genesisVault",
-      "why": "The vault an instance was CREATED with, kept so the revenue split can stay keyed to the family it was launched under even after a migration. The app reads the instance's current `vault` and the registry's vault list; which one was first is a fact for the split, not for a reader."
+      "why": "The vault an instance was CREATED with, kept as a deploy-config guard: the settlement path calls `RevenueSplitLib.isLiquidityFamily` on it only to revert on an unrecognized `vaultType()`, never to branch the split (`split()` is family-blind now). The app reads the instance's current `vault` and the registry's vault list; which one was first is a fact for that guard, not for a reader or for the settlement math the app previews client-side."
+    },
+    {
+      "match": "ERC721AuctionInstance.genesisVault",
+      "why": "The same pinned-at-creation vault and the same deploy-config-guard-only role as ERC1155Instance.genesisVault -- see it. The app used to read this live (via a vaultType() lookup) to pick which side of a family split to preview before settleAuction; that branch is gone along with the family split it existed to mirror, so lib/revenueSplit.ts computes the settlement preview from the bid amount alone and this address is never fetched."
     },
     {
       "$comment": "--- per-instance reads the QueryAggregator supersedes: a card, a page or a portfolio is one call ---"
