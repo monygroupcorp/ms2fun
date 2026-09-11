@@ -835,6 +835,7 @@ export const alignmentEndowmentVaultAbi = [
   { type: 'error', inputs: [], name: 'NotSupported' },
   { type: 'error', inputs: [], name: 'RedeemShortfall' },
   { type: 'error', inputs: [], name: 'Reentrancy' },
+  { type: 'error', inputs: [], name: 'RoundClosePending' },
   { type: 'error', inputs: [], name: 'TargetDecurated' },
   { type: 'error', inputs: [], name: 'TargetStillCurated' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
