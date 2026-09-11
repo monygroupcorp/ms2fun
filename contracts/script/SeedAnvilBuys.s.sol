@@ -344,7 +344,13 @@ contract SeedAnvilBuys is SeedAnvilShared {
             0.01 ether,
             MetadataOverlayModule.Payout.ARTIST
         );
-        ov.unlock{ value: 0.01 ether }(inst, ARTIST_COMMISSION_ID);
+        // The buyer commits to the art as well as the price: same string the commission was just
+        // authored with, hashed the way a real buyer hashes what their UI showed them.
+        ov.unlock{ value: 0.01 ether }(
+            inst,
+            ARTIST_COMMISSION_ID,
+            keccak256(bytes(string.concat(ART_BASE_SIMIAN, vm.toString(ARTIST_COMMISSION_ID))))
+        );
 
         // Hand a set of pieces to ADMIN so the walk judges the metadata-precedence surface as the
         // HOLDER rather than as a viewer — a different code path, and the one the surface exists to

@@ -12140,6 +12140,7 @@ export const metadataOverlayModuleAbi = [
     inputs: [
       { name: 'inst', internalType: 'address', type: 'address' },
       { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'uriHash', internalType: 'bytes32', type: 'bytes32' },
     ],
     name: 'unlock',
     outputs: [],
@@ -12405,6 +12406,7 @@ export const metadataOverlayModuleAbi = [
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'AlreadyPaid' },
   { type: 'error', inputs: [], name: 'CommissionLocked' },
+  { type: 'error', inputs: [], name: 'CommissionUriChanged' },
   { type: 'error', inputs: [], name: 'EmptyURI' },
   { type: 'error', inputs: [], name: 'InvalidAddress' },
   { type: 'error', inputs: [], name: 'InvalidSelection' },

@@ -7,7 +7,7 @@
  *
  * Renders nothing when the collection has no overlay module wired (`useOverlayModule`).
  */
-import { formatEther } from 'viem'
+import { formatEther, keccak256, toBytes } from 'viem'
 import { metadataOverlayModuleAbi } from '../../../generated/contracts'
 import { formatTokenAmount } from '../../../lib/format'
 import { useCollectionChainId } from '../useCollectionChain'
@@ -134,7 +134,11 @@ function CommissionRow({
               address: overlay,
               abi: metadataOverlayModuleAbi,
               functionName: 'unlock',
-              args: [instance, id],
+              // Commit to the ART as well as the price. `unlock` takes the hash of the commission URI
+              // the buyer is looking at, and reverts `CommissionUriChanged` if the artist has replaced
+              // it since this panel read it — the swap that would otherwise settle against substituted
+              // art and then lock it there permanently.
+              args: [instance, id, keccak256(toBytes(state.commissionURI))],
               value: state.commissionPrice,
               chainId: chainId,
             })
@@ -143,7 +147,11 @@ function CommissionRow({
           successLabel="commission unlocked — tx confirmed."
           onReset={tx.reset}
           className="btn btn-primary"
-          errorText="unlock failed — try again"
+          errorText={
+            tx.reason?.includes('CommissionUriChanged') === true
+              ? "the artist changed this commission's art — reload to see the current version before paying"
+              : (tx.reason ?? 'unlock failed — try again')
+          }
           testId="metadata-holder-unlock-commission"
         />
       ) : (

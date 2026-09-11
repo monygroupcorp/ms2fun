@@ -50,6 +50,7 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
     error InvalidWave();
     error WrongPayment();
     error InvalidSelection();
+    error CommissionUriChanged(); // unlock's uriHash does not match the URI on chain right now
 
     // ── Pointer encoding ────────────────────────────────────────────────────────
     uint256 internal constant AUTO = 0;
@@ -199,10 +200,21 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
     }
 
     /// @notice Pay for a PAY commission and pin it in the same tx. CEI + nonReentrant.
-    function unlock(address inst, uint256 id) external payable nonReentrant {
+    /// @dev    `uriHash` is `keccak256(bytes(commissionURI[inst][id]))` as the buyer read it. The buyer
+    ///         signs for the ART, not only for the price. Without it the transaction committed to
+    ///         `t.price` and nothing else, while `commissionURI` stayed artist-mutable through
+    ///         {setCommission} right up to the instant `paid` is set — and the lock this contract
+    ///         advertises as buyer protection then made the substitution permanent for that id, for
+    ///         everyone. No mempool sophistication was needed to hit it: ordinary latency between the
+    ///         UI read and the mined block is enough. Failing closed is the point — a swapped URI now
+    ///         reverts the purchase instead of settling it, and the buyer re-reads and decides again.
+    /// @param uriHash Hash of the commission URI the buyer is paying for.
+    function unlock(address inst, uint256 id, bytes32 uriHash) external payable nonReentrant {
         _onlyHolder(inst, id);
         Terms memory t = commissionTerms[inst][id];
-        if (bytes(commissionURI[inst][id]).length == 0) revert NoCommission();
+        string memory uri = commissionURI[inst][id];
+        if (bytes(uri).length == 0) revert NoCommission();
+        if (keccak256(bytes(uri)) != uriHash) revert CommissionUriChanged();
         if (t.cond != CommCond.PAY) revert NotPayCommission();
         if (paid[inst][id]) revert AlreadyPaid();
         if (msg.value != t.price) revert WrongPayment();
@@ -241,7 +253,14 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
         if (price == 0) return;
         address artist = IOverlayInstance(inst).owner();
         if (payout == Payout.ARTIST) {
-            SafeTransferLib.safeTransferETH(artist, price);
+            // forceSafeTransferETH, like the redirect leg below: the artist is
+            // `IOverlayInstance(inst).owner()`, an arbitrary address and commonly a Safe or another
+            // contract wallet. A plain send reverts the whole unlock when that address rejects ETH,
+            // which made every PAY commission and every PAY wave on the collection unbuyable until
+            // ownership moved. That put the artist's own misconfiguration on the buyer, as a feature
+            // silently denied. The force path pays regardless and leaves the consequence with the
+            // artist. The protocol-treasury leg below deliberately stays a plain send.
+            SafeTransferLib.forceSafeTransferETH(artist, price);
             return;
         }
         // SPLIT — 1% protocol / 19% vault / 80% artist (canonical graduation split). The module holds
@@ -288,7 +307,7 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
                 toArtist += s.vaultCut;
             }
         }
-        if (toArtist > 0) SafeTransferLib.safeTransferETH(artist, toArtist);
+        if (toArtist > 0) SafeTransferLib.forceSafeTransferETH(artist, toArtist);
     }
 
     // ── Resolution (IMetadataResolver) ──────────────────────────────────────────
@@ -347,6 +366,11 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
     }
 
     /// @dev Scan waves from the newest; return the first the holder qualifies for (its art), else "".
+    ///      The scan is unbounded by construction — `waves[inst]` is append-only and a STAKE wave costs
+    ///      an external `stakedBalance` call per iteration. Measured at ~1,672 gas per ineligible STAKE
+    ///      wave (400 of them cost 668,726 gas in `resolve`), so a 10M-gas `eth_call` tolerates roughly
+    ///      six thousand waves and no plausible collection reaches that. Accepted deliberately on that
+    ///      measurement rather than capped: recorded here so the next reader does not re-raise it.
     function _newestEligibleWave(address inst, uint256 id, address holder) internal view returns (string memory) {
         Wave[] storage ws = waves[inst];
         uint256 len = ws.length;
