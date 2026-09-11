@@ -6,6 +6,11 @@ import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { precacheGlobs } from './precache.globs'
+import {
+  PUBLIC_ORIGIN_ENV_KEY,
+  injectPublicOrigin,
+  resolvePublicOrigin,
+} from './src/lib/share/origin'
 
 // --- Distribution target -----------------------------------------------------------------------
 // One source tree, two build targets, selected by `VITE_DIST_TARGET` (see `pnpm build:ipfs`):
@@ -46,6 +51,30 @@ function buildCommit(): string {
   } catch {
     // A tarball export or a CI checkout without git history still has to build.
     return 'unknown'
+  }
+}
+
+// Share-card origin (noesis-338). `index.html`'s og:/twitter: tags have to name an absolute
+// origin — a scraper fetches them with no page context — and that origin used to be typed into the
+// markup three times. It was typed wrong: it named an ENS-gateway front that answers 404 and is not
+// ours, so a shared link rendered a title beside a picture nobody could fetch, and the card guard
+// could not see it (it knows structure and same-origin consistency, never an origin string).
+//
+// So the origin is deployment config. This substitutes it at every site from one value, which is
+// what makes the origin split the guard checks for unreachable by editing markup, and it throws
+// rather than emitting a card that points somewhere nobody chose — see `src/lib/share/origin.ts`.
+// It runs in `serve` too, so the dev page carries the same card the build emits rather than a raw
+// placeholder, and `enforce: 'pre'` puts it ahead of vite's own `%KEY%` env substitution, whose
+// behaviour for an unset key is to leave the token in place.
+function publicOrigin(): Plugin {
+  const origin = resolvePublicOrigin(process.env[PUBLIC_ORIGIN_ENV_KEY])
+  return {
+    name: 'public-origin',
+    enforce: 'pre',
+    transformIndexHtml: {
+      order: 'pre',
+      handler: (html) => injectPublicOrigin(html, origin),
+    },
   }
 }
 
@@ -106,6 +135,7 @@ export default defineConfig({
   ...(isIpfsTarget ? { build: { outDir: 'dist/ipfs', emptyOutDir: true } } : {}),
   plugins: [
     react(),
+    publicOrigin(),
     spaFallback404(),
     // Service worker for the app shell (ADR-0010). A static/IPFS client reloads a lot; Workbox
     // precaches the built JS/CSS/HTML so repeat loads paint instantly (and work offline) instead of
