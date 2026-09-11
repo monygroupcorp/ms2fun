@@ -713,10 +713,10 @@ export function WizardPage() {
             <div className={styles.decision}>
               <h2 className={styles.question}>How should this align?</h2>
               <p className={styles.lede}>
-                Every launch routes <b>a fixed share of its fees</b> to an alignment vault, on mint
-                and every resale — 19% on liquidity collections, 80% on endowment ones, at a ratio
-                nobody can change. Pick the <b>community</b> you&rsquo;re aligning to, then its{' '}
-                <b>vault</b>. This is what makes it not a grift.
+                Every launch routes <b>19% of its fees</b> to the community, through an alignment
+                vault, on mint and every resale — at a ratio nobody can change. Pick the{' '}
+                <b>community</b> you&rsquo;re aligning to, then its <b>vault</b>. This is what makes
+                it not a grift.
               </p>
               <AlignmentTargetPicker
                 vaults={vaults.data}
@@ -724,10 +724,6 @@ export function WizardPage() {
                 isError={vaults.isError}
                 selectedVault={vault}
                 onSelectVault={setVault}
-                // ERC404 + endowment is not a selectable pairing: `ERC404Factory.createInstance`
-                // hard-reverts `EndowmentVaultNotSupported` against a yield-family vault. Don't
-                // offer what the chain will refuse. ERC1155/ERC721 keep every family.
-                excludeFamilies={typeKey === 'erc404' ? ['yield'] : undefined}
               />
               {vault && (
                 <>
@@ -737,7 +733,7 @@ export function WizardPage() {
                     </div>
                     <div className="arrow">→</div>
                     <div className="cell vault">
-                      {vaultLabel} vault<b>{selectedVault?.family === 'lp' ? '19%' : '80%'}</b>
+                      {vaultLabel} vault<b>19%</b>
                     </div>
                   </div>
                   <p className={styles.bindNote}>
@@ -816,11 +812,7 @@ export function WizardPage() {
                 </div>
                 <div className={styles.summaryRow}>
                   <dt>Aligned to</dt>
-                  <dd>
-                    {vault
-                      ? `${vaultLabel} · ${selectedVault?.family === 'lp' ? '19%' : '80%'}`
-                      : '—'}
-                  </dd>
+                  <dd>{vault ? `${vaultLabel} · 19%` : '—'}</dd>
                 </div>
               </dl>
               <div className={styles.permanence}>
@@ -911,9 +903,7 @@ export function WizardPage() {
             </div>
             <div className="mr">
               <span>Aligned</span>
-              <b>
-                {vault ? `${vaultLabel} · ${selectedVault?.family === 'lp' ? '19%' : '80%'}` : '—'}
-              </b>
+              <b>{vault ? `${vaultLabel} · 19%` : '—'}</b>
             </div>
           </div>
         </aside>

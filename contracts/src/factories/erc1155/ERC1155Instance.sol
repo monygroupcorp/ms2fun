@@ -580,14 +580,12 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         if (amount > totalProceeds - totalWithdrawn) revert InsufficientBalance();
         totalWithdrawn += amount;
 
-        // Family-aware mint split (ADR-0003): liquidity-family → 1% protocol / 19% vault / 80%
-        // creator; yield-family (endowment) → 1% protocol / 80% vault / 19% creator. Unknown
-        // vaultType reverts (UnknownVaultFamily).
-        // The family is read from the PINNED genesis vault, never the live `vault` (audit finding #2):
-        // a migration swaps `vault`, but the split must stay keyed to what buyers paid in against, so a
-        // vault change can never flip an endowment collection's 1/80/19 to 1/19/80.
-        bool liquidityFamily = RevenueSplitLib.isLiquidityFamily(IAlignmentVault(payable(genesisVault)).vaultType());
-        RevenueSplitLib.Split memory s = RevenueSplitLib.splitMintFor(amount, liquidityFamily);
+        // The mint split is family-blind: 1% protocol / 19% vault / 80% creator, whatever the vault is.
+        // The family read stays, and only as a deploy-config guard — an unrecognized `vaultType()` on the
+        // PINNED genesis vault (never the live `vault`, audit finding #2) still reverts
+        // `UnknownVaultFamily` rather than settling against a vault nobody classified.
+        RevenueSplitLib.isLiquidityFamily(IAlignmentVault(payable(genesisVault)).vaultType());
+        RevenueSplitLib.Split memory s = RevenueSplitLib.split(amount);
 
         // Protocol cut to treasury. Use smartTransferETH (WETH fallback) so a reverting/non-receiving
         // treasury cannot brick withdraw — consistent with the try/catch vault-cut path below and the

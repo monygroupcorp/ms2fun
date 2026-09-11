@@ -495,9 +495,8 @@ abstract contract SeedAnvilShared is Script {
     // visitor performs it.
     uint256 constant LAWBSTERS_REAL_SUPPLY = 420;
     uint256 constant LAWBSTERS_REAL_RAISE = 5.96 ether;
-    // Auction collection — the family that can express the 80% endowment (the 80/19/1 leg is
-    // `splitMintFor(amount, liquidityFamily = false)`, reachable from the ERC-1155 and ERC-721
-    // settlement paths only; ERC404 graduation has no family branch and cannot express it).
+    // Auction collection — a settlement path that routes its 19% vault leg into the bound endowment
+    // vault, so the vault panel it renders has principal behind it.
     uint256 constant FIGMATA_REAL_SUPPLY = 180;
 
     // Curve presets. `LaunchManager` accepts ANY `targetETH` — the 5/25/50 ETH menu is three
@@ -627,7 +626,7 @@ abstract contract SeedAnvilShared is Script {
     }
 
     /// @dev The Aave endowment vault deployed under one alignment target id. The artist targets carry
-    ///      no LP vault at all — an endowment is escrowed principal streaming yield to a payout, and
+    ///      no LP vault at all — an endowment is permanent principal streaming yield to a payout, and
     ///      there is no liquidity leg to deploy — so the family filter is what makes the read exact
     ///      rather than merely first-matching. Reverts rather than returning zero: a seed that bound a
     ///      collection to address(0) would create instances whose settlements route nowhere.

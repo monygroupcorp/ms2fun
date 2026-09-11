@@ -96,8 +96,7 @@ export function CarveDisclosure({ declaredValue }: { declaredValue: string | und
       <p className={styles.nudge}>
         Raising under {fmt(carveDeadBandRaise(minPoolEth))} ETH? The carve is near zero there — the
         pool floor takes the whole LP share first. If you want money today, the art path (editions /
-        auctions) on a cash-now (Liquidity) vault pays you 80% of every settlement (an endowment /
-        Yield vault keeps the 19% creator split).
+        auctions) pays you 80% of every settlement — the same split on every vault family.
       </p>
     </div>
   )

@@ -94,9 +94,9 @@ Every standard routes the same **fixed alignment share** to a vault and settles 
   'alignment-vault': {
     title: 'Alignment vaults',
     summary:
-      'Every collection routes a fixed share of its fees — 19% on liquidity collections, 80% on endowment ones — to a vault aligned with an established community, the thing that makes it not a grift.',
+      "19% of every collection's fees route to a vault aligned with an established community, the thing that makes it not a grift.",
     body: `
-Every launch here is **bound to an alignment vault**. On mint and on every resale, a fixed share of the fees — **19% on liquidity collections, 80% on endowment collections** — flows to that vault, which holds or LPs the target community's token.
+Every launch here is **bound to an alignment vault**. On mint and on every resale, **19% of fees route to the community** through that vault, which holds or LPs the target community's token.
 
 This is the core idea of the launchpad: a derivative collection that **materially supports** the community it draws from, instead of extracting from it. You pick the community you're aligning to, then one of its vaults.
 

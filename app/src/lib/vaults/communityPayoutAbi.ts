@@ -14,9 +14,14 @@
  *   - `withdrawTargetFees()` — liquidity families only: delivers that balance to the registry's
  *     `getCommunityPayout(targetId)`, resolved at send time.
  *   - `flushTargetFees()` — the endowment vault's equivalent of the above.
- *   - `deployableCorpus()` / `releaseCorpusToCommunity()` — endowment only: the vested corpus an
- *     ambassador may deploy while the target is curated, and the one exit it has once the target is
- *     de-curated and `execute` is frozen.
+ *   - `deployableCorpus()` / `releaseCorpusToCommunity()` — endowment only: the live pooled principal
+ *     an ambassador may deploy while the target is curated, and the one exit it has once the target is
+ *     de-curated and `execute` is frozen. `releaseCorpusToCommunity` sweeps `roundResidue` into the
+ *     same delivery, so its amount is corpus-redeemed-now plus any residue already parked.
+ *   - `roundResidue()` / `flushRoundResidue()` — endowment only: corpus left over from a round close
+ *     (a redeem that undershot the pre-close basis by dust) sits here rather than in yield. While the
+ *     target is still curated, anyone can flush it to the same registry sink `flushTargetFees` uses;
+ *     once de-curated, `flushRoundResidue` reverts and only `releaseCorpusToCommunity` can move it.
  *
  * There is deliberately no vault-side sink read. The endowment clone used to expose a `communityPayout()`
  * of its own — an owner-writable copy `_targetSink()` fell back to whenever the registry answered zero —
@@ -58,6 +63,20 @@ export const communityPayoutAbi = [
   {
     type: 'function',
     name: 'releaseCorpusToCommunity',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'roundResidue',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'flushRoundResidue',
     inputs: [],
     outputs: [{ type: 'uint256' }],
     stateMutability: 'nonpayable',

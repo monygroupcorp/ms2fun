@@ -10,9 +10,8 @@ contract MockGMRPin1155 {
 }
 
 /// @notice Registry stub whose `migrateVault` is a no-op — it lets the instance swap its live `vault`
-///         pointer WITHOUT the MasterRegistryV1 cross-family reject firing, so this test can isolate the
-///         instance-level defense-in-depth: even if the live vault's family changes, the settlement split
-///         must stay keyed to the genesis vault pinned at construction.
+///         pointer WITHOUT the MasterRegistryV1 cross-family reject firing, so this test can isolate what
+///         a family change does to settlement at the instance level.
 contract MockMRPin1155 {
     function isAgent(address) external pure returns (bool) {
         return false;
@@ -29,10 +28,11 @@ contract MockMRPin1155 {
     }
 }
 
-/// @notice Audit finding #2 (defense-in-depth, ERC1155): a vault migration must never flip an endowment
-///         collection's 1/80/19 settlement split to the liquidity 1/19/80. The family is pinned to the
-///         genesis vault at construction, so swapping the live vault to a liquidity-family vault leaves
-///         the split untouched.
+/// @notice Audit finding #2 (defense-in-depth, ERC1155): a vault migration must never move the creator's
+///         share of settlement. It cannot, and now for a stronger reason than the genesis pin — the split
+///         is FAMILY-BLIND, 1% protocol / 19% vault / 80% creator, so there is no other proportion for a
+///         migration to reach. The pin survives as the answer to "whose `vaultType()` must be
+///         recognized", and this suite holds the money assertion that used to depend on it.
 contract PinnedGenesisFamily1155Test is Test {
     address internal constant CREATOR = address(0xC1);
     address internal constant BUYER = address(0xB2);
@@ -80,13 +80,12 @@ contract PinnedGenesisFamily1155Test is Test {
         assertEq(inst.genesisVault(), address(genesis), "genesisVault pinned to construction vault");
     }
 
-    /// @notice The exploit: endowment genesis, then swap the live vault to a liquidity-family vault. The
-    ///         SPLIT PROPORTION stays keyed to the pinned genesis family, so the creator is capped at 19%
-    ///         and can NEVER capture the 80% community leg — the whole point of finding #2. (In production
-    ///         the registry choke-point already forbids this cross-family swap; the instance pin is the
-    ///         belt-and-suspenders that neutralizes it even if a family change somehow occurred. The 80%
-    ///         vault leg follows the live active vault; the creator diversion is what is being prevented.)
-    function test_migrateToLiquidity_doesNotFlipSplit() public {
+    /// @notice The old exploit shape: endowment genesis, then swap the live vault to a liquidity-family
+    ///         vault. Nothing moves. The 19% community leg follows the live active vault, as it always did,
+    ///         and the creator's 80% is the same 80% either way — a migration has no proportion to change.
+    ///         (In production the registry choke-point forbids this cross-family swap anyway; this is the
+    ///         belt-and-suspenders assertion that it would be inert even if one occurred.)
+    function test_migrateVault_cannotMoveTheSplit() public {
         (ERC1155Instance inst, MockFamilyVault genesis) = _deploy("AaveEndowment");
 
         // Attacker swaps the live vault to a liquidity-family vault (registry reject is stubbed out here).
@@ -103,12 +102,10 @@ contract PinnedGenesisFamily1155Test is Test {
         vm.prank(CREATOR);
         inst.withdraw(1 ether);
 
-        // Pinned genesis (endowment) split proportion: 1% protocol / 80% vault / 19% creator — NOT flipped.
+        // The one split: 1% protocol / 19% vault / 80% creator, before the migration and after it.
         assertEq(TREASURY.balance - treasuryBefore, 0.01 ether, "protocol 1%");
-        assertEq(CREATOR.balance - creatorBefore, 0.19 ether, "creator capped at 19%, not the flipped 80%");
-        assertEq(
-            address(lp).balance - lpBefore, 0.8 ether, "80% community leg preserved (to active vault), not to creator"
-        );
+        assertEq(CREATOR.balance - creatorBefore, 0.8 ether, "creator 80%, unmoved by the migration");
+        assertEq(address(lp).balance - lpBefore, 0.19 ether, "19% community leg to the live active vault");
     }
 
     /// @notice Regression: a genuinely liquidity-family genesis still settles 1/19/80 (creator 80%).

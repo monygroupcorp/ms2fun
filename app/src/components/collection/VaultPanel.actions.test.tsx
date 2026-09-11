@@ -1,13 +1,13 @@
 /**
- * The endowment vault's three actions, and who each one is offered to.
+ * The endowment vault's two actions, and who each one is offered to.
  *
  * The gating is the point. `claimYieldPurse` pays the collection's owner and reverts `NotAuthorized`
- * for anyone else, so a visitor must not be shown a claim button; `vest` and `flushTargetFees` are
- * permissionless but revert on nothing-to-do, so they appear only when there is something to move.
- * Every one of these was unreachable in the app before — the per-type admin panels route to
- * `claimFees`, which this vault family implements by reverting.
+ * for anyone else, so a visitor must not be shown a claim button; `flushTargetFees` is permissionless
+ * but reverts on nothing-to-do, so it appears only when there is something to move. There is no third
+ * action here any more — deploying principal is the curated target's own `execute`, not a benefactor
+ * or creator button, and there is no vest to offer once maturity is gone.
  *
- * The maturity stat these sit under has its own suite in VaultPanel.test.tsx, which drives the real
+ * The stats block these sit under has its own suite in VaultPanel.test.tsx, which drives the real
  * `useEndowment` against mocked reads; this one mocks the hook so each action's gate can be set
  * directly.
  */
@@ -59,23 +59,14 @@ vi.mock('../../generated/contracts', () => ({
 const VAULT = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' as const
 const INSTANCE = '0x2222222222222222222222222222222222222222' as const
 
-const WEEK = 604_800n
-const NOW_SEC = BigInt(Math.floor(Date.now() / 1000))
-const PAST = NOW_SEC - WEEK
-const FUTURE = NOW_SEC + WEEK
-
 function state(overrides: Partial<EndowmentState> = {}): EndowmentState {
   return {
     isEndowment: true,
     principal: 0n,
-    depositTime: 1n,
-    vestDuration: 26n * WEEK,
-    earliestMaturity: FUTURE,
-    fullyVested: false,
     yield: 0n,
     claimable: 0n,
-    vested: 0n,
     undeliveredTargetFees: 0n,
+    roundResidue: 0n,
     totalPrincipal: 0n,
     communityPayout: '0x3333333333333333333333333333333333333333',
     isPending: false,
@@ -123,20 +114,9 @@ test('the claim is disabled with nothing accrued rather than sending a no-op tra
   expect(screen.getByTestId('vault-claim-yield')).toBeDisabled()
 })
 
-test('vest appears once the earliest tranche is due and there is escrowed principal left', () => {
-  mount({ earliestMaturity: FUTURE, principal: 10n ** 18n })
+test('there is no vest button — principal is deployed by the target, not offered here', () => {
+  mount({ principal: 10n ** 18n })
   expect(screen.queryByTestId('vault-vest')).not.toBeInTheDocument()
-
-  cleanup()
-  mount({ earliestMaturity: PAST, principal: 0n })
-  expect(screen.queryByTestId('vault-vest')).not.toBeInTheDocument()
-
-  cleanup()
-  mount({ earliestMaturity: PAST, principal: 10n ** 18n })
-  fireEvent.click(screen.getByTestId('vault-vest'))
-  expect(mockSend).toHaveBeenCalledWith(
-    expect.objectContaining({ functionName: 'vest', args: [INSTANCE] }),
-  )
 })
 
 test('the community delivery appears only with an undelivered share, and needs a wired sink', () => {

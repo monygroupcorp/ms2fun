@@ -242,9 +242,9 @@ function FramedArt({ image, alt }: { image: string | undefined; alt: string }) {
 function AlignmentLine({ vaultName }: { vaultName?: string | undefined }) {
   return (
     <p className={styles.alignLine}>
-      <span aria-hidden>▪ </span>A fixed share of every resale routes to{' '}
-      <b>{vaultName || 'its alignment vault'}</b>, on-chain — 19% on liquidity collections, 80% on
-      endowment ones. <b>The ratio is set in the contract.</b>
+      <span aria-hidden>▪ </span>19% of every resale routes to{' '}
+      <b>{vaultName || 'its alignment vault'}</b>, on-chain.{' '}
+      <b>The ratio is set in the contract.</b>
     </p>
   )
 }

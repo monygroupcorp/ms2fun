@@ -469,16 +469,15 @@
         },
         {
           "id": "C-19",
-          "title": "pull the endowment yield, vest the principal, deliver the community share",
+          "title": "pull the endowment yield and deliver the community share",
           "route": "/:chainId/:slug",
           "calls": [
             "alignmentEndowmentVaultAbi.claimYieldPurse",
-            "alignmentEndowmentVaultAbi.vest",
             "alignmentEndowmentVaultAbi.flushTargetFees"
           ],
           "given": "a collection on an endowment vault — C-4 asked for one at launch — with yield harvested into it in B-11",
-          "do": "on the collection page, open the community-endowment panel. Press claim yield as the collection owner, then look at it again from a wallet that is not the owner. Press vest once the vest window has elapsed and principal is still escrowed, and deliver community share when one is shown as undelivered",
-          "expect": "the claim pays the owner and the accrued figure falls to zero; from any other wallet the claim button is not on the page at all, rather than present and reverting. Vest moves the matured principal into the community corpus and ends this collection's accrual, which the panel says before it is pressed. The delivery is disabled while no community payout is wired, and names that as the reason",
+          "do": "on the collection page, open the community-endowment panel. Press claim yield as the collection owner, then look at it again from a wallet that is not the owner. Press deliver community share when one is shown as undelivered. There is no vest control and no maturity date: the panel says 19% of fees route to the community and the principal is the target's to deploy from the block it arrives",
+          "expect": "the claim pays the owner and the accrued figure falls to zero; from any other wallet the claim button is not on the page at all, rather than present and reverting. The delivery is disabled while no community payout is wired, and names that as the reason",
           "blocking": true
         }
       ]
@@ -633,7 +632,7 @@
           ],
           "given": "an aligned collection whose vault has accrued yield",
           "do": "harvest from the vault panel",
-          "expect": "the yield reaches the community payout set in O-4, and the panel does not claim a principal is fully vested while a tranche clock is still running",
+          "expect": "the harvested yield is split once, the same way on every harvest — 80% accrues to the collection owner's claimable yield, 19% to the community share delivered in B-16, 1% to the protocol — and the panel's accrued figures move by those shares. A principal figure that reads zero means the target deployed it, not that anything matured",
           "blocking": true
         },
         {
@@ -704,18 +703,30 @@
         },
         {
           "id": "B-17",
-          "title": "release the vested corpus to the community",
+          "title": "deliver a closed funding round's residue",
           "route": "/vault/:address",
           "calls": [
-            "communityPayoutAbi.releaseCorpusToCommunity"
+            "communityPayoutAbi.flushRoundResidue"
           ],
-          "given": "an endowment vault reached in B-16 whose corpus has vested — the Cypher, ZAMM and Uni families do not offer this and their panel does not show the control",
-          "do": "press release, then press it a second time with nothing left to release",
-          "expect": "the first release sends the deployable corpus to the payout address; the second is refused by a disabled button that says no vested corpus is left, not by a revert",
+          "given": "an endowment vault reached in B-16 whose target is still curated, after its ambassador has deployed the corpus down to a sliver — the deploy is sent from the ambassador's own wallet, the app has no control for it — which closes the funding round and parks what was left as round residue",
+          "do": "read the round-residue row, press deliver the residue, then press it again with none waiting",
+          "expect": "the residue leaves for the payout address and the row falls to zero; the second press is refused by a disabled button that says no round residue is waiting. With no payout address set the button is disabled and says the residue waits on one. The call is permissionless, so walk it from a wallet that owns nothing. Once the target is de-curated this control stops working and the residue goes out with the release in B-18 instead",
           "blocking": true
         },
         {
           "id": "B-18",
+          "title": "release the frozen principal to the community",
+          "route": "/vault/:address",
+          "calls": [
+            "communityPayoutAbi.releaseCorpusToCommunity"
+          ],
+          "given": "an endowment vault reached in B-16 whose target was de-curated in O-10 — the Cypher, ZAMM and Uni families do not offer this and their panel does not show the control. The frozen-principal figure is the corpus still in the position plus any round residue parked in B-17 and not yet delivered",
+          "do": "press release, then press it a second time with nothing left to release",
+          "expect": "the first release sends the frozen principal to the payout address in one call — corpus and parked residue together; the second is refused by a disabled button that says no principal is left to release, not by a revert",
+          "blocking": true
+        },
+        {
+          "id": "B-19",
           "title": "deliver the protocol's accrued cut",
           "route": "/vault/:address",
           "calls": [
@@ -727,7 +738,7 @@
           "blocking": true
         },
         {
-          "id": "B-19",
+          "id": "B-20",
           "title": "expire your own stale target request and get the deposit back",
           "route": "/request-target",
           "calls": [

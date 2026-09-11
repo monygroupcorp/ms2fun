@@ -33,44 +33,58 @@ interface IOwnable {
 
 /**
  * @title AlignmentEndowmentVault
- * @notice The Aave endowment vault (rework, specs 2a + 2b). One impl, clone-deployed PER alignment
- *         target by `AlignmentEndowmentVaultFactory`. N benefactors (aligned collections) pool their
- *         pledged principal into ONE Aave `StaticATokenV2` position per target.
+ * @notice The Aave endowment vault. One impl, clone-deployed PER alignment target by
+ *         `AlignmentEndowmentVaultFactory`. N benefactors (aligned collections) pool their pledged
+ *         principal into ONE Aave `StaticATokenV2` position per target.
  *
- * @dev Money model (locked design session 2026-07-21). The rules below are the law:
+ * @dev Money model. The rules below are the law:
  *
  *      - **Principal is a PERMANENT donation.** There is NO refund path — a benefactor's pledged
  *        principal never returns to them. It is committed to the alignment target forever.
- *      - **Principal vests over 6 months per DEPOSIT** (`VEST_DURATION`, measured from each deposit,
- *        not from the benefactor's first one — RE-B3). A top-up starts a fresh window of its own, so
- *        one benefactor's escrow can hold several clocks at once and "has it all vested?" is answered
- *        by `escrowedPrincipal`/`principalOf` reaching 0, never by a date.
- *        Before vest the principal is *escrowed*; at vest it becomes the
- *        target's *deployable* corpus. Vest mechanic (b): vested principal STAYS in the Aave position
- *        earning until the target deploys it (deployment = spec 2c / a separate item) — it is never
- *        idle. The position therefore holds two principal classes at once: `escrowedPrincipal` and
- *        `vestedDeployable`.
- *      - **Yield split (Part 0), applied per class on each `harvest()`:**
- *          escrowed class → 80 creator / 19 target / 1 protocol
- *          vested   class →  0 creator / 99 target / 1 protocol   (creator exited; protocol keeps 1%)
- *        Hard bps constants, no setter (the ratio is sacred). The creator leg flows through a
- *        per-benefactor MasterChef accumulator (`accCreatorYieldPerPrincipal` + `rewardDebt`, weighted
- *        by escrowed principal) and is pulled via `claimYieldPurse()`. Target leg → the registry's
- *        community payout for `targetId`, resolved at send time (native ETH). Protocol leg →
- *        `protocolTreasury`.
- *      - **Impairment socialization** (pro-rata-on-shortfall) is preserved for escrowed principal in the
- *        redeeming emergency path (`migratePosition`). Once vested, the corpus is the target's; its risk
- *        is the venue the target deploys into, so escrow impairment no longer applies to it.
- *      - **migratePosition** is an escrow-only Aave-reserve-deprecation emergency that preserves
- *        per-benefactor accounting ON-CHAIN (no off-chain reconcile).
+ *      - **One principal balance.** Principal sits in a single pooled bucket (`totalPrincipal`) from
+ *        the moment it arrives. There is no escrow class, no vested class, no clock and no state
+ *        transition between them: a slice stops earning only when it is PHYSICALLY WITHDRAWN from the
+ *        Aave position, because the ETH is gone — not because a flag flipped or a calendar matured.
+ *      - **Yield split (flat, every harvest):** 80 creator / 19 target / 1 protocol, on whatever
+ *        principal is in the position at that moment — the same split every LP family takes. Hard bps
+ *        constants, no setter (the ratio is sacred). The creator leg flows through a per-benefactor
+ *        MasterChef accumulator (`accCreatorYieldPerShare` + `rewardDebt`) and is pulled via
+ *        `claimYieldPurse()`. Target leg → the registry's community payout for `targetId`, resolved at
+ *        send time (native ETH). Protocol leg → `protocolTreasury`.
+ *      - **Ambassador assignment is eligibility to WITHDRAW, not withdrawal.** It gates `execute`
+ *        (below) and nothing else; it never gates the yield split, which runs flat from the first
+ *        deposit whether or not the target has a seated ambassador yet.
+ *      - **A withdrawal is pooled, so it lands pro-rata.** `execute` and `releaseCorpusToCommunity`
+ *        debit `totalPrincipal` only. A benefactor's principal is their SHARE of that pool
+ *        (`principalShares[b] · totalPrincipal / totalPrincipalShares`), so ETH leaving the position
+ *        shrinks every benefactor's live principal in proportion, and with it their weight in every
+ *        later harvest. No per-benefactor bookkeeping runs at withdraw time, which is what keeps the
+ *        withdraw path O(1) against an unbounded benefactor set.
+ *      - **Impairment socialization** (pro-rata-on-shortfall) falls out of the same pooling: one
+ *        bucket, one basis, so a position worth less than its basis is written down once and every
+ *        benefactor's share of it moves together. The write-down runs on every path that reads or
+ *        moves the basis, `execute` and deposit included, so a basis never outlives its ETH.
+ *      - **A round close is a withdrawal.** When a withdrawal leaves the pool priced under the share
+ *        floor the round ends, and the residual principal is REDEEMED OUT of the position into
+ *        `roundResidue` before the basis is zeroed — `totalPrincipal == 0` with ETH still in the
+ *        position is unreachable. That residue is still corpus: the curated target's sink collects it
+ *        through `flushRoundResidue`, and after de-curation `releaseCorpusToCommunity` sweeps it to
+ *        the community with everything else.
+ *      - **migratePosition** is an Aave-reserve-deprecation emergency that preserves per-benefactor
+ *        accounting ON-CHAIN (no off-chain reconcile).
  *
  *      Clone-compatible (EIP-1167): initialized via `initialize()`, owned by the factory. The legacy
  *      tradable-share / delegation methods of `IAlignmentVault` revert `NotSupported` (an endowment has
  *      no tradable shares); the endowment claim path is `claimYieldPurse()`.
  *
- *      NOTE (audit): this is a fund-holding money-core rework. Deployment of vested capital (the
- *      target-sovereign `execute`) is intentionally NOT in this contract — it is a separately-audited
- *      follow-on. Re-audit required before any deploy.
+ *      NOTE (audit): this is a fund-holding money-core, and the trust story changed with the collapse
+ *      above. It used to be that a benefactor's principal was protected FOR A TIME by the vesting
+ *      calendar — nothing could withdraw it for 26 weeks, whoever held the ambassador seat. Nothing here
+ *      replaces that. The whole withdraw gate is now two live registry reads inside `execute` — is
+ *      `msg.sender` a seated ambassador for `targetId`, and is `targetId` still curated — so the
+ *      protection a benefactor has is the quality of the appointment and of the curation decision, both
+ *      made before the money is exposed. Re-audit required before any deploy, and the governance around
+ *      ambassador assignment is part of what must be audited: it is the only gate left.
  */
 contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     // ┌─────────────────────────┐
@@ -87,37 +101,38 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     error NotSupported();
     error BenefactorNotContract();
     error RedeemShortfall();
-    error NotVested();
     error ExceedsDeployableCorpus();
     /// @dev `execute` may not target the vault's own principal-bearing assets (the stataToken position or
-    ///      its WETH) nor itself — that would let an ambassador route past the `deployableCorpus` bound and
-    ///      reach ESCROWED principal via calldata (RE-B1). The value-bound alone does not bind the corpus.
+    ///      its WETH) nor itself. The value-bound alone does not bind the position: a call routed through
+    ///      `data` could move the stataToken shares out without debiting `totalPrincipal`, desyncing the
+    ///      yield basis and leaving the creator purses and accrued target fees this vault holds unbacked.
     error ForbiddenExecuteTarget();
-    /// @dev The vault has been escrow-migrated (decommissioned): intake and vesting are permanently closed.
+    /// @dev The vault has been migrated (decommissioned): intake is permanently closed.
     error VaultMigrated();
     /// @dev The alignment target has been de-curated, so the ambassador seat's discretionary deploy power
-    ///      over the vested corpus is frozen. The corpus is not stranded: `releaseCorpusToCommunity()`
-    ///      still delivers it, to the community's own registry-pinned sink rather than to an arbitrary call.
+    ///      over the corpus is frozen. What is still HERE is not stranded by that freeze:
+    ///      `releaseCorpusToCommunity()` delivers it to the community's own registry-pinned sink rather
+    ///      than to an arbitrary call. It says nothing about what was already withdrawn, and de-curation
+    ///      is one-way — `AlignmentRegistryV1` has no reactivate path — so the freeze and that exit are
+    ///      both permanent once taken.
     error TargetDecurated();
     /// @dev `releaseCorpusToCommunity()` is the de-curation exit and nothing else: while the target is still
     ///      curated the corpus is the target's to deploy through `execute`.
     error TargetStillCurated();
+    /// @dev A deposit found the pool priced under the share floor with principal still in it: a round close is
+    ///      owed and has not run yet. Reachable only while an Aave liquidity crunch holds a DE-CURATED pool
+    ///      under the floor (see the guard in `_deposit`); it clears when the crunch does.
+    error RoundClosePending();
 
     // ┌─────────────────────────┐
     // │       Constants         │
     // └─────────────────────────┘
-    /// @notice Per-benefactor vesting duration — a platform constant (6 months), measured from the
-    ///         benefactor's first deposit. NOT a refund trigger: at vest, principal becomes the
-    ///         target's deployable corpus, it does not return to the benefactor.
-    uint256 public constant VEST_DURATION = 26 weeks;
-
     uint256 internal constant BPS = 10_000;
-    /// @dev Sacred protocol cut — exactly 1% of ALL yield (both principal classes). Hard, no setter.
+    /// @dev Sacred protocol cut — exactly 1% of all yield. Hard, no setter.
     uint256 internal constant PROTOCOL_BPS = 100; // 1%
-    /// @dev Target cut on the ESCROWED class — 19%. Creator = remainder of the escrowed class (80%).
-    ///      On the VESTED class the creator leg is zero and the target takes the whole non-protocol
-    ///      remainder (99%), so no separate vested-target constant is needed.
-    uint256 internal constant TARGET_BPS_ESCROW = 1_900; // 19%
+    /// @dev Target (community) cut — 19%. The creator takes the remainder, 80%. Same weights the LP
+    ///      families split on, and they do not vary with anything.
+    uint256 internal constant TARGET_BPS = 1_900; // 19%
 
     /// @dev Fixed-point precision for the per-benefactor yield accumulator (MasterChef-style).
     uint256 internal constant ACC_PRECISION = 1e18;
@@ -126,6 +141,19 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     ///      a larger shortfall is treated as an Aave liquidity event and reverts so the caller can retry
     ///      once liquidity returns (rather than clearing accounting for funds we could not recover).
     uint256 internal constant REDEEM_DUST = 1e6; // wei
+
+    /// @dev The floor under the pool's price per share, as a reciprocal: a round ends once its principal
+    ///      has fallen below `1 / MIN_SHARE_PRICE_INVERSE` of its share count. Shares are minted at that
+    ///      price (`amount · shares / principal`), so a pool withdrawn down to a sliver would mint a
+    ///      correspondingly enormous number of shares to the next depositor — correct arithmetic, but
+    ///      repeated it compounds until `amount · shares` overflows and intake is bricked for good. Ending
+    ///      the round instead keeps the price in [1e-9, 1], which bounds the share count at
+    ///      `Σ deposits · 1e9` and puts every product here far inside uint256. The floor is an OVERFLOW
+    ///      bound and nothing else: what a close does with the principal left in the pool is
+    ///      `_closeRoundIfPriceCollapsed`'s business, and that residue is NOT small — at a floor-priced pool
+    ///      it is the whole of the last deposit (bounded by `shares / 1e9 ≤ Σ deposits`, not by 1e-9 of
+    ///      anything), so it is withdrawn as corpus, never left behind to be read as yield.
+    uint256 internal constant MIN_SHARE_PRICE_INVERSE = 1e9;
 
     // ┌─────────────────────────┐
     // │         Storage         │
@@ -138,61 +166,71 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     address public alignmentToken; // satisfies registerVault's alignmentToken() check
     uint256 public targetId; // the alignment target this clone serves (for the stat surface / events)
 
-    // ── Per-benefactor accounting ─────────────────────────────────────────────
-    /// @notice One escrowed deposit and the timestamp it was made (its own vesting clock). A benefactor's
-    ///         escrow is a LIST of these — each deposit vests independently at `depositTs + VEST_DURATION`
-    ///         (RE-B3). `escrowedPrincipal[b]` stays the sum of a benefactor's live (unvested) tranches.
-    struct DepositTranche {
-        uint256 amount;
-        uint256 depositTs;
-    }
-
-    /// @notice A benefactor's live escrow tranches (per-deposit vesting clocks). Vested tranches are removed.
-    mapping(address => DepositTranche[]) internal _escrowTranches;
-
-    /// @notice Where the next BOUNDED vest walk resumes in `_escrowTranches[benefactor]`. Persisted so a
-    ///         paged caller advances through the array across calls instead of re-examining the same prefix
-    ///         forever: the walk removes matured tranches by swap-and-pop, which leaves unmatured entries in
-    ///         place, so a cursor-less bounded walk starting at index 0 could never reach a matured tranche
-    ///         sitting behind `maxTranches` unmatured ones. Normalized to 0 whenever it is out of range (the
-    ///         array shrank, or the walk wrapped). A full sweep (`maxTranches >= tranches.length`) ignores
-    ///         and resets it — it examines every tranche anyway.
-    mapping(address => uint256) internal _vestCursor;
-
-    /// @notice Set once by `migratePosition`: the vault is escrow-decommissioned. Intake and vesting close
-    ///         permanently so a post-migrate deposit cannot re-open a dead position and a stale-basis vest
-    ///         cannot desync harvest/execute into RedeemShortfall (RE-B2).
+    /// @notice Set once by `migratePosition`: the vault is decommissioned. Intake closes permanently so a
+    ///         post-migrate deposit cannot re-open a dead position.
     bool public migrated;
 
-    /// @notice A benefactor's live ESCROWED (pre-vest) principal — the accumulator weight.
-    mapping(address => uint256) public escrowedPrincipal;
-    /// @notice A benefactor's principal that has VESTED (now the target's deployable corpus).
-    mapping(address => uint256) public vestedPrincipal;
-    /// @notice First-deposit timestamp, written once and never overwritten. It is NOT the clock the
-    ///         benefactor's principal runs on: RE-B3 gave every deposit its own tranche, and `vest()`
-    ///         matures each one at its own `depositTs + VEST_DURATION`. So `depositTime + VEST_DURATION`
-    ///         is the EARLIEST any of this benefactor's principal can vest, and says nothing about a
-    ///         top-up made later. Nothing on-chain reads this mapping; it is a stat surface only, and a
-    ///         reader that needs "has it all vested?" must ask `escrowedPrincipal`/`principalOf` instead.
-    mapping(address => uint256) public depositTime;
-    /// @notice MasterChef reward debt (settled snapshot of `escrowedPrincipal * acc / 1e18`).
+    // ── Per-benefactor accounting ─────────────────────────────────────────────
+    /// @notice A benefactor's immutable weight in the pooled corpus. Minted at deposit against the pool's
+    ///         live price (`totalPrincipal / totalPrincipalShares`) and never burned or rescaled: a
+    ///         withdrawal moves the price, not the shares, which is what makes withdrawal O(1) over an
+    ///         unbounded benefactor set. Live principal is `principalOf()`.
+    mapping(address => uint256) public principalShares;
+    /// @notice MasterChef reward debt (settled snapshot of `principalShares * acc / 1e18`).
     mapping(address => uint256) public rewardDebt;
     /// @notice Accrued, still-unclaimed creator yield (native ETH wei) held by the vault for the benefactor.
     mapping(address => uint256) public yieldPurse;
+    /// @notice The funding round a benefactor's shares were minted in (see `fundingRound`).
+    mapping(address => uint256) public fundingRoundOf;
 
     // ── Aggregates / accumulator ──────────────────────────────────────────────
-    uint256 public totalEscrowedPrincipal; // Σ escrowed principal (live) — accumulator weight
-    uint256 public totalVestedDeployable; // Σ vested principal still in the position, awaiting deploy
-    /// @notice Creator-yield-per-escrowed-principal accumulator, scaled by 1e18 (MasterChef).
-    uint256 public accCreatorYieldPerPrincipal;
+    /// @notice The live principal basis: every wei of principal still in the Aave position. Grows on
+    ///         deposit, shrinks only when principal is physically withdrawn (`execute`,
+    ///         `releaseCorpusToCommunity`, `migratePosition`) or written down by impairment.
+    uint256 public totalPrincipal;
+    /// @notice Σ live `principalShares` — the accumulator's weight denominator.
+    uint256 public totalPrincipalShares;
+    /// @notice Creator-yield-per-share accumulator, scaled by 1e18 (MasterChef).
+    uint256 public accCreatorYieldPerShare;
     /// @notice Target-leg yield (native ETH wei) held by the vault because `_targetSink()` was unset at
     ///         crystallize time. Delivered by the permissionless `flushTargetFees()` once a sink exists.
     uint256 public accumulatedTargetFees;
+    /// @notice Corpus that a round close redeemed OUT of the Aave position and that the vault now holds as
+    ///         native ETH, awaiting delivery (see `_closeRoundIfPriceCollapsed`). This is principal that has
+    ///         physically left the position but not yet left the vault: it is in no benefactor's
+    ///         `principalOf`, not in `totalPrincipal`, not in `currentPositionValue()`, and not deployable.
+    ///         While the target is curated `flushRoundResidue()` delivers it to `_targetSink()`; once
+    ///         de-curated only `releaseCorpusToCommunity()` reaches it, and sweeps it with the corpus.
+    ///
+    ///         It is deliberately NOT folded into `accumulatedTargetFees`, and the reason is narrower than
+    ///         "different owners": both counters are delivered to `_targetSink()`, the registry's
+    ///         `getCommunityPayout(targetId)`, curated or not — `flushTargetFees`, `flushRoundResidue` and the
+    ///         release sweep all pay the SAME address. What the split buys is two things. (i) A gate:
+    ///         `flushRoundResidue` reverts `TargetDecurated`, so once a target is de-curated nobody delivers
+    ///         its residual corpus except `releaseCorpusToCommunity`, in one send with the corpus still in the
+    ///         position — one exit for all of a de-curated target's corpus, not two. `flushTargetFees` has no
+    ///         such gate, because the yield leg is the target's on any day. (ii) Two distinguishable departure
+    ///         sites: the residue is booked in `totalDeployedByTarget` when it leaves, under
+    ///         `RoundResidueFlushed` or `CorpusReleased`, and a fee flush books nothing there. Fold the two
+    ///         counters together and both are lost — the fee flush would carry corpus past the gate, and the
+    ///         corpus would leave under a fee event, unbooked.
+    uint256 public roundResidue;
 
-    // ── Cumulative stat counters (spec 2a §5) ─────────────────────────────────
+    /// @notice Which funding round the pool is on. A corpus that is spent to the last wei and then
+    ///         re-funded starts a new round, because the old shares have no principal left behind them and
+    ///         must not price (or dilute) the new money. This is bookkeeping and nothing else: it is not an
+    ///         eligibility state, it gates no withdrawal, and it changes nothing about when principal earns.
+    ///         The only thing a round boundary does is retire spent shares — lazily, at each benefactor's
+    ///         next touch, against the accumulator value frozen in `_accAtRoundEnd`, so no already-earned
+    ///         creator yield is lost when it happens.
+    uint256 public fundingRound;
+    /// @dev `accCreatorYieldPerShare` as it stood when each closed round ended — the value a stale-round
+    ///      benefactor's final settlement is computed against.
+    mapping(uint256 => uint256) internal _accAtRoundEnd;
+
+    // ── Cumulative stat counters ──────────────────────────────────────────────
     uint256 internal _totalPrincipalCommittedAllTime; // monotonic Σ of all principal ever deposited
-    uint256 internal _totalVested; // monotonic Σ of all principal ever vested
-    uint256 internal _totalDeployedByTarget; // Σ deployed by the target (deployment is a separate item; 0 here)
+    uint256 internal _totalDeployedByTarget; // Σ principal that left the vault on the target's behalf: execute, flushRoundResidue, release
     uint256 internal _totalYieldToCreators; // Σ creator leg routed to the accumulator
     uint256 internal _totalYieldToTarget; // Σ target leg routed to the target sink
     uint256 internal _totalProtocolFees; // Σ protocol leg routed to protocolTreasury
@@ -201,21 +239,26 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     // │         Events          │
     // └─────────────────────────┘
     event PrincipalDeposited(address indexed benefactor, uint256 amount, uint256 indexed targetId, uint256 timestamp);
-    event PrincipalVested(address indexed benefactor, uint256 amount, uint256 timestamp);
     event YieldDistributed(uint256 creatorLeg, uint256 targetLeg, uint256 protocolLeg, uint256 timestamp);
     event YieldClaimed(address indexed benefactor, address indexed recipient, uint256 amount);
     event ImpairmentRealized(uint256 shortfallBps, uint256 timestamp);
     event Migrated(address indexed to, uint256 amount);
+    /// @notice Emitted when a fully-spent corpus is re-funded and a new share round opens.
+    event FundingRoundOpened(uint256 indexed round, uint256 timestamp);
     /// @notice Emitted when a crystallized target leg is held in the vault because the target sink is unset.
     event TargetFeesAccrued(uint256 amount, uint256 totalAccrued);
     /// @notice Emitted when the accrued target leg is delivered to the community sink.
     event TargetFeesFlushed(address indexed payout, uint256 amount);
-    /// @notice Emitted when the alignment target (via an ambassador) deploys vested corpus capital.
+    /// @notice Emitted when a round close redeems the residual corpus out of the position into `roundResidue`.
+    event RoundResidueAccrued(uint256 indexed round, uint256 amount, uint256 totalResidue);
+    /// @notice Emitted when `roundResidue` is delivered to the curated target's sink by `flushRoundResidue`.
+    event RoundResidueFlushed(address indexed payout, uint256 amount);
+    /// @notice Emitted when the alignment target (via an ambassador) deploys corpus capital.
     ///         `selector` = the first 4 bytes of `data` (0x00000000 for a plain value transfer).
     event CapitalDeployed(
         address indexed ambassador, address indexed to, uint256 value, bytes4 selector, uint256 timestamp
     );
-    /// @notice Emitted when a de-curated target's remaining vested corpus is delivered to its community sink.
+    /// @notice Emitted when a de-curated target's remaining corpus is delivered to its community sink.
     ///         Distinct from `CapitalDeployed` so the two ways corpus leaves — an ambassador's discretionary
     ///         call and this non-discretionary release — stay separable off-chain despite sharing a counter.
     event CorpusReleased(address indexed payout, uint256 amount);
@@ -264,17 +307,17 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
 
     /// @inheritdoc IAlignmentVault
     /// @dev Native ETH only (`currency` must be the zero Currency); `msg.value == amount`. Wraps to
-    ///      WETH and supplies the stataToken, crediting `benefactor`'s ESCROWED (permanent, vesting)
-    ///      principal. Open + guarded (matches the reference vault): there is no tradable-share surface
-    ///      to inflate, so no caller gate is required. `benefactor` MUST be a contract — the yield-claim
-    ///      path reads `IOwnable(benefactor).owner()`, so crediting a codeless address would strand it.
+    ///      WETH and supplies the stataToken, crediting `benefactor`'s permanent principal. Open +
+    ///      guarded (matches the reference vault): there is no tradable-share surface to inflate, so no
+    ///      caller gate is required. `benefactor` MUST be a contract — the yield-claim path reads
+    ///      `IOwnable(benefactor).owner()`, so crediting a codeless address would strand it.
     function receiveContribution(Currency currency, uint256 amount, address benefactor)
         external
         payable
         override
         nonReentrant
     {
-        if (migrated) revert VaultMigrated(); // no intake into a decommissioned vault (RE-B2)
+        if (migrated) revert VaultMigrated(); // no intake into a decommissioned vault
         if (Currency.unwrap(currency) != address(0)) revert NativeOnly();
         if (amount == 0) revert AmountMustBePositive();
         if (msg.value != amount) revert AmountMismatch();
@@ -289,32 +332,82 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     receive() external payable override { }
 
     function _deposit(address benefactor, uint256 amount) internal {
-        // Harvest-first: crystallize any not-yet-harvested Aave yield BEFORE this deposit grows the escrow
-        // weight / inflates the position. Otherwise the next harvest apportions yield the existing
-        // benefactors earned during their exclusive window at the POST-join weight, letting the new
-        // depositor capture a share of pre-join yield (dilution). Must run before `weth.deposit`/
+        // Harvest-first: crystallize any not-yet-harvested Aave yield BEFORE this deposit grows the
+        // accumulator weight / inflates the position. Otherwise the next harvest apportions yield the
+        // existing benefactors earned during their exclusive window at the POST-join weight, letting the
+        // new depositor capture a share of pre-join yield (dilution). Must run before `weth.deposit`/
         // `stataToken.deposit` so `_pendingYield` reads the pre-deposit position value against the
         // pre-deposit basis. `receiveContribution` (the only caller) is `nonReentrant`, so the external
         // `_redeem` + force-sends here cannot be re-entered.
         _crystallizeYield();
+        // Write an impaired basis down BEFORE pricing the new shares against it, so a newcomer buys in at
+        // what the position actually holds and the loss stays with the shares that held it. Same policy as
+        // `migratePosition` / `releaseCorpusToCommunity` / `execute`: once written down, a later Aave
+        // recovery is split 80/19/1 as yield, not restored as principal.
+        _realizeImpairment();
+
+        // Refuse to mint against a pool that is under the share floor with principal still in it. That is a
+        // round whose close is OWED and has not run: `_closeRoundIfPriceCollapsed` runs after every
+        // withdrawal, so the only way to stand here is a withdrawal that debited the basis and skipped the
+        // close — and there is exactly one: `releaseCorpusToCommunity` on a PARTIAL redeem, which skips it
+        // because the close would need a second redeem the same crunch refuses. (`execute` has no partial
+        // path; a full release closes on the same call. An Aave impairment deeper than 1 − 1e-9 of the
+        // position would write the basis down to the same state, and the same execute or release closes it.)
+        // Pricing this deposit at `amount · shares / principal` in that state mints past the `Σ · 1e9` bound
+        // the floor exists to hold — measured: 1e39, 1e51, 1e63 shares on three crunch-and-deposit cycles,
+        // and the fourth deposit dies in `amount · shares` with an unnamed 0x11 panic, while `principalOf`
+        // for the 1e63-share holder overflows too. A named revert that heals when liquidity returns beats an
+        // overflow that never does.
+        //
+        // This is NOT the bound-at-mint that `_closeRoundIfPriceCollapsed` refuses at (2), though it is the
+        // same shape — a revert on permissionless intake — so the difference is stated here for the next
+        // reader: that bound was refused because an AMBASSADOR could create the reverting state with one
+        // `execute` down to 1 wei, permanently and at will, and the settlement paths' try/catch would let
+        // mints clear while the 19% leg silently stopped arriving. The ambassador cannot create THIS state:
+        // `execute` closes on the same call or reverts whole, and `execute` is frozen on a de-curated target
+        // besides. It takes three things at once — (i) a de-curated target, since the release is the only
+        // partial path; (ii) a crunch that holds Aave's available WETH short of the corpus by more than
+        // `REDEEM_DUST` at each release; (iii) a direct `receiveContribution` caller, since the instances route
+        // the tithe to `protocolTreasury` once the registry reports the target de-curated — and it ends with
+        // the crunch: the next full release closes the round and the deposit after it opens a fresh one at
+        // 1:1. The intake this refuses is a transient one on a de-curated target, and the instances'
+        // `pendingVaultCut` retry lane already treats a transient intake revert as safe; the alternative is
+        // an intake bricked for good.
+        if (totalPrincipal != 0 && totalPrincipal * MIN_SHARE_PRICE_INVERSE < totalPrincipalShares) {
+            revert RoundClosePending();
+        }
 
         weth.deposit{ value: amount }(); // approval is set once in initialize
         stataToken.deposit(amount, address(this));
 
-        if (depositTime[benefactor] == 0) depositTime[benefactor] = block.timestamp;
+        // Re-funding a corpus that was spent to the last wei opens a new share round. The outstanding
+        // shares have no principal behind them (the pool is empty, so `principalOf` is 0 for every one of
+        // them); pricing this deposit against them would hand the new benefactor a sliver of a pool they
+        // fund entirely. Freeze the accumulator for the closing round so the shares it is retiring can
+        // still be settled in full, then start the weight from zero.
+        if (totalPrincipal == 0 && totalPrincipalShares != 0) {
+            _accAtRoundEnd[fundingRound] = accCreatorYieldPerShare;
+            unchecked {
+                ++fundingRound;
+            }
+            totalPrincipalShares = 0;
+            emit FundingRoundOpened(fundingRound, block.timestamp);
+        }
 
-        // RE-B3: each deposit gets its OWN vesting clock. A later top-up starts a fresh 26-week window and
-        // does NOT ride the first deposit's clock (which would let a month-5 top-up vest in ~1 month, or a
-        // post-vest top-up vest instantly, skipping the creator-earning window). Recording the tranche does
-        // not regress any existing tranche's clock: earlier tranches keep their original `depositTs`.
-        _escrowTranches[benefactor].push(DepositTranche({ amount: amount, depositTs: block.timestamp }));
-
-        // Settle the benefactor's accrued creator yield at their OLD escrow weight, then grow the
-        // weight and re-baseline `rewardDebt` so the new principal earns only future yield.
+        // Settle the benefactor's accrued creator yield at their OLD weight (and retire it if it belongs
+        // to a closed round), then mint the new weight and re-baseline `rewardDebt` so the new principal
+        // earns only future yield.
         _settle(benefactor);
-        escrowedPrincipal[benefactor] += amount;
-        totalEscrowedPrincipal += amount;
-        rewardDebt[benefactor] = (escrowedPrincipal[benefactor] * accCreatorYieldPerPrincipal) / ACC_PRECISION;
+
+        // Price the new shares off the pool: `amount · shares / principal`. On an untouched pool that is
+        // 1:1; after a withdrawal the pool is worth less per share, so the same ETH buys more shares —
+        // which is what keeps a later benefactor's weight proportional to what they actually put in.
+        uint256 newShares = totalPrincipalShares == 0 ? amount : (amount * totalPrincipalShares) / totalPrincipal;
+
+        principalShares[benefactor] += newShares;
+        totalPrincipalShares += newShares;
+        totalPrincipal += amount;
+        rewardDebt[benefactor] = (principalShares[benefactor] * accCreatorYieldPerShare) / ACC_PRECISION;
 
         _totalPrincipalCommittedAllTime += amount;
 
@@ -323,172 +416,42 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     }
 
     // ┌─────────────────────────┐
-    // │   Vesting               │
-    // └─────────────────────────┘
-
-    /// @notice Realize whichever of a benefactor's deposits have reached their OWN
-    ///         `depositTs + VEST_DURATION`; deposits still inside their window keep their clock and stay
-    ///         escrowed, so a call that vests something is not a call that vested everything. Permissionless
-    ///         (anyone may poke it — it moves no value to the caller). Settles, then moves the MATURED
-    ///         amount from the escrowed class to the target's deployable class and re-baselines the rest:
-    ///         creator-yield accrual stops on what vested and continues on what is still escrowed.
-    ///         Mechanic (b): the principal STAYS in the Aave position (no redeem) and
-    ///         from here earns 0 creator / 99 target / 1 protocol until the target deploys it.
-    ///         Walks the benefactor's whole tranche array in one call. A benefactor whose array has grown
-    ///         large enough that a full walk no longer fits in a block uses `vest(address,uint256)` instead.
-    function vest(address benefactor) external nonReentrant {
-        _vest(benefactor, type(uint256).max);
-    }
-
-    /// @notice Paginated `vest`: same accounting, but examines at most `maxTranches` of the benefactor's
-    ///         escrow tranches per call. `_escrowTranches[benefactor]` is appended to by every deposit and
-    ///         `receiveContribution` is permissionless, so any address can lengthen any benefactor's array;
-    ///         a bound that the caller chooses keeps the vest reachable at any array length, and repeated
-    ///         calls vest exactly the total that one unbounded call would have.
-    /// @param maxTranches Number of tranches to examine in this call. Must be non-zero. A value at or above
-    ///        the benefactor's live tranche count performs a full sweep, identical to `vest(address)`.
-    /// @dev `NotVested` semantics: a FULL sweep that finds nothing matured reverts `NotVested`, as before —
-    ///      it has seen every tranche, so "nothing matured" is a statement about the benefactor. A BOUNDED
-    ///      page that finds nothing matured SUCCEEDS and moves the resume cursor: the page has only seen a
-    ///      window, and reverting would roll the cursor back and leave a caller unable to page forward past
-    ///      unmatured entries. Such a call moves no principal and emits no `PrincipalVested`.
-    function vest(address benefactor, uint256 maxTranches) external nonReentrant {
-        if (maxTranches == 0) revert AmountMustBePositive(); // a walk of zero tranches cannot make progress
-        _vest(benefactor, maxTranches);
-    }
-
-    function _vest(address benefactor, uint256 maxTranches) internal {
-        if (migrated) revert VaultMigrated(); // escrow is decommissioned post-migrate (RE-B2)
-        if (escrowedPrincipal[benefactor] == 0) revert NoPrincipal();
-
-        // Harvest-first: crystallize any not-yet-harvested Aave yield BEFORE this benefactor's principal is
-        // reclassified escrowed→vested. Otherwise the yield that accrued while the principal was escrowed —
-        // which the split law routes 80 creator / 19 target / 1 protocol — would be apportioned by the NEXT
-        // harvest at the post-vest weight (0 creator / 99 target / 1 protocol), stripping the creator leg to
-        // the target sink and diluting every still-escrowed benefactor. Mirrors `migratePosition`'s
-        // guards→crystallize→mutate order; inlined (not `this.harvest()`) because both are `nonReentrant`.
-        // Under pagination this runs once per page; it is idempotent at a given position value (the second
-        // call reads zero pending yield and returns), so the ordering invariant holds on every page.
-        _crystallizeYield();
-
-        // RE-B3: vest only the tranches whose OWN clock has elapsed. Each deposit vests independently at
-        // `depositTs + VEST_DURATION`; a not-yet-matured top-up stays escrowed with its clock intact. Matured
-        // tranches are removed (swap-and-pop — order is irrelevant, only the maturity of each amount matters).
-        DepositTranche[] storage tranches = _escrowTranches[benefactor];
-        uint256 matured;
-        bool fullSweep = maxTranches >= tranches.length;
-
-        if (fullSweep) {
-            uint256 i;
-            while (i < tranches.length) {
-                if (block.timestamp >= tranches[i].depositTs + VEST_DURATION) {
-                    matured += tranches[i].amount;
-                    tranches[i] = tranches[tranches.length - 1];
-                    tranches.pop();
-                } else {
-                    i++;
-                }
-            }
-            // The sweep saw every tranche, so any stored resume position is spent.
-            if (_vestCursor[benefactor] != 0) _vestCursor[benefactor] = 0;
-            if (matured == 0) revert NotVested();
-        } else {
-            // Bounded walk. It resumes at the stored cursor and wraps at the end of the array, so successive
-            // pages advance around the whole array instead of re-examining the same prefix: unmatured entries
-            // stay where they are, and a walk that always started at index 0 could never see past the first
-            // `maxTranches` of them. A pop moves the LAST entry into the current slot; that entry sits ahead
-            // of the cursor and is examined on the next step, so nothing is skipped and nothing is examined
-            // twice within one circuit — which is what makes N bounded calls total exactly what one
-            // unbounded call would have vested.
-            uint256 c = _vestCursor[benefactor];
-            for (uint256 s; s < maxTranches; ++s) {
-                uint256 len = tranches.length;
-                if (len == 0) {
-                    c = 0;
-                    break;
-                }
-                if (c >= len) c = 0;
-                if (block.timestamp >= tranches[c].depositTs + VEST_DURATION) {
-                    matured += tranches[c].amount;
-                    tranches[c] = tranches[len - 1];
-                    tranches.pop();
-                } else {
-                    unchecked {
-                        ++c;
-                    }
-                }
-            }
-            if (c >= tranches.length) c = 0;
-            _vestCursor[benefactor] = c;
-            if (matured == 0) return; // page held no matured tranche; the cursor moved, so paging progresses
-        }
-
-        // Settle at the current (full) escrow weight — the creator purse is already-earned ETH, untouched
-        // here — then shrink the accumulator weight by the matured amount and re-baseline `rewardDebt` so the
-        // still-escrowed remainder keeps accruing and the vested portion accrues nothing from here.
-        _settle(benefactor);
-        escrowedPrincipal[benefactor] -= matured;
-        rewardDebt[benefactor] = (escrowedPrincipal[benefactor] * accCreatorYieldPerPrincipal) / ACC_PRECISION;
-        totalEscrowedPrincipal -= matured;
-
-        vestedPrincipal[benefactor] += matured;
-        totalVestedDeployable += matured;
-        _totalVested += matured;
-
-        emit PrincipalVested(benefactor, matured, block.timestamp);
-    }
-
-    // ┌─────────────────────────┐
     // │   Yield (harvest)       │
     // └─────────────────────────┘
 
-    /// @notice Realize the compounded Aave yield and split it per class (spec 2b §1). Permissionless —
-    ///         it only moves the fixed split to fixed destinations.
-    ///         escrowed class → 80 creator / 19 target / 1 protocol; vested class → 0 / 99 / 1.
+    /// @notice Realize the compounded Aave yield and split it 80 creator / 19 target / 1 protocol.
+    ///         Permissionless — it only moves the fixed split to fixed destinations.
     function harvest() external nonReentrant {
         _crystallizeYield();
     }
 
-    /// @dev The harvest body, factored out so an internal caller (`migratePosition`) can crystallize pending
-    ///      yield WITHOUT the external re-entry that `this.harvest()` would incur — both `harvest` and
-    ///      `migratePosition` are `nonReentrant`, so a self-external call would trip the guard and revert.
-    ///      This books the escrow class's not-yet-harvested yield into the 80/19/1 legs BEFORE a migrate
-    ///      redeems escrow principal, so that yield is split (not swept to the recovery address). Only the
-    ///      `nonReentrant`-guarded external entrypoints call this; it performs external ETH sends itself and
-    ///      MUST NOT be invoked from an unguarded path.
+    /// @dev The harvest body, factored out so an internal caller can crystallize pending yield WITHOUT the
+    ///      external re-entry that `this.harvest()` would incur — the entrypoints are all `nonReentrant`,
+    ///      so a self-external call would trip the guard and revert. This books not-yet-harvested yield
+    ///      into the 80/19/1 legs BEFORE any call that moves principal, so that yield is split (not swept
+    ///      out with the principal). Only the `nonReentrant`-guarded external entrypoints call this; it
+    ///      performs external ETH sends itself and MUST NOT be invoked from an unguarded path.
     function _crystallizeYield() internal {
         uint256 y = _pendingYield();
         if (y == 0) return;
 
-        uint256 totalInAave = totalEscrowedPrincipal + totalVestedDeployable;
         // `y > 0` implies position value > principal basis, which requires basis > 0 (value is 0 with no
         // shares). Guard defensively anyway.
-        if (totalInAave == 0) return;
+        if (totalPrincipal == 0) return;
 
         uint256 got = _redeem(y);
         if (got == 0) return;
 
-        // Apportion realized yield across the two principal classes (remainder-safe).
-        uint256 escrowedYield = (got * totalEscrowedPrincipal) / totalInAave;
-        uint256 vestedYield = got - escrowedYield;
+        // The flat split, on whatever principal is in the position right now (remainder-safe: the creator
+        // leg absorbs the rounding dust).
+        uint256 protocolLeg = (got * PROTOCOL_BPS) / BPS;
+        uint256 targetLeg = (got * TARGET_BPS) / BPS;
+        uint256 creatorLeg = got - protocolLeg - targetLeg;
 
-        // Escrowed class → 80 creator / 19 target / 1 protocol.
-        uint256 protoE = (escrowedYield * PROTOCOL_BPS) / BPS;
-        uint256 targetE = (escrowedYield * TARGET_BPS_ESCROW) / BPS;
-        uint256 creatorLeg = escrowedYield - protoE - targetE;
-
-        // Vested class → 0 creator / 99 target / 1 protocol (creator exited; protocol keeps its 1%).
-        uint256 protoV = (vestedYield * PROTOCOL_BPS) / BPS;
-        uint256 targetV = vestedYield - protoV;
-
-        uint256 protocolLeg = protoE + protoV;
-        uint256 targetLeg = targetE + targetV;
-
-        // Creator leg → per-benefactor accumulator (weighted by escrowed principal). If there is no
-        // escrowed weight the escrowed class produced no creator leg (escrowedYield == 0), so this is a
-        // no-op; the guard protects the division.
-        if (creatorLeg > 0 && totalEscrowedPrincipal > 0) {
-            accCreatorYieldPerPrincipal += (creatorLeg * ACC_PRECISION) / totalEscrowedPrincipal;
+        // Creator leg → per-benefactor accumulator. There is principal in the position (checked above), so
+        // there is weight behind it; the guard protects the division.
+        if (creatorLeg > 0 && totalPrincipalShares > 0) {
+            accCreatorYieldPerShare += (creatorLeg * ACC_PRECISION) / totalPrincipalShares;
             _totalYieldToCreators += creatorLeg;
         }
 
@@ -500,8 +463,8 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
             address payout = _targetSink();
             if (payout == address(0)) {
                 // No sink wired yet: hold the target leg in the vault instead of reverting. Crystallize is
-                // the first statement of deposit, vest, harvest and execute, so a revert here would close
-                // all four; accruing keeps them open and `flushTargetFees()` delivers the leg once a sink
+                // the first statement of deposit, harvest and execute, so a revert here would close all
+                // three; accruing keeps them open and `flushTargetFees()` delivers the leg once a sink
                 // exists. No value is dropped.
                 accumulatedTargetFees += targetLeg;
                 emit TargetFeesAccrued(targetLeg, accumulatedTargetFees);
@@ -567,6 +530,30 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         return amount;
     }
 
+    /// @notice Deliver the corpus residue of closed rounds (`roundResidue`) to the CURATED target's sink.
+    /// @dev    The sibling of `flushTargetFees`, with the same guards — permissionless, destination always
+    ///         `_targetSink()`, `nonReentrant`, counter zeroed before the send (CEI), force-send so a sink
+    ///         that rejects ETH cannot make the residue undeliverable — plus one it does not share: it
+    ///         reverts `TargetDecurated` once the target is de-curated. That is the whole point of keeping
+    ///         the residue out of `accumulatedTargetFees`: after de-curation this corpus is the community's,
+    ///         and `releaseCorpusToCommunity` is its only exit. While curated, delivering it here hands the
+    ///         ambassador nothing new — an `execute` of the same value to the same sink was already theirs.
+    /// @return amount The wei delivered (0 when nothing was accrued).
+    function flushRoundResidue() external nonReentrant returns (uint256 amount) {
+        if (!masterRegistry.alignmentRegistry().isAlignmentTargetActive(targetId)) revert TargetDecurated();
+        address payout = _targetSink();
+        if (payout == address(0)) revert CommunityPayoutNotSet();
+
+        amount = roundResidue;
+        if (amount == 0) return 0;
+        roundResidue = 0; // effect before interaction (CEI)
+        _totalDeployedByTarget += amount; // booked at departure, like every other booking on this counter
+
+        SafeTransferLib.forceSafeTransferETH(payout, amount);
+        emit RoundResidueFlushed(payout, amount);
+        return amount;
+    }
+
     // ┌─────────────────────────┐
     // │   Internal helpers      │
     // └─────────────────────────┘
@@ -592,15 +579,32 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         return masterRegistry.alignmentRegistry().getCommunityPayout(targetId);
     }
 
-    /// @dev Move a benefactor's accrued-but-unsettled creator yield into their purse and re-baseline
-    ///      their `rewardDebt` to the current accumulator at their CURRENT escrow weight.
+    /// @dev The accumulator value a benefactor's claim is measured against: the live one while their shares
+    ///      belong to the open round, otherwise the value frozen when their round closed.
+    function _accFor(address benefactor) internal view returns (uint256) {
+        uint256 round = fundingRoundOf[benefactor];
+        return round == fundingRound ? accCreatorYieldPerShare : _accAtRoundEnd[round];
+    }
+
+    /// @dev Move a benefactor's accrued-but-unsettled creator yield into their purse and re-baseline their
+    ///      `rewardDebt` to the accumulator at their CURRENT weight. Shares left over from a closed round
+    ///      are retired here — after they have been settled in full against that round's frozen
+    ///      accumulator, so retiring them pays out everything they earned and forfeits nothing.
     function _settle(address benefactor) internal {
-        uint256 accumulated = (escrowedPrincipal[benefactor] * accCreatorYieldPerPrincipal) / ACC_PRECISION;
+        uint256 round = fundingRoundOf[benefactor];
+        uint256 acc = round == fundingRound ? accCreatorYieldPerShare : _accAtRoundEnd[round];
+        uint256 accumulated = (principalShares[benefactor] * acc) / ACC_PRECISION;
         uint256 debt = rewardDebt[benefactor];
         if (accumulated > debt) {
             yieldPurse[benefactor] += accumulated - debt;
         }
-        rewardDebt[benefactor] = accumulated;
+        if (round == fundingRound) {
+            rewardDebt[benefactor] = accumulated;
+        } else {
+            principalShares[benefactor] = 0;
+            rewardDebt[benefactor] = 0;
+            fundingRoundOf[benefactor] = fundingRound;
+        }
     }
 
     /// @dev WETH value the vault could redeem from its stataToken position right now.
@@ -608,11 +612,10 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         return stataToken.convertToAssets(stataToken.balanceOf(address(this)));
     }
 
-    /// @dev Yield = position value above the tracked principal basis (both classes), guarded against
-    ///      rounding underflow.
+    /// @dev Yield = position value above the tracked principal basis, guarded against rounding underflow.
     function _pendingYield() internal view returns (uint256) {
         uint256 v = _stataValue();
-        uint256 basis = totalEscrowedPrincipal + totalVestedDeployable;
+        uint256 basis = totalPrincipal;
         return v > basis ? v - basis : 0;
     }
 
@@ -630,6 +633,86 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         return amt;
     }
 
+    /// @dev Close the round once a withdrawal has left the pool worth less than
+    ///      `1 / MIN_SHARE_PRICE_INVERSE` of its share count — see that constant. A close is a WITHDRAWAL:
+    ///      the residual principal is redeemed out of the Aave position into the vault's own native balance
+    ///      and booked in `roundResidue`, and only then is the basis zeroed. That keeps the one invariant
+    ///      this function exists to hold: `totalPrincipal == 0` while ETH is still in the position is
+    ///      unreachable (up to `REDEEM_DUST` of ERC-4626 rounding). Zeroing the basis with the ETH still
+    ///      in Aave would leave the residue as position-value-above-basis, which the next harvest would
+    ///      split as yield — 80% of it to whoever opens the next round — and at a floor-priced pool that
+    ///      residue is the whole of the last deposit, not a sliver.
+    ///
+    ///      Why the residue is redeemed rather than the deposit bounded (REFUSED on the record, so it is
+    ///      not rediscovered as the clean idea):
+    ///        (1) any bound at mint is a new revert on a permissionless intake, and `receiveContribution`
+    ///            is the settlement leg of every mint on the platform;
+    ///        (2) REFUSING a deposit that would mint past `Σ · 1e9` shares lets one ambassador `execute`
+    ///            down to 1 wei and starve intake for good — and the settlement paths wrap the vault cut in
+    ///            try/catch, so mints keep clearing while the 19% leg silently stops arriving;
+    ///        (3) CAPPING the mint instead under-weights the newcomer, so shares whose ETH was physically
+    ///            withdrawn take a slice of the new deposit every cycle: ghost basis made routine, growing
+    ///            with each drain-and-refund.
+    ///
+    ///      Where this sits in checks-effects-interactions: it is called from `execute` and
+    ///      `releaseCorpusToCommunity` AFTER the withdrawal's own redeem and basis debit, and BEFORE the
+    ///      arbitrary external call (`execute`) / the force-send (`release`). The only external calls it
+    ///      makes are the redeem against the TRUSTED stataToken / WETH (`receive()` takes the unwrap
+    ///      inertly); no ETH leaves the vault here and no untrusted address is called, so a hostile or
+    ///      absent sink is never in this path. Delivery is the fee-flush shape — `flushRoundResidue`
+    ///      while curated, `releaseCorpusToCommunity` after — each `nonReentrant`, counter-zeroed-before-
+    ///      send, force-safe. The share state is untouched: the old shares stay outstanding and are
+    ///      retired lazily against `_accAtRoundEnd` when the next deposit opens a round, exactly as a
+    ///      drain-to-zero closes one; the accumulator is frozen at that deposit, not here, and every
+    ///      harvest that ran on these shares was crystallized before the closing withdrawal debited them.
+    ///
+    ///      A redeem short by more than `REDEEM_DUST` is an Aave liquidity event and reverts, the same
+    ///      rule the caller's own redeem is under — the close is part of that withdrawal and does not
+    ///      partially settle either.
+    function _closeRoundIfPriceCollapsed() internal {
+        uint256 shares = totalPrincipalShares;
+        if (shares == 0) return;
+        uint256 basis = totalPrincipal;
+        if (basis == 0) return;
+        if (basis * MIN_SHARE_PRICE_INVERSE >= shares) return;
+
+        // ── Interaction with the trusted position only: the residue leaves Aave. ──
+        uint256 got = _redeem(basis);
+        if (got + REDEEM_DUST < basis) revert RedeemShortfall();
+
+        // ── Effects: it is now vault-held corpus, and the basis behind the shares is gone. ──
+        // NOT booked in `_totalDeployedByTarget` here. Both existing bookings (`execute`, release) are made
+        // against a DEPARTURE from the vault, with `CapitalDeployed` / `CorpusReleased` as the event that tells
+        // the doors apart; the residue has left the position but not the vault, and which door it leaves by
+        // is not yet decided. `flushRoundResidue` and the release sweep book it when it actually departs.
+        roundResidue += got;
+        totalPrincipal = 0;
+        emit RoundResidueAccrued(fundingRound, got, roundResidue);
+    }
+
+    /// @dev Write the principal basis down to what the position can actually realize, if it is impaired.
+    ///      Leaving a nominal basis above the position's value lets `deployableCorpus()` promise ETH the
+    ///      redeem cannot deliver, so the withdraw passes its bound and then hits `RedeemShortfall`,
+    ///      stranding the residual permanently. One bucket, so the write-down lands on every benefactor's
+    ///      share of it at once — that IS the socialization, there is nothing to apportion between classes.
+    ///
+    ///      Runs on every path that reads or moves the basis — `migratePosition`, `releaseCorpusToCommunity`,
+    ///      `execute` and `_deposit` — so the basis never outlives the ETH behind it. Leaving `execute` out
+    ///      let an ambassador drain an impaired position to nothing and leave the lost half standing as a
+    ///      GHOST BASIS: the emptied shares kept their weight, the next depositor bought in against a basis
+    ///      the position did not hold, and harvest was dead until the new money had doubled. The policy is
+    ///      the one migrate and release already applied and is stated, not argued: once written down, a
+    ///      later Aave recovery is split 80/19/1 as YIELD, not restored as principal.
+    function _realizeImpairment() internal {
+        uint256 basis = totalPrincipal;
+        if (basis == 0) return;
+        uint256 value = _stataValue();
+        if (value >= basis) return;
+
+        emit ImpairmentRealized(((basis - value) * BPS) / basis, block.timestamp);
+        totalPrincipal = value;
+    }
+
     // ┌─────────────────────────┐
     // │   Admin                 │
     // └─────────────────────────┘
@@ -638,63 +721,45 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     // registry's answer alone (see `_targetSink`); the owner pins it there once and the address receiving
     // it rotates it thereafter, so this contract holds no capability to point a community's money anywhere.
 
-    /// @notice Emergency (owner = factory): escrow-only Aave-reserve-deprecation migration. Redeems the
-    ///         ESCROWED tranche's pro-rata share of the position to native ETH and force-sends it to `to`
-    ///         (the protocol's recovery / new-venue address), PRESERVING per-benefactor principal
-    ///         accounting on-chain (no zero-and-off-chain-reconcile). The vested tranche is the target's
-    ///         corpus and is moved by the target's own deployment path, not here.
-    /// @dev    Impairment socialization: the escrowed share is `value * escrowed / (escrowed + vested)`,
-    ///         so a position worth less than principal is redeemed pro-rata rather than first-come. A
-    ///         shortfall beyond `REDEEM_DUST` is an Aave liquidity event → revert so the owner can retry.
-    ///         Sends to an explicit `to` (the factory owner has no `receive()`).
+    /// @notice Emergency (owner = factory): Aave-reserve-deprecation migration. Redeems the position's
+    ///         principal to native ETH and force-sends it to `to` (the protocol's recovery / new-venue
+    ///         address), PRESERVING per-benefactor accounting on-chain (no zero-and-off-chain-reconcile).
+    /// @dev    Impairment socialization: the basis is written down to the position's realizable value
+    ///         first, so a position worth less than principal is redeemed pro-rata across every benefactor
+    ///         rather than first-come. A shortfall beyond `REDEEM_DUST` is an Aave liquidity event →
+    ///         revert so the owner can retry. Sends to an explicit `to` (the factory owner has no
+    ///         `receive()`).
+    ///
+    ///         `roundResidue` is NOT swept here. It is corpus already out of the Aave position, so the
+    ///         reserve deprecation this call answers does not touch it, and it keeps both of its doors after
+    ///         a migrate: `flushRoundResidue` while the target is curated, `releaseCorpusToCommunity` after.
+    ///         Nor does the `NoPrincipal` check below strand it: with the basis at 0 and a residue still
+    ///         held, this call reverts, and the residue is untouched by that revert — both doors reach it
+    ///         exactly as before, since neither reads `totalPrincipal` or `migrated`. Widening this owner
+    ///         call to reach it is a question of owner power, left as built.
     function migratePosition(address to) external onlyOwner nonReentrant {
         if (to == address(0)) revert InvalidAddress();
-        uint256 escrowed = totalEscrowedPrincipal;
-        if (escrowed == 0) revert NoPrincipal();
+        if (totalPrincipal == 0) revert NoPrincipal();
 
-        // Harvest-first: crystallize any not-yet-harvested Aave yield into the 80/19/1 (escrowed) and
-        // 0/99/1 (vested) legs BEFORE redeeming escrow principal. Otherwise the escrow class's pending yield
-        // — which the split law routes 80% creator / 19% target / 1% protocol — would be embedded in the
-        // pro-rata `escrowValue` below (computed off the yield-inflated position value) and force-sent to the
-        // recovery address `to`, misdirecting it out of the accumulator legs. After this call the position
-        // value reflects the principal basis, so `escrowValue` is principal-only. Inlined (not `this.harvest`)
+        // Harvest-first: crystallize any not-yet-harvested Aave yield into the 80/19/1 legs BEFORE
+        // redeeming principal. Otherwise the pending yield — which the split law routes 80% creator /
+        // 19% target / 1% protocol — would be redeemed with the principal and force-sent to the recovery
+        // address `to`, misdirecting it out of the accumulator legs. Inlined (not `this.harvest()`)
         // because both functions are `nonReentrant`.
         _crystallizeYield();
+        _realizeImpairment();
 
-        uint256 vested = totalVestedDeployable;
-        uint256 basis = escrowed + vested;
-        uint256 value = _stataValue();
+        uint256 amount = totalPrincipal;
+        uint256 got = _redeem(amount);
+        if (got + REDEEM_DUST < amount) revert RedeemShortfall();
 
-        // Escrowed tranche's pro-rata claim on the (possibly impaired) position value.
-        uint256 escrowValue = (value * escrowed) / basis;
-        if (value < basis) {
-            uint256 shortfallBps = ((basis - value) * BPS) / basis;
-            emit ImpairmentRealized(shortfallBps, block.timestamp);
-
-            // Socialize the impairment onto the vested tranche too. On an impaired position the vested tranche
-            // now backs only `value·vested/basis` realizable WETH, but `deployableCorpus()` still reports the
-            // full `vested`; a later `execute(vested)` would then hit `RedeemShortfall` and strand the residual
-            // permanently. Scale `totalVestedDeployable` down to the vested tranche's actual realizable value so
-            // `deployableCorpus()` never exceeds redeemable WETH. `min(...)` keeps it a no-op on a healthy
-            // position (this branch only runs when `value < basis`, but the floor keeps it monotonic).
-            uint256 realizableVested = (value * vested) / basis;
-            if (realizableVested < totalVestedDeployable) {
-                totalVestedDeployable = realizableVested;
-            }
-        }
-
-        uint256 got = _redeem(escrowValue);
-        if (got + REDEEM_DUST < escrowValue) revert RedeemShortfall();
-
-        // RE-B2: zero the escrow BASIS and decommission the vault. The escrow tranche has left the Aave
-        // position (relocated to `to`/the new venue), so leaving `totalEscrowedPrincipal` as a live basis
-        // would (a) make `_pendingYield` see basis > position value and return ~0 forever (harvest bricks),
-        // and (b) let a later `vest()` grow `totalVestedDeployable` against principal that is no longer
-        // here, desyncing `execute` into `RedeemShortfall`. Zeroing the basis + closing intake/vesting via
-        // the `migrated` flag keeps harvest/vest/execute self-consistent. Per-benefactor escrow entries are
-        // frozen-inert (a mapping cannot be iterated to zero each); the on-chain ledger + the `Migrated`
-        // event remain the record for reconstructing each benefactor's stake at the new venue.
-        totalEscrowedPrincipal = 0;
+        // Zero the BASIS and decommission the vault. The principal has left the Aave position (relocated
+        // to `to`/the new venue), so leaving `totalPrincipal` as a live basis would make `_pendingYield`
+        // see basis > position value and return ~0 forever (harvest bricks). Zeroing the basis + closing
+        // intake via the `migrated` flag keeps harvest/execute self-consistent. Per-benefactor share
+        // entries are frozen-inert (a mapping cannot be iterated to zero each); the on-chain ledger + the
+        // `Migrated` event remain the record for reconstructing each benefactor's stake at the new venue.
+        totalPrincipal = 0;
         migrated = true;
 
         if (got > 0) SafeTransferLib.forceSafeTransferETH(to, got);
@@ -702,62 +767,59 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     }
 
     // ┌─────────────────────────────────────────┐
-    // │  Target-sovereign deployment (spec 2c)  │
+    // │  Target-sovereign deployment            │
     // └─────────────────────────────────────────┘
 
-    /// @notice The ETH-equivalent of the deployable (vested) corpus an ambassador may `execute` against.
-    /// @dev    The base figure is the VESTED principal tranche (`totalVestedDeployable`), tracked 1:1 in
-    ///         WETH (== ETH). On the UPSIDE it is deliberately NOT the vested tranche's proportional share
-    ///         of the live position value: any position value above the principal basis is UNHARVESTED
-    ///         yield, which belongs to the yield legs (99 target / 1 protocol on the vested class, realized
-    ///         by `harvest()`), NOT to the deployable principal corpus. Deployment is principal-corpus only
-    ///         (spec 2c §2), so the bound is the principal, keeping the protocol's 1% yield leg out of reach
-    ///         of `execute`.
+    /// @notice The ETH-equivalent of the corpus an ambassador may `execute` against: the whole principal
+    ///         balance.
+    /// @dev    The base figure is the principal basis (`totalPrincipal`), tracked 1:1 in WETH (== ETH). On
+    ///         the UPSIDE it is deliberately NOT the live position value: any value above the principal
+    ///         basis is UNHARVESTED yield, which belongs to the yield legs (80/19/1, realized by
+    ///         `harvest()`), NOT to the deployable principal corpus. Deployment is principal-corpus only,
+    ///         so the bound is the principal, keeping the protocol's 1% yield leg out of reach of
+    ///         `execute`.
     ///
     ///         On the DOWNSIDE the nominal basis is not fully redeemable, so the figure is clamped to the
-    ///         vested tranche's pro-rata claim on the live position value:
-    ///
-    ///             min(totalVestedDeployable, value * totalVestedDeployable / basis)
-    ///
-    ///         with `value = _stataValue()` and `basis = totalEscrowedPrincipal + totalVestedDeployable`
-    ///         (`basis == 0` → 0). Reporting the nominal basis while the position is impaired lets
+    ///         live position value. Reporting the nominal basis while the position is impaired lets
     ///         `execute(nominal)` pass the `ExceedsDeployableCorpus` bound and then hit `RedeemShortfall`,
-    ///         stranding the residual — the failure `migratePosition`'s write-down describes. The `min(...)`
-    ///         floor keeps the clamp a strict no-op on a healthy position (`value >= basis` makes the second
-    ///         term >= the first), so it moves no loss between the escrowed and vested classes: this is an
-    ///         ACCOUNTING bound on what the position can actually redeem, not impairment socialization (the
-    ///         money model reserves that for escrowed principal on the `migratePosition` path).
+    ///         stranding the residual — the failure `_realizeImpairment`'s write-down describes. The clamp
+    ///         is a strict no-op on a healthy position, so it moves no value between benefactors: this is
+    ///         an ACCOUNTING bound on what the position can actually redeem.
     ///
     ///         Being a view it holds no state to re-apply, so it is idempotent by construction: repeated
     ///         reads — and any number of intervening `harvest()` calls — return the same answer at an
-    ///         unchanged position value. `execute` calls `_crystallizeYield()` before reading this, so the
-    ///         clamp is computed against a freshly-harvested position value; that ordering is load-bearing.
+    ///         unchanged position value.
     function deployableCorpus() public view returns (uint256) {
-        uint256 vested = totalVestedDeployable;
-        uint256 basis = totalEscrowedPrincipal + vested;
+        uint256 basis = totalPrincipal;
         if (basis == 0) return 0;
-
-        uint256 realizable = (_stataValue() * vested) / basis;
-        return realizable < vested ? realizable : vested;
+        uint256 value = _stataValue();
+        return value < basis ? value : basis;
     }
 
-    /// @notice Target-sovereign deployment of vested capital. The alignment target — acting through any of
+    /// @notice Target-sovereign deployment of corpus capital. The alignment target — acting through any of
     ///         its ambassadors — may deploy up to `deployableCorpus()` with an ARBITRARY external call:
     ///         any `to`, any `value` (≤ corpus), any `data`. No whitelist, no creator/owner approval, no
-    ///         forbidden actions (withdraw-to-EOA is `execute(eoa, amount, "")`). The tithe is freely given;
-    ///         the target is sovereign over what has vested — for as long as the protocol curates it. Two
-    ///         backstops against a rogue ambassador, both on the alignment registry and both revoking deploy
-    ///         rights over capital not yet moved: `removeAmbassador`, which unseats one address, and
-    ///         `deactivateAlignmentTarget`, which freezes every seat at once and routes the remaining corpus
-    ///         to `releaseCorpusToCommunity` instead. Escrowed (unvested) principal is UNTOUCHABLE here —
-    ///         the bound is the vested corpus only.
+    ///         forbidden actions (withdraw-to-EOA is `execute(eoa, amount, "")`). The tithe is freely
+    ///         given; the target is sovereign over it — for as long as the protocol curates it.
+    ///
+    ///         THE LIMIT OF THE BACKSTOPS, stated plainly because it changed. Two registry-side controls
+    ///         answer a rogue ambassador: `removeAmbassador`, which unseats one address, and
+    ///         `deactivateAlignmentTarget`, which freezes every seat at once and routes the remaining
+    ///         corpus to `releaseCorpusToCommunity` instead. Both bound only what has NOT YET LEFT this
+    ///         vault, and after the collapse to one principal balance that set can be EMPTY one block
+    ///         after a deposit lands: every wei is deployable the moment it arrives. Under the 26-week
+    ///         calendar these controls carried an implicit response window — principal younger than the
+    ///         clock could not be taken while the owner reacted — and that window is gone with it. What
+    ///         remains is not a guarantee of time; it is the ability to stop the NEXT withdrawal, and
+    ///         nothing about the one already made. So the protection this vault actually offers a
+    ///         benefactor is the appointment itself: who is seated, and whether the target is still
+    ///         curated, decided before the money is exposed rather than after.
     /// @dev    Auth resolves LIVE against the canonical alignment registry
     ///         (`masterRegistry.alignmentRegistry().isAmbassador(targetId, msg.sender)`) so a platform
     ///         re-point of the alignment registry is honored and there is no stale-cache risk. Strict
     ///         checks-effects-interactions + `nonReentrant`: the corpus is decremented and the redeem is
     ///         settled BEFORE the arbitrary external call, so a malicious `to` re-entering `execute` cannot
-    ///         double-spend. Redeems `value` from the Aave vested tranche; an Aave shortfall reverts (no
-    ///         partial deploy).
+    ///         double-spend. An Aave shortfall reverts (no partial deploy).
     /// @param  to    Target of the deployment call (any address).
     /// @param  value ETH to deploy (must be ≤ `deployableCorpus()`).
     /// @param  data  Calldata for the deployment call (empty for a plain transfer).
@@ -767,16 +829,19 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         nonReentrant
         returns (bytes memory result)
     {
-        // Harvest-first: crystallize any not-yet-harvested Aave yield BEFORE this deploy redeems vested
-        // principal / shrinks the corpus. Two defects this closes: (1) split-misattribution — an ambassador
-        // timing `execute` before a harvest would reweight the vested class's yield into the escrowed
-        // 80/19/1 split (or vice-versa) at the post-deploy weight; crystallizing first fixes the apportion
-        // at the pre-deploy weights. (2) permanent strand — draining the LAST principal (`totalInAave→0`)
-        // would trap all pending yield behind `_crystallizeYield`'s `if (totalInAave == 0) return;` guard
-        // with no reopen once `migrated`; crystallizing while `totalInAave > 0` still holds realizes it
-        // first. Runs before the auth read; its force-sends precede the arbitrary external call, so CEI
-        // holds. Inlined (not `this.harvest()`) because both are `nonReentrant`.
+        // Harvest-first: crystallize any not-yet-harvested Aave yield BEFORE this deploy redeems principal
+        // / shrinks the corpus. Two defects this closes: (1) the yield earned while the principal was
+        // still in the position would otherwise be apportioned at the post-deploy weight, moving it
+        // between benefactors; (2) permanent strand — draining the LAST principal (`totalPrincipal → 0`)
+        // would trap all pending yield behind `_crystallizeYield`'s `totalPrincipal == 0` guard;
+        // crystallizing while principal remains realizes it first. Runs before the auth read; its
+        // force-sends precede the arbitrary external call, so CEI holds. Inlined (not `this.harvest()`)
+        // because both are `nonReentrant`.
         _crystallizeYield();
+        // Write an impaired basis down BEFORE the deploy debits it, on the same law as `migratePosition`
+        // and `releaseCorpusToCommunity`. Without this a deploy that empties an impaired position leaves the
+        // lost half as a ghost basis that keeps earning on the next depositor's money.
+        _realizeImpairment();
 
         IAlignmentRegistry ar = masterRegistry.alignmentRegistry();
         if (!ar.isAmbassador(targetId, msg.sender)) revert NotAuthorized();
@@ -788,38 +853,56 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         // is no longer spendable by arbitrary call; `releaseCorpusToCommunity()` is its exit instead.
         if (!ar.isAlignmentTargetActive(targetId)) revert TargetDecurated();
 
-        // RE-B1: the `value` bound alone does NOT bind the corpus — an ambassador could pass `value = 0`
+        // The `value` bound alone does NOT bind the position — an ambassador could pass `value = 0`
         // (trivially ≤ corpus) and route through `data` to make the vault call `transfer`/`withdraw`/
-        // `approve` on its OWN principal-bearing tokens, draining ESCROWED (permanent) principal to an
-        // arbitrary address. Deny the vault's principal-bearing targets (its stataToken position and the
-        // WETH it holds an unbounded approval on) and itself, so the arbitrary call can never reach the
-        // corpus. Legit value-only deployment to any OTHER `to` (incl. an EOA) is unaffected.
+        // `approve` on its OWN principal-bearing tokens, moving principal out with no debit to
+        // `totalPrincipal`. That desyncs the yield basis and leaves the native ETH this vault holds for
+        // other people — the creator purses, `accumulatedTargetFees` and `roundResidue` — unbacked. Deny
+        // the vault's principal-bearing targets (its stataToken position and the WETH it holds an unbounded
+        // approval on) and itself. Legit value-only deployment to any OTHER `to` (incl. an EOA) is unaffected.
+        //
+        // This three-entry denylist is sufficient for the contract AS WRITTEN, and only conditionally so:
+        // its sufficiency rests on three invariants that live outside it, and a denylist that looks
+        // self-evidently complete is exactly how the next change removes an entry or leaves one out. A
+        // change that breaks any of these reopens the audited routes the denylist closes, and must be
+        // reviewed as such:
+        //   (a) the vault never grants a token approval other than WETH → stataToken (set once in
+        //       `initialize`), so no `transferFrom` on a third contract can reach the position through
+        //       `data`;
+        //   (b) the stataToken never gains a contract-signature (EIP-1271) permit path — StaticATokenV2's
+        //       permit is ECDSA-only and this vault has no `isValidSignature`, so `data` cannot mint a
+        //       permit that lets `to` pull the position later;
+        //   (c) no registry or factory ever trusts msg.sender-is-a-vault, so a call this vault is made to
+        //       place cannot exercise a privilege the vault holds elsewhere.
         if (to == address(stataToken) || to == address(weth) || to == address(this)) {
             revert ForbiddenExecuteTarget();
         }
 
         if (value > deployableCorpus()) revert ExceedsDeployableCorpus();
 
-        // Redeem the requested value from the Aave vested tranche to native ETH. `value ≤ vested basis ≤
-        // position value`, so `maxWithdraw` covers it and the escrowed tranche is never drawn upon. ERC-4626
-        // floor-rounding can leave the redeem short by up to `REDEEM_DUST` (`got = value − dust`); a larger
-        // shortfall is an Aave liquidity event → revert (do not partial-deploy). This is a redeem from the
-        // TRUSTED stataToken/WETH (which `receive()` handles inertly), not the arbitrary `to` — so it runs
-        // before the effects without CEI risk; the arbitrary external call remains strictly last.
+        // Redeem the requested value to native ETH. `value ≤ position value`, so `maxWithdraw` covers it.
+        // ERC-4626 floor-rounding can leave the redeem short by up to `REDEEM_DUST` (`got = value − dust`);
+        // a larger shortfall is an Aave liquidity event → revert (do not partial-deploy). This is a redeem
+        // from the TRUSTED stataToken/WETH (which `receive()` handles inertly), not the arbitrary `to` —
+        // so it runs before the effects without CEI risk; the arbitrary external call remains strictly
+        // last.
         uint256 got = _redeem(value);
         if (got + REDEEM_DUST < value) revert RedeemShortfall();
 
         // ── Effects (before the arbitrary external call) ──
-        // Debit the corpus by `got` — what ACTUALLY left the position — not the requested `value`. The dust
-        // (`value − got`) stays in the vested tranche as still-deployable principal; debiting `value` would
-        // instead orphan it into position-value-above-basis, leaking that sliver of vested principal into the
-        // next harvest's 99/1 yield legs. `deployableCorpus()` is the pro-rata clamp of
-        // `totalVestedDeployable` on an impaired position, so it can be strictly LESS than the nominal
-        // tranche; the chain that matters here is `got ≤ value ≤ deployableCorpus() ≤ totalVestedDeployable`,
-        // so no underflow. Do not restore the old `deployableCorpus() == totalVestedDeployable` identity —
-        // it is what let an impaired `execute` pass the bound and then hit `RedeemShortfall`.
-        totalVestedDeployable -= got;
+        // Debit the corpus by `got` — what ACTUALLY left the position — not the requested `value`. The
+        // dust (`value − got`) stays in the corpus as still-deployable principal; debiting `value` would
+        // instead orphan it into position-value-above-basis, leaking that sliver of principal into the
+        // next harvest's yield legs. `deployableCorpus()` clamps to the position value on an impaired
+        // position, so it can be strictly LESS than the nominal basis; the chain that matters here is
+        // `got ≤ value ≤ deployableCorpus() ≤ totalPrincipal`, so no underflow.
+        //
+        // No per-benefactor bookkeeping runs here, and that is the design: the debit lowers the pool's
+        // price per share, so every benefactor's `principalOf` — and their weight in every later harvest —
+        // falls in proportion to what left. A slice stops earning because its ETH is gone.
+        totalPrincipal -= got;
         _totalDeployedByTarget += got;
+        _closeRoundIfPriceCollapsed();
 
         bytes4 selector;
         if (data.length >= 4) selector = bytes4(data[:4]);
@@ -840,28 +923,48 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         return result;
     }
 
-    /// @notice Deliver a DE-CURATED target's remaining vested corpus to that community's payout sink.
-    /// @dev    The companion to the `execute` freeze, and the reason the freeze does not strand anything.
-    ///         `migratePosition` moves the ESCROWED tranche only — it says so, and it must, since the vested
-    ///         tranche is the target's money and not the protocol's to relocate. So once `execute` is closed
-    ///         the vested corpus has no other way out, and de-curation is one-way: without this it would sit
-    ///         in the Aave position for the life of the contract.
+    /// @notice Deliver a DE-CURATED target's remaining corpus to that community's payout sink.
+    /// @dev    The companion to the `execute` freeze, and the reason the freeze does not strand what is
+    ///         still here. `migratePosition` is an owner emergency and not a route the community can ask
+    ///         for, so once `execute` is closed the remaining corpus would otherwise have no way out, and
+    ///         de-curation is one-way — `AlignmentRegistryV1` has no reactivate path — so without this it
+    ///         would sit in the Aave position for the life of the contract. What this exit reaches is only
+    ///         what has NOT been withdrawn: an ambassador who spent the corpus before de-curation left
+    ///         nothing here for it to deliver, and this call is not a clawback.
     ///
     ///         Permissionless, and non-discretionary in both arguments it does not take: the amount is the
     ///         whole corpus and the destination is always `_targetSink()` (the registry's
     ///         `getCommunityPayout(targetId)`, and nothing else), never caller-supplied. That is what makes
     ///         it safe to leave open to anyone — it is a delivery, not a spend, so it hands a de-curated
-    ///         ambassador nothing they did not already have. Reverts
-    ///         `CommunityPayoutNotSet` while no sink is wired; the corpus keeps waiting, and
-    ///         `AlignmentRegistryV1.setCommunityPayout` deliberately stays callable on an inactive target so
-    ///         the sink can still be wired after the fact.
+    ///         ambassador nothing they did not already have. Reverts `CommunityPayoutNotSet` while no sink
+    ///         is wired; the corpus keeps waiting, and `AlignmentRegistryV1.setCommunityPayout`
+    ///         deliberately stays callable on an inactive target so the sink can still be wired after the
+    ///         fact.
     ///
-    ///         Impairment is realized on the same law as `migratePosition`: on a position worth less than its
-    ///         principal basis the vested tranche is WRITTEN DOWN to its realizable share before the redeem,
-    ///         so the release cannot draw on the escrowed tranche's backing. The write-down is what makes one
-    ///         call enough — leaving the nominal basis in place would leave an unbacked residual behind that
-    ///         every later call could only chip at.
-    /// @return amount The wei delivered (0 when the corpus is already empty).
+    ///         Impairment is realized on the same law as `migratePosition`: on a position worth less than
+    ///         its principal basis the basis is WRITTEN DOWN to its realizable value before the redeem.
+    ///         The write-down is what makes one call enough — leaving the nominal basis in place would
+    ///         leave an unbacked residual behind that every later call could only chip at. A LIQUIDITY
+    ///         shortfall is the one thing that can make it take more than one call: the redeem delivers
+    ///         what Aave has and the rest waits, still basis, for the next call — this exit never reverts on
+    ///         a crunch, because a de-curated corpus must always have a way out.
+    ///
+    ///         The delivery SWEEPS `roundResidue` along with the corpus. Residue is corpus that a round
+    ///         close already redeemed out of the position; on a de-curated target it belongs to the
+    ///         community exactly as the corpus still in the position does, and this is the only path that
+    ///         reaches it once `flushRoundResidue` is closed by de-curation. Nothing of a de-curated
+    ///         target's corpus, in the position or out of it, is left with a route to the target.
+    ///
+    ///         The `_closeRoundIfPriceCollapsed` call below is NOT redundant with the drain above it and
+    ///         stays. The redeem guard bounds what it can find at `≤ REDEEM_DUST` of basis, but that dust
+    ///         basis is exactly the overflow state the floor exists for: with the old share count still
+    ///         outstanding, a deposit (intake is open after de-curation) priced against a 1e6-wei basis
+    ///         mints `amount · shares / 1e6` shares, and this permissionless release can be repeated to
+    ///         compound it until `amount · shares` overflows and intake bricks. The close moves that dust
+    ///         into the residue (swept in the same call) and zeroes the basis so the next deposit opens a
+    ///         fresh round instead.
+    /// @return amount The wei delivered — corpus redeemed here plus the residue swept (0 when both are
+    ///         empty).
     function releaseCorpusToCommunity() external nonReentrant returns (uint256 amount) {
         IAlignmentRegistry ar = masterRegistry.alignmentRegistry();
         if (ar.isAlignmentTargetActive(targetId)) revert TargetStillCurated();
@@ -870,53 +973,59 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         if (payout == address(0)) revert CommunityPayoutNotSet();
 
         // Harvest-first, for the same two reasons `execute` does it: the yield accrued up to now must be
-        // apportioned at the PRE-release class weights, and draining the last principal would otherwise trap
-        // pending yield behind `_crystallizeYield`'s `totalInAave == 0` guard.
+        // apportioned at the PRE-release weights, and draining the last principal would otherwise trap
+        // pending yield behind `_crystallizeYield`'s `totalPrincipal == 0` guard.
         _crystallizeYield();
+        _realizeImpairment();
 
-        uint256 vested = totalVestedDeployable;
-        if (vested == 0) return 0;
+        uint256 corpus = totalPrincipal;
+        uint256 got;
+        if (corpus != 0) {
+            // Take what Aave will give right now. This exit tolerates a PARTIAL where `execute` does not:
+            // execute's no-partial rule protects the ambassador's atomicity, but this call is repeatable,
+            // permissionless and fixed-destination, so a liquidity crunch must not hold a de-curated
+            // target's corpus hostage — it delivers what it can and the remainder stays LIVE basis for the
+            // next call, never a revert.
+            got = _redeem(corpus);
 
-        uint256 basis = totalEscrowedPrincipal + vested;
-        uint256 value = _stataValue();
-        if (value < basis) {
-            uint256 shortfallBps = ((basis - value) * BPS) / basis;
-            emit ImpairmentRealized(shortfallBps, block.timestamp);
-            // Same write-down `migratePosition` performs, and it must be written to storage, not just used
-            // as a local bound: releasing only the realizable share while `totalVestedDeployable` kept the
-            // nominal figure would leave a residual with no backing in the position, which no later call
-            // could ever redeem and which a later `vest()` would compound.
-            uint256 realizableVested = (value * vested) / basis;
-            if (realizableVested < vested) {
-                vested = realizableVested;
-                totalVestedDeployable = realizableVested;
-            }
+            // ── Effects before the send (CEI) ──
+            // Debit by `got`, as `execute` does: what the redeem could not deliver stays in the position as
+            // still-releasable principal rather than leaking into the next harvest's yield legs.
+            // `_totalDeployedByTarget` is the "moved out on the target's behalf" counter and this is such a
+            // move; `CorpusReleased` against `CapitalDeployed` is what tells the two apart.
+            totalPrincipal -= got;
+            _totalDeployedByTarget += got;
+            // Close only on a full drain. A partial leaves a real basis behind, and a close there would need
+            // a second redeem the same crunch would refuse; the next full call closes the round instead.
+            // While the crunch holds the pool may sit under the floor — one crunch's worth of overshoot in
+            // what a deposit in that window mints, bounded by the next full release.
+            if (got + REDEEM_DUST >= corpus) _closeRoundIfPriceCollapsed(); // dust → `roundResidue`, swept below
         }
 
-        uint256 got = _redeem(vested);
-        if (got + REDEEM_DUST < vested) revert RedeemShortfall();
-
-        // ── Effects before the send (CEI) ──
-        // Debit by `got`, as `execute` does: the sub-wei redeem dust stays in the position as still-releasable
-        // principal rather than leaking into the next harvest's yield legs. `_totalDeployedByTarget` is the
-        // "moved out on the target's behalf" counter and this is such a move; `CorpusReleased` against
-        // `CapitalDeployed` is what tells the two apart.
-        totalVestedDeployable -= got;
-        _totalDeployedByTarget += got;
+        // Sweep the residue of closed rounds — corpus already out of the position — into the same delivery.
+        // Effect before the send (CEI): a re-entrant call from the sink finds the counter at zero. Booked in
+        // `_totalDeployedByTarget` here, at departure, inside `CorpusReleased`'s amount.
+        uint256 residue = roundResidue;
+        if (residue != 0) {
+            roundResidue = 0;
+            _totalDeployedByTarget += residue;
+        }
+        amount = got + residue;
+        if (amount == 0) return 0;
 
         // Force-send: a community sink that rejects ETH must not make its own corpus unreleasable.
-        SafeTransferLib.forceSafeTransferETH(payout, got);
-        emit CorpusReleased(payout, got);
-        return got;
+        SafeTransferLib.forceSafeTransferETH(payout, amount);
+        emit CorpusReleased(payout, amount);
+        return amount;
     }
 
     // ┌─────────────────────────┐
-    // │   Stat surface (2a §5)  │
+    // │   Stat surface          │
     // └─────────────────────────┘
 
-    /// @notice Live escrowed (pre-vest) principal across all benefactors.
+    /// @notice Live principal across all benefactors — the basis still in the Aave position.
     function totalPrincipalLocked() external view returns (uint256) {
-        return totalEscrowedPrincipal;
+        return totalPrincipal;
     }
 
     /// @notice Monotonic sum of all principal ever committed to this vault.
@@ -924,12 +1033,10 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         return _totalPrincipalCommittedAllTime;
     }
 
-    /// @notice Monotonic sum of all principal that has vested into the target's deployable corpus.
-    function totalVested() external view returns (uint256) {
-        return _totalVested;
-    }
-
-    /// @notice Sum of principal deployed by the target (deployment is a separate follow-on item; 0 here).
+    /// @notice Sum of principal moved out of the VAULT on the target's behalf: `execute`,
+    ///         `releaseCorpusToCommunity` (corpus and swept residue alike) and `flushRoundResidue`. Every
+    ///         booking is made at a departure, under its departure event; a round close books nothing, because
+    ///         the residue it redeems is still in the vault.
     function totalDeployedByTarget() external view returns (uint256) {
         return _totalDeployedByTarget;
     }
@@ -954,25 +1061,24 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         return _stataValue();
     }
 
-    /// @notice A benefactor's live escrowed (pre-vest) principal.
-    function principalOf(address benefactor) external view returns (uint256) {
-        return escrowedPrincipal[benefactor];
-    }
-
-    /// @notice A benefactor's principal that has vested into the target's deployable corpus.
-    function vestedOf(address benefactor) external view returns (uint256) {
-        return vestedPrincipal[benefactor];
+    /// @notice A benefactor's live principal: their share of the pooled corpus. Falls in proportion to
+    ///         every withdrawal, because the ETH behind it is gone.
+    function principalOf(address benefactor) public view returns (uint256) {
+        if (fundingRoundOf[benefactor] != fundingRound) return 0;
+        uint256 shares = totalPrincipalShares;
+        if (shares == 0) return 0;
+        return (principalShares[benefactor] * totalPrincipal) / shares;
     }
 
     /// @notice A benefactor's total claimable creator yield in native ETH: already-settled purse plus the
-    ///         live-unsettled accrual on their current escrow weight.
+    ///         live-unsettled accrual on their current weight.
     function pendingYieldOf(address benefactor) external view returns (uint256) {
         return _claimable(benefactor);
     }
 
     /// @dev Total claimable creator yield = settled purse + live-unsettled accrual at current weight.
     function _claimable(address benefactor) internal view returns (uint256) {
-        uint256 accumulated = (escrowedPrincipal[benefactor] * accCreatorYieldPerPrincipal) / ACC_PRECISION;
+        uint256 accumulated = (principalShares[benefactor] * _accFor(benefactor)) / ACC_PRECISION;
         uint256 debt = rewardDebt[benefactor];
         uint256 live = accumulated > debt ? accumulated - debt : 0;
         return yieldPurse[benefactor] + live;
@@ -998,7 +1104,7 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
 
     /// @inheritdoc IAlignmentVault
     function description() external pure override returns (string memory) {
-        return "Per-target endowment: permanent, 6-month-vesting creator donations in Aave; yield 80/19/1.";
+        return "Per-target endowment: permanent creator donations in Aave; yield 80/19/1.";
     }
 
     /// @inheritdoc IAlignmentVault
@@ -1009,21 +1115,22 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     }
 
     /// @inheritdoc IAlignmentVault
-    /// @dev Not tradable shares — the total principal basis (escrowed + vested) still in the position.
+    /// @dev Not tradable shares — the live principal basis still in the position.
     function totalShares() external view override returns (uint256) {
-        return totalEscrowedPrincipal + totalVestedDeployable;
+        return totalPrincipal;
     }
 
     /// @inheritdoc IAlignmentVault
-    /// @dev A benefactor's all-time principal (permanent — escrowed + vested; never decreases, no refund).
+    /// @dev A benefactor's live principal. Permanent — it never returns to them, and it falls only when
+    ///      the target withdraws it.
     function getBenefactorContribution(address benefactor) external view override returns (uint256) {
-        return escrowedPrincipal[benefactor] + vestedPrincipal[benefactor];
+        return principalOf(benefactor);
     }
 
     /// @inheritdoc IAlignmentVault
-    /// @dev Not tradable shares — the benefactor's total principal (escrowed + vested), in wei.
+    /// @dev Not tradable shares — the benefactor's live principal, in wei.
     function getBenefactorShares(address benefactor) external view override returns (uint256) {
-        return escrowedPrincipal[benefactor] + vestedPrincipal[benefactor];
+        return principalOf(benefactor);
     }
 
     /// @inheritdoc IAlignmentVault

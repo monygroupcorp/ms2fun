@@ -115,8 +115,7 @@ export function CollectionHero({ instance, card, metadata, primary }: Collection
               </div>
             </div>
             <p className={styles.who}>
-              Aligned to <b>{vaultLabel}</b> — a fixed share of fees routes to its vault on every
-              mint: 19% on liquidity collections, 80% on endowment ones.{' '}
+              Aligned to <b>{vaultLabel}</b> — 19% of fees route to the community on every mint.{' '}
               <b>The creator can&rsquo;t change the split.</b>
             </p>
           </div>

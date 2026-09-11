@@ -1,23 +1,29 @@
 /**
  * VaultPanel — alignment economics display for a collection's endowment vault.
  * Renders nothing for legacy (non-AaveEndowment) vaults.
- * ADR-0003: surfaces principal, maturity, yield, and the permissionless harvest action.
  *
- * The three actions under the stats are the endowment's whole value path, and none of them is
- * reachable through the per-type creator admin panels: those call the instance's `claimVaultFees` /
- * `claimAllFees`, which route to `IAlignmentVault.claimFees` — a function the endowment implements by
- * reverting `NotSupported`, because it has no tradable shares to pay out against. So a creator on an
- * endowment vault could watch their yield accrue and had nowhere to pull it from.
+ * One pooled principal, one flat 80/19/1 split, forever — there is no vesting, no escrow class, no
+ * maturity clock. A slice of principal stops earning only when it is physically withdrawn by the
+ * curated target (`execute`), not on any timer this panel could show.
+ *
+ * The two actions under the stats are the endowment's whole value path reachable from a benefactor's
+ * own collection page, and neither is reachable through the per-type creator admin panels: those call
+ * the instance's `claimVaultFees` / `claimAllFees`, which route to `IAlignmentVault.claimFees` — a
+ * function the endowment implements by reverting `NotSupported`, because it has no tradable shares to
+ * pay out against. So a creator on an endowment vault could watch their yield accrue and had nowhere
+ * to pull it from.
  *
  *  - **claim yield** — `claimYieldPurse(instance)`, the endowment's actual creator claim. Authorised
  *    to the collection's owner or a platform agent, and paid to the owner, so the button is gated on
  *    the same `owner()` the contract reads.
- *  - **vest** — `vest(instance)`, permissionless once the 26-week window has elapsed. It moves this
- *    collection's principal from escrow into the target's deployable corpus and stops the creator's
- *    yield accruing, which is the deal the endowment was entered under, not a loss to be hidden.
  *  - **deliver community share** — `flushTargetFees()`, permissionless, to a destination the registry
  *    fixes rather than the caller. Only shown with something actually undelivered: the target leg
  *    accrues in place while the community sink is unset, and the flush reverts until one is wired.
+ *
+ * Deploying principal out of the pool at all is the curated target's own act (`execute`, gated on
+ * ambassador + curation authority) and the vault-wide round-residue delivery is the vault page's
+ * `CommunityPayoutPanel`, not this per-collection panel — this panel states only what this
+ * collection's principal and yield look like.
  */
 import { formatEther } from 'viem'
 import { useWaitForTransactionReceipt } from 'wagmi'
@@ -77,39 +83,15 @@ function VaultPanelInner({ vault, benefactor, state }: VaultPanelInnerProps) {
   const isBusy = sigPending || isConfirming
   const yieldZero = state.yield === 0n
 
-  const earliestMaturityDate =
-    state.earliestMaturity > 0n
-      ? new Date(Number(state.earliestMaturity) * 1000).toLocaleDateString()
-      : '—'
-
-  // Each deposit vests on its own clock and the vault exposes no view of them, so the panel states
-  // the earliest date any principal can vest rather than a completed vest it cannot verify. The
-  // only completed-vest claim left is `fullyVested`, which is `principalOf == 0` — nothing escrowed.
-  const maturityLabel = (() => {
-    if (state.depositTime === 0n) return '—'
-    if (state.fullyVested) return 'vested ✓'
-    return `earliest ${earliestMaturityDate}`
-  })()
-
-  const vestWeeks = state.vestDuration > 0n ? Number(state.vestDuration / 604800n) : 0
-  const showsEarliest = state.depositTime > 0n && !state.fullyVested
-
   return (
     <Disclosure summary="COMMUNITY ENDOWMENT" testId="vault-panel">
       <div className={styles.stats}>
         <div className={styles.stat}>
           <span className={styles.statLabel}>this collection's principal</span>
           <span className={styles.statValue}>{formatEther(state.principal)} ETH</span>
-          <span className={styles.statNote}>non-refundable — vests to the community</span>
-        </div>
-        <div className={styles.stat}>
-          <span className={styles.statLabel}>maturity</span>
-          <span className={styles.statValue}>{maturityLabel}</span>
-          {showsEarliest && (
-            <span className={styles.statNote}>
-              {vestWeeks > 0 ? `${vestWeeks}-week vest — ` : ''}each top-up vests on its own clock
-            </span>
-          )}
+          <span className={styles.statNote}>
+            permanent — leaves only when the target withdraws it
+          </span>
         </div>
         <div className={styles.stat}>
           <span className={styles.statLabel}>harvestable yield</span>
@@ -149,21 +131,11 @@ function EndowmentActions({ vault, benefactor, state }: VaultPanelInnerProps) {
   const chainId = useCollectionChainId()
   const { isOwner } = useOwnerGate(benefactor)
   const claimTx = useTxAction({ onSuccess: state.refetch })
-  const vestTx = useTxAction({ onSuccess: state.refetch })
   const flushTx = useTxAction({ onSuccess: state.refetch })
 
   if (!vault || !benefactor) return null
 
-  // `vest()` matures whatever tranches are due, so the button is offered from the moment the FIRST
-  // deposit's clock elapses — the earliest instant any principal can move. That is necessary and not
-  // sufficient: a later top-up alone still escrowed will revert, which the hint below says.
-  const vestWindowOpen =
-    state.earliestMaturity > 0n && BigInt(Math.floor(Date.now() / 1000)) >= state.earliestMaturity
-
   const at = { address: vault, abi: alignmentEndowmentVaultAbi, chainId } as const
-
-  const send = (tx: ReturnType<typeof useTxAction>, functionName: 'claimYieldPurse' | 'vest') =>
-    tx.send({ ...at, functionName, args: [benefactor] })
 
   return (
     <div className={styles.actions} data-testid="vault-panel-actions">
@@ -171,7 +143,9 @@ function EndowmentActions({ vault, benefactor, state }: VaultPanelInnerProps) {
         <div className={styles.actionRow}>
           <TxButton
             state={claimTx.state}
-            onClick={() => send(claimTx, 'claimYieldPurse')}
+            onClick={() =>
+              claimTx.send({ ...at, functionName: 'claimYieldPurse', args: [benefactor] })
+            }
             label="claim yield"
             className="btn btn-primary"
             successLabel="yield claimed — tx confirmed."
@@ -183,24 +157,6 @@ function EndowmentActions({ vault, benefactor, state }: VaultPanelInnerProps) {
           />
           <span className={styles.harvestNote}>
             {formatEther(state.claimable)} ETH accrued to this collection&rsquo;s creator
-          </span>
-        </div>
-      )}
-      {vestWindowOpen && state.principal > 0n && (
-        <div className={styles.actionRow}>
-          <TxButton
-            state={vestTx.state}
-            onClick={() => send(vestTx, 'vest')}
-            label="vest principal"
-            className="btn btn-secondary"
-            successLabel="principal vested — tx confirmed."
-            onReset={vestTx.reset}
-            errorText="vest failed — try again"
-            testId="vault-vest"
-          />
-          <span className={styles.harvestNote}>
-            permissionless — moves every matured tranche of {formatEther(state.principal)} ETH into
-            the community&rsquo;s corpus and ends this collection&rsquo;s yield
           </span>
         </div>
       )}
