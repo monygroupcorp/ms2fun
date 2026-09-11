@@ -132,6 +132,15 @@ contract RevertingSplitVault {
     receive() external payable { }
 }
 
+/// @dev Owner contract that refuses ETH outright — a Safe or contract wallet with no payable fallback,
+///      which is what the artist address commonly is. Before the brick-proof payout leg this bricked
+///      every PAY commission and every PAY wave on the collection.
+contract RejectingArtist {
+    receive() external payable {
+        revert("no ETH here");
+    }
+}
+
 /// @dev Owner contract that reenters unlock on receiving its artist payout — must be blocked.
 contract ReentrantArtist {
     MetadataOverlayModule ov;
@@ -146,7 +155,7 @@ contract ReentrantArtist {
 
     receive() external payable {
         // Reentry into a guarded function — nonReentrant must revert this.
-        ov.unlock(inst, reenterId);
+        ov.unlock(inst, reenterId, keccak256(bytes(ov.commissionURI(inst, reenterId))));
     }
 }
 
@@ -169,6 +178,13 @@ contract MetadataOverlayModuleTest is Test {
         inst.setOwner(artist);
         inst.setTreasury(treasury);
         registry.setInstanceFactory(address(inst), factory);
+    }
+
+    /// @dev The commitment `unlock` now takes: the hash of the art the buyer is paying for, read at the
+    ///      instant they send. A test that wants the honest path asks the chain for it; a test that wants
+    ///      the swap path passes the hash of what the buyer SAW, not of what is there now.
+    function _uriHash(address inst_, uint256 id) internal view returns (bytes32) {
+        return keccak256(bytes(ov.commissionURI(inst_, id)));
     }
 
     function _config(bool autoLatest) internal {
@@ -243,8 +259,9 @@ contract MetadataOverlayModuleTest is Test {
         );
 
         vm.deal(holder, 1 ether);
+        bytes32 uriHash1 = _uriHash(address(inst), 1);
         vm.prank(holder);
-        ov.unlock{ value: 1 ether }(address(inst), 1);
+        ov.unlock{ value: 1 ether }(address(inst), 1, uriHash1);
 
         // Now locked — artist cannot overwrite.
         vm.prank(artist);
@@ -353,8 +370,9 @@ contract MetadataOverlayModuleTest is Test {
 
         vm.deal(holder, 1 ether);
         uint256 artistBefore = artist.balance;
+        bytes32 uriHash2 = _uriHash(address(inst), 1);
         vm.prank(holder);
-        ov.unlock{ value: 1 ether }(address(inst), 1);
+        ov.unlock{ value: 1 ether }(address(inst), 1, uriHash2);
 
         assertTrue(ov.paid(address(inst), 1));
         assertEq(ov.selection(address(inst), 1), 2); // COMMISSION
@@ -369,9 +387,10 @@ contract MetadataOverlayModuleTest is Test {
             address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 1 ether, MetadataOverlayModule.Payout.ARTIST
         );
         vm.deal(holder, 1 ether);
+        bytes32 uriHash3 = _uriHash(address(inst), 1);
         vm.prank(holder);
         vm.expectRevert(MetadataOverlayModule.WrongPayment.selector);
-        ov.unlock{ value: 0.5 ether }(address(inst), 1);
+        ov.unlock{ value: 0.5 ether }(address(inst), 1, uriHash3);
     }
 
     function test_unlock_doublePay_reverts() public {
@@ -381,10 +400,12 @@ contract MetadataOverlayModuleTest is Test {
             address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 1 ether, MetadataOverlayModule.Payout.ARTIST
         );
         vm.deal(holder, 2 ether);
+        bytes32 uriHash4 = _uriHash(address(inst), 1);
+        bytes32 uriHash5 = _uriHash(address(inst), 1);
         vm.startPrank(holder);
-        ov.unlock{ value: 1 ether }(address(inst), 1);
+        ov.unlock{ value: 1 ether }(address(inst), 1, uriHash4);
         vm.expectRevert(MetadataOverlayModule.AlreadyPaid.selector);
-        ov.unlock{ value: 1 ether }(address(inst), 1);
+        ov.unlock{ value: 1 ether }(address(inst), 1, uriHash5);
         vm.stopPrank();
     }
 
@@ -400,8 +421,9 @@ contract MetadataOverlayModuleTest is Test {
         vm.deal(holder, 100);
         uint256 artistBefore = artist.balance;
         uint256 treasuryBefore = treasury.balance;
+        bytes32 uriHash6 = _uriHash(address(inst), 1);
         vm.prank(holder);
-        ov.unlock{ value: 100 }(address(inst), 1);
+        ov.unlock{ value: 100 }(address(inst), 1, uriHash6);
 
         // split(100): 1% protocol / 19% vault / 80% artist
         assertEq(treasury.balance, treasuryBefore + 1);
@@ -410,9 +432,10 @@ contract MetadataOverlayModuleTest is Test {
         assertEq(artist.balance, artistBefore + 80);
     }
 
-    /// noesis-126 (site 6): if the instance's alignment target is revoked, the SPLIT vault tithe must be
-    /// redirected to `protocolTreasury` — NOT fed to the de-curated vault.
-    function test_unlock_splitRevokedTarget_RedirectsVaultCutToTreasury() public {
+    /// noesis-126 (site 6) / noesis-435: if the instance's alignment target is de-curated, the SPLIT
+    /// community cut must be returned to the ARTIST — NOT fed to the de-curated vault and NOT taken by the
+    /// protocol. De-curation may destroy value; it may not transfer value to the protocol.
+    function test_unlock_splitDecuratedTarget_ReturnsVaultCutToArtist() public {
         MockSplitVault vault = new MockSplitVault();
         inst.setVault(address(vault));
         inst.setTokenOwner(1, holder);
@@ -425,21 +448,22 @@ contract MetadataOverlayModuleTest is Test {
         vm.deal(holder, 100);
         uint256 artistBefore = artist.balance;
         uint256 treasuryBefore = treasury.balance;
+        bytes32 uriHash7 = _uriHash(address(inst), 1);
         vm.prank(holder);
         vm.expectEmit(true, true, false, true, address(ov));
-        emit MetadataOverlayModule.VaultCutRedirected(address(vault), treasury, 19);
-        ov.unlock{ value: 100 }(address(inst), 1);
+        emit MetadataOverlayModule.VaultCutReturnedToCreator(address(vault), artist, 19);
+        ov.unlock{ value: 100 }(address(inst), 1, uriHash7);
 
-        // 1% protocol + 19% redirected tithe both land at treasury; the vault gets nothing.
-        assertEq(treasury.balance, treasuryBefore + 20, "treasury got protocol cut + redirected tithe");
+        // Treasury gets its 1% and nothing more; the vault gets nothing; the artist gets 80 + the 19 back.
+        assertEq(treasury.balance, treasuryBefore + 1, "treasury gets its 1% and nothing more");
         assertEq(vault.received(), 0, "de-curated vault received nothing");
         assertEq(address(vault).balance, 0, "de-curated vault holds no ETH");
-        assertEq(artist.balance, artistBefore + 80, "artist share unchanged");
+        assertEq(artist.balance, artistBefore + 99, "artist got their 80 plus the returned community cut");
     }
 
-    /// noesis-126 (site 6): a revoked target whose instance also has a zero treasury must fold the vault cut
-    /// into the artist payout rather than force it to address(0) and strand the wei.
-    function test_unlock_splitRevokedTarget_ZeroTreasury_FoldsToArtist() public {
+    /// noesis-126 (site 6) / noesis-435: the fold is now unconditional on de-curation — a zero treasury
+    /// changes nothing about where the community cut goes, and the wei is never stranded.
+    function test_unlock_splitDecuratedTarget_ZeroTreasury_FoldsToArtist() public {
         MockSplitVault vault = new MockSplitVault();
         inst.setVault(address(vault));
         inst.setTreasury(address(0)); // codebase-tolerated zero treasury
@@ -452,8 +476,9 @@ contract MetadataOverlayModuleTest is Test {
 
         vm.deal(holder, 100);
         uint256 artistBefore = artist.balance;
+        bytes32 uriHash8 = _uriHash(address(inst), 1);
         vm.prank(holder);
-        ov.unlock{ value: 100 }(address(inst), 1);
+        ov.unlock{ value: 100 }(address(inst), 1, uriHash8);
 
         // protocol cut (zero treasury) + vault cut (revoked, zero treasury) both fold to the artist: full 100.
         assertEq(artist.balance, artistBefore + 100, "all legs folded to artist");
@@ -461,6 +486,13 @@ contract MetadataOverlayModuleTest is Test {
     }
 
     /// @dev H5: unlock is nonReentrant + CEI — a reentering artist payout cannot drain.
+    ///      What the reentry now BUYS the attacker changed with the brick-proof payout leg. The artist
+    ///      send is `forceSafeTransferETH`, so `receive()` runs under a gas stipend and its revert —
+    ///      here, `ReentrancyGuard` refusing the nested `unlock` — is absorbed rather than bubbled, and
+    ///      the ETH is force-sent instead. The holder's purchase therefore SETTLES. That is the whole
+    ///      point of the change: an artist who cannot or will not take a plain send no longer denies the
+    ///      buyer the thing they paid for. The guard itself is unchanged and is what this pins — the
+    ///      reentered id must stay unpaid, and exactly one commission may settle.
     function test_unlock_reentrancyBlocked() public {
         ReentrantArtist mal = new ReentrantArtist();
         inst.setOwner(address(mal));
@@ -482,9 +514,16 @@ contract MetadataOverlayModuleTest is Test {
 
         mal.arm(ov, address(inst), 2);
         vm.deal(holder, 1 ether);
+        bytes32 uriHash9 = _uriHash(address(inst), 1);
         vm.prank(holder);
-        vm.expectRevert(); // artist payout reenters unlock → ReentrancyGuard reverts → bubbles up
-        ov.unlock{ value: 1 ether }(address(inst), 1);
+        ov.unlock{ value: 1 ether }(address(inst), 1, uriHash9);
+
+        // The guard held: the reentered commission never settled, and mal paid nothing for it.
+        assertFalse(ov.paid(address(inst), 2), "the reentered commission must not settle");
+        assertTrue(ov.paid(address(inst), 1), "the holder's own purchase settles");
+        // Every wei still left the module, and only the one the holder sent.
+        assertEq(address(mal).balance, 1 ether, "the artist is paid through the force path");
+        assertEq(address(ov).balance, 0, "the module holds no custody");
     }
 
     /// @dev PAY state is id-keyed, so a paid/pinned augmentation is a sellable upgrade — it travels
@@ -496,8 +535,9 @@ contract MetadataOverlayModuleTest is Test {
             address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 1 ether, MetadataOverlayModule.Payout.ARTIST
         );
         vm.deal(holder, 1 ether);
+        bytes32 uriHash10 = _uriHash(address(inst), 1);
         vm.prank(holder);
-        ov.unlock{ value: 1 ether }(address(inst), 1);
+        ov.unlock{ value: 1 ether }(address(inst), 1, uriHash10);
 
         // simulate transfer: new owner of id 1
         address buyer = address(0xCAFE);
@@ -543,9 +583,10 @@ contract MetadataOverlayModuleTest is Test {
     function test_unlock_noCommission_reverts() public {
         inst.setTokenOwner(1, holder);
         vm.deal(holder, 1 ether);
+        bytes32 uriHash11 = _uriHash(address(inst), 1);
         vm.prank(holder);
         vm.expectRevert(MetadataOverlayModule.NoCommission.selector);
-        ov.unlock{ value: 0 }(address(inst), 1);
+        ov.unlock{ value: 0 }(address(inst), 1, uriHash11);
     }
 
     function test_unlock_freeCommission_reverts() public {
@@ -554,9 +595,10 @@ contract MetadataOverlayModuleTest is Test {
         ov.setCommission(
             address(inst), 1, "free", MetadataOverlayModule.CommCond.NONE, 0, MetadataOverlayModule.Payout.ARTIST
         );
+        bytes32 uriHash12 = _uriHash(address(inst), 1);
         vm.prank(holder);
         vm.expectRevert(MetadataOverlayModule.NotPayCommission.selector); // free commissions need no unlock
-        ov.unlock{ value: 0 }(address(inst), 1);
+        ov.unlock{ value: 0 }(address(inst), 1, uriHash12);
     }
 
     function test_unlock_nonHolder_reverts() public {
@@ -566,9 +608,10 @@ contract MetadataOverlayModuleTest is Test {
             address(inst), 1, "c", MetadataOverlayModule.CommCond.PAY, 1 ether, MetadataOverlayModule.Payout.ARTIST
         );
         vm.deal(attacker, 1 ether);
+        bytes32 uriHash13 = _uriHash(address(inst), 1);
         vm.prank(attacker);
         vm.expectRevert(MetadataOverlayModule.NotHolder.selector);
-        ov.unlock{ value: 1 ether }(address(inst), 1);
+        ov.unlock{ value: 1 ether }(address(inst), 1, uriHash13);
     }
 
     /// @dev SPLIT conservation: a zero treasury (codebase-tolerated) folds the protocol cut into the
@@ -584,8 +627,9 @@ contract MetadataOverlayModuleTest is Test {
         );
         vm.deal(holder, 100);
         uint256 artistBefore = artist.balance;
+        bytes32 uriHash14 = _uriHash(address(inst), 1);
         vm.prank(holder);
-        ov.unlock{ value: 100 }(address(inst), 1);
+        ov.unlock{ value: 100 }(address(inst), 1, uriHash14);
         // protocol(1) folds into artist(80) → 81; vault still 19. Module holds nothing.
         assertEq(vault.received(), 19);
         assertEq(artist.balance, artistBefore + 81);
@@ -603,8 +647,9 @@ contract MetadataOverlayModuleTest is Test {
         vm.deal(holder, 100);
         uint256 artistBefore = artist.balance;
         uint256 treasuryBefore = treasury.balance;
+        bytes32 uriHash15 = _uriHash(address(inst), 1);
         vm.prank(holder);
-        ov.unlock{ value: 100 }(address(inst), 1);
+        ov.unlock{ value: 100 }(address(inst), 1, uriHash15);
         // vault(19) folds into artist(80) → 99; protocol(1) to treasury. Module holds nothing.
         assertEq(treasury.balance, treasuryBefore + 1);
         assertEq(artist.balance, artistBefore + 99);
@@ -638,8 +683,9 @@ contract MetadataOverlayModuleTest is Test {
         vm.deal(holder, price);
         uint256 artistBefore = artist.balance;
         uint256 treasuryBefore = treasury.balance;
+        bytes32 uriHash16 = _uriHash(address(inst), 1);
         vm.prank(holder);
-        ov.unlock{ value: price }(address(inst), 1); // must NOT revert
+        ov.unlock{ value: price }(address(inst), 1, uriHash16); // must NOT revert
 
         assertTrue(ov.paid(address(inst), 1), "unlock completed and pinned");
         assertEq(vault.received(), 0, "reverting vault received nothing");
@@ -670,8 +716,9 @@ contract MetadataOverlayModuleTest is Test {
         vm.deal(holder, price);
         uint256 artistBefore = artist.balance;
         uint256 treasuryBefore = treasury.balance;
+        bytes32 uriHash17 = _uriHash(address(inst), 1);
         vm.prank(holder);
-        ov.unlock{ value: price }(address(inst), 1); // must NOT revert
+        ov.unlock{ value: price }(address(inst), 1, uriHash17); // must NOT revert
 
         assertTrue(ov.paid(address(inst), 1), "unlock completed and pinned");
         assertEq(vault.received(), 0, "capped vault received nothing");
@@ -919,8 +966,9 @@ contract MetadataOverlayModuleTest is Test {
         vm.deal(holder, amount);
         uint256 artistBefore = artist.balance;
         uint256 treasuryBefore = treasury.balance;
+        bytes32 uriHash18 = _uriHash(address(inst), 1);
         vm.prank(holder);
-        ov.unlock{ value: amount }(address(inst), 1);
+        ov.unlock{ value: amount }(address(inst), 1, uriHash18);
 
         _assertConserved(vault, amount, artistBefore, treasuryBefore);
     }
@@ -965,5 +1013,141 @@ contract MetadataOverlayModuleTest is Test {
         // Conservation: the three legs sum to the input, and the module strands nothing.
         assertEq(gotProtocol + gotTarget + gotCreator, amount, "legs sum to input");
         assertEq(address(ov).balance, 0, "module holds no custody");
+    }
+
+    // ── noesis-273: the buyer signs for the art, not only for the price ─────────────────────────
+
+    /// @dev The F-G1 sequence. The artist publishes art at a price, the buyer reads it and sends, and
+    ///      the artist replaces the URI at the SAME price before the buyer's transaction is mined. The
+    ///      purchase used to settle against the substituted art and then lock it there permanently — the
+    ///      contract's own header calls that lock buyer protection. No mempool sophistication is needed;
+    ///      ordinary UI-read-to-mined latency is the whole attack. It must now fail closed.
+    function test_unlock_artSwappedAfterTheBuyerRead_reverts() public {
+        inst.setTokenOwner(1, holder);
+        vm.prank(artist);
+        ov.setCommission(
+            address(inst),
+            1,
+            "ipfs://GOOD",
+            MetadataOverlayModule.CommCond.PAY,
+            1 ether,
+            MetadataOverlayModule.Payout.ARTIST
+        );
+
+        // What the buyer saw and signed for.
+        bytes32 sawGood = _uriHash(address(inst), 1);
+
+        // The artist swaps the art, at the same price, while the buyer's transaction is in flight.
+        vm.prank(artist);
+        ov.setCommission(
+            address(inst),
+            1,
+            "ipfs://JUNK",
+            MetadataOverlayModule.CommCond.PAY,
+            1 ether,
+            MetadataOverlayModule.Payout.ARTIST
+        );
+
+        vm.deal(holder, 1 ether);
+        vm.prank(holder);
+        vm.expectRevert(MetadataOverlayModule.CommissionUriChanged.selector);
+        ov.unlock{ value: 1 ether }(address(inst), 1, sawGood);
+
+        // Nothing settled, so nothing locked: the commission is still mutable and still refundably open.
+        assertFalse(ov.paid(address(inst), 1), "a refused purchase must not settle");
+        assertEq(holder.balance, 1 ether, "the buyer keeps their ETH");
+    }
+
+    /// @dev The honest path is untouched: the hash the buyer signed for is the hash on chain, so the
+    ///      purchase settles, locks, and `resolve` returns exactly the art they paid for.
+    function test_unlock_matchingHash_settlesLocksAndResolvesToWhatTheBuyerSaw() public {
+        inst.setTokenOwner(1, holder);
+        vm.prank(artist);
+        ov.setCommission(
+            address(inst),
+            1,
+            "ipfs://GOOD",
+            MetadataOverlayModule.CommCond.PAY,
+            1 ether,
+            MetadataOverlayModule.Payout.ARTIST
+        );
+
+        vm.deal(holder, 1 ether);
+        bytes32 uriHash19 = _uriHash(address(inst), 1);
+        vm.prank(holder);
+        ov.unlock{ value: 1 ether }(address(inst), 1, uriHash19);
+
+        assertTrue(ov.paid(address(inst), 1), "a matching hash settles");
+        assertEq(ov.resolve(address(inst), 1, holder), "ipfs://GOOD", "resolve returns what the buyer saw");
+
+        // And the lock now means what the header says it means.
+        vm.prank(artist);
+        vm.expectRevert(MetadataOverlayModule.CommissionLocked.selector);
+        ov.setCommission(
+            address(inst),
+            1,
+            "ipfs://JUNK",
+            MetadataOverlayModule.CommCond.PAY,
+            1 ether,
+            MetadataOverlayModule.Payout.ARTIST
+        );
+    }
+
+    // ── noesis-274: the artist's own misconfiguration is not the buyer's problem ────────────────
+
+    /// @dev An instance owner whose `receive()` reverts. The ARTIST payout leg used to be a plain send,
+    ///      so the holder's unlock reverted in full and `paid` stayed false — every PAY commission and
+    ///      every PAY wave on that collection unbuyable until ownership moved to an ETH-accepting
+    ///      address. It failed closed, which is why this is low and not high, and it still denied the
+    ///      buyer a thing they were willing to pay for. The purchase must now complete and the artist
+    ///      must provably hold the ETH.
+    function test_unlock_rejectingArtist_purchaseCompletesAndArtistIsPaid() public {
+        RejectingArtist stubborn = new RejectingArtist();
+        inst.setOwner(address(stubborn));
+        inst.setTokenOwner(1, holder);
+        vm.prank(address(stubborn));
+        ov.setCommission(
+            address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 1 ether, MetadataOverlayModule.Payout.ARTIST
+        );
+
+        vm.deal(holder, 1 ether);
+        bytes32 uriHash20 = _uriHash(address(inst), 1);
+        vm.prank(holder);
+        ov.unlock{ value: 1 ether }(address(inst), 1, uriHash20);
+
+        assertTrue(ov.paid(address(inst), 1), "the purchase completes");
+        assertEq(address(stubborn).balance, 1 ether, "the artist is paid through the force path");
+        assertEq(address(ov).balance, 0, "the module holds no custody");
+    }
+
+    /// @dev The same on the SPLIT path, which is where the arithmetic lives. Every wei must still leave
+    ///      `_route` in the same call and land on the documented legs: protocol 1%, vault 19%, artist the
+    ///      remainder. A rejecting artist changes who absorbs the misconfiguration, nothing else.
+    function test_unlock_split_rejectingArtist_everyWeiStillLeavesOnItsOwnLeg() public {
+        MockSplitVault vault = new MockSplitVault();
+        RejectingArtist stubborn = new RejectingArtist();
+        inst.setOwner(address(stubborn));
+        inst.setVault(address(vault));
+        inst.setTokenOwner(1, holder);
+        registry.setVaultRegistered(address(vault), true);
+        vm.prank(address(stubborn));
+        ov.setCommission(
+            address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 100, MetadataOverlayModule.Payout.SPLIT
+        );
+
+        vm.deal(holder, 100);
+        uint256 treasuryBefore = treasury.balance;
+        bytes32 uriHash21 = _uriHash(address(inst), 1);
+        vm.prank(holder);
+        ov.unlock{ value: 100 }(address(inst), 1, uriHash21);
+
+        uint256 toTreasury = treasury.balance - treasuryBefore;
+        uint256 toVault = vault.received();
+        uint256 toArtist = address(stubborn).balance;
+        assertEq(toTreasury, 1, "protocol 1%");
+        assertEq(toVault, 19, "vault 19%");
+        assertEq(toArtist, 80, "artist the remainder, through the force path");
+        assertEq(toTreasury + toVault + toArtist, 100, "every wei left _route in the same call");
+        assertEq(address(ov).balance, 0, "the module holds no custody");
     }
 }

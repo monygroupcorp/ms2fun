@@ -94,9 +94,9 @@ Every standard routes the same **fixed alignment share** to a vault and settles 
   'alignment-vault': {
     title: 'Alignment vaults',
     summary:
-      'Every collection routes a fixed share of its fees — 19% on liquidity collections, 80% on endowment ones — to a vault aligned with an established community, the thing that makes it not a grift.',
+      "19% of every collection's fees route to a vault aligned with an established community, the thing that makes it not a grift.",
     body: `
-Every launch here is **bound to an alignment vault**. On mint and on every resale, a fixed share of the fees — **19% on liquidity collections, 80% on endowment collections** — flows to that vault, which holds or LPs the target community's token.
+Every launch here is **bound to an alignment vault**. On mint and on every resale, **19% of fees route to the community** through that vault, which holds or LPs the target community's token.
 
 This is the core idea of the launchpad: a derivative collection that **materially supports** the community it draws from, instead of extracting from it. You pick the community you're aligning to, then one of its vaults.
 
@@ -326,6 +326,13 @@ Nothing about deploying without art is second-class: the contract, the alignment
 `,
     related: ['onchain-image-cost'],
   },
+  support: {
+    title: 'Reporting a problem',
+    summary: 'Where to report a defect in the launchpad, or ask about something that looks wrong.',
+    body: `
+Found a bug, or something in the app that doesn't match what the contracts do? **DM [@miladystation](https://x.com/miladystation) on x.com.**
+`,
+  },
 }
 
 export const CONCEPTS: Record<string, LearnConcept> = Object.fromEntries(
@@ -358,4 +365,5 @@ export const CONCEPT_GROUPS: { title: string; slugs: string[] }[] = [
     ],
   },
   { title: 'Collection page', slugs: ['onchain-image-cost', 'cover-vs-banner', 'withholding-art'] },
+  { title: 'Support', slugs: ['support'] },
 ]

@@ -18,7 +18,7 @@ import { forkChainId } from '../addresses'
 
 /**
  * Minimal ABI slice for the vaults-index multicall. The full `alignmentEndowmentVaultAbi` (now enlarged
- * with the vest/`execute` surface) trips TS2589 ("type instantiation is excessively deep") when
+ * with the `execute`/round-residue surface) trips TS2589 ("type instantiation is excessively deep") when
  * `useReadContracts` infers per-call return types over hundreds of fragments. We only read three view
  * functions here, so a three-entry const ABI keeps inference shallow while staying fully typed (no
  * `@ts-expect-error`, no `any`). Selectors verified against contracts/out/AlignmentEndowmentVault.

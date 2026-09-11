@@ -15,5 +15,8 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["vite.config.ts", "precache.globs.ts"]
+  // `src/lib/share/origin.ts` is listed because `vite.config.ts` imports it: the share-card origin
+  // is resolved by the build, and the rules for resolving it are unit-tested with the rest of the
+  // share-card code rather than living unreachable inside this config.
+  "include": ["vite.config.ts", "precache.globs.ts", "src/lib/share/origin.ts"]
 }

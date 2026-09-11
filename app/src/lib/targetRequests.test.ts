@@ -3,6 +3,7 @@ import {
   RequestStatus,
   assetTokenValid,
   isNonzeroAddress,
+  isPrunable,
   pickMyRequestIds,
   requestStatusLabel,
   titleValid,
@@ -141,5 +142,43 @@ describe('pickMyRequestIds', () => {
   })
   it('returns [] when no entries match', () => {
     expect(pickMyRequestIds(entries, '0x9999999999999999999999999999999999999999')).toEqual([])
+  })
+})
+
+describe('isPrunable', () => {
+  const SUBMITTED = 1_000_000n
+  const TTL = 7n * 86_400n
+  const pending = { status: RequestStatus.Pending, submittedAt: SUBMITTED }
+
+  it('is false before the TTL has elapsed', () => {
+    expect(isPrunable(pending, TTL, SUBMITTED + TTL - 1n)).toBe(false)
+  })
+
+  it('is false exactly AT the deadline — the contract reverts on `<=`', () => {
+    expect(isPrunable(pending, TTL, SUBMITTED + TTL)).toBe(false)
+  })
+
+  it('is true one second past the deadline', () => {
+    expect(isPrunable(pending, TTL, SUBMITTED + TTL + 1n)).toBe(true)
+  })
+
+  it('is false for every status but Pending, however old', () => {
+    const ancient = SUBMITTED + TTL * 100n
+    for (const status of [
+      RequestStatus.None,
+      RequestStatus.Approved,
+      RequestStatus.Rejected,
+      RequestStatus.Expired,
+    ]) {
+      expect(isPrunable({ status, submittedAt: SUBMITTED }, TTL, ancient)).toBe(false)
+    }
+  })
+
+  it('is false when the TTL is 0 — expiry is switched off, not instant', () => {
+    expect(isPrunable(pending, 0n, SUBMITTED + 10n ** 9n)).toBe(false)
+  })
+
+  it('is false while the TTL read has not landed', () => {
+    expect(isPrunable(pending, undefined, SUBMITTED + TTL + 1n)).toBe(false)
   })
 })

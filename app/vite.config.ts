@@ -6,14 +6,25 @@ import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { precacheGlobs } from './precache.globs'
+import {
+  PUBLIC_ORIGIN_ENV_KEY,
+  injectPublicOrigin,
+  resolvePublicOrigin,
+} from './src/lib/share/origin'
 
 // --- Distribution target -----------------------------------------------------------------------
 // One source tree, two build targets, selected by `VITE_DIST_TARGET` (see `pnpm build:ipfs`):
 //
 //   default   → ms2.fun. Server-backed static host, root-anchored (`base: '/'`), history routing,
 //               service worker on. Unchanged by this file's IPFS branch.
-//   'ipfs'    → the pinned distribution reached through noesis.gwei.domains. Served from under a
-//               gateway path prefix (`/ipfs/<cid>/...`), so:
+//   'ipfs'    → the share-safe distribution: a content-addressed pin, served from under a gateway
+//               path prefix (`/ipfs/<cid>/...`) at whatever origin fronts it. This target names no
+//               host on purpose — 2026-09-10: it previously documented itself as "reached through
+//               noesis.gwei.domains", which is a dead premise (that ENS-gateway front does not
+//               resolve to an address we control and has been moved off). Where the pin is fronted
+//               is still open; the target does not depend on the answer, and hash routing is what
+//               makes that true — a copied link resolves at any origin with no host rewrite rule,
+//               which is what took the origin block off share links. Under the prefix:
 //                 * `base: './'`   — every emitted asset URL is relative to the document.
 //                 * hash routing   — see `src/App.tsx`; a public gateway has no SPA fallback, so a
 //                                    history-mode deep link is a 404 from the gateway itself.
@@ -40,6 +51,30 @@ function buildCommit(): string {
   } catch {
     // A tarball export or a CI checkout without git history still has to build.
     return 'unknown'
+  }
+}
+
+// Share-card origin (noesis-338). `index.html`'s og:/twitter: tags have to name an absolute
+// origin — a scraper fetches them with no page context — and that origin used to be typed into the
+// markup three times. It was typed wrong: it named an ENS-gateway front that answers 404 and is not
+// ours, so a shared link rendered a title beside a picture nobody could fetch, and the card guard
+// could not see it (it knows structure and same-origin consistency, never an origin string).
+//
+// So the origin is deployment config. This substitutes it at every site from one value, which is
+// what makes the origin split the guard checks for unreachable by editing markup, and it throws
+// rather than emitting a card that points somewhere nobody chose — see `src/lib/share/origin.ts`.
+// It runs in `serve` too, so the dev page carries the same card the build emits rather than a raw
+// placeholder, and `enforce: 'pre'` puts it ahead of vite's own `%KEY%` env substitution, whose
+// behaviour for an unset key is to leave the token in place.
+function publicOrigin(): Plugin {
+  const origin = resolvePublicOrigin(process.env[PUBLIC_ORIGIN_ENV_KEY])
+  return {
+    name: 'public-origin',
+    enforce: 'pre',
+    transformIndexHtml: {
+      order: 'pre',
+      handler: (html) => injectPublicOrigin(html, origin),
+    },
   }
 }
 
@@ -100,6 +135,7 @@ export default defineConfig({
   ...(isIpfsTarget ? { build: { outDir: 'dist/ipfs', emptyOutDir: true } } : {}),
   plugins: [
     react(),
+    publicOrigin(),
     spaFallback404(),
     // Service worker for the app shell (ADR-0010). A static/IPFS client reloads a lot; Workbox
     // precaches the built JS/CSS/HTML so repeat loads paint instantly (and work offline) instead of

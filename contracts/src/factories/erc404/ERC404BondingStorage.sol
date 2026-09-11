@@ -99,9 +99,26 @@ error ModuleAlreadySet();
 error TimeMustBeInFuture();
 error OpenTimeMustBeSetFirst();
 error MaturityMustBeAfterOpenTime();
+error MaturityTooFarAfterOpenTime();
 error OpenTimeNotSet();
 error CannotActivateAfterLiquidityDeployed();
 error StakingAlreadyActive();
+
+// ── Bonding schedule bound ──────────────────────────────────────────────────────────────────────
+// The longest bonding period `setBondingMaturityTime` will accept, measured from `bondingOpenTime`.
+// NOT a number invented here: it is the protocol's own outer horizon for a creator bond, taken from
+// the protocol-owned defaults on `DeployBondEscrow` — `maxBondDuration` (180 days) plus `graceDays`
+// (30 days), the two terms its forfeit deadline is built from. Past that horizon the anti-spam lever
+// has already written the launch off, so an instance advertising a maturity beyond it is advertising
+// a date the protocol does not stand behind.
+//
+// It is a CONSTANT and not a live read of the escrow, deliberately, for two reasons. The instance
+// holds no escrow pointer (the escrow is standalone by design, so the factory keeps its "holds no
+// ETH" invariant and nothing lands in this EIP-170-constrained contract). And the escrow's terms are
+// owner-tunable storage: reading them live would let a later `setMaxBondDuration` retroactively
+// invalidate a maturity that was legal when it was set — the escrow itself refuses that, snapshotting
+// both terms onto each bond at post so no later action moves a deadline already in force.
+uint256 constant MAX_BONDING_DURATION = 210 days;
 
 // ── Generic errors surfaced by the fourteen config trampolines (noesis-149) ─────────────────────
 // One per entry point, on the same discard-returndata contract noesis-148 established for the value

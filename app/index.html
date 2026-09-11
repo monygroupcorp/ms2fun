@@ -39,7 +39,8 @@
       emitted before) and `./` for the IPFS distribution build, where the document is served from
       under a `/ipfs/<cid>/` path prefix and a root-anchored href would leave the pin entirely.
       The og:/twitter: URLs below stay ABSOLUTE on purpose — a share card is fetched by a scraper
-      with no page context, so those have to name an origin.
+      with no page context, so those have to name an origin. Which origin is a build input, not a
+      string in this file; see the share-card comment below.
     -->
     <link rel="icon" href="%BASE_URL%favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="%BASE_URL%favicon-32.png" sizes="32x32" />
@@ -50,10 +51,14 @@
       content="noesis — onchain alignment launchpad. Curated art/token releases route a fixed share of every fee to the communities that inspired them, at a ratio set in the contract."
     />
     <!--
-      Share card tags (og:/twitter:). The origin below tracks launch/launch-runbook.md — update
-      both together if it changes. These are SITE-WIDE and STATIC on purpose: this is a serverless
-      SPA (no server render), scrapers do not execute JS, so every route serves this same card
-      regardless of what React sets after hydration. Do not move this into a component.
+      Share card tags (og:/twitter:). `%VITE_PUBLIC_ORIGIN%` is substituted at build time from
+      deployment config by the `public-origin` plugin in `vite.config.ts` (see
+      `src/lib/share/origin.ts`) — one value reaching all three sites, so a card can never be
+      published with its url and its image on different hosts. Do not type an origin here; the
+      build refuses markup that carries no placeholder. These tags are SITE-WIDE and STATIC on
+      purpose: this is a serverless SPA (no server render), scrapers do not execute JS, so every
+      route serves this same card regardless of what React sets after hydration. Do not move this
+      into a component.
     -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="noesis" />
@@ -62,8 +67,8 @@
       property="og:description"
       content="noesis — onchain alignment launchpad. Curated art/token releases route a fixed share of every fee to the communities that inspired them, at a ratio set in the contract."
     />
-    <meta property="og:url" content="https://noesis.gwei.domains" />
-    <meta property="og:image" content="https://noesis.gwei.domains/icon-512.png" />
+    <meta property="og:url" content="%VITE_PUBLIC_ORIGIN%" />
+    <meta property="og:image" content="%VITE_PUBLIC_ORIGIN%/icon-512.png" />
     <meta property="og:image:width" content="512" />
     <meta property="og:image:height" content="512" />
     <meta property="og:image:alt" content="the noesis mark — a picture-frame lockup" />
@@ -73,7 +78,7 @@
       name="twitter:description"
       content="noesis — onchain alignment launchpad. Curated art/token releases route a fixed share of every fee to the communities that inspired them, at a ratio set in the contract."
     />
-    <meta name="twitter:image" content="https://noesis.gwei.domains/icon-512.png" />
+    <meta name="twitter:image" content="%VITE_PUBLIC_ORIGIN%/icon-512.png" />
     <link rel="stylesheet" href="%BASE_URL%fonts/fonts.css" />
     <title>noesis</title>
   </head>

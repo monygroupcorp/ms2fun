@@ -147,7 +147,12 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
           <span className={styles.bannerValue}>{formatOpenTime(view.bondingOpenTime)}</span>
           <span className={styles.countdown}>in {formatCountdown(remaining)}</span>
         </div>
-        {/* Free mint can be eligible before open in some configs; panel self-hides when not. */}
+        {/*
+          Mounted here so a visitor can see a free allocation exists and when it opens. It is NOT
+          claimable yet in any config — `claimFreeMint` reverts `TooEarly` below `bondingOpenTime`
+          unconditionally — so the panel is passed the open time and renders the claim disabled
+          until it passes. It still self-hides when there is no allocation or this wallet has one.
+        */}
         <FreeMintPanel
           instance={instance}
           bondingOpenTime={view.bondingOpenTime}

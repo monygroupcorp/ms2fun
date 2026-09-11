@@ -372,11 +372,12 @@ contract ERC721AuctionFactoryTest is Test {
         assertTrue(auction.settled);
     }
 
-    /// noesis-113 Part 2: if the vault's alignment target is revoked AFTER the instance bound it, the 19%
-    /// tithe at auction settle must be redirected to `protocolTreasury` (not fed to the de-curated vault,
-    /// not stranded), `VaultCutRedirected` emitted, and the auction must still SETTLE (line liveness and the
-    /// winner's token are never held hostage to the DAO's revocation).
-    function test_SettleAuction_RevokedTarget_RedirectsVaultCutToTreasury() public {
+    /// noesis-113 Part 2 / noesis-435: if the vault's alignment target is revoked AFTER the instance bound
+    /// it, the 19% tithe at auction settle must be returned to the CREATOR (not fed to the de-curated
+    /// vault, not stranded, and NOT taken by the protocol — de-curation may destroy value, it may not
+    /// transfer value to the protocol), `VaultCutReturnedToCreator` emitted, and the auction must still
+    /// SETTLE (line liveness and the winner's token are never held hostage to the DAO's revocation).
+    function test_SettleAuction_RevokedTarget_ReturnsVaultCutToCreator() public {
         ERC721AuctionInstance inst = _createDefaultInstance();
 
         vm.prank(artist);
@@ -397,10 +398,11 @@ contract ERC721AuctionFactoryTest is Test {
         uint256 treasuryBalBefore = treasury.balance;
 
         uint256 protocolCut = 1 ether / 100; // 1%
-        uint256 expectedVaultCut = (1 ether * 19) / 100; // 19% — redirected
+        uint256 expectedVaultCut = (1 ether * 19) / 100; // 19% — returned to the creator
+        uint256 artistBalBefore = artist.balance;
 
         vm.expectEmit(true, true, false, true, address(inst));
-        emit ERC721AuctionInstance.VaultCutRedirected(address(vault), treasury, expectedVaultCut);
+        emit ERC721AuctionInstance.VaultCutReturnedToCreator(address(vault), artist, expectedVaultCut);
 
         inst.settleAuction(1); // must NOT revert — line not frozen
 
@@ -409,46 +411,48 @@ contract ERC721AuctionFactoryTest is Test {
         auction = inst.getAuction(1);
         assertTrue(auction.settled, "auction settled despite revocation");
 
-        // Vault got nothing; treasury absorbed both the protocol cut and the redirected tithe.
+        // Vault got nothing; the treasury got its own 1% and NOT one wei of the community cut.
         assertEq(address(vault).balance - vaultBalBefore, 0, "revoked vault must receive nothing");
+        assertEq(treasury.balance - treasuryBalBefore, protocolCut, "treasury gets its 1% and nothing more");
+        // Artist gets the queue deposit back (0.1) + the 80% remainder + the returned 19% community cut.
         assertEq(
-            treasury.balance - treasuryBalBefore,
-            protocolCut + expectedVaultCut,
-            "treasury got protocol + redirected tithe"
+            artist.balance - artistBalBefore,
+            0.1 ether + 1 ether - protocolCut,
+            "creator gets the remainder plus the returned cut"
         );
-        assertEq(inst.pendingVaultCut(), 0, "redirect is not the pending-retry lane");
+        assertEq(inst.pendingVaultCut(), 0, "the return is not the pending-retry lane");
     }
 
-    /// noesis-269: the two redirects are distinguishable in the log. Drives BOTH branches — a cut
-    /// redirected at settle as it is earned, and a stashed cut redirected on `flushPendingVaultCut` —
-    /// and asserts each path emits its own signal and only its own. Same money, same destination, but
-    /// one is new revenue and the other is a re-route of revenue already reported; a tithe report
-    /// reading a single event for both would count that cut twice.
-    function test_RedirectSignals_PrimaryAndFlush_Differ() public {
+    /// noesis-269/noesis-314: the two returns are distinguishable in the log. Drives BOTH branches — a cut
+    /// returned at settle as it is earned, and a stashed cut returned on `flushPendingVaultCut` — and
+    /// asserts each path emits its own signal and only its own. Same money, same destination, but one is
+    /// new revenue and the other is a re-route of revenue already reported; a tithe report reading a
+    /// single event for both would count that cut twice.
+    function test_ReturnSignals_PrimaryAndFlush_Differ() public {
         assertTrue(
-            ERC721AuctionInstance.VaultCutRedirected.selector
-                != ERC721AuctionInstance.PendingVaultCutRedirected.selector,
-            "the two redirect signals are distinct topics"
+            ERC721AuctionInstance.VaultCutReturnedToCreator.selector
+                != ERC721AuctionInstance.PendingVaultCutReturnedToCreator.selector,
+            "the two return signals are distinct topics"
         );
 
-        // -- Branch 1: revoked before the settle, so the cut is redirected as it is earned. --
+        // -- Branch 1: revoked before the settle, so the cut is returned as it is earned. --
         ERC721AuctionInstance earned = _bidInstance(address(vault));
         mockRegistry.setVaultRegistered(address(vault), false);
         vm.recordLogs();
         earned.settleAuction(1);
         Vm.Log[] memory primary = vm.getRecordedLogs();
         assertEq(
-            TitheSignals.count(primary, ERC721AuctionInstance.VaultCutRedirected.selector),
+            TitheSignals.count(primary, ERC721AuctionInstance.VaultCutReturnedToCreator.selector),
             1,
             "primary path emits the earned signal"
         );
         assertEq(
-            TitheSignals.count(primary, ERC721AuctionInstance.PendingVaultCutRedirected.selector),
+            TitheSignals.count(primary, ERC721AuctionInstance.PendingVaultCutReturnedToCreator.selector),
             0,
             "primary path does not claim to be a retry"
         );
 
-        // -- Branch 2: stashed while the target was live, redirected on flush. --
+        // -- Branch 2: stashed while the target was live, returned on flush. --
         MockToggleVault broken = new MockToggleVault();
         ERC721AuctionInstance stashed = _bidInstance(address(broken));
         stashed.settleAuction(1); // target live + vault broken -> stashed, not redirected
@@ -458,12 +462,12 @@ contract ERC721AuctionFactoryTest is Test {
         stashed.flushPendingVaultCut();
         Vm.Log[] memory flushed = vm.getRecordedLogs();
         assertEq(
-            TitheSignals.count(flushed, ERC721AuctionInstance.PendingVaultCutRedirected.selector),
+            TitheSignals.count(flushed, ERC721AuctionInstance.PendingVaultCutReturnedToCreator.selector),
             1,
             "flush path emits the retry signal"
         );
         assertEq(
-            TitheSignals.count(flushed, ERC721AuctionInstance.VaultCutRedirected.selector),
+            TitheSignals.count(flushed, ERC721AuctionInstance.VaultCutReturnedToCreator.selector),
             0,
             "flush path is not reported as new revenue"
         );
@@ -497,10 +501,11 @@ contract ERC721AuctionFactoryTest is Test {
         vm.warp(inst.getAuction(1).endTime);
     }
 
-    /// noesis-126: a vault cut STASHED at settle (the vault reverted) while the target was live must NOT be
-    /// force-fed to the vault on `flushPendingVaultCut` once the target has since been revoked — it is
-    /// redirected to `protocolTreasury`, mirroring the `settleAuction` primary path.
-    function test_FlushPendingVaultCut_RevokedTarget_RedirectsToTreasury() public {
+    /// noesis-126/noesis-435: a vault cut STASHED at settle (the vault reverted) while the target was live
+    /// must NOT be force-fed to the vault on `flushPendingVaultCut` once the target has since been revoked —
+    /// it is returned to the CREATOR, mirroring the `settleAuction` primary path, and the treasury balance
+    /// is unchanged.
+    function test_FlushPendingVaultCut_RevokedTarget_ReturnsToCreator() public {
         // Broken vault: receiveContribution reverts, so the settle tithe is stashed as pendingVaultCut.
         MockToggleVault brokenVault = new MockToggleVault();
 
@@ -538,20 +543,22 @@ contract ERC721AuctionFactoryTest is Test {
         mockRegistry.setVaultRegistered(address(brokenVault), false);
 
         uint256 treasuryBefore = treasury.balance;
+        uint256 artistBefore = artist.balance;
         vm.expectEmit(true, true, false, true, address(inst));
-        emit ERC721AuctionInstance.PendingVaultCutRedirected(address(brokenVault), treasury, expectedVaultCut);
+        emit ERC721AuctionInstance.PendingVaultCutReturnedToCreator(address(brokenVault), artist, expectedVaultCut);
         inst.flushPendingVaultCut(); // permissionless
 
-        assertEq(treasury.balance - treasuryBefore, expectedVaultCut, "flush redirected the tithe to treasury");
+        assertEq(artist.balance - artistBefore, expectedVaultCut, "flush returned the cut to the creator");
+        assertEq(treasury.balance - treasuryBefore, 0, "treasury balance unchanged");
         assertEq(address(brokenVault).balance, 0, "de-curated vault received nothing");
         assertEq(inst.pendingVaultCut(), 0, "stash cleared");
     }
 
     /// noesis-418: the flush's success branch must be legible on-chain too. `VaultContributionFailed` marks a
-    /// tithe going pending and `VaultCutRedirected` marks one leaving for the treasury, but until now a stash
+    /// tithe going pending and `VaultCutReturnedToCreator` marks one going back to the creator, but until now a stash
     /// that was successfully re-sent to a healed vault emitted nothing — so a reader summing the events saw
     /// the family's pending figure only ever grow. The retry now emits its own signal, distinct from the
-    /// redirect the other branch emits.
+    /// return the other branch emits.
     function test_FlushPendingVaultCut_HealedVault_EmitsRetried() public {
         MockToggleVault toggleVault = new MockToggleVault();
 

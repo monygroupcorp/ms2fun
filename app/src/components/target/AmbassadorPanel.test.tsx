@@ -165,7 +165,7 @@ describe('AmbassadorPanel', () => {
     seats.targetIds = [7n]
     render(<AmbassadorPanel targets={[UNI]} />)
     const panel = screen.getByTestId('ambassador-seat').textContent ?? ''
-    expect(panel).toMatch(/vested/i)
+    expect(panel).toMatch(/live principal/i)
     expect(panel).toMatch(/not offered here/i)
     expect(panel).toMatch(/title is sealed at registration/i)
   })

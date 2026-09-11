@@ -811,7 +811,10 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
                 price,
                 MetadataOverlayModule.Payout.ARTIST
             );
-            ov.unlock{ value: price }(inst, paidId);
+            // The buyer commits to the art as well as the price: same string authored just above.
+            ov.unlock{ value: price }(
+                inst, paidId, keccak256(bytes(string.concat(ART_BASE_WOTLK, vm.toString(paidId))))
+            );
 
             // ...and the offers a VISITOR can take. Authored on ids ABOVE the pieces the seed keeps,
             // so the next person to buy into this row is minted a piece that already carries one and

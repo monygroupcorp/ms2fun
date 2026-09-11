@@ -334,7 +334,7 @@ contract DeployCore is Script {
 
         zrouter = cfg.zrouter != address(0)
             ? zRouter(payable(cfg.zrouter))
-            : new zRouter(cfg.zrouterChain.weth != address(0) ? cfg.zrouterChain : mainnetChainConfig());
+            : new zRouter(cfg.zrouterChain.weth != address(0) ? cfg.zrouterChain : mainnetChainConfig(), deployer);
 
         // ── Phase 4: Vault infrastructure ───────────────────────────────────
 

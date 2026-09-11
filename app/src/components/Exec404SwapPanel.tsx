@@ -153,6 +153,10 @@ export function Exec404SwapPanel() {
   // Cap the receive quote at 4 fraction digits so a raw 18-decimal value doesn't overflow the panel (N2).
   const quoteValue =
     quoteOut !== undefined ? `${formatTokenAmount(quoteOut, 18, 4)} ${outLabel}` : '—'
+  // `minOut` is the amountLimit the swap is actually signed with — below it the tx reverts. It is
+  // the only number here the trader is protected at, so it is shown, not just sent. Computation is
+  // untouched; this formats what is already being sent.
+  const minOutValue = minOut !== undefined ? `${formatTokenAmount(minOut, 18, 4)} ${outLabel}` : '—'
   const isBusy = swap.isPending || isConfirming
   const swapError = txErrorReason(swap.error)
   const quoteError = sim.error && quoteReady ? txErrorReason(sim.error) : undefined
@@ -243,6 +247,13 @@ export function Exec404SwapPanel() {
             </span>
           </div>
 
+          <div className={styles.quoteRow} data-testid="exec404-min-out">
+            <span className={styles.quoteLabel}>min received</span>
+            <span className={styles.quoteValue}>
+              {sim.isFetching && quoteReady ? '…' : minOutValue}
+            </span>
+          </div>
+
           {/* N3: natural reset — a confirmed swap clears the form and shows this one-liner until the
               next edit, instead of a dead-end "trade again" screen. */}
           {lastTrade && amountStr.trim() === '' && (
@@ -281,6 +292,12 @@ export function Exec404SwapPanel() {
             </button>
           )}
 
+          {needsApproval && (
+            <p className={styles.note}>
+              approve EXEC once so the router can pull it — then the sell unlocks. This grants the
+              router an unlimited EXEC allowance, which stays in place until you revoke it.
+            </p>
+          )}
           {quoteError && !swapError && (
             <p className={`${styles.txStatus} ${styles.txError}`}>quote failed: {quoteError}</p>
           )}

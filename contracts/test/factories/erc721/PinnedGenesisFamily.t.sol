@@ -28,9 +28,10 @@ contract MockMRPin721 {
     }
 }
 
-/// @notice Audit finding #2 (defense-in-depth, ERC721): a vault migration must never flip an endowment
-///         collection's 1/80/19 auction-settlement split to the liquidity 1/19/80. The family is pinned
-///         to the genesis vault at construction.
+/// @notice Audit finding #2 (defense-in-depth, ERC721 auction): a vault migration must never move the
+///         creator's share of settlement. It cannot, and now for a stronger reason than the genesis pin —
+///         the split is FAMILY-BLIND, so there is no other proportion for a migration to reach. The pin
+///         survives as the answer to "whose `vaultType()` must be recognized".
 contract PinnedGenesisFamily721Test is Test {
     address internal constant CREATOR = address(0xC1);
     address internal constant BUYER = address(0xB2);
@@ -80,11 +81,11 @@ contract PinnedGenesisFamily721Test is Test {
         assertEq(inst.genesisVault(), address(genesis), "genesisVault pinned to construction vault");
     }
 
-    /// @notice The exploit: endowment genesis, then swap the live vault to a liquidity-family vault. The
-    ///         split proportion stays keyed to the pinned genesis family, so the creator is capped at the
-    ///         19% leg (plus its deposit refund) and can NEVER capture the 80% community leg. (In production
-    ///         the registry choke-point forbids this cross-family swap; the instance pin is defense-in-depth.)
-    function test_migrateToLiquidity_doesNotFlipSplit() public {
+    /// @notice The old exploit shape: endowment genesis, then swap the live vault to a liquidity-family
+    ///         vault. Nothing moves. The split is FAMILY-BLIND — 1% protocol / 19% vault / 80% creator —
+    ///         so a migration has no proportion to reach. (In production the registry choke-point forbids
+    ///         this cross-family swap anyway; this asserts it would be inert even if one occurred.)
+    function test_migrateVault_cannotMoveTheSplit() public {
         (ERC721AuctionInstance inst, MockFamilyVault genesis) = _deploy("AaveEndowment");
 
         MockFamilyVault lp = new MockFamilyVault("UniswapV4LP");
@@ -99,13 +100,11 @@ contract PinnedGenesisFamily721Test is Test {
 
         inst.settleAuction(1);
 
-        // Pinned genesis (endowment) split proportion: 1% protocol / 80% vault / 19% creator — NOT flipped.
+        // The one split: 1% protocol / 19% vault / 80% creator, before the migration and after it.
         assertEq(TREASURY.balance - treasuryBefore, 0.01 ether, "protocol 1%");
-        // Creator receives the queued deposit refund (0.1) plus the 19% creator leg — not the 80% flip.
-        assertEq(CREATOR.balance - creatorBefore, 0.1 ether + 0.19 ether, "creator capped at deposit + 19%");
-        assertEq(
-            address(lp).balance - lpBefore, 0.8 ether, "80% community leg preserved (to active vault), not to creator"
-        );
+        // Creator receives the queued deposit refund (0.1) plus the 80% creator leg.
+        assertEq(CREATOR.balance - creatorBefore, 0.1 ether + 0.8 ether, "creator 80% + deposit, unmoved");
+        assertEq(address(lp).balance - lpBefore, 0.19 ether, "19% community leg to the live active vault");
     }
 
     /// @notice Regression: a genuinely liquidity-family genesis still settles 1/19/80 (creator 80%).

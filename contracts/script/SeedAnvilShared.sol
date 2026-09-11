@@ -28,10 +28,31 @@ interface IOwnable {
     function transferOwnership(address newOwner) external payable;
 }
 
-/// @dev The endowment vault's payout sink. Read back so a collection cannot be bound to a vault that
+/// @dev The endowment vault's payout sink, resolved the way the vault itself resolves it. The vault
+///      keeps no copy of the sink — `_targetSink()` reads the alignment registry's answer for the
+///      vault's own target id on every send — so this walks the same two hops rather than reading a
+///      vault getter that no longer exists. Read back so a collection cannot be bound to a vault that
 ///      pays somewhere other than the artist the registry pinned.
-interface IEndowmentPayout {
-    function communityPayout() external view returns (address);
+interface IEndowmentTarget {
+    function targetId() external view returns (uint256);
+    function masterRegistry() external view returns (address);
+}
+
+interface IEndowmentMasterRegistry {
+    function alignmentRegistry() external view returns (address);
+}
+
+interface IEndowmentSinkRegistry {
+    function getCommunityPayout(uint256 targetId) external view returns (address);
+}
+
+library EndowmentSink {
+    /// @dev The address `vault` would pay its community leg to right now.
+    function sinkOf(address vault) internal view returns (address) {
+        IEndowmentTarget v = IEndowmentTarget(vault);
+        address registry = IEndowmentMasterRegistry(v.masterRegistry()).alignmentRegistry();
+        return IEndowmentSinkRegistry(registry).getCommunityPayout(v.targetId());
+    }
 }
 
 /// @dev The one read the art acceptance test needs, on either token surface (the DN404 mirror for a
@@ -474,9 +495,8 @@ abstract contract SeedAnvilShared is Script {
     // visitor performs it.
     uint256 constant LAWBSTERS_REAL_SUPPLY = 420;
     uint256 constant LAWBSTERS_REAL_RAISE = 5.96 ether;
-    // Auction collection — the family that can express the 80% endowment (the 80/19/1 leg is
-    // `splitMintFor(amount, liquidityFamily = false)`, reachable from the ERC-1155 and ERC-721
-    // settlement paths only; ERC404 graduation has no family branch and cannot express it).
+    // Auction collection — a settlement path that routes its 19% vault leg into the bound endowment
+    // vault, so the vault panel it renders has principal behind it.
     uint256 constant FIGMATA_REAL_SUPPLY = 180;
 
     // Curve presets. `LaunchManager` accepts ANY `targetETH` — the 5/25/50 ETH menu is three
@@ -606,7 +626,7 @@ abstract contract SeedAnvilShared is Script {
     }
 
     /// @dev The Aave endowment vault deployed under one alignment target id. The artist targets carry
-    ///      no LP vault at all — an endowment is escrowed principal streaming yield to a payout, and
+    ///      no LP vault at all — an endowment is permanent principal streaming yield to a payout, and
     ///      there is no liquidity leg to deploy — so the family filter is what makes the read exact
     ///      rather than merely first-matching. Reverts rather than returning zero: a seed that bound a
     ///      collection to address(0) would create instances whose settlements route nowhere.

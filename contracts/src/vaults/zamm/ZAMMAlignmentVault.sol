@@ -113,6 +113,9 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
     // ── Events ────────────────────────────────────────────────────────────
     event LiquidityAdded(uint256 ethSwapped, uint256 tokenReceived, uint256 lpMinted);
+    /// @notice ETH the vault sent to ZAMM's addLiquidity that the pool ratio did not consume, and
+    ///         which has been re-credited to `pendingETH` for the next conversion.
+    event LiquidityResidualRecredited(uint256 ethResidual);
     event Harvested(uint256 totalFees, uint256 benefactorFees, uint256 protocolFees, uint256 targetFees);
     event DelegateSet(address indexed benefactor, address indexed delegate);
     event PriceValidatorUpdated(address indexed validator);
@@ -313,7 +316,8 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         uint256 lp;
     }
 
-    /// @notice Buy alignment token and add ETH+token to ZAMM. Anyone can call (incentivized).
+    /// @notice Buy alignment token and add ETH+token to ZAMM. Permissionless — the caller is paid
+    ///         nothing for the call.
     function convertAndAddLiquidity(uint256 minTokenOut, uint256 minEth, uint256 minToken)
         external
         nonReentrant
@@ -351,6 +355,16 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         uint256 effMinTokenOut = _floorTokenOut(ethToSwap, minTokenOut);
         SwapLPResult memory r = _swapAndAddLiquidity(ethToSwap, ethForLP, effMinTokenOut, minEth, minToken);
 
+        // ZAMM adds liquidity at the POOL's ratio, so it consumes at most `ethForLP` and refunds the
+        // rest to this vault. That refund lands in `receive()` while the reentrancy guard is engaged,
+        // so it is deliberately untracked there: without the accrual below it would sit in the vault's
+        // raw balance with no accounting handle on it — no code path pays it out (only the explicit
+        // `accumulatedProtocolFees` / `accumulatedTargetFees` counters are withdrawable), and
+        // `accumulatedFees()` (balance - pendingETH) would misreport it as harvestable yield. Re-credit
+        // it to `pendingETH` so the next conversion deploys it.
+        uint256 ethResidual = ethForLP - r.ethUsed;
+        uint256 ethDeployed = deployETH - ethResidual;
+
         lpMinted = r.lp;
         principalETH += r.ethUsed;
         principalToken += r.tokenUsed;
@@ -358,16 +372,48 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         // sqrt(ethUsed * tokenUsed). Accumulating it gives a price-history-independent baseline.
         principalInvariant += FixedPointMathLib.sqrt(r.ethUsed * r.tokenUsed);
 
+        // Carry-forward bookkeeping for the residual: `carriedTotal` is the sum of the per-benefactor
+        // carries and `dustTaker` the last benefactor eligible for one. Both are only used when a
+        // residual exists; the round-down remainder is settled on `dustTaker` after the loop so
+        // sum(pendingContribution) stays exactly equal to `pendingETH`.
+        uint256 carriedTotal;
+        address dustTaker;
+
         for (uint256 i = 0; i < benefactors.length; i++) {
             address b = benefactors[i];
             uint256 contrib = pendingContribution[b];
             delete pendingContribution[b];
             if (contrib == 0) continue;
 
-            uint256 settled = contrib * deployETH / totalEth; // round down: dust stays unallocated
+            // Credit only the ETH that actually became liquidity; the residual is carried forward as
+            // this same benefactor's pending contribution, so it is never counted twice (once as
+            // shares here and again as shares in the batch that finally deploys it).
+            uint256 settled = contrib * ethDeployed / totalEth; // round down: dust stays unallocated
             rewardDebt[b] += settled * accRewardPerContribution / 1e18; // round down: benefactor cannot over-claim
             benefactorContribution[b] += settled;
             totalContributions += settled;
+
+            if (ethResidual != 0) {
+                uint256 carried = contrib * ethResidual / totalEth; // round down; remainder settled below
+                if (carried != 0) {
+                    pendingContribution[b] = carried;
+                    _pendingBenefactors.push(b);
+                    carriedTotal += carried;
+                }
+                dustTaker = b;
+            }
+        }
+
+        if (ethResidual != 0) {
+            // Hand the round-down remainder to the last eligible benefactor so the carried
+            // contributions sum to the residual exactly — no wei of `pendingETH` is left unowned.
+            uint256 dust = ethResidual - carriedTotal;
+            if (dust != 0 && dustTaker != address(0)) {
+                if (pendingContribution[dustTaker] == 0) _pendingBenefactors.push(dustTaker);
+                pendingContribution[dustTaker] += dust;
+            }
+            pendingETH += ethResidual; // exactly 0 here: `receive()` does not track under the guard
+            emit LiquidityResidualRecredited(ethResidual);
         }
 
         emit LiquidityAdded(ethToSwap, r.tokenBought, lpMinted);
@@ -396,7 +442,8 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
     // ── harvest ───────────────────────────────────────────────────────────
 
-    /// @notice Harvest fee growth from ZAMM pool. Anyone can call (incentivized).
+    /// @notice Harvest fee growth from ZAMM pool. Permissionless — the caller is paid nothing for
+    ///         the call.
     /// @param minEthOut Minimum ETH to receive from token→ETH fee swap
     function harvest(uint256 minEthOut) external nonReentrant returns (uint256 feesCollected) {
         if (block.number == _lastHarvestBlock) revert HarvestSameBlock();

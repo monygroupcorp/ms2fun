@@ -39,6 +39,15 @@ contract ApplyLaunchPresetsTest is Test {
         lm = new LaunchManager(OWNER);
         script = new ApplyLaunchPresetsHarness();
         script.setTarget(address(lm));
+        _admitReserveAt(CURVE);
+    }
+
+    /// @dev `setPreset` asks the rung's computer whether the reserve is admissible before it writes.
+    ///      The computer is a stand-in address here — the script must carry it through, not call it —
+    ///      so it answers yes to every band.
+    function _admitReserveAt(address computer) internal {
+        vm.etch(computer, hex"00");
+        vm.mockCall(computer, abi.encodeWithSignature("isReserveBpsAdmissible(uint256)"), abi.encode(true));
     }
 
     /// @dev The ladder Sepolia was deployed with. NICHE and STANDARD are superseded; HYPE was never
@@ -102,6 +111,7 @@ contract ApplyLaunchPresetsTest is Test {
     function test_curveComputerIsCarriedThroughUntouched() public {
         _writeSupersededLadder();
         address migrated = address(0xBEEF);
+        _admitReserveAt(migrated);
         LaunchManager.Preset memory p = lm.getPreset(0);
         p.curveComputer = migrated;
         vm.prank(OWNER);

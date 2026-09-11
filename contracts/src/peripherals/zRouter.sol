@@ -98,10 +98,16 @@ contract zRouter {
 
     event OwnershipTransferred(address indexed from, address indexed to);
 
-    constructor(ChainConfig memory c) payable {
+    constructor(ChainConfig memory c, address owner_) payable {
         // WETH is read through low-level calls that ignore a codeless target, so a zero binding would
         // burn ETH rather than revert. It is the one binding this router cannot be deployed without.
         require(c.weth != address(0), LegUnavailable());
+
+        // Ownership is an explicit constructor input, not `tx.origin`. `tx.origin` binds the owner to
+        // whichever EOA happened to broadcast — a relay, a multisig executor or a bundler under an
+        // account-abstraction or factory deploy — rather than to the intended owner, and it silently
+        // differs from `msg.sender` on any deploy path that is not a plain EOA `new`.
+        require(owner_ != address(0), Unauthorized());
 
         WETH = c.weth;
         V4_POOL_MANAGER = c.v4PoolManager;
@@ -121,7 +127,7 @@ contract zRouter {
 
         safeExecutor = new SafeExecutor();
         if (c.steth.code.length > 0) safeApprove(c.steth, c.wsteth, type(uint256).max); // lido
-        emit OwnershipTransferred(address(0), _owner = tx.origin);
+        emit OwnershipTransferred(address(0), _owner = owner_);
     }
 
     function swapV2(
@@ -849,6 +855,11 @@ contract zRouter {
     // ** TRANSIENT STORAGE
 
     function deposit(address token, uint256 id, uint256 amount) public payable {
+        // A native deposit must be paid for. Without this the `msg.value == 0` path fell through both
+        // blocks below and still tstored an `amount` ETH credit nobody sent, spendable in the same
+        // transaction out of the router's own balance. A zero-value, zero-amount native call stays
+        // legal and credits nothing, which is what the multicall no-op shapes rely on.
+        if (token == address(0)) require(msg.value == amount, InvalidMsgVal());
         if (msg.value != 0) {
             require(id == 0, InvalidId());
             if (token == WETH) {

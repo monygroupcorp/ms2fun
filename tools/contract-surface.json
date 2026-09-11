@@ -1,0 +1,1807 @@
+{
+  "$comment": [
+    "The hand-written half of the interface A-K coverage map, read by tools/contract-surface.mjs.",
+    "Three things live here and nothing else: which contracts a wallet can reach, which app",
+    "directory belongs to which interface, and which functions are deliberately outside the app.",
+    "Everything else -- the function list, the UI paths, the counts -- is derived from the built",
+    "ABIs and the app source, because those two move and a table does not."
+  ],
+  "contracts": [
+    {
+      "$comment": "Deployed once by contracts/script/DeployCore.sol. PromotionBadges is excluded on purpose: DeployCore parks it pre-testnet and never constructs it, so it has no surface a wallet can reach."
+    },
+    {
+      "name": "MasterRegistryV1",
+      "artifact": "MasterRegistryV1.sol"
+    },
+    {
+      "name": "AlignmentRegistryV1",
+      "artifact": "AlignmentRegistryV1.sol"
+    },
+    {
+      "name": "AlignmentTargetRequestRegistry",
+      "artifact": "AlignmentTargetRequestRegistry.sol"
+    },
+    {
+      "name": "ComponentRegistry",
+      "artifact": "ComponentRegistry.sol"
+    },
+    {
+      "name": "ProfileRegistry",
+      "artifact": "ProfileRegistry.sol"
+    },
+    {
+      "name": "GlobalMessageRegistry",
+      "artifact": "GlobalMessageRegistry.sol"
+    },
+    {
+      "name": "FeaturedQueueManager",
+      "artifact": "FeaturedQueueManager.sol"
+    },
+    {
+      "name": "ProtocolTreasuryV1",
+      "artifact": "ProtocolTreasuryV1.sol"
+    },
+    {
+      "name": "QueryAggregator",
+      "artifact": "QueryAggregator.sol"
+    },
+    {
+      "name": "ERC404Factory",
+      "artifact": "ERC404Factory.sol"
+    },
+    {
+      "name": "ERC1155Factory",
+      "artifact": "ERC1155Factory.sol"
+    },
+    {
+      "name": "ERC721AuctionFactory",
+      "artifact": "ERC721AuctionFactory.sol"
+    },
+    {
+      "name": "CurveParamsComputer",
+      "artifact": "CurveParamsComputer.sol"
+    },
+    {
+      "name": "DeployBondEscrow",
+      "artifact": "DeployBondEscrow.sol"
+    },
+    {
+      "name": "LaunchManager",
+      "artifact": "LaunchManager.sol"
+    },
+    {
+      "name": "ERC404StakingModule",
+      "artifact": "ERC404StakingModule.sol"
+    },
+    {
+      "name": "LiquidityDeployerModule",
+      "artifact": "LiquidityDeployerModule.sol"
+    },
+    {
+      "name": "ZAMMLiquidityDeployerModule",
+      "artifact": "ZAMMLiquidityDeployerModule.sol"
+    },
+    {
+      "name": "CypherLiquidityDeployerModule",
+      "artifact": "CypherLiquidityDeployerModule.sol"
+    },
+    {
+      "name": "MerkleGatingModule",
+      "artifact": "MerkleGatingModule.sol"
+    },
+    {
+      "name": "MetadataOverlayModule",
+      "artifact": "MetadataOverlayModule.sol"
+    },
+    {
+      "name": "MetadataResolverRouter",
+      "artifact": "MetadataResolverRouter.sol"
+    },
+    {
+      "name": "TokenTierBandResolver",
+      "artifact": "TokenTierBandResolver.sol"
+    },
+    {
+      "name": "TierRevealModule",
+      "artifact": "TierRevealModule.sol"
+    },
+    {
+      "name": "DynamicPricingModule",
+      "artifact": "DynamicPricingModule.sol"
+    },
+    {
+      "name": "UniswapVaultPriceValidator",
+      "artifact": "UniswapVaultPriceValidator.sol"
+    },
+    {
+      "name": "UniTitheHookFactory",
+      "artifact": "UniTitheHookFactory.sol"
+    },
+    {
+      "$comment": "Deployed once each, and the only way a creator gets a vault."
+    },
+    {
+      "name": "AlignmentEndowmentVaultFactory",
+      "artifact": "AlignmentEndowmentVaultFactory.sol"
+    },
+    {
+      "name": "UniAlignmentVaultFactory",
+      "artifact": "UniAlignmentVaultFactory.sol"
+    },
+    {
+      "name": "ZAMMAlignmentVaultFactory",
+      "artifact": "ZAMMAlignmentVaultFactory.sol"
+    },
+    {
+      "name": "CypherAlignmentVaultFactory",
+      "artifact": "CypherAlignmentVaultFactory.sol"
+    },
+    {
+      "$comment": "One per creation. These carry most of the surface a buyer or creator ever touches."
+    },
+    {
+      "name": "ERC404BondingInstance",
+      "artifact": "ERC404BondingInstance.sol"
+    },
+    {
+      "name": "ERC404BondingOps",
+      "artifact": "ERC404BondingOps.sol"
+    },
+    {
+      "name": "ERC1155Instance",
+      "artifact": "ERC1155Instance.sol"
+    },
+    {
+      "name": "ERC721AuctionInstance",
+      "artifact": "ERC721AuctionInstance.sol"
+    },
+    {
+      "name": "AlignmentEndowmentVault",
+      "artifact": "AlignmentEndowmentVault.sol"
+    },
+    {
+      "name": "UniAlignmentVault",
+      "artifact": "UniAlignmentVault.sol"
+    },
+    {
+      "name": "ZAMMAlignmentVault",
+      "artifact": "ZAMMAlignmentVault.sol"
+    },
+    {
+      "name": "CypherAlignmentVault",
+      "artifact": "CypherAlignmentVault.sol"
+    }
+  ],
+  "interfaces": {
+    "A": {
+      "name": "Discovery & home",
+      "paths": [
+        "app/src/routes/HomePage.tsx",
+        "app/src/routes/CollectionsPage.tsx",
+        "app/src/routes/LearnPage.tsx",
+        "app/src/components/home",
+        "app/src/components/CollectionsBrowse.tsx",
+        "app/src/components/CollectionCard.tsx",
+        "app/src/lib/discovery",
+        "app/src/lib/learn",
+        "app/src/components/useCollection.ts",
+        "app/src/components/useCollectionMetadata.ts",
+        "app/src/lib/collection",
+        "app/src/lib/metadata"
+      ]
+    },
+    "B": {
+      "name": "Launch / create",
+      "paths": [
+        "app/src/routes/WizardPage.tsx",
+        "app/src/components/wizard",
+        "app/src/lib/wizard",
+        "app/src/lib/merkle.ts"
+      ]
+    },
+    "C": {
+      "name": "Per-type trading",
+      "paths": [
+        "app/src/components/collection/erc404",
+        "app/src/components/collection/erc1155",
+        "app/src/components/collection/erc721",
+        "app/src/components/exec404",
+        "app/src/components/Exec404SwapPanel.tsx",
+        "app/src/components/Exec404Activity.tsx",
+        "app/src/components/Exec404Stats.tsx",
+        "app/src/routes/Exec404Page.tsx",
+        "app/src/lib/exec404.ts",
+        "app/src/lib/carve.ts",
+        "app/src/lib/carveReceipt.ts"
+      ]
+    },
+    "D": {
+      "name": "Detail pages + NFT art/galleries",
+      "paths": [
+        "app/src/routes/CollectionPage.tsx",
+        "app/src/routes/EditionDetailPage.tsx",
+        "app/src/routes/TokenDetailPage.tsx",
+        "app/src/components/collection",
+        "app/src/lib/share"
+      ]
+    },
+    "E": {
+      "name": "Creator admin (per-instance)",
+      "paths": [
+        "app/src/components/collection/erc404/Erc404AdminPanel.tsx",
+        "app/src/components/collection/erc1155/CreatorAdminPanel.tsx",
+        "app/src/components/collection/erc721/Erc721AdminPanel.tsx",
+        "app/src/components/ui/useOwnerGate.ts"
+      ]
+    },
+    "F": {
+      "name": "Portfolio & holdings",
+      "paths": [
+        "app/src/components/portfolio",
+        "app/src/components/CreatorCollections.tsx"
+      ]
+    },
+    "G": {
+      "name": "Vault & yield",
+      "paths": [
+        "app/src/routes/VaultPage.tsx",
+        "app/src/routes/VaultsPage.tsx",
+        "app/src/routes/TargetPage.tsx",
+        "app/src/routes/RequestTargetPage.tsx",
+        "app/src/components/vault",
+        "app/src/components/target",
+        "app/src/lib/vaults",
+        "app/src/lib/tithe",
+        "app/src/lib/targetRequests.ts"
+      ]
+    },
+    "H": {
+      "name": "Featured-queue management",
+      "paths": [
+        "app/src/components/featured",
+        "app/src/lib/featuredOrder.ts"
+      ]
+    },
+    "I": {
+      "name": "Social / board",
+      "paths": [
+        "app/src/routes/BoardPage.tsx",
+        "app/src/components/board",
+        "app/src/components/MessageFeed.tsx",
+        "app/src/components/MessageComposer.tsx",
+        "app/src/components/ReplyComposer.tsx",
+        "app/src/components/ReactButton.tsx",
+        "app/src/components/useMessageFeed.ts",
+        "app/src/components/threadMessages.ts",
+        "app/src/lib/actionMessage.ts",
+        "app/src/lib/linkify.ts"
+      ]
+    },
+    "J": {
+      "name": "Profiles",
+      "paths": [
+        "app/src/routes/ProfilePage.tsx",
+        "app/src/components/ProfileEditForm.tsx",
+        "app/src/components/ProfileView.tsx",
+        "app/src/components/useProfileMetadata.ts",
+        "app/src/components/useCreatorCollections.ts"
+      ]
+    },
+    "K": {
+      "name": "Protocol admin console",
+      "paths": [
+        "app/src/routes/AdminPage.tsx",
+        "app/src/components/admin"
+      ]
+    }
+  },
+  "aliases": {
+    "$comment": "Hand-written ABI slices in app/src, and the deployed contracts each one addresses. A slice is a real UI path -- useVaultsSummary declares a three-fragment vault ABI because the full one trips TS2589 -- but nothing in the file says which contract it speaks to, so it is said here. One entry is not a slice but another contract's GENERATED binding: the four alignment vaults all implement IAlignmentVault, and useVaultOverview reads the shared selectors (vaultType, accumulatedFees, totalShares) off ANY vault through the endowment family's hooks rather than generating three more bindings for identical selectors. The call is real and the address is the LP vault's, so the credit belongs to the LP vault.",
+    "vaultSummaryAbi": [
+      "AlignmentEndowmentVault",
+      "UniAlignmentVault",
+      "ZAMMAlignmentVault",
+      "CypherAlignmentVault"
+    ],
+    "vaultTypeAbi": [
+      "AlignmentEndowmentVault",
+      "UniAlignmentVault",
+      "ZAMMAlignmentVault",
+      "CypherAlignmentVault"
+    ],
+    "alignmentTargetIdAbi": [
+      "AlignmentEndowmentVault",
+      "UniAlignmentVault",
+      "ZAMMAlignmentVault",
+      "CypherAlignmentVault"
+    ],
+    "contributionReceivedAbi": [
+      "AlignmentEndowmentVault",
+      "UniAlignmentVault",
+      "ZAMMAlignmentVault",
+      "CypherAlignmentVault"
+    ],
+    "vaultCutRedirectedAbi": [
+      "AlignmentEndowmentVault",
+      "UniAlignmentVault",
+      "ZAMMAlignmentVault",
+      "CypherAlignmentVault"
+    ],
+    "vaultContributionFailedInstanceAbi": [
+      "ERC404BondingInstance",
+      "ERC1155Instance",
+      "ERC721AuctionInstance"
+    ],
+    "vaultContributionFailedModuleAbi": [
+      "LiquidityDeployerModule",
+      "ZAMMLiquidityDeployerModule",
+      "CypherLiquidityDeployerModule"
+    ],
+    "ownerAbi": [
+      "*"
+    ],
+    "COMPONENT_META_ABI": [
+      "MerkleGatingModule",
+      "MetadataOverlayModule",
+      "MetadataResolverRouter",
+      "TierRevealModule",
+      "TokenTierBandResolver",
+      "DynamicPricingModule",
+      "ERC404StakingModule",
+      "LiquidityDeployerModule",
+      "ZAMMLiquidityDeployerModule",
+      "CypherLiquidityDeployerModule"
+    ],
+    "REGISTRY_NAME_ABI": [
+      "ComponentRegistry"
+    ],
+    "LAUNCH_MANAGER_ABI": [
+      "LaunchManager"
+    ],
+    "VAULT_INFO_ABI": [
+      "AlignmentEndowmentVault",
+      "UniAlignmentVault",
+      "ZAMMAlignmentVault",
+      "CypherAlignmentVault"
+    ],
+    "STYLE_ABI": [
+      "ERC404BondingInstance",
+      "ERC1155Instance",
+      "ERC721AuctionInstance"
+    ],
+    "alignmentEndowmentVaultAbi": {
+      "contracts": [
+        "UniAlignmentVault",
+        "ZAMMAlignmentVault",
+        "CypherAlignmentVault"
+      ],
+      "functions": [
+        "vaultType",
+        "accumulatedFees",
+        "totalShares"
+      ]
+    },
+    "lpVaultAbi": [
+      "UniAlignmentVault",
+      "ZAMMAlignmentVault",
+      "CypherAlignmentVault"
+    ],
+    "communityPayoutAbi": [
+      "AlignmentEndowmentVault",
+      "UniAlignmentVault",
+      "ZAMMAlignmentVault",
+      "CypherAlignmentVault"
+    ]
+  },
+  "skip": [
+    {
+      "$comment": "The old coverage map's interface L, restated as rules. Each says why the function is outside the app, not that nobody got to it yet -- an entry here is a claim, and a rule matching nothing fails the gate as loudly as an unclaimed function."
+    },
+    {
+      "$comment": "--- inherited library surface: written by Solady and OpenZeppelin, not by this protocol ---"
+    },
+    {
+      "match": "*.transferOwnership",
+      "why": "Solady Ownable. Ownership moves by a deliberate operator transaction; the app only reads owner() to gate creator-admin surfaces (useOwnerGate)."
+    },
+    {
+      "match": "*.renounceOwnership",
+      "why": "Solady Ownable. A renounce button in a UI is how a protocol loses its admin to a mis-click; there is deliberately no path to it."
+    },
+    {
+      "match": "*.requestOwnershipHandover",
+      "why": "Solady Ownable's two-step handover, inherited everywhere and driven from an operator's console, not the app."
+    },
+    {
+      "match": "*.completeOwnershipHandover",
+      "why": "Solady Ownable's two-step handover, inherited everywhere and driven from an operator's console, not the app."
+    },
+    {
+      "match": "*.cancelOwnershipHandover",
+      "why": "Solady Ownable's two-step handover, inherited everywhere and driven from an operator's console, not the app."
+    },
+    {
+      "match": "*.ownershipHandoverExpiresAt",
+      "why": "The handover's deadline read. Nothing in the app starts a handover, so nothing in it needs the deadline."
+    },
+    {
+      "match": "*.grantRoles",
+      "why": "Solady OwnableRoles. Roles are granted once at deploy and audited from the chain, not handed out through a web form."
+    },
+    {
+      "match": "*.revokeRoles",
+      "why": "Solady OwnableRoles. See grantRoles."
+    },
+    {
+      "match": "*.renounceRoles",
+      "why": "Solady OwnableRoles. See grantRoles."
+    },
+    {
+      "match": "*.hasAllRoles",
+      "why": "Solady OwnableRoles' role read. Every app-side gate is on owner(), not on a role bitmap."
+    },
+    {
+      "match": "*.hasAnyRole",
+      "why": "Solady OwnableRoles' role read. See hasAllRoles."
+    },
+    {
+      "match": "*.rolesOf",
+      "why": "Solady OwnableRoles' role read. See hasAllRoles."
+    },
+    {
+      "match": "*.upgradeToAndCall",
+      "why": "UUPS. An upgrade is authored and reviewed in contracts/script; no app build should be able to replace an implementation."
+    },
+    {
+      "match": "*.proxiableUUID",
+      "why": "UUPS. The ERC-1822 slot read the proxy itself performs during an upgrade."
+    },
+    {
+      "$comment": "--- a whole contract that is not an address a wallet ever sends to ---"
+    },
+    {
+      "match": "ERC404BondingOps.*",
+      "why": "The delegatecall body of ERC404BondingInstance, reached only through the instance's trampoline. Every one of its functions is also on the instance -- the ABIs agree exactly -- so it adds nothing a wallet can address, and a UI path to it would be a path to the wrong contract."
+    },
+    {
+      "$comment": "--- entry points whose caller is another contract: a wallet transaction reverts on the auth check ---"
+    },
+    {
+      "match": "*.initialize",
+      "why": "The proxy's one-shot constructor, called by contracts/script inside the deploying transaction. It reverts for everyone afterwards."
+    },
+    {
+      "match": "*.initializeFreeMint",
+      "why": "Factory-only (`msg.sender != factory` -> OnlyFactory), run once in the creating transaction."
+    },
+    {
+      "match": "*.initializeMetadata",
+      "why": "Factory-only (`msg.sender != factory` -> OnlyFactory), run once in the creating transaction."
+    },
+    {
+      "match": "*.initializeProtocol",
+      "why": "Factory-only (`msg.sender != factory` -> OnlyFactory), run once in the creating transaction."
+    },
+    {
+      "match": "*.initializeStaking",
+      "why": "Factory-only (`msg.sender != factory` -> OnlyFactory): wires the staking module dormant. The owner's switch, activateStaking, is the one with a panel."
+    },
+    {
+      "match": "*.initModule",
+      "why": "Factory-only (`msg.sender != factory` -> OnlyFactory), set-once per role: the resolution mechanism is sealed at construction (ADR-0006/0007)."
+    },
+    {
+      "match": "*.initTierBands",
+      "why": "Factory-only and set-once: mutable weights would retroactively reprice every outstanding band NFT, which is why there is no owner setter to put in a panel."
+    },
+    {
+      "match": "*.initConfig",
+      "why": "Registered-factory-only, set-once, called while the instance is being created."
+    },
+    {
+      "match": "*.initBands",
+      "why": "Registered-factory-only, set-once, called while the instance is being created."
+    },
+    {
+      "match": "*.initTiers",
+      "why": "Registered-factory-only, set-once, called while the instance is being created."
+    },
+    {
+      "match": "*.initResolvers",
+      "why": "Registered-factory-only, set-once, called while the instance is being created."
+    },
+    {
+      "match": "*.setAgentDelegationFromFactory",
+      "why": "Factory-only (`msg.sender != factory` -> OnlyFactory). The owner-facing twin, setAgentDelegation, is the one the creator-admin panel calls."
+    },
+    {
+      "match": "*.markGraduationSkipNFT",
+      "why": "Callable only by the instance's liquidity deployer, during graduation."
+    },
+    {
+      "match": "MasterRegistryV1.registerInstance",
+      "why": "Called by a registered factory as part of creating an instance. A wallet cannot register anything."
+    },
+    {
+      "match": "ERC404StakingModule.enableStaking",
+      "why": "onlyRegisteredInstance -- the instance calls it when its owner activates staking."
+    },
+    {
+      "match": "ERC404StakingModule.recordStake",
+      "why": "onlyRegisteredInstance. The staker's transaction goes to the instance, which books it here."
+    },
+    {
+      "match": "ERC404StakingModule.recordUnstake",
+      "why": "The caller is the instance, which pays the returned reward out. It touches only the caller-instance's own namespace."
+    },
+    {
+      "match": "ERC404StakingModule.recordFeesReceived",
+      "why": "onlyRegisteredInstance -- the instance forwards its fee share into the reward accumulator."
+    },
+    {
+      "match": "ERC404StakingModule.computeClaim",
+      "why": "The instance's read-and-book step inside a claim; the staker's path is the instance's claimStakingRewards."
+    },
+    {
+      "match": "ERC404StakingModule.settleAndReleaseLeak",
+      "why": "An instance's exit path into its own staking namespace. It never pays a staker, which is why it carries no registry check -- but the caller is still an instance, not a wallet."
+    },
+    {
+      "match": "*.receiveContribution",
+      "why": "The vault's inbound leg, called by the instance or the liquidity module that is forwarding a cut. A wallet contributes by buying, not by calling the vault."
+    },
+    {
+      "match": "*.unlockCallback",
+      "why": "Uniswap v4's lock callback, callable only by the PoolManager."
+    },
+    {
+      "match": "MerkleGatingModule.onMint",
+      "why": "The gating hook the instance calls inside a gated mint."
+    },
+    {
+      "match": "MerkleGatingModule.canMint",
+      "why": "The gating check the instance performs inside a mint. The app's own eligibility read is the proof it builds in lib/merkle.ts."
+    },
+    {
+      "match": "DeployBondEscrow.postBond",
+      "why": "Factory-only (`msg.sender != factory` -> OnlyFactory): the creation bond is posted by the factory inside the launch transaction the wizard already sends."
+    },
+    {
+      "match": "UniTitheHookFactory.deployHook",
+      "why": "Called by LiquidityDeployerModule while it is deploying a pool's liquidity."
+    },
+    {
+      "match": "LiquidityDeployerModule.deployLiquidity",
+      "why": "The module leg, entered from the instance (`msg.sender != p.instance`). The creator's button calls the instance's deployLiquidity, which the admin panel has."
+    },
+    {
+      "match": "ZAMMLiquidityDeployerModule.deployLiquidity",
+      "why": "The module leg, entered from the instance. See LiquidityDeployerModule.deployLiquidity."
+    },
+    {
+      "match": "CypherLiquidityDeployerModule.deployLiquidity",
+      "why": "The module leg, entered from the instance. See LiquidityDeployerModule.deployLiquidity."
+    },
+    {
+      "match": "*.resolve",
+      "why": "A metadata resolver's read, reached through the instance's tokenURI. The app renders tokenURI, so the resolver chain is walked without ever being addressed."
+    },
+    {
+      "$comment": "--- the ERC-20/721/1155 token surface: walked in the holder's wallet and on marketplaces, not here ---"
+    },
+    {
+      "match": "*.approve",
+      "why": "Token standard. Approvals the app needs it requests itself; a bare approve screen is a wallet's job."
+    },
+    {
+      "match": "*.transfer",
+      "why": "Token standard. Sending a token is what the holder's wallet is for."
+    },
+    {
+      "match": "*.transferFrom",
+      "why": "Token standard. See transfer."
+    },
+    {
+      "match": "*.safeTransferFrom",
+      "why": "Token standard. See transfer."
+    },
+    {
+      "match": "*.safeBatchTransferFrom",
+      "why": "Token standard. See transfer."
+    },
+    {
+      "match": "*.setApprovalForAll",
+      "why": "Token standard. Operator approvals are granted in the marketplace that needs them."
+    },
+    {
+      "match": "*.isApprovedForAll",
+      "why": "Token standard read, paired with setApprovalForAll."
+    },
+    {
+      "match": "*.getApproved",
+      "why": "Token standard read, paired with approve."
+    },
+    {
+      "match": "*.allowance",
+      "why": "Token standard read, paired with approve."
+    },
+    {
+      "match": "*.decimals",
+      "why": "Token standard read. The app formats through viem, which is told the decimals it needs."
+    },
+    {
+      "match": "*.tokenURI",
+      "why": "Token standard read. The app resolves art through useCollectionMetadata rather than one token at a time."
+    },
+    {
+      "match": "*.uri",
+      "why": "ERC-1155's metadata read. See tokenURI."
+    },
+    {
+      "match": "*.supportsInterface",
+      "why": "ERC-165. Introspection for other contracts and indexers; the app knows a collection's type from the registry."
+    },
+    {
+      "match": "*.ownerOf",
+      "why": "Token standard read. Holdings in the app come from the portfolio aggregation, not per-token owner lookups."
+    },
+    {
+      "match": "*.balanceOfBatch",
+      "why": "ERC-1155's batch read. The app's edition balances come through the aggregator."
+    },
+    {
+      "match": "*.mirrorERC721",
+      "why": "DN404's mirror pointer. The NFT half is addressed by the mirror's own address, which the app reads from the collection record."
+    },
+    {
+      "match": "*.getSkipNFT",
+      "why": "DN404's per-holder mirror opt-out, a wallet-level preference."
+    },
+    {
+      "match": "*.setSkipNFT",
+      "why": "DN404's per-holder mirror opt-out. A holder who wants the coin without the NFTs sets it from their wallet; the app never sets it for them."
+    },
+    {
+      "$comment": "--- deployment wiring: addresses written once by the deploy script, read back by its own post-checks ---"
+    },
+    {
+      "match": "*.masterRegistry",
+      "why": "A wired address. The app already knows every protocol address from lib/addresses; reading it back proves the deploy, and the deploy script is what checks it."
+    },
+    {
+      "match": "*.alignmentRegistry",
+      "why": "A wired address. See masterRegistry."
+    },
+    {
+      "match": "*.componentRegistry",
+      "why": "A wired address. See masterRegistry."
+    },
+    {
+      "match": "*.globalMessageRegistry",
+      "why": "A wired address. See masterRegistry."
+    },
+    {
+      "match": "*.protocolTreasury",
+      "why": "A wired address. See masterRegistry."
+    },
+    {
+      "match": "*.weth",
+      "why": "A wired address. See masterRegistry."
+    },
+    {
+      "match": "*.factory",
+      "why": "The instance's creator, wired at clone time. The app reaches an instance from the registry, never from the instance back to its factory."
+    },
+    {
+      "match": "*.zamm",
+      "why": "A wired venue address. See masterRegistry."
+    },
+    {
+      "match": "*.zRouter",
+      "why": "A wired venue address. See masterRegistry."
+    },
+    {
+      "match": "*.zQuoter",
+      "why": "A wired venue address. See masterRegistry."
+    },
+    {
+      "match": "*.poolManager",
+      "why": "A wired venue address. See masterRegistry."
+    },
+    {
+      "match": "*.protocol",
+      "why": "A wired address. See masterRegistry."
+    },
+    {
+      "match": "*.vaultImplementation",
+      "why": "The clone template a vault factory stamps from. It is a deploy fact, not a user-facing one."
+    },
+    {
+      "match": "*.priceValidator",
+      "why": "A wired risk address. The number a user cares about is the price the panel quotes, which is validated before it is shown."
+    },
+    {
+      "match": "*.defaultPriceValidator",
+      "why": "A wired risk address. See priceValidator."
+    },
+    {
+      "match": "*.stakingModule",
+      "why": "A wired address. The app addresses staking through the instance, which forwards."
+    },
+    {
+      "$comment": "--- protocol-owner configuration: rare, high-blast-radius, and deliberately not a button in a web build ---"
+    },
+    {
+      "$comment": "The admin console (interface K) carries the knobs an operator turns in the ordinary course -- rent, decay, agents, curation. Re-pointing a registry, a pool key, a price validator or a treasury is not that: it is a change whose blast radius is the whole protocol, and a UI that can make it is one stolen build artifact away from making it. These are sent from contracts/script with the operator key."
+    },
+    {
+      "match": "*.setMasterRegistry",
+      "why": "Deploy-time wiring; the correction path for a mis-wired deploy, not an operating knob."
+    },
+    {
+      "match": "*.setAlignmentRegistry",
+      "why": "Deploy-time wiring. See setMasterRegistry."
+    },
+    {
+      "match": "*.setComponentRegistry",
+      "why": "Deploy-time wiring. See setMasterRegistry."
+    },
+    {
+      "match": "*.setProtocolTreasury",
+      "why": "Deploy-time wiring. Re-pointing where every protocol fee lands is the single change least suited to a web form."
+    },
+    {
+      "match": "*.setWeth",
+      "why": "Deploy-time wiring. See setMasterRegistry."
+    },
+    {
+      "match": "QueryAggregator.setRegistries",
+      "why": "Deploy-time wiring. See setMasterRegistry."
+    },
+    {
+      "match": "*.setDeployBondEscrow",
+      "why": "Deploy-time wiring. See setMasterRegistry."
+    },
+    {
+      "match": "*.setDynamicPricingModule",
+      "why": "Deploy-time wiring. See setMasterRegistry."
+    },
+    {
+      "match": "*.setAlignmentHookFactory",
+      "why": "Deploy-time wiring. See setMasterRegistry."
+    },
+    {
+      "match": "AlignmentRegistryV1.setAcquireRoute",
+      "why": "The route the protocol buys an alignment token through: venue wiring, set with the target and changed only when a venue moves."
+    },
+    {
+      "match": "AlignmentRegistryV1.setReferencePool",
+      "why": "The pool a target's price is read from: venue wiring. See setAcquireRoute."
+    },
+    {
+      "match": "*.setPoolKey",
+      "why": "Venue wiring for a vault's position. See setAcquireRoute."
+    },
+    {
+      "match": "*.setV4PoolKey",
+      "why": "Venue wiring for a vault's position. See setAcquireRoute."
+    },
+    {
+      "match": "*.setVaultPoolKey",
+      "why": "Venue wiring, applied by the factory to the vaults it stamps. See setAcquireRoute."
+    },
+    {
+      "match": "*.setZQuoter",
+      "why": "Venue wiring. See setAcquireRoute."
+    },
+    {
+      "match": "*.setPriceValidator",
+      "why": "A risk parameter: which validator bounds a vault's accepted price. Changed after review, not from a browser."
+    },
+    {
+      "match": "*.setVaultPriceValidator",
+      "why": "A risk parameter, applied by the factory to the vaults it stamps. See setPriceValidator."
+    },
+    {
+      "match": "*.setMaxPriceDeviationBps",
+      "why": "A risk parameter: how far a quote may drift before a vault refuses it. See setPriceValidator."
+    },
+    {
+      "match": "*.setVaultMaxPriceDeviationBps",
+      "why": "A risk parameter, applied by the factory to the vaults it stamps. See setPriceValidator."
+    },
+    {
+      "match": "*.setCurveWeights",
+      "why": "The bonding-curve preset table. A change reprices every future launch, so it is reviewed as a contract change, not typed into a panel."
+    },
+    {
+      "match": "LaunchManager.setPreset",
+      "why": "The launch preset table. See setCurveWeights."
+    },
+    {
+      "match": "*.setLpFeeRate",
+      "why": "The fee tier the protocol's own LP positions are opened at: a venue parameter, set with the venue."
+    },
+    {
+      "match": "*.setHookFeeBips",
+      "why": "The tithe hook's rate, fixed for a deployment. See setLpFeeRate."
+    },
+    {
+      "match": "*.transferProtocolRole",
+      "why": "Moves the PROTOCOL_ROLE key. Same class as an ownership transfer, and kept out of the app for the same reason."
+    },
+    {
+      "match": "*Factory.deployVault",
+      "why": "onlyOwner: vaults are stamped by the protocol when a target is curated, in the same operator run that curates it. A creator reaches a vault by aligning to a target, never by deploying one."
+    },
+    {
+      "match": "*Factory.createVault",
+      "why": "onlyOwner. See deployVault."
+    },
+    {
+      "match": "*Factory.computeVaultAddress",
+      "why": "The deterministic address the operator's run checks before it stamps. The app is told a vault's address by the registry."
+    },
+    {
+      "match": "*Factory.migrateVault",
+      "why": "onlyOwner, and a migration is a rehearsed operator run against a specific vault -- not something to make one click away."
+    },
+    {
+      "match": "*.migratePosition",
+      "why": "The vault leg of that migration. See migrateVault."
+    },
+    {
+      "match": "DeployBondEscrow.release",
+      "why": "The owner's escape hatch to return an unsettled bond early. Deliberately manual: it exists for the case the automated settlement did not cover."
+    },
+    {
+      "$comment": "--- descriptors: written for the registry, the deploy script's compatibility check, and indexers ---"
+    },
+    {
+      "match": "*.features",
+      "why": "The capability bitmap a factory advertises, matched against requiredFeatures by the deploy script. The app describes a collection in its own words."
+    },
+    {
+      "match": "*.requiredFeatures",
+      "why": "The other half of that compatibility check. See features."
+    },
+    {
+      "match": "*.supportsCapability",
+      "why": "A vault's capability probe, used by the modules deciding what they may ask it for."
+    },
+    {
+      "match": "*.validateCompliance",
+      "why": "The deploy-time assertion that a vault satisfies its factory's contract. It is run before a vault is ever registered."
+    },
+    {
+      "match": "*.description",
+      "why": "A constant string naming the vault kind for an indexer. The app writes its own vault copy."
+    },
+    {
+      "match": "*.instanceType",
+      "why": "The type tag the registry stores. The app already has a collection's type from the record it read."
+    },
+    {
+      "$comment": "--- a component's self-description: the wizard reads it, the protocol writes it when the component is approved ---"
+    },
+    {
+      "match": "*Module.setMetadataURI",
+      "why": "The module's own IComponentModule self-description, set by the protocol owner when the component is approved into the registry. useApprovedModules READS it to name and describe the wizard's options; nothing in the app writes it."
+    },
+    {
+      "match": "*Router.setMetadataURI",
+      "why": "A resolver's self-description. See the module rule."
+    },
+    {
+      "match": "*Resolver.setMetadataURI",
+      "why": "A resolver's self-description. See the module rule."
+    },
+    {
+      "$comment": "--- compile-time constants: they cannot change, so a round trip per render would only re-read the source ---"
+    },
+    {
+      "match": "*.MAX_*",
+      "why": "A compile-time constant. The app carries the bound it needs (lib/wizard/supplyCeiling.ts is the worked example) rather than reading an immutable number over RPC."
+    },
+    {
+      "match": "*.MIN_*",
+      "why": "A compile-time constant. See MAX_*."
+    },
+    {
+      "match": "*.TICK_*",
+      "why": "A compile-time constant: the fixed tick range a vault's position is opened at. See MAX_*."
+    },
+    {
+      "match": "*.*_BPS",
+      "why": "A compile-time constant split or bound in basis points. See MAX_*."
+    },
+    {
+      "match": "*.*_WAD",
+      "why": "A compile-time constant in WAD. See MAX_*."
+    },
+    {
+      "match": "*.*_FLAGS",
+      "why": "The hook-address flag mask a v4 hook must and must not carry. Checked at deploy, not rendered."
+    },
+    {
+      "match": "*.*_ROLE",
+      "why": "A role identifier constant, paired with the OwnableRoles surface the app does not use."
+    },
+    {
+      "$comment": "--- reads that exist for another contract, or for an auditor with a chain explorer ---"
+    },
+    {
+      "match": "QueryAggregator.read*",
+      "why": "The aggregator's own guarded per-item reads -- 'Not for direct use' in its source. They exist so the batch reads can staticcall themselves and swallow a bad instance; the app calls the batch."
+    },
+    {
+      "match": "*._*",
+      "why": "An underscore-named slot getter, exposed for tests and explorers rather than for a caller."
+    },
+    {
+      "match": "*.acc*PerShare",
+      "why": "A raw accumulator of the reward math. What a holder is owed is the settled number the contract computes; the accumulator only means something next to rewardDebt."
+    },
+    {
+      "match": "*.accRewardPerContribution",
+      "why": "A raw accumulator of the reward math. See acc*PerShare."
+    },
+    {
+      "match": "*.rewardDebt",
+      "why": "The other half of the accumulator pair. See acc*PerShare."
+    },
+    {
+      "match": "*.rewardPerToken",
+      "why": "Synthetix-style staking internals. The staker-facing number is getStakingInfo, which the collection's staking panel reads."
+    },
+    {
+      "match": "*.rewardPerTokenPaid",
+      "why": "Synthetix-style staking internals. See rewardPerToken."
+    },
+    {
+      "match": "*.rewardPerTokenStored",
+      "why": "Synthetix-style staking internals. See rewardPerToken."
+    },
+    {
+      "match": "*.rewardRate",
+      "why": "Synthetix-style staking internals. See rewardPerToken."
+    },
+    {
+      "match": "*.rewardsDuration",
+      "why": "Synthetix-style staking internals. See rewardPerToken."
+    },
+    {
+      "match": "*.lastTimeRewardApplicable",
+      "why": "Synthetix-style staking internals. See rewardPerToken."
+    },
+    {
+      "match": "*.lastUpdateTime",
+      "why": "Synthetix-style staking internals. See rewardPerToken."
+    },
+    {
+      "match": "*.periodFinish",
+      "why": "Synthetix-style staking internals. See rewardPerToken."
+    },
+    {
+      "match": "*.sealed_",
+      "why": "A set-once latch. Its only reader is the seal check in the same contract."
+    },
+    {
+      "match": "*.configured",
+      "why": "A set-once latch. See sealed_."
+    },
+    {
+      "match": "*.migrated",
+      "why": "A set-once latch. See sealed_."
+    },
+    {
+      "match": "*.principalInvariant",
+      "why": "The accounting identity the vault's own invariant tests assert. It is a test surface, deliberately public so the suite can read it."
+    },
+    {
+      "match": "*.nameHashes",
+      "why": "The registry's reverse index, read by instanceByNameHash. The app resolves a name through the record it already holds."
+    },
+    {
+      "match": "*.nextFactoryId",
+      "why": "A monotonic counter the registry uses to assign the next id. Nothing outside it needs the next one."
+    },
+    {
+      "match": "*.nextRequestId",
+      "why": "A monotonic counter. See nextFactoryId."
+    },
+    {
+      "match": "*.nextEditionId",
+      "why": "A monotonic counter. The app lists editions through getAllEditionIds and the aggregator's batch reads."
+    },
+    {
+      "$comment": "--- registry reads the aggregator supersedes: the app takes a page in one round trip, not N ---"
+    },
+    {
+      "match": "MasterRegistryV1.getInstanceInfo",
+      "why": "QueryAggregator exists to fold these per-item reads into one call, and the app takes getHomePageData / getProjectCardsBatch / getPortfolioData. It reaches MasterRegistryV1 directly only where the aggregator has nothing to batch: resolveName, isNameTaken, isAgent, getVaultInfo, owner."
+    },
+    {
+      "match": "MasterRegistryV1.instanceInfo",
+      "why": "The storage getter behind getInstanceInfo. See getInstanceInfo."
+    },
+    {
+      "match": "MasterRegistryV1.getInstanceVaults",
+      "why": "Folded into the aggregator's batch reads. See getInstanceInfo."
+    },
+    {
+      "match": "MasterRegistryV1.getActiveVault",
+      "why": "Folded into the aggregator's batch reads. See getInstanceInfo."
+    },
+    {
+      "match": "MasterRegistryV1.vaultInfo",
+      "why": "The storage getter behind getVaultInfo, which the app does read. See getInstanceInfo."
+    },
+    {
+      "match": "MasterRegistryV1.getFactoryInfo",
+      "why": "Factory bookkeeping. The app picks a collection type from the wizard's own list, not from the registry's factory table."
+    },
+    {
+      "match": "MasterRegistryV1.getFactoryInfoByAddress",
+      "why": "Factory bookkeeping. See getFactoryInfo."
+    },
+    {
+      "match": "MasterRegistryV1.factoryInfo",
+      "why": "Factory bookkeeping. See getFactoryInfo."
+    },
+    {
+      "match": "MasterRegistryV1.factoryIdToAddress",
+      "why": "Factory bookkeeping. See getFactoryInfo."
+    },
+    {
+      "match": "MasterRegistryV1.registeredFactories",
+      "why": "Factory bookkeeping. See getFactoryInfo."
+    },
+    {
+      "match": "MasterRegistryV1.isFactoryRegistered",
+      "why": "An authorisation check the registry runs on its own callers. See getFactoryInfo."
+    },
+    {
+      "match": "MasterRegistryV1.isInstanceFromApprovedFactory",
+      "why": "An authorisation check other contracts run before trusting an instance."
+    },
+    {
+      "match": "MasterRegistryV1.isRegisteredInstance",
+      "why": "An authorisation check other contracts run before trusting an instance."
+    },
+    {
+      "match": "MasterRegistryV1.isVaultRegistered",
+      "why": "An authorisation check other contracts run before trusting a vault."
+    },
+    {
+      "match": "MasterRegistryV1.registeredVaults",
+      "why": "The vault table behind getVaultInfo, which the app reads."
+    },
+    {
+      "match": "MasterRegistryV1.instanceByNameHash",
+      "why": "The reverse index behind resolveName, which the app reads."
+    },
+    {
+      "$comment": "--- the alignment vault's benefactor surface: every benefactor is a collection instance, never a wallet ---"
+    },
+    {
+      "match": "*.claimFees",
+      "why": "The vault pays a BENEFACTOR, and a benefactor is always a collection instance: the liquidity deployer modules register `p.instance` at graduation and the ERC-1155/721 instances register `address(this)` on every tithe. `msg.sender` is the benefactor here, so a wallet calling it holds no shares and reverts `NoShares`. The creator's path runs through their own instance -- `claimVaultFees` / `claimAllFees`, which every per-type admin panel offers and which forward the proceeds to the owner. The endowment family implements the selector by reverting `NotSupported`: it has no tradable shares, and its claim is `claimYieldPurse`, which the collection's vault panel calls."
+    },
+    {
+      "match": "*.claimFeesAsDelegate",
+      "why": "A delegate's batch claim across several benefactors. Only a benefactor may appoint a delegate (`delegateBenefactor`), and no benefactor is a wallet, so nothing in this deployment can appoint one and no address can be a delegate."
+    },
+    {
+      "match": "*.delegateBenefactor",
+      "why": "Appoints who receives a benefactor's payouts. `msg.sender` must already be a benefactor -- a collection instance -- and no instance forwards this call, so the delegation surface has no caller. The endowment reverts `NotSupported` outright. See claimFees."
+    },
+    {
+      "match": "*.getBenefactorDelegate",
+      "why": "The read paired with delegateBenefactor. Nothing can appoint a delegate here, so it answers the benefactor's own address for every benefactor."
+    },
+    {
+      "match": "*.calculateClaimableAmount",
+      "why": "The interface's claimable read, keyed by benefactor -- a collection instance. On the liquidity families it reports only what has already been crystallized into the fee accumulator: `claimFees` collects the position's new pool fees FIRST and pays more than this. Printed beside a creator's claim button it would under-quote their own money, which is worse than printing nothing. The endowment's equivalent is exact, and is the `pendingYieldOf` the vault panel shows."
+    },
+    {
+      "match": "*.getUnclaimedFees",
+      "why": "Uni's own name for calculateClaimableAmount -- the two compute the same expression against the same watermark. See calculateClaimableAmount."
+    },
+    {
+      "match": "*.getBenefactorContribution",
+      "why": "On the liquidity families, how much ETH one collection has tithed into this vault over its life (never decremented). On the endowment it is now `principalOf` -- LIVE principal that FALLS as the curated target deploys it, since the vesting/escrow duality was deleted. Either way it buys the collection its share of the split, and the share is what pays; the figure a creator acts on is the claim their admin panel offers, not the basis behind it. `usePortfolio`/`PortfolioPanels` reads this figure through the QueryAggregator's batch (`v.contribution`) purely as a nonzero-position gate and, on the Outbound ledger, as a displayed number -- which family-blindly renders an endowment donor's contribution falling over time with no caption saying why. Whether that is the intended read is a product question, not a UI bug this pass fixes."
+    },
+    {
+      "match": "*.getBenefactorShares",
+      "why": "One collection's share of the vault's fee split. On the endowment it now returns the same live-falling `principalOf` as `getBenefactorContribution` (not a separate basis). The vault page reports `totalShares`, which says how many claimants the pool is divided between; the per-collection slice is the ledger behind a claim rather than a number anyone acts on -- except the same `usePortfolio` gate noted under getBenefactorContribution."
+    },
+    {
+      "match": "*.benefactorContribution",
+      "why": "The storage mapping behind getBenefactorContribution. See it."
+    },
+    {
+      "match": "*.benefactorTotalETH",
+      "why": "Uni's storage mapping behind getBenefactorContribution. See it."
+    },
+    {
+      "match": "*.benefactorShares",
+      "why": "The storage mapping behind getBenefactorShares. See it."
+    },
+    {
+      "match": "*.benefactorDelegate",
+      "why": "The storage mapping behind getBenefactorDelegate. See it."
+    },
+    {
+      "match": "*.yieldPurse",
+      "why": "The SETTLED half of a benefactor's claimable creator yield. `pendingYieldOf`, which the vault panel reads, returns it plus the accrual not yet settled into it -- the figure the claim actually pays, and the only one worth showing."
+    },
+    {
+      "match": "AlignmentEndowmentVault.principalShares",
+      "why": "The storage mapping behind `principalOf`, which the collection's vault panel reads: a benefactor's immutable weight in the pooled corpus, priced live against `totalPrincipal`. The weight is not itself a quantity anyone holds; `principalOf`'s live ETH figure is."
+    },
+    {
+      "match": "AlignmentEndowmentVault.fundingRoundOf",
+      "why": "Which funding round a benefactor's shares were minted in -- internal bookkeeping the accumulator uses to settle a stale-round claim correctly. It is not eligibility state and gates nothing a reader acts on; see `fundingRound`."
+    },
+    {
+      "match": "AlignmentEndowmentVault.fundingRound",
+      "why": "Which funding round the pool is currently on. Bookkeeping only, per the contract's own doc comment: it is not an eligibility state, it gates no withdrawal, and it changes nothing about when principal earns -- so there is nothing for a surface to render differently by round number."
+    },
+    {
+      "match": "AlignmentEndowmentVault.totalPrincipal",
+      "why": "The storage var behind `totalPrincipalLocked`, which the vault page reads for TVL. See totalContributions."
+    },
+    {
+      "match": "AlignmentEndowmentVault.totalPrincipalShares",
+      "why": "Sigma live `principalShares` -- the accumulator's weight denominator. Meaningful only next to `totalPrincipal` in the price it prices; not a figure anyone reads standalone. See acc*PerShare."
+    },
+    {
+      "match": "*.shareValueAtLastClaim",
+      "why": "The MasterChef accumulator's per-benefactor watermark: the bookkeeping that makes a claim pay the delta rather than the lifetime total. It is not a quantity anyone holds."
+    },
+    {
+      "match": "*.lastClaimTimestamp",
+      "why": "When a benefactor last claimed. Recorded for the accumulator's own audit trail; nothing in the payout depends on it and no surface counts down from it."
+    },
+    {
+      "match": "*.currentPolicy",
+      "why": "The IAlignmentVault policy hook. Every family in this deployment returns empty bytes -- no vault carries a policy, so there is nothing for a surface to render."
+    },
+    {
+      "$comment": "--- a vault's own venue wiring and LP position: how it holds the money, not what it holds it for ---"
+    },
+    {
+      "match": "*.alignmentToken",
+      "why": "The token a vault aligns to, fixed at initialize from the target it was created for. The app names a vault's community from the registry (`getAlignmentTarget`), which carries the title, description and art a reader can act on; the bare token address is the same fact stripped of all of it."
+    },
+    {
+      "match": "*.alignmentTokenDecimals",
+      "why": "Cached at initialize so the vault's own arithmetic need not call out to the token. The app formats through viem, which is told the decimals it needs."
+    },
+    {
+      "match": "*.principalToken",
+      "why": "The token the vault's principal leg is denominated in -- a wired address. See masterRegistry."
+    },
+    {
+      "match": "*.stataToken",
+      "why": "The Aave static-aToken the endowment holds its position in -- a wired address. See masterRegistry."
+    },
+    {
+      "match": "*.positionManager",
+      "why": "A wired venue address (the LP position manager). See masterRegistry."
+    },
+    {
+      "match": "*.swapRouter",
+      "why": "A wired venue address (the periphery router the vault swaps through). See masterRegistry."
+    },
+    {
+      "match": "*.algebraFactory",
+      "why": "A wired venue address (the Algebra factory that names the vault's pool). See masterRegistry."
+    },
+    {
+      "match": "*.v3Factory",
+      "why": "A wired venue address (the v3 factory the price validator reads reference pools from). See masterRegistry."
+    },
+    {
+      "match": "*.zRouterFee",
+      "why": "The pool fee tier the vault acquires its alignment token through, fixed at construction. It describes a route the vault walks inside its own swap; nothing a user does chooses it or sees it."
+    },
+    {
+      "match": "*.zRouterTickSpacing",
+      "why": "The tick spacing paired with zRouterFee. See it."
+    },
+    {
+      "match": "*.v3PreferredFee",
+      "why": "The v3 fee tier preferred when quoting the vault's acquisition route. See zRouterFee."
+    },
+    {
+      "match": "*.maxPriceDeviationBps",
+      "why": "The manipulation bound a quote must pass before the vault swaps against it. It guards a transaction the vault sends itself; what a user sees is the price that passed it."
+    },
+    {
+      "match": "*.twapSecondsAgo",
+      "why": "The TWAP window the price validator averages over, paired with maxPriceDeviationBps. See it."
+    },
+    {
+      "match": "*.v4PoolKey",
+      "why": "The v4 pool the vault holds its position in. A vault is reported here by what it is FOR -- its target, its TVL, its claimants; the position itself is on the venue's own explorer, in more detail than a mirror here could keep true."
+    },
+    {
+      "match": "*.getPoolKey",
+      "why": "The accessor for the vault's pool key. See v4PoolKey."
+    },
+    {
+      "match": "*.poolId",
+      "why": "The vault's pool identifier. See v4PoolKey."
+    },
+    {
+      "match": "*.lpPool",
+      "why": "The vault's pool address. See v4PoolKey."
+    },
+    {
+      "match": "*.lpTokenId",
+      "why": "The NFT id of the vault's LP position. See v4PoolKey."
+    },
+    {
+      "match": "*.lpBalance",
+      "why": "The vault's LP balance in the venue's own units. See v4PoolKey."
+    },
+    {
+      "match": "*.totalLPUnits",
+      "why": "Liquidity units the vault has added across its position's life, in the venue's units. See v4PoolKey."
+    },
+    {
+      "match": "*.lastTickLower",
+      "why": "The lower bound of the range the vault last added to. See v4PoolKey."
+    },
+    {
+      "match": "*.lastTickUpper",
+      "why": "The upper bound of the range the vault last added to. See v4PoolKey."
+    },
+    {
+      "match": "*.tokenIsZero",
+      "why": "Whether the alignment token sorts as currency0 in the vault's pool. Ordering bookkeeping the vault needs to read its own position; it says nothing to a reader."
+    },
+    {
+      "match": "*.validateCurrentPoolKey",
+      "why": "A view that REVERTS rather than returning: the vault's self-check that its configured pool is still one it can safely add to. It is written for the deploy script's post-checks and for a caller simulating a convert, not for a render."
+    },
+    {
+      "match": "*.currentPositionValue",
+      "why": "The live redeemable value of the endowment's whole Aave position -- pooled principal and yield not yet crystallized, in one number. The vault page reports principal and accrued fees separately, because those are the two a benefactor and a community each act on; the sum is the auditor's figure."
+    },
+    {
+      "$comment": "--- keeper actions: incentivized, and priced by the caller's own slippage bound ---"
+    },
+    {
+      "match": "*.convertAndAddLiquidity",
+      "why": "Turns the vault's pending ETH into liquidity, and pays the caller a reward for running it. It takes a caller-supplied `minOut`, so a button that picks one on a user's behalf is a button deciding how much of the vault's swap a searcher keeps. It is run by whoever wants the reward, with their own bound."
+    },
+    {
+      "match": "*.harvest",
+      "why": "Collects the position's fees and splits them, paying the caller for running it, behind a caller-supplied slippage bound. See convertAndAddLiquidity. (The endowment's `harvest()` takes no bound -- there is no swap in it -- and IS a button, on the collection's vault panel.)"
+    },
+    {
+      "$comment": "--- the vault's pre-conversion queue and its rounding residue ---"
+    },
+    {
+      "match": "*.pendingETH",
+      "why": "ETH received and not yet converted into liquidity, per benefactor. It is the state `convertAndAddLiquidity` consumes, and it moves on a keeper's schedule rather than anything a user does."
+    },
+    {
+      "match": "*.totalPendingETH",
+      "why": "The queue total behind pendingETH. See it."
+    },
+    {
+      "match": "*.pendingContribution",
+      "why": "A contribution received and awaiting conversion. See pendingETH."
+    },
+    {
+      "match": "*.conversionParticipants",
+      "why": "The benefactors who will be credited by the next conversion. See pendingETH."
+    },
+    {
+      "match": "*.lastConversionParticipantIndex",
+      "why": "The resume cursor a paginated conversion walks the participant list with. Internal to the keeper's own call."
+    },
+    {
+      "match": "*.accumulatedDustShares",
+      "why": "Share-rounding residue held back until it is worth distributing. Sub-unit bookkeeping the vault settles on its own."
+    },
+    {
+      "match": "*.dustDistributionThreshold",
+      "why": "The amount of residue that has to build up before the vault distributes it. See accumulatedDustShares."
+    },
+    {
+      "match": "*.vaultFeeCollectionInterval",
+      "why": "The vault's own rate limit on collecting pool fees. It is why a claim sometimes crystallizes nothing new; the claim path calls the collection itself, so nothing has to schedule it."
+    },
+    {
+      "match": "*.lastVaultFeeCollectionTime",
+      "why": "When the rate limit above last let a collection through. See vaultFeeCollectionInterval."
+    },
+    {
+      "$comment": "--- lifetime ledgers: what the vault has moved, for reconciling rather than acting on ---"
+    },
+    {
+      "match": "*.totalContributions",
+      "why": "Everything ever tithed into the vault. The page reports the figures a reader acts on -- accrued fees, benefactor shares, TVL; this is the ledger behind them, and a chain explorer is where a reconciliation is done."
+    },
+    {
+      "match": "*.totalEthLocked",
+      "why": "See totalContributions."
+    },
+    {
+      "match": "*.totalUniqueBenefactors",
+      "why": "The count of collections that have ever tithed here. The vault page lists the collections currently aligned to it, which is the set a reader can follow."
+    },
+    {
+      "match": "*.principalETH",
+      "why": "The vault's principal leg in ETH terms. See totalContributions."
+    },
+    {
+      "match": "*.totalDeployedByTarget",
+      "why": "Live principal the target has already spent -- execute, a round-residue flush, or a release, summed. See totalContributions."
+    },
+    {
+      "match": "*.totalPrincipalCommittedAllTime",
+      "why": "Lifetime principal committed, never reduced. See totalContributions."
+    },
+    {
+      "match": "*.totalProtocolFees",
+      "why": "Lifetime protocol-leg yield routed to the treasury. See totalContributions."
+    },
+    {
+      "match": "*.totalYieldToCreators",
+      "why": "Lifetime creator-leg yield. See totalContributions."
+    },
+    {
+      "match": "*.totalYieldToTarget",
+      "why": "Lifetime target-leg yield delivered to the community sink. See totalContributions."
+    },
+    {
+      "$comment": "--- vault configuration reached through the factory that owns every vault it stamped ---"
+    },
+    {
+      "$comment": "AlignmentEndowmentVault.setCommunityPayout and AlignmentEndowmentVaultFactory.setVaultCommunityPayout used to be skipped here. Both are gone: the endowment vault kept an owner-writable copy of its community sink that `_targetSink()` fell back to whenever the registry read zero, and since pinning the registry's payout is itself owner-gated, an owner who never pinned one held a sink they could re-point at will over a community with nothing to rotate. The sink is now the registry's answer alone, on every vault family."
+    },
+    {
+      "match": "UniAlignmentVault.setDustDistributionThreshold",
+      "why": "Retunes the residue threshold on one vault. Its `owner` is the factory, so this is reached only through `UniAlignmentVaultFactory.setVaultDustDistributionThreshold`. See accumulatedDustShares."
+    },
+    {
+      "match": "UniAlignmentVaultFactory.setVaultDustDistributionThreshold",
+      "why": "Retunes a deployed vault's residue threshold, as the factory that owns it -- needed when a vault's alignment token does not use 18 decimals. Protocol-owner configuration, sent from contracts/script."
+    },
+    {
+      "match": "AlignmentEndowmentVaultFactory.canonicalVault",
+      "why": "The factory's one-vault-per-(target, token) index, which exists to REFUSE a duplicate at creation. The app lists vaults from the registry -- the roster this dedup protects -- rather than asking the factory which one is canonical."
+    },
+    {
+      "match": "AlignmentEndowmentVault.execute",
+      "why": "An arbitrary external call spending up to the target's live pooled principal, authorised to the ambassador of a curated target. That is sovereign capital, and the ambassador panel says so at the point where it declines to offer it: a web build that can make this call is one stolen build artifact away from making it. De-curating the target freezes the power, and `releaseCorpusToCommunity` is the corpus's exit that survives."
+    },
+    {
+      "match": "UniswapVaultPriceValidator.quoteEthForTokensVia",
+      "why": "The validator's quote, called by the vault inside its own swap to floor the caller's `minOut`. Its caller is a vault, and what a user sees is the price that passed it."
+    },
+    {
+      "match": "UniswapVaultPriceValidator.calculateSwapProportion",
+      "why": "How much of a pending balance to swap so both legs of an LP add are covered. Arithmetic the vault performs on itself, mid-transaction."
+    },
+    {
+      "match": "UniswapVaultPriceValidator.calculateSwapProportionFromSqrtPrice",
+      "why": "The same split computed from a sqrt price the caller already holds. See calculateSwapProportion."
+    },
+    {
+      "match": "ERC1155Instance.genesisVault",
+      "why": "The vault an instance was CREATED with, kept as a deploy-config guard: the settlement path calls `RevenueSplitLib.isLiquidityFamily` on it only to revert on an unrecognized `vaultType()`, never to branch the split (`split()` is family-blind now). The app reads the instance's current `vault` and the registry's vault list; which one was first is a fact for that guard, not for a reader or for the settlement math the app previews client-side."
+    },
+    {
+      "match": "ERC721AuctionInstance.genesisVault",
+      "why": "The same pinned-at-creation vault and the same deploy-config-guard-only role as ERC1155Instance.genesisVault -- see it. The app used to read this live (via a vaultType() lookup) to pick which side of a family split to preview before settleAuction; that branch is gone along with the family split it existed to mirror, so lib/revenueSplit.ts computes the settlement preview from the bid amount alone and this address is never fetched."
+    },
+    {
+      "$comment": "--- per-instance reads the QueryAggregator supersedes: a card, a page or a portfolio is one call ---"
+    },
+    {
+      "match": "*.name",
+      "why": "Carried on the aggregator's ProjectCard, which every card, browse row and collection page is hydrated from. Reading it per instance is the N+1 the aggregator exists to collapse."
+    },
+    {
+      "match": "*.creator",
+      "why": "Carried on the ProjectCard. See name."
+    },
+    {
+      "match": "*.vault",
+      "why": "The instance's active alignment vault, carried on the ProjectCard and used to link the collection to its vault page. See name."
+    },
+    {
+      "match": "*.metadataURI",
+      "why": "Carried on the ProjectCard, and resolved to art through useCollectionMetadata. See name."
+    },
+    {
+      "match": "*.getCurrentPrice",
+      "why": "The card's `currentPrice`, computed lens-side per instance type by the aggregator so a browse window is one call. See name."
+    },
+    {
+      "match": "*.getEdition",
+      "why": "Folded into `QueryAggregator.getERC1155EditionsBatch`, which useEditions takes in one request rather than one read per edition."
+    },
+    {
+      "match": "*.editions",
+      "why": "The storage array behind getEdition. See getEdition."
+    },
+    {
+      "match": "*.getAllEditionIds",
+      "why": "Editions are 1-indexed and contiguous, so useEditions reads the count and asks the aggregator for that range. The id list is a second round trip for something already known."
+    },
+    {
+      "match": "*.symbol",
+      "why": "The ERC-20/721 ticker. Collections are named, linked and searched by their registry `name` throughout: the wizard lets a creator set a ticker at create, and nothing in the app ever reads it back."
+    },
+    {
+      "match": "*.balanceOf",
+      "why": "A per-holder balance read. Holdings reach the app through the aggregator's portfolio batch, which answers for every collection at once; the per-instance read is the N+1 it replaces."
+    },
+    {
+      "match": "*.getGlobalMessageRegistry",
+      "why": "An instance's pointer at the board registry. The app already knows every protocol address from lib/addresses. See masterRegistry."
+    },
+    {
+      "match": "*.dynamicPricingModule",
+      "why": "A wired module address. The price it computes is on the card. See masterRegistry."
+    },
+    {
+      "match": "*.deployBondEscrow",
+      "why": "A wired address. See masterRegistry."
+    },
+    {
+      "match": "*.implementation",
+      "why": "The clone template a factory stamps from -- a deploy fact. See vaultImplementation."
+    },
+    {
+      "match": "*.alignmentHookFactory",
+      "why": "A wired address (the factory that stamps a graduated pool's tithe hook). See masterRegistry."
+    },
+    {
+      "match": "*.v4PoolManager",
+      "why": "A wired venue address. See poolManager."
+    },
+    {
+      "$comment": "--- the auction queue's internals: the app reads the head of each line, not the queue ---"
+    },
+    {
+      "match": "*.auctions",
+      "why": "The storage mapping behind `getAuction`, which the auction surfaces and the aggregator both read. See getInstanceInfo."
+    },
+    {
+      "match": "*.lineQueues",
+      "why": "The per-line queue of pieces waiting behind the live auction. Only a line's HEAD can hold a bid or be settled, and `getActiveAuction(line)` names it -- which is why the aggregator reads heads rather than walking queues, and why the galleries do too. Surfacing the tail would cost an unbounded walk to list pieces nothing can yet be done to."
+    },
+    {
+      "match": "*.lineQueueHead",
+      "why": "The cursor into lineQueues. See lineQueues."
+    },
+    {
+      "match": "*.getQueueLength",
+      "why": "How many pieces are queued on a line. See lineQueues."
+    },
+    {
+      "$comment": "--- marketplace-facing metadata: written for other people's sites to read ---"
+    },
+    {
+      "match": "*.contractURI",
+      "why": "The collection-level metadata pointer marketplaces read (OpenSea's convention). It exists so a collection looks right somewhere else; this app renders the registry's own name and the instance's `metadataURI` art directly."
+    },
+    {
+      "match": "*.setContractURI",
+      "why": "Sets the marketplace-facing pointer above. The creator-admin panels set what this app renders -- `setMetadataURI` and `setStyle`; a second metadata URI whose only reader is another site is a listing chore, not a collection control."
+    },
+    {
+      "$comment": "--- storage getters behind the named accessor the app already reads ---"
+    },
+    {
+      "match": "AlignmentRegistryV1.alignmentTargets",
+      "why": "The storage mapping behind `getAlignmentTarget`, which the vault page, the target page and the admin console all read."
+    },
+    {
+      "match": "AlignmentRegistryV1.alignmentTargetAmbassadors",
+      "why": "The storage array behind `getAmbassadors`, which the console reads (and `ambassadorCount` bounds)."
+    },
+    {
+      "match": "AlignmentRegistryV1.communityPayout",
+      "why": "The storage mapping behind `getCommunityPayout`, which the console reads and sets."
+    },
+    {
+      "match": "ProtocolTreasuryV1.totalReceived",
+      "why": "The storage mapping behind `getRevenueBySource`, which the treasury panel reads to break revenue down by source."
+    },
+    {
+      "match": "ProtocolTreasuryV1.totalWithdrawn",
+      "why": "A lifetime counter of everything ever withdrawn. The panel reports the live balance, which is what a withdrawal acts on."
+    },
+    {
+      "match": "MetadataOverlayModule.defaultPayout",
+      "why": "The storage mapping behind the module's payout accessor. See getInstanceInfo."
+    },
+    {
+      "match": "ERC404StakingModule.stakingEnabled",
+      "why": "`getStakingInfo(instance, user)` returns this alongside the stake, the total and the pending reward in ONE call, and the staking panel takes that. Each field read on its own is the round trip it exists to save."
+    },
+    {
+      "match": "ERC404StakingModule.stakedBalance",
+      "why": "Returned by getStakingInfo. See stakingEnabled."
+    },
+    {
+      "match": "ERC404StakingModule.totalStaked",
+      "why": "Returned by getStakingInfo. See stakingEnabled."
+    },
+    {
+      "match": "ERC404StakingModule.calculatePendingRewards",
+      "why": "The same accrual getStakingInfo returns as `pendingRewards`. See stakingEnabled."
+    },
+    {
+      "match": "ERC404StakingModule.rewardsAccrued",
+      "why": "The settled half of the accrual behind getStakingInfo's `pendingRewards`, which reports settled plus live. See stakingEnabled."
+    },
+    {
+      "match": "ERC404StakingModule.streamLeak",
+      "why": "Reward stream that could not accrue because nothing was staked at the time. It is released back to the instance by `settleAndReleaseLeak`, whose caller is the instance."
+    },
+    {
+      "match": "ERC404StakingModule.pendingStreamLeak",
+      "why": "What settleAndReleaseLeak would release right now, for that call to size itself against. See streamLeak."
+    },
+    {
+      "$comment": "--- checks and indexes other contracts run: the caller is a contract, and the answer gates its own logic ---"
+    },
+    {
+      "match": "AlignmentRegistryV1.hasActiveTarget",
+      "why": "The duplicate guard the request registry runs before accepting a proposal: does this token already belong to any ACTIVE target. Its caller is that registry, and what a requester sees is the refusal it produces."
+    },
+    {
+      "match": "AlignmentRegistryV1.isTokenInTarget",
+      "why": "A membership check against one target, run by the vaults and the registry itself. The app lists a target's assets from `getAlignmentTarget`."
+    },
+    {
+      "match": "AlignmentRegistryV1.tokenToTargetIds",
+      "why": "The reverse index behind hasActiveTarget. See it."
+    },
+    {
+      "match": "AlignmentRegistryV1.getReferencePool",
+      "why": "The pool a vault prices its swap against, read by the vault mid-transaction to floor the caller's slippage bound. See maxPriceDeviationBps."
+    },
+    {
+      "match": "ComponentRegistry.isApprovedComponent",
+      "why": "The approval check a factory runs on a module before it will wire it. The wizard asks the opposite question -- `getApprovedComponentsByTag`, which returns the modules a slot may offer -- so it never has to test one it did not just receive."
+    },
+    {
+      "match": "ComponentRegistry.isApproved",
+      "why": "The storage mapping behind isApprovedComponent. See it."
+    },
+    {
+      "match": "ComponentRegistry.isApprovedForTag",
+      "why": "The same check narrowed to a slot's tag. See isApprovedComponent."
+    },
+    {
+      "match": "ComponentRegistry.componentTag",
+      "why": "Which slot a component was approved for, behind getApprovedComponentsByTag. See isApprovedComponent."
+    },
+    {
+      "match": "ComponentRegistry.allComponents",
+      "why": "Every component ever registered, approved or not. The wizard offers a slot the APPROVED set for its tag; the full roster is the registry's own bookkeeping."
+    },
+    {
+      "match": "MasterRegistryV1.revokedInstances",
+      "why": "The revocation flag other contracts and the registry's own reads consult. The app never renders a revoked instance -- the browse and profile surfaces drop them upstream -- so nothing downstream asks."
+    },
+    {
+      "match": "MasterRegistryV1.emergencyRevoker",
+      "why": "Who may emergency-revoke. The console SETS it (`setEmergencyRevoker`) and the registry enforces it; a wallet's own authority shows up as the action succeeding, not as an address read back."
+    },
+    {
+      "match": "MerkleGatingModule.getRoots",
+      "why": "The roots an edition's allowlist was configured with. Eligibility in the app is resolved from the list the creator published alongside the collection's metadata, and the proof built from it -- the on-chain roots are what that proof is checked AGAINST, inside the mint."
+    },
+    {
+      "match": "MerkleGatingModule.getTierOpenTimes",
+      "why": "When each allowlist tier opens, enforced by the module inside the mint. See getRoots."
+    },
+    {
+      "match": "MerkleGatingModule.claimed",
+      "why": "How much of an allowance an address has already taken, decremented by the module inside the mint. See getRoots."
+    },
+    {
+      "match": "QueryAggregator.featuredQueueManager",
+      "why": "A wired address. See masterRegistry."
+    },
+    {
+      "match": "UniTitheHookFactory.deployedHook",
+      "why": "The CREATE2 index the factory checks before deploying a hook, so a pool's tithe hook is never deployed twice. Its caller is the liquidity module, mid-graduation."
+    },
+    {
+      "match": "UniTitheHookFactory.hookFlags",
+      "why": "The permission bits a v4 hook address has to encode. Used to mine the salt at deploy time."
+    },
+    {
+      "match": "UniTitheHookFactory.hookOwner",
+      "why": "A wired address. See masterRegistry."
+    },
+    {
+      "$comment": "--- pricing and curve maths the app recomputes client-side, because a chart is a thousand points ---"
+    },
+    {
+      "match": "CurveParamsComputer.computeCurveParams",
+      "why": "Solves a curve's parameters from a creator's inputs. The wizard previews a curve by sampling it locally (curveSampler.ts) and the factory computes the real ones inside the create transaction, so the preview costs no round trips and the launched curve is never a client's arithmetic."
+    },
+    {
+      "match": "CurveParamsComputer.computeCurveParamsFromBondingSupply",
+      "why": "The same solve from a bonding supply rather than an NFT count. See computeCurveParams."
+    },
+    {
+      "match": "CurveParamsComputer.solvePole",
+      "why": "The Newton solve inside computeCurveParams. See it."
+    },
+    {
+      "match": "CurveParamsComputer.graduationMultipleAt",
+      "why": "The graduation multiple a given pole implies -- a step of the solve above. See computeCurveParams."
+    },
+    {
+      "match": "CurveParamsComputer.targetGraduationMultiple",
+      "why": "The multiple the solve aims at for a given reserve. See computeCurveParams."
+    },
+    {
+      "match": "CurveParamsComputer.kWeight",
+      "why": "A tuning constant of the solve, owner-settable on the computer. It shapes a curve the wizard shows in full; the constant behind the shape is not a figure a creator picks."
+    },
+    {
+      "match": "CurveParamsComputer.poleWad",
+      "why": "The solve's default pole. See kWeight."
+    },
+    {
+      "match": "CurveParamsComputer.isReserveBpsAdmissible",
+      "why": "Whether a liquidity reserve is one the solve can reach. LaunchManager.setPreset asks it before storing a preset, and the app never sets presets (see setPreset); a creator picks a preset, not a reserve, so there is no reserve for the wizard to check."
+    },
+    {
+      "match": "DynamicPricingModule.calculatePrice",
+      "why": "An edition's current price under its pricing curve. The aggregator's card carries `currentPrice`, computed lens-side, so a browse window prices every collection in one call."
+    },
+    {
+      "match": "DynamicPricingModule.calculateBatchCost",
+      "why": "The cost of minting N at once, which the mint panel quotes from the instance rather than the module behind it. See calculatePrice."
+    },
+    {
+      "match": "ERC404Factory.effectiveCarveEth",
+      "why": "What a creator's carve request would actually pay out at a given raise. The admin panel quotes the carve from the instance's own `previewCarve`, which nets it against the collection's declared maximum -- the figure the creator is deciding on."
+    },
+    {
+      "match": "*.computeInstanceAddress",
+      "why": "The CREATE3 address a salt would produce. The wizard mints a fresh salt and sends the create, then reads the instance out of the receipt; predicting the address first would be a round trip to learn something the transaction is about to say."
+    },
+    {
+      "$comment": "--- the featured queue's ledger, folded into the card the browse surfaces already read ---"
+    },
+    {
+      "match": "FeaturedQueueManager.getFeaturedInstances",
+      "why": "The queue's own ranked listing. Every browse surface reads collections from the aggregator, whose card carries `featuredRank` and `featuredExpires` per instance, and sorts by them (featuredOrder.ts) -- so featuring is one field of a read the page was making anyway, not a second listing to merge against it."
+    },
+    {
+      "match": "FeaturedQueueManager.getEffectiveRank",
+      "why": "A slot's rank net of decay. It is the `featuredRank` on the card, and `getRentalInfo` returns it for the one instance the featured panel is looking at. See getFeaturedInstances."
+    },
+    {
+      "match": "FeaturedQueueManager.slots",
+      "why": "The storage mapping behind getRentalInfo, which the featured panel reads."
+    },
+    {
+      "match": "FeaturedQueueManager.queueLength",
+      "why": "How many slots are currently rented. See getFeaturedInstances."
+    },
+    {
+      "$comment": "--- the board registry and the treasury: intake by other contracts, and one owner payout surface ---"
+    },
+    {
+      "match": "GlobalMessageRegistry.post",
+      "why": "The single-message post. Every board action in the app -- a post, a reply, a reaction -- is queued into the board cart and committed as one `postBatch`, which preserves `msg.sender` across the whole session and costs one signature instead of one per action. The single-post entry point is what postBatch is built out of."
+    },
+    {
+      "match": "GlobalMessageRegistry.postForAction",
+      "why": "A message posted BY an instance on a user's behalf during an action (`instance != msg.sender` reverts). It is how a buy or a settlement writes itself onto the board; the app reads those messages, it does not send them."
+    },
+    {
+      "match": "GlobalMessageRegistry.messageCount",
+      "why": "The registry's total message count. The feeds page backwards from the head by log scan, which is what a feed needs; a global total is not a figure any surface shows."
+    },
+    {
+      "match": "GlobalMessageRegistry.withdrawETH",
+      "why": "Sweeps the board registry's accumulated post value to the OWNER's own wallet -- not to ProtocolTreasuryV1, which is the one balance the console's treasury surface manages. Where that ETH should land is a revenue decision; until it is one, a second pay-the-owner button in the console is not the app's to offer."
+    },
+    {
+      "match": "ProtocolTreasuryV1.deposit",
+      "why": "Source-attributed ETH intake. Its callers are the protocol's own contracts, tagging where revenue came from; a wallet sending ETH here lands in the untagged `receive()` instead."
+    },
+    {
+      "match": "ProtocolTreasuryV1.onERC721Received",
+      "why": "The ERC-721 receiver hook, called by a token contract during a safe transfer INTO the treasury. It exists so the transfer does not revert."
+    },
+    {
+      "$comment": "--- retired mechanisms, kept in-tree so existing deployments stay readable ---"
+    },
+    {
+      "match": "TierRevealModule.tiers",
+      "why": "TierRevealModule was retired (noesis-141). Its bindings stay generated so a collection deployed against it still renders, but nothing new resolves through it and no surface configures one."
+    },
+    {
+      "match": "TierRevealModule.tierCount",
+      "why": "See tiers."
+    },
+    {
+      "match": "TokenTierBandResolver.bands",
+      "why": "The band table sealed at construction: `initTierBands` is factory-only and set-once, because mutable weights would retroactively reprice every outstanding band NFT. The app reads a token's art through `tokenURI`, which walks the resolver chain, so the table is applied without ever being addressed."
+    },
+    {
+      "match": "TokenTierBandResolver.bandCount",
+      "why": "See bands."
+    },
+    {
+      "$comment": "--- instance-side escrow and band bookkeeping ---"
+    },
+    {
+      "match": "ERC404BondingInstance.bandNextFree",
+      "why": "The next unissued id within a tier's band. The instance allocates from it inside a mint; nothing outside chooses an id."
+    },
+    {
+      "match": "ERC404BondingInstance.bandOutstanding",
+      "why": "How many of a band's ids are still held. See bandNextFree."
+    },
+    {
+      "match": "ERC404BondingInstance.totalTierEscrow",
+      "why": "Coin the instance holds against issued band NFTs -- the liability that makes a band redeemable. The holder's surface is their own position; this is the aggregate backing it."
+    },
+    {
+      "match": "ERC404BondingInstance.totalPendingEscrowRelease",
+      "why": "Escrow that a burn has released and that is waiting to leave the instance. See totalTierEscrow."
+    },
+    {
+      "match": "ERC404BondingInstance.freeMintsClaimed",
+      "why": "A running counter of free mints taken, against the allocation the card already reports as reserved supply."
+    },
+    {
+      "match": "ERC404BondingInstance.gatingScope",
+      "why": "Which part of a collection its gating module covers, set once at create from the wizard's own choice. The mint surfaces ask the module whether THIS wallet may mint; the scope is what makes that question the right one to ask."
+    },
+    {
+      "match": "LiquidityDeployerModule.lpFeeRate",
+      "why": "The fee tier a graduated pool is created at. The trading panel reads the pool params it needs to route a swap (`poolFee`, `tickSpacing`, `feeOrHook`) off the module already; the rate under a pool that exists is on the venue."
+    },
+    {
+      "match": "LiquidityDeployerModule.hookFeeBips",
+      "why": "The tithe the graduated pool's hook takes on each swap, fixed at deploy. It is stated as the collection's alignment share wherever the split is claimed, from the split law rather than from a per-module read."
+    },
+    {
+      "$comment": "--- an escrow sweep that takes FROM the only party its surface is shown to ---"
+    },
+    {
+      "match": "DeployBondEscrow.forfeit",
+      "why": "Sends a creator's deploy bond to the protocol treasury once a curve missed its deadline without graduating. Permissionless, so the escrow can never be stranded -- but the app's only bond surface is that creator's own admin panel, where this would be a button asking them to hand over their own deposit. The refund, which is theirs, is the one that has a button there."
+    },
+    {
+      "$comment": "--- the aggregator's own helpers: external only so it can try/catch itself ---"
+    },
+    {
+      "match": "QueryAggregator.erc404CardData",
+      "why": "The aggregator calls this on ITSELF (`try this.erc404CardData(...)`) so one card's whole hydration can fail as a unit and leave the rest of a browse window intact. Its own natspec says `Not for direct use`; the app reads the batch functions that wrap it."
+    },
+    {
+      "match": "QueryAggregator.erc721CardData",
+      "why": "Self-called for the same reason. See erc404CardData."
+    },
+    {
+      "match": "QueryAggregator.erc721AuctionPositions",
+      "why": "Self-called from the portfolio batch, so an instance that is not an auction, reverts, or returns undecodable data yields no positions instead of failing the whole portfolio read. See erc404CardData."
+    }
+  ]
+}

@@ -288,6 +288,31 @@ contract DeployBondEscrowTest is Test {
         escrow.forfeit(address(instance));
     }
 
+    /// @notice Regression pin on the escrow's docstring law (`forfeit`): the deadline is built from
+    ///         the terms snapshotted at post and from nothing on the instance. This already holds —
+    ///         `bondingMaturityTime` is read nowhere in the escrow — and the test exists so a future
+    ///         edit cannot start reading it. Two observations, both falsifiable: for ANY maturity a
+    ///         creator could write, the deadline is unchanged to the second (revert at it, land one
+    ///         past it), and the escrow makes zero calls to the instance's `bondingMaturityTime`
+    ///         selector on the way — `graduated()` is the only thing it asks the instance.
+    function testFuzz_forfeit_noInstanceValueExtendsDeadline(uint256 maturity) public {
+        _post(address(instance), creator, BOND);
+        uint256 deadline = block.timestamp + escrow.maxBondDuration() + escrow.graceDays() * 1 days;
+        instance.setBondingMaturityTime(maturity);
+
+        vm.expectCall(address(instance), abi.encodeWithSelector(instance.bondingMaturityTime.selector), 0);
+
+        vm.warp(deadline);
+        vm.expectRevert(DeployBondEscrow.NotYetForfeitable.selector);
+        escrow.forfeit(address(instance));
+
+        vm.warp(deadline + 1);
+        vm.prank(stranger);
+        escrow.forfeit(address(instance));
+        assertEq(treasury.totalReceived(ProtocolTreasuryV1.Source.BOND_FORFEIT), BOND);
+        assertEq(address(escrow).balance, 0);
+    }
+
     function test_refund_stillWinsAfterGraduation() public {
         _post(address(instance), creator, BOND);
         // Graduation lands long after the forfeit deadline: the bond is still the creator's.
