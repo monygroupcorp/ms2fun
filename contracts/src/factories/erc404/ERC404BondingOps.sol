@@ -33,12 +33,14 @@ import {
     TimeMustBeInFuture,
     OpenTimeMustBeSetFirst,
     MaturityMustBeAfterOpenTime,
+    MaturityTooFarAfterOpenTime,
     OpenTimeNotSet,
     CannotActivateAfterLiquidityDeployed,
     StakingAlreadyActive,
     AlreadyDeployed,
     NoReserve,
-    NothingForPool
+    NothingForPool,
+    MAX_BONDING_DURATION
 } from "./ERC404BondingStorage.sol";
 // Interface-only import (no bytecode, no storage): `ICarveParamsSource` is declared alongside the
 // instance because that file is what the app's binding generator globs. See the note there.
@@ -958,12 +960,18 @@ contract ERC404BondingOps is ERC404BondingStorage {
         emit BondingOpenTimeSet(timestamp);
     }
 
+    /// @dev Bounded on BOTH sides. The lower bound alone let an owner-or-agent park maturity
+    ///      arbitrarily far out; `MAX_BONDING_DURATION` closes that, capping the bonding period at
+    ///      the protocol's own outer horizon for a creator bond (see the constant's derivation in
+    ///      `ERC404BondingStorage`). The cap is measured from `bondingOpenTime`, not from `now`, so
+    ///      the legal window is the same regardless of when within the pre-open period it is set.
     // slither-disable-next-line timestamp
     function setBondingMaturityTime(uint256 timestamp) external {
         _requireOwnerOrAgent();
         if (timestamp <= block.timestamp) revert TimeMustBeInFuture();
         if (bondingOpenTime == 0) revert OpenTimeMustBeSetFirst();
         if (timestamp <= bondingOpenTime) revert MaturityMustBeAfterOpenTime();
+        if (timestamp - bondingOpenTime > MAX_BONDING_DURATION) revert MaturityTooFarAfterOpenTime();
         bondingMaturityTime = timestamp;
         emit BondingMaturityTimeSet(timestamp);
     }
