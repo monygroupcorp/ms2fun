@@ -202,12 +202,18 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     ///         While the target is curated `flushRoundResidue()` delivers it to `_targetSink()`; once
     ///         de-curated only `releaseCorpusToCommunity()` reaches it, and sweeps it with the corpus.
     ///
-    ///         It is deliberately NOT folded into `accumulatedTargetFees`. That counter is the target's
-    ///         19% YIELD leg, and `flushTargetFees()` pays the target unconditionally — curated or not.
-    ///         This is CORPUS, and corpus on a de-curated target belongs to the community sink and not to
-    ///         the target: put the two in one counter and de-curation could no longer tell them apart, so
-    ///         anyone could flush a de-curated target's residual corpus to that target forever — the same
-    ///         survives-de-curation exit `releaseCorpusToCommunity` exists to close, through another door.
+    ///         It is deliberately NOT folded into `accumulatedTargetFees`, and the reason is narrower than
+    ///         "different owners": both counters are delivered to `_targetSink()`, the registry's
+    ///         `getCommunityPayout(targetId)`, curated or not — `flushTargetFees`, `flushRoundResidue` and the
+    ///         release sweep all pay the SAME address. What the split buys is two things. (i) A gate:
+    ///         `flushRoundResidue` reverts `TargetDecurated`, so once a target is de-curated nobody delivers
+    ///         its residual corpus except `releaseCorpusToCommunity`, in one send with the corpus still in the
+    ///         position — one exit for all of a de-curated target's corpus, not two. `flushTargetFees` has no
+    ///         such gate, because the yield leg is the target's on any day. (ii) Two distinguishable departure
+    ///         sites: the residue is booked in `totalDeployedByTarget` when it leaves, under
+    ///         `RoundResidueFlushed` or `CorpusReleased`, and a fee flush books nothing there. Fold the two
+    ///         counters together and both are lost — the fee flush would carry corpus past the gate, and the
+    ///         corpus would leave under a fee event, unbooked.
     uint256 public roundResidue;
 
     /// @notice Which funding round the pool is on. A corpus that is spent to the last wei and then
@@ -727,7 +733,10 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     ///         `roundResidue` is NOT swept here. It is corpus already out of the Aave position, so the
     ///         reserve deprecation this call answers does not touch it, and it keeps both of its doors after
     ///         a migrate: `flushRoundResidue` while the target is curated, `releaseCorpusToCommunity` after.
-    ///         Widening this owner call to reach it is a question of owner power, left as built.
+    ///         Nor does the `NoPrincipal` check below strand it: with the basis at 0 and a residue still
+    ///         held, this call reverts, and the residue is untouched by that revert — both doors reach it
+    ///         exactly as before, since neither reads `totalPrincipal` or `migrated`. Widening this owner
+    ///         call to reach it is a question of owner power, left as built.
     function migratePosition(address to) external onlyOwner nonReentrant {
         if (to == address(0)) revert InvalidAddress();
         if (totalPrincipal == 0) revert NoPrincipal();
