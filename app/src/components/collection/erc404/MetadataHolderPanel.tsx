@@ -102,6 +102,28 @@ export function MetadataHolderPanel({
 
 // ── commission ───────────────────────────────────────────────────────────────
 
+/**
+ * The commitment `unlock` takes alongside the price: `keccak256(bytes(commissionURI))` exactly as the
+ * contract computes it. `toBytes` gives the UTF-8 encoding, which is what `bytes(string)` is in
+ * Solidity — a URI with any multi-byte character hashes the same on both sides. Getting this wrong
+ * does not degrade anything; it reverts every unlock, so it is pinned in the test beside this file.
+ */
+export function commissionUriHash(uri: string): `0x${string}` {
+  return keccak256(toBytes(uri))
+}
+
+/**
+ * A swapped commission is the one unlock failure a buyer can act on, so it gets its own sentence
+ * instead of a generic retry. Everything else falls through to the decoded revert, which is more
+ * actionable than "try again", and only then to the generic line.
+ */
+export function unlockErrorText(reason: string | undefined): string {
+  if (reason?.includes('CommissionUriChanged') === true) {
+    return "the artist changed this commission's art — reload to see the current version before paying"
+  }
+  return reason ?? 'unlock failed — try again'
+}
+
 function CommissionRow({
   instance,
   id,
@@ -138,7 +160,7 @@ function CommissionRow({
               // the buyer is looking at, and reverts `CommissionUriChanged` if the artist has replaced
               // it since this panel read it — the swap that would otherwise settle against substituted
               // art and then lock it there permanently.
-              args: [instance, id, keccak256(toBytes(state.commissionURI))],
+              args: [instance, id, commissionUriHash(state.commissionURI)],
               value: state.commissionPrice,
               chainId: chainId,
             })
@@ -147,11 +169,7 @@ function CommissionRow({
           successLabel="commission unlocked — tx confirmed."
           onReset={tx.reset}
           className="btn btn-primary"
-          errorText={
-            tx.reason?.includes('CommissionUriChanged') === true
-              ? "the artist changed this commission's art — reload to see the current version before paying"
-              : (tx.reason ?? 'unlock failed — try again')
-          }
+          errorText={unlockErrorText(tx.reason)}
           testId="metadata-holder-unlock-commission"
         />
       ) : (
