@@ -3,6 +3,10 @@
  * (cover, banner, text) itemised precisely from the metadataURI byte model, and a best-effort LIVE
  * total from `estimateContractGas`. "Contract & modules" is the remainder (total − embeddings), so the
  * three embedding lines always sum honestly into the whole.
+ *
+ * Only the GAS column is live. Every ~ETH cell comes from `humanEth`, which converts gas at the flat
+ * REF_GWEI reference price and never reads a live gas price, so the note below has to say so — an
+ * unqualified "live estimate" would read as a quote of what the deploy will actually cost to send.
  */
 import { humanBytes, humanEth, humanGas, REF_GWEI } from '../../lib/wizard/embedGas'
 import type { EmbedBreakdown } from '../../lib/wizard/deployGasBreakdown'
@@ -73,8 +77,8 @@ export function DeployGasBreakdown({ breakdown, liveGas, liveLoading }: DeployGa
       </table>
       <p className={styles.note}>
         {liveGas !== undefined
-          ? 'Live estimate for your exact deploy. Embeddings are permanent on-chain data — you pay for every byte once.'
-          : 'Embedding costs are exact; the full deploy total needs a connected wallet on a live fork.'}
+          ? `Gas is a live estimate for your exact deploy; the ~ETH column converts it at a flat ${REF_GWEI} gwei reference price, not the live gas price, so what you actually pay moves with the market when you send. Embeddings are permanent on-chain data — you pay for every byte once.`
+          : `Embedding costs are exact; the full deploy total needs a connected wallet on a live fork. The ~ETH column converts gas at a flat ${REF_GWEI} gwei reference price, not the live gas price.`}
       </p>
     </div>
   )
