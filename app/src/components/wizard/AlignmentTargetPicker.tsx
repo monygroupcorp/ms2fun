@@ -245,8 +245,7 @@ export function AlignmentTargetPicker({
       {/* Level 1 — the community. */}
       <h3 className={styles.sectionTitle}>Community</h3>
       <p className={styles.help}>
-        Every collection routes a fixed share of its fees — 19% on liquidity collections, 80% on
-        endowment ones — to a vault aligned with the community you pick.{' '}
+        19% of every collection&rsquo;s fees route to a vault aligned with the community you pick.{' '}
         <LearnLink slug="alignment-vault" />
       </p>
       <div className={styles.targetGrid}>

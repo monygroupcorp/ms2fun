@@ -25,6 +25,7 @@ const chain = vi.hoisted(() => ({
   seats: 2n as bigint | undefined,
   waiting: 0n as bigint | undefined,
   corpus: 0n as bigint | undefined,
+  residue: 0n as bigint | undefined,
   /** The connected wallet. The move-payout row shows only to whoever the payout currently points at. */
   connected: undefined as string | undefined,
 }))
@@ -44,7 +45,12 @@ vi.mock('../../generated/contracts', () => ({
 vi.mock('wagmi', () => ({
   useAccount: () => ({ address: chain.connected }),
   useReadContract: ({ functionName }: { functionName: string }) => ({
-    data: functionName === 'deployableCorpus' ? chain.corpus : chain.waiting,
+    data:
+      functionName === 'deployableCorpus'
+        ? chain.corpus
+        : functionName === 'roundResidue'
+          ? chain.residue
+          : chain.waiting,
     refetch: vi.fn(),
   }),
 }))
@@ -74,6 +80,7 @@ afterEach(() => {
   chain.seats = 2n
   chain.waiting = 0n
   chain.corpus = 0n
+  chain.residue = 0n
   chain.connected = undefined
 })
 
@@ -172,8 +179,32 @@ describe('CommunityPayoutPanel', () => {
     )
     expect(screen.getByTestId('vault-payout-corpus').textContent).toBe('3 ETH')
 
-    fireEvent.click(screen.getByRole('button', { name: /release the corpus/i }))
+    fireEvent.click(screen.getByRole('button', { name: /release the principal/i }))
     expect(send.mock.calls[0]?.[0]).toMatchObject({ functionName: 'releaseCorpusToCommunity' })
+  })
+
+  test('a de-curated endowment vault folds any parked residue into the release figure', () => {
+    chain.curated = false
+    chain.corpus = 3000000000000000000n
+    chain.residue = 500000000000000000n
+    render(<CommunityPayoutPanel vault={VAULT} targetId={7n} isEndowment />)
+
+    expect(screen.getByTestId('vault-payout-corpus').textContent).toBe('3.5 ETH')
+    // The residue-flush row is curated-only — once de-curated, `flushRoundResidue` reverts and only
+    // the release above can move it.
+    expect(screen.queryByTestId('vault-payout-residue')).toBeNull()
+  })
+
+  test('a curated endowment vault with parked residue offers the permissionless flush', () => {
+    chain.residue = 250000000000000000n
+    render(<CommunityPayoutPanel vault={VAULT} targetId={7n} isEndowment />)
+
+    expect(screen.getByTestId('vault-payout-residue-figure').textContent).toBe('0.25 ETH')
+    fireEvent.click(screen.getByRole('button', { name: /deliver the residue/i }))
+    expect(send.mock.calls[0]?.[0]).toMatchObject({
+      address: VAULT,
+      functionName: 'flushRoundResidue',
+    })
   })
 
   test('a de-curated LP vault gets the notice but no corpus release — it has no corpus', () => {

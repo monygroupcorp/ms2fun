@@ -1,12 +1,8 @@
 /**
- * VaultPanel — the maturity stat must never claim a benefactor's principal has vested while any of
- * it is still escrowed.
- *
- * The vault writes `depositTime` on the FIRST deposit only, then gives every deposit its own tranche
- * clock (`vest()` matures each at `depositTs + VEST_DURATION`). Reading `depositTime + VEST_DURATION`
- * as "the holding has vested" is therefore wrong for anyone who topped up: at 30 weeks after a first
- * deposit, a 20-week-old top-up is still escrowed and `vest()` reverts for it, while the panel used to
- * read `vested ✓`. The only completed-vest claim the exposed state supports is `principalOf == 0`.
+ * VaultPanel — there is no vesting, no maturity clock, and no vested/escrowed split any more: one
+ * pooled principal, one flat split, forever. `principalOf` falls only when the curated target
+ * actually deploys it (`execute`), never on a timer, so the panel must render a live number and
+ * nothing that implies a maturity date or a completed vest.
  */
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
@@ -16,12 +12,7 @@ const VAULT = '0x1111111111111111111111111111111111111111' as const
 const BENEFACTOR = '0x2222222222222222222222222222222222222222' as const
 const COMMUNITY = '0x3333333333333333333333333333333333333333' as const
 
-const WEEK = 604_800n
-const VEST_DURATION = 26n * WEEK
-const NOW_SEC = BigInt(Math.floor(Date.now() / 1000))
-
 const mockPrincipal = vi.hoisted(() => vi.fn<() => bigint>())
-const mockDepositTime = vi.hoisted(() => vi.fn<() => bigint>())
 
 vi.mock('./useCollectionChain', () => ({ useCollectionChainId: () => 1 }))
 
@@ -29,8 +20,8 @@ vi.mock('wagmi', () => ({
   useWaitForTransactionReceipt: () => ({ isLoading: false, isSuccess: false }),
 }))
 
-// The claim/vest/deliver row has its own suite in VaultPanel.actions.test.tsx. Here it is stubbed
-// down to a visitor's view so these tests stay about the maturity stat alone.
+// The claim/deliver row has its own suite in VaultPanel.actions.test.tsx. Here it is stubbed down to
+// a visitor's view so these tests stay about the stats block alone.
 vi.mock('../ui/useOwnerGate', () => ({
   useOwnerGate: () => ({ isOwner: false, owner: undefined, connected: undefined }),
 }))
@@ -52,10 +43,6 @@ vi.mock('../../generated/contracts', () => ({
     isPending: false,
     refetch: vi.fn(),
   }),
-  useReadAlignmentEndowmentVaultDepositTime: () => ({
-    data: mockDepositTime(),
-    isPending: false,
-  }),
   useReadAlignmentEndowmentVaultAccumulatedFees: () => ({
     data: 0n,
     isPending: false,
@@ -63,10 +50,9 @@ vi.mock('../../generated/contracts', () => ({
   }),
   useReadAlignmentEndowmentVaultTotalPrincipalLocked: () => ({ data: 0n, isPending: false }),
   useReadAlignmentEndowmentVaultTargetId: () => ({ data: 7n, isPending: false }),
-  useReadAlignmentEndowmentVaultVestDuration: () => ({ data: VEST_DURATION, isPending: false }),
   useReadAlignmentEndowmentVaultPendingYieldOf: () => ({ data: 0n, refetch: vi.fn() }),
-  useReadAlignmentEndowmentVaultVestedOf: () => ({ data: 0n, refetch: vi.fn() }),
   useReadAlignmentEndowmentVaultAccumulatedTargetFees: () => ({ data: 0n, refetch: vi.fn() }),
+  useReadAlignmentEndowmentVaultRoundResidue: () => ({ data: 0n, refetch: vi.fn() }),
   alignmentEndowmentVaultAbi: [],
   // The community sink is registry state — the vault keeps no copy of it and exposes no read for one.
   useReadAlignmentRegistryV1GetCommunityPayout: () => ({ data: COMMUNITY, isPending: false }),
@@ -83,37 +69,27 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-test('a top-up still escrowed is not reported as vested, even 30 weeks past the first deposit', () => {
-  // First deposit 30 weeks ago (its own 26-week clock has elapsed), 2 ETH still escrowed — which can
-  // only be a later tranche that has not matured. This is the case the old `now >= depositTime +
-  // VEST_DURATION` label got wrong; it rendered `vested ✓`.
-  mockDepositTime.mockReturnValue(NOW_SEC - 30n * WEEK)
+test('a live principal renders as a plain figure with no maturity claim beside it', () => {
   mockPrincipal.mockReturnValue(2_000_000_000_000_000_000n)
 
   render(<VaultPanel vault={VAULT} benefactor={BENEFACTOR} />)
 
+  const principalStat = screen.getByText(/this collection's principal/i).closest('div')
+  expect(principalStat?.textContent).toMatch(/2 ETH/)
   expect(screen.queryByText('vested ✓')).toBeNull()
-  expect(screen.getByText(/^earliest /)).toBeTruthy()
-  expect(screen.getByText(/each top-up vests on its own clock/)).toBeTruthy()
-  expect(screen.getByText(/26-week vest/)).toBeTruthy()
+  expect(screen.queryByText(/earliest/)).toBeNull()
+  expect(screen.queryByText(/\bvested\b/i)).toBeNull()
+  expect(screen.queryByText(/maturity/i)).toBeNull()
+  expect(screen.getByText(/leaves only when the target withdraws it/i)).toBeTruthy()
 })
 
-test('nothing escrowed is the one completed-vest claim the panel may make', () => {
-  mockDepositTime.mockReturnValue(NOW_SEC - 30n * WEEK)
+test('zero principal is stated as a live number, not a completed vest', () => {
   mockPrincipal.mockReturnValue(0n)
 
   render(<VaultPanel vault={VAULT} benefactor={BENEFACTOR} />)
 
-  expect(screen.getByText('vested ✓')).toBeTruthy()
-  expect(screen.queryByText(/each top-up vests on its own clock/)).toBeNull()
-})
-
-test('a benefactor who never deposited gets no maturity claim at all', () => {
-  mockDepositTime.mockReturnValue(0n)
-  mockPrincipal.mockReturnValue(0n)
-
-  render(<VaultPanel vault={VAULT} benefactor={BENEFACTOR} />)
-
+  const principalStat = screen.getByText(/this collection's principal/i).closest('div')
+  expect(principalStat?.textContent).toMatch(/0 ETH/)
   expect(screen.queryByText('vested ✓')).toBeNull()
-  expect(screen.queryByText(/each top-up vests on its own clock/)).toBeNull()
+  expect(screen.queryByText(/\bvested\b/i)).toBeNull()
 })

@@ -13,8 +13,9 @@
  * so a community's accrued cut could only be moved by hand-writing a contract call.
  *
  * The de-curation case is the one that made the gap matter. Withdrawing curation freezes every
- * ambassador's `execute` on an endowment vault, and the vested corpus then has exactly one way out —
- * `releaseCorpusToCommunity()`, permissionless and hard-wired to the same registry sink. That escape
+ * ambassador's `execute` on an endowment vault, and the live pooled principal then has exactly one
+ * way out — `releaseCorpusToCommunity()`, permissionless and hard-wired to the same registry sink,
+ * which also sweeps any parked `roundResidue` into the same delivery. That escape
  * hatch is what makes the freeze a freeze rather than a seizure, and it is only true in practice if
  * someone can actually press it.
  *
@@ -50,7 +51,7 @@ export interface CommunityPayoutPanelProps {
   vault: `0x${string}`
   /** The vault's bound registry target. Undefined (or 0) means nothing is bound and nothing renders. */
   targetId: bigint | undefined
-  /** Endowment vaults carry a vested corpus and flush under a different name; LP vaults do not. */
+  /** Endowment vaults carry a pooled principal and flush under a different name; LP vaults do not. */
   isEndowment: boolean
 }
 
@@ -91,15 +92,24 @@ export function CommunityPayoutPanel({ vault, targetId, isEndowment }: Community
     chainId: forkChainId,
     query: { enabled: bound && isEndowment },
   })
+  const { data: residue, refetch: refetchResidue } = useReadContract({
+    address: vault,
+    abi: communityPayoutAbi,
+    functionName: 'roundResidue',
+    chainId: forkChainId,
+    query: { enabled: bound && isEndowment },
+  })
   const refetch = useCallback(() => {
     void refetchSink()
     void refetchWaiting()
     void refetchCorpus()
-  }, [refetchSink, refetchWaiting, refetchCorpus])
+    void refetchResidue()
+  }, [refetchSink, refetchWaiting, refetchCorpus, refetchResidue])
 
   const deliver = useTxAction({ onSuccess: refetch })
   const release = useTxAction({ onSuccess: refetch })
   const rotate = useTxAction({ onSuccess: refetch })
+  const flushResidue = useTxAction({ onSuccess: refetch })
 
   const { address: connected } = useAccount()
   const [rotateTo, setRotateTo] = useState('')
@@ -125,7 +135,11 @@ export function CommunityPayoutPanel({ vault, targetId, isEndowment }: Community
   const rotateTrim = rotateTo.trim()
   const rotateOk = isAddress(rotateTrim) && rotateTrim !== ZERO_ADDRESS
   const hasWaiting = waiting !== undefined && waiting > 0n
-  const hasCorpus = corpus !== undefined && corpus > 0n
+  const hasResidue = residue !== undefined && residue > 0n
+  // What `releaseCorpusToCommunity` actually delivers once de-curated: corpus redeemed now plus any
+  // residue already parked, in one call.
+  const releasable = (corpus ?? 0n) + (residue ?? 0n)
+  const hasReleasable = releasable > 0n
 
   // Why each button is greyed, so a disabled control reads as "here is what is missing" rather than
   // as a capability the app does not have.
@@ -134,10 +148,15 @@ export function CommunityPayoutPanel({ vault, targetId, isEndowment }: Community
     : !hasWaiting
       ? 'nothing has accrued for the community yet'
       : undefined
+  const residueHint = !sinkWired
+    ? 'the residue waits in the vault until a payout address is set'
+    : !hasResidue
+      ? 'no round residue is waiting'
+      : undefined
   const releaseHint = !sinkWired
-    ? 'the corpus waits in the vault until a payout address is set'
-    : !hasCorpus
-      ? 'no vested corpus is left to release'
+    ? 'the principal waits in the vault until a payout address is set'
+    : !hasReleasable
+      ? 'no principal is left to release'
       : undefined
 
   function sendDeliver(): void {
@@ -154,6 +173,15 @@ export function CommunityPayoutPanel({ vault, targetId, isEndowment }: Community
       address: vault,
       abi: communityPayoutAbi,
       functionName: 'releaseCorpusToCommunity',
+      chainId: forkChainId,
+    })
+  }
+
+  function sendFlushResidue(): void {
+    flushResidue.send({
+      address: vault,
+      abi: communityPayoutAbi,
+      functionName: 'flushRoundResidue',
       chainId: forkChainId,
     })
   }
@@ -207,7 +235,7 @@ export function CommunityPayoutPanel({ vault, targetId, isEndowment }: Community
         <p className={styles.notice} data-testid="vault-payout-decurated">
           Curation of this community has been withdrawn. Its ambassadors keep the seat and can still
           edit the community&rsquo;s description, but they can no longer spend from this vault
-          {isEndowment ? ' — the vested corpus leaves only by the release below.' : '.'}
+          {isEndowment ? ' — the principal leaves only by the release below.' : '.'}
         </p>
       )}
 
@@ -269,30 +297,54 @@ export function CommunityPayoutPanel({ vault, targetId, isEndowment }: Community
         </p>
       </div>
 
+      {isEndowment && !decurated && (
+        <div className={styles.action} data-testid="vault-payout-residue">
+          <div className={styles.amount}>
+            <span className={styles.label}>round residue</span>
+            <span className={styles.figure} data-testid="vault-payout-residue-figure">
+              {eth(residue)} ETH
+            </span>
+          </div>
+          <TxButton
+            state={flushResidue.state}
+            onClick={sendFlushResidue}
+            label="deliver the residue"
+            className="btn btn-secondary"
+            disabled={!sinkWired || !hasResidue}
+            {...(residueHint ? { disabledHint: residueHint } : {})}
+            successLabel="delivered — tx confirmed."
+            errorText="delivery failed — try again"
+            onReset={flushResidue.reset}
+            testId="vault-payout-flush-residue"
+          />
+          <p className={styles.note}>
+            permissionless — dust left over from a round close, delivered to the same address as
+            above.
+          </p>
+        </div>
+      )}
+
       {isEndowment && decurated && (
         <div className={styles.action} data-testid="vault-payout-release">
           <div className={styles.amount}>
-            <span className={styles.label}>frozen corpus</span>
+            <span className={styles.label}>frozen principal</span>
             <span className={styles.figure} data-testid="vault-payout-corpus">
-              {eth(corpus)} ETH
+              {eth(releasable)} ETH
             </span>
           </div>
           <TxButton
             state={release.state}
             onClick={sendRelease}
-            label="release the corpus"
+            label="release the principal"
             className="btn btn-secondary"
-            disabled={!sinkWired || !hasCorpus}
+            disabled={!sinkWired || !hasReleasable}
             {...(releaseHint ? { disabledHint: releaseHint } : {})}
             successLabel="released — tx confirmed."
             errorText="release failed — try again"
             onReset={release.reset}
             testId="vault-payout-release-btn"
           />
-          <p className={styles.note}>
-            permissionless, and the whole remaining corpus at once. Escrowed principal that has not
-            vested is not part of this.
-          </p>
+          <p className={styles.note}>permissionless, and the whole remaining principal at once.</p>
         </div>
       )}
     </section>

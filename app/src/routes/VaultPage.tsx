@@ -128,8 +128,7 @@ export function VaultPage() {
                     <p className={styles.targetDesc}>{overview.target.description}</p>
                   )}
                   <p className={styles.targetWho}>
-                    A fixed share of every aligned collection&rsquo;s fees routes here — 19% on
-                    liquidity collections, 80% on endowment ones.
+                    19% of every aligned collection&rsquo;s fees route here.
                   </p>
                 </div>
               </div>

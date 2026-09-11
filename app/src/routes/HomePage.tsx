@@ -36,9 +36,9 @@ function HeroLanding() {
           <span className="text-chromatic-strong">alignment</span> launchpad.
         </h1>
         <p className={styles.heroSub}>
-          Onchain releases that are <b>forced to align.</b> Deploy a collection and a fixed share of
-          every fee routes to the work that inspired you — 19% on liquidity collections, 80% on
-          endowment ones. The ratio is set in the contract, and nobody can change it.
+          Onchain releases that are <b>forced to align.</b> Deploy a collection and 19% of every fee
+          routes to the work that inspired you. The ratio is set in the contract, and nobody can
+          change it.
         </p>
         <div className={styles.heroActions}>
           <Link href="/launch" className={styles.heroPrimary}>
@@ -68,11 +68,9 @@ function HeroLanding() {
             <span className="n">02</span>
             <span>
               Fee split
-              <small>
-                19% liquidity, 80% endowment — a contract constant, not a creator setting
-              </small>
+              <small>19% to the community — a contract constant, not a creator setting</small>
             </span>
-            <span className="v">19% / 80%</span>
+            <span className="v">19%</span>
           </div>
           <div className="noesis-ledger-row">
             <span className="n">03</span>

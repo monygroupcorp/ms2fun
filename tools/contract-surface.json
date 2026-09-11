@@ -948,10 +948,6 @@
       "why": "A raw accumulator of the reward math. See acc*PerShare."
     },
     {
-      "match": "*.accCreatorYieldPerPrincipal",
-      "why": "A raw accumulator of the yield math. See acc*PerShare."
-    },
-    {
       "match": "*.rewardDebt",
       "why": "The other half of the accumulator pair. See acc*PerShare."
     },
@@ -1115,11 +1111,11 @@
     },
     {
       "match": "*.getBenefactorContribution",
-      "why": "How much ETH one collection has tithed into this vault over its life. It buys the collection its share of the split, and the share is what pays; the figure a creator acts on is the claim their admin panel offers, not the basis behind it."
+      "why": "On the liquidity families, how much ETH one collection has tithed into this vault over its life (never decremented). On the endowment it is now `principalOf` -- LIVE principal that FALLS as the curated target deploys it, since the vesting/escrow duality was deleted. Either way it buys the collection its share of the split, and the share is what pays; the figure a creator acts on is the claim their admin panel offers, not the basis behind it. `usePortfolio`/`PortfolioPanels` reads this figure through the QueryAggregator's batch (`v.contribution`) purely as a nonzero-position gate and, on the Outbound ledger, as a displayed number -- which family-blindly renders an endowment donor's contribution falling over time with no caption saying why. Whether that is the intended read is a product question, not a UI bug this pass fixes."
     },
     {
       "match": "*.getBenefactorShares",
-      "why": "One collection's share of the vault's fee split. The vault page reports `totalShares`, which says how many claimants the pool is divided between; the per-collection slice is the ledger behind a claim rather than a number anyone acts on."
+      "why": "One collection's share of the vault's fee split. On the endowment it now returns the same live-falling `principalOf` as `getBenefactorContribution` (not a separate basis). The vault page reports `totalShares`, which says how many claimants the pool is divided between; the per-collection slice is the ledger behind a claim rather than a number anyone acts on -- except the same `usePortfolio` gate noted under getBenefactorContribution."
     },
     {
       "match": "*.benefactorContribution",
@@ -1138,16 +1134,28 @@
       "why": "The storage mapping behind getBenefactorDelegate. See it."
     },
     {
-      "match": "*.escrowedPrincipal",
-      "why": "The storage mapping behind `principalOf`, which the collection's vault panel reads to show its pre-vest principal."
-    },
-    {
-      "match": "*.vestedPrincipal",
-      "why": "The storage mapping behind `vestedOf` -- principal that has already moved into the target's deployable corpus."
-    },
-    {
       "match": "*.yieldPurse",
       "why": "The SETTLED half of a benefactor's claimable creator yield. `pendingYieldOf`, which the vault panel reads, returns it plus the accrual not yet settled into it -- the figure the claim actually pays, and the only one worth showing."
+    },
+    {
+      "match": "AlignmentEndowmentVault.principalShares",
+      "why": "The storage mapping behind `principalOf`, which the collection's vault panel reads: a benefactor's immutable weight in the pooled corpus, priced live against `totalPrincipal`. The weight is not itself a quantity anyone holds; `principalOf`'s live ETH figure is."
+    },
+    {
+      "match": "AlignmentEndowmentVault.fundingRoundOf",
+      "why": "Which funding round a benefactor's shares were minted in -- internal bookkeeping the accumulator uses to settle a stale-round claim correctly. It is not eligibility state and gates nothing a reader acts on; see `fundingRound`."
+    },
+    {
+      "match": "AlignmentEndowmentVault.fundingRound",
+      "why": "Which funding round the pool is currently on. Bookkeeping only, per the contract's own doc comment: it is not an eligibility state, it gates no withdrawal, and it changes nothing about when principal earns -- so there is nothing for a surface to render differently by round number."
+    },
+    {
+      "match": "AlignmentEndowmentVault.totalPrincipal",
+      "why": "The storage var behind `totalPrincipalLocked`, which the vault page reads for TVL. See totalContributions."
+    },
+    {
+      "match": "AlignmentEndowmentVault.totalPrincipalShares",
+      "why": "Sigma live `principalShares` -- the accumulator's weight denominator. Meaningful only next to `totalPrincipal` in the price it prices; not a figure anyone reads standalone. See acc*PerShare."
     },
     {
       "match": "*.shareValueAtLastClaim",
@@ -1262,7 +1270,7 @@
     },
     {
       "match": "*.currentPositionValue",
-      "why": "The live redeemable value of the endowment's whole Aave position -- benefactors' escrow, the target's vested corpus, and yield not yet crystallized, in one number. The vault page reports principal and accrued fees separately, because those are the two a benefactor and a community each act on; the sum is the auditor's figure."
+      "why": "The live redeemable value of the endowment's whole Aave position -- pooled principal and yield not yet crystallized, in one number. The vault page reports principal and accrued fees separately, because those are the two a benefactor and a community each act on; the sum is the auditor's figure."
     },
     {
       "$comment": "--- keeper actions: incentivized, and priced by the caller's own slippage bound ---"
@@ -1334,20 +1342,8 @@
       "why": "The vault's principal leg in ETH terms. See totalContributions."
     },
     {
-      "match": "*.totalEscrowedPrincipal",
-      "why": "Endowment principal still inside its vest window, across all benefactors. `totalPrincipalLocked` is what the vault page reads for TVL. See totalContributions."
-    },
-    {
-      "match": "*.totalVested",
-      "why": "Principal that has completed its vest. See totalContributions."
-    },
-    {
-      "match": "*.totalVestedDeployable",
-      "why": "Vested principal the target may still deploy. See totalContributions."
-    },
-    {
       "match": "*.totalDeployedByTarget",
-      "why": "Vested principal the target has already spent. See totalContributions."
+      "why": "Live principal the target has already spent -- execute, a round-residue flush, or a release, summed. See totalContributions."
     },
     {
       "match": "*.totalPrincipalCommittedAllTime",
@@ -1385,7 +1381,7 @@
     },
     {
       "match": "AlignmentEndowmentVault.execute",
-      "why": "An arbitrary external call spending up to the target's vested corpus, authorised to the ambassador of a curated target. That is sovereign capital, and the ambassador panel says so at the point where it declines to offer it: a web build that can make this call is one stolen build artifact away from making it. De-curating the target freezes the power, and `releaseCorpusToCommunity` is the corpus's exit that survives."
+      "why": "An arbitrary external call spending up to the target's live pooled principal, authorised to the ambassador of a curated target. That is sovereign capital, and the ambassador panel says so at the point where it declines to offer it: a web build that can make this call is one stolen build artifact away from making it. De-curating the target freezes the power, and `releaseCorpusToCommunity` is the corpus's exit that survives."
     },
     {
       "match": "UniswapVaultPriceValidator.quoteEthForTokensVia",

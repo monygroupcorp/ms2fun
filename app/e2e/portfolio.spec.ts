@@ -5,10 +5,12 @@
  * per-collection UI:
  *
  *   - `rerollSelectedNFTs` on the seeded "vapor-mid" ERC404 (Erc404Portfolio's reroll control).
- *   - `withdrawPrincipal` on the seeded "neon-drift" ERC1155's Aave endowment vault (VaultPanel).
- *     `calculateClaimableAmount` (what VaultPanel's withdraw button gates on) is 0 until the 365-day
- *     MATURITY_DURATION has elapsed, so the anvil chain clock is warped past it first — bracketed in
- *     an evm_snapshot/evm_revert so the jump doesn't leak into whatever else shares this fork.
+ *   - `claimYieldPurse` on the seeded "neon-drift" ERC1155's Aave endowment vault (VaultPanel).
+ *     The endowment vault carries one pooled principal that is never withdrawn by a benefactor —
+ *     it is permanent until the curated target deploys it (`execute`), on no clock the app can wait
+ *     out — so there is no maturity to warp past and no principal-withdraw button any more. The
+ *     benefactor-reachable write left in the app is the creator's yield claim, gated on harvested
+ *     yield existing to claim.
  *
  * EXEC404 portfolio writes (a real EXEC holder) are DEFERRED per the scout — out of scope here.
  *
@@ -98,28 +100,21 @@ const VAULT_ABI = [
   },
   {
     type: 'function',
-    name: 'principal',
+    name: 'principalOf',
     stateMutability: 'view',
     inputs: [{ type: 'address' }],
     outputs: [{ type: 'uint256' }],
   },
   {
     type: 'function',
-    name: 'depositTime',
-    stateMutability: 'view',
-    inputs: [{ type: 'address' }],
-    outputs: [{ type: 'uint256' }],
-  },
-  {
-    type: 'function',
-    name: 'maturityDuration',
-    stateMutability: 'view',
+    name: 'harvest',
+    stateMutability: 'nonpayable',
     inputs: [],
-    outputs: [{ type: 'uint256' }],
+    outputs: [],
   },
 ] as const
 
-test('portfolio: reroll (vapor-mid) + withdraw principal (neon-drift, matured), both as seeded holder ADMIN @fork', async ({
+test('portfolio: reroll (vapor-mid) + claim yield (neon-drift), both as seeded holder ADMIN @fork', async ({
   page,
 }) => {
   test.setTimeout(90_000)
@@ -172,7 +167,12 @@ test('portfolio: reroll (vapor-mid) + withdraw principal (neon-drift, matured), 
     )
     .toBe(balanceBefore) // reroll re-assigns NFT ids for the same token amount — balance is invariant
 
-  // ── 2 · withdrawPrincipal on neon-drift's Aave endowment vault, as ADMIN (the instance owner) ──
+  // ── 2 · claimYieldPurse on neon-drift's Aave endowment vault, as ADMIN (the instance owner) ──
+  // There is no maturity clock and no benefactor withdraw any more: principal is permanent, pooled,
+  // and leaves only when the curated target deploys it via `execute`. The one write a benefactor's
+  // own collection page still offers is the creator's yield claim, gated on harvested yield existing
+  // to claim — so the chain clock is warped to let Aave interest accrue, then `harvest()` is called
+  // directly (permissionless, off-UI) to crystallize it before the claim button is exercised.
   await page.goto(`/collection/${neonDrift}`)
   await connectWallet(page)
 
@@ -204,60 +204,55 @@ test('portfolio: reroll (vapor-mid) + withdraw principal (neon-drift, matured), 
     args: [neonDrift],
   })) as Address
 
-  const claimableBeforeWarp = (await client.readContract({
+  const principalBefore = (await client.readContract({
     address: vault,
     abi: VAULT_ABI,
-    functionName: 'calculateClaimableAmount',
+    functionName: 'principalOf',
     args: [neonDrift],
   })) as bigint
-  expect(claimableBeforeWarp).toBe(0n) // locked — the seed deposit hasn't matured yet
-
-  const depositTime = (await client.readContract({
-    address: vault,
-    abi: VAULT_ABI,
-    functionName: 'depositTime',
-    args: [neonDrift],
-  })) as bigint
-  const maturityDuration = (await client.readContract({
-    address: vault,
-    abi: VAULT_ABI,
-    functionName: 'maturityDuration',
-  })) as bigint
+  expect(principalBefore).toBeGreaterThan(0n) // the seed deposit — permanent, not gated on anything
 
   const snapshot = await testClient.snapshot()
   try {
-    const nowSec = BigInt(Math.floor(Date.now() / 1000))
-    const targetSec = depositTime + maturityDuration + 3600n // an hour past maturity
-    const forwardSecs = Number(targetSec - nowSec)
-    await testClient.increaseTime({ seconds: forwardSecs })
+    // A year of Aave interest is plenty to crystallize into a nonzero creator leg. `harvest()` is
+    // permissionless, so any unlocked anvil account can send it — impersonate ADMIN rather than pull
+    // in a second funded key for a single call.
+    await testClient.increaseTime({ seconds: 365 * 24 * 3600 })
     await testClient.mine({ blocks: 1 })
+    await testClient.impersonateAccount({ address: ADMIN })
+    await testClient.sendTransaction({
+      account: ADMIN,
+      to: vault,
+      data: '0x4641257d', // harvest()
+    })
+    await testClient.mine({ blocks: 1 })
+    await testClient.stopImpersonatingAccount({ address: ADMIN })
 
-    const claimableAfterWarp = (await client.readContract({
+    const claimableAfterHarvest = (await client.readContract({
       address: vault,
       abi: VAULT_ABI,
       functionName: 'calculateClaimableAmount',
       args: [neonDrift],
     })) as bigint
-    expect(claimableAfterWarp).toBeGreaterThan(0n)
+    expect(claimableAfterHarvest).toBeGreaterThan(0n)
 
     await page.reload()
     await connectWallet(page)
-    const matured = page.getByTestId('vault-panel')
-    await expect(matured).toBeVisible({ timeout: 15_000 })
-    await matured.locator('summary').click() // open the <details> disclosure — content is hidden until then
-    await expect(matured.getByTestId('vault-withdraw-principal')).toBeEnabled({ timeout: 20_000 })
-    await matured.getByTestId('vault-withdraw-principal').click()
-    await expect(matured.getByTestId('vault-withdraw-principal-success')).toBeVisible({
-      timeout: 20_000,
-    })
+    const panel = page.getByTestId('vault-panel')
+    await expect(panel).toBeVisible({ timeout: 15_000 })
+    await panel.locator('summary').click() // open the <details> disclosure — content is hidden until then
+    await expect(panel.getByTestId('vault-claim-yield')).toBeEnabled({ timeout: 20_000 })
+    await panel.getByTestId('vault-claim-yield').click()
+    await expect(panel.getByTestId('vault-claim-yield-success')).toBeVisible({ timeout: 20_000 })
 
+    // Claiming yield never touches principal — it is a separate, permanent bucket.
     const principalAfter = (await client.readContract({
       address: vault,
       abi: VAULT_ABI,
-      functionName: 'principal',
+      functionName: 'principalOf',
       args: [neonDrift],
     })) as bigint
-    expect(principalAfter).toBe(0n) // fully withdrawn — the ledger clears on withdraw
+    expect(principalAfter).toBe(principalBefore)
   } finally {
     await testClient.revert({ id: snapshot })
   }
