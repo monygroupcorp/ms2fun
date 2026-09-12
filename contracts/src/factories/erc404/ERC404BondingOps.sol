@@ -639,9 +639,19 @@ contract ERC404BondingOps is ERC404BondingStorage {
      *      creator would pay them in proportion to how early they cut the sale. `availableCoin` is read
      *      from live balances net of custodial liabilities, never from create-time arithmetic — a
      *      create-time constant ceasing to describe reality is the defect this sizing removes.
+     * @dev THE AGENT CANNOT CHOOSE THE AMOUNT. Graduation is one-shot and this argument is supplied by
+     *      the caller, so an agent calling `deployLiquidity(0)` would forfeit the creator's entire carve
+     *      into the pool with no way back. The request is therefore floored at `declaredMaxAllowanceBps`
+     *      for every caller that is not the owner: an agent takes the full declared carve or it does not
+     *      graduate. Flooring rather than rejecting a zero is what makes it hold — a rejected zero is
+     *      defeated by requesting one bps, which forfeits 99.99% of the carve just as permanently. The
+     *      owner's own path is untouched and still waives down to nothing, which is a choice only the
+     *      party losing the money gets to make. The upper clamp, the split and `creator: owner()` are
+     *      unchanged, so this can only ever move ETH toward the creator.
      * @param carveRequestBps Fraction (bps) of the protocol carve allowance the creator takes NOW, on
      *        the same axis as `declaredMaxAllowanceBps`. Effective carve ETH = min(request,
      *        allowance(raise) × declaredMaxAllowanceBps / 10000, headroom above the pool floor).
+     *        From an agent the request is first raised to `declaredMaxAllowanceBps`.
      */
     // slither-disable-next-line reentrancy-eth,timestamp,reentrancy-events
     function deployLiquidity(uint256 carveRequestBps) external nonReentrant {
@@ -661,7 +671,16 @@ contract ERC404BondingOps is ERC404BondingStorage {
         // `split` plus the carve clamp on the next line — reproduced here rather than called so the
         // clamp can be re-run against the combined carve below.
         uint256 lp = RevenueSplitLib.split(ethToSend).remainder;
-        uint256 carveEth = _effectiveCarve(ethToSend, carveRequestBps);
+        // Floor an agent's request at the creator's declared allowance (see THE AGENT CANNOT CHOOSE THE
+        // AMOUNT above). `_requireOwnerOrAgent` has already run, so a caller that is not the owner is an
+        // agent; `msg.sender` survives the instance trampoline's delegatecall, so this reads the caller
+        // the gate itself read.
+        uint256 carveBps = carveRequestBps;
+        if (msg.sender != owner()) {
+            uint256 declaredBps = declaredMaxAllowanceBps;
+            if (carveBps < declaredBps) carveBps = declaredBps;
+        }
+        uint256 carveEth = _effectiveCarve(ethToSend, carveBps);
         if (carveEth > lp) carveEth = lp;
 
         (uint256 tokensForPool, uint256 ethForPool) = _sizePoolAtCurvePrice(lp - carveEth);

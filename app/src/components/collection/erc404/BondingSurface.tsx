@@ -52,7 +52,7 @@ function CarveDisclosureNote({ instance }: { instance: `0x${string}` }) {
     <p className={styles.note} data-testid="erc404-carve-disclosure">
       {declaredMax === 0
         ? 'creator carve: waived — the creator takes nothing at graduation; the full LP share pools.'
-        : `creator carve disclosure: at graduation the creator may take up to ${pct % 1 === 0 ? pct : pct.toFixed(2)}% of the protocol carve allowance (bracket-bounded, pool floor first, tithed 80/19/1). Set immutably at create.`}
+        : `creator carve disclosure: at graduation the creator may take up to ${pct % 1 === 0 ? pct : pct.toFixed(2)}% of the protocol carve allowance (bracket-bounded, pool-floor capped, tithed 80/19/1). Set immutably at create.`}
     </p>
   )
 }

@@ -6280,6 +6280,13 @@ export const erc404FactoryAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'MAX_MIN_POOL_ETH',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'PROTOCOL_ROLE',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
@@ -6305,6 +6312,27 @@ export const erc404FactoryAbi = [
     outputs: [
       {
         name: '',
+        internalType: 'struct RevenueSplitLib.BracketParams',
+        type: 'tuple',
+        components: [
+          { name: 'b1', internalType: 'uint256', type: 'uint256' },
+          { name: 'b2', internalType: 'uint256', type: 'uint256' },
+          { name: 'r1', internalType: 'uint16', type: 'uint16' },
+          { name: 'r2', internalType: 'uint16', type: 'uint16' },
+          { name: 'r3', internalType: 'uint16', type: 'uint16' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'carveTermsOf',
+    outputs: [
+      { name: 'minPoolEth_', internalType: 'uint256', type: 'uint256' },
+      {
+        name: 'brackets_',
         internalType: 'struct RevenueSplitLib.BracketParams',
         type: 'tuple',
         components: [
@@ -6746,6 +6774,30 @@ export const erc404FactoryAbi = [
         indexed: true,
       },
       {
+        name: 'minPoolEth',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      { name: 'b1', internalType: 'uint256', type: 'uint256', indexed: false },
+      { name: 'b2', internalType: 'uint256', type: 'uint256', indexed: false },
+      { name: 'r1', internalType: 'uint16', type: 'uint16', indexed: false },
+      { name: 'r2', internalType: 'uint16', type: 'uint16', indexed: false },
+      { name: 'r3', internalType: 'uint16', type: 'uint16', indexed: false },
+    ],
+    name: 'CarveTermsSealed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
         name: 'declaredMaxAllowanceBps',
         internalType: 'uint16',
         type: 'uint16',
@@ -6933,6 +6985,7 @@ export const erc404FactoryAbi = [
   { type: 'error', inputs: [], name: 'InvalidOwner' },
   { type: 'error', inputs: [], name: 'InvalidSymbol' },
   { type: 'error', inputs: [], name: 'MaxBondingFeeExceeded' },
+  { type: 'error', inputs: [], name: 'MinPoolEthTooHigh' },
   { type: 'error', inputs: [], name: 'NameAlreadyTaken' },
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
@@ -21491,6 +21544,15 @@ export const useReadErc404Factory = /*#__PURE__*/ createUseReadContract({
 })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"MAX_MIN_POOL_ETH"`
+ */
+export const useReadErc404FactoryMaxMinPoolEth =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404FactoryAbi,
+    functionName: 'MAX_MIN_POOL_ETH',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"PROTOCOL_ROLE"`
  */
 export const useReadErc404FactoryProtocolRole =
@@ -21515,6 +21577,15 @@ export const useReadErc404FactoryCarveBracketParams =
   /*#__PURE__*/ createUseReadContract({
     abi: erc404FactoryAbi,
     functionName: 'carveBracketParams',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"carveTermsOf"`
+ */
+export const useReadErc404FactoryCarveTermsOf =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404FactoryAbi,
+    functionName: 'carveTermsOf',
   })
 
 /**
@@ -22005,6 +22076,15 @@ export const useWatchErc404FactoryCarveBracketsUpdatedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc404FactoryAbi,
     eventName: 'CarveBracketsUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404FactoryAbi}__ and `eventName` set to `"CarveTermsSealed"`
+ */
+export const useWatchErc404FactoryCarveTermsSealedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404FactoryAbi,
+    eventName: 'CarveTermsSealed',
   })
 
 /**

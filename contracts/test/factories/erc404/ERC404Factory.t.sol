@@ -1037,12 +1037,20 @@ contract ERC404FactoryTest is Test {
 
     /// @notice The pool floor CLAMPS the carve (to zero here) but never gates graduation.
     function test_deployLiquidity_floorClampsCarve_neverGates() public {
-        ERC404BondingInstance inst = _createCarveInstance("CarveFloored", 10000);
-        _buyExact(inst, 5e24);
-
-        // Raise the floor above any possible LP share: headroom -> 0, carve -> 0.
+        // The floor is raised BEFORE the create, and only to the ceiling the setter now enforces. Both
+        // halves are deliberate: a collection is sealed onto the carve terms standing at its create, so
+        // raising the floor afterwards no longer reaches it, and `setMinPoolEth` no longer accepts an
+        // arbitrary figure. What is under test is unchanged — the floor eats the carve and graduation
+        // happens anyway.
+        uint256 ceiling = factory.MAX_MIN_POOL_ETH();
         vm.prank(protocolAdmin);
-        factory.setMinPoolEth(1000 ether);
+        factory.setMinPoolEth(ceiling);
+
+        ERC404BondingInstance inst = _createCarveInstance("CarveFloored", 10000);
+        _buyExact(inst, 4e24);
+
+        uint256 lpShare = RevenueSplitLib.split(inst.reserve()).remainder;
+        assertLt(lpShare, ceiling, "precondition: the LP share must sit under the sealed floor");
         assertEq(inst.previewCarve(10000), 0, "no headroom -> preview 0");
 
         vm.prank(creator1);
