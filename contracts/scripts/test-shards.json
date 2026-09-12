@@ -1,0 +1,18 @@
+[
+  {
+    "name": "bonding-curve-invariant",
+    "match": "test/invariant/BondingCurveInvariant.t.sol",
+    "why": "one file, 857 CPU-seconds under the ci profile: more than every other suite together"
+  },
+  {
+    "name": "invariants",
+    "match": "test/invariant/**",
+    "no_match": "test/invariant/BondingCurveInvariant.t.sol",
+    "why": "the other invariant suites, 553 CPU-seconds"
+  },
+  {
+    "name": "everything-else",
+    "no_match": "test/invariant/**",
+    "why": "200 unit and integration files, 65 CPU-seconds; bounded by a few 30-second waits, not by CPU"
+  }
+]
