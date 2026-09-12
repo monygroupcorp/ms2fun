@@ -30,6 +30,7 @@ import { DeployBondEscrow } from "../src/factories/erc404/DeployBondEscrow.sol";
 import { ERC404BondingInstance } from "../src/factories/erc404/ERC404BondingInstance.sol";
 import { ERC404BondingOps } from "../src/factories/erc404/ERC404BondingOps.sol";
 import { LaunchManager } from "../src/factories/erc404/LaunchManager.sol";
+import { LaunchPresets } from "./LaunchPresets.sol";
 import { CurveParamsComputer } from "../src/factories/erc404/CurveParamsComputer.sol";
 import { ERC404StakingModule } from "../src/factories/erc404/ERC404StakingModule.sol";
 import { MetadataResolverRouter } from "../src/metadata/MetadataResolverRouter.sol";
@@ -532,51 +533,11 @@ contract DeployCore is Script {
             address(curveParamsComputer), bytes32("curve_computer"), "CurveParamsComputer"
         );
 
-        // Hardcoded protocol presets — NICHE / STANDARD / HYPE.
-        //
-        // `unitPerNFT` is the rung, and the three rungs are a decade apart on purpose. It is not a
-        // taste knob: `maxSupply = nftCount * unitPerNFT * 1e18` and DN404 holds total supply in a
-        // `uint96`, so the unit fixes a HARD ceiling on how many pieces a collection may ever have —
-        // `type(uint96).max / (unitPerNFT * 1e18)`:
-        //
-        //   NICHE     1e6 units/NFT →     79,228 pieces
-        //   STANDARD  1e5 units/NFT →    792,281 pieces
-        //   HYPE      1e3 units/NFT → 79,228,162 pieces
-        //
-        // Spaced any tighter and the rungs stop meaning anything to a creator choosing between them;
-        // spaced by a factor of a thousand, as NICHE was, the ceiling collapses to 79 pieces and the
-        // preset admits no collection anyone would launch. Retuning a rung moves that ceiling, so a
-        // change here belongs with the wizard's ceiling test, not on its own.
-        launchManager.setPreset(
-            0,
-            LaunchManager.Preset({
-                targetETH: 5 ether,
-                unitPerNFT: 1_000_000,
-                liquidityReserveBps: 1000,
-                curveComputer: address(curveParamsComputer),
-                active: true
-            })
-        );
-        launchManager.setPreset(
-            1,
-            LaunchManager.Preset({
-                targetETH: 25 ether,
-                unitPerNFT: 100_000,
-                liquidityReserveBps: 1000,
-                curveComputer: address(curveParamsComputer),
-                active: true
-            })
-        );
-        launchManager.setPreset(
-            2,
-            LaunchManager.Preset({
-                targetETH: 50 ether,
-                unitPerNFT: 1_000,
-                liquidityReserveBps: 1000,
-                curveComputer: address(curveParamsComputer),
-                active: true
-            })
-        );
+        // The protocol presets — NICHE / STANDARD / HYPE. The ladder itself, and why its rungs
+        // are spaced a decade apart, is stated once in `LaunchPresets`; this only writes it.
+        for (uint256 i = 0; i < LaunchPresets.COUNT; i++) {
+            launchManager.setPreset(i, LaunchPresets.preset(i, address(curveParamsComputer)));
+        }
 
         // ── Phase 7: ERC1155Factory + DynamicPricingModule ───────────────────
 
