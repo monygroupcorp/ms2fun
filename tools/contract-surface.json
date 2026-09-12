@@ -1678,6 +1678,10 @@
       "why": "What a creator's carve request would actually pay out at a given raise. The admin panel quotes the carve from the instance's own `previewCarve`, which nets it against the collection's declared maximum -- the figure the creator is deciding on."
     },
     {
+      "match": "ERC404Factory.carveTermsOf",
+      "why": "The pool floor and bracket ladder a collection was sealed onto at its create. Same reason as `effectiveCarveEth` directly above, one level down: every app surface that speaks about an EXISTING collection's carve goes through that instance's own `previewCarve`, which already resolves against this seal, so the app reads the seal's effect and never the terms themselves. The wizard is the one carve surface reading the factory directly, and it is quoting a collection that does not exist yet -- so it wants the CURRENT terms (`minPoolEth`, `carveBracketParams`), which is what it reads. This stays public for the chain-side reader the app is not: a creator or explorer checking which terms a deployed collection is actually bound to. `CarveTermsSealed` carries the same values at create for indexers."
+    },
+    {
       "match": "*.computeInstanceAddress",
       "why": "The CREATE3 address a salt would produce. The wizard mints a fresh salt and sends the create, then reads the instance out of the receipt; predicting the address first would be a round trip to learn something the transaction is about to say."
     },
