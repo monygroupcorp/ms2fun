@@ -3,11 +3,20 @@ pragma solidity ^0.8.20;
 
 import { ALGEBRA_DEFAULT_DEPLOYER, IAlgebraSwapRouter } from "../../interfaces/algebra/IAlgebra.sol";
 
-/// @notice On-chain best-route quote surface (zQuoter.getQuotes). The base quoter
-///         (`zQuoterBase`) only ever reports one of these five single-hop sources, and every one of
-///         them maps to a typed zRouter leg below — so no route is ever dispatched through the
+/// @notice On-chain best-route quote surface (zQuoter.getQuotes). `AMM` names the five single-hop
+///         sources that map to a typed zRouter leg below — so no route is ever dispatched through the
 ///         generic `snwap`/`snwapMulti` executor (arbitrary-target + arbitrary-calldata = drain
-///         surface). Enum order MUST match `zQuoterBase.AMM` for correct ABI decoding.
+///         surface). The indices MUST match the quoter's own `AMM` ordering.
+/// @dev `source` is decoded as a RAW `uint8`, deliberately not as `AMM`, because the quoter's enum is
+///      the WIDER one and we do not get to choose which member it names. `zQuoterBase` (Sepolia) has
+///      exactly these five; mainnet `zQuoter` adds CURVE, LIDO, WETH_WRAP and V4_HOOKED after them.
+///      A `Quote` whose `source` is typed `AMM` cannot hold the value 5, so a mainnet quote on any of
+///      those four venues fails ABI decoding — and that failure lands in the VAULT's frame, AFTER
+///      `getQuotes` has already returned successfully, where the `try`/`catch` around the call cannot
+///      reach it. The whole convert would revert on a route we merely have no leg for. Read the byte,
+///      then decide: an unrecognised source is a fallback, not a revert.
+///      (Base's quoter is not merely wider — it puts AERO at index 1, where this enum reads SUSHI. The
+///      names here are mainnet's and are not portable to that chain; a Base deployment re-derives them.)
 interface IBestRouteQuoter {
     enum AMM {
         UNI_V2,
@@ -18,7 +27,7 @@ interface IBestRouteQuoter {
     }
 
     struct Quote {
-        AMM source;
+        uint8 source;
         uint256 feeBps;
         uint256 amountIn;
         uint256 amountOut;
@@ -89,7 +98,8 @@ interface IBestRouteRouter {
 /// @dev Design invariants (locked, rth 2026-07-09):
 ///      - TYPED dispatch only. A quoted source with no typed leg the vault can call is treated as
 ///        "no usable route" and degrades to the caller's fixed-pool fallback — it is NEVER routed
-///        through the generic `snwap` executor.
+///        through the generic `snwap` executor. Such a source must remain DECODABLE, which is why the
+///        quote's `source` is read as a raw `uint8`: see IBestRouteQuoter.
 ///      - `minOut` is the vault's own oracle-derived floor, passed in and enforced as the router
 ///        `amountLimit` (the router reverts on `received < minOut`). The helper never widens it.
 ///      - Fixed-pool fallback (the vault's pre-existing `swapV4`/`swapVZ` leg) is preserved as a
@@ -233,9 +243,9 @@ library BestRouteAcquirer {
 
         if (best.amountOut == 0) return (false, 0); // no viable route -> fallback
 
-        IBestRouteQuoter.AMM source = best.source;
+        uint8 source = best.source;
 
-        if (source == IBestRouteQuoter.AMM.UNI_V4) {
+        if (source == uint8(IBestRouteQuoter.AMM.UNI_V4)) {
             (, amountReceived) = IBestRouteRouter(zRouter).swapV4{ value: ethAmount }(
                 address(this),
                 false,
@@ -247,7 +257,7 @@ library BestRouteAcquirer {
                 minOut,
                 block.timestamp
             );
-        } else if (source == IBestRouteQuoter.AMM.ZAMM) {
+        } else if (source == uint8(IBestRouteQuoter.AMM.ZAMM)) {
             (, amountReceived) = IBestRouteRouter(zRouter).swapVZ{ value: ethAmount }(
                 address(this),
                 false,
@@ -260,7 +270,7 @@ library BestRouteAcquirer {
                 minOut,
                 block.timestamp // != type(uint256).max -> hooked ZAMM (matches vault's fixed leg)
             );
-        } else if (source == IBestRouteQuoter.AMM.UNI_V3) {
+        } else if (source == uint8(IBestRouteQuoter.AMM.UNI_V3)) {
             (, amountReceived) = IBestRouteRouter(zRouter).swapV3{ value: ethAmount }(
                 address(this),
                 false,
@@ -271,7 +281,7 @@ library BestRouteAcquirer {
                 minOut,
                 block.timestamp
             );
-        } else if (source == IBestRouteQuoter.AMM.UNI_V2) {
+        } else if (source == uint8(IBestRouteQuoter.AMM.UNI_V2)) {
             (, amountReceived) = IBestRouteRouter(zRouter).swapV2{ value: ethAmount }(
                 address(this),
                 false,
@@ -281,7 +291,7 @@ library BestRouteAcquirer {
                 minOut,
                 block.timestamp // normal deadline -> Uniswap V2 factory
             );
-        } else if (source == IBestRouteQuoter.AMM.SUSHI) {
+        } else if (source == uint8(IBestRouteQuoter.AMM.SUSHI)) {
             (, amountReceived) = IBestRouteRouter(zRouter).swapV2{ value: ethAmount }(
                 address(this),
                 false,
@@ -292,7 +302,9 @@ library BestRouteAcquirer {
                 type(uint256).max // sentinel -> SushiSwap factory (zRouter.swapV2 convention)
             );
         } else {
-            return (false, 0); // unmappable source -> fallback (unreachable for zQuoterBase)
+            // A source this deployment has no typed leg for: mainnet's CURVE / LIDO / WETH_WRAP /
+            // V4_HOOKED, Base's AERO / AERO_CL, or anything a future quoter adds. Fall back.
+            return (false, 0);
         }
 
         return (true, amountReceived);
