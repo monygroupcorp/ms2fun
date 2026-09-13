@@ -56,7 +56,7 @@ contract FactoryInstanceIndexingTest is Test {
         // vault an instance points to must be registered + active first. Wire an alignment registry,
         // register a target, then register the vault the mock instances bind to.
         address vaultToken = address(0xDECA);
-        AlignmentRegistryV1 alignmentRegistry = new AlignmentRegistryV1(makeAddr("WETH"));
+        AlignmentRegistryV1 alignmentRegistry = new AlignmentRegistryV1(makeAddr("WETH"), address(0), address(0));
         alignmentRegistry.initialize(owner);
         MasterRegistryV1(proxy).setAlignmentRegistry(address(alignmentRegistry));
 

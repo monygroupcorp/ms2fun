@@ -67,7 +67,7 @@ contract FullWorkflowIntegrationTest is Test {
         // registerInstance now gates on vault registration (the curation choke-point), so the vault
         // the mock instances bind to must be a registered + active vault first.
         address vaultToken = address(0xDECA);
-        AlignmentRegistryV1 alignmentRegistry = new AlignmentRegistryV1(makeAddr("WETH"));
+        AlignmentRegistryV1 alignmentRegistry = new AlignmentRegistryV1(makeAddr("WETH"), address(0), address(0));
         alignmentRegistry.initialize(owner);
         MasterRegistryV1(proxy).setAlignmentRegistry(address(alignmentRegistry));
 

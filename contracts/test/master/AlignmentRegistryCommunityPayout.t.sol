@@ -15,7 +15,7 @@ contract AlignmentRegistryCommunityPayoutTest is Test {
     address public payoutAddr = makeAddr("payout");
 
     function setUp() public {
-        registry = new AlignmentRegistryV1(makeAddr("WETH"));
+        registry = new AlignmentRegistryV1(makeAddr("WETH"), address(0), address(0));
         registry.initialize(daoOwner);
     }
 

@@ -1641,7 +1641,7 @@ contract AlignmentEndowmentVaultTest is Test {
     ///      and logo it shows — `updateAlignmentTarget` is `onlyOwnerOrAmbassador` and reads no `active`
     ///      flag — which is what "they can operate what has been given to them" means in practice.
     function test_decuration_leavesTheSeatsMetadataPowerIntact() public {
-        AlignmentRegistryV1 realRegistry = new AlignmentRegistryV1(address(weth));
+        AlignmentRegistryV1 realRegistry = new AlignmentRegistryV1(address(weth), address(0), address(0));
         realRegistry.initialize(address(this));
 
         IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);

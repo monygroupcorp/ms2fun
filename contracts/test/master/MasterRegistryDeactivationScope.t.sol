@@ -75,7 +75,7 @@ contract MasterRegistryDeactivationScopeTest is Test {
         registry = MasterRegistryV1(LibClone.deployERC1967(address(impl)));
         registry.initialize(dao);
 
-        alignmentRegistry = new AlignmentRegistryV1(makeAddr("WETH"));
+        alignmentRegistry = new AlignmentRegistryV1(makeAddr("WETH"), address(0), address(0));
         alignmentRegistry.initialize(dao);
         vm.prank(dao);
         registry.setAlignmentRegistry(address(alignmentRegistry));

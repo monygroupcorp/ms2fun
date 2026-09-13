@@ -22,6 +22,7 @@ import { RevenueSplitLib } from "../../src/shared/libraries/RevenueSplitLib.sol"
 import { Currency } from "v4-core/types/Currency.sol";
 import { AnvilFixedRouteQuoter } from "../../script/SeedAnvilShared.sol";
 import { MockWETH, MockStataToken } from "../vaults/aave/AlignmentEndowmentVault.t.sol";
+import { MockUniV3RefFactory } from "../master/AlignmentRegistryReferencePool.t.sol";
 
 /// @dev The narrowest thing `AlignmentRegistryV1.setReferencePool` will accept as a Uniswap V3 price
 ///      authority: the pair it reports must be exactly `{token, weth}`, and `observe` must serve two
@@ -32,6 +33,9 @@ import { MockWETH, MockStataToken } from "../vaults/aave/AlignmentEndowmentVault
 contract MockV3ReferencePool {
     address public token0;
     address public token1;
+    /// @dev noesis-283: the setter now proves PROVENANCE, so a stand-in pool must be reachable through the
+    ///      canonical factory. The tier is the lookup key it is registered under, not a priced quantity.
+    uint24 public fee = 3000;
 
     constructor(address a, address b) {
         (token0, token1) = a < b ? (a, b) : (b, a);
@@ -233,10 +237,18 @@ contract SeedModuleCoverageTest is Test {
     address internal paradilf; // artist endowment collection (target 3)
     address internal petravoice; // artist endowment collection (target 4)
     address internal referencePool;
+    /// @dev Stands in for the network's canonical Uniswap V3 factory. The real anvil and mainnet deploys
+    ///      pass a genuine `V3_FACTORY`; this harness builds its config by hand and so must supply one too,
+    ///      or `setReferencePool` rightly refuses every kind-0 pin (`ReferenceKindUnavailable`).
+    MockUniV3RefFactory internal v3Factory;
     address internal cultToken;
 
     function setUp() public {
         vm.etch(CREATEX, CREATEX_BYTECODE);
+
+        // Before the config is built: the registry takes the canonical factory as a CONSTRUCTOR immutable,
+        // so it has to exist by the time `_networkConfig()` runs.
+        v3Factory = new MockUniV3RefFactory();
 
         deployer = vm.addr(DEPLOYER_KEY);
         vm.deal(deployer, 1000 ether);
@@ -347,7 +359,9 @@ contract SeedModuleCoverageTest is Test {
         vm.deal(secondActor, 1000 ether);
         vm.deal(thirdActor, 1000 ether);
 
-        referencePool = address(new MockV3ReferencePool(cultToken, address(weth)));
+        MockV3ReferencePool refPool = new MockV3ReferencePool(cultToken, address(weth));
+        v3Factory.register(refPool.token0(), refPool.token1(), refPool.fee(), address(refPool));
+        referencePool = address(refPool);
         harness.seedCultAlignmentLegs(d, referencePool);
         harness.registerCatalogPresets(d);
 
@@ -954,9 +968,11 @@ contract SeedModuleCoverageTest is Test {
     ///      own vaults, not the first one's". A single-target config would make that rule vacuous —
     ///      every vault would be both — so the second target is what gives the binding assertions
     ///      something to be wrong about.
+    /// @dev `view`, not `pure`: the config now carries the canonical V3 factory this harness stood up, which
+    ///      is state. The real deploy scripts read theirs from a network constant for the same reason.
     function _config(address weth, address stata, address second, address[2] memory artistTokens)
         internal
-        pure
+        view
         returns (DeployCore.NetworkConfig memory cfg)
     {
         DeployCore.AlignmentTargetConfig[] memory targets = new DeployCore.AlignmentTargetConfig[](4);
@@ -1007,6 +1023,7 @@ contract SeedModuleCoverageTest is Test {
 
         cfg.chainId = 1337;
         cfg.weth = weth;
+        cfg.v3Factory = address(v3Factory);
         cfg.v4PoolManager = address(1);
         cfg.cypherPositionManager = STUB_CYPHER_PM;
         cfg.cypherRouter = STUB_CYPHER_ROUTER;

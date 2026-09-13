@@ -290,7 +290,7 @@ contract DeployCore is Script {
             )
         );
 
-        alignmentRegistryImpl = new AlignmentRegistryV1(cfg.weth);
+        alignmentRegistryImpl = new AlignmentRegistryV1(cfg.weth, cfg.v3Factory, cfg.cypherAlgebraFactory);
         alignmentRegistry = AlignmentRegistryV1(
             _deployProxyCreate3(
                 address(alignmentRegistryImpl),

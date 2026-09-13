@@ -47,7 +47,7 @@ contract AlignmentSinkAfterDecurationTest is Test {
         router = new MockZRouter();
         validator = new MockVaultPriceValidator();
 
-        registry = new AlignmentRegistryV1(address(weth));
+        registry = new AlignmentRegistryV1(address(weth), address(0), address(0));
         registry.initialize(daoOwner);
 
         IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);

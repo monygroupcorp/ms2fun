@@ -79,7 +79,7 @@ contract GlobalMessageRegistryRevocationTest is Test {
         registry = MasterRegistryV1(LibClone.deployERC1967(address(impl)));
         registry.initialize(dao);
 
-        alignmentRegistry = new AlignmentRegistryV1(weth);
+        alignmentRegistry = new AlignmentRegistryV1(weth, address(0), address(0));
         alignmentRegistry.initialize(dao);
         vm.prank(dao);
         registry.setAlignmentRegistry(address(alignmentRegistry));
