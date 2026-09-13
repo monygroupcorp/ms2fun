@@ -38,7 +38,7 @@ contract SlitherSuppressionCensusTest is Test {
 
     /// @dev Number of `.sol` files discovered under `src`. Asserted so that a file — and therefore a
     ///      possible suppression — cannot be added or moved outside the census unnoticed.
-    uint256 internal constant EXPECTED_SOL_FILES = 89;
+    uint256 internal constant EXPECTED_SOL_FILES = 91;
 
     /// @dev Total `missing-zero-check` directives across `src`.
     uint256 internal constant EXPECTED_TOTAL = 20;
@@ -69,7 +69,14 @@ contract SlitherSuppressionCensusTest is Test {
 
     // ── The census ────────────────────────────────────────────────────────
 
-    function test_missingZeroCheckSuppressionCensusIsPinned() public view {
+    function test_missingZeroCheckSuppressionCensusIsPinned() public {
+        // The census reads every `.sol` under `src` in one call frame, and `vm.readFile` is charged
+        // for the bytes it returns. At 89 files that came to 1.055e9 gas against the 1.0737e9 default
+        // ceiling — 1.7% of headroom, so the census was one or two new source files from reverting
+        // `OutOfGas` no matter what it found. Gas has no meaning for a guard that only reads the tree
+        // and compares counts, so it is not metered rather than being given a bigger number that the
+        // same growth would eat again.
+        vm.pauseGasMetering();
         (string[] memory expectedPaths, uint256[] memory expectedCounts) = _expected();
         bool[] memory seen = new bool[](expectedPaths.length);
 
