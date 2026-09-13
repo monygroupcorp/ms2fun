@@ -15,6 +15,7 @@ import { MessageComposer } from '../components/MessageComposer'
 import { meetsThreshold, threadMessages } from '../components/threadMessages'
 import { type FeedMessage, usePostThreshold } from '../components/useMessageFeed'
 import { ActivityBox } from '../components/activity/ActivityBox'
+import { ActivityLine } from '../components/activity/ActivityLine'
 import { ActivityMessage } from '../components/activity/ActivityMessage'
 import { channelRef, messageVerb } from '../components/activity/messageMeta'
 import { StateBlock } from '../components/ui/StateBlock'
@@ -320,9 +321,15 @@ export function BoardPage() {
               </StateBlock>
             )}
 
-            {!isPending && !isError && data !== undefined && data.length === 0 && (
-              <StateBlock variant="empty" boxed>
-                this wall is empty — be the first to say something considered.
+            {/* Keyed on the rows this view actually shows, not on the raw feed: filter to a quiet
+                channel, or raise the spam threshold past everything in it, and `data` is full while
+                the transcript is bare. That combination used to draw an empty window with no state
+                in it at all, where every other surface says "no activity yet". */}
+            {!isPending && !isError && data !== undefined && rows === 0 && (
+              <StateBlock variant="empty" boxed testId="board-empty">
+                {data.length === 0
+                  ? 'this wall is empty — be the first to say something considered.'
+                  : 'nothing to show in this view — the current channel and threshold hide every post in the feed.'}
               </StateBlock>
             )}
 
@@ -341,27 +348,24 @@ export function BoardPage() {
                 />
               ))}
 
-            {/* Activity — the flat on-chain register, every event attributed. */}
+            {/* Activity — the flat on-chain register, every event attributed. Same line as the
+                discourse view, because it is the same window showing the same posts: it had its own
+                row markup once, with the fields in a different order and the content NOT linkified,
+                so a URL in a post was live in one view of this box and dead text in the other. The
+                one difference the view earns is that every event is named, plain posts included —
+                that is what a register is for. */}
             {!isPending && !isError && boardView === 'activity' && data !== undefined && (
-              <ul className={styles.register} data-testid="board-activity">
-                {activityRows.map((m) => {
-                  const chan = channelRef(m, vaultSet)
-                  return (
-                    <li key={String(m.messageId)} className={styles.regRow}>
-                      <Link href={`/profile/${m.sender}`} className={styles.regWho}>
-                        {truncateAddress(m.sender)}
-                      </Link>
-                      <span className={styles.regVerb}>{messageVerb(m.messageType)}</span>
-                      <Link href={chan.href} className={styles.regCh}>
-                        {chan.label}
-                      </Link>
-                      {m.content.length > 0 && (
-                        <span className={styles.regContent}>{m.content}</span>
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
+              <div className={styles.register} data-testid="board-activity">
+                {activityRows.map((m) => (
+                  <ActivityLine
+                    key={String(m.messageId)}
+                    sender={m.sender}
+                    channel={channelRef(m, vaultSet)}
+                    verb={messageVerb(m.messageType)}
+                    say={m.content}
+                  />
+                ))}
+              </div>
             )}
 
             {/* Both of these are scrollback: last in the DOM, so the reversed transcript puts them

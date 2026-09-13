@@ -1,74 +1,23 @@
-/* One line of the transcript: mono byline, the channel it was said in, then what was said —
-   running on in the body face and wrapping under a hanging indent. The wall-label stack this
-   replaces (a byline row, a paragraph beneath it, a 2px rule under each post) was right for a
-   register and wrong for a room.
-
-   The vendored `.noesis-post` device still draws that wall label, and styles/noesis/ is copied in
-   from the design system and must not be hand-edited — so the chat line is owned here until the
-   window device is vendored. */
+/* The row a message occupies in the transcript — the line itself lives in `ActivityLine`, which
+   every activity surface draws through. What is owned here is what hangs off a board post and
+   nothing else: its replies, its quote card, its endorse/reply bar. */
 
 .post {
-  /* The event verb sits a step under the byline, on the chrome size the shared scale doesn't name. */
-  --activity-verb-size: 0.6875rem;
-
   /* No rule between lines: the byline separates them, the way it does in a chat window. Rhythm is
      the padding, not a divider — a divider is what made the old stack read as a register. */
   padding: 7px 0;
 }
 
-.line {
-  font-size: var(--font-size-body);
-  line-height: 1.55;
-  max-width: 74ch;
-  padding-left: 1.5rem;
-  text-indent: -1.5rem;
-}
-
-.name,
-.channel,
-.verb {
-  font-family: var(--brand-font-mono);
-  text-decoration: none;
-}
-
-.name {
-  font-size: var(--font-size-caption);
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.channel {
-  margin-left: var(--space-2);
-  font-size: var(--font-size-caption);
-  color: var(--color-text-muted);
-}
-
-.channel:hover,
-.name:hover {
-  text-decoration: underline;
-}
-
-.verb {
-  margin-left: var(--space-2);
-  font-size: var(--activity-verb-size);
-  letter-spacing: 0.06em;
-  color: var(--color-text-subtle);
-}
-
-.say {
-  margin-left: var(--space-2);
-}
-
-/* A reply hangs off its parent line, not off the room. */
+/* A reply hangs off its parent line, not off the room, and its line sits a step down. The size is
+   set as a custom property because the line is another module's rule now, and a descendant selector
+   across CSS modules would not reach it. */
 .reply {
+  --activity-line-size: var(--font-size-body-sm);
+
   margin-top: 6px;
   margin-left: 14px;
   padding-left: 14px;
   border-left: var(--border-width-thick, 2px) solid var(--color-border);
-}
-
-.reply .line {
-  font-size: var(--font-size-body-sm);
 }
 
 /* Quote — a card carrying the referenced work's swatch (mono until colour is wired). */
