@@ -39,6 +39,34 @@ function eth(value: bigint | undefined): string {
   return frac ? `${whole}.${frac.slice(0, 4).replace(/0+$/, '') || '0'}` : (whole ?? s)
 }
 
+/**
+ * The benefactor stat is one contract call, `totalShares()`, but not one unit. The endowment vault
+ * and the two ETH-settled LP vaults accumulate it out of wei; the Uniswap v4 vault accumulates raw
+ * v4 liquidity units. Printed bare under a single label, a vault holding 1 ETH of support read as a
+ * quintillion of something, sitting between two stats that were both denominated in ETH — so the
+ * unit, and with it the label, is a per-family call, and a family we do not recognise is given
+ * neither a unit nor a claim about what the number counts.
+ */
+function benefactorStat(
+  vaultType: string | undefined,
+  totalShares: bigint | undefined,
+): { label: string; value: string } {
+  const raw = totalShares !== undefined ? totalShares.toString() : '—'
+  switch (vaultType) {
+    case 'AaveEndowment':
+    case 'CypherLP':
+    case 'ZAMMLP':
+      return {
+        label: 'Benefactor principal',
+        value: totalShares !== undefined ? `${eth(totalShares)} ETH` : '—',
+      }
+    case 'UniswapV4LP':
+      return { label: 'LP shares', value: raw }
+    default:
+      return { label: 'Benefactor shares', value: raw }
+  }
+}
+
 export function VaultPage() {
   const params = useParams<{ address?: string }>()
   const vault = toAddress(params.address)
@@ -64,6 +92,7 @@ export function VaultPage() {
   const family = vaultFamilyLabel(overview.vaultType)
   const title = overview.name || `Vault ${truncateAddress(vault)}`
   const aligned = collections ?? []
+  const benefactor = benefactorStat(overview.vaultType, overview.totalShares)
 
   return (
     <div className={styles.page}>
@@ -95,11 +124,9 @@ export function VaultPage() {
               <span className={styles.statLabel}>Fees accrued</span>
               <span className={styles.statValue}>{eth(overview.accumulatedFees)} ETH</span>
             </div>
-            <div className={styles.stat}>
-              <span className={styles.statLabel}>Benefactor shares</span>
-              <span className={styles.statValue}>
-                {overview.totalShares !== undefined ? overview.totalShares.toString() : '—'}
-              </span>
+            <div className={styles.stat} data-testid="vault-benefactor-stat">
+              <span className={styles.statLabel}>{benefactor.label}</span>
+              <span className={styles.statValue}>{benefactor.value}</span>
             </div>
             <div className={styles.stat}>
               <span className={styles.statLabel}>Aligned collections</span>
