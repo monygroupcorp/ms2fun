@@ -440,7 +440,7 @@ contract AlignmentRegistryReferencePoolTest is Test {
 
     /// The factories are immutables, so they are readable and fixed for the life of the implementation.
     function test_FactoriesAreExposedImmutables() public view {
-        assertEq(registry.uniV3Factory(), address(uniFactory));
+        assertEq(registry.v3Factory(), address(uniFactory));
         assertEq(registry.algebraFactory(), address(algebraFactory));
     }
 }

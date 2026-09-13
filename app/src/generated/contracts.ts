@@ -851,7 +851,7 @@ export const alignmentRegistryV1Abi = [
     type: 'constructor',
     inputs: [
       { name: '_weth', internalType: 'address', type: 'address' },
-      { name: '_uniV3Factory', internalType: 'address', type: 'address' },
+      { name: '_v3Factory', internalType: 'address', type: 'address' },
       { name: '_algebraFactory', internalType: 'address', type: 'address' },
     ],
     stateMutability: 'nonpayable',
@@ -1246,13 +1246,6 @@ export const alignmentRegistryV1Abi = [
   },
   {
     type: 'function',
-    inputs: [],
-    name: 'uniV3Factory',
-    outputs: [{ name: '', internalType: 'address', type: 'address' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
     inputs: [
       { name: 'targetId', internalType: 'uint256', type: 'uint256' },
       { name: 'description', internalType: 'string', type: 'string' },
@@ -1271,6 +1264,13 @@ export const alignmentRegistryV1Abi = [
     name: 'upgradeToAndCall',
     outputs: [],
     stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'v3Factory',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -16376,12 +16376,12 @@ export const useReadAlignmentRegistryV1TokenToTargetIds =
   })
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"uniV3Factory"`
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"v3Factory"`
  */
-export const useReadAlignmentRegistryV1UniV3Factory =
+export const useReadAlignmentRegistryV1V3Factory =
   /*#__PURE__*/ createUseReadContract({
     abi: alignmentRegistryV1Abi,
-    functionName: 'uniV3Factory',
+    functionName: 'v3Factory',
   })
 
 /**

@@ -75,11 +75,11 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     ///         venue is not on this network and no kind-0 pool can be pinned at all — the same
     ///         "address(0) means that AMM isn't here" convention the deploy config already uses. Immutable:
     ///         impl bytecode, NOT proxy storage — layout-safe.
-    address public immutable uniV3Factory;
+    address public immutable v3Factory;
 
-    /// @notice Canonical Algebra factory, injected at deploy. Same contract as `uniV3Factory` for kind-1
-    ///         pools, via `poolByPair`. `address(0)` means no kind-1 pool can be pinned. Immutable, so it
-    ///         adds nothing to proxy storage.
+    /// @notice Canonical Algebra factory, injected at deploy. A different contract from `v3Factory`, playing
+    ///         the same role for kind-1 pools via `poolByPair`. `address(0)` means no kind-1 pool can be
+    ///         pinned. Immutable, so it adds nothing to proxy storage.
     address public immutable algebraFactory;
 
     // ── State ──
@@ -107,14 +107,14 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
 
     /// @param _weth Canonical WETH address (the mandatory counter-asset of every reference pool). Stored as an
     ///        immutable, so it lives in impl bytecode and adds nothing to proxy storage.
-    /// @param _uniV3Factory Canonical Uniswap V3 factory; `address(0)` disables kind-0 references entirely.
+    /// @param _v3Factory Canonical Uniswap V3 factory; `address(0)` disables kind-0 references entirely.
     /// @param _algebraFactory Canonical Algebra factory; `address(0)` disables kind-1 references entirely.
     /// @dev All three are immutables — impl bytecode, not proxy storage — so adding the two factories does not
     ///      move a single storage slot. That is what makes this a shippable upgrade to a live proxy, and it is
     ///      the property `AlignmentRegistryReferencePoolUpgrade.t.sol` pins.
-    constructor(address _weth, address _uniV3Factory, address _algebraFactory) {
+    constructor(address _weth, address _v3Factory, address _algebraFactory) {
         weth = _weth;
-        uniV3Factory = _uniV3Factory;
+        v3Factory = _v3Factory;
         algebraFactory = _algebraFactory;
         _initializeOwner(msg.sender);
     }
@@ -537,8 +537,8 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
      *      read from a pool the venue actually made.
      */
     function _requireCanonicalUniswapPool(address pool, address t0, address t1) private view {
-        if (uniV3Factory == address(0)) revert ReferenceKindUnavailable();
-        if (IUniswapV3Factory(uniV3Factory).getPool(t0, t1, IUniswapV3Pool(pool).fee()) != pool) {
+        if (v3Factory == address(0)) revert ReferenceKindUnavailable();
+        if (IUniswapV3Factory(v3Factory).getPool(t0, t1, IUniswapV3Pool(pool).fee()) != pool) {
             revert ReferencePoolNotCanonical();
         }
     }
