@@ -38,7 +38,16 @@ const DEFAULT_DECIMALS = 18
 /**
  * Pre-buy creator-carve disclosure (immutable, set at create). Buyers see the ceiling BEFORE the
  * first buy so the carve is priced in: the fraction of the protocol carve allowance the creator
- * may take at graduation. 0 = the creator waived carve rights.
+ * may take at graduation.
+ *
+ * A ZERO CEILING IS NOT "the creator gets nothing". It bounds the carve leg and nothing else. The
+ * other leg is not declared and cannot be waived: graduation sizes the pool at the curve's parity
+ * price, and LP-share ETH the pool cannot absorb at that price rides the same 80/19/1 rail as the
+ * carve (`excessEth` in `GraduationEthDiverted`, `GraduationExcessTithed` from the deployer module),
+ * so 80% of it reaches the creator with the declared maximum at 0. That is the common case, not a
+ * corner: the carve request defaults to 0. The zero branch therefore states what the ceiling does
+ * and points at the post-graduation receipt for what actually left, instead of promising a
+ * settlement it cannot see yet.
  */
 function CarveDisclosureNote({ instance }: { instance: `0x${string}` }) {
   const chainId = useCollectionChainId()
@@ -51,7 +60,7 @@ function CarveDisclosureNote({ instance }: { instance: `0x${string}` }) {
   return (
     <p className={styles.note} data-testid="erc404-carve-disclosure">
       {declaredMax === 0
-        ? 'creator carve: waived — the creator takes nothing at graduation; the full LP share pools.'
+        ? 'creator carve: waived — the declared maximum is 0%, so no carve is taken at graduation. LP-share ETH the pool cannot absorb at the curve price is still tithed 80/19/1 (creator / vault / protocol); the receipt shown after graduation is what says whether any reached the creator.'
         : `creator carve disclosure: at graduation the creator may take up to ${pct % 1 === 0 ? pct : pct.toFixed(2)}% of the protocol carve allowance (bracket-bounded, pool-floor capped, tithed 80/19/1). Set immutably at create.`}
     </p>
   )

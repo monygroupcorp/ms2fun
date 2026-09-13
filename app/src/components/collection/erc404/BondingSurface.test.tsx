@@ -22,6 +22,8 @@ const DEPLOYER = '0x3333333333333333333333333333333333333333' as const
 
 const mockGetContractEvents = vi.hoisted(() => vi.fn())
 const mockWaitForReceipt = vi.hoisted(() => vi.fn(() => ({ data: undefined })))
+/** The immutable ceiling under test; per-test so the 0% branch gets its own mount. */
+const declaredMaxBps = vi.hoisted(() => ({ value: 2500 }))
 
 vi.mock('wagmi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('wagmi')>()),
@@ -37,7 +39,7 @@ vi.mock('../../../generated/contracts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../generated/contracts')>()),
   useReadErc404BondingInstanceDecimals: () => ({ data: 18 }),
   useReadErc404BondingInstanceGatingActive: () => ({ data: false }),
-  useReadErc404BondingInstanceDeclaredMaxAllowanceBps: () => ({ data: 2500 }),
+  useReadErc404BondingInstanceDeclaredMaxAllowanceBps: () => ({ data: declaredMaxBps.value }),
   useReadErc404BondingInstanceLiquidityDeployer: () => ({ data: DEPLOYER }),
 }))
 
@@ -136,6 +138,7 @@ async function settledReceipt(): Promise<HTMLElement> {
 beforeEach(() => {
   mockGetContractEvents.mockReset()
   mockWaitForReceipt.mockClear()
+  declaredMaxBps.value = 2500
 })
 
 afterEach(cleanup)
@@ -197,4 +200,25 @@ test('the immutable declared ceiling stays on the page after graduation', async 
   await settledReceipt()
   expect(screen.getByTestId('erc404-phase-graduated')).toBeInTheDocument()
   expect(screen.getByTestId('erc404-carve-disclosure')).toHaveTextContent(/may take up to 25%/i)
+})
+
+/**
+ * The pre-buy note at a 0% ceiling. A waived carve bounds the CARVE leg only: the parity clamp's
+ * residue rides the same 80/19/1 rail and reaches the creator with the declared maximum at 0, which
+ * `useCarveSettlement` already reports (see the excess-only test above). So the note may not promise
+ * the creator takes nothing, and may not promise the LP share pools in full — before graduation
+ * neither is knowable, and after it the receipt is what says.
+ */
+test('a 0% ceiling promises no settlement it cannot see: no "takes nothing", no "full LP share"', () => {
+  declaredMaxBps.value = 0
+  mockGetContractEvents.mockResolvedValue([])
+  mount()
+
+  const note = screen.getByTestId('erc404-carve-disclosure')
+  expect(note).toHaveTextContent(/declared maximum is 0%/i)
+  expect(note).not.toHaveTextContent(/takes nothing/i)
+  expect(note).not.toHaveTextContent(/full LP share/i)
+  // The leg that survives a waiver is named, with the rail it rides.
+  expect(note).toHaveTextContent(/cannot absorb at the curve price/i)
+  expect(note).toHaveTextContent(/80\/19\/1/)
 })
