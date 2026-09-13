@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import { SafeOwnableUUPS } from "../shared/SafeOwnableUUPS.sol";
 import { IAlignmentRegistry } from "./interfaces/IAlignmentRegistry.sol";
 import { MetadataUtils } from "../shared/libraries/MetadataUtils.sol";
-import { IAlgebraPool, IVolatilityOracle } from "../interfaces/algebra/IAlgebra.sol";
+import { IAlgebraFactory, IAlgebraPool, IVolatilityOracle } from "../interfaces/algebra/IAlgebra.sol";
 
 /// @notice Minimal Uniswap V3 pool surface the reference-pool setter probes. Hand-written (repo practice:
 ///         see the identical interface in `peripherals/UniswapVaultPriceValidator.sol`) rather than vendored.
@@ -16,6 +16,17 @@ interface IUniswapV3Pool {
         returns (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidityCumulativeX128s);
     function token0() external view returns (address);
     function token1() external view returns (address);
+    /// @dev Read from the CANDIDATE, which is untrusted — it is only ever used as a lookup key into the
+    ///      canonical factory, and the factory's answer is what decides. A candidate that lies about its
+    ///      fee tier simply names a different pool, which then fails the identity check.
+    function fee() external view returns (uint24);
+}
+
+/// @notice The canonical Uniswap V3 factory surface, used to prove a candidate pool's PROVENANCE.
+/// @dev Hand-written to match repo practice (the identical interface lives in
+///      `peripherals/UniswapVaultPriceValidator.sol`).
+interface IUniswapV3Factory {
+    function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool);
 }
 
 /**
@@ -36,6 +47,10 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     error InvalidReferenceKind();
     error ReferencePoolUnusable();
     error ReferencePoolTokenMismatch();
+    /// @notice The candidate is shaped like a pool but the canonical factory does not name it.
+    error ReferencePoolNotCanonical();
+    /// @notice No canonical factory is configured for this reference kind on this deployment.
+    error ReferenceKindUnavailable();
     error InvalidMetadataURI();
     error CommunityPayoutAlreadySet();
     error CommunityPayoutNotSet();
@@ -54,6 +69,18 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     ///         the anti-sandwich floor denominates in ETH, so a reference pool's other side MUST be WETH or its
     ///         TWAP is the wrong numeraire. An immutable lives in impl bytecode, NOT proxy storage — layout-safe.
     address public immutable weth;
+
+    /// @notice Canonical Uniswap V3 factory, injected at deploy. A kind-0 reference pool is accepted only if
+    ///         THIS factory names it for the pair and fee tier the candidate reports. `address(0)` means the
+    ///         venue is not on this network and no kind-0 pool can be pinned at all — the same
+    ///         "address(0) means that AMM isn't here" convention the deploy config already uses. Immutable:
+    ///         impl bytecode, NOT proxy storage — layout-safe.
+    address public immutable uniV3Factory;
+
+    /// @notice Canonical Algebra factory, injected at deploy. Same contract as `uniV3Factory` for kind-1
+    ///         pools, via `poolByPair`. `address(0)` means no kind-1 pool can be pinned. Immutable, so it
+    ///         adds nothing to proxy storage.
+    address public immutable algebraFactory;
 
     // ── State ──
     bool private _initialized;
@@ -80,8 +107,15 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
 
     /// @param _weth Canonical WETH address (the mandatory counter-asset of every reference pool). Stored as an
     ///        immutable, so it lives in impl bytecode and adds nothing to proxy storage.
-    constructor(address _weth) {
+    /// @param _uniV3Factory Canonical Uniswap V3 factory; `address(0)` disables kind-0 references entirely.
+    /// @param _algebraFactory Canonical Algebra factory; `address(0)` disables kind-1 references entirely.
+    /// @dev All three are immutables — impl bytecode, not proxy storage — so adding the two factories does not
+    ///      move a single storage slot. That is what makes this a shippable upgrade to a live proxy, and it is
+    ///      the property `AlignmentRegistryReferencePoolUpgrade.t.sol` pins.
+    constructor(address _weth, address _uniV3Factory, address _algebraFactory) {
         weth = _weth;
+        uniV3Factory = _uniV3Factory;
+        algebraFactory = _algebraFactory;
         _initializeOwner(msg.sender);
     }
 
@@ -430,9 +464,15 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
      * @dev Governance data: the anti-sandwich vault floor (noesis-037) reads this pool's own on-chain oracle
      *      TWAP — a price an attacker cannot move within a single transaction. A creator-supplied reference
      *      would let an adversary point the floor at a pool they control, so this is `onlyOwner` with no other
-     *      path (mirrors `setAcquireRoute`). The setter has TEETH: it reverts unless the pool actually produces
-     *      a TWAP over the window AND its pair is exactly `{token, weth}` — the fail-open floor (which today
-     *      passes when the oracle can't price a thin/fresh token) is closed here.
+     *      path (mirrors `setAcquireRoute`). The setter has TEETH, and they are provenance teeth: it reverts
+     *      unless the CANONICAL factory for the kind names this exact pool, its pair is exactly `{token, weth}`,
+     *      and it actually produces a TWAP over the window. Shape alone used to be the whole test, which meant
+     *      a hand-written contract answering `token0`/`token1`/`observe` passed — and the "price an attacker
+     *      cannot move within a single transaction" was then a price the attacker simply returned.
+     *
+     *      "Deep" in this function's name is an instruction to the owner, NOT a property the code checks. A
+     *      canonical pool can still be thin or freshly seeded; nothing here measures liquidity. What is
+     *      enforced is origin, and depth stays the pinning owner's judgement.
      * @param targetId ID of the alignment target (must exist and be active)
      * @param token    Token that must already belong to the target
      * @param ref      Reference pool: `pool`, `kind` (0 = Uniswap V3, 1 = Algebra), `twapWindow` (0 => default)
@@ -464,12 +504,15 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
         return referencePools[targetId][token];
     }
 
-    /// @dev Probe a Uniswap V3 reference pool: its pair must be `{token, weth}` and it must serve a TWAP over
-    ///      the window. A pool that reverts on `observe` or returns fewer than two cumulatives is unusable.
+    /// @dev Probe a Uniswap V3 reference pool: the canonical factory must NAME it, its pair must be
+    ///      `{token, weth}`, and it must serve a TWAP over the window. A pool that reverts on `observe` or
+    ///      returns fewer than two cumulatives is unusable.
     function _probeUniswapReference(address pool, address token, uint32 window) private view {
-        if (!_isTokenWethPair(IUniswapV3Pool(pool).token0(), IUniswapV3Pool(pool).token1(), token)) {
-            revert ReferencePoolTokenMismatch();
-        }
+        address t0 = IUniswapV3Pool(pool).token0();
+        address t1 = IUniswapV3Pool(pool).token1();
+        if (!_isTokenWethPair(t0, t1, token)) revert ReferencePoolTokenMismatch();
+        _requireCanonicalUniswapPool(pool, t0, t1);
+
         uint32[] memory secondsAgos = new uint32[](2);
         secondsAgos[0] = window;
         secondsAgos[1] = 0;
@@ -480,13 +523,38 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
         }
     }
 
-    /// @dev Probe an Algebra reference pool: its pair must be `{token, weth}`, it must expose a volatility-oracle
-    ///      plugin (`plugin() != 0`), and that oracle must serve a TWAP over the window. `token0()/token1()` are
-    ///      ABI-identical to Uniswap's, so the pair read reuses the `IUniswapV3Pool` cast.
-    function _probeAlgebraReference(address pool, address token, uint32 window) private view {
-        if (!_isTokenWethPair(IUniswapV3Pool(pool).token0(), IUniswapV3Pool(pool).token1(), token)) {
-            revert ReferencePoolTokenMismatch();
+    /**
+     * @dev Prove a kind-0 candidate is a pool the CANONICAL Uniswap V3 factory deployed, not merely a contract
+     *      shaped like one. Everything the candidate reports — `token0`, `token1`, `fee` — is attacker-chosen
+     *      if the candidate is attacker-authored, so none of it is trusted on its own; it is used only as a
+     *      lookup key, and `getPool` returning THIS address is the single fact that decides. A forgery names
+     *      either nothing (`address(0)`) or the genuine pool, and both fail the identity check.
+     *
+     *      WHAT THIS DOES NOT PROVE, and it is the reason the surrounding docs no longer claim it: canonical
+     *      is not the same as DEEP. A real factory-minted pool can still be thin, fresh, or seeded by the
+     *      party being priced, and provenance says nothing about any of that. Depth remains a governance
+     *      obligation of the owner pinning the reference; what the code now guarantees is that the TWAP is
+     *      read from a pool the venue actually made.
+     */
+    function _requireCanonicalUniswapPool(address pool, address t0, address t1) private view {
+        if (uniV3Factory == address(0)) revert ReferenceKindUnavailable();
+        if (IUniswapV3Factory(uniV3Factory).getPool(t0, t1, IUniswapV3Pool(pool).fee()) != pool) {
+            revert ReferencePoolNotCanonical();
         }
+    }
+
+    /// @dev Probe an Algebra reference pool: its pair must be `{token, weth}`, the canonical Algebra factory
+    ///      must NAME it, it must expose a volatility-oracle plugin (`plugin() != 0`), and that oracle must
+    ///      serve a TWAP over the window. `token0()/token1()` are ABI-identical to Uniswap's, so the pair read
+    ///      reuses the `IUniswapV3Pool` cast. Algebra keeps one pool per pair, so the lookup needs no fee tier
+    ///      and the candidate reports nothing the factory does not already settle.
+    function _probeAlgebraReference(address pool, address token, uint32 window) private view {
+        address t0 = IUniswapV3Pool(pool).token0();
+        address t1 = IUniswapV3Pool(pool).token1();
+        if (!_isTokenWethPair(t0, t1, token)) revert ReferencePoolTokenMismatch();
+        if (algebraFactory == address(0)) revert ReferenceKindUnavailable();
+        if (IAlgebraFactory(algebraFactory).poolByPair(t0, t1) != pool) revert ReferencePoolNotCanonical();
+
         address oracle = IAlgebraPool(pool).plugin();
         if (oracle == address(0)) revert ReferencePoolUnusable();
 

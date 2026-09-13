@@ -849,7 +849,11 @@ export const alignmentEndowmentVaultAbi = [
 export const alignmentRegistryV1Abi = [
   {
     type: 'constructor',
-    inputs: [{ name: '_weth', internalType: 'address', type: 'address' }],
+    inputs: [
+      { name: '_weth', internalType: 'address', type: 'address' },
+      { name: '_uniV3Factory', internalType: 'address', type: 'address' },
+      { name: '_algebraFactory', internalType: 'address', type: 'address' },
+    ],
     stateMutability: 'nonpayable',
   },
   {
@@ -861,6 +865,13 @@ export const alignmentRegistryV1Abi = [
     name: 'addAmbassador',
     outputs: [],
     stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'algebraFactory',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -1235,6 +1246,13 @@ export const alignmentRegistryV1Abi = [
   },
   {
     type: 'function',
+    inputs: [],
+    name: 'uniV3Factory',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [
       { name: 'targetId', internalType: 'uint256', type: 'uint256' },
       { name: 'description', internalType: 'string', type: 'string' },
@@ -1520,6 +1538,8 @@ export const alignmentRegistryV1Abi = [
   { type: 'error', inputs: [], name: 'NoAssets' },
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
   { type: 'error', inputs: [], name: 'NotAmbassador' },
+  { type: 'error', inputs: [], name: 'ReferenceKindUnavailable' },
+  { type: 'error', inputs: [], name: 'ReferencePoolNotCanonical' },
   { type: 'error', inputs: [], name: 'ReferencePoolTokenMismatch' },
   { type: 'error', inputs: [], name: 'ReferencePoolUnusable' },
   { type: 'error', inputs: [], name: 'RenounceDisabled' },
@@ -10209,10 +10229,35 @@ export const iTierInstanceAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IUniswapV3Factory
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const iUniswapV3FactoryAbi = [
+  {
+    type: 'function',
+    inputs: [
+      { name: 'tokenA', internalType: 'address', type: 'address' },
+      { name: 'tokenB', internalType: 'address', type: 'address' },
+      { name: 'fee', internalType: 'uint24', type: 'uint24' },
+    ],
+    name: 'getPool',
+    outputs: [{ name: 'pool', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // IUniswapV3Pool
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export const iUniswapV3PoolAbi = [
+  {
+    type: 'function',
+    inputs: [],
+    name: 'fee',
+    outputs: [{ name: '', internalType: 'uint24', type: 'uint24' }],
+    stateMutability: 'view',
+  },
   {
     type: 'function',
     inputs: [
@@ -16151,6 +16196,15 @@ export const useReadAlignmentRegistryV1 = /*#__PURE__*/ createUseReadContract({
 })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"algebraFactory"`
+ */
+export const useReadAlignmentRegistryV1AlgebraFactory =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentRegistryV1Abi,
+    functionName: 'algebraFactory',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"alignmentTargetAmbassadors"`
  */
 export const useReadAlignmentRegistryV1AlignmentTargetAmbassadors =
@@ -16319,6 +16373,15 @@ export const useReadAlignmentRegistryV1TokenToTargetIds =
   /*#__PURE__*/ createUseReadContract({
     abi: alignmentRegistryV1Abi,
     functionName: 'tokenToTargetIds',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"uniV3Factory"`
+ */
+export const useReadAlignmentRegistryV1UniV3Factory =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentRegistryV1Abi,
+    functionName: 'uniV3Factory',
   })
 
 /**
@@ -25532,10 +25595,34 @@ export const useReadITierInstanceStakingModule =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iUniswapV3FactoryAbi}__
+ */
+export const useReadIUniswapV3Factory = /*#__PURE__*/ createUseReadContract({
+  abi: iUniswapV3FactoryAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iUniswapV3FactoryAbi}__ and `functionName` set to `"getPool"`
+ */
+export const useReadIUniswapV3FactoryGetPool =
+  /*#__PURE__*/ createUseReadContract({
+    abi: iUniswapV3FactoryAbi,
+    functionName: 'getPool',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link iUniswapV3PoolAbi}__
  */
 export const useReadIUniswapV3Pool = /*#__PURE__*/ createUseReadContract({
   abi: iUniswapV3PoolAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iUniswapV3PoolAbi}__ and `functionName` set to `"fee"`
+ */
+export const useReadIUniswapV3PoolFee = /*#__PURE__*/ createUseReadContract({
+  abi: iUniswapV3PoolAbi,
+  functionName: 'fee',
 })
 
 /**

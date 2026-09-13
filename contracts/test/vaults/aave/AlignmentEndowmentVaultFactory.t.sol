@@ -64,7 +64,7 @@ contract AlignmentEndowmentVaultFactoryTest is Test {
         // Owner is this test contract (no prank needed for owner-gated calls).
         registry = new MasterRegistryV1();
         registry.initialize(address(this));
-        alignmentRegistry = new AlignmentRegistryV1(address(weth));
+        alignmentRegistry = new AlignmentRegistryV1(address(weth), address(0), address(0));
         alignmentRegistry.initialize(address(this));
         registry.setAlignmentRegistry(address(alignmentRegistry));
 
