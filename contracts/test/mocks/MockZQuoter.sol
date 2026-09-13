@@ -2,17 +2,24 @@
 pragma solidity ^0.8.20;
 
 /// @notice Configurable stand-in for zQuoter.getQuotes used to unit-test BestRouteAcquirer.
-///         Mirrors the ABI the acquirer decodes: the 5-source AMM enum and the Quote tuple. Can be
-///         told to return a specific best route, an empty (no-route) best, or to revert the view
-///         call — exercising the acquirer's typed-dispatch, empty-route fallback, and quoter-revert
-///         fallback paths respectively.
+///         Mirrors the ABI of the MAINNET quoter, whose `AMM` enum carries nine sources — four more
+///         than the five the acquirer can dispatch to a typed zRouter leg. That width is deliberate:
+///         a mock that could only ever report a mappable source could not exercise what happens when
+///         the live quoter names `CURVE`, `LIDO`, `WETH_WRAP` or `V4_HOOKED`. Can be told to return a
+///         specific best route, an empty (no-route) best, or to revert the view call — exercising the
+///         acquirer's typed-dispatch, unmappable-source fallback, empty-route fallback, and
+///         quoter-revert fallback paths respectively.
 contract MockZQuoter {
     enum AMM {
         UNI_V2,
         SUSHI,
         ZAMM,
         UNI_V3,
-        UNI_V4
+        UNI_V4,
+        CURVE,
+        LIDO,
+        WETH_WRAP,
+        V4_HOOKED
     }
 
     struct Quote {
