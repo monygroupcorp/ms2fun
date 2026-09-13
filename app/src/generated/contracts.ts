@@ -6514,6 +6514,13 @@ export const erc404FactoryAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'exitTaxSink',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'features',
     outputs: [{ name: '', internalType: 'bytes32[]', type: 'bytes32[]' }],
     stateMutability: 'view',
@@ -6698,6 +6705,13 @@ export const erc404FactoryAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: '_sink', internalType: 'address', type: 'address' }],
+    name: 'setExitTaxSink',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [{ name: '_minPoolEth', internalType: 'uint256', type: 'uint256' }],
     name: 'setMinPoolEth',
     outputs: [],
@@ -6824,6 +6838,25 @@ export const erc404FactoryAbi = [
       },
     ],
     name: 'DeployBondEscrowUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'oldSink',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newSink',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'ExitTaxSinkUpdated',
   },
   {
     type: 'event',
@@ -21625,6 +21658,15 @@ export const useReadErc404FactoryEffectiveCarveEth =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"exitTaxSink"`
+ */
+export const useReadErc404FactoryExitTaxSink =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404FactoryAbi,
+    functionName: 'exitTaxSink',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"features"`
  */
 export const useReadErc404FactoryFeatures = /*#__PURE__*/ createUseReadContract(
@@ -21859,6 +21901,15 @@ export const useWriteErc404FactorySetDeployBondEscrow =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"setExitTaxSink"`
+ */
+export const useWriteErc404FactorySetExitTaxSink =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404FactoryAbi,
+    functionName: 'setExitTaxSink',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"setMinPoolEth"`
  */
 export const useWriteErc404FactorySetMinPoolEth =
@@ -22010,6 +22061,15 @@ export const useSimulateErc404FactorySetDeployBondEscrow =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"setExitTaxSink"`
+ */
+export const useSimulateErc404FactorySetExitTaxSink =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404FactoryAbi,
+    functionName: 'setExitTaxSink',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"setMinPoolEth"`
  */
 export const useSimulateErc404FactorySetMinPoolEth =
@@ -22103,6 +22163,15 @@ export const useWatchErc404FactoryDeployBondEscrowUpdatedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc404FactoryAbi,
     eventName: 'DeployBondEscrowUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404FactoryAbi}__ and `eventName` set to `"ExitTaxSinkUpdated"`
+ */
+export const useWatchErc404FactoryExitTaxSinkUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404FactoryAbi,
+    eventName: 'ExitTaxSinkUpdated',
   })
 
 /**
