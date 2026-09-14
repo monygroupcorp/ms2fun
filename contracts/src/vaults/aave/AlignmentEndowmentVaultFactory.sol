@@ -11,7 +11,7 @@ import { Ownable } from "solady/auth/Ownable.sol";
 /// @title AlignmentEndowmentVaultFactory
 /// @notice Deploys AlignmentEndowmentVault clones via CREATE3 (EIP-1167 minimal proxy).
 ///         The factory becomes the owner of every vault it deploys. That ownership carries the
-///         emergency escrow migration and nothing about the community payout: a vault's target sink is
+///         emergency position migration and nothing about the community payout: a vault's target sink is
 ///         read live from the alignment registry on every send, this factory has no setter for it, and
 ///         the vault has none either. Redirecting a community's money is not a capability the protocol
 ///         holds — the registry pins a payout once and only the address receiving it rotates it.
@@ -91,10 +91,17 @@ contract AlignmentEndowmentVaultFactory is Ownable, IFactory {
     // sink they could re-point here at will, over a community that had nothing to rotate. The vault now
     // reads the registry and only the registry, so there is nothing for this to write.
 
-    /// @notice Emergency: migrate a vault's ESCROWED tranche (pro-rata, impairment-aware) to `to` (the
-    ///         factory owns its vaults, and the vault's `migratePosition` is onlyOwner). For an Aave
-    ///         reserve deprecation. Per-benefactor accounting is preserved on-chain; the vested tranche
-    ///         is the target's and is not moved here.
+    /// @notice Emergency: redeem a vault's WHOLE principal position to `to`, for an Aave reserve
+    ///         deprecation (the factory owns its vaults, and the vault's `migratePosition` is onlyOwner).
+    ///         There is no tranche to choose between: an endowment holds one principal balance, and this
+    ///         call takes all of it. Pending yield is crystallized into the 80/19/1 legs first and an
+    ///         impaired position is written down first, so what leaves is pro-rata across every
+    ///         benefactor rather than first-come. Per-benefactor accounting is preserved on-chain; the
+    ///         vault is decommissioned (intake closes permanently).
+    /// @dev    What is NOT swept: `roundResidue` — corpus a round close already redeemed out of Aave and
+    ///         that the vault holds as native ETH. The reserve deprecation this call answers does not
+    ///         touch it, and it keeps both of its doors afterwards (`flushRoundResidue` while the target
+    ///         is curated, `releaseCorpusToCommunity` after). See `AlignmentEndowmentVault.migratePosition`.
     /// @param vault Address of the vault (must have been deployed by this factory)
     /// @param to    Recovery recipient for the redeemed ETH
     function migrateVault(address vault, address to) external onlyOwner {
