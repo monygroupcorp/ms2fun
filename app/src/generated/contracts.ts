@@ -2503,6 +2503,15 @@ export const curveParamsComputerAbi = [
     inputs: [
       { name: 'liquidityReserveBps', internalType: 'uint256', type: 'uint256' },
     ],
+    name: 'supportsReserveBps',
+    outputs: [{ name: 'supported', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'liquidityReserveBps', internalType: 'uint256', type: 'uint256' },
+    ],
     name: 'targetGraduationMultiple',
     outputs: [{ name: 'targetG', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'pure',
@@ -17685,6 +17694,15 @@ export const useReadCurveParamsComputerSolvePole =
   /*#__PURE__*/ createUseReadContract({
     abi: curveParamsComputerAbi,
     functionName: 'solvePole',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"supportsReserveBps"`
+ */
+export const useReadCurveParamsComputerSupportsReserveBps =
+  /*#__PURE__*/ createUseReadContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'supportsReserveBps',
   })
 
 /**
