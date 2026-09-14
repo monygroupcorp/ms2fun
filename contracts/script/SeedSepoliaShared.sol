@@ -137,13 +137,23 @@ abstract contract SeedSepoliaShared is Script {
     // ─────────────────────────── Venue pool shape ───────────────────────────
     //
     // One fee tier, deployment-wide. `DeployCore` builds every Uni vault's pool key from
-    // `zrouterFee`/`zrouterTickSpacing`, and `BestRouteAcquirer` falls back to the same pair when no
-    // best-route quoter is wired (`cfg.zQuoter` is unset on this network). So the pool a vault LPs
-    // into, the pool its acquire leg swaps through, and the pool the registry curates as its route
-    // are all THIS tier — which is why the depth seed and the route both name it and neither guesses.
+    // `zrouterFee`/`zrouterTickSpacing`, and `BestRouteAcquirer` falls back to the same pair. So the
+    // pool a vault LPs into, the pool its acquire leg swaps through, and the pool the registry
+    // curates as its route are all THIS tier — which is why the depth seed and the route both name
+    // it and neither guesses.
+    //
+    // `DeploySepolia` also wires a `SepoliaRouteQuoter`, and the seed registers each roster token
+    // against this same tier once its pool has depth. That does not CHANGE which pool anything uses
+    // — there is only one — it makes the best-route path the live one, so the showcase rehearses the
+    // code mainnet runs instead of the fallback around it.
 
     uint24 internal constant POOL_FEE = 3000;
     int24 internal constant POOL_TICK_SPACING = 60;
+    /// @dev `POOL_FEE` in the quoter ABI's BPS units — what `SepoliaRouteQuoter.setRoute` stores.
+    ///      `BestRouteAcquirer` multiplies it back by 100 for the pool fee and maps it to the paired
+    ///      tick spacing (30 -> 60), so this derivation is what keeps the quoted pool and the seeded
+    ///      pool the same object rather than two numbers that agree today.
+    uint256 internal constant POOL_FEE_BPS = uint256(POOL_FEE) / 100;
     /// @dev Starting price 1:1 (sqrt(1) * 2^96). A pool must be initialized before it can be named;
     ///      it holds no liquidity until someone adds some. Parity is a CHOICE, and it is the same
     ///      choice the reference pool is stood up at — see `SepoliaReferencePoolSeeder`.
@@ -694,6 +704,7 @@ abstract contract SeedSepoliaShared is Script {
         address priceValidator;
         address protocolTreasury;
         address zRouter;
+        address zQuoter; // SepoliaRouteQuoter; the route table the acquire leg reads
         address weth;
         address v4PoolManager;
         // ── Wave-2 breadth: the other project families and the optional modules ──
@@ -949,6 +960,7 @@ abstract contract SeedSepoliaShared is Script {
         d.priceValidator = vm.parseJsonAddress(json, ".contracts.UniswapVaultPriceValidator");
         d.protocolTreasury = vm.parseJsonAddress(json, ".contracts.ProtocolTreasury");
         d.zRouter = vm.parseJsonAddress(json, ".contracts.zRouter");
+        d.zQuoter = vm.parseJsonAddress(json, ".contracts.zQuoter");
         d.queue = FeaturedQueueManager(payable(vm.parseJsonAddress(json, ".contracts.FeaturedQueueManager")));
         d.messages = GlobalMessageRegistry(vm.parseJsonAddress(json, ".contracts.GlobalMessageRegistry"));
         d.v4PoolManager = vm.parseJsonAddress(json, ".uniswap.v4PoolManager");

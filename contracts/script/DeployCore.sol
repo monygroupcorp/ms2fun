@@ -240,13 +240,21 @@ contract DeployCore is Script {
         // is unconditional and every vault/factory below takes cfg.weth raw. Hard-assert non-zero here so
         // a mis-filled config fails loudly at deploy instead of shipping a broken ETH path.
         require(cfg.weth != address(0), "DeployCore: cfg.weth unset (disables WETH fallback)");
-        // zQuoter==0 ships every vault factory with best-route acquisition DISABLED (fixed-pool fallback
-        // only) — trading works but at worse prices. No cfg.enableTrading gate exists to hard-assert
-        // against, so warn loudly: the operator MUST wire a chain-specific zQuoter via each factory's
-        // setZQuoter before trading opens. Do NOT bake a zQuoter address here — it is operator input.
+        // zQuoter==0 ships every vault factory with best-route acquisition DISABLED: every acquire
+        // takes the fixed cfg.zrouterFee / cfg.zrouterTickSpacing pool. Trading works; a target whose
+        // depth is on another tier is simply bought on the wrong one, because that tier is a
+        // network-wide factory immutable with no setter.
+        //
+        // This is a WARNING and not an assert, because it is a legitimate deployment shape — but it
+        // is only actionable where a quoter exists to point at. Ethereum mainnet has a canonical one.
+        // Sepolia does not, and `DeploySepolia` therefore deploys `SepoliaRouteQuoter` and passes it
+        // here. Do NOT bake an address into this file: which quoter is right is a property of the
+        // network, and this function serves all of them.
         if (cfg.zQuoter == address(0)) {
             console.log("WARNING: cfg.zQuoter == address(0) -> best-route acquisition DISABLED on all vault");
-            console.log("         factories. Call setZQuoter on each factory before trading opens.");
+            console.log("         factories; every acquire uses the fixed zrouterFee/zrouterTickSpacing pool.");
+            console.log("         If this network HAS a quoter, wire it via setZQuoter on each factory");
+            console.log("         before trading opens. If it has none, this is the intended shape.");
         }
 
         // ── Phase 1: Protocol proxies (CREATE3) ─────────────────────────────
@@ -770,6 +778,9 @@ contract DeployCore is Script {
         vm.serializeAddress(c, "AlignmentTargetRequestRegistry", address(targetRequestRegistry));
         vm.serializeAddress(c, "QueryAggregator", address(queryAggregator));
         vm.serializeAddress(c, "zRouter", address(zrouter));
+        // address(0) where this network has no best-route quoter — the vaults are then on their
+        // fixed tier, which is a real deployment shape and not a missing field.
+        vm.serializeAddress(c, "zQuoter", cfg.zQuoter);
         vm.serializeAddress(c, "LaunchManager", address(launchManager));
         vm.serializeAddress(c, "CurveParamsComputer", address(curveParamsComputer));
         vm.serializeAddress(c, "DynamicPricingModule", address(dynamicPricingModule));

@@ -23,6 +23,7 @@ import { PoolIdLibrary } from "v4-core/types/PoolId.sol";
 import { StateLibrary } from "v4-core/libraries/StateLibrary.sol";
 import { TickMath } from "v4-core/libraries/TickMath.sol";
 import { ERC404Factory } from "../src/factories/erc404/ERC404Factory.sol";
+import { SepoliaRouteQuoter } from "./SepoliaRouteQuoter.sol";
 import { ERC1155Instance } from "../src/factories/erc1155/ERC1155Instance.sol";
 import { IDynamicPricingModule } from "../src/factories/erc1155/interfaces/IDynamicPricingModule.sol";
 import { ERC721AuctionFactory } from "../src/factories/erc721/ERC721AuctionFactory.sol";
@@ -329,6 +330,15 @@ contract SeedSepolia is SeedSepoliaShared {
             activeAfter >= MIN_VENUE_ACTIVE_LIQUIDITY,
             string.concat("venue: ", symbol, " V4 pool is still too thin to serve a convert")
         );
+
+        // The route is registered HERE, and only here, because this is the first line at which it
+        // is true: the pool the quoter will name is `key`, and the three `require`s above have just
+        // established that `key` holds enough active liquidity to serve a convert. Registering at
+        // deploy time would have pointed the acquire leg at an empty pool; registering anywhere else
+        // would let the two drift apart.
+        vm.startBroadcast();
+        SepoliaRouteQuoter(d.zQuoter).setRoute(token, POOL_FEE_BPS);
+        vm.stopBroadcast();
 
         console.log(string.concat("VENUE ", symbol, " uni-v4 depth - budget (wei):"), budget);
         console.log("  ETH leg deposited / token leg deposited:", ethUsed, tokenUsed);
@@ -1357,6 +1367,16 @@ contract SeedSepolia is SeedSepoliaShared {
         require(
             IPoolManager(d.v4PoolManager).getLiquidity(_uniVenueKey(token).toId()) >= MIN_VENUE_ACTIVE_LIQUIDITY,
             string.concat("venue: ", label, " acquire pool is too thin to serve a convert")
+        );
+        // The best-route table has to agree with the pool the two checks above just vouched for.
+        // A row registered at another tier sends its convert to a pool nothing seeded; a row missing
+        // from the table silently drops to the fallback, which is the same pool here but would stop
+        // being so the moment a second tier exists — and either way the showcase would no longer be
+        // rehearsing the acquire path it claims to.
+        require(d.zQuoter != address(0), string.concat("venue: ", label, " deployment wired no quoter"));
+        require(
+            SepoliaRouteQuoter(d.zQuoter).routeFeeBps(token) == POOL_FEE_BPS,
+            string.concat("venue: ", label, " best-route table does not name the seeded tier")
         );
         _assertVaultBinding(vault, token, targetId, label);
     }
