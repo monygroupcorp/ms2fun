@@ -5,12 +5,12 @@
  * Every alignment vault accrues a share for the community it is bound to (19% of trading fees on the
  * liquidity families, the target leg of harvested yield on the endowment one) and holds it whenever
  * no sink answers — accruing rather than reverting, so an unwired sink never blocks anyone else's
- * claim path. The sink is the registry's `getCommunityPayout(targetId)`, and on the endowment family
- * the clone's own stored copy behind it; this panel resolves the pair in the same order the vault
- * does, so the address it names is the address the delivery below actually reaches. Getting it out is a separate, permissionless
- * call that takes no destination argument: `withdrawTargetFees()` on a liquidity vault,
- * `flushTargetFees()` on the endowment one. Until this panel there was no path to either in the app,
- * so a community's accrued cut could only be moved by hand-writing a contract call.
+ * claim path. The sink is the registry's `getCommunityPayout(targetId)` on every family, read at send
+ * time and copied into no vault, so the one address this panel reads is the one address the delivery
+ * below reaches. Getting it out is a separate, permissionless call that takes no destination argument:
+ * `withdrawTargetFees()` on a liquidity vault, `flushTargetFees()` on the endowment one. Until this
+ * panel there was no path to either in the app, so a community's accrued cut could only be moved by
+ * hand-writing a contract call.
  *
  * The de-curation case is the one that made the gap matter. Withdrawing curation freezes every
  * ambassador's `execute` on an endowment vault, and the vested corpus then has exactly one way out —
@@ -18,9 +18,9 @@
  * hatch is what makes the freeze a freeze rather than a seizure, and it is only true in practice if
  * someone can actually press it.
  *
- * The reads that decide what to render are the registry's, not the vault's stored copy: curation
- * state, the live sink, and how many ambassadors are still appointed — the authority that outlives
- * curation, said out loud on the page where the money sits.
+ * The reads that decide what to render are the registry's: curation state, the live sink, and how many
+ * ambassadors are still appointed — the authority that outlives curation, said out loud on the page
+ * where the money sits.
  */
 import { useCallback } from 'react'
 import { formatEther } from 'viem'
@@ -90,33 +90,20 @@ export function CommunityPayoutPanel({ vault, targetId, isEndowment }: Community
     chainId: forkChainId,
     query: { enabled: bound && isEndowment },
   })
-  // The endowment vault's `_targetSink()` prefers the registry's live answer and falls back to the
-  // copy the factory seeded into the clone at deploy. Reading only the registry would call such a
-  // vault unwired and grey out a delivery that would in fact land.
-  const { data: stored, refetch: refetchStored } = useReadContract({
-    address: vault,
-    abi: communityPayoutAbi,
-    functionName: 'communityPayout',
-    chainId: forkChainId,
-    query: { enabled: bound && isEndowment },
-  })
-
   const refetch = useCallback(() => {
     void refetchSink()
     void refetchWaiting()
     void refetchCorpus()
-    void refetchStored()
-  }, [refetchSink, refetchWaiting, refetchCorpus, refetchStored])
+  }, [refetchSink, refetchWaiting, refetchCorpus])
 
   const deliver = useTxAction({ onSuccess: refetch })
   const release = useTxAction({ onSuccess: refetch })
 
   if (!bound) return null
 
-  const registrySink = sink !== undefined && sink !== ZERO_ADDRESS ? sink : undefined
-  const storedSink = stored !== undefined && stored !== ZERO_ADDRESS ? stored : undefined
-  // Same precedence the vault applies at send time, so the address shown is the one the money goes to.
-  const paidTo = registrySink ?? storedSink
+  // The vault reads this same slot at send time and holds no copy, so the address shown is the address
+  // the money goes to.
+  const paidTo = sink !== undefined && sink !== ZERO_ADDRESS ? sink : undefined
   const sinkWired = paidTo !== undefined
   // `curated` is undefined until the read lands; treat only an explicit false as de-curated, so the
   // page never flashes a freeze notice at a community that is fine.
@@ -164,17 +151,7 @@ export function CommunityPayoutPanel({ vault, targetId, isEndowment }: Community
           <dt className={styles.label}>paid to</dt>
           <dd className={styles.value} data-testid="vault-payout-sink">
             {paidTo !== undefined ? (
-              <>
-                <span className={styles.mono}>{paidTo}</span>
-                {registrySink === undefined && (
-                  <span className={styles.unset}>
-                    {' '}
-                    &mdash; the vault&rsquo;s own fallback, set when it was deployed. Setting a
-                    payout address on this target in the registry replaces it, here and at send
-                    time.
-                  </span>
-                )}
-              </>
+              <span className={styles.mono}>{paidTo}</span>
             ) : (
               <span className={styles.unset}>
                 not wired yet — the community&rsquo;s cut accrues in the vault until the registry

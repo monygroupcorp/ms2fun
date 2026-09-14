@@ -55,17 +55,13 @@ contract EndowmentImpairmentInvariantTest is StdInvariant, Test {
         masterRegistry.setAlignmentRegistry(address(ambassadorRegistry));
         ambassadorRegistry.setAmbassador(TARGET_ID, ambassador, true);
 
+        // The target sink is the registry's, read at send time; the clone stores none.
+        ambassadorRegistry.setCommunityPayout(TARGET_ID, communityPayout);
+
         address impl = address(new AlignmentEndowmentVault());
         vault = AlignmentEndowmentVault(payable(LibClone.clone(impl)));
         vault.initialize(
-            vaultOwner,
-            address(weth),
-            address(stata),
-            treasury,
-            address(masterRegistry),
-            alignmentToken,
-            TARGET_ID,
-            communityPayout
+            vaultOwner, address(weth), address(stata), treasury, address(masterRegistry), alignmentToken, TARGET_ID
         );
 
         // Deterministic base timestamp so vesting math is stable across runs.

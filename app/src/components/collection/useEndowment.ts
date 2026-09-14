@@ -9,10 +9,11 @@ import {
   useReadAlignmentEndowmentVaultDepositTime,
   useReadAlignmentEndowmentVaultAccumulatedFees,
   useReadAlignmentEndowmentVaultTotalPrincipalLocked,
-  useReadAlignmentEndowmentVaultCommunityPayout,
+  useReadAlignmentEndowmentVaultTargetId,
+  useReadAlignmentRegistryV1GetCommunityPayout,
   useReadAlignmentEndowmentVaultVestDuration,
 } from '../../generated/contracts'
-import { useCollectionChainId } from './useCollectionChain'
+import { useCollectionAddresses, useCollectionChainId } from './useCollectionChain'
 
 export interface EndowmentState {
   isEndowment: boolean
@@ -34,6 +35,9 @@ export interface EndowmentState {
   yield: bigint
   /** Live escrowed principal across all benefactors (`totalPrincipalLocked`). */
   totalPrincipal: bigint
+  /** Where the vault's target leg is owed. Read from the alignment registry under the vault's own
+   *  `targetId`, which is where the vault itself reads it on every send — it keeps no copy, so there
+   *  is no vault-side address that could answer differently. */
   communityPayout: `0x${string}` | undefined
   isPending: boolean
   refetch: () => void
@@ -46,6 +50,7 @@ export function useEndowment(
   benefactor: `0x${string}` | undefined,
 ): EndowmentState {
   const chainId = useCollectionChainId()
+  const addresses = useCollectionAddresses()
   const enabled = !!vault
 
   const { data: vaultType, isPending: typePending } = useReadAlignmentEndowmentVaultVaultType({
@@ -92,11 +97,18 @@ export function useEndowment(
       query: { enabled: enabled && isEndowment },
     })
 
+  const { data: targetId, isPending: targetPending } = useReadAlignmentEndowmentVaultTargetId({
+    ...(vault ? { address: vault } : {}),
+    chainId,
+    query: { enabled: enabled && isEndowment },
+  })
+
   const { data: communityPayout, isPending: communityPending } =
-    useReadAlignmentEndowmentVaultCommunityPayout({
-      ...(vault ? { address: vault } : {}),
+    useReadAlignmentRegistryV1GetCommunityPayout({
+      address: addresses.AlignmentRegistryV1,
       chainId,
-      query: { enabled: enabled && isEndowment },
+      args: targetId !== undefined ? [targetId] : undefined,
+      query: { enabled: enabled && isEndowment && targetId !== undefined },
     })
 
   const { data: vestDuration, isPending: maturityPending } =
@@ -130,6 +142,7 @@ export function useEndowment(
         depositPending ||
         feesPending ||
         totalPending ||
+        targetPending ||
         communityPending ||
         maturityPending))
 

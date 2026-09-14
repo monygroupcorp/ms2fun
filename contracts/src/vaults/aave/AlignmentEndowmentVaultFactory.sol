@@ -10,9 +10,12 @@ import { Ownable } from "solady/auth/Ownable.sol";
 
 /// @title AlignmentEndowmentVaultFactory
 /// @notice Deploys AlignmentEndowmentVault clones via CREATE3 (EIP-1167 minimal proxy).
-///         The factory becomes the owner of every vault it deploys, so community-payout
-///         updates must go through setVaultCommunityPayout (onlyOwner) rather than
-///         calling the vault directly.
+///         The factory becomes the owner of every vault it deploys, and that ownership deliberately
+///         carries no power over where a vault's community cut goes: a vault resolves its target sink
+///         from `AlignmentRegistry.getCommunityPayout(targetId)` at send time and holds no writable copy,
+///         so there is nothing here for the factory owner to re-point. Moving a community's sink is the
+///         registry's act, on the registry's own authority, for the target and every vault bound to it at
+///         once. The owner powers that remain are deploying a vault and the escrow-recovery migration.
 ///
 ///         Vault creation is owner-gated: only the protocol may deploy a vault for an approved,
 ///         active alignment target. The factory self-registers each vault in the
@@ -83,14 +86,6 @@ contract AlignmentEndowmentVaultFactory is Ownable, IFactory {
         return new bytes32[](0);
     }
 
-    /// @notice Update the community payout address on a vault deployed by this factory.
-    ///         Only the factory owner can call this — the vault's owner is the factory.
-    /// @param vault Address of the vault (must have been deployed by this factory)
-    /// @param payout New community payout address
-    function setVaultCommunityPayout(address vault, address payout) external onlyOwner {
-        AlignmentEndowmentVault(payable(vault)).setCommunityPayout(payout);
-    }
-
     /// @notice Emergency: migrate a vault's ESCROWED tranche (pro-rata, impairment-aware) to `to` (the
     ///         factory owns its vaults, and the vault's `migratePosition` is onlyOwner). For an Aave
     ///         reserve deprecation. Per-benefactor accounting is preserved on-chain; the vested tranche
@@ -127,18 +122,12 @@ contract AlignmentEndowmentVaultFactory is Ownable, IFactory {
         bytes32 senderBoundSalt = keccak256(abi.encodePacked(msg.sender, salt));
         vault = ICreateX(CREATEX).deployCreate3(senderBoundSalt, proxyCreationCode);
 
-        address payout = alignmentRegistry.getCommunityPayout(alignmentTargetId);
-
+        // No payout is read or passed: the vault reads `getCommunityPayout(alignmentTargetId)` from the
+        // registry on every send. Seeding a copy here would only pin an answer that can change, and the
+        // slot it was written into was the factory owner's redirect.
         AlignmentEndowmentVault(payable(vault))
             .initialize(
-                address(this),
-                weth,
-                stataToken,
-                protocolTreasury,
-                masterRegistry,
-                alignmentToken,
-                alignmentTargetId,
-                payout
+                address(this), weth, stataToken, protocolTreasury, masterRegistry, alignmentToken, alignmentTargetId
             );
 
         canonicalVault[dedupKey] = vault;

@@ -56,8 +56,8 @@ interface IOwnable {
  *        Hard bps constants, no setter (the ratio is sacred). The creator leg flows through a
  *        per-benefactor MasterChef accumulator (`accCreatorYieldPerPrincipal` + `rewardDebt`, weighted
  *        by escrowed principal) and is pulled via `claimYieldPurse()`. Target leg → the registry's
- *        community payout for `targetId`, resolved at send time (native ETH). Protocol leg →
- *        `protocolTreasury`.
+ *        community payout for `targetId`, read at send time and copied nowhere (native ETH).
+ *        Protocol leg → `protocolTreasury`.
  *      - **Impairment socialization** (pro-rata-on-shortfall) is preserved for escrowed principal in the
  *        redeeming emergency path (`migratePosition`). Once vested, the corpus is the target's; its risk
  *        is the venue the target deploys into, so escrow impairment no longer applies to it.
@@ -136,8 +136,7 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     address public protocolTreasury; // 1% protocol cut sink
     IMasterRegistry public masterRegistry; // agent authorization
     address public alignmentToken; // satisfies registerVault's alignmentToken() check
-    address public communityPayout; // target sink FALLBACK (seeded at deploy, owner-updatable) — see `_targetSink`
-    uint256 public targetId; // the alignment target this clone serves (for the stat surface / events)
+    uint256 public targetId; // the alignment target this clone serves; also names the registry's payout slot
 
     // ── Per-benefactor accounting ─────────────────────────────────────────────
     /// @notice One escrowed deposit and the timestamp it was made (its own vesting clock). A benefactor's
@@ -206,7 +205,6 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     event YieldDistributed(uint256 creatorLeg, uint256 targetLeg, uint256 protocolLeg, uint256 timestamp);
     event YieldClaimed(address indexed benefactor, address indexed recipient, uint256 amount);
     event ImpairmentRealized(uint256 shortfallBps, uint256 timestamp);
-    event CommunityPayoutUpdated(address indexed payout);
     event Migrated(address indexed to, uint256 amount);
     /// @notice Emitted when a crystallized target leg is held in the vault because the target sink is unset.
     event TargetFeesAccrued(uint256 amount, uint256 totalAccrued);
@@ -235,8 +233,7 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         address _protocolTreasury,
         address _masterRegistry,
         address _alignmentToken,
-        uint256 _targetId,
-        address _communityPayout
+        uint256 _targetId
     ) external {
         if (_initialized) revert AlreadyInitialized();
         if (
@@ -252,10 +249,9 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         masterRegistry = IMasterRegistry(_masterRegistry);
         alignmentToken = _alignmentToken;
         targetId = _targetId;
-        // The FALLBACK sink only: `_targetSink()` prefers the registry's live answer. May be zero here and
-        // set later on either side; until some sink exists the target leg accrues into
-        // `accumulatedTargetFees` and is delivered by `flushTargetFees()`.
-        communityPayout = _communityPayout;
+        // No payout argument, by design: the target sink lives in the alignment registry under `_targetId`
+        // and is read at send time. A target with no sink wired yet is not a problem to solve here — the
+        // target leg accrues into `accumulatedTargetFees` and `flushTargetFees()` delivers it once one is.
 
         // One-time max approval: the vault is the sole holder of its WETH, deposited each intake into
         // the stataToken. Cheaper + cleaner than re-approving per deposit.
@@ -575,17 +571,21 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     // │   Internal helpers      │
     // └─────────────────────────┘
 
-    /// @dev Where this clone's target leg is owed, resolved at SEND time.
-    ///      The canonical answer is the alignment registry's `getCommunityPayout(targetId)`: it is the
-    ///      one address the community controls, and the three LP vault families already read it on every
-    ///      send. This clone stores a copy, seeded by the factory from that same registry at deploy, and
-    ///      keeps it only as the fallback for a target whose registry entry has not been wired yet — and
-    ///      as the escape hatch the factory's `setVaultCommunityPayout` writes. Reading the copy first
-    ///      would pin the sink at deploy: after a registry re-point every already-deployed clone would go
-    ///      on force-sending to the superseded address, with nothing to claw back and no revert to notice.
+    /// @dev Where this clone's target leg is owed, resolved at SEND time from the alignment registry's
+    ///      `getCommunityPayout(targetId)` — the one address the community controls, and the same slot the
+    ///      three LP vault families read on every send.
+    ///
+    ///      There is deliberately no second answer. This clone used to keep its own copy, seeded from this
+    ///      same registry at deploy and writable afterwards by its owner (the factory) — which made the
+    ///      factory owner's key a redirect for the target leg of every clone whose registry slot happened to
+    ///      be empty, and let a clone's idea of its sink diverge from the target's. A stored copy can only
+    ///      ever repeat the registry or contradict it, so the copy is gone and this reads through.
+    ///
+    ///      Zero means the target has not wired a sink yet. Every caller treats that as "hold", never as an
+    ///      excuse to send somewhere else: `_crystallizeYield` accrues into `accumulatedTargetFees`, and
+    ///      `flushTargetFees` / `releaseCorpusToCommunity` revert `CommunityPayoutNotSet` and wait.
     function _targetSink() internal view returns (address) {
-        address canonical = masterRegistry.alignmentRegistry().getCommunityPayout(targetId);
-        return canonical != address(0) ? canonical : communityPayout;
+        return masterRegistry.alignmentRegistry().getCommunityPayout(targetId);
     }
 
     /// @dev Move a benefactor's accrued-but-unsettled creator yield into their purse and re-baseline
@@ -630,15 +630,10 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     // │   Admin                 │
     // └─────────────────────────┘
 
-    /// @notice Update this clone's FALLBACK target sink (owner = factory).
-    /// @dev    The registry's `getCommunityPayout(targetId)` wins whenever it is set, so this writes the
-    ///         address used only while the target has no registry entry. It is not a redirect: it cannot
-    ///         divert a leg away from a community that has wired its own sink.
-    function setCommunityPayout(address payout) external onlyOwner {
-        if (payout == address(0)) revert InvalidAddress();
-        communityPayout = payout;
-        emit CommunityPayoutUpdated(payout);
-    }
+    // There is no `setCommunityPayout` here, and that is the point: see `_targetSink`. The community's
+    // sink is the alignment registry's, set by the registry's own authority under `targetId`, and a clone
+    // owns no writable copy of it. The one admin power over this vault's money is `migratePosition` below,
+    // which is an escrow recovery and cannot touch the target leg.
 
     /// @notice Emergency (owner = factory): escrow-only Aave-reserve-deprecation migration. Redeems the
     ///         ESCROWED tranche's pro-rata share of the position to native ETH and force-sends it to `to`
@@ -850,8 +845,8 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     ///         in the Aave position for the life of the contract.
     ///
     ///         Permissionless, and non-discretionary in both arguments it does not take: the amount is the
-    ///         whole corpus and the destination is always `_targetSink()` (the registry's
-    ///         `getCommunityPayout(targetId)`, falling back to this clone's stored copy), never
+    ///         whole corpus and the destination is always `_targetSink()` — the registry's
+    ///         `getCommunityPayout(targetId)`, and nothing this contract can be made to write — never
     ///         caller-supplied. That is what makes it safe to leave open to anyone — it is a delivery, not a
     ///         spend, so it hands a de-curated ambassador nothing they did not already have. Reverts
     ///         `CommunityPayoutNotSet` while no sink is wired; the corpus keeps waiting, and

@@ -16,13 +16,10 @@ const VAULT = '0x0000000000000000000000000000000000000a11' as const
 // temporal dead zone when the addresses mock below is built.
 const REGISTRY = vi.hoisted(() => '0x0000000000000000000000000000000000000bb1' as const)
 const SINK = '0x0000000000000000000000000000000000000c1c' as const
-const STORED = '0x0000000000000000000000000000000000000d1d' as const
 const ZERO = '0x0000000000000000000000000000000000000000' as const
 
 const chain = vi.hoisted(() => ({
   sink: '0x0000000000000000000000000000000000000c1c' as string,
-  /** The endowment clone's own stored sink — what `_targetSink()` falls back to. */
-  stored: '0x0000000000000000000000000000000000000000' as string,
   curated: true as boolean | undefined,
   seats: 2n as bigint | undefined,
   waiting: 0n as bigint | undefined,
@@ -42,12 +39,7 @@ vi.mock('../../generated/contracts', () => ({
 
 vi.mock('wagmi', () => ({
   useReadContract: ({ functionName }: { functionName: string }) => ({
-    data:
-      functionName === 'deployableCorpus'
-        ? chain.corpus
-        : functionName === 'communityPayout'
-          ? chain.stored
-          : chain.waiting,
+    data: functionName === 'deployableCorpus' ? chain.corpus : chain.waiting,
     refetch: vi.fn(),
   }),
 }))
@@ -73,7 +65,6 @@ afterEach(() => {
   cleanup()
   send.mockReset()
   chain.sink = SINK
-  chain.stored = ZERO
   chain.curated = true
   chain.seats = 2n
   chain.waiting = 0n
@@ -120,31 +111,27 @@ describe('CommunityPayoutPanel', () => {
     expect(screen.getByText(/until a payout address is set/i)).toBeTruthy()
   })
 
-  test('an endowment vault falls back to its own stored sink when the registry has none', () => {
-    chain.sink = ZERO
-    chain.stored = STORED
-    chain.waiting = 190000000000000000n
-    render(<CommunityPayoutPanel vault={VAULT} targetId={7n} isEndowment />)
-
-    // The vault's `_targetSink()` would deliver here, so the panel must not grey the button out.
-    const sinkCell = screen.getByTestId('vault-payout-sink')
-    expect(sinkCell.textContent).toContain(STORED)
-    expect(sinkCell.textContent).toMatch(/the vault.s own fallback/i)
-    expect(
-      (screen.getByRole('button', { name: /deliver to the community/i }) as HTMLButtonElement)
-        .disabled,
-    ).toBe(false)
-  })
-
-  test('the registry sink outranks the stored one, as it does at send time', () => {
-    chain.stored = STORED
+  test('an endowment vault names the registry sink and nothing behind it', () => {
+    // The endowment clone used to carry a payout slot of its own that the panel had to fall back to.
+    // It no longer has one, so the registry's answer is the only address there is to show.
     chain.waiting = 1n
     render(<CommunityPayoutPanel vault={VAULT} targetId={7n} isEndowment />)
 
     const sinkCell = screen.getByTestId('vault-payout-sink')
     expect(sinkCell.textContent).toContain(SINK)
-    expect(sinkCell.textContent).not.toContain(STORED)
     expect(sinkCell.textContent).not.toMatch(/fallback/i)
+  })
+
+  test('an unwired registry sink is unwired for an endowment vault too', () => {
+    chain.sink = ZERO
+    chain.waiting = 190000000000000000n
+    render(<CommunityPayoutPanel vault={VAULT} targetId={7n} isEndowment />)
+
+    expect(screen.getByTestId('vault-payout-sink').textContent).toMatch(/not wired yet/i)
+    expect(
+      (screen.getByRole('button', { name: /deliver to the community/i }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true)
   })
 
   test('nothing accrued disables delivery without claiming the capability is missing', () => {

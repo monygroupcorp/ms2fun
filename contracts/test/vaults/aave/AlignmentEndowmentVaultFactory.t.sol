@@ -192,4 +192,41 @@ contract AlignmentEndowmentVaultFactoryTest is Test {
         vm.expectRevert(Ownable.Unauthorized.selector);
         fresh.deployVault(_salt(), alignmentToken, targetId);
     }
+
+    // ── The factory owns its vaults, and owns nothing about where their money goes ──────────────
+
+    /// @dev The one power the protocol key must NOT get from owning every clone. The factory used to
+    ///      expose `setVaultCommunityPayout(vault, payout)`, reaching the clone's `onlyOwner`
+    ///      `setCommunityPayout` and writing a clone-local sink — so a single compromised key could point
+    ///      any deployed vault's community leg at an address of its own, silently and per-vault. Both ends
+    ///      are gone. Asserted against the REAL registries, at every address that could plausibly hold the
+    ///      power: the factory, and the vault the factory owns.
+    ///
+    ///      This goes red the moment either function comes back.
+    function test_factoryOwner_cannotRedirectADeployedVaultsPayout() public {
+        address community = makeAddr("community");
+        alignmentRegistry.setCommunityPayout(targetId, community);
+
+        address vault = factory.deployVault(_salt(), alignmentToken, targetId);
+        address attacker = makeAddr("attackerSink");
+
+        // This test contract is the factory owner, and the factory is the vault owner: the whole chain.
+        assertEq(factory.owner(), address(this), "caller holds the protocol key");
+
+        (bool viaFactory,) =
+            address(factory).call(abi.encodeWithSignature("setVaultCommunityPayout(address,address)", vault, attacker));
+        assertFalse(viaFactory, "the factory offers its owner no way to re-point a vault's payout");
+
+        // As the FACTORY, which is the vault's owner — so a failure here is the absent function and not
+        // an owner gate answering for it.
+        vm.prank(address(factory));
+        (bool direct,) = address(vault).call(abi.encodeWithSignature("setCommunityPayout(address)", attacker));
+        assertFalse(direct, "and the vault itself has no payout setter for its owner to reach");
+
+        (bool slot,) = address(vault).call(abi.encodeWithSignature("communityPayout()"));
+        assertFalse(slot, "nor a stored payout that could disagree with the registry");
+
+        // The registry is where the answer lives, and it still says what the community set.
+        assertEq(alignmentRegistry.getCommunityPayout(targetId), community, "sink unchanged by any of it");
+    }
 }

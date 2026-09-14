@@ -28,9 +28,33 @@ contract MockBenefactor {
 
 // ---------------------------------------------------------------------------
 // Minimal IMasterRegistry stub — isAgent always returns false so the test
-// exercises the creator-owner path, not the agent path.
+// exercises the creator-owner path, not the agent path. It also answers
+// `alignmentRegistry()`, because that is where the vault reads its target sink
+// on every send; the stub below is the whole of that surface.
 // ---------------------------------------------------------------------------
+contract MockAlignmentRegistry {
+    address internal immutable _payout;
+
+    constructor(address payout) {
+        _payout = payout;
+    }
+
+    function getCommunityPayout(uint256) external view returns (address) {
+        return _payout;
+    }
+
+    function isAlignmentTargetActive(uint256) external pure returns (bool) {
+        return true;
+    }
+}
+
 contract MockMasterRegistry {
+    address public immutable alignmentRegistry;
+
+    constructor(address payout) {
+        alignmentRegistry = address(new MockAlignmentRegistry(payout));
+    }
+
     function isAgent(address) external pure returns (bool) {
         return false;
     }
@@ -90,14 +114,14 @@ contract AlignmentEndowmentVaultForkTest is Test {
         vm.etch(community, "");
         vm.etch(creator, "");
 
-        masterRegistry = new MockMasterRegistry();
+        masterRegistry = new MockMasterRegistry(community);
         benefactor = new MockBenefactor(creator);
 
         address alignmentToken = makeAddr("alignmentToken");
 
         address impl = address(new AlignmentEndowmentVault());
         AlignmentEndowmentVault clone = AlignmentEndowmentVault(payable(LibClone.clone(impl)));
-        clone.initialize(owner, WETH, STATA, treasury, address(masterRegistry), alignmentToken, TARGET_ID, community);
+        clone.initialize(owner, WETH, STATA, treasury, address(masterRegistry), alignmentToken, TARGET_ID);
         vault = clone;
     }
 

@@ -15,6 +15,9 @@ import { VaultPanel } from './VaultPanel'
 const VAULT = '0x1111111111111111111111111111111111111111' as const
 const BENEFACTOR = '0x2222222222222222222222222222222222222222' as const
 const COMMUNITY = '0x3333333333333333333333333333333333333333' as const
+// Hoisted: `vi.mock` factories run above the module body, so a plain const is still in its temporal
+// dead zone when the useCollectionChain mock above is built.
+const REGISTRY = vi.hoisted(() => '0x4444444444444444444444444444444444444444' as const)
 
 const WEEK = 604_800n
 const VEST_DURATION = 26n * WEEK
@@ -23,7 +26,10 @@ const NOW_SEC = BigInt(Math.floor(Date.now() / 1000))
 const mockPrincipal = vi.hoisted(() => vi.fn<() => bigint>())
 const mockDepositTime = vi.hoisted(() => vi.fn<() => bigint>())
 
-vi.mock('./useCollectionChain', () => ({ useCollectionChainId: () => 1 }))
+vi.mock('./useCollectionChain', () => ({
+  useCollectionChainId: () => 1,
+  useCollectionAddresses: () => ({ AlignmentRegistryV1: REGISTRY }),
+}))
 
 vi.mock('wagmi', () => ({
   useWaitForTransactionReceipt: () => ({ isLoading: false, isSuccess: false }),
@@ -46,7 +52,9 @@ vi.mock('../../generated/contracts', () => ({
     refetch: vi.fn(),
   }),
   useReadAlignmentEndowmentVaultTotalPrincipalLocked: () => ({ data: 0n, isPending: false }),
-  useReadAlignmentEndowmentVaultCommunityPayout: () => ({ data: COMMUNITY, isPending: false }),
+  useReadAlignmentEndowmentVaultTargetId: () => ({ data: 7n, isPending: false }),
+  // The payout is the registry's under the vault's target, not a slot on the vault.
+  useReadAlignmentRegistryV1GetCommunityPayout: () => ({ data: COMMUNITY, isPending: false }),
   useReadAlignmentEndowmentVaultVestDuration: () => ({ data: VEST_DURATION, isPending: false }),
   useWriteAlignmentEndowmentVaultHarvest: () => ({
     writeContract: vi.fn(),
