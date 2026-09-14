@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
+import { AlignmentEndowmentVault } from "../../../src/vaults/aave/AlignmentEndowmentVault.sol";
 import { AlignmentEndowmentVaultFactory } from "../../../src/vaults/aave/AlignmentEndowmentVaultFactory.sol";
 import { MasterRegistryV1 } from "../../../src/master/MasterRegistryV1.sol";
 import { AlignmentRegistryV1 } from "../../../src/master/AlignmentRegistryV1.sol";
@@ -175,6 +176,61 @@ contract AlignmentEndowmentVaultFactoryTest is Test {
 
         vm.expectRevert(MasterRegistryV1.TargetNotActive.selector);
         factory.deployVault(_salt(), token2, target2);
+    }
+
+    // ── The community sink, end to end on the real registries ───────────────────
+
+    /// @dev The whole point of the Aave leg's sink, proved against the real AlignmentRegistryV1 and
+    ///      MasterRegistryV1 rather than mocks. This test contract is the owner of both registries AND of
+    ///      the factory that owns the vault — every authority the protocol has, in one hand — and it still
+    ///      cannot move a pinned payout by any route. Each of the three attempts below is a capability that
+    ///      either exists or does not; re-add any of them and this test goes red.
+    function test_protocolCannotRedirectADeployedVaultsSink_butThePayeeCan() public {
+        address community = makeAddr("communityMultisig");
+        address attackerSink = makeAddr("attackerSink");
+
+        alignmentRegistry.setCommunityPayout(targetId, community);
+        AlignmentEndowmentVault vault =
+            AlignmentEndowmentVault(payable(factory.deployVault(_salt(), alignmentToken, targetId)));
+        assertEq(vault.communityPayout(), community, "the deployed vault pays the community");
+
+        // 1. The registry's pin is write-once — there is no owner-side correction path.
+        vm.expectRevert(AlignmentRegistryV1.CommunityPayoutAlreadySet.selector);
+        alignmentRegistry.setCommunityPayout(targetId, attackerSink);
+
+        // 2. Rotation answers to the address holding the payout, and the owner is not it.
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        alignmentRegistry.rotateCommunityPayout(targetId, attackerSink);
+
+        // 3. The factory OWNS the vault, and owning it buys no say in where the money goes. This selector
+        //    used to exist and was the hole: `setVaultCommunityPayout(address,address)` let the protocol
+        //    overwrite a deployed vault's cached sink, so the registry's write-once pin bought the Aave leg
+        //    nothing. The vault no longer caches a sink and the factory no longer has a writer for one.
+        (bool ok,) = address(factory)
+            .call(abi.encodeWithSignature("setVaultCommunityPayout(address,address)", address(vault), attackerSink));
+        assertFalse(ok, "the factory has no vault-sink writer");
+
+        assertEq(vault.communityPayout(), community, "sink unmoved by every protocol lever there is");
+
+        // And the other half: the community moves itself in one call, and the already-deployed vault
+        // follows — no factory call, no protocol involvement, no redeploy.
+        address newMultisig = makeAddr("communityNewMultisig");
+        vm.prank(community);
+        alignmentRegistry.rotateCommunityPayout(targetId, newMultisig);
+        assertEq(vault.communityPayout(), newMultisig, "the deployed vault follows the payee's rotation");
+    }
+
+    /// @dev A vault deployed BEFORE its target has a sink needs no wiring step afterwards: the pin lands on
+    ///      the registry and the live read picks it up. This is what the removed factory setter was for.
+    function test_sinkPinnedAfterDeployReachesTheVaultWithNoWiringCall() public {
+        AlignmentEndowmentVault vault =
+            AlignmentEndowmentVault(payable(factory.deployVault(_salt(), alignmentToken, targetId)));
+        assertEq(vault.communityPayout(), address(0), "no sink pinned yet");
+
+        address community = makeAddr("lateCommunity");
+        alignmentRegistry.setCommunityPayout(targetId, community);
+
+        assertEq(vault.communityPayout(), community, "the deployed vault sees the later pin");
     }
 
     // ── Factory-must-be-active ordering requirement ─────────────────────────────

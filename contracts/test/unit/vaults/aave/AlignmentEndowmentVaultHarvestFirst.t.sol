@@ -31,6 +31,9 @@ contract AlignmentEndowmentVaultHarvestFirstTest is Test {
     address public alignmentToken = address(0xAA03);
     address public communityPayout = address(0xAA04);
     uint256 public constant TARGET_ID = 7;
+    /// @dev A target the mock registry has no sink pinned for. The registry's pin is write-once, so the
+    ///      unset-sink path needs its own target rather than a cleared one.
+    uint256 public constant TARGET_ID_NO_SINK = 8;
 
     address public alice = address(0xBB01);
     address public ambassador = address(0xBB04);
@@ -45,6 +48,7 @@ contract AlignmentEndowmentVaultHarvestFirstTest is Test {
         ambassadorRegistry = new MockAmbassadorRegistry();
         masterRegistry.setAlignmentRegistry(address(ambassadorRegistry));
         ambassadorRegistry.setAmbassador(TARGET_ID, ambassador, true);
+        ambassadorRegistry.setCommunityPayout(TARGET_ID, communityPayout);
 
         benefactorContract = new MockOwnable(alice);
 
@@ -58,7 +62,7 @@ contract AlignmentEndowmentVaultHarvestFirstTest is Test {
             address(masterRegistry),
             alignmentToken,
             TARGET_ID,
-            communityPayout
+            address(ambassadorRegistry)
         );
 
         vm.deal(alice, 100 ether);
@@ -202,13 +206,13 @@ contract AlignmentEndowmentVaultHarvestFirstTest is Test {
     // unset community sink (noesis-339) — crystallize accrues, it never reverts
     // ════════════════════════════════════════════════════════════════════════
 
-    /// @dev A clone whose `communityPayout` is unset at initialize. Crystallize is the first statement of
+    /// @dev A clone bound to a target the registry has pinned no sink for. Crystallize is the first statement of
     ///      `_deposit`, `vest`, `harvest` and `execute`, so a target leg with no sink must not revert:
     ///      the leg accrues into `accumulatedTargetFees` and all four paths stay open. Asserts the whole
     ///      sequence — a second deposit after yield, vest at maturity, harvest — succeeds with no sink, and
     ///      that the accrued balance flushes once one is set.
     function test_unsetPayout_depositVestHarvestAllRemainOpen() public {
-        AlignmentEndowmentVault v0 = _deployVaultWithPayout(address(0));
+        AlignmentEndowmentVault v0 = _deployVaultForTarget(TARGET_ID_NO_SINK);
 
         MockOwnable a = _newBenefactor(alice);
         vm.prank(alice);
@@ -239,8 +243,7 @@ contract AlignmentEndowmentVaultHarvestFirstTest is Test {
 
         uint256 accrued = v0.accumulatedTargetFees();
         assertEq(accrued, 0.19 ether, "nothing lost across deposit/vest/harvest");
-        vm.prank(vaultOwner);
-        v0.setCommunityPayout(communityPayout);
+        ambassadorRegistry.setCommunityPayout(TARGET_ID_NO_SINK, communityPayout);
 
         uint256 before = communityPayout.balance;
         assertEq(v0.flushTargetFees(), accrued, "accrued leg delivered");
@@ -248,8 +251,9 @@ contract AlignmentEndowmentVaultHarvestFirstTest is Test {
         assertEq(v0.accumulatedTargetFees(), 0, "accumulator zeroed");
     }
 
-    /// @dev Clone the implementation with an explicit community payout (mirrors `setUp`).
-    function _deployVaultWithPayout(address payout) internal returns (AlignmentEndowmentVault v) {
+    /// @dev Clone the implementation bound to `targetId_` (mirrors `setUp`). The sink comes from the
+    ///      registry, not from here — the vault has no slot to put one in.
+    function _deployVaultForTarget(uint256 targetId_) internal returns (AlignmentEndowmentVault v) {
         address impl = address(new AlignmentEndowmentVault());
         v = AlignmentEndowmentVault(payable(LibClone.clone(impl)));
         v.initialize(
@@ -259,8 +263,8 @@ contract AlignmentEndowmentVaultHarvestFirstTest is Test {
             treasury,
             address(masterRegistry),
             alignmentToken,
-            TARGET_ID,
-            payout
+            targetId_,
+            address(ambassadorRegistry)
         );
     }
 }

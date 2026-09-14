@@ -43,6 +43,19 @@ export const alignmentEndowmentVaultAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'alignmentRegistry',
+    outputs: [
+      {
+        name: '',
+        internalType: 'contract IAlignmentRegistry',
+        type: 'address',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'alignmentToken',
     outputs: [{ name: '', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
@@ -203,7 +216,7 @@ export const alignmentEndowmentVaultAbi = [
       { name: '_masterRegistry', internalType: 'address', type: 'address' },
       { name: '_alignmentToken', internalType: 'address', type: 'address' },
       { name: '_targetId', internalType: 'uint256', type: 'uint256' },
-      { name: '_communityPayout', internalType: 'address', type: 'address' },
+      { name: '_alignmentRegistry', internalType: 'address', type: 'address' },
     ],
     name: 'initialize',
     outputs: [],
@@ -307,13 +320,6 @@ export const alignmentEndowmentVaultAbi = [
     name: 'rewardDebt',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    inputs: [{ name: 'payout', internalType: 'address', type: 'address' }],
-    name: 'setCommunityPayout',
-    outputs: [],
-    stateMutability: 'nonpayable',
   },
   {
     type: 'function',
@@ -505,19 +511,6 @@ export const alignmentEndowmentVaultAbi = [
       },
     ],
     name: 'CapitalDeployed',
-  },
-  {
-    type: 'event',
-    anonymous: false,
-    inputs: [
-      {
-        name: 'payout',
-        internalType: 'address',
-        type: 'address',
-        indexed: true,
-      },
-    ],
-    name: 'CommunityPayoutUpdated',
   },
   {
     type: 'event',
@@ -15083,6 +15076,15 @@ export const useReadAlignmentEndowmentVaultAccumulatedTargetFees =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"alignmentRegistry"`
+ */
+export const useReadAlignmentEndowmentVaultAlignmentRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'alignmentRegistry',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"alignmentToken"`
  */
 export const useReadAlignmentEndowmentVaultAlignmentToken =
@@ -15575,15 +15577,6 @@ export const useWriteAlignmentEndowmentVaultRequestOwnershipHandover =
   })
 
 /**
- * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"setCommunityPayout"`
- */
-export const useWriteAlignmentEndowmentVaultSetCommunityPayout =
-  /*#__PURE__*/ createUseWriteContract({
-    abi: alignmentEndowmentVaultAbi,
-    functionName: 'setCommunityPayout',
-  })
-
-/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"transferOwnership"`
  */
 export const useWriteAlignmentEndowmentVaultTransferOwnership =
@@ -15707,15 +15700,6 @@ export const useSimulateAlignmentEndowmentVaultRequestOwnershipHandover =
   })
 
 /**
- * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"setCommunityPayout"`
- */
-export const useSimulateAlignmentEndowmentVaultSetCommunityPayout =
-  /*#__PURE__*/ createUseSimulateContract({
-    abi: alignmentEndowmentVaultAbi,
-    functionName: 'setCommunityPayout',
-  })
-
-/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"transferOwnership"`
  */
 export const useSimulateAlignmentEndowmentVaultTransferOwnership =
@@ -15746,15 +15730,6 @@ export const useWatchAlignmentEndowmentVaultCapitalDeployedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: alignmentEndowmentVaultAbi,
     eventName: 'CapitalDeployed',
-  })
-
-/**
- * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"CommunityPayoutUpdated"`
- */
-export const useWatchAlignmentEndowmentVaultCommunityPayoutUpdatedEvent =
-  /*#__PURE__*/ createUseWatchContractEvent({
-    abi: alignmentEndowmentVaultAbi,
-    eventName: 'CommunityPayoutUpdated',
   })
 
 /**

@@ -425,9 +425,11 @@ contract DeployCore is Script {
             uint256 targetId = alignmentRegistry.registerAlignmentTarget(t.name, t.description, "", assets);
             alignmentTargetIds.push(targetId);
 
-            // Aave endowment vault (ADR-0003): set the target's community payout (from config — no
+            // Aave endowment vault (ADR-0003): pin the target's community payout (from config — no
             // placeholder baked into this cross-network script), then deploy a per-target endowment vault
-            // clone. A zero payout is left unset (configured later, off-chain). The factory SELF-REGISTERS
+            // clone. A zero payout is left unset and pinned on the REGISTRY later: the vault reads its sink
+            // live from there, so a sink pinned after this deploy needs no vault-side wiring, and the pin
+            // is write-once — the deployer cannot come back and redirect it. The factory SELF-REGISTERS
             // the vault (noesis-077) with an on-chain-derived name + hardcoded metadataURI, crediting the
             // deployer — so there is no owner-side registerVault here (a duplicate would revert
             // AlreadyRegistered).

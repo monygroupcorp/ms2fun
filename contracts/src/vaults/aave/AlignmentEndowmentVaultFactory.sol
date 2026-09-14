@@ -10,9 +10,10 @@ import { Ownable } from "solady/auth/Ownable.sol";
 
 /// @title AlignmentEndowmentVaultFactory
 /// @notice Deploys AlignmentEndowmentVault clones via CREATE3 (EIP-1167 minimal proxy).
-///         The factory becomes the owner of every vault it deploys, so community-payout
-///         updates must go through setVaultCommunityPayout (onlyOwner) rather than
-///         calling the vault directly.
+///         The factory becomes the owner of every vault it deploys. That ownership carries the
+///         emergency Aave-migration lever and nothing about the money's destination: a vault reads its
+///         community sink live from the alignment registry, where only the address already receiving it
+///         may move it on, so neither this factory nor its owner can redirect a community's payout.
 ///
 ///         Vault creation is owner-gated: only the protocol may deploy a vault for an approved,
 ///         active alignment target. The factory self-registers each vault in the
@@ -83,14 +84,6 @@ contract AlignmentEndowmentVaultFactory is Ownable, IFactory {
         return new bytes32[](0);
     }
 
-    /// @notice Update the community payout address on a vault deployed by this factory.
-    ///         Only the factory owner can call this — the vault's owner is the factory.
-    /// @param vault Address of the vault (must have been deployed by this factory)
-    /// @param payout New community payout address
-    function setVaultCommunityPayout(address vault, address payout) external onlyOwner {
-        AlignmentEndowmentVault(payable(vault)).setCommunityPayout(payout);
-    }
-
     /// @notice Emergency: migrate a vault's ESCROWED tranche (pro-rata, impairment-aware) to `to` (the
     ///         factory owns its vaults, and the vault's `migratePosition` is onlyOwner). For an Aave
     ///         reserve deprecation. Per-benefactor accounting is preserved on-chain; the vested tranche
@@ -127,8 +120,9 @@ contract AlignmentEndowmentVaultFactory is Ownable, IFactory {
         bytes32 senderBoundSalt = keccak256(abi.encodePacked(msg.sender, salt));
         vault = ICreateX(CREATEX).deployCreate3(senderBoundSalt, proxyCreationCode);
 
-        address payout = alignmentRegistry.getCommunityPayout(alignmentTargetId);
-
+        // The vault is handed the REGISTRY, not a resolved sink: it reads `getCommunityPayout(targetId)`
+        // live on every payout, so a community's later `rotateCommunityPayout` reaches an already-deployed
+        // vault with no factory call, and a sink pinned after this deploy needs no wiring step at all.
         AlignmentEndowmentVault(payable(vault))
             .initialize(
                 address(this),
@@ -138,7 +132,7 @@ contract AlignmentEndowmentVaultFactory is Ownable, IFactory {
                 masterRegistry,
                 alignmentToken,
                 alignmentTargetId,
-                payout
+                address(alignmentRegistry)
             );
 
         canonicalVault[dedupKey] = vault;

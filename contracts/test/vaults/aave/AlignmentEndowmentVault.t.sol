@@ -194,10 +194,14 @@ contract MockMasterRegistry {
     }
 }
 
-/// @dev Alignment-registry mock with a settable ambassador set, so `execute` auth can be driven and the
-///      `removeAmbassador` backstop exercised. Only `isAmbassador` is read by the vault.
+/// @dev Alignment-registry mock covering the two surfaces the vault reads: the ambassador set (so
+///      `execute` auth can be driven and the `removeAmbassador` backstop exercised) and the per-target
+///      community payout, which the vault reads live on every push rather than caching — mirroring the
+///      real registry's write-once pin and payee-only rotation so a vault test cannot pass here on a move
+///      the deployed registry would reject.
 contract MockAmbassadorRegistry {
     mapping(uint256 => mapping(address => bool)) private _amb;
+    mapping(uint256 => address) private _payout;
 
     function setAmbassador(uint256 targetId, address account, bool flag) external {
         _amb[targetId][account] = flag;
@@ -210,6 +214,23 @@ contract MockAmbassadorRegistry {
 
     function isAmbassador(uint256 targetId, address account) external view returns (bool) {
         return _amb[targetId][account];
+    }
+
+    /// @dev Mirrors AlignmentRegistryV1.setCommunityPayout's WRITE-ONCE rule, so a vault test cannot pass
+    ///      here on a second set the deployed registry would reject.
+    function setCommunityPayout(uint256 targetId, address payout) external {
+        require(_payout[targetId] == address(0), "already set");
+        _payout[targetId] = payout;
+    }
+
+    /// @dev Mirrors the real registry's authority: only the address currently receiving the payout moves it.
+    function rotateCommunityPayout(uint256 targetId, address newPayout) external {
+        require(msg.sender == _payout[targetId], "not payout");
+        _payout[targetId] = newPayout;
+    }
+
+    function getCommunityPayout(uint256 targetId) external view returns (address) {
+        return _payout[targetId];
     }
 }
 
@@ -295,6 +316,9 @@ contract AlignmentEndowmentVaultTest is Test {
     address public alignmentToken = address(0xAA03);
     address public communityPayout = address(0xAA04);
     uint256 public constant TARGET_ID = 7;
+    /// @dev A second target the mock registry deliberately has NO sink pinned for, so the accrue-then-flush
+    ///      branch can be exercised without unpinning TARGET_ID (the registry's pin is write-once).
+    uint256 public constant TARGET_ID_NO_SINK = 8;
 
     address public alice = address(0xBB01); // EOA user (owner of benefactorContract)
     address public agent = address(0xBB02);
@@ -313,7 +337,6 @@ contract AlignmentEndowmentVaultTest is Test {
     event YieldDistributed(uint256 creatorLeg, uint256 targetLeg, uint256 protocolLeg, uint256 timestamp);
     event YieldClaimed(address indexed benefactor, address indexed recipient, uint256 amount);
     event ImpairmentRealized(uint256 shortfallBps, uint256 timestamp);
-    event CommunityPayoutUpdated(address indexed payout);
     event Migrated(address indexed to, uint256 amount);
     event CapitalDeployed(
         address indexed ambassador, address indexed to, uint256 value, bytes4 selector, uint256 timestamp
@@ -328,10 +351,11 @@ contract AlignmentEndowmentVaultTest is Test {
         ambassadorRegistry = new MockAmbassadorRegistry();
         masterRegistry.setAlignmentRegistry(address(ambassadorRegistry));
         ambassadorRegistry.setAmbassador(TARGET_ID, ambassador, true);
+        ambassadorRegistry.setCommunityPayout(TARGET_ID, communityPayout);
 
         benefactorContract = new MockOwnable(alice);
 
-        vault = _deployVault(communityPayout);
+        vault = _deployVaultForTarget(TARGET_ID);
 
         vm.deal(alice, 100 ether);
         vm.deal(address(this), 100 ether);
@@ -344,7 +368,9 @@ contract AlignmentEndowmentVaultTest is Test {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    function _deployVault(address payout) internal returns (AlignmentEndowmentVault v) {
+    /// @dev Deploy a clone bound to `targetId_`. The sink is not passed in — the vault reads it live from
+    ///      `ambassadorRegistry`, so TARGET_ID arrives with one pinned and TARGET_ID_NO_SINK with none.
+    function _deployVaultForTarget(uint256 targetId_) internal returns (AlignmentEndowmentVault v) {
         address impl = address(new AlignmentEndowmentVault());
         v = AlignmentEndowmentVault(payable(LibClone.clone(impl)));
         v.initialize(
@@ -354,8 +380,8 @@ contract AlignmentEndowmentVaultTest is Test {
             treasury,
             address(masterRegistry),
             alignmentToken,
-            TARGET_ID,
-            payout
+            targetId_,
+            address(ambassadorRegistry)
         );
     }
 
@@ -392,7 +418,8 @@ contract AlignmentEndowmentVaultTest is Test {
         assertEq(vault.protocolTreasury(), treasury);
         assertEq(address(vault.masterRegistry()), address(masterRegistry));
         assertEq(vault.alignmentToken(), alignmentToken);
-        assertEq(vault.communityPayout(), communityPayout);
+        assertEq(address(vault.alignmentRegistry()), address(ambassadorRegistry));
+        assertEq(vault.communityPayout(), communityPayout, "sink read through the pinned registry");
         assertEq(vault.targetId(), TARGET_ID);
         assertEq(vault.owner(), vaultOwner);
         assertEq(vault.VEST_DURATION(), VEST);
@@ -408,7 +435,7 @@ contract AlignmentEndowmentVaultTest is Test {
             address(masterRegistry),
             alignmentToken,
             TARGET_ID,
-            communityPayout
+            address(ambassadorRegistry)
         );
     }
 
@@ -424,7 +451,7 @@ contract AlignmentEndowmentVaultTest is Test {
                 address(masterRegistry),
                 alignmentToken,
                 TARGET_ID,
-                communityPayout
+                address(ambassadorRegistry)
             );
     }
 
@@ -792,7 +819,7 @@ contract AlignmentEndowmentVaultTest is Test {
     ///      `accumulatedTargetFees` and nothing is pushed. (Retargeted from the earlier
     ///      revert-on-unset-sink assertion — the vault now accrues instead of reverting.)
     function test_harvest_accruesTargetLegWhenCommunityPayoutNotSet() public {
-        AlignmentEndowmentVault v2 = _deployVault(address(0));
+        AlignmentEndowmentVault v2 = _deployVaultForTarget(TARGET_ID_NO_SINK);
         MockOwnable b2 = new MockOwnable(alice);
         vm.prank(alice);
         v2.receiveContribution{ value: ONE_ETH }(nativeCurrency, ONE_ETH, address(b2));
@@ -811,9 +838,10 @@ contract AlignmentEndowmentVaultTest is Test {
     }
 
     /// @dev Round trip of the accrued target leg: flush reverts while the sink is unset, pays the full
-    ///      accrued balance exactly once after `setCommunityPayout`, and moves nothing on a second call.
+    ///      accrued balance exactly once after the REGISTRY pins one (no vault-side write exists), and
+    ///      moves nothing on a second call.
     function test_flushTargetFees_paysOnceAfterSinkIsSet() public {
-        AlignmentEndowmentVault v2 = _deployVault(address(0));
+        AlignmentEndowmentVault v2 = _deployVaultForTarget(TARGET_ID_NO_SINK);
         MockOwnable b2 = new MockOwnable(alice);
         vm.prank(alice);
         v2.receiveContribution{ value: ONE_ETH }(nativeCurrency, ONE_ETH, address(b2));
@@ -824,8 +852,7 @@ contract AlignmentEndowmentVaultTest is Test {
         vm.expectRevert(AlignmentEndowmentVault.CommunityPayoutNotSet.selector);
         v2.flushTargetFees();
 
-        vm.prank(vaultOwner);
-        v2.setCommunityPayout(communityPayout);
+        ambassadorRegistry.setCommunityPayout(TARGET_ID_NO_SINK, communityPayout);
 
         uint256 communityBefore = communityPayout.balance;
         assertEq(v2.flushTargetFees(), 0.019 ether, "full accrued balance delivered");
@@ -839,9 +866,8 @@ contract AlignmentEndowmentVaultTest is Test {
     /// @dev Once the sink is set, the target leg is pushed directly again — accrual is the unset-sink
     ///      branch only, never the happy path.
     function test_harvest_pushesDirectlyOnceSinkIsSet() public {
-        AlignmentEndowmentVault v2 = _deployVault(address(0));
-        vm.prank(vaultOwner);
-        v2.setCommunityPayout(communityPayout);
+        AlignmentEndowmentVault v2 = _deployVaultForTarget(TARGET_ID_NO_SINK);
+        ambassadorRegistry.setCommunityPayout(TARGET_ID_NO_SINK, communityPayout);
 
         MockOwnable b2 = new MockOwnable(alice);
         vm.prank(alice);
@@ -858,14 +884,16 @@ contract AlignmentEndowmentVaultTest is Test {
     /// @dev harvest still succeeds when the target sink rejects ETH (force-send).
     function test_harvest_forcesSendToRejectingCommunity() public {
         RejectETH rejecter = new RejectETH();
-        vm.prank(vaultOwner);
-        vault.setCommunityPayout(address(rejecter));
+        AlignmentEndowmentVault v2 = _deployVaultForTarget(TARGET_ID_NO_SINK);
+        ambassadorRegistry.setCommunityPayout(TARGET_ID_NO_SINK, address(rejecter));
 
-        _contributeBenefactor(ONE_ETH);
+        MockOwnable b2 = new MockOwnable(alice);
+        vm.prank(alice);
+        v2.receiveContribution{ value: ONE_ETH }(nativeCurrency, ONE_ETH, address(b2));
         _simulateYield(0.1 ether);
 
         uint256 rejecterBefore = address(rejecter).balance;
-        vault.harvest();
+        v2.harvest();
         assertGt(address(rejecter).balance, rejecterBefore, "target force-sent");
     }
 
@@ -1042,28 +1070,76 @@ contract AlignmentEndowmentVaultTest is Test {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 9. Admin: setCommunityPayout
+    // 9. The community sink: this vault holds no writer for it
     // ═══════════════════════════════════════════════════════════════════════
 
-    function test_setCommunityPayout_ownerUpdates() public {
-        address newPayout = address(0xDD01);
-        vm.prank(vaultOwner);
-        vm.expectEmit(true, false, false, false);
-        emit CommunityPayoutUpdated(newPayout);
-        vault.setCommunityPayout(newPayout);
-        assertEq(vault.communityPayout(), newPayout);
-    }
+    /// THE test this surface exists for. The vault's owner is the FACTORY in production and holds every
+    /// lever the vault has — and none of them reaches the sink, because the vault does not store it.
+    /// Give the vault a `setCommunityPayout(address)` back (or give the factory a wrapper that calls one)
+    /// and the first assertion goes red.
+    function test_ownerHasNoSinkWriter_theTargetLegKeepsLandingWithTheCommunity() public {
+        address attackerSink = address(0xDD01);
+        // The exact selector the vault used to carry. Nothing answers it now, so the call fails for the
+        // owner as flatly as for a stranger.
+        bytes memory setSink = abi.encodeWithSignature("setCommunityPayout(address)", attackerSink);
 
-    function test_setCommunityPayout_revertsNonOwner() public {
+        vm.prank(vaultOwner);
+        (bool okOwner,) = address(vault).call(setSink);
+        assertFalse(okOwner, "the vault owner has no sink writer");
+
         vm.prank(stranger);
-        vm.expectRevert();
-        vault.setCommunityPayout(address(0xDD01));
+        (bool okStranger,) = address(vault).call(setSink);
+        assertFalse(okStranger, "and neither does anybody else");
+
+        assertEq(vault.communityPayout(), communityPayout, "sink unmoved");
+
+        // Not just the view: the money itself still goes where the registry says.
+        _contributeBenefactor(ONE_ETH);
+        _simulateYield(0.1 ether);
+        uint256 communityBefore = communityPayout.balance;
+        vault.harvest();
+        assertEq(communityPayout.balance - communityBefore, 0.019 ether, "target leg paid the community");
+        assertEq(attackerSink.balance, 0, "and nothing reached the would-be redirect");
     }
 
-    function test_setCommunityPayout_revertsZeroAddress() public {
-        vm.prank(vaultOwner);
-        vm.expectRevert(AlignmentEndowmentVault.InvalidAddress.selector);
-        vault.setCommunityPayout(address(0));
+    /// The other half of the capability: the address the payout already points at rotates it in the
+    /// REGISTRY, and this already-deployed vault follows on its next push. No factory call, no vault
+    /// write, no protocol involvement — a community that changes multisig moves itself.
+    function test_payeeRotationMovesWhereTheTargetLegLands() public {
+        address newMultisig = address(0xDD02);
+
+        vm.prank(communityPayout);
+        ambassadorRegistry.rotateCommunityPayout(TARGET_ID, newMultisig);
+        assertEq(vault.communityPayout(), newMultisig, "the vault reads the rotation live");
+
+        _contributeBenefactor(ONE_ETH);
+        _simulateYield(0.1 ether);
+        uint256 oldBefore = communityPayout.balance;
+        vault.harvest();
+
+        assertEq(newMultisig.balance, 0.019 ether, "target leg followed the rotation");
+        assertEq(communityPayout.balance, oldBefore, "the retired sink was paid nothing");
+    }
+
+    /// Why the registry is PINNED at `initialize` rather than resolved through
+    /// `masterRegistry.alignmentRegistry()`: that pointer is the platform's to move, and a sink read
+    /// through it would be the redirect capability again, one hop further out. Re-point it to a sham
+    /// registry that names an attacker's sink — an already-deployed vault must not care.
+    function test_rePointingThePlatformsAlignmentRegistryDoesNotMoveTheSink() public {
+        address attackerSink = address(0xDD03);
+        MockAmbassadorRegistry sham = new MockAmbassadorRegistry();
+        sham.setCommunityPayout(TARGET_ID, attackerSink);
+        masterRegistry.setAlignmentRegistry(address(sham));
+
+        assertEq(vault.communityPayout(), communityPayout, "sink still read from the pinned registry");
+
+        _contributeBenefactor(ONE_ETH);
+        _simulateYield(0.1 ether);
+        uint256 communityBefore = communityPayout.balance;
+        vault.harvest();
+
+        assertEq(communityPayout.balance - communityBefore, 0.019 ether, "target leg paid the community");
+        assertEq(attackerSink.balance, 0, "the sham registry named a sink and got nothing");
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -1674,7 +1750,7 @@ contract AlignmentEndowmentVaultTest is Test {
 
     /// @dev An empty vault has a zero basis: the clamp's divisor guard returns 0 rather than reverting.
     function test_deployableCorpus_zeroBasis_returnsZeroAndDoesNotRevert() public {
-        AlignmentEndowmentVault fresh = _deployVault(communityPayout);
+        AlignmentEndowmentVault fresh = _deployVaultForTarget(TARGET_ID);
 
         assertEq(fresh.totalEscrowedPrincipal(), 0, "no escrowed principal");
         assertEq(fresh.totalVestedDeployable(), 0, "no vested principal");

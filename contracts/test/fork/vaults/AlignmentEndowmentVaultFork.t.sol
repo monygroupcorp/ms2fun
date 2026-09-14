@@ -36,6 +36,23 @@ contract MockMasterRegistry {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Minimal alignment-registry stub — the vault reads its community sink out of
+// this on every payout rather than caching one, so the fork test pins the sink
+// here exactly as the deployed registry would.
+// ---------------------------------------------------------------------------
+contract MockSinkRegistry {
+    mapping(uint256 => address) private _payout;
+
+    function setCommunityPayout(uint256 targetId, address payout) external {
+        _payout[targetId] = payout;
+    }
+
+    function getCommunityPayout(uint256 targetId) external view returns (address) {
+        return _payout[targetId];
+    }
+}
+
 /**
  * @title AlignmentEndowmentVaultFork
  * @notice Fork integration test for the reworked AlignmentEndowmentVault (specs 2a + 2b) against REAL
@@ -71,6 +88,7 @@ contract AlignmentEndowmentVaultForkTest is Test {
     AlignmentEndowmentVault internal vault;
     MockBenefactor internal benefactor; // acts as the aligned collection instance
     MockMasterRegistry internal masterRegistry;
+    MockSinkRegistry internal alignmentRegistry; // holds the target sink the vault reads live
 
     function setUp() public {
         // Skip cleanly if no fork is active (WETH bytecode absent on a blank node).
@@ -91,13 +109,17 @@ contract AlignmentEndowmentVaultForkTest is Test {
         vm.etch(creator, "");
 
         masterRegistry = new MockMasterRegistry();
+        alignmentRegistry = new MockSinkRegistry();
+        alignmentRegistry.setCommunityPayout(TARGET_ID, community);
         benefactor = new MockBenefactor(creator);
 
         address alignmentToken = makeAddr("alignmentToken");
 
         address impl = address(new AlignmentEndowmentVault());
         AlignmentEndowmentVault clone = AlignmentEndowmentVault(payable(LibClone.clone(impl)));
-        clone.initialize(owner, WETH, STATA, treasury, address(masterRegistry), alignmentToken, TARGET_ID, community);
+        clone.initialize(
+            owner, WETH, STATA, treasury, address(masterRegistry), alignmentToken, TARGET_ID, address(alignmentRegistry)
+        );
         vault = clone;
     }
 
