@@ -51,7 +51,8 @@ interface IAlignmentRegistry {
     struct ReferencePool {
         address pool; // kind 0: Uniswap V3 pool; kind 1: Algebra pool (oracle is pool.plugin())
         uint8 kind; // 0 = Uniswap V3 observe(); 1 = Algebra plugin getTimepoints()
-        uint32 twapWindow; // seconds; 0 => default 1800
+        uint32 twapWindow; // seconds. 0 means "use the registry default" ON INPUT ONLY: `setReferencePool`
+        // resolves it and stores the window it proved the pool over, so a value read back is never 0.
     }
 
     // Events

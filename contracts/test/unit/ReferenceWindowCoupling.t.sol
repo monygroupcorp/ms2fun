@@ -54,10 +54,19 @@ contract WindowHonouringRefPool {
  *
  *         The registry's setter documents itself as having TEETH: it reverts unless the pool "actually
  *         produces a TWAP over the window". That guarantee only transfers to the vault floor if the
- *         window the setter proved is the window the reader asks for. Nothing in the tree asserted it.
+ *         window the setter proved is the window the reader asks for.
  *
- *         These tests pin what is TRUE today. They deliberately do NOT assert the divergent case as
- *         acceptable behaviour — see `noesis-279` for the finding this file was written beside.
+ *         noesis-285 CLOSED that coupling from the registry side: `setReferencePool` now stores the
+ *         window it RESOLVED and probed with, so a caller's `0` is written back as the default rather
+ *         than kept raw, and `quoteEthForTokensVia` is handed an explicit window it never has to fall
+ *         back on. These tests were written against the old behaviour, where both sides resolved `0`
+ *         independently against constants nothing held together; they now pin the guarantee instead of
+ *         the hazard, and `test_defaultWindowPinSurvivesADivergentValidator` is the case that used to
+ *         fail and is the reason the change was made.
+ *
+ *         What is NOT closed, and is why this file keeps its registry-side framing: a reference pinned
+ *         BEFORE this change is still stored as `0` and still resolves through the reader's fallback.
+ *         The fix is forward-only — see `test_aLegacyZeroPinStillDependsOnTheReadersFallback`.
  */
 contract ReferenceWindowCouplingTest is Test {
     AlignmentRegistryV1 internal registry;
@@ -74,6 +83,11 @@ contract ReferenceWindowCouplingTest is Test {
     ///      a deploy script ALONE would not be caught here — the scripts build the value inside a
     ///      function, so there is nothing to import. See `noesis-279`.
     uint32 internal constant SHIPPED_VALIDATOR_WINDOW = 1800;
+
+    /// @dev `AlignmentRegistryV1.DEFAULT_TWAP_WINDOW`, which is `internal` and so cannot be read from a
+    ///      test. Transcribed for the same reason as the line above, and load-bearing since noesis-285:
+    ///      it is now the value the setter WRITES, not only the value it probes with.
+    uint32 internal constant REGISTRY_DEFAULT_WINDOW = 1800;
 
     uint256 internal targetId;
 
@@ -113,20 +127,60 @@ contract ReferenceWindowCouplingTest is Test {
     /// A pool with EXACTLY the registry's default window of history is accepted by the setter, and the
     /// validator deployed with the shipped `cfg.twapSeconds` can then price it. This is the property the
     /// vault floor depends on: "the setter guarantees a usable reference" is only true end to end.
-    /// Goes red if either constant moves without the other.
+    /// Goes red if `DEFAULT_TWAP_WINDOW` moves without the pool's depth moving with it.
     function test_setterProvedWindowIsTheWindowTheReaderAsksFor() public {
         WindowHonouringRefPool pool =
-            _canonical(new WindowHonouringRefPool(weth, token, SHIPPED_VALIDATOR_WINDOW, 69080));
+            _canonical(new WindowHonouringRefPool(weth, token, REGISTRY_DEFAULT_WINDOW, 69080));
 
         _pinDefaultWindow(address(pool));
 
         IAlignmentRegistry.ReferencePool memory ref = registry.getReferencePool(targetId, token);
         assertEq(ref.pool, address(pool), "reference pinned");
-        assertEq(uint256(ref.twapWindow), 0, "stored as 0 - both sides fall back to their own default");
+        assertEq(
+            uint256(ref.twapWindow),
+            REGISTRY_DEFAULT_WINDOW,
+            "noesis-285: the setter stores the window it PROVED, not the caller's 0"
+        );
 
         uint256 quoted =
             _validator(SHIPPED_VALIDATOR_WINDOW).quoteEthForTokensVia(address(pool), 0, ref.twapWindow, token, 1e18);
         assertGt(quoted, 0, "shipped validator window can price a reference the setter accepted");
+    }
+
+    /// THE noesis-285 CASE. A reference pinned with `twapWindow: 0` against a pool holding exactly the
+    /// registry's default of history, read by a validator configured to a DIFFERENT window.
+    ///
+    /// Before the fix the registry stored the raw `0`, so `quoteEthForTokensVia` fell back to its own
+    /// `twapSecondsAgo` of 3600, asked a pool with 1800s of history for a 3600s TWAP and reverted
+    /// `ReferenceTwapUnavailable`. That revert lands inside the vault's floor path, so a pool that pinned
+    /// cleanly surfaced as a vault that could not convert. Storing the resolved window means the reader is
+    /// handed 1800 explicitly and never consults its own default.
+    ///
+    /// Non-vacuity: this test is red on the parent commit, and goes red again if `setReferencePool` is
+    /// reverted to storing `ref` verbatim.
+    function test_defaultWindowPinSurvivesADivergentValidator() public {
+        WindowHonouringRefPool pool =
+            _canonical(new WindowHonouringRefPool(weth, token, REGISTRY_DEFAULT_WINDOW, 69080));
+
+        _pinDefaultWindow(address(pool));
+
+        IAlignmentRegistry.ReferencePool memory ref = registry.getReferencePool(targetId, token);
+        uint256 quoted = _validator(3600).quoteEthForTokensVia(address(pool), 0, ref.twapWindow, token, 1e18);
+        assertGt(quoted, 0, "a validator on a divergent window still prices a default-window pin");
+    }
+
+    /// The residual the fix does NOT reach, pinned so nobody reads this file as claiming more than it does.
+    /// A pool pinned before noesis-285 kept a stored `0`, and a `0` still means "resolve against my own
+    /// default" to the reader. Simulated by handing the reader the `0` such a pin left behind: against a
+    /// validator whose window outruns the pool's history it still reverts, and re-pinning is the only cure.
+    function test_aLegacyZeroPinStillDependsOnTheReadersFallback() public {
+        WindowHonouringRefPool pool =
+            _canonical(new WindowHonouringRefPool(weth, token, REGISTRY_DEFAULT_WINDOW, 69080));
+        _pinDefaultWindow(address(pool));
+
+        UniswapVaultPriceValidator divergent = _validator(3600);
+        vm.expectRevert();
+        divergent.quoteEthForTokensVia(address(pool), 0, 0, token, 1e18);
     }
 
     /// A pool with LESS history than the registry's default is rejected AT SET TIME, so the divergence

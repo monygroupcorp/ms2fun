@@ -214,7 +214,9 @@ contract SeedAnvil is SeedAnvilShared {
     // as the anti-sandwich floor's oracle only. Its 0.3% sibling is likewise empty — do not swap them.
     address constant CULT_REFERENCE_POOL_V3 = 0xC4ce8E63921b8B6cBdB8fCB6Bd64cC701Fb926f2;
     uint8 constant CULT_REFERENCE_KIND = 0; // Uniswap V3 `observe`
-    uint32 constant CULT_REFERENCE_TWAP_WINDOW = 0; // 0 => the registry's default window
+    // 0 asks for the registry's default window. The pin READS BACK as that resolved default (1800),
+    // not as 0 — `setReferencePool` stores the window it proved the pool over (noesis-285).
+    uint32 constant CULT_REFERENCE_TWAP_WINDOW = 0;
 
     // ── The acquire pool's DEPTH ────────────────────────────────────────────────────────────
     // Mainnet singletons, present on the fork. The pool manager is the V4 singleton every pool lives

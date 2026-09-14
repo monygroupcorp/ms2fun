@@ -223,13 +223,15 @@ contract AlignmentRegistryReferencePoolTest is Test {
         assertEq(uint256(got.twapWindow), 900);
     }
 
+    /// noesis-285: a caller's 0 is RESOLVED at set time and the proved window is what is stored, so the
+    /// reader is never left to resolve the same 0 against a different constant of its own. `1800` is
+    /// `AlignmentRegistryV1.DEFAULT_TWAP_WINDOW`, transcribed because it is `internal`.
     function test_SetReferencePool_DefaultWindowWhenZero() public {
         uint256 targetId = _registerTarget();
         MockUniV3RefPool pool = _uniPool(cultToken, weth);
         vm.prank(daoOwner);
         registry.setReferencePool(targetId, cultToken, _ref(address(pool), KIND_UNI, 0));
-        // stored struct keeps the raw 0 (consumers resolve 0 => default); the setter still probed with 1800.
-        assertEq(uint256(registry.getReferencePool(targetId, cultToken).twapWindow), 0);
+        assertEq(uint256(registry.getReferencePool(targetId, cultToken).twapWindow), 1800);
     }
 
     function test_SetReferencePool_Update() public {
