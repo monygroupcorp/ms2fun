@@ -193,6 +193,23 @@ for (const role of Object.keys(manifest.prerequisites ?? {})) {
 if (!manifest.report?.destination?.trim()) fail('report.destination is empty — a walk with no return path collects nothing');
 if (!manifest.report?.include?.length) fail('report.include is empty — a finding with no required fields is a paragraph, not a row');
 
+// The secondary destination is a page in the app, and a page is a link. Every step of an invite is
+// rendered as an address off --at, because this build ships two distributions that are not reached
+// the same way; the board a finding can be posted to was the one place that stayed a bare path in
+// prose, so a tester on the pinned build met a gateway 404 at the exact moment they had a defect to
+// report. Naming the route renders it like every other link, and pins it to a route that exists.
+if (manifest.report?.secondary && !manifest.report?.secondaryRoute) {
+  fail('report.secondary sends a finding to a page in the app but report.secondaryRoute does not say which — a return path a tester cannot open collects nothing');
+}
+if (manifest.report?.secondaryRoute) {
+  if (!routes.has(manifest.report.secondaryRoute)) {
+    fail(`report.secondaryRoute ${manifest.report.secondaryRoute} is not a route in ${APP} — the walk's second return path is a dead link`);
+  }
+  if (!manifest.report.secondary?.includes(manifest.report.secondaryRoute)) {
+    fail(`report.secondary does not name ${manifest.report.secondaryRoute}, so the prose and the address rendered under it can drift apart`);
+  }
+}
+
 const excused = new Map();
 for (const entry of manifest.outOfWalk ?? []) {
   if (!surface.writes.has(entry.call)) fail(`outOfWalk names ${entry.call}, which the app does not send — delete the line`);
@@ -271,10 +288,14 @@ function parseAt(raw) {
 // The route as a thing a person can click, with the chain id the invite is for filled in and every
 // remaining parameter left as an angle-bracketed blank — `<slug>` reads as something to supply,
 // where `:slug` reads as a URL somebody forgot to finish.
+function routeWhere(route, chainId, at) {
+  const path = route.replace(':chainId', String(chainId)).replace(/:(\w+)/g, '<$1>');
+  return at ? `${at}${path.replace(/^\//, '')}` : path;
+}
+
 function stepWhere(step, chainId, at) {
   if (step.route === '*') return 'anywhere in the app';
-  const path = step.route.replace(':chainId', String(chainId)).replace(/:(\w+)/g, '<$1>');
-  return at ? `${at}${path.replace(/^\//, '')}` : path;
+  return routeWhere(step.route, chainId, at);
 }
 
 // The origin the app names as its own, so the refusal below can show a real example rather than a
@@ -366,7 +387,14 @@ function renderInvite(role, chain, at) {
   }
   say(`## When something is wrong\n\n${manifest.blockingRule}\n`);
   say(`${manifest.report.destination}\n`);
-  if (manifest.report.secondary) say(`${manifest.report.secondary}\n`);
+  if (manifest.report.secondary) {
+    say(`${manifest.report.secondary}\n`);
+    // Off --at like every step link above it, for the same reason: a tester on the pinned build who
+    // types the bare path meets the gateway's 404 rather than the board.
+    if (manifest.report.secondaryRoute) {
+      say(`On the build you were sent to, that page is ${routeWhere(manifest.report.secondaryRoute, chain.chainId, at)}\n`);
+    }
+  }
   say('Send one report per step, and include:\n');
   for (const field of manifest.report.include) say(`- ${field}`);
   // A tester has a wallet and a browser, not this repo. The invite used to end by telling them to
@@ -507,6 +535,14 @@ if (process.argv.includes('--selftest')) {
       check(text.includes(field), `--invite ${role} carries the report field '${field.trim()}'`);
     }
     check(!/\bnode tools\//.test(text), `--invite ${role} asks the tester to run nothing`);
+    // The return path is a link like any other. It is the last one a tester follows and the first
+    // one nobody notices is broken, because it is only reached by somebody who already has a defect.
+    if (manifest.report.secondaryRoute) {
+      check(
+        text.includes(routeWhere(manifest.report.secondaryRoute, fixture.chainId, fixtureAt)),
+        `--invite ${role} renders the second return path as an address the tester can open`,
+      );
+    }
     // A missing manifest field renders as the string "undefined" and reads as prose to a tester.
     check(!/\b(undefined|null|NaN)\b/.test(text), `--invite ${role} interpolates no missing field`);
     const owned = manifest.acts.filter((a) => a.role === role).flatMap((a) => a.steps);
