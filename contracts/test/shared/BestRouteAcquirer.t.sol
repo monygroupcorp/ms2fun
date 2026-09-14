@@ -221,6 +221,78 @@ contract AcquirerHarness {
     receive() external payable { }
 }
 
+/// @notice Quoter whose reply is hand-encoded, so a test can put ANY word in the `source` slot —
+///         including members that exist upstream and not in our mirror — and can truncate the reply.
+///         A normal Solidity mock cannot express this: its own enum type would reject the value first.
+contract RawSourceQuoter {
+    uint256 public source;
+    uint256 public feeBps;
+    uint256 public amountOut;
+    uint256 public replyWords = 5; // full head: four `best` words + the offset to `quotes`
+
+    function set(uint256 _source, uint256 _feeBps, uint256 _amountOut) external {
+        source = _source;
+        feeBps = _feeBps;
+        amountOut = _amountOut;
+    }
+
+    function setReplyWords(uint256 n) external {
+        replyWords = n;
+    }
+
+    fallback(bytes calldata) external returns (bytes memory) {
+        bytes memory full = abi.encode(source, feeBps, uint256(1 ether), amountOut, uint256(0xa0), uint256(0));
+        uint256 n = replyWords * 32;
+        if (n >= full.length) return full;
+        bytes memory out = new bytes(n);
+        for (uint256 i = 0; i < n; i++) {
+            out[i] = full[i];
+        }
+        return out;
+    }
+}
+
+/// @notice The decode shape `BestRouteAcquirer` used to have: the reply read through a typed
+///         FIVE-member enum inside a `try`/`catch` whose stated contract was "a quoter that reverts
+///         or is not a contract degrades to the fallback". Kept as a CONTROL so the tests below are
+///         not vacuous — it shows the same inputs that now degrade used to revert past the catch.
+interface ILegacyFiveMemberQuoter {
+    enum AMM {
+        UNI_V2,
+        SUSHI,
+        ZAMM,
+        UNI_V3,
+        UNI_V4
+    }
+
+    struct Quote {
+        AMM source;
+        uint256 feeBps;
+        uint256 amountIn;
+        uint256 amountOut;
+    }
+
+    function getQuotes(bool exactOut, address tokenIn, address tokenOut, uint256 swapAmount)
+        external
+        view
+        returns (Quote memory best, Quote[] memory quotes);
+}
+
+contract LegacyTypedDecodeControl {
+    /// @return caught true if the `catch` clause actually ran. For a REPLY-decode failure it does
+    ///         not: the callee returned fine and the decode runs in this frame, past the catch — so
+    ///         this function reverts rather than returning either value.
+    function readCaught(address q) external view returns (bool caught) {
+        try ILegacyFiveMemberQuoter(q).getQuotes(false, address(0), address(1), 1 ether) returns (
+            ILegacyFiveMemberQuoter.Quote memory, ILegacyFiveMemberQuoter.Quote[] memory
+        ) {
+            return false;
+        } catch {
+            return true;
+        }
+    }
+}
+
 contract BestRouteAcquirerTest is Test {
     RecordingRouter internal router;
     RecordingAlgebraRouter internal algebraRouter;
@@ -385,6 +457,108 @@ contract BestRouteAcquirerTest is Test {
         uint256 got = _callV4(address(quoter), 100e18);
         assertEq(router.lastFee(), FIXED_FEE, "empty quote -> fixed fallback");
         assertEq(got, 100e18);
+    }
+
+    // ── Widened / malformed quoter replies: degrade, never revert ───────────────────────────────
+    //
+    // The mainnet `zQuoter.AMM` carries NINE members; this library mirrors them and maps the first
+    // five. The four it does not map, a tenth member it has never seen, an address with no code, and
+    // a truncated reply must all reach the fixed-pool fallback. Every one of these used to revert
+    // the whole acquisition instead — `test_control_*` below is the proof that they did.
+
+    /// The exact upstream drift the mirror was written against: a source our enum has a NAME for but
+    /// no typed leg. Quoted, unmapped, degraded — not reverted.
+    function test_fallback_whenSourceIsQuotedButUnmapped() public {
+        RawSourceQuoter raw = new RawSourceQuoter();
+        router.setV4Out(FIXED_FEE, 100e18);
+        // 5..8 = CURVE, LIDO, WETH_WRAP, V4_HOOKED.
+        for (uint256 src = 5; src <= 8; src++) {
+            raw.set(src, 30, 200e18);
+            uint256 got = _callV4(address(raw), 100e18);
+            assertEq(router.lastFee(), FIXED_FEE, "unmapped source -> fixed fallback");
+            assertEq(got, 100e18);
+        }
+    }
+
+    /// A member that does not exist upstream TODAY. Widening the mirror to nine only moves the cliff;
+    /// the range check is what removes it, so a tenth member degrades like any other.
+    function test_fallback_whenSourceIsBeyondTheWidenedEnum() public {
+        RawSourceQuoter raw = new RawSourceQuoter();
+        router.setV4Out(FIXED_FEE, 100e18);
+        raw.set(9, 30, 200e18);
+        assertEq(_callV4(address(raw), 100e18), 100e18, "source 9 -> fixed fallback");
+        assertEq(router.lastFee(), FIXED_FEE);
+        raw.set(type(uint256).max, 30, 200e18);
+        assertEq(_callV4(address(raw), 100e18), 100e18, "source 2^256-1 -> fixed fallback");
+        assertEq(router.lastFee(), FIXED_FEE);
+    }
+
+    /// `setZQuoter` to an address that holds no code: the call succeeds with empty returndata. The
+    /// library's own docstring always claimed this degraded; until the hand decode it did not.
+    function test_fallback_whenQuoterHasNoCode() public {
+        router.setV4Out(FIXED_FEE, 100e18);
+        uint256 got = _callV4(address(0xDEAD), 100e18);
+        assertEq(router.lastFee(), FIXED_FEE, "no-code quoter -> fixed fallback");
+        assertEq(got, 100e18);
+    }
+
+    function test_fallback_whenReplyIsTruncated() public {
+        RawSourceQuoter raw = new RawSourceQuoter();
+        router.setV4Out(FIXED_FEE, 100e18);
+        raw.set(uint256(uint8(MockZQuoter.AMM.UNI_V4)), 5, 200e18);
+        raw.setReplyWords(4); // `best` complete but the `quotes` offset missing -> not a whole head
+        assertEq(_callV4(address(raw), 100e18), 100e18, "short reply -> fixed fallback");
+        assertEq(router.lastFee(), FIXED_FEE);
+    }
+
+    /// A fee word too wide for the casts the V4 leg makes. `uint24(feeBps * 100)` and
+    /// `uint16(feeBps)` truncate DIFFERENTLY, so a swap would go to one pool with another pool's
+    /// tick spacing. Refused, not routed.
+    function test_fallback_whenFeeBpsWouldTruncate() public {
+        RawSourceQuoter raw = new RawSourceQuoter();
+        router.setV4Out(FIXED_FEE, 100e18);
+        raw.set(uint256(uint8(MockZQuoter.AMM.UNI_V4)), uint256(type(uint16).max) + 1, 200e18);
+        assertEq(_callV4(address(raw), 100e18), 100e18, "oversized feeBps -> fixed fallback");
+        assertEq(router.lastFee(), FIXED_FEE);
+    }
+
+    /// A widened reply still ROUTES when the source is one we map — the guard degrades the unknown,
+    /// it does not disable best-route selection.
+    function test_widenedReply_stillDispatchesMappedSource() public {
+        RawSourceQuoter raw = new RawSourceQuoter();
+        router.setV4Out(100 * 100, 7e18); // 100 bps -> fee 10000, spacing 200
+        raw.set(uint256(uint8(MockZQuoter.AMM.UNI_V4)), 100, 200e18);
+        uint256 got = _callV4(address(raw), 1e18);
+        assertEq(uint256(router.lastLeg()), uint256(RecordingRouter.Leg.V4));
+        assertEq(router.lastFee(), 100 * 100, "best route still taken");
+        assertEq(router.lastTickSpace(), int24(200));
+        assertEq(got, 7e18);
+    }
+
+    // ── Control: the decode shape this replaced, on the same inputs ──────────────────────────────
+
+    /// NON-VACUITY. Reading the same replies through a typed five-member enum inside a `try`/`catch`
+    /// reverts — the catch does NOT run, so the acquirer's "unmappable source -> fallback" branch was
+    /// unreachable. This is the defect; the tests above are its absence.
+    function test_control_legacyTypedDecodeRevertsPastTheCatch() public {
+        LegacyTypedDecodeControl control = new LegacyTypedDecodeControl();
+        RawSourceQuoter raw = new RawSourceQuoter();
+
+        raw.set(5, 30, 200e18); // CURVE: in range for nine members, out of range for five
+        vm.expectRevert();
+        control.readCaught(address(raw));
+
+        vm.expectRevert();
+        control.readCaught(address(0xDEAD)); // no code: empty returndata, decode fails past the catch
+    }
+
+    /// The one case the old `try`/`catch` genuinely did handle, kept so the control is honest about
+    /// what it proves: an EXPLICIT revert inside the quoter is a failed call, and that the catch does
+    /// catch.
+    function test_control_legacyTypedDecodeCatchesAnExplicitRevert() public {
+        LegacyTypedDecodeControl control = new LegacyTypedDecodeControl();
+        quoter.setShouldRevert(true);
+        assertTrue(control.readCaught(address(quoter)), "explicit revert IS caught");
     }
 
     function test_fallback_whenQuoterReverts() public {
