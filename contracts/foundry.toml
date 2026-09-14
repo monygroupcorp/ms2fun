@@ -24,6 +24,15 @@ fs_permissions = [
     # `[profile.default]`, so `FOUNDRY_PROFILE=ci` picks this up unchanged.
     { access = "read", path = "./src/" },
 ]
+# The `test/audit` suppression census reads every `.sol` under `src/` in one call and splits each into
+# lines. Solidity never reclaims memory, so the run's memory-expansion GAS — which grows quadratically
+# — scales with the SIZE OF THE TREE rather than with anything the test does. On foundry's default
+# `gas_limit` of 2^30 that was already close enough to the edge that ~800 bytes of added comments in a
+# single source file spent the remaining headroom and reverted it as `EvmError: MemoryOOG`, an error
+# that names no file, no line and no assertion. The guard is right; its budget was sized for a smaller
+# `src`. If this is hit again, raise it again or make the census stream file-by-file — do NOT shrink
+# source comments to fit a test's gas budget.
+gas_limit = 4294967296
 # The RealSettlement regression imports v4-core's real PoolManager (exact pragma 0.8.26),
 # which cannot compile under the pinned 0.8.28 default. Exclude it from the default compile
 # set; it is exercised via `FOUNDRY_CONFIG=foundry.v4.toml forge test --match-path ...`.

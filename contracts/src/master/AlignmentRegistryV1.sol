@@ -482,7 +482,9 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
      *      enforced is origin, and depth stays the pinning owner's judgement.
      * @param targetId ID of the alignment target (must exist and be active)
      * @param token    Token that must already belong to the target
-     * @param ref      Reference pool: `pool`, `kind` (0 = Uniswap V3, 1 = Algebra), `twapWindow` (0 => default)
+     * @param ref      Reference pool: `pool`, `kind` (0 = Uniswap V3, 1 = Algebra), `twapWindow`
+     *                 (0 => `DEFAULT_TWAP_WINDOW`, which is RESOLVED HERE and stored, so what is read back
+     *                 is the window this pool was proved over and never a bare `0`)
      */
     function setReferencePool(uint256 targetId, address token, ReferencePool calldata ref) external override onlyOwner {
         if (alignmentTargets[targetId].approvedAt == 0) revert TargetNotFound();
@@ -498,7 +500,16 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
             _probeAlgebraReference(ref.pool, token, window);
         }
 
-        referencePools[targetId][token] = ref;
+        // Store the window that was actually PROVED, never the caller's `0`. A zero is resolved twice on
+        // two different constants otherwise — here against `DEFAULT_TWAP_WINDOW`, and again at read time
+        // against the price validator's own `twapSecondsAgo` (its constructor argument) — and nothing
+        // records which one this pool was proved against. The probe above is the whole guarantee the vault
+        // floor quotes, so the reader must ask for the same window the prover used: pinning a pool with
+        // exactly 1800s of history under a validator configured at 3600 would otherwise pin cleanly and
+        // then revert `ReferenceTwapUnavailable` in the vault's floor path, surfacing as a vault that
+        // cannot convert rather than as a rejected pin. Writing the resolved value here retires the
+        // reader's fallback for every pool pinned from now on.
+        referencePools[targetId][token] = ReferencePool({ pool: ref.pool, kind: ref.kind, twapWindow: window });
         emit ReferencePoolSet(targetId, token, ref.pool, ref.kind);
     }
 
