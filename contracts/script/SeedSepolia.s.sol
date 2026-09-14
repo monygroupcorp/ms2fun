@@ -268,7 +268,7 @@ contract SeedSepolia is SeedSepoliaShared {
 
         // The depth the curated route already claims, in the pool the acquire leg swaps through.
         for (uint256 i = 0; i < roster.length; i++) {
-            _seedV4Depth(d, h.targetTokens[i], roster[i].symbol);
+            _seedV4Depth(d, h.targetTokens[i], h.targetVaults[i], roster[i].symbol);
         }
     }
 
@@ -309,7 +309,7 @@ contract SeedSepolia is SeedSepoliaShared {
     ///      floor. Sepolia analog of the mainnet-fork depth seed; the difference is where the token
     ///      leg comes from, and it is a property of the network rather than of the pattern — there is
     ///      no deep pool here to buy a fixture asset on, so the leg is minted. The floor is untouched.
-    function _seedV4Depth(Deployed memory d, address token, string memory symbol) internal {
+    function _seedV4Depth(Deployed memory d, address token, address vault, string memory symbol) internal {
         PoolKey memory key = _uniVenueKey(token);
         uint128 activeBefore = IPoolManager(d.v4PoolManager).getLiquidity(key.toId());
         uint256 budget = _v4DepthWei();
@@ -336,8 +336,12 @@ contract SeedSepolia is SeedSepoliaShared {
         // established that `key` holds enough active liquidity to serve a convert. Registering at
         // deploy time would have pointed the acquire leg at an empty pool; registering anywhere else
         // would let the two drift apart.
+        //
+        // The row names THIS VAULT and no other. `token` alone would also answer the venue vaults
+        // that share the asset — the Cypher vault on CULT, the ZAMM vault on MS2 — and send their
+        // converts to this Uniswap pool instead of the venue they LP into and floor against.
         vm.startBroadcast();
-        SepoliaRouteQuoter(d.zQuoter).setRoute(token, POOL_FEE_BPS);
+        SepoliaRouteQuoter(d.zQuoter).setRoute(vault, token, SepoliaRouteQuoter.AMM.UNI_V4, POOL_FEE_BPS);
         vm.stopBroadcast();
 
         console.log(string.concat("VENUE ", symbol, " uni-v4 depth - budget (wei):"), budget);
@@ -419,6 +423,16 @@ contract SeedSepolia is SeedSepoliaShared {
         require(liquidity > 0, "venue: the ZAMM pool minted no liquidity");
         require(pool.reserve0 > 0 && pool.reserve1 > 0, "venue: the ZAMM pool holds a one-sided reserve");
 
+        // This vault's own best-route row, registered once the pool holds two-sided reserves — the
+        // same discipline as the V4 rows, for the same reason. It names the pool the vault already
+        // LPs into and already falls back to, so it changes WHERE nothing trades; what it changes is
+        // WHICH CODE gets there — `BestRouteAcquirer`'s typed `swapVZ` leg instead of the fallback
+        // around it. That leg is one of the two this showcase exists to rehearse, and without a row
+        // the only thing Sepolia would establish about it is that it compiles.
+        vm.startBroadcast();
+        SepoliaRouteQuoter(d.zQuoter).setRoute(h.ms2ZammVault, h.ms2Token, SepoliaRouteQuoter.AMM.ZAMM, d.zammFeeOrHook);
+        vm.stopBroadcast();
+
         console.log("VENUE MS2 zamm target/vault:", h.ms2ZammTargetId, h.ms2ZammVault);
         console.log("  pool feeOrHook / ETH deposited (wei):", d.zammFeeOrHook, budget);
         console.log("  reserves (eth, token):", uint256(pool.reserve0), uint256(pool.reserve1));
@@ -497,6 +511,13 @@ contract SeedSepolia is SeedSepoliaShared {
             );
         vm.stopBroadcast();
 
+        // NO best-route row for this vault, deliberately, and it is the row's ABSENCE that puts the
+        // acquire leg on Algebra. `BestRouteAcquirer`'s typed set is swapV2/V3/V4/VZ — there is no
+        // Algebra leg for it to dispatch to — so any row this vault could be given would name some
+        // OTHER venue, and it would then buy CULT on that venue while LPing on Algebra and flooring
+        // against the Algebra pool's own TWAP. An empty route is how this ABI says "no route I can
+        // execute", and it is what sends the acquire through `exactInputSingle` on the pool this
+        // function just stood up.
         console.log("VENUE CULT cypher target/vault:", h.cultAlgebraTargetId, h.cultCypherVault);
         console.log("  algebra pool / ETH deposited (wei):", h.cultAlgebraPool, budget);
     }
@@ -1320,6 +1341,17 @@ contract SeedSepolia is SeedSepoliaShared {
             );
             IZAMM.Pool memory pool = IZAMM(d.zamm).pools(_zammPoolId(_zammVenueKey(h.ms2Token, d.zammFeeOrHook)));
             require(pool.reserve0 > 0 && pool.reserve1 > 0, "venue: the ZAMM vault's own pool holds no reserves");
+            // MS2 is also a Uniswap target, so this vault's row is the one that proves the table
+            // tells the two apart: it must name ZAMM at this deployment's feeOrHook, which is the
+            // vault's own pool, and not the V4 tier its Uniswap sibling was registered at.
+            (SepoliaRouteQuoter.AMM zSource, uint256 zFeeOrHook, bool zRouted) =
+                SepoliaRouteQuoter(d.zQuoter).routeOf(h.ms2ZammVault, h.ms2Token);
+            require(zRouted, "venue: the ZAMM vault carries no best-route row");
+            require(zSource == SepoliaRouteQuoter.AMM.ZAMM, "venue: the ZAMM vault is best-routed off its own venue");
+            require(
+                zFeeOrHook == d.zammFeeOrHook,
+                "venue: the ZAMM vault's best-route row names another pool than the one it LPs into"
+            );
             _assertVaultBinding(h.ms2ZammVault, h.ms2Token, h.ms2ZammTargetId, "MS2 zamm");
         }
 
@@ -1335,6 +1367,12 @@ contract SeedSepolia is SeedSepoliaShared {
                 IAlgebraPool(h.cultAlgebraPool).plugin() != address(0),
                 "venue: the Algebra pool lost its plugin (getTimepoints would not serve the validator)"
             );
+            // ABSENCE, asserted. CULT is also a Uniswap target, and a row on this vault — at any
+            // venue, since none of the acquirer's typed legs is Algebra — would take its convert off
+            // the Algebra pool it LPs into and floors against. There is nothing to seed here; there
+            // is something to keep un-seeded, so it is stated.
+            (,, bool cypherRouted) = SepoliaRouteQuoter(d.zQuoter).routeOf(h.cultCypherVault, h.cultToken);
+            require(!cypherRouted, "venue: the Cypher vault carries a best-route row (it has no typed leg)");
             _assertVaultBinding(h.cultCypherVault, h.cultToken, h.cultAlgebraTargetId, "CULT cypher");
             require(h.cypher404 != address(0), "venue: the Cypher rail is wired but carries no collection");
         }
@@ -1372,10 +1410,18 @@ contract SeedSepolia is SeedSepoliaShared {
         // A row registered at another tier sends its convert to a pool nothing seeded; a row missing
         // from the table silently drops to the fallback, which is the same pool here but would stop
         // being so the moment a second tier exists — and either way the showcase would no longer be
-        // rehearsing the acquire path it claims to.
+        // rehearsing the acquire path it claims to. The row is read against THIS VAULT, which is how
+        // the table keeps the Uni leg off the vaults that share the asset on another venue.
         require(d.zQuoter != address(0), string.concat("venue: ", label, " deployment wired no quoter"));
+        (SepoliaRouteQuoter.AMM source, uint256 feeOrHook, bool routed) =
+            SepoliaRouteQuoter(d.zQuoter).routeOf(vault, token);
+        require(routed, string.concat("venue: ", label, " vault carries no best-route row"));
         require(
-            SepoliaRouteQuoter(d.zQuoter).routeFeeBps(token) == POOL_FEE_BPS,
+            source == SepoliaRouteQuoter.AMM.UNI_V4,
+            string.concat("venue: ", label, " best-route table sends the vault off its curated venue")
+        );
+        require(
+            feeOrHook == POOL_FEE_BPS,
             string.concat("venue: ", label, " best-route table does not name the seeded tier")
         );
         _assertVaultBinding(vault, token, targetId, label);

@@ -790,27 +790,28 @@ contract SeedModuleCoverageTest is Test {
 
     // ── THE SEPOLIA BEST-ROUTE TABLE ──
 
-    /// @dev The showcase's quoter is deployed with an EMPTY table, before any roster token exists,
-    ///      and filled one row at a time as each token's pool is given depth. So the property that
-    ///      makes that ordering safe is the one worth pinning: an unregistered token is answered with
-    ///      no route, which `BestRouteAcquirer` reads as "fall back to the fixed pool" — i.e. a vault
+    /// @dev The showcase's quoter is deployed with an EMPTY table, before any vault exists, and
+    ///      filled one row at a time as each vault's pool is given depth. So the property that makes
+    ///      that ordering safe is the one worth pinning: an unregistered pair is answered with no
+    ///      route, which `BestRouteAcquirer` reads as "fall back to the fixed pool" — i.e. a vault
     ///      the table has not been told about behaves exactly as it would with no quoter at all.
-    function test_sepoliaRouteQuoter_unregisteredTokenGetsNoRoute() public {
+    function test_sepoliaRouteQuoter_unregisteredVaultGetsNoRoute() public {
         SepoliaRouteQuoter quoter = new SepoliaRouteQuoter(address(this));
 
         (SepoliaRouteQuoter.Quote memory best, SepoliaRouteQuoter.Quote[] memory all) =
             quoter.getQuotes(false, address(0), cultToken, 1 ether);
-        assertEq(best.amountOut, 0, "route table: an unregistered token was given a route");
-        assertEq(all.length, 0, "route table: an unregistered token was given a route list");
+        assertEq(best.amountOut, 0, "route table: an unregistered vault was given a route");
+        assertEq(all.length, 0, "route table: an unregistered vault was given a route list");
     }
 
-    /// @dev A registered row resolves to the tier it was registered at, reported as UNI_V4. The fee
-    ///      is asserted alongside the source because the source alone does not pick a pool: the
-    ///      acquirer multiplies `feeBps` by 100 for the V4 fee and maps 30 bps to tick spacing 60,
-    ///      which is the tier `SeedSepoliaShared` seeds depth into. Move either half and this goes red.
-    function test_sepoliaRouteQuoter_registeredTokenResolvesToTheSeededTier() public {
+    /// @dev A registered row resolves to the venue it was registered at, for the vault it was
+    ///      registered against. The fee is asserted alongside the source because the source alone
+    ///      does not pick a pool: the acquirer multiplies `feeBps` by 100 for the V4 fee and maps 30
+    ///      bps to tick spacing 60, which is the tier `SeedSepoliaShared` seeds depth into. Move
+    ///      either half and this goes red.
+    function test_sepoliaRouteQuoter_registeredVaultResolvesToTheSeededTier() public {
         SepoliaRouteQuoter quoter = new SepoliaRouteQuoter(address(this));
-        quoter.setRoute(cultToken, 30); // POOL_FEE 3000 / 100
+        quoter.setRoute(address(this), cultToken, SepoliaRouteQuoter.AMM.UNI_V4, 30); // POOL_FEE / 100
 
         (SepoliaRouteQuoter.Quote memory best, SepoliaRouteQuoter.Quote[] memory all) =
             quoter.getQuotes(false, address(0), cultToken, 1 ether);
@@ -821,10 +822,10 @@ contract SeedModuleCoverageTest is Test {
         );
         assertEq(best.feeBps, 30, "route table: the quote does not resolve to the seeded 0.3% tier");
         assertEq(best.amountIn, 1 ether, "route table: the quote does not carry the requested size");
-        assertGt(best.amountOut, 0, "route table: a registered token got no route");
-        assertEq(all.length, 1, "route table: a registered token got no route list");
+        assertGt(best.amountOut, 0, "route table: a registered vault got no route");
+        assertEq(all.length, 1, "route table: a registered vault got no route list");
 
-        // Registering one row must not answer for another.
+        // Registering one token must not answer for another.
         (SepoliaRouteQuoter.Quote memory other,) = quoter.getQuotes(false, address(0), address(0xBEEF), 1 ether);
         assertEq(other.amountOut, 0, "route table: an unregistered token was answered");
 
@@ -833,26 +834,79 @@ contract SeedModuleCoverageTest is Test {
         assertEq(wrongIn.amountOut, 0, "route table: answered a non-ETH input");
 
         // A cleared row goes back to the fallback rather than keeping its last answer.
-        quoter.setRoute(cultToken, 0);
+        quoter.clearRoute(address(this), cultToken);
         (SepoliaRouteQuoter.Quote memory cleared,) = quoter.getQuotes(false, address(0), cultToken, 1 ether);
         assertEq(cleared.amountOut, 0, "route table: a cleared route still answered");
     }
 
-    /// @dev The table steers real vault ETH, so only the deployer writes it; and a fee word wider
-    ///      than the acquirer's casts is refused at the source rather than stored as a route that
-    ///      degrades every convert to the fallback.
-    function test_sepoliaRouteQuoter_refusesAStrangerAndAnUnusableTier() public {
+    /// @dev THE REASON THE TABLE IS KEYED BY THE CALLER. The showcase carries one asset on more than
+    ///      one venue — CULT on Uniswap V4 and on Cypher's Algebra pool, MS2 on Uniswap V4 and on
+    ///      ZAMM — in separate vaults, each flooring its convert against its own venue's price
+    ///      authority. `BestRouteAcquirer` is inlined into the vault, so the vault is `msg.sender`
+    ///      here, and this asserts the three answers that fact has to produce: the Uni vault gets its
+    ///      V4 tier, the ZAMM vault gets its OWN venue rather than the sibling's, and the Cypher
+    ///      vault — whose venue the acquirer has no typed leg for — gets nothing, which is what puts
+    ///      it on its Algebra fallback. Keyed by token alone, all three would read the same row.
+    function test_sepoliaRouteQuoter_aRowAnswersOneVaultOnly() public {
+        SepoliaRouteQuoter quoter = new SepoliaRouteQuoter(address(this));
+        address uniVault = address(0x11);
+        address zammVault = address(0x22);
+        address cypherVault = address(0x33);
+
+        quoter.setRoute(uniVault, cultToken, SepoliaRouteQuoter.AMM.UNI_V4, 30);
+        quoter.setRoute(zammVault, cultToken, SepoliaRouteQuoter.AMM.ZAMM, 1234);
+        // cypherVault is deliberately left unregistered.
+
+        vm.prank(uniVault);
+        (SepoliaRouteQuoter.Quote memory uni,) = quoter.getQuotes(false, address(0), cultToken, 1 ether);
+        assertEq(uint8(uni.source), uint8(SepoliaRouteQuoter.AMM.UNI_V4), "route table: the Uni vault lost its venue");
+        assertEq(uni.feeBps, 30, "route table: the Uni vault was sent off the seeded tier");
+
+        vm.prank(zammVault);
+        (SepoliaRouteQuoter.Quote memory zamm,) = quoter.getQuotes(false, address(0), cultToken, 1 ether);
+        assertEq(
+            uint8(zamm.source), uint8(SepoliaRouteQuoter.AMM.ZAMM), "route table: the ZAMM vault was sent to Uniswap"
+        );
+        assertEq(zamm.feeBps, 1234, "route table: the ZAMM vault got the sibling's fee word");
+
+        vm.prank(cypherVault);
+        (SepoliaRouteQuoter.Quote memory cypher, SepoliaRouteQuoter.Quote[] memory none) =
+            quoter.getQuotes(false, address(0), cultToken, 1 ether);
+        assertEq(cypher.amountOut, 0, "route table: the Algebra vault was best-routed off its own venue");
+        assertEq(none.length, 0, "route table: the Algebra vault was handed a route list");
+    }
+
+    /// @dev The table steers real vault ETH, so only the deployer writes it; a fee word wider than
+    ///      the acquirer's casts is refused at the source rather than stored as a route that degrades
+    ///      every convert to the fallback; and a source the acquirer has no typed leg for is refused
+    ///      outright, because such a row can only degrade to the fallback while reading as a route.
+    function test_sepoliaRouteQuoter_refusesAStrangerAndAnUnusableRow() public {
         SepoliaRouteQuoter quoter = new SepoliaRouteQuoter(address(this));
 
         vm.prank(address(0xBEEF));
         vm.expectRevert(SepoliaRouteQuoter.NotOperator.selector);
-        quoter.setRoute(cultToken, 30);
+        quoter.setRoute(address(this), cultToken, SepoliaRouteQuoter.AMM.UNI_V4, 30);
+
+        vm.prank(address(0xBEEF));
+        vm.expectRevert(SepoliaRouteQuoter.NotOperator.selector);
+        quoter.clearRoute(address(this), cultToken);
 
         vm.expectRevert(SepoliaRouteQuoter.InvalidRoute.selector);
-        quoter.setRoute(cultToken, uint256(type(uint16).max) + 1);
+        quoter.setRoute(address(this), cultToken, SepoliaRouteQuoter.AMM.UNI_V4, uint256(type(uint16).max) + 1);
 
         vm.expectRevert(SepoliaRouteQuoter.InvalidRoute.selector);
-        quoter.setRoute(address(0), 30);
+        quoter.setRoute(address(this), address(0), SepoliaRouteQuoter.AMM.UNI_V4, 30);
+
+        vm.expectRevert(SepoliaRouteQuoter.InvalidRoute.selector);
+        quoter.setRoute(address(0), cultToken, SepoliaRouteQuoter.AMM.UNI_V4, 30);
+
+        // CURVE / LIDO / WETH_WRAP / V4_HOOKED are quoted by upstream and executed by nothing here.
+        vm.expectRevert(SepoliaRouteQuoter.InvalidRoute.selector);
+        quoter.setRoute(address(this), cultToken, SepoliaRouteQuoter.AMM.CURVE, 0);
+
+        // `swapV2` reads no fee word; one stored against it would be a number nothing consults.
+        vm.expectRevert(SepoliaRouteQuoter.InvalidRoute.selector);
+        quoter.setRoute(address(this), cultToken, SepoliaRouteQuoter.AMM.UNI_V2, 30);
     }
 
     // ── THE ART, THE ARTISTS, AND WHAT THE COPY IS ALLOWED TO SAY ──
