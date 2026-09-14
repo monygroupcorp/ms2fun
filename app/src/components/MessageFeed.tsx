@@ -74,11 +74,14 @@ export function MessageFeed({
         logTestId="message-feed"
         scrolls={threads.length > 4}
       >
+        {/* Both counts are threads, not events: an endorsement is never a line in a transcript, so
+            a wall whose address has only endorsed has nothing to show and nothing filtering it —
+            counting raw events there would blame the spam lever for an empty wall. */}
         <ActivityStates
           subject="activity"
           isPending={isPending}
           isError={isError}
-          fetched={data?.length}
+          fetched={data === undefined ? undefined : view.threads.length}
           shown={threads.length}
           empty={empty ?? zeroState(filter)}
           emptyTestId="message-feed-empty"

@@ -93,4 +93,16 @@ describe('the salon’s zero-state', () => {
     expect(screen.getByTestId('board-thread')).toBeInTheDocument()
     expect(screen.queryByTestId('board-empty')).toBeNull()
   })
+
+  // The discourse view draws threads; an endorsement (type 3) folds into a count on the message it
+  // targets and is never a thread. A board holding only endorsements is empty to this view with
+  // nothing filtering it, so measuring it against the raw event count blamed the channel and the
+  // spam lever for posts that were never there.
+  it('says the wall is empty when the only events on it are endorsements', () => {
+    mount([post({ messageId: 7n, messageType: 3, refId: 1n, content: '' })])
+
+    const state = screen.getByTestId('board-empty')
+    expect(state).toHaveTextContent('this wall is empty')
+    expect(state).not.toHaveTextContent('nothing to show in this view')
+  })
 })

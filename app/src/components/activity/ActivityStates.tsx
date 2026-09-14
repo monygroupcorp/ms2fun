@@ -38,7 +38,13 @@ export function ActivityStates({
   subject: string
   isPending: boolean
   isError: boolean
-  /** Lines the surface has in hand, before its filters. `undefined` until the feed answers. */
+  /**
+   * Lines the surface has in hand before its filters, counted in the units it draws — threads where
+   * it draws threads, events where it draws events. It is only ever compared against `shown` to
+   * tell an empty room from a filtered one, so a count of something the transcript would never have
+   * drawn (an endorsement, in a threaded view) reads as a filter swallowing posts that do not exist.
+   * `undefined` until the feed answers.
+   */
   fetched: number | undefined
   /** Lines it actually draws. Above zero, the transcript speaks for itself and nothing renders. */
   shown: number

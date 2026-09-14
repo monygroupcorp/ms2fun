@@ -14,6 +14,10 @@
  * The same sentence is wrong a second way on the profile wall, where the feed is filtered by sender:
  * there is no room to be first in and no composer for a visitor, so these also pin that a wall says
  * what it is, and that a surface which knows better can say so itself.
+ *
+ * And a third way: the FETCHED count has to be in the units the transcript draws. An endorsement is
+ * an event on the feed but never a line in a threaded one, so a wall whose address has only endorsed
+ * held a full `data` and drew nothing — and the state blamed a spam lever that was sitting at zero.
  */
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -77,6 +81,31 @@ describe('the collection/vault/profile feed’s zero-state', () => {
     const state = screen.getByTestId('message-feed-empty')
     expect(state).toHaveTextContent('nothing to show in this view')
     expect(state).not.toHaveTextContent('no activity yet')
+  })
+})
+
+describe('a feed that holds only endorsements', () => {
+  // An endorsement (type 3) folds into a count on the message it targets; it is never a row. So the
+  // wall of an address that has only endorsed is genuinely empty, whatever `data.length` says, and
+  // naming a filter there is a fresh false statement about the room.
+  it('reads as an empty wall, not as a threshold hiding posts', () => {
+    feed.messages = [post({ messageId: 7n, messageType: 3, refId: 1n, content: '' })]
+
+    render(<MessageFeed filter={{ sender: SENDER }} />)
+
+    const state = screen.getByTestId('message-feed-empty')
+    expect(state).toHaveTextContent('nothing from this address yet')
+    expect(state).not.toHaveTextContent('nothing to show in this view')
+  })
+
+  it('does not name a threshold on a collection whose only events are endorsements', () => {
+    feed.messages = [post({ messageId: 7n, messageType: 3, refId: 1n, content: '' })]
+
+    render(<MessageFeed filter={{ instance: SENDER }} />)
+
+    const state = screen.getByTestId('message-feed-empty')
+    expect(state).toHaveTextContent('no activity yet')
+    expect(state).not.toHaveTextContent('threshold')
   })
 })
 

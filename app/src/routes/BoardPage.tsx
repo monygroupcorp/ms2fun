@@ -243,6 +243,14 @@ export function BoardPage() {
       ? visibleThreads.reduce((n, t) => n + 1 + t.replies.length, 0)
       : activityRows.length
 
+  // What the active view HELD before the channel and the threshold — the population the zero-state
+  // measures its "nothing to show" against. It has to be counted in the same units the view draws.
+  // The register names every event, so its population is the raw feed; the discourse view draws
+  // threads, and an endorsement is never a line in one, so a raw-event count there blames a filter
+  // for a channel that has nothing to say.
+  const held =
+    data === undefined ? undefined : boardView === 'discourse' ? view.threads.length : data.length
+
   return (
     <div className={styles.page}>
       <nav className={styles.crumb}>
@@ -314,14 +322,14 @@ export function BoardPage() {
               )
             }
           >
-            {/* Keyed on the rows this view actually shows, not on the raw feed: filter to a quiet
-                channel, or raise the spam threshold past everything in it, and `data` is full while
-                the transcript is bare. */}
+            {/* Keyed on the rows this view actually shows against the ones it held: filter to a
+                quiet channel, or raise the spam threshold past everything in it, and the view is
+                full while the transcript is bare. */}
             <ActivityStates
               subject="activity"
               isPending={isPending}
               isError={isError}
-              fetched={data?.length}
+              fetched={held}
               shown={rows}
               empty="this wall is empty — be the first to say something considered."
               filters="the current channel and threshold"
