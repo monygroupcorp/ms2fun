@@ -339,9 +339,16 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     /**
      * @notice Pin the community payout address for an approved alignment target. WRITE-ONCE.
      * @dev    The owner curates a target's payout exactly once, zero to nonzero; every later call reverts
-     *         `CommunityPayoutAlreadySet`. The payout is the community's money, and the protocol holds no
-     *         capability to move it after it is pinned — so a stolen owner key cannot redirect a single wei
-     *         of a curated community's yield, because there is no function that would let it.
+     *         `CommunityPayoutAlreadySet`. The payout is the community's money, and once pinned no function
+     *         on this registry or on any vault reading it will move it for anyone but the address holding
+     *         it — so a stolen owner key finds no call that redirects a curated community's yield.
+     *
+     *         What that claim does NOT cover, stated plainly because a reader will otherwise take it too
+     *         far: this registry is UUPS and `_authorizeUpgrade` is `onlyOwner`, so the owner can replace
+     *         the implementation and write itself any capability it likes, this one included. That is the
+     *         protocol's root of trust, not a hole in this function — it reaches every rule in the system
+     *         equally, it is visible on-chain as an upgrade, and narrowing it is a governance change
+     *         (timelock / multisig on the owner), not something a payout guard can do.
      *
      *         There is deliberately no owner-side correction path. An owner lever that exists to fix a
      *         mistyped first address IS the redirect capability under a friendlier name, and it is the
