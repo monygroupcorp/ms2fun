@@ -43,8 +43,8 @@
  *
  * The endowment family is out of scope here and that is a contract fact, not an omission: it
  * implements all three of these writes by reverting `NotSupported`, having no tradable shares and
- * no delegation. Its payout path is `claimYieldPurse` / `vest`, which `VaultPanel` offers on the
- * collection page. See `benefactorPositionAbi` for the alias that records the same boundary.
+ * no delegation. Its payout path is `claimYieldPurse`, which `VaultPanel` offers on the collection
+ * page. See `benefactorPositionAbi` for the alias that records the same boundary.
  */
 import { useCallback, useState } from 'react'
 import { formatEther, isAddress } from 'viem'
