@@ -10,7 +10,7 @@
  * The endowment family is deliberately NOT in that alias list even though it declares the same
  * three writes. It implements all three by reverting `NotSupported`: an endowment has no tradable
  * shares to pay a per-caller claim against and no delegation, and its real payout path is
- * `claimYieldPurse` / `vest`, which `VaultPanel` already offers. Pointing a claim button at an
+ * `claimYieldPurse`, which `VaultPanel` already offers. Pointing a claim button at an
  * endowment would be a button that cannot do anything but revert, so the panel this slice feeds
  * renders for the liquidity families only.
  */
