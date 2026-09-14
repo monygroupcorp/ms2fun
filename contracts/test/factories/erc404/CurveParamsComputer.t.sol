@@ -5,6 +5,9 @@ import { Test, console2 } from "forge-std/Test.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
 import { CurveParamsComputer } from "../../../src/factories/erc404/CurveParamsComputer.sol";
 import { BondingCurveMath } from "../../../src/factories/erc404/libraries/BondingCurveMath.sol";
+import { LaunchPresets } from "../../../script/LaunchPresets.sol";
+import { LaunchManager } from "../../../src/factories/erc404/LaunchManager.sol";
+import { ReserveBandPin } from "./ReserveBandPin.sol";
 
 /**
  * @title CurveParamsComputerTest
@@ -13,15 +16,17 @@ import { BondingCurveMath } from "../../../src/factories/erc404/libraries/Bondin
  * @dev Every assertion here is written so that a flat curve fails it. Direction-only checks
  *      (assertGt on a rising price) are deliberately absent — they pass on a one-wei rise.
  */
-contract CurveParamsComputerTest is Test {
+contract CurveParamsComputerTest is Test, ReserveBandPin {
     CurveParamsComputer internal computer;
     address internal owner = address(0xA11CE);
 
-    /// @dev Shipped presets (DeployCore): NICHE / STANDARD / HYPE, all at reserve = 1000 bps.
+    /// @dev Shipped presets: NICHE / STANDARD / HYPE, all at reserve = 1000 bps. Restated here as
+    ///      plain constants because the matrix below reads better for it, and held to the ladder
+    ///      the protocol actually deploys by `test_Ladder_IsTheLadderTheProtocolDeploys`.
     uint256 internal constant NICHE_TARGET = 5 ether;
-    uint256 internal constant NICHE_UNIT = 1_000_000_000;
+    uint256 internal constant NICHE_UNIT = 1_000_000;
     uint256 internal constant STANDARD_TARGET = 25 ether;
-    uint256 internal constant STANDARD_UNIT = 1_000_000;
+    uint256 internal constant STANDARD_UNIT = 100_000;
     uint256 internal constant HYPE_TARGET = 50 ether;
     uint256 internal constant HYPE_UNIT = 1_000;
 
@@ -91,24 +96,74 @@ contract CurveParamsComputerTest is Test {
     // 1. The preset x nftCount matrix
     // ============================================
 
-    /// @dev NICHE admits at most 79 NFTs (DN404 uint96 total-supply ceiling at 1e9 units/NFT), so
-    ///      the matrix does not assert on counts that cannot be created on chain.
+    /// @dev The piece ceiling each rung imposes: `type(uint96).max / (unitPerNFT * 1e18)`, because
+    ///      `maxSupply = nftCount * unitPerNFT * 1e18` and DN404 stores total supply in a `uint96`.
+    ///      The matrix asserts no count above these, since such a collection reverts at create.
+    uint256 internal constant NICHE_CEILING = 79_228;
+    uint256 internal constant STANDARD_CEILING = 792_281;
+    uint256 internal constant HYPE_CEILING = 79_228_162;
+
+    /// @dev The ladder itself. The three units are a decade apart, and each is exactly the largest
+    ///      unit whose ceiling the constants above name — so a retune of any rung that forgets to move
+    ///      its ceiling, or that closes the spacing, fails here before it reaches a creator.
+    function test_Ladder_UnitsAreADecadeApartAndTheirCeilingsAreExact() public pure {
+        assertEq(STANDARD_UNIT * 10, NICHE_UNIT, "NICHE is one decade above STANDARD");
+        assertEq(HYPE_UNIT * 100, STANDARD_UNIT, "STANDARD is two decades above HYPE");
+
+        uint256 maxTotalSupply = type(uint96).max;
+        uint256[3] memory units = [NICHE_UNIT, STANDARD_UNIT, HYPE_UNIT];
+        uint256[3] memory ceilings = [NICHE_CEILING, STANDARD_CEILING, HYPE_CEILING];
+        for (uint256 i = 0; i < units.length; i++) {
+            assertEq(maxTotalSupply / (units[i] * 1e18), ceilings[i], "ceiling is the uint96 quotient");
+            // Two-sided: the ceiling fits and one more piece does not. An off-by-one here is a create
+            // the wizard would have told the creator was fine.
+            assertLe(ceilings[i] * units[i] * 1e18, maxTotalSupply, "the ceiling itself must fit");
+            assertGt((ceilings[i] + 1) * units[i] * 1e18, maxTotalSupply, "one past the ceiling must not");
+        }
+    }
+
+    /// @dev The constants above are a restatement, and this is what makes them one: every rung is
+    ///      checked against `LaunchPresets`, which is what `DeployCore` writes to a chain and what
+    ///      `ValidateSepolia` asserts a live chain carries. Retune a rung there and this fails until
+    ///      the matrix below is re-walked, which is the point — the matrix is the evidence that the
+    ///      new numbers still solve.
+    function test_Ladder_IsTheLadderTheProtocolDeploys() public view {
+        uint256[3] memory targets = [NICHE_TARGET, STANDARD_TARGET, HYPE_TARGET];
+        uint256[3] memory units = [NICHE_UNIT, STANDARD_UNIT, HYPE_UNIT];
+        uint256[3] memory ceilings = [NICHE_CEILING, STANDARD_CEILING, HYPE_CEILING];
+
+        assertEq(LaunchPresets.COUNT, units.length, "the protocol ships exactly these rungs");
+        for (uint256 i = 0; i < units.length; i++) {
+            LaunchManager.Preset memory shipped = LaunchPresets.preset(i, address(computer));
+            assertEq(shipped.targetETH, targets[i], "targetETH matches the shipped preset");
+            assertEq(shipped.unitPerNFT, units[i], "unitPerNFT matches the shipped preset");
+            assertEq(shipped.liquidityReserveBps, RESERVE_BPS, "reserve matches the shipped preset");
+            assertTrue(shipped.active, "a shipped preset is active, or no create resolves it");
+            assertEq(LaunchPresets.maxNftSupply(units[i]), ceilings[i], "ceiling matches the shipped rung");
+        }
+    }
+
+    /// @dev NICHE's unit moved 1e9 -> 1e6, which is a THOUSANDFOLD move in the supply the solver is
+    ///      handed — so the top of its range is walked here rather than argued about. 79,228 is the
+    ///      last count the rung admits at all.
     function test_Matrix_Niche() public view {
-        uint256[3] memory counts = [uint256(1), 10, 79];
+        uint256[5] memory counts = [uint256(1), 10, 1000, 10_000, NICHE_CEILING];
         for (uint256 i = 0; i < counts.length; i++) {
             _assertCell(counts[i], NICHE_TARGET, NICHE_UNIT, RESERVE_BPS);
         }
     }
 
+    /// @dev STANDARD's unit moved 1e6 -> 1e5; its ceiling is now 792,281, and that is the cell that
+    ///      did not exist before this re-spacing.
     function test_Matrix_Standard() public view {
-        uint256[4] memory counts = [uint256(10), 100, 1000, 10000];
+        uint256[5] memory counts = [uint256(10), 100, 1000, 10000, STANDARD_CEILING];
         for (uint256 i = 0; i < counts.length; i++) {
             _assertCell(counts[i], STANDARD_TARGET, STANDARD_UNIT, RESERVE_BPS);
         }
     }
 
     function test_Matrix_Hype() public view {
-        uint256[4] memory counts = [uint256(10), 100, 1000, 10000];
+        uint256[5] memory counts = [uint256(10), 100, 1000, 10000, HYPE_CEILING];
         for (uint256 i = 0; i < counts.length; i++) {
             _assertCell(counts[i], HYPE_TARGET, HYPE_UNIT, RESERVE_BPS);
         }
@@ -274,16 +329,48 @@ contract CurveParamsComputerTest is Test {
     /// @dev The shape constants MIN_POLE_WAD / MAX_POLE_WAD do not merely bound the pole — they decide
     ///      which `liquidityReserveBps` a collection can be created at AT ALL, because the parity target
     ///      G = 0.8 * (1 - r) / r must land inside [G(MAX_POLE), G(MIN_POLE)] or `solvePole` reverts.
-    ///      That band is 592..3567 bps and is written down nowhere else in the tree. `LaunchManager`
-    ///      accepts any bps in (0, 10000), so a preset outside this band is storable and every create
-    ///      against it reverts. These tests pin the edges so a change to either pole constant — which
-    ///      silently moves which presets are launchable — cannot land unannounced.
-    uint256 internal constant MIN_RESERVE_BPS = 592;
-    uint256 internal constant MAX_RESERVE_BPS = 3567;
+    ///      That band is 592..3567 bps today. The contract derives it (`isReserveBpsAdmissible`) and
+    ///      `LaunchManager.setPreset` asks that derivation, so a preset outside the band is refused at
+    ///      store time instead of reverting at every create. These tests pin the edges so a change to
+    ///      either pole constant — which silently moves which presets are launchable — cannot land
+    ///      unannounced.
+    /// @dev MIN_RESERVE_BPS / MAX_RESERVE_BPS are inherited from `ReserveBandPin` so this file and
+    ///      LaunchManager's band tests pin the same two numbers rather than each keeping a copy.
 
     function test_Reserve_AdmissibleBandEdgesSolve() public view {
         computer.computeCurveParams(1000, STANDARD_TARGET, STANDARD_UNIT, MIN_RESERVE_BPS);
         computer.computeCurveParams(1000, STANDARD_TARGET, STANDARD_UNIT, MAX_RESERVE_BPS);
+    }
+
+    /// @dev The pin and the derivation must agree at all four points. If a pole retune moves the real
+    ///      band, `isReserveBpsAdmissible` and the pinned 592/3567 disagree here and the test goes red
+    ///      instead of the band drifting under `setPreset` silently.
+    function test_Reserve_AdmissiblePredicateAgreesWithPinnedEdges() public view {
+        assertTrue(computer.isReserveBpsAdmissible(MIN_RESERVE_BPS), "low edge is admissible");
+        assertTrue(computer.isReserveBpsAdmissible(MAX_RESERVE_BPS), "high edge is admissible");
+        assertFalse(computer.isReserveBpsAdmissible(MIN_RESERVE_BPS - 1), "below the low edge is refused");
+        assertFalse(computer.isReserveBpsAdmissible(MAX_RESERVE_BPS + 1), "above the high edge is refused");
+    }
+
+    /// @dev The arithmetic guards sit in front of the parity math: a reserve the setter used to refuse
+    ///      on its own is refused by the predicate too, without reverting on a division by zero.
+    function test_Reserve_AdmissiblePredicateRefusesDegenerateBps() public view {
+        assertFalse(computer.isReserveBpsAdmissible(0), "zero reserve is refused");
+        assertFalse(computer.isReserveBpsAdmissible(10000), "full reserve is refused");
+        assertFalse(computer.isReserveBpsAdmissible(type(uint256).max), "overflowing reserve is refused");
+    }
+
+    /// @dev The predicate is `solvePole`'s own assertion in question form: across the whole legal bps
+    ///      range it says yes exactly when `computeCurveParams` does not revert.
+    function testFuzz_Reserve_AdmissiblePredicateMatchesTheSolve(uint256 bps) public view {
+        bps = bound(bps, 1, 9999);
+        bool admissible = computer.isReserveBpsAdmissible(bps);
+        try computer.computeCurveParams(1000, STANDARD_TARGET, STANDARD_UNIT, bps) {
+            assertTrue(admissible, "solve succeeded on a reserve the predicate refused");
+        } catch (bytes memory reason) {
+            assertFalse(admissible, "solve reverted on a reserve the predicate admitted");
+            assertEq(bytes4(reason), CurveParamsComputer.ParityTargetUnreachable.selector, "refused for parity");
+        }
     }
 
     function test_Reserve_JustOutsideTheBandReverts() public {

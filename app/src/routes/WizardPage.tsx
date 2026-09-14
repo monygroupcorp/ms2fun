@@ -24,6 +24,7 @@ import {
 import { embedBreakdown } from '../lib/wizard/deployGasBreakdown'
 import { DeployGasBreakdown } from '../components/wizard/DeployGasBreakdown'
 import { useDeployGasEstimate } from '../components/wizard/useDeployGasEstimate'
+import { useGasPriceGwei } from '../components/wizard/useGasPriceGwei'
 import { collectionToDataUri, type CollectionMetadata } from '../lib/metadata'
 import { useReadDeployBondEscrowBondAmount } from '../generated/contracts'
 import { forkChainId } from '../lib/addresses'
@@ -397,6 +398,7 @@ export function WizardPage() {
       ? assembleCall(vault, estimateSalt)
       : undefined
   const gasEstimate = useDeployGasEstimate(reviewCall, wallet)
+  const gasPrice = useGasPriceGwei()
   const embedBreakdownData = useMemo(() => embedBreakdown(metadata), [metadata])
 
   // All hooks have run — safe to bail now. Stable non-null binding so the step-body / slot closures
@@ -713,9 +715,10 @@ export function WizardPage() {
             <div className={styles.decision}>
               <h2 className={styles.question}>How should this align?</h2>
               <p className={styles.lede}>
-                Every launch binds <b>~20% of its fees</b> to an alignment vault — on mint and every
-                resale, forever. Pick the <b>community</b> you&rsquo;re aligning to, then its{' '}
-                <b>vault</b>. This is what makes it not a grift.
+                Every launch routes <b>19% of its fees</b> to the community, through an alignment
+                vault, on mint and every resale — at a ratio nobody can change. Pick the{' '}
+                <b>community</b> you&rsquo;re aligning to, then its <b>vault</b>. This is what makes
+                it not a grift.
               </p>
               <AlignmentTargetPicker
                 vaults={vaults.data}
@@ -723,10 +726,6 @@ export function WizardPage() {
                 isError={vaults.isError}
                 selectedVault={vault}
                 onSelectVault={setVault}
-                // ERC404 + endowment is not a selectable pairing: `ERC404Factory.createInstance`
-                // hard-reverts `EndowmentVaultNotSupported` against a yield-family vault. Don't
-                // offer what the chain will refuse. ERC1155/ERC721 keep every family.
-                excludeFamilies={typeKey === 'erc404' ? ['yield'] : undefined}
               />
               {vault && (
                 <>
@@ -736,11 +735,11 @@ export function WizardPage() {
                     </div>
                     <div className="arrow">→</div>
                     <div className="cell vault">
-                      {vaultLabel} vault<b>~20%</b>
+                      {vaultLabel} vault<b>19%</b>
                     </div>
                   </div>
                   <p className={styles.bindNote}>
-                    Vault: contract-enforced. <b>Can&rsquo;t be undone</b> after deploy.
+                    The share is contract-enforced. <b>It can&rsquo;t be changed</b> after deploy.
                   </p>
                 </>
               )}
@@ -815,12 +814,12 @@ export function WizardPage() {
                 </div>
                 <div className={styles.summaryRow}>
                   <dt>Aligned to</dt>
-                  <dd>{vault ? `${vaultLabel} · ~20%` : '—'}</dd>
+                  <dd>{vault ? `${vaultLabel} · 19%` : '—'}</dd>
                 </div>
               </dl>
               <div className={styles.permanence}>
                 <span aria-hidden>▪ </span>Deploying is <b>permanent</b>. The contract, the modules,
-                and the <b>~20% alignment</b> are fixed on-chain —{' '}
+                and the <b>alignment share</b> are fixed on-chain —{' '}
                 <b>they can&rsquo;t be undone.</b>
               </div>
               {noPieceArt && (
@@ -839,6 +838,7 @@ export function WizardPage() {
                 breakdown={embedBreakdownData}
                 liveGas={gasEstimate.gas}
                 liveLoading={gasEstimate.isLoading}
+                gasPrice={gasPrice}
               />
             </aside>
           </div>
@@ -906,7 +906,7 @@ export function WizardPage() {
             </div>
             <div className="mr">
               <span>Aligned</span>
-              <b>{vault ? `${vaultLabel} · ~20%` : '—'}</b>
+              <b>{vault ? `${vaultLabel} · 19%` : '—'}</b>
             </div>
           </div>
         </aside>

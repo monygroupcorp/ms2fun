@@ -72,7 +72,7 @@ export function ModuleSlotPicker({ slot, value, onChange, errorCount = 0 }: Modu
     return (
       <div className={styles.root}>
         {header}
-        <p className={styles.note}>could not load options — is the fork up?</p>
+        <p className={styles.note}>could not load options — no response from the network.</p>
       </div>
     )
   }

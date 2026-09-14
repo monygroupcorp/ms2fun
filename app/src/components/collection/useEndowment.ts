@@ -1,31 +1,54 @@
 /**
  * useEndowment — reads AlignmentEndowmentVault state for a single benefactor (collection instance).
  * Only meaningful for AaveEndowment vaults; callers should check isEndowment before rendering.
+ *
+ * One pooled principal, one flat 80/19/1 split, forever. There is no vesting, no escrow class, no
+ * maturity clock: a benefactor's `principalOf` is their live share of the pool and only falls when
+ * the curated target actually withdraws it (`execute`) or the target de-curates and the corpus is
+ * released to the community. `principalOf == 0` therefore means the target has taken everything this
+ * benefactor put in — not that it "fully vested".
  */
 import { useCallback } from 'react'
 import {
   useReadAlignmentEndowmentVaultVaultType,
   useReadAlignmentEndowmentVaultPrincipalOf,
-  useReadAlignmentEndowmentVaultDepositTime,
   useReadAlignmentEndowmentVaultAccumulatedFees,
   useReadAlignmentEndowmentVaultTotalPrincipalLocked,
-  useReadAlignmentEndowmentVaultCommunityPayout,
-  useReadAlignmentEndowmentVaultVestDuration,
+  useReadAlignmentEndowmentVaultTargetId,
+  useReadAlignmentEndowmentVaultPendingYieldOf,
+  useReadAlignmentEndowmentVaultAccumulatedTargetFees,
+  useReadAlignmentEndowmentVaultRoundResidue,
+  useReadAlignmentRegistryV1GetCommunityPayout,
 } from '../../generated/contracts'
+import { forkAddresses } from '../../lib/addresses'
 import { useCollectionChainId } from './useCollectionChain'
 
 export interface EndowmentState {
   isEndowment: boolean
-  /** This benefactor's live escrowed (pre-vest) principal (`principalOf`); drops to 0 once vested. */
+  /** This benefactor's live pooled principal (`principalOf`). Falls only when the target withdraws
+   *  it, never on any clock — it is permanent until physically deployed. */
   principal: bigint
-  depositTime: bigint
-  /** Vest completion time = `depositTime + VEST_DURATION`; escrowed principal vests to the target then. */
-  maturity: bigint
-  /** True once the vest window has elapsed (principal has vested / is vestable to the target). */
-  matured: boolean
   yield: bigint
-  /** Live escrowed principal across all benefactors (`totalPrincipalLocked`). */
+  /**
+   * THIS benefactor's claimable creator yield (`pendingYieldOf`) — settled purse plus the accrual
+   * still live on their principal weight. Distinct from `yield`, which is the vault-wide accumulator:
+   * one collection's creator can only ever pull this.
+   */
+  claimable: bigint
+  /**
+   * Target-leg yield the vault accrued while the community sink was unset. Permissionless to
+   * deliver (`flushTargetFees`) once a sink exists; it keeps accruing until then.
+   */
+  undeliveredTargetFees: bigint
+  /** Corpus residue left over from a closed round (redeemed out of the position already, not yet
+   *  delivered). Flushable to the community sink while curated (`flushRoundResidue`), swept into
+   *  the same delivery as everything else once the target de-curates. */
+  roundResidue: bigint
+  /** Live principal across all benefactors (`totalPrincipalLocked`). */
   totalPrincipal: bigint
+  /** Where this vault's community leg is owed, read from the alignment registry rather than from the
+   *  vault. The vault holds no sink of its own — it resolves this same registry answer at send time —
+   *  so this is the address the money actually reaches, and the one the community can rotate. */
   communityPayout: `0x${string}` | undefined
   isPending: boolean
   refetch: () => void
@@ -59,14 +82,6 @@ export function useEndowment(
     query: { enabled: enabled && !!benefactor && isEndowment },
   })
 
-  const { data: depositTime, isPending: depositPending } =
-    useReadAlignmentEndowmentVaultDepositTime({
-      ...(vault ? { address: vault } : {}),
-      chainId,
-      args: [benefactor ?? ZERO_ADDRESS],
-      query: { enabled: enabled && !!benefactor && isEndowment },
-    })
-
   const {
     data: accumulatedFees,
     isPending: feesPending,
@@ -84,15 +99,37 @@ export function useEndowment(
       query: { enabled: enabled && isEndowment },
     })
 
+  const { data: targetId, isPending: targetPending } = useReadAlignmentEndowmentVaultTargetId({
+    ...(vault ? { address: vault } : {}),
+    chainId,
+    query: { enabled: enabled && isEndowment },
+  })
+
   const { data: communityPayout, isPending: communityPending } =
-    useReadAlignmentEndowmentVaultCommunityPayout({
+    useReadAlignmentRegistryV1GetCommunityPayout({
+      address: forkAddresses.AlignmentRegistryV1,
+      chainId,
+      ...(targetId !== undefined ? { args: [targetId] as const } : {}),
+      query: { enabled: enabled && isEndowment && targetId !== undefined },
+    })
+
+  const { data: claimable, refetch: refetchClaimable } =
+    useReadAlignmentEndowmentVaultPendingYieldOf({
+      ...(vault ? { address: vault } : {}),
+      chainId,
+      args: [benefactor ?? ZERO_ADDRESS],
+      query: { enabled: enabled && !!benefactor && isEndowment },
+    })
+
+  const { data: undeliveredTargetFees, refetch: refetchTargetFees } =
+    useReadAlignmentEndowmentVaultAccumulatedTargetFees({
       ...(vault ? { address: vault } : {}),
       chainId,
       query: { enabled: enabled && isEndowment },
     })
 
-  const { data: vestDuration, isPending: maturityPending } =
-    useReadAlignmentEndowmentVaultVestDuration({
+  const { data: roundResidue, refetch: refetchRoundResidue } =
+    useReadAlignmentEndowmentVaultRoundResidue({
       ...(vault ? { address: vault } : {}),
       chainId,
       query: { enabled: enabled && isEndowment },
@@ -101,36 +138,28 @@ export function useEndowment(
   const refetch = useCallback(() => {
     void refetchPrincipal()
     void refetchFees()
-  }, [refetchPrincipal, refetchFees])
-
-  const resolvedPrincipal = principal ?? 0n
-  const resolvedDepositTime = depositTime ?? 0n
-  const resolvedVestDuration = vestDuration ?? 0n
-
-  const maturity = resolvedDepositTime > 0n ? resolvedDepositTime + resolvedVestDuration : 0n
-
-  const nowSeconds = BigInt(Math.floor(Date.now() / 1000))
-  const matured = resolvedDepositTime > 0n && nowSeconds >= maturity
+    void refetchClaimable()
+    void refetchTargetFees()
+    void refetchRoundResidue()
+  }, [refetchPrincipal, refetchFees, refetchClaimable, refetchTargetFees, refetchRoundResidue])
 
   const isPending =
     typePending ||
     (isEndowment &&
-      (principalPending ||
-        depositPending ||
-        feesPending ||
-        totalPending ||
-        communityPending ||
-        maturityPending))
+      (principalPending || feesPending || totalPending || targetPending || communityPending))
 
   return {
     isEndowment,
-    principal: resolvedPrincipal,
-    depositTime: resolvedDepositTime,
-    maturity,
-    matured,
+    principal: principal ?? 0n,
     yield: accumulatedFees ?? 0n,
+    claimable: claimable ?? 0n,
+    undeliveredTargetFees: undeliveredTargetFees ?? 0n,
+    roundResidue: roundResidue ?? 0n,
     totalPrincipal: totalPrincipal ?? 0n,
-    communityPayout: communityPayout ?? undefined,
+    communityPayout:
+      communityPayout !== undefined && communityPayout !== ZERO_ADDRESS
+        ? communityPayout
+        : undefined,
     isPending,
     refetch,
   }

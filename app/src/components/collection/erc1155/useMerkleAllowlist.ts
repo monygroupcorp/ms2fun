@@ -6,6 +6,10 @@
  *
  * `enabled` should be the caller's already-computed `isPaidMintGated`/`isFreeMintGated` result — when
  * false this hook does no work (status stays 'idle').
+ *
+ * `NO_QTY_SCALE`: an ERC-1155 instance forwards an NFT count to the gating module, so its leaves commit
+ * the creator's number unscaled. The scale is passed explicitly rather than defaulted — see
+ * `merkle.ts`'s `scaleQty` for why the ERC-404 twin of this hook must pass `unit()` instead.
  */
 import { useAccount } from 'wagmi'
 import type { Hex } from 'viem'
@@ -14,6 +18,7 @@ import { useCollection } from '../../useCollection'
 import { useCollectionMetadata } from '../../useCollectionMetadata'
 import { useCollectionAddresses, useCollectionChainId } from '../useCollectionChain'
 import { findAllowlistListURI, resolveMemberProof } from '../../../lib/collection/allowlistConfig'
+import { NO_QTY_SCALE } from '../../../lib/merkle'
 
 export type MerkleAllowlistStatus =
   | 'idle' // not gated, or wallet disconnected
@@ -25,7 +30,10 @@ export type MerkleAllowlistStatus =
 export interface MerkleAllowlistResult {
   status: MerkleAllowlistStatus
   proof: Hex[] | undefined
+  /** Leaf-denominated cap — what `encodeMerkleGatingData` takes. */
   maxQty: bigint | undefined
+  /** The same cap in NFTs — what the panel shows the holder. Equal to `maxQty` on this family. */
+  maxQtyNfts: bigint | undefined
 }
 
 export function useMerkleAllowlistProof(
@@ -44,12 +52,18 @@ export function useMerkleAllowlistProof(
     queryKey: ['merkle-allowlist-proof', instance, editionId.toString(), listURI, address],
     enabled: enabled && !!listURI && !!address,
     queryFn: async ({ signal }) =>
-      resolveMemberProof(listURI as string, address as `0x${string}`, signal),
+      resolveMemberProof(listURI as string, address as `0x${string}`, NO_QTY_SCALE, signal),
   })
 
-  if (!enabled || !address) return { status: 'idle', proof: undefined, maxQty: undefined }
-  if (!listURI) return { status: 'no-list', proof: undefined, maxQty: undefined }
-  if (isPending) return { status: 'loading', proof: undefined, maxQty: undefined }
-  if (!proofResult) return { status: 'not-eligible', proof: undefined, maxQty: undefined }
-  return { status: 'eligible', proof: proofResult.proof, maxQty: proofResult.maxQty }
+  const pending = { proof: undefined, maxQty: undefined, maxQtyNfts: undefined }
+  if (!enabled || !address) return { status: 'idle', ...pending }
+  if (!listURI) return { status: 'no-list', ...pending }
+  if (isPending) return { status: 'loading', ...pending }
+  if (!proofResult) return { status: 'not-eligible', ...pending }
+  return {
+    status: 'eligible',
+    proof: proofResult.proof,
+    maxQty: proofResult.maxQty,
+    maxQtyNfts: proofResult.maxQtyNfts,
+  }
 }

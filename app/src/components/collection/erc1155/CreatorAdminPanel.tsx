@@ -12,7 +12,9 @@
  *   - setStyle(uri)               ✦ collection-level style / theme URI
  *   - migrateVault(newVault)      ✦ point the instance at a new alignment vault
  *   - setAgentDelegation(bool)    ✦ toggle agent delegation (reads agentDelegationEnabled for current)
- *   - retryVaultContribution()    ✦ permissionless — re-attempt a failed vault contribution
+ *   - retryVaultContribution()    ✦ permissionless — re-send a vault cut an earlier withdraw could
+ *     not deliver (a de-curated or reverting vault), reading `pendingVaultCut` so the row says how
+ *     much is actually stranded instead of offering a button that reverts on an empty stash
  *   - configure allowlist        ✦ (noesis-080) submit a merkle root on-chain + persist its listURI —
  *     shown only when the instance's gating module is set (today the only deployed gating module IS
  *     MerkleGatingModule; PasswordTierGating was dropped in noesis-065).
@@ -29,6 +31,7 @@ import {
   merkleGatingModuleAbi,
   useReadErc1155InstanceAgentDelegationEnabled,
   useReadErc1155InstanceGatingModule,
+  useReadErc1155InstancePendingVaultCut,
   useReadErc1155InstanceTotalProceeds,
   useReadErc1155InstanceTotalWithdrawn,
 } from '../../../generated/contracts'
@@ -36,6 +39,8 @@ import { useCollection } from '../../useCollection'
 import { useCollectionMetadata } from '../../useCollectionMetadata'
 import { useCollectionAddresses, useCollectionChainId } from '../useCollectionChain'
 import { collectionToDataUri } from '../../../lib/metadata'
+import { ArtPointerNotice } from '../ArtPointerNotice'
+import { formatPrice } from '../../../lib/format'
 import {
   buildAllowlistFromPaste,
   buildAllowlistFromUri,
@@ -44,6 +49,7 @@ import {
   toMerkleConfig,
   type AllowlistBuildOutcome,
 } from '../../../lib/collection/allowlistConfig'
+import { NO_QTY_SCALE } from '../../../lib/merkle'
 import { hasGatingModule } from './gatingMint'
 import { AdminSection, ActionRow } from '../../ui/AdminSection'
 import { AmountField } from '../../ui/AmountField'
@@ -72,6 +78,7 @@ export function CreatorAdminPanel({ instance }: CreatorAdminPanelProps) {
       <UpdateMetadataRow instance={instance} editions={editions} onUpdated={refetchEditions} />
       <SetEditionFreeMintRow instance={instance} editions={editions} onUpdated={refetchEditions} />
       <SetStyleRow instance={instance} />
+      <ArtPointerNotice instance={instance} />
       <MigrateVaultRow instance={instance} />
       <AgentDelegationRow instance={instance} />
       <RetryVaultRow instance={instance} />
@@ -563,7 +570,11 @@ function AgentDelegationRow({ instance }: { instance: `0x${string}` }) {
 
 function RetryVaultRow({ instance }: { instance: `0x${string}` }) {
   const chainId = useCollectionChainId()
-  const tx = useTxAction()
+  const { data: pending, refetch } = useReadErc1155InstancePendingVaultCut({
+    address: instance,
+    chainId,
+  })
+  const tx = useTxAction({ onSuccess: () => void refetch(), instance })
 
   function handleRetry(): void {
     tx.send({
@@ -577,7 +588,13 @@ function RetryVaultRow({ instance }: { instance: `0x${string}` }) {
   return (
     <ActionRow
       label="retry vault contribution"
-      hint="permissionless — re-attempt a failed vault contribution"
+      hint={
+        pending === undefined
+          ? 'permissionless — re-attempt a failed vault contribution'
+          : pending === 0n
+            ? 'nothing stranded — every vault cut so far was delivered'
+            : `${formatPrice(pending)} stranded — permissionless to re-send`
+      }
     >
       <TxButton
         state={tx.state}
@@ -586,6 +603,8 @@ function RetryVaultRow({ instance }: { instance: `0x${string}` }) {
         label="retry contribution"
         successLabel="contribution retried — tx confirmed."
         className="btn btn-secondary"
+        disabled={pending !== undefined && pending === 0n}
+        disabledHint="the retry reverts with nothing stashed"
         errorText="retry failed — try again"
         testId="erc1155-retry-vault"
       />
@@ -629,8 +648,12 @@ function AllowlistConfigRow({ instance }: { instance: `0x${string}` }) {
   async function handleCheck(): Promise<void> {
     setChecking(true)
     try {
+      // NO_QTY_SCALE: an ERC1155 instance forwards an NFT count to the gating module, so the cap the
+      // creator types is already in the leaf's denomination (see merkle.ts's scaleQty).
       const result =
-        mode === 'hosted' ? await buildAllowlistFromUri(input) : buildAllowlistFromPaste(input)
+        mode === 'hosted'
+          ? await buildAllowlistFromUri(input, NO_QTY_SCALE)
+          : buildAllowlistFromPaste(input, NO_QTY_SCALE)
       setBuild(result)
     } finally {
       setChecking(false)

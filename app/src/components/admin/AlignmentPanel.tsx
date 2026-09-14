@@ -25,12 +25,18 @@ import { formatEther } from 'viem'
 import {
   alignmentRegistryV1Abi,
   alignmentTargetRequestRegistryAbi,
+  useReadAlignmentRegistryV1AmbassadorCount,
   useReadAlignmentRegistryV1GetAlignmentTarget,
   useReadAlignmentRegistryV1GetAmbassadors,
   useReadAlignmentRegistryV1GetCommunityPayout,
   useReadAlignmentTargetRequestRegistryGetPending,
+  useReadAlignmentTargetRequestRegistryMaxPending,
+  useReadAlignmentTargetRequestRegistryRequestDeposit,
+  useReadAlignmentTargetRequestRegistryRequestTtl,
 } from '../../generated/contracts'
 import { AdminSection, ActionRow } from '../ui/AdminSection'
+import { AmountField } from '../ui/AmountField'
+import { parseAmount } from '../ui/parseAmount'
 import { StateBlock } from '../ui/StateBlock'
 import { TxButton } from '../ui/TxButton'
 import { useOwnerGate } from '../ui/useOwnerGate'
@@ -364,6 +370,16 @@ function DeactivateTargetRow() {
   const targetId = parseTargetId(raw)
   const canSubmit = targetId !== undefined
 
+  // Deactivating freezes every ambassador's deploy rights at once, but it does not unseat anyone: the
+  // appointments, and the metadata authority that comes with them, outlive de-curation. The count of
+  // seats still appointed is what the operator needs in front of them — see the residual note below.
+  const { data: ambassadorCount } = useReadAlignmentRegistryV1AmbassadorCount({
+    address: REGISTRY,
+    args: canSubmit ? [targetId] : undefined,
+    chainId: forkChainId,
+    query: { enabled: canSubmit },
+  })
+
   return (
     <ActionRow label="deactivate target" hint="mark a target inactive (irreversible from here)">
       <div className={styles.form}>
@@ -377,6 +393,17 @@ function DeactivateTargetRow() {
           disabled={tx.isBusy}
           aria-label="deactivate target id"
         />
+        {canSubmit && ambassadorCount !== undefined && (
+          <p className={styles.residual} data-testid="admin-deactivate-ambassador-residual">
+            <span className={styles.mono}>{ambassadorCount.toString()}</span> ambassador
+            {ambassadorCount === 1n ? '' : 's'} still appointed. Deactivating freezes their spending
+            &mdash; no ambassador can deploy an endowment vault&rsquo;s corpus for a de-curated
+            target &mdash; but it does not unseat them: each keeps the right to edit this
+            target&rsquo;s description and metadata pointer. Remove each one to end that. A frozen
+            corpus is not stranded: it goes to this target&rsquo;s community payout address, so set
+            one if it has none.
+          </p>
+        )}
         <TxButton
           state={tx.state}
           onClick={() => {
@@ -414,18 +441,18 @@ function AmbassadorRow() {
   const accountTrim = account.trim()
   const ok = targetId !== undefined && ADDR_RE.test(accountTrim)
 
+  const at = { address: REGISTRY, abi: alignmentRegistryV1Abi, chainId: forkChainId } as const
+
+  // The parameter is named for the field it becomes, so the union above is the source's own
+  // enumeration of what this row can send — which is what tools/lib/walk-surface.mjs reads. Called
+  // anything else, both writes leave the walk's denominator and have to be acknowledged as a blind
+  // spot instead of being walked.
   function send(
     tx: ReturnType<typeof useTxAction>,
-    fn: 'addAmbassador' | 'removeAmbassador',
+    functionName: 'addAmbassador' | 'removeAmbassador',
   ): void {
     if (!ok || targetId === undefined) return
-    tx.send({
-      address: REGISTRY,
-      abi: alignmentRegistryV1Abi,
-      functionName: fn,
-      args: [targetId, accountTrim as `0x${string}`],
-      chainId: forkChainId,
-    })
+    tx.send({ ...at, functionName, args: [targetId, accountTrim as `0x${string}`] })
   }
 
   return (
@@ -653,7 +680,13 @@ function usePendingRequests(): {
  * request registry's own `owner()` (distinct from AlignmentRegistryV1's owner) so it renders whenever
  * the connected wallet owns the request contract. Lists each pending request with the two D7 admin txs:
  * (1) register the target on AlignmentRegistryV1 from the proposed data, then (2) approve the request
- * (refunds the requester's deposit + delists) — plus a reject control with a forfeit toggle.
+ * against the target id that register produced (refunds the requester's deposit + delists) — plus a
+ * reject control with a forfeit toggle.
+ *
+ * Above the queue sit its three operating knobs — the deposit a request costs, how many may be pending
+ * at once, and how long an un-acted one waits before anyone may expire it. They are the levers that
+ * decide whether intake is open, throttled, or (at a full queue with no TTL) shut; each states the
+ * value live on-chain so the admin is never overwriting a number they cannot see.
  */
 export function TargetRequestsPanel() {
   const { isOwner } = useOwnerGate(REQUEST_REGISTRY)
@@ -662,9 +695,12 @@ export function TargetRequestsPanel() {
 
   return (
     <AdminSection title="target requests" testId="admin-target-requests">
+      <RequestQueueConfig />
       {isPending && <StateBlock variant="loading">loading pending requests…</StateBlock>}
       {isError && (
-        <StateBlock variant="error">couldn&apos;t load requests — is the fork up?</StateBlock>
+        <StateBlock variant="error">
+          couldn&apos;t load requests — no response from the network.
+        </StateBlock>
       )}
       {!isPending && !isError && (data === undefined || data.length === 0) && (
         <StateBlock variant="empty" boxed testId="admin-target-requests-empty">
@@ -678,13 +714,210 @@ export function TargetRequestsPanel() {
   )
 }
 
+/** Whole days, floored, for a seconds TTL. `0` disables expiry and is said as that, not as "0 days". */
+function ttlLabel(seconds: bigint | undefined): string {
+  if (seconds === undefined) return '…'
+  if (seconds === 0n) return 'off (requests never expire)'
+  const days = seconds / 86_400n
+  const rest = seconds % 86_400n
+  if (days === 0n) return `${seconds}s`
+  return rest === 0n ? `${days}d` : `${days}d ${rest}s`
+}
+
+/** The three intake knobs, each above its own setter and each reading its own current value. */
+function RequestQueueConfig() {
+  return (
+    <>
+      <RequestDepositRow />
+      <MaxPendingRow />
+      <RequestTtlRow />
+    </>
+  )
+}
+
+function RequestDepositRow() {
+  const [amount, setAmount] = useState('')
+  const { data: current, refetch } = useReadAlignmentTargetRequestRegistryRequestDeposit({
+    address: REQUEST_REGISTRY,
+    chainId: forkChainId,
+  })
+  const tx = useTxAction({
+    onSuccess: () => {
+      setAmount('')
+      void refetch()
+    },
+  })
+  const value = parseAmount(amount) // ETH → wei
+  const canSubmit = value !== undefined
+
+  return (
+    <ActionRow
+      label="request deposit"
+      hint={`escrowed on submit; refunded on approve, expiry, or a good-faith reject. current: ${
+        current !== undefined ? formatEther(current) : '…'
+      } ETH`}
+    >
+      <div className={styles.form}>
+        <AmountField
+          value={amount}
+          onChange={setAmount}
+          placeholder="0"
+          unit="ETH"
+          disabled={tx.isBusy}
+          ariaLabel="target request deposit in ETH"
+          testId="admin-request-deposit-input"
+        />
+        <TxButton
+          state={tx.state}
+          onClick={() => {
+            if (value === undefined) return
+            tx.send({
+              address: REQUEST_REGISTRY,
+              abi: alignmentTargetRequestRegistryAbi,
+              functionName: 'setRequestDeposit',
+              args: [value],
+              chainId: forkChainId,
+            })
+          }}
+          label="set deposit"
+          className="btn btn-secondary"
+          successLabel="deposit set — tx confirmed."
+          onReset={tx.reset}
+          disabled={!canSubmit}
+          errorText="set failed — try again"
+          testId="admin-set-request-deposit"
+        />
+      </div>
+    </ActionRow>
+  )
+}
+
+function MaxPendingRow() {
+  const [size, setSize] = useState('')
+  const { data: current, refetch } = useReadAlignmentTargetRequestRegistryMaxPending({
+    address: REQUEST_REGISTRY,
+    chainId: forkChainId,
+  })
+  const tx = useTxAction({
+    onSuccess: () => {
+      setSize('')
+      void refetch()
+    },
+  })
+  const value = parseAmount(size, 0) // raw count
+  const canSubmit = value !== undefined
+
+  return (
+    <ActionRow
+      label="max pending"
+      hint={`submissions revert once this many requests are pending at once. current: ${
+        current !== undefined ? current.toString() : '…'
+      }`}
+    >
+      <div className={styles.form}>
+        <AmountField
+          value={size}
+          onChange={setSize}
+          placeholder="max pending"
+          unit="requests"
+          disabled={tx.isBusy}
+          ariaLabel="maximum pending target requests"
+          testId="admin-max-pending-input"
+        />
+        <TxButton
+          state={tx.state}
+          onClick={() => {
+            if (value === undefined) return
+            tx.send({
+              address: REQUEST_REGISTRY,
+              abi: alignmentTargetRequestRegistryAbi,
+              functionName: 'setMaxPending',
+              args: [value],
+              chainId: forkChainId,
+            })
+          }}
+          label="set max pending"
+          className="btn btn-secondary"
+          successLabel="max pending set — tx confirmed."
+          onReset={tx.reset}
+          disabled={!canSubmit}
+          errorText="set failed — try again"
+          testId="admin-set-max-pending"
+        />
+      </div>
+    </ActionRow>
+  )
+}
+
+function RequestTtlRow() {
+  const [days, setDays] = useState('')
+  const { data: current, refetch } = useReadAlignmentTargetRequestRegistryRequestTtl({
+    address: REQUEST_REGISTRY,
+    chainId: forkChainId,
+  })
+  const tx = useTxAction({
+    onSuccess: () => {
+      setDays('')
+      void refetch()
+    },
+  })
+  // Entered as DAYS, sent as SECONDS (the contract stores the TTL in seconds).
+  const parsed = parseAmount(days, 0)
+  const canSubmit = parsed !== undefined
+
+  return (
+    <ActionRow
+      label="request TTL"
+      hint={`after this, anyone may expire a still-pending request and refund its deposit — the release valve for a full queue. 0 turns expiry off. current: ${ttlLabel(
+        current,
+      )}`}
+    >
+      <div className={styles.form}>
+        <AmountField
+          value={days}
+          onChange={setDays}
+          placeholder="0"
+          unit="days"
+          disabled={tx.isBusy}
+          ariaLabel="target request TTL in days"
+          testId="admin-request-ttl-input"
+        />
+        <TxButton
+          state={tx.state}
+          onClick={() => {
+            if (parsed === undefined) return
+            tx.send({
+              address: REQUEST_REGISTRY,
+              abi: alignmentTargetRequestRegistryAbi,
+              functionName: 'setRequestTTL',
+              args: [parsed * 86_400n],
+              chainId: forkChainId,
+            })
+          }}
+          label="set TTL"
+          className="btn btn-secondary"
+          successLabel="TTL set — tx confirmed."
+          onReset={tx.reset}
+          disabled={!canSubmit}
+          errorText="set failed — try again"
+          testId="admin-set-request-ttl"
+        />
+      </div>
+    </ActionRow>
+  )
+}
+
 function PendingRequestRow({ req, onChanged }: { req: PendingRequest; onChanged: () => void }) {
   const [forfeit, setForfeit] = useState(false)
+  // The target id step 1 produced. approveRequest binds the approval to it, so the admin names the
+  // target this request was granted rather than the contract inferring one from the token.
+  const [targetIdRaw, setTargetIdRaw] = useState('')
   const registerTx = useTxAction()
   const approveTx = useTxAction({ onSuccess: onChanged })
   const rejectTx = useTxAction({ onSuccess: onChanged })
 
   const canRegister = req.title.trim() !== '' && req.assets.length > 0
+  const approveTargetId = parseTargetId(targetIdRaw)
 
   function handleRegister(): void {
     if (!canRegister) return
@@ -710,7 +943,7 @@ function PendingRequestRow({ req, onChanged }: { req: PendingRequest; onChanged:
   return (
     <ActionRow
       label={`request #${req.id}`}
-      hint="register the target from this request, then approve to refund the deposit (two txs, D7)"
+      hint="register the target from this request, then approve it against the target id that register produced (two txs, D7)"
     >
       <div className={styles.form}>
         <dl className={styles.readout} data-testid={`request-${req.id}-readout`}>
@@ -764,21 +997,33 @@ function PendingRequestRow({ req, onChanged }: { req: PendingRequest; onChanged:
           errorText="register failed — try again"
           testId={`request-${req.id}-register`}
         />
+        <input
+          className={styles.input}
+          type="text"
+          inputMode="numeric"
+          value={targetIdRaw}
+          onChange={(e) => setTargetIdRaw(e.target.value)}
+          placeholder="target id from step 1"
+          aria-label={`target id for request ${req.id}`}
+          data-testid={`request-${req.id}-target-id`}
+        />
         <TxButton
           state={approveTx.state}
-          onClick={() =>
+          onClick={() => {
+            if (approveTargetId === undefined) return
             approveTx.send({
               address: REQUEST_REGISTRY,
               abi: alignmentTargetRequestRegistryAbi,
               functionName: 'approveRequest',
-              args: [req.id],
+              args: [req.id, approveTargetId],
               chainId: forkChainId,
             })
-          }
+          }}
           label="2 · approve (refund deposit)"
           className="btn btn-secondary"
           successLabel="approved — deposit refunded to the requester."
           onReset={approveTx.reset}
+          disabled={approveTargetId === undefined}
           errorText="approve failed — try again"
           testId={`request-${req.id}-approve`}
         />

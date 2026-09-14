@@ -166,23 +166,47 @@ function AuctionPositions({ positions }: { positions: readonly AuctionPosition[]
   )
 }
 
+/**
+ * The notice shown when the portfolio read did not cover every collection.
+ *
+ * It must render in the EMPTY case above all: a partially-hidden portfolio at least shows something,
+ * but a fully-hidden one renders "nothing held yet" — the opposite of the truth — so the empty state
+ * is exactly where the caveat is load-bearing. It sat below the empty-state early return until
+ * noesis-327, which is the one place it could never appear.
+ *
+ * The copy names what was checked rather than what is shown, because in the empty case nothing is
+ * being shown at all. It names no count: the read width is a client-side strategy that has already
+ * changed once (50 → `QUERY_WINDOW`), and a notice carrying a stale number is a second wrong answer
+ * on top of the incomplete read it is meant to confess.
+ */
+function TruncationNotice({ testId, subject }: { testId: string; subject: string }) {
+  return (
+    <p className={styles.warn} data-testid={testId}>
+      some collections could not be checked — {subject} in them are not shown.
+    </p>
+  )
+}
+
 export function HeldPanel({ data, isPending, isError, truncated }: PanelProps) {
   if (isPending) return <StateBlock variant="loading">hanging the work…</StateBlock>
   if (isError)
-    return <StateBlock variant="error">could not reach the aggregator — is the fork up?</StateBlock>
+    return (
+      <StateBlock variant="error">
+        could not reach the aggregator — no response from the network.
+      </StateBlock>
+    )
   if (isPortfolioEmpty(data))
     return (
-      <StateBlock variant="empty" boxed testId="portfolio-empty">
-        nothing held yet — go mint or bid.
-      </StateBlock>
+      <>
+        {truncated && <TruncationNotice testId="portfolio-truncated" subject="holdings" />}
+        <StateBlock variant="empty" boxed testId="portfolio-empty">
+          nothing held yet — go mint or bid.
+        </StateBlock>
+      </>
     )
   return (
     <div data-testid="portfolio-holdings">
-      {truncated && (
-        <p className={styles.warn} data-testid="portfolio-truncated">
-          showing the first 50 collections only — some holdings may be hidden.
-        </p>
-      )}
+      {truncated && <TruncationNotice testId="portfolio-truncated" subject="holdings" />}
       <Erc404Cards holdings={data?.[0] ?? []} />
       <Erc1155Cards holdings={data?.[1] ?? []} />
       <AuctionPositions positions={auctionPositions(data)} />
@@ -216,7 +240,11 @@ export function VaultsPanel({
 }: PanelProps & { isOwn?: boolean }) {
   if (isPending) return <StateBlock variant="loading">hanging the work…</StateBlock>
   if (isError)
-    return <StateBlock variant="error">could not reach the aggregator — is the fork up?</StateBlock>
+    return (
+      <StateBlock variant="error">
+        could not reach the aggregator — no response from the network.
+      </StateBlock>
+    )
 
   const positions: readonly VaultPosition[] = data?.[2] ?? []
   const claimable = data?.[3] ?? 0n
@@ -227,11 +255,7 @@ export function VaultsPanel({
 
   return (
     <div data-testid="portfolio-vaults">
-      {truncated && (
-        <p className={styles.warn} data-testid="vaults-truncated">
-          showing the first 50 collections only — some alignments may be hidden.
-        </p>
-      )}
+      {truncated && <TruncationNotice testId="vaults-truncated" subject="alignments" />}
       {/* Claimable hero — the bind grammar at the person level: aligned-to-you → claimable. */}
       <div className={`noesis-claimbox ${styles.claimbox}`}>
         <div className="cell">

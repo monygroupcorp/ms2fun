@@ -36,7 +36,7 @@ Classic editions: you define pieces, each with its own supply and price. Buyers 
 ## ERC-721 — auction collection
 One-of-one pieces sold by timed auction. Best for scarce, individually-valued work.
 
-Every standard binds the same **~20% alignment** to a vault and settles fees the same way — the difference is purely how minting and pricing work.
+Every standard routes the same **fixed alignment share** to a vault and settles fees the same way — the difference is purely how minting and pricing work.
 `,
     related: ['erc404', 'erc1155', 'erc721', 'alignment-vault', 'bonding-curve-graduation'],
   },
@@ -94,13 +94,14 @@ Every standard binds the same **~20% alignment** to a vault and settles fees the
   'alignment-vault': {
     title: 'Alignment vaults',
     summary:
-      'Every collection binds ~20% of its fees to a vault aligned with an established community — the thing that makes it not a grift.',
+      "19% of every collection's fees route to a vault aligned with an established community, the thing that makes it not a grift.",
     body: `
-Every launch here is **bound to an alignment vault**. On mint and on every resale, forever, roughly **20% of the fees** flow to that vault, which holds or LPs the target community's token.
+Every launch here is **bound to an alignment vault**. On mint and on every resale, **19% of fees route to the community** through that vault, which holds or LPs the target community's token.
 
 This is the core idea of the launchpad: a derivative collection that **materially supports** the community it draws from, instead of extracting from it. You pick the community you're aligning to, then one of its vaults.
 
-- The binding is **contract-enforced and permanent** — it can't be undone after deploy.
+- The **share is a contract constant** — no setter and no owner path, so nobody can change what a settlement pays out.
+- The **destination is curation, not code** — the protocol owner can repoint a target's payout address or retire the target. The ratio is the promise; the payee is a listing decision you can watch and leave over.
 - The capital is **not custodial to us** — it lives in the vault contract.
 - Ongoing LP yield is split by the same **1% protocol · 19% aligned community · 80% benefactors** law as the graduation carve: the 19% flows to that target's own alignment sink, and benefactor collections earn a proportional share of the remaining 80%.
 
@@ -278,7 +279,7 @@ An **agent** is a wallet the protocol has registered as authorized to act for cr
 
 While **delegation is enabled** (it starts on for an agent-created collection, and you can toggle it **off at any time**), the boundary is the same across every standard — **config, not custody**:
 
-- **The agent can create and configure.** Non-custodial config and lifecycle actions are delegated: for **ERC-404**, opening the curve, setting the bonding open/maturity times, activating/pausing bonding, setting style and metadata, activating staking, and triggering graduation (**deployLiquidity** moves the raise into the pool at the fixed split — the agent chooses the timing, never the amounts or recipients). For **ERC-1155**, adding editions, updating edition metadata, and setting style. For **ERC-721**, queuing auction pieces.
+- **The agent can create and configure.** Non-custodial config and lifecycle actions are delegated: for **ERC-404**, opening the curve, setting the bonding open/maturity times, activating/pausing bonding, setting style and metadata, activating staking, and triggering graduation (**deployLiquidity** moves the raise into the pool at the fixed split — the agent chooses **when** to graduate, never how much or to whom: an agent's graduation always takes the full carve you declared at create, and the carve is only ever paid to you). For **ERC-1155**, adding editions, updating edition metadata, and setting style. For **ERC-721**, queuing auction pieces.
 - **The agent can never move your money.** Withdrawing funds or dust, claiming fees, migrating the alignment vault, and reclaiming unsold pieces are **owner-only on every standard** — an agent is blocked even with delegation on. It can run the collection end-to-end but never touch the creator's money or re-point where alignment funds go.
 
 Authority is checked **live**: if the protocol revokes an agent, it is blocked immediately, even before you toggle delegation off. In every case the **owner keeps ultimate control** — an agent never becomes the owner, and its authority is a delegation you can withdraw at any time.
@@ -325,6 +326,13 @@ Nothing about deploying without art is second-class: the contract, the alignment
 `,
     related: ['onchain-image-cost'],
   },
+  support: {
+    title: 'Reporting a problem',
+    summary: 'Where to report a defect in the launchpad, or ask about something that looks wrong.',
+    body: `
+Found a bug, or something in the app that doesn't match what the contracts do? **DM [@miladystation](https://x.com/miladystation) on x.com.**
+`,
+  },
 }
 
 export const CONCEPTS: Record<string, LearnConcept> = Object.fromEntries(
@@ -357,4 +365,5 @@ export const CONCEPT_GROUPS: { title: string; slugs: string[] }[] = [
     ],
   },
   { title: 'Collection page', slugs: ['onchain-image-cost', 'cover-vs-banner', 'withholding-art'] },
+  { title: 'Support', slugs: ['support'] },
 ]

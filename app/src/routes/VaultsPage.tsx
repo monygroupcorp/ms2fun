@@ -148,8 +148,8 @@ export function VaultsPage() {
       <header className={styles.head}>
         <h1 className={styles.title}>Alignment</h1>
         <p className={styles.sub}>
-          Every collection binds ~20% of its fees to an alignment vault, by contract. These are the
-          communities that money flows to — open one to see its venues and its vaults.
+          19% of every collection&rsquo;s fees route to the community, at a ratio nobody can change.
+          These are the communities that money flows to — open one to see its venues and its vaults.
         </p>
         <div className={styles.tvl} data-testid="vaults-tvl">
           <span className={styles.tvlLabel}>ETH bound</span>
@@ -165,7 +165,7 @@ export function VaultsPage() {
         <section className={styles.targets} data-testid="alignment-targets">
           <h2 className={styles.sectionTitle}>Alignment targets</h2>
           <p className={styles.sectionSub}>
-            The communities collections bind to — ~20% of fees flow to these.
+            The communities collections bind to — 19% of every collection&rsquo;s fees route here.
           </p>
           <ul className={styles.targetGrid}>
             {communities.map((c) => (
@@ -188,7 +188,7 @@ export function VaultsPage() {
       )}
       {isError && (
         <StateBlock variant="error" boxed>
-          couldn&apos;t load vaults — is the fork up?
+          couldn&apos;t load vaults — no response from the network.
         </StateBlock>
       )}
       {!isPending && !isError && vaults.length === 0 && (

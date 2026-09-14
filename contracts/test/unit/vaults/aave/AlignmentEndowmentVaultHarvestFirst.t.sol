@@ -13,10 +13,10 @@ import {
     MockOwnable
 } from "../../../vaults/aave/AlignmentEndowmentVault.t.sol";
 
-/// @title Harvest-first ordering regressions (noesis-125)
-/// @notice Proves the fix for re-audit (2026-08-02) findings #1/#2: `execute`, `vest`, and `_deposit` now
-///         `_crystallizeYield()` BEFORE mutating the escrowed/vested principal weights, so pending Aave yield
-///         is always apportioned at the PRE-mutation weights and the `execute` last-principal strand is gone.
+/// @title Harvest-first ordering regressions
+/// @notice Proves the fix for re-audit (2026-08-02) findings #1/#2: `execute` and `_deposit`
+///         `_crystallizeYield()` BEFORE mutating the principal weights, so pending Aave yield is always
+///         apportioned at the PRE-mutation weights and the `execute` last-principal strand is gone.
 ///         Reuses the proven mock stack from the sibling endowment unit suite.
 contract AlignmentEndowmentVaultHarvestFirstTest is Test {
     AlignmentEndowmentVault public vault;
@@ -31,15 +31,11 @@ contract AlignmentEndowmentVaultHarvestFirstTest is Test {
     address public alignmentToken = address(0xAA03);
     address public communityPayout = address(0xAA04);
     uint256 public constant TARGET_ID = 7;
-    /// @dev A target the mock registry has no sink pinned for. The registry's pin is write-once, so the
-    ///      unset-sink path needs its own target rather than a cleared one.
-    uint256 public constant TARGET_ID_NO_SINK = 8;
 
     address public alice = address(0xBB01);
     address public ambassador = address(0xBB04);
 
     Currency public nativeCurrency = Currency.wrap(address(0));
-    uint256 constant VEST = 26 weeks;
 
     function setUp() public {
         weth = new MockWETH();
@@ -48,21 +44,15 @@ contract AlignmentEndowmentVaultHarvestFirstTest is Test {
         ambassadorRegistry = new MockAmbassadorRegistry();
         masterRegistry.setAlignmentRegistry(address(ambassadorRegistry));
         ambassadorRegistry.setAmbassador(TARGET_ID, ambassador, true);
-        ambassadorRegistry.setCommunityPayout(TARGET_ID, communityPayout);
 
         benefactorContract = new MockOwnable(alice);
+        // The sink is registry state — the vault reads it live and keeps no copy.
+        ambassadorRegistry.setCommunityPayout(TARGET_ID, communityPayout);
 
         address impl = address(new AlignmentEndowmentVault());
         vault = AlignmentEndowmentVault(payable(LibClone.clone(impl)));
         vault.initialize(
-            vaultOwner,
-            address(weth),
-            address(stata),
-            treasury,
-            address(masterRegistry),
-            alignmentToken,
-            TARGET_ID,
-            address(ambassadorRegistry)
+            vaultOwner, address(weth), address(stata), treasury, address(masterRegistry), alignmentToken, TARGET_ID
         );
 
         vm.deal(alice, 100 ether);
@@ -91,76 +81,44 @@ contract AlignmentEndowmentVaultHarvestFirstTest is Test {
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // vest — finding #2: yield earned while escrowed keeps its 80% creator leg
+    // execute — finding #1a: the split is apportioned at PRE-execute weights
     // ════════════════════════════════════════════════════════════════════════
 
-    /// @dev Single escrowed benefactor B; yield Y accrues unharvested; `vest(B)` then `harvest()`. The escrow
-    ///      yield's creator leg (≈80% of Y) must land in B's purse — NOT 0. Pre-fix, vest reclassified B to
-    ///      vested before crystallizing, so the next harvest apportioned Y at the 0/99/1 vested split and B
-    ///      received nothing (stripped to communityPayout).
-    function test_vest_crystallizesEscrowYieldBeforeReclassifying() public {
-        _contribute(benefactorContract, alice, 1 ether);
-        vm.warp(block.timestamp + VEST);
-
-        _simulateYield(1 ether); // Y = 1 ETH accrued while B still escrowed
-
-        vault.vest(address(benefactorContract));
-        vault.harvest(); // no-op now — vest already crystallized
-
-        assertEq(
-            vault.pendingYieldOf(address(benefactorContract)), 0.8 ether, "B keeps the escrow creator leg (80% of Y)"
-        );
-        assertEq(vault.totalYieldToCreators(), 0.8 ether, "creator leg booked, not routed to community");
-        assertEq(vault.vestedOf(address(benefactorContract)), 1 ether, "principal still vested");
-    }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // execute — finding #1a: split apportioned at PRE-execute weights
-    // ════════════════════════════════════════════════════════════════════════
-
-    /// @dev Mixed position (A vested 1 ETH, B escrowed 1 ETH), pending Y = 1 ETH. An ambassador deploys the
-    ///      full vested corpus before any harvest. The pending yield must be split at the PRE-execute 1:1
-    ///      class weights: escrowed leg 0.5 → 0.4 creator (B) / 0.095 target / 0.005 proto; vested leg 0.5 →
-    ///      0.495 target / 0.005 proto → community keeps its vested 99% (target total 0.59). Pre-fix, execute
-    ///      drained the vested class first, so a later harvest saw only the escrowed weight and reweighted the
-    ///      vested class's 0.495 target leg into the escrowed 80/19/1 split.
+    /// @dev Two benefactors of equal weight, pending Y = 1 ETH. An ambassador deploys the whole corpus
+    ///      before any harvest. The pending yield must be split at the PRE-execute weights — 0.8 creator
+    ///      (0.4 each) / 0.19 target / 0.01 protocol — not against the emptied position the deploy leaves.
     function test_execute_apportionsPendingYieldAtPreExecuteWeights() public {
-        _contribute(benefactorContract, alice, 1 ether); // A → will vest
+        _contribute(benefactorContract, alice, 1 ether); // A
         MockOwnable b = _newBenefactor(address(0xCAFE));
-        _contribute(b, address(0xCAFE), 1 ether); // B → stays escrowed
-        vm.warp(block.timestamp + VEST);
-        vault.vest(address(benefactorContract)); // A vested; B escrowed
-        assertEq(vault.deployableCorpus(), 1 ether);
+        _contribute(b, address(0xCAFE), 1 ether); // B
+        assertEq(vault.deployableCorpus(), 2 ether);
 
-        _simulateYield(1 ether); // pending Y = 1 ETH at weights escrowed 1 : vested 1
+        _simulateYield(1 ether); // pending Y = 1 ETH at weights A 1 : B 1
 
         uint256 communityBefore = communityPayout.balance;
         uint256 treasuryBefore = treasury.balance;
 
         address sink = makeAddr("sink");
         vm.prank(ambassador);
-        vault.execute(sink, 1 ether, ""); // crystallizes first, then deploys
+        vault.execute(sink, 2 ether, ""); // crystallizes first, then deploys
 
-        assertEq(sink.balance, 1 ether, "full vested corpus deployed");
-        assertEq(
-            communityPayout.balance - communityBefore, 0.59 ether, "target leg at pre-execute weights (0.095 + 0.495)"
-        );
+        assertEq(sink.balance, 2 ether, "full corpus deployed");
+        assertEq(communityPayout.balance - communityBefore, 0.19 ether, "target leg at pre-execute weights");
         assertEq(treasury.balance - treasuryBefore, 0.01 ether, "protocol leg 1% of Y");
-        assertEq(vault.pendingYieldOf(address(b)), 0.4 ether, "B (escrowed) keeps its 0.4 creator leg, not reweighted");
+        assertEq(vault.pendingYieldOf(address(benefactorContract)), 0.4 ether, "A keeps its half of the creator leg");
+        assertEq(vault.pendingYieldOf(address(b)), 0.4 ether, "and B keeps its half");
     }
 
     // ════════════════════════════════════════════════════════════════════════
     // execute — finding #1b: draining the LAST principal no longer strands yield
     // ════════════════════════════════════════════════════════════════════════
 
-    /// @dev A single vested benefactor (no escrowed); pending Y present; the ambassador deploys the LAST
-    ///      principal (`totalInAave → 0`). The yield must be distributed (vested 99/1), not trapped behind
-    ///      `_crystallizeYield`'s `totalInAave == 0` guard. Pre-fix the drain preceded the crystallize, so
-    ///      after it `totalInAave == 0` and the pending Y was stranded in the position forever.
+    /// @dev A single benefactor; pending Y present; the ambassador deploys the LAST principal
+    ///      (`totalPrincipal → 0`). The yield must be distributed 80/19/1, not trapped behind
+    ///      `_crystallizeYield`'s `totalPrincipal == 0` guard. Pre-fix the drain preceded the crystallize,
+    ///      so after it the basis was zero and the pending Y was stranded in the position forever.
     function test_execute_drainingLastPrincipalDoesNotStrandYield() public {
         _contribute(benefactorContract, alice, 1 ether);
-        vm.warp(block.timestamp + VEST);
-        vault.vest(address(benefactorContract)); // 1 ETH vested, 0 escrowed
         assertEq(vault.deployableCorpus(), 1 ether);
 
         _simulateYield(1 ether); // pending Y = 1 ETH
@@ -172,8 +130,9 @@ contract AlignmentEndowmentVaultHarvestFirstTest is Test {
         vault.execute(sink, 1 ether, ""); // drains the last principal — but crystallizes first
 
         assertEq(sink.balance, 1 ether, "last principal deployed");
-        assertEq(communityPayout.balance - communityBefore, 0.99 ether, "vested target leg realized, not stranded");
-        assertEq(vault.totalYieldToTarget(), 0.99 ether, "yield distributed to target");
+        assertEq(communityPayout.balance - communityBefore, 0.19 ether, "target leg realized, not stranded");
+        assertEq(vault.pendingYieldOf(address(benefactorContract)), 0.8 ether, "creator leg realized too");
+        assertEq(vault.totalYieldToTarget(), 0.19 ether, "yield distributed to target");
 
         vault.harvest(); // nothing left pending
         assertEq(vault.accumulatedFees(), 0, "no residual pending yield stranded in the position");
@@ -183,12 +142,12 @@ contract AlignmentEndowmentVaultHarvestFirstTest is Test {
     // _deposit — lead: a new depositor cannot capture pre-join yield
     // ════════════════════════════════════════════════════════════════════════
 
-    /// @dev A escrows; yield Y accrues during A's exclusive window; B then deposits; `harvest()`. A's creator
-    ///      leg must reflect the full escrow creator leg of Y (0.8 ETH) earned before B joined; B captures
-    ///      none of it. Pre-fix, B's deposit grew the escrow weight before crystallizing, so the harvest split
-    ///      Y's creator leg across A and B by weight — B siphoned half of A's pre-join yield.
+    /// @dev A deposits; yield Y accrues during A's exclusive window; B then deposits; `harvest()`. A's
+    ///      creator leg must reflect the full creator leg of Y (0.8 ETH) earned before B joined; B captures
+    ///      none of it. Pre-fix, B's deposit grew the weight before crystallizing, so the harvest split Y's
+    ///      creator leg across A and B by weight — B siphoned half of A's pre-join yield.
     function test_deposit_crystallizesBeforeNewWeightJoins() public {
-        _contribute(benefactorContract, alice, 1 ether); // A escrows
+        _contribute(benefactorContract, alice, 1 ether); // A deposits
 
         _simulateYield(1 ether); // Y = 1 ETH earned during A's exclusive window
 
@@ -206,13 +165,14 @@ contract AlignmentEndowmentVaultHarvestFirstTest is Test {
     // unset community sink (noesis-339) — crystallize accrues, it never reverts
     // ════════════════════════════════════════════════════════════════════════
 
-    /// @dev A clone bound to a target the registry has pinned no sink for. Crystallize is the first statement of
-    ///      `_deposit`, `vest`, `harvest` and `execute`, so a target leg with no sink must not revert:
-    ///      the leg accrues into `accumulatedTargetFees` and all four paths stay open. Asserts the whole
-    ///      sequence — a second deposit after yield, vest at maturity, harvest — succeeds with no sink, and
-    ///      that the accrued balance flushes once one is set.
-    function test_unsetPayout_depositVestHarvestAllRemainOpen() public {
-        AlignmentEndowmentVault v0 = _deployVaultForTarget(TARGET_ID_NO_SINK);
+    /// @dev A clone whose `communityPayout` is unset at initialize. Crystallize is the first statement of
+    ///      `_deposit`, `harvest` and `execute`, so a target leg with no sink must not revert: the leg
+    ///      accrues into `accumulatedTargetFees` and all three paths stay open. Asserts the whole sequence —
+    ///      a second deposit after yield, then harvest — succeeds with no sink, and that the accrued balance
+    ///      flushes once one is set.
+    function test_unsetPayout_depositAndHarvestRemainOpen() public {
+        ambassadorRegistry.setCommunityPayout(TARGET_ID, address(0));
+        AlignmentEndowmentVault v0 = _deployVault();
 
         MockOwnable a = _newBenefactor(alice);
         vm.prank(alice);
@@ -226,24 +186,19 @@ contract AlignmentEndowmentVaultHarvestFirstTest is Test {
         vm.prank(address(0xCAFE));
         v0.receiveContribution{ value: 1 ether }(nativeCurrency, 1 ether, address(b));
         assertEq(v0.getBenefactorShares(address(b)), 1 ether, "second benefactor accepted");
-        assertEq(v0.accumulatedTargetFees(), 0.19 ether, "escrowed target leg accrued (19% of Y)");
+        assertEq(v0.accumulatedTargetFees(), 0.19 ether, "target leg accrued (19% of Y)");
         assertEq(v0.pendingYieldOf(address(a)), 0.8 ether, "A keeps the full pre-join creator leg");
 
-        // 2. Vest at maturity still runs.
-        vm.warp(block.timestamp + VEST);
-        v0.vest(address(a));
-        assertEq(v0.vestedOf(address(a)), 1 ether, "principal vested");
-
-        // 3. Harvest still runs.
+        // 2. Harvest still runs.
         v0.harvest();
 
-        // 4. The accrued leg is delivered once a sink exists, and only then.
+        // 3. The accrued leg is delivered once a sink exists, and only then.
         vm.expectRevert(AlignmentEndowmentVault.CommunityPayoutNotSet.selector);
         v0.flushTargetFees();
 
         uint256 accrued = v0.accumulatedTargetFees();
-        assertEq(accrued, 0.19 ether, "nothing lost across deposit/vest/harvest");
-        ambassadorRegistry.setCommunityPayout(TARGET_ID_NO_SINK, communityPayout);
+        assertEq(accrued, 0.19 ether, "nothing lost across deposit/harvest");
+        ambassadorRegistry.setCommunityPayout(TARGET_ID, communityPayout);
 
         uint256 before = communityPayout.balance;
         assertEq(v0.flushTargetFees(), accrued, "accrued leg delivered");
@@ -251,20 +206,13 @@ contract AlignmentEndowmentVaultHarvestFirstTest is Test {
         assertEq(v0.accumulatedTargetFees(), 0, "accumulator zeroed");
     }
 
-    /// @dev Clone the implementation bound to `targetId_` (mirrors `setUp`). The sink comes from the
-    ///      registry, not from here — the vault has no slot to put one in.
-    function _deployVaultForTarget(uint256 targetId_) internal returns (AlignmentEndowmentVault v) {
+    /// @dev Clone the implementation (mirrors `setUp`). The clone carries no sink of its own — whatever
+    ///      the registry answers for `TARGET_ID` at send time is the sink.
+    function _deployVault() internal returns (AlignmentEndowmentVault v) {
         address impl = address(new AlignmentEndowmentVault());
         v = AlignmentEndowmentVault(payable(LibClone.clone(impl)));
         v.initialize(
-            vaultOwner,
-            address(weth),
-            address(stata),
-            treasury,
-            address(masterRegistry),
-            alignmentToken,
-            targetId_,
-            address(ambassadorRegistry)
+            vaultOwner, address(weth), address(stata), treasury, address(masterRegistry), alignmentToken, TARGET_ID
         );
     }
 }

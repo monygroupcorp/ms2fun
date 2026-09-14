@@ -46,6 +46,15 @@ export function carveAllowance(raise: bigint, b: CarveBrackets = DEFAULT_CARVE_B
   return allowance
 }
 
+/**
+ * The raise below which no carve is possible: the LP 80 of the raise does not clear the pool floor,
+ * so `effectiveCarveEth`'s headroom leg is zero. Derived from `minPoolEth`, which is an
+ * owner-settable factory parameter — never state this threshold as a fixed figure.
+ */
+export function carveDeadBandRaise(minPoolEth: bigint = DEFAULT_MIN_POOL_ETH): bigint {
+  return (minPoolEth * 100n) / 80n
+}
+
 /** The LP 80 of a raise (mirrors RevenueSplitLib.split: 1% + 19% floored, remainder to LP). */
 export function lpShare(raise: bigint): bigint {
   return raise - raise / 100n - (raise * 19n) / 100n

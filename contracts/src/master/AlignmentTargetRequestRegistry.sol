@@ -33,6 +33,7 @@ contract AlignmentTargetRequestRegistry is Ownable, ReentrancyGuard {
     error TokenAlreadyActive();
     error TokenNotInAssets();
     error TargetNotRegistered();
+    error TokenNotInTarget();
     error NotExpired();
     error NoRefund();
 
@@ -54,6 +55,7 @@ contract AlignmentTargetRequestRegistry is Ownable, ReentrancyGuard {
         uint256 deposit; // escrowed while Pending
         uint40 submittedAt;
         Status status;
+        uint256 targetId; // set on approval — the target this request was approved against (0 until then)
     }
 
     // ── Storage ─────────────────────────────────────────────────────────────
@@ -84,7 +86,7 @@ contract AlignmentTargetRequestRegistry is Ownable, ReentrancyGuard {
     event RequestSubmitted(
         uint256 indexed id, address indexed requester, address indexed token, string title, uint256 deposit
     );
-    event RequestApproved(uint256 indexed id, address indexed requester, uint256 refunded);
+    event RequestApproved(uint256 indexed id, address indexed requester, uint256 indexed targetId, uint256 refunded);
     event RequestRejected(uint256 indexed id, address indexed requester, bool forfeited, uint256 amount);
     event RequestExpired(uint256 indexed id, address indexed requester, uint256 refunded);
     event RefundWithdrawn(address indexed to, uint256 amount);
@@ -138,9 +140,9 @@ contract AlignmentTargetRequestRegistry is Ownable, ReentrancyGuard {
             if (assets[i].token == address(0)) revert InvalidAddress();
             if (assets[i].token == token) tokenInAssets = true;
         }
-        // The primary token must be one of the proposed assets, so registering the assets makes THIS
-        // token active (satisfying approveRequest's target-exists check) and the scout/dup-guard token
-        // is a real aligned asset, not arbitrary.
+        // The primary token must be one of the proposed assets, so registering the assets puts THIS
+        // token in the new target (satisfying approveRequest's token-in-target check) and the
+        // scout/dup-guard token is a real aligned asset, not arbitrary.
         if (!tokenInAssets) revert TokenNotInAssets();
         if (msg.value != requestDeposit) revert IncorrectDeposit();
         if (_pending.length >= maxPending) revert QueueFull();
@@ -155,7 +157,8 @@ contract AlignmentTargetRequestRegistry is Ownable, ReentrancyGuard {
             metadataURI: metadataURI,
             deposit: msg.value,
             submittedAt: uint40(block.timestamp),
-            status: Status.Pending
+            status: Status.Pending,
+            targetId: 0
         });
         for (uint256 i = 0; i < assets.length; i++) {
             _requestAssets[id].push(assets[i]);
@@ -168,23 +171,35 @@ contract AlignmentTargetRequestRegistry is Ownable, ReentrancyGuard {
 
     // ── Admin review (owner) ──────────────────────────────────────────────────
 
-    /// @notice Approve a request and refund its deposit. Does NOT register the target — the owner then
-    ///         calls AlignmentRegistryV1.registerAlignmentTarget with this request's data (prefilled by
-    ///         the admin UI from getRequest/getRequestAssets). Two-tx by design (D7).
-    function approveRequest(uint256 id) external onlyOwner nonReentrant {
+    /// @notice Approve a request against the target that was registered for it, and refund its deposit.
+    ///         Does NOT register the target — the owner first calls
+    ///         AlignmentRegistryV1.registerAlignmentTarget with this request's data (prefilled by the
+    ///         admin UI from getRequest/getRequestAssets), then passes the id it produced here. Two-tx
+    ///         by design (D7).
+    /// @param id The request being approved
+    /// @param targetId The alignment target registered for it — recorded on the request and emitted
+    /// @dev Approval names the target it was granted for. A token-level check cannot do that: several
+    ///      requests may name the same not-yet-active token (`submitRequest` only rejects a token that is
+    ///      ALREADY active), so registering one target would make every one of them approvable and the
+    ///      receipt would claim a target that the requester's own submission may not have produced.
+    function approveRequest(uint256 id, uint256 targetId) external onlyOwner nonReentrant {
         Request storage r = _requests[id];
         if (r.status != Status.Pending) revert NotPending();
         // Enforce the two-tx order (register THEN approve, D7): approve is the "you made this a target,
         // here's your deposit back" step, so the target must actually exist first. Without this an admin
         // could silently refund + delist a request without ever registering it, leaving the requester
         // "approved" with no target. (Reject — declining to make a target — has no such requirement.)
-        if (!_tokenHasActiveTarget(r.token)) revert TargetNotRegistered();
+        if (!alignmentRegistry.isAlignmentTargetActive(targetId)) revert TargetNotRegistered();
+        // ...and the target must be one this request could have produced: its asset set has to carry the
+        // requested token.
+        if (!alignmentRegistry.isTokenInTarget(targetId, r.token)) revert TokenNotInTarget();
         r.status = Status.Approved;
+        r.targetId = targetId;
         _removePending(id);
         uint256 amount = r.deposit;
         r.deposit = 0;
         if (amount > 0) refunds[r.requester] += amount; // pull-payment (claim via withdrawRefund)
-        emit RequestApproved(id, r.requester, amount);
+        emit RequestApproved(id, r.requester, targetId, amount);
     }
 
     /// @notice Reject a request. `forfeit=true` sends the deposit to the treasury (spam); `forfeit=false`
@@ -198,7 +213,9 @@ contract AlignmentTargetRequestRegistry is Ownable, ReentrancyGuard {
         r.deposit = 0;
         if (amount > 0) {
             // Forfeit → straight to the (trusted) treasury; good-faith → pull-payment for the requester.
-            if (forfeit) SafeTransferLib.safeTransferETH(protocolTreasury, amount);
+            // forceSafeTransferETH matches the bond escrow and the overlay module: a treasury that can't
+            // take a plain send can never wedge an admin action.
+            if (forfeit) SafeTransferLib.forceSafeTransferETH(protocolTreasury, amount);
             else refunds[r.requester] += amount;
         }
         emit RequestRejected(id, r.requester, forfeit, amount);

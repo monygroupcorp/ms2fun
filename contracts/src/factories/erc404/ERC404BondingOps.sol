@@ -33,12 +33,14 @@ import {
     TimeMustBeInFuture,
     OpenTimeMustBeSetFirst,
     MaturityMustBeAfterOpenTime,
+    MaturityTooFarAfterOpenTime,
     OpenTimeNotSet,
     CannotActivateAfterLiquidityDeployed,
     StakingAlreadyActive,
     AlreadyDeployed,
     NoReserve,
-    NothingForPool
+    NothingForPool,
+    MAX_BONDING_DURATION
 } from "./ERC404BondingStorage.sol";
 // Interface-only import (no bytecode, no storage): `ICarveParamsSource` is declared alongside the
 // instance because that file is what the app's binding generator globs. See the note there.
@@ -513,7 +515,16 @@ contract ERC404BondingOps is ERC404BondingStorage {
         if (stakingActive) {
             address sm = address(stakingModule); // cache: one SLOAD for the module calls below
             uint256 delta = address(this).balance - before;
-            if (delta != 0) {
+            // Stop-crediting on revocation (noesis-259). The staking module gates `recordFeesReceived`
+            // behind `onlyRegisteredInstance`, so once this instance's registration is revoked a bare
+            // call reverts and takes the WHOLE sweep down with it — the vault pull above is undone and
+            // `settleAndReleaseLeak` below never runs, permanently stranding both the swept fees and any
+            // released stream leak. A revoked instance simply stops being credited: the delta is not
+            // streamed to stakers and, just below, not added to `stakingReserve` either, which leaves it
+            // as ordinary surplus the owner can recover through `withdrawDust`. Crediting the reserve
+            // without a matching stream would lock ETH nobody can ever accrue and nobody can sweep.
+            bool credited = delta != 0 && masterRegistry.isRegisteredInstance(address(this));
+            if (credited) {
                 IERC404StakingModule(sm).recordFeesReceived(delta);
             }
             // Single round-trip (noesis-127): settle the stream, read totalStaked for the noesis-061
@@ -521,12 +532,13 @@ contract ERC404BondingOps is ERC404BondingStorage {
             // a zero-stake gap that no staker can ever accrue). Folding the guard-read and the release
             // into one call keeps the instance under EIP-170.
             (uint256 totalStaked, uint256 leaked) = IStakingTotals(sm).settleAndReleaseLeak();
-            // Credit the staker-owed reserve ONLY when the module can distribute (totalStaked > 0),
-            // mirroring recordFeesReceived's own guard. When totalStaked == 0 the delta is genuine
-            // undistributable dust the module cannot pay out — leave it recoverable by withdrawDust.
+            // Credit the staker-owed reserve ONLY when the delta was actually streamed (`credited`) AND
+            // the module can distribute (totalStaked > 0), mirroring recordFeesReceived's own guard.
+            // When either fails the delta is genuine undistributable dust the module cannot pay out —
+            // leave it recoverable by withdrawDust.
             // `delta` is a conservative over-estimate of the true liability (the module truncates
             // rewardPerToken), the safe direction for a sweep guard.
-            if (delta != 0 && totalStaked != 0) {
+            if (credited && totalStaked != 0) {
                 stakingReserve += delta;
             }
             // Debit the released leak so it drops out of `stakingReserve` and withdrawDust can sweep it
@@ -627,9 +639,19 @@ contract ERC404BondingOps is ERC404BondingStorage {
      *      creator would pay them in proportion to how early they cut the sale. `availableCoin` is read
      *      from live balances net of custodial liabilities, never from create-time arithmetic — a
      *      create-time constant ceasing to describe reality is the defect this sizing removes.
+     * @dev THE AGENT CANNOT CHOOSE THE AMOUNT. Graduation is one-shot and this argument is supplied by
+     *      the caller, so an agent calling `deployLiquidity(0)` would forfeit the creator's entire carve
+     *      into the pool with no way back. The request is therefore floored at `declaredMaxAllowanceBps`
+     *      for every caller that is not the owner: an agent takes the full declared carve or it does not
+     *      graduate. Flooring rather than rejecting a zero is what makes it hold — a rejected zero is
+     *      defeated by requesting one bps, which forfeits 99.99% of the carve just as permanently. The
+     *      owner's own path is untouched and still waives down to nothing, which is a choice only the
+     *      party losing the money gets to make. The upper clamp, the split and `creator: owner()` are
+     *      unchanged, so this can only ever move ETH toward the creator.
      * @param carveRequestBps Fraction (bps) of the protocol carve allowance the creator takes NOW, on
      *        the same axis as `declaredMaxAllowanceBps`. Effective carve ETH = min(request,
      *        allowance(raise) × declaredMaxAllowanceBps / 10000, headroom above the pool floor).
+     *        From an agent the request is first raised to `declaredMaxAllowanceBps`.
      */
     // slither-disable-next-line reentrancy-eth,timestamp,reentrancy-events
     function deployLiquidity(uint256 carveRequestBps) external nonReentrant {
@@ -649,7 +671,16 @@ contract ERC404BondingOps is ERC404BondingStorage {
         // `split` plus the carve clamp on the next line — reproduced here rather than called so the
         // clamp can be re-run against the combined carve below.
         uint256 lp = RevenueSplitLib.split(ethToSend).remainder;
-        uint256 carveEth = _effectiveCarve(ethToSend, carveRequestBps);
+        // Floor an agent's request at the creator's declared allowance (see THE AGENT CANNOT CHOOSE THE
+        // AMOUNT above). `_requireOwnerOrAgent` has already run, so a caller that is not the owner is an
+        // agent; `msg.sender` survives the instance trampoline's delegatecall, so this reads the caller
+        // the gate itself read.
+        uint256 carveBps = carveRequestBps;
+        if (msg.sender != owner()) {
+            uint256 declaredBps = declaredMaxAllowanceBps;
+            if (carveBps < declaredBps) carveBps = declaredBps;
+        }
+        uint256 carveEth = _effectiveCarve(ethToSend, carveBps);
         if (carveEth > lp) carveEth = lp;
 
         (uint256 tokensForPool, uint256 ethForPool) = _sizePoolAtCurvePrice(lp - carveEth);
@@ -948,12 +979,18 @@ contract ERC404BondingOps is ERC404BondingStorage {
         emit BondingOpenTimeSet(timestamp);
     }
 
+    /// @dev Bounded on BOTH sides. The lower bound alone let an owner-or-agent park maturity
+    ///      arbitrarily far out; `MAX_BONDING_DURATION` closes that, capping the bonding period at
+    ///      the protocol's own outer horizon for a creator bond (see the constant's derivation in
+    ///      `ERC404BondingStorage`). The cap is measured from `bondingOpenTime`, not from `now`, so
+    ///      the legal window is the same regardless of when within the pre-open period it is set.
     // slither-disable-next-line timestamp
     function setBondingMaturityTime(uint256 timestamp) external {
         _requireOwnerOrAgent();
         if (timestamp <= block.timestamp) revert TimeMustBeInFuture();
         if (bondingOpenTime == 0) revert OpenTimeMustBeSetFirst();
         if (timestamp <= bondingOpenTime) revert MaturityMustBeAfterOpenTime();
+        if (timestamp - bondingOpenTime > MAX_BONDING_DURATION) revert MaturityTooFarAfterOpenTime();
         bondingMaturityTime = timestamp;
         emit BondingMaturityTimeSet(timestamp);
     }

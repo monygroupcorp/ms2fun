@@ -1,26 +1,9 @@
-import { defineChain } from 'viem'
 import { createConfig, http } from 'wagmi'
 import { mainnet, sepolia } from 'wagmi/chains'
+import { SUPPORTED_CHAINS, anvilFork } from './chains'
 import { injected } from 'wagmi/connectors'
 import { sepoliaForkEnabled } from './addresses'
 import { decentralizedTransport } from './rpc'
-
-/**
- * The local anvil mainnet-fork. Chain id is 1337 (from the local-chain deploy bridge,
- * `contracts/.../contracts.local.json`), NOT anvil's default 31337.
- */
-// The chain's DECLARED rpc — this is what a WALLET is told to add/switch to
-// (`WrongNetworkBanner`'s manual fallback, `wallet_addEthereumChain`), so it stays the absolute
-// loopback URL: the wallet is a separate app on the user's machine, not the page, so it is bound
-// by neither the page's CSP nor Chrome's Local Network Access gate and cannot reach anvil through
-// the dev-server's same-origin proxy. Host-aware for Tailscale (walking the app from another
-// machine): on localhost that's localhost:8545, off it, that machine's own hostname:8545 — the
-// wallet runs alongside the browser, so it resolves the same host the page did. Falls back to
-// localhost for SSR/no-window.
-const ANVIL_RPC =
-  typeof window !== 'undefined' && window.location.hostname !== 'localhost'
-    ? `http://${window.location.hostname}:8545`
-    : 'http://localhost:8545'
 
 // The APP's own read transport for the mainnet-fork channel — same-origin, proxied server-side to
 // anvil by `vite.config.ts`'s `devChainProxy`. Same-origin is covered by the page's
@@ -40,25 +23,9 @@ const ANVIL_RPC_PROXY = '/__rpc/mainnet'
  */
 const SEPOLIA_FORK_RPC = '/__rpc/sepolia'
 
-export const anvilFork = defineChain({
-  id: 1337,
-  name: 'Anvil Fork',
-  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-  rpcUrls: { default: { http: [ANVIL_RPC] } },
-  // The mainnet fork carries Multicall3 at its canonical mainnet address. WITHOUT declaring it,
-  // viem's `client.multicall` throws ChainDoesNotSupportContract — which broke every multicall
-  // reader (the ERC721 auction surface, the NFT galleries). Single-contract reads were unaffected.
-  contracts: {
-    multicall3: { address: '0xcA11bde05977b3631167028862bE2a173976CA11' },
-  },
-  testnet: true,
-})
-
 /**
- * Three chains: mainnet, Sepolia (the showcase testnet), and the local anvil mainnet-fork (dev).
- * Which one a build actually talks to is `activeChainId` in ./addresses — this list is what the app
- * knows how to reach at all, and it must cover every id `addressesByChain` carries or a route-scoped
- * read on that chain has no transport.
+ * The chain list itself is `SUPPORTED_CHAINS` in ./chains; this module adds the wallet and
+ * transport layer over it.
  *
  * Wallet: injected/EIP-6963 only. `multiInjectedProviderDiscovery: true` makes wagmi discover all
  * injected wallets via EIP-6963 — each gets its own connector (id = rdns, e.g. 'io.ambire.wallet').
@@ -80,7 +47,7 @@ export const anvilFork = defineChain({
  * transport (`ANVIL_RPC_PROXY` above).
  */
 export const config = createConfig({
-  chains: [mainnet, sepolia, anvilFork],
+  chains: SUPPORTED_CHAINS,
   connectors: [injected()],
   multiInjectedProviderDiscovery: true,
   batch: { multicall: true },
@@ -96,6 +63,8 @@ export const config = createConfig({
     [anvilFork.id]: http(ANVIL_RPC_PROXY, { batch: true }),
   },
 })
+
+export { anvilFork } from './chains'
 
 declare module 'wagmi' {
   interface Register {

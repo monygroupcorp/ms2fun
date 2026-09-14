@@ -16,6 +16,10 @@ contract MockCurveComputer is ICurveComputer {
             kCoeff: targetETH / nftCount, poleWad: 1.0438e18, normalizationFactor: unitPerNFT * 1e7
         });
     }
+
+    function isReserveBpsAdmissible(uint256 liquidityReserveBps) external pure override returns (bool) {
+        return liquidityReserveBps != 0 && liquidityReserveBps < 10000;
+    }
 }
 
 contract ICurveComputerTest is Test {

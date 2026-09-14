@@ -6,6 +6,7 @@ import { LibClone } from "solady/utils/LibClone.sol";
 import { AlignmentRegistryV1 } from "../../src/master/AlignmentRegistryV1.sol";
 import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
 import { UniswapVaultPriceValidator } from "../../src/peripherals/UniswapVaultPriceValidator.sol";
+import { MockUniV3RefFactory } from "../master/AlignmentRegistryReferencePool.t.sol";
 
 /// @notice A V3-shaped reference pool that HONOURS `secondsAgos`: it serves any window up to
 ///         `maxWindow` and reverts above it, the way a pool whose observation buffer only reaches
@@ -16,6 +17,7 @@ contract WindowHonouringRefPool {
     address public token1;
     uint32 public maxWindow;
     int24 public meanTick;
+    uint24 public fee = 3000;
 
     constructor(address _token0, address _token1, uint32 _maxWindow, int24 _meanTick) {
         token0 = _token0;
@@ -75,8 +77,11 @@ contract ReferenceWindowCouplingTest is Test {
 
     uint256 internal targetId;
 
+    MockUniV3RefFactory internal uniFactory;
+
     function setUp() public {
-        AlignmentRegistryV1 impl = new AlignmentRegistryV1(weth);
+        uniFactory = new MockUniV3RefFactory();
+        AlignmentRegistryV1 impl = new AlignmentRegistryV1(weth, address(uniFactory), address(0));
         registry = AlignmentRegistryV1(LibClone.deployERC1967(address(impl)));
         registry.initialize(dao);
 
@@ -88,6 +93,14 @@ contract ReferenceWindowCouplingTest is Test {
 
     function _validator(uint32 window) internal returns (UniswapVaultPriceValidator) {
         return new UniswapVaultPriceValidator(weth, address(0), address(0), 1000, window);
+    }
+
+    /// @dev This file is about the WINDOW coupling, not provenance (noesis-283), so every pool it builds is
+    ///      a canonical one — registered here so the setter's factory check is satisfied and the window
+    ///      assertions stay the only thing under test.
+    function _canonical(WindowHonouringRefPool p) internal returns (WindowHonouringRefPool) {
+        uniFactory.register(p.token0(), p.token1(), p.fee(), address(p));
+        return p;
     }
 
     function _pinDefaultWindow(address pool) internal {
@@ -102,7 +115,8 @@ contract ReferenceWindowCouplingTest is Test {
     /// vault floor depends on: "the setter guarantees a usable reference" is only true end to end.
     /// Goes red if either constant moves without the other.
     function test_setterProvedWindowIsTheWindowTheReaderAsksFor() public {
-        WindowHonouringRefPool pool = new WindowHonouringRefPool(weth, token, SHIPPED_VALIDATOR_WINDOW, 69080);
+        WindowHonouringRefPool pool =
+            _canonical(new WindowHonouringRefPool(weth, token, SHIPPED_VALIDATOR_WINDOW, 69080));
 
         _pinDefaultWindow(address(pool));
 
@@ -118,7 +132,7 @@ contract ReferenceWindowCouplingTest is Test {
     /// A pool with LESS history than the registry's default is rejected AT SET TIME, so the divergence
     /// can never be introduced from the pool side — only from a config change.
     function test_setterRejectsAPoolShallowerThanItsOwnDefaultWindow() public {
-        WindowHonouringRefPool tooShallow = new WindowHonouringRefPool(weth, token, 60, 69080);
+        WindowHonouringRefPool tooShallow = _canonical(new WindowHonouringRefPool(weth, token, 60, 69080));
         vm.prank(dao);
         vm.expectRevert(AlignmentRegistryV1.ReferencePoolUnusable.selector);
         registry.setReferencePool(
@@ -129,7 +143,7 @@ contract ReferenceWindowCouplingTest is Test {
     /// An EXPLICIT `twapWindow` binds both sides to the same number, so a reference pinned that way is
     /// immune to the config coupling above. Pinned so the explicit form stays the safe one.
     function test_explicitWindowBindsBothSides() public {
-        WindowHonouringRefPool pool = new WindowHonouringRefPool(weth, token, 600, 69080);
+        WindowHonouringRefPool pool = _canonical(new WindowHonouringRefPool(weth, token, 600, 69080));
         vm.prank(dao);
         registry.setReferencePool(
             targetId, token, IAlignmentRegistry.ReferencePool({ pool: address(pool), kind: 0, twapWindow: 600 })

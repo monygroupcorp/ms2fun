@@ -5,15 +5,20 @@
  * generated `erc404BondingInstanceAbi` on the fork chain, refetching the relevant read on success.
  *
  * Actions: bonding lifecycle (active toggle, open/maturity time), metadata/style URIs, vault
- * (migrate, claim all fees), agent delegation, and (noesis-080) configure allowlist — shown only when
- * the instance has a gating module set (today the only deployed gating module IS MerkleGatingModule;
- * PasswordTierGating was dropped in noesis-065).
+ * (migrate, claim all fees, flush a stranded graduation tithe), agent delegation, and (noesis-080)
+ * configure allowlist — shown only when the instance has a gating module set (today the only deployed
+ * gating module IS MerkleGatingModule; PasswordTierGating was dropped in noesis-065).
+ *
+ * The stranded-tithe row is the one action here that is not the owner's alone: a graduation cut the
+ * alignment vault could not take is stashed on the liquidity module, and re-sending it is
+ * permissionless by design. It is laid out with the other vault rows because the owner is who notices,
+ * but anyone may send it.
  *
  * ABI note: the generated metadata setter is `setMetadataURI` (uppercase URI), not `setMetadataUri`.
  */
 import { useMemo, useState } from 'react'
 import { formatEther, type Log } from 'viem'
-import { useBlock, useWaitForTransactionReceipt } from 'wagmi'
+import { useBalance, useBlock, useWaitForTransactionReceipt } from 'wagmi'
 import {
   deployBondEscrowAbi,
   erc404BondingInstanceAbi,
@@ -28,11 +33,16 @@ import {
   useReadErc404BondingInstanceGatingModule,
   useReadErc404BondingInstanceGraduated,
   useReadErc404BondingInstancePreviewCarve,
+  useReadErc404BondingInstanceReserve,
   useReadErc404BondingInstanceStakingActive,
+  useReadErc404BondingInstanceStakingReserve,
+  useReadErc404BondingInstanceUnit,
 } from '../../../generated/contracts'
+import { formatPrice } from '../../../lib/format'
 import { useCollection } from '../../useCollection'
 import { useCollectionMetadata } from '../../useCollectionMetadata'
 import { useCollectionAddresses, useCollectionChainId } from '../useCollectionChain'
+import { ArtPointerNotice } from '../ArtPointerNotice'
 import { carveCreatorNet, parseBps } from '../../../lib/carve'
 import { carveSettlementFromLogs } from '../../../lib/carveReceipt'
 import { collectionToDataUri } from '../../../lib/metadata'
@@ -54,6 +64,7 @@ import { useTxAction } from '../../ui/useTxAction'
 import { MetadataArtistPanel } from './MetadataArtistPanel'
 import { canDeployLiquidity, derivePhase } from './bondingPhase'
 import { useBondingData } from './useBondingData'
+import { useStrandedTithe } from './useStrandedTithe'
 import { useNowSec } from './useNowSec'
 import styles from './Erc404AdminPanel.module.css'
 
@@ -131,12 +142,15 @@ export function Erc404AdminPanel({ instance }: Erc404AdminPanelProps) {
           placeholder="ipfs://, ar://, https://, or data:"
           testId="erc404-admin-metadata"
         />
+        <ArtPointerNotice instance={instance} />
         <ActivateStakingRow instance={instance} />
         {bonding && <DeployLiquidityRow instance={instance} closesSaleEarly={closesSaleEarly} />}
         <BondStatusRow instance={instance} />
         <MetadataArtistPanel instance={instance} />
         <MigrateVaultRow instance={instance} />
         <ClaimAllFeesRow instance={instance} />
+        <WithdrawDustRow instance={instance} />
+        <StrandedTitheRow instance={instance} />
         <SetAgentDelegationRow instance={instance} />
         <AllowlistConfigRow instance={instance} />
       </AdminSection>
@@ -564,7 +578,7 @@ function BondStatusRow({ instance }: { instance: `0x${string}` }) {
   })
   const tx = useTxAction({ onSuccess: () => void refetch(), instance })
 
-  // bonds(instance) tuple: [creator, amount, createdAt, settled]
+  // bonds(instance) tuple: [creator, amount, createdAt, settled, maxBondDuration, graceDays]
   const amount = bond?.[1] ?? 0n
   const createdAt = bond?.[2] ?? 0
   const settled = bond?.[3] ?? false
@@ -690,6 +704,106 @@ function ClaimAllFeesRow({ instance }: { instance: `0x${string}` }) {
   )
 }
 
+// ── sweep the surplus a fee claim leaves behind ────────────────────────────────
+
+function WithdrawDustRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
+  const { data: balance, refetch: refetchBalance } = useBalance({ address: instance, chainId })
+  const { data: reserve, refetch: refetchReserve } = useReadErc404BondingInstanceReserve({
+    address: instance,
+    chainId: chainId,
+  })
+  const { data: stakingReserve, refetch: refetchStaking } =
+    useReadErc404BondingInstanceStakingReserve({ address: instance, chainId: chainId })
+  const tx = useTxAction({
+    onSuccess: () => {
+      void refetchBalance()
+      void refetchReserve()
+      void refetchStaking()
+    },
+    instance,
+  })
+
+  // The contract's own guard, mirrored: everything above the two tracked liabilities is sweepable,
+  // and it reverts `NothingToWithdraw` at or below them. `reserve` backs sellBonding refunds and
+  // `stakingReserve` is ETH owed to stakers — neither is the creator's to take, ever.
+  const locked = (reserve ?? 0n) + (stakingReserve ?? 0n)
+  const known = balance !== undefined && reserve !== undefined && stakingReserve !== undefined
+  const surplus = known && balance.value > locked ? balance.value - locked : 0n
+
+  return (
+    <ActionRow
+      label="sweep surplus"
+      hint={
+        !known
+          ? 'recover ETH held here that backs neither a sell refund nor a staker'
+          : surplus === 0n
+            ? 'nothing to sweep — every wei here backs a sell refund or a staker'
+            : `${formatEther(surplus)} ETH here backs neither a sell refund nor a staker. Claiming fees leaves it behind; this is what takes it.`
+      }
+    >
+      <div className={styles.control}>
+        <TxButton
+          state={tx.state}
+          onClick={() =>
+            tx.send({
+              address: instance,
+              abi: erc404BondingInstanceAbi,
+              functionName: 'withdrawDust',
+              args: [],
+              chainId: chainId,
+            })
+          }
+          label="sweep surplus"
+          className="btn btn-secondary"
+          receipt={
+            surplus > 0n
+              ? { verb: 'surplus swept', net: { label: 'you received', wei: surplus } }
+              : undefined
+          }
+          onReset={tx.reset}
+          disabled={known && surplus === 0n}
+          disabledHint="the sweep reverts with nothing above the locked balances"
+          errorText="sweep failed — try again"
+          testId="erc404-admin-withdraw-dust"
+        />
+      </div>
+    </ActionRow>
+  )
+}
+
+// ── vault: flush a stranded graduation tithe (permissionless) ──────────────────
+
+function StrandedTitheRow({ instance }: { instance: `0x${string}` }) {
+  const { amount, canFlush, flush, tx } = useStrandedTithe(instance)
+
+  return (
+    <ActionRow
+      label="flush stranded tithe"
+      hint={
+        amount === undefined
+          ? 'permissionless — re-send a graduation cut the alignment vault could not take'
+          : amount === 0n
+            ? 'nothing stranded — the graduation cut was delivered'
+            : `${formatPrice(amount)} stranded on the liquidity module — permissionless to re-send`
+      }
+    >
+      <TxButton
+        state={tx.state}
+        onClick={flush}
+        label="flush tithe"
+        successLabel="stranded tithe re-sent — tx confirmed."
+        onReset={tx.reset}
+        className="btn btn-secondary"
+        disabled={!canFlush}
+        disabledHint="the flush reverts with nothing stashed"
+        errorText="flush failed — try again"
+        testId="erc404-admin-flush-tithe"
+      />
+    </ActionRow>
+  )
+}
+
 // ── agent delegation toggle ────────────────────────────────────────────────────
 
 function SetAgentDelegationRow({ instance }: { instance: `0x${string}` }) {
@@ -738,6 +852,11 @@ function SetAgentDelegationRow({ instance }: { instance: `0x${string}` }) {
 // (PasswordTierGating was dropped in noesis-065). ERC404 has no per-edition concept: editionId/tierIndex
 // are always 0. Two independently-retryable transactions — see the erc1155/CreatorAdminPanel.tsx twin
 // for the full rationale (configureFor auth vs updateInstanceMetadata's creator-vs-owner asymmetry).
+//
+// The cap is authored in NFTs and rooted at `unit()` (noesis-266): this family forwards coin, at wei
+// scale, to the gating module, so a leaf holding the creator's raw number would deny every listed
+// wallet. Nothing can be rooted before `unit()` lands — a root built at the wrong scale is submitted
+// on-chain and only reveals itself when buyers report reverts.
 
 function AllowlistConfigRow({ instance }: { instance: `0x${string}` }) {
   const chainId = useCollectionChainId()
@@ -750,6 +869,7 @@ function AllowlistConfigRow({ instance }: { instance: `0x${string}` }) {
   // new metadataURI on the collection page's next mount/refetch; nothing to force here.
   const { data: card } = useCollection(instance, { chainId, addresses })
   const metadata = useCollectionMetadata(card?.metadataURI)
+  const { data: unit } = useReadErc404BondingInstanceUnit({ address: instance, chainId: chainId })
 
   const [mode, setMode] = useState<'hosted' | 'paste'>('hosted')
   const [input, setInput] = useState('')
@@ -762,10 +882,13 @@ function AllowlistConfigRow({ instance }: { instance: `0x${string}` }) {
   if (!hasGatingModule(gatingModule)) return null
 
   async function handleCheck(): Promise<void> {
+    if (unit === undefined) return
     setChecking(true)
     try {
       const result =
-        mode === 'hosted' ? await buildAllowlistFromUri(input) : buildAllowlistFromPaste(input)
+        mode === 'hosted'
+          ? await buildAllowlistFromUri(input, unit)
+          : buildAllowlistFromPaste(input, unit)
       setBuild(result)
     } finally {
       setChecking(false)
@@ -801,7 +924,7 @@ function AllowlistConfigRow({ instance }: { instance: `0x${string}` }) {
 
   const summary =
     build !== undefined && !isAllowlistBuildError(build)
-      ? `${build.count} addresses · root ${build.root.slice(0, 10)}… ✓${
+      ? `${build.count} addresses · caps read as NFTs, rooted in coin · root ${build.root.slice(0, 10)}… ✓${
           build.invalid.length > 0 ? ` (${build.invalid.length} invalid rows skipped)` : ''
         }`
       : undefined
@@ -811,7 +934,7 @@ function AllowlistConfigRow({ instance }: { instance: `0x${string}` }) {
   return (
     <ActionRow
       label="configure allowlist"
-      hint="submit a merkle root on-chain and persist the listURI (two transactions)"
+      hint="submit a merkle root on-chain and persist the listURI (two transactions). maxQty is a number of NFTs — one row per wallet, and the cap is scaled to this collection's coin for you."
     >
       <div className={styles.control}>
         <div>
@@ -859,7 +982,7 @@ function AllowlistConfigRow({ instance }: { instance: `0x${string}` }) {
               setInput(e.target.value)
               setBuild(undefined)
             }}
-            placeholder={'one per line: 0xADDRESS,maxQty'}
+            placeholder={'one per line: 0xADDRESS,maxQty — maxQty in NFTs, e.g. 0xabc…,5'}
             rows={4}
             aria-label="pasted allowlist"
             data-testid="erc404-allowlist-paste"
@@ -869,7 +992,7 @@ function AllowlistConfigRow({ instance }: { instance: `0x${string}` }) {
           type="button"
           className="btn btn-secondary"
           onClick={() => void handleCheck()}
-          disabled={checking || input.trim() === ''}
+          disabled={checking || input.trim() === '' || unit === undefined}
           data-testid="erc404-allowlist-check"
         >
           {checking ? 'checking…' : 'check'}

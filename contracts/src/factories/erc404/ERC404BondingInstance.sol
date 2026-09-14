@@ -546,7 +546,11 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle, IGra
         _transfer(address(this), msg.sender, amount);
         reserve += totalCost;
 
-        if (messageData.length > 0) {
+        // Revocation must not brick the trade. `postForAction` refuses a caller the registry no longer
+        // approves, and `revokeInstance` is exactly that flip, so a bare call here would revert a
+        // commented buy that still succeeds uncommented. Pre-checking only that one read keeps the skip
+        // narrow: every other reason `postForAction` can revert still reverts the buy.
+        if (messageData.length > 0 && masterRegistry.isInstanceFromApprovedFactory(address(this))) {
             globalMessageRegistry.postForAction(msg.sender, address(this), messageData);
         }
 
@@ -605,7 +609,11 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle, IGra
             emit BondingFeePaid(msg.sender, sellFee);
         }
 
-        if (messageData.length > 0) {
+        // Revocation must not brick the trade. `postForAction` refuses a caller the registry no longer
+        // approves, and `revokeInstance` is exactly that flip, so a bare call here would revert a
+        // commented sell that still succeeds uncommented. Pre-checking only that one read keeps the skip
+        // narrow: every other reason `postForAction` can revert still reverts the sell.
+        if (messageData.length > 0 && masterRegistry.isInstanceFromApprovedFactory(address(this))) {
             globalMessageRegistry.postForAction(msg.sender, address(this), messageData);
         }
 
@@ -789,6 +797,11 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle, IGra
     /// @dev Zero-request / zero-declared short-circuits BEFORE touching the factory, so a plain
     ///      deployLiquidity(0) never depends on the factory exposing carve math (exact pre-carve
     ///      behavior). The pool floor (`minPoolEth`) clamps — it never gates.
+    /// @dev RULED, so it is not re-raised as an oversight: no line compares `minPoolEth` to
+    ///      `ethForPool`, deliberately. The floor is a bound on the carve and never a condition on
+    ///      graduation, so a collection whose own creator misconfigured it can always leave the curve
+    ///      rather than sit on it holding other people's ETH. `ERC404Factory.effectiveCarveEth` is
+    ///      where the clamp is applied.
     function previewCarve(uint256 carveRequestBps) external view returns (uint256) {
         return _effectiveCarve(reserve, carveRequestBps);
     }

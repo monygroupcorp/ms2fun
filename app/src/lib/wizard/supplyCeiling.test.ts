@@ -2,15 +2,26 @@ import { describe, expect, it } from 'vitest'
 import { DN404_MAX_TOTAL_SUPPLY, maxNftSupplyForUnit, supplyCeilingError } from './supplyCeiling'
 
 // The three presets DeployCore installs (script/DeployCore.sol) — the numbers a creator actually meets.
-const NICHE = 1_000_000_000n
-const STANDARD = 1_000_000n
+const NICHE = 1_000_000n
+const STANDARD = 100_000n
 const HYPE = 1_000n
 
 describe('maxNftSupplyForUnit', () => {
   it('matches the deployed presets', () => {
-    expect(maxNftSupplyForUnit(NICHE)).toBe(79n)
-    expect(maxNftSupplyForUnit(STANDARD)).toBe(79_228n)
+    expect(maxNftSupplyForUnit(NICHE)).toBe(79_228n)
+    expect(maxNftSupplyForUnit(STANDARD)).toBe(792_281n)
     expect(maxNftSupplyForUnit(HYPE)).toBe(79_228_162n)
+  })
+
+  // The rungs are a decade apart by design: closer together and a creator cannot tell them apart,
+  // further apart and the top rung's ceiling falls below the supplies people actually type — which is
+  // what NICHE did at 1e9 units/NFT, admitting 79 pieces.
+  it('keeps the ladder a decade apart, and every rung above a supply someone would type', () => {
+    expect(STANDARD * 10n).toBe(NICHE)
+    expect(HYPE * 100n).toBe(STANDARD)
+    for (const unit of [NICHE, STANDARD, HYPE]) {
+      expect(maxNftSupplyForUnit(unit)).toBeGreaterThan(10_000n)
+    }
   })
 
   // The ceiling must be the LAST value that does not overflow — an off-by-one here reverts a create
@@ -30,21 +41,29 @@ describe('maxNftSupplyForUnit', () => {
 })
 
 describe('supplyCeilingError', () => {
-  const ceiling = maxNftSupplyForUnit(NICHE) // 79
+  const ceiling = maxNftSupplyForUnit(NICHE) // 79,228
 
   it('flags a supply above the ceiling, naming the preset and the max', () => {
-    const msg = supplyCeilingError('1000', ceiling, 'NICHE')
+    const msg = supplyCeilingError('100000', ceiling, 'NICHE')
     expect(msg).toMatch(/NICHE/)
-    expect(msg).toMatch(/79/)
-    expect(msg).toMatch(/1,000/)
+    expect(msg).toMatch(/79,228/)
+    expect(msg).toMatch(/100,000/)
   })
 
   it('accepts the ceiling exactly', () => {
-    expect(supplyCeilingError('79', ceiling, 'NICHE')).toBeNull()
+    expect(supplyCeilingError('79228', ceiling, 'NICHE')).toBeNull()
   })
 
   it('accepts a supply below the ceiling', () => {
     expect(supplyCeilingError('50', ceiling, 'NICHE')).toBeNull()
+  })
+
+  // The supply the old NICHE could not take. It is the obvious first thing a creator types, and on
+  // the re-spaced ladder every rung admits it.
+  it('accepts a round 1,000 on every rung', () => {
+    for (const unit of [NICHE, STANDARD, HYPE]) {
+      expect(supplyCeilingError('1000', maxNftSupplyForUnit(unit), 'preset')).toBeNull()
+    }
   })
 
   it('is silent while the on-chain ceiling has not loaded', () => {

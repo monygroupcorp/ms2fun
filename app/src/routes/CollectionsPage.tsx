@@ -8,6 +8,7 @@ import { IpfsImage } from '../components/ui/IpfsImage'
 import { formatSupplyCount, truncateAddress } from '../lib/format'
 import { forkChainId } from '../lib/addresses'
 import { CollectionCard } from '../components/CollectionCard'
+import { cardStatus } from '../lib/cardStatus'
 import { StateBlock } from '../components/ui/StateBlock'
 import styles from './CollectionsPage.module.css'
 import browseStyles from '../components/CollectionsBrowse.module.css'
@@ -53,15 +54,18 @@ export function CollectionsPage() {
     { value: 'ERC1155', label: '1155' },
     { value: 'ERC721', label: '721' },
   ]
-  const statusOptions: { value: StatusFilter; label: string }[] = [
-    { value: 'active', label: 'Live' },
-    { value: 'ended', label: 'Ended' },
-    { value: 'ALL', label: 'All' },
+  // Titles because the buckets are not self-evident from three short words: 'Soon' in particular is
+  // a promise the collection made on chain, not our guess at one, and 'Ended' collects everything the
+  // cards themselves stay quiet about.
+  const statusOptions: { value: StatusFilter; label: string; title: string }[] = [
+    { value: 'live', label: 'Live', title: 'buyable right now' },
+    { value: 'soon', label: 'Soon', title: 'not open yet — the contract names a date' },
+    { value: 'ended', label: 'Ended', title: 'sold out, graduated, settled, or never opened' },
+    { value: 'ALL', label: 'All', title: 'every collection, whatever its state' },
   ]
   const sortOptions: { value: SortFilter; label: string }[] = [
     { value: 'recent', label: 'Recent' },
     { value: 'name', label: 'Name' },
-    { value: 'tvl', label: 'TVL' },
   ]
 
   return (
@@ -126,6 +130,7 @@ export function CollectionsPage() {
             <button
               key={s.value}
               className={`${styles.chip} ${statusFilter === s.value ? styles.chipOn : ''}`}
+              title={s.title}
               onClick={() => setStatusFilter(s.value)}
             >
               {s.label}
@@ -146,12 +151,16 @@ export function CollectionsPage() {
       </div>
 
       {isPending && <StateBlock variant="loading">hanging the work…</StateBlock>}
-      {isError && <StateBlock variant="error">discovery unreachable — is the fork up?</StateBlock>}
+      {isError && (
+        <StateBlock variant="error">
+          discovery unreachable — no response from the network.
+        </StateBlock>
+      )}
 
       {!isPending && !isError && total === 0 && (
         <StateBlock variant="empty" boxed testId="collections-empty">
           {data !== undefined && data.length === 0 && !filtersActive
-            ? 'this wall is empty — run the seed script to populate.'
+            ? 'this wall is empty — nothing has launched yet.'
             : 'nothing matches the current filters.'}
         </StateBlock>
       )}
@@ -213,12 +222,12 @@ function RegistryRow({ card }: { card: ProjectCard }) {
       </span>
       <span>{TYPE_LABEL[card.contractType] ?? card.contractType}</span>
       <span>{mintedLabel}</span>
-      <span>{card.isActive ? 'Live' : 'Ended'}</span>
+      <span>{cardStatus(card) ?? '—'}</span>
       <span className="al">
         {aligned ? (
           <>
             <span className="s" />
-            {aligned} · ~20%
+            {aligned}
           </>
         ) : (
           '—'

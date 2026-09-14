@@ -215,6 +215,15 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
     ///           address so its slug stays reserved and cannot be squatted — see that function's own
     ///           docstring, which is the authority on the exclusion. Resolution and display are
     ///           separate concerns.
+    ///         - DELIBERATELY NOT HONORED: trade execution. Every ERC-404 / ERC-1155 / ERC-721 instance
+    ///           forwards a user's comment to `GlobalMessageRegistry.postForAction` on its buy / sell /
+    ///           mint / bid path, and that call gates on `isInstanceFromApprovedFactory`. The instances
+    ///           pre-check the same read and SKIP the post rather than letting it revert, so revocation
+    ///           silences a revoked instance's comments without stopping its trades — a buy behaves the
+    ///           same whether or not the buyer attached one. Revocation is a listing decision, not a
+    ///           freeze: it is not a trading halt, and this contract has no mechanism that is.
+    ///           `GlobalMessageRegistry.post` is permissionless in any case, so the coupling never
+    ///           silenced the instance's social surface — it only broke the commented trade.
     ///         Because the flag is a one-way storage write, revocation is not a reversible moderation
     ///         action: recovery means registering a NEW instance, not reviving this one, and it needs a
     ///         new name — the revoked instance's `nameHash` stays claimed in `nameHashes`.
@@ -440,13 +449,14 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
         uint256 genesisTargetId = vaultInfo[vaults[0]].targetId;
         if (vaultInfo[newVault].targetId != genesisTargetId) revert VaultMismatch();
 
-        // Revenue-split family choke-point (audit finding #2): the settlement split (1/80/19 for a
-        // yield/endowment collection vs 1/19/80 for a liquidity collection) is chosen by the vault's
-        // family. A cross-family migration would let a creator flip an endowment collection's split to
-        // the liquidity weights AFTER buyers paid in under the endowment promise — diverting 61% of the
-        // proceeds owed to the permanent community endowment to themselves. It also misroutes the vault
-        // tithe leg. Cross-family migration is economically nonsensical, so forbid it outright: the new
-        // vault must share the genesis vault's family.
+        // Family choke-point (audit finding #2). The settlement split no longer turns on the family —
+        // every collection settles 1/19/80 — so this no longer guards a split flip, and the 61%-diversion
+        // it was written against is not reachable any more. What it still guards is the PROMISE the buyers
+        // paid in under: an endowment collection tithes into a permanent Aave position whose yield streams
+        // to the community, and a liquidity collection tithes into a pool with entirely different exposure
+        // (impermanent loss, sell pressure, MEV). Swapping one for the other after the fact changes what
+        // the tithe IS, not merely where it sits. Cross-family migration is economically nonsensical, so
+        // forbid it outright: the new vault must share the genesis vault's family.
         if (_isVaultLiquidityFamily(newVault) != _isVaultLiquidityFamily(vaults[0])) {
             revert VaultFamilyMismatch();
         }

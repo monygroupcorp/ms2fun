@@ -30,6 +30,7 @@ import { DeployBondEscrow } from "../src/factories/erc404/DeployBondEscrow.sol";
 import { ERC404BondingInstance } from "../src/factories/erc404/ERC404BondingInstance.sol";
 import { ERC404BondingOps } from "../src/factories/erc404/ERC404BondingOps.sol";
 import { LaunchManager } from "../src/factories/erc404/LaunchManager.sol";
+import { LaunchPresets } from "./LaunchPresets.sol";
 import { CurveParamsComputer } from "../src/factories/erc404/CurveParamsComputer.sol";
 import { ERC404StakingModule } from "../src/factories/erc404/ERC404StakingModule.sol";
 import { MetadataResolverRouter } from "../src/metadata/MetadataResolverRouter.sol";
@@ -289,7 +290,7 @@ contract DeployCore is Script {
             )
         );
 
-        alignmentRegistryImpl = new AlignmentRegistryV1(cfg.weth);
+        alignmentRegistryImpl = new AlignmentRegistryV1(cfg.weth, cfg.v3Factory, cfg.cypherAlgebraFactory);
         alignmentRegistry = AlignmentRegistryV1(
             _deployProxyCreate3(
                 address(alignmentRegistryImpl),
@@ -333,7 +334,7 @@ contract DeployCore is Script {
 
         zrouter = cfg.zrouter != address(0)
             ? zRouter(payable(cfg.zrouter))
-            : new zRouter(cfg.zrouterChain.weth != address(0) ? cfg.zrouterChain : mainnetChainConfig());
+            : new zRouter(cfg.zrouterChain.weth != address(0) ? cfg.zrouterChain : mainnetChainConfig(), deployer);
 
         // ── Phase 4: Vault infrastructure ───────────────────────────────────
 
@@ -534,37 +535,11 @@ contract DeployCore is Script {
             address(curveParamsComputer), bytes32("curve_computer"), "CurveParamsComputer"
         );
 
-        // Hardcoded protocol presets — NICHE / STANDARD / HYPE
-        launchManager.setPreset(
-            0,
-            LaunchManager.Preset({
-                targetETH: 5 ether,
-                unitPerNFT: 1_000_000_000,
-                liquidityReserveBps: 1000,
-                curveComputer: address(curveParamsComputer),
-                active: true
-            })
-        );
-        launchManager.setPreset(
-            1,
-            LaunchManager.Preset({
-                targetETH: 25 ether,
-                unitPerNFT: 1_000_000,
-                liquidityReserveBps: 1000,
-                curveComputer: address(curveParamsComputer),
-                active: true
-            })
-        );
-        launchManager.setPreset(
-            2,
-            LaunchManager.Preset({
-                targetETH: 50 ether,
-                unitPerNFT: 1_000,
-                liquidityReserveBps: 1000,
-                curveComputer: address(curveParamsComputer),
-                active: true
-            })
-        );
+        // The protocol presets — NICHE / STANDARD / HYPE. The ladder itself, and why its rungs
+        // are spaced a decade apart, is stated once in `LaunchPresets`; this only writes it.
+        for (uint256 i = 0; i < LaunchPresets.COUNT; i++) {
+            launchManager.setPreset(i, LaunchPresets.preset(i, address(curveParamsComputer)));
+        }
 
         // ── Phase 7: ERC1155Factory + DynamicPricingModule ───────────────────
 

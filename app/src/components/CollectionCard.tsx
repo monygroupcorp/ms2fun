@@ -4,6 +4,7 @@ import { queryAggregatorAbi } from '../generated/contracts'
 import { IpfsImage } from './ui/IpfsImage'
 import { formatPrice, formatPriceTitle, truncateAddress } from '../lib/format'
 import { forkChainId } from '../lib/addresses'
+import { cardStatus } from '../lib/cardStatus'
 import { useCollectionMetadata } from './useCollectionMetadata'
 import styles from './CollectionCard.module.css'
 
@@ -22,7 +23,8 @@ export type HomePageCard = ContractFunctionReturnType<
  * The NOESIS collection card — one component at two grid scales (the registry list row is the
  * same data in a different device, owned by the browse list-toggle). `lead` is the Home/featured
  * hero size; the default is the browse contact-sheet tile. Visual layer is the `.noesis-card`
- * device (vendored signature.css): art fills, a top-left status chip, and a bottom name·creator·
+ * device (vendored signature.css): art fills, a top-left status chip when there is one to draw
+ * (see `cardStatus` — a finished collection gets none), and a bottom name·creator·
  * price plate — the three corner data points, never more. The art is the collection's own
  * `metadata.image` (`resolveUri`), with a mono glyph fallback. Routing/reads are unchanged.
  */
@@ -33,6 +35,7 @@ interface CollectionCardProps {
 
 export function CollectionCard({ card, variant = 'card' }: CollectionCardProps) {
   const metadata = useCollectionMetadata(card.metadataURI)
+  const status = cardStatus(card)
   const title = metadata?.name || card.name
   const fallbackGlyph = card.name.slice(0, 1).toUpperCase() || '✦'
 
@@ -52,7 +55,7 @@ export function CollectionCard({ card, variant = 'card' }: CollectionCardProps) 
             </span>
           }
         />
-        <span className="st">{card.isActive ? 'Live' : 'Ended'}</span>
+        {status && <span className="st">{status}</span>}
       </div>
       <div className="lab">
         <div className={styles.labMain}>

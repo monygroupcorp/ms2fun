@@ -355,6 +355,7 @@ const HOME_PAGE_ABI = [
           { name: 'totalSupply', type: 'uint256' },
           { name: 'maxSupply', type: 'uint256' },
           { name: 'isActive', type: 'bool' },
+          { name: 'opensAt', type: 'uint256' },
           { name: 'extraData', type: 'bytes' },
           { name: 'featuredRank', type: 'uint256' },
           { name: 'featuredExpires', type: 'uint256' },

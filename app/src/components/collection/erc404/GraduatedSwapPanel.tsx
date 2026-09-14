@@ -522,6 +522,21 @@ export function GraduatedSwapPanel({
         ? `${formatUnits(quoteOut, decimals)} ${outLabel}`
         : formatPriceTitle(quoteOut)
       : undefined
+  // `minOut` is the amountLimit the swap is actually signed with — below it the tx reverts. It is
+  // the only number here the trader is protected at, so it is shown, not just sent. Formatted the
+  // same way as the quote so the two read side by side; computation is untouched.
+  const minOutValue =
+    minOut !== undefined
+      ? isBuy
+        ? `${formatTokenAmount(minOut, decimals)} ${outLabel}`
+        : formatPrice(minOut)
+      : '—'
+  const minOutTitle =
+    minOut !== undefined
+      ? isBuy
+        ? `${formatUnits(minOut, decimals)} ${outLabel}`
+        : formatPriceTitle(minOut)
+      : undefined
 
   const isBusy = swapIsPending || isConfirming
   const swapError = txErrorReason(swapRawError)
@@ -612,6 +627,16 @@ export function GraduatedSwapPanel({
         </span>
       </div>
 
+      <div className={styles.quoteRow} data-testid="erc404-graduated-min-out">
+        <span className={styles.quoteLabel}>min received</span>
+        <span
+          className={styles.quoteValue}
+          title={quoteIsFetching && quoteReady ? undefined : minOutTitle}
+        >
+          {quoteIsFetching && quoteReady ? '…' : minOutValue}
+        </span>
+      </div>
+
       {needsApproval ? (
         <button
           className="btn btn-primary btn-chromatic"
@@ -644,7 +669,9 @@ export function GraduatedSwapPanel({
 
       {!isBuy && needsApproval && (
         <p className={styles.note}>
-          approve {symbol} once so the router can pull it — then the quote + sell unlock.
+          approve {symbol} once so the router can pull it — then the quote + sell unlock. This
+          grants the router an unlimited {symbol} allowance, which stays in place until you revoke
+          it.
         </p>
       )}
       {quoteError && !swapError && (

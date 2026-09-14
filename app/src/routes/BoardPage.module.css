@@ -41,12 +41,7 @@
   margin: 0;
 }
 
-.composeSection {
-  margin-bottom: var(--space-8);
-  padding-bottom: var(--space-6);
-  border-bottom: var(--border-width-thick, 2px) solid var(--color-border);
-}
-
+/* Sits in the chat box's well, under the composer. */
 .composeNote {
   font-family: var(--brand-font-mono);
   font-size: var(--font-size-caption);
@@ -136,28 +131,6 @@
   color: color-mix(in srgb, var(--color-bg) 70%, var(--color-text));
 }
 
-/* Quote-card — a considered quote carrying the referenced work's swatch + channel. */
-.quoteCard {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border: var(--border-width-thick, 2px) solid var(--color-border);
-  text-decoration: none;
-  color: var(--color-text-muted);
-  font-family: var(--brand-font-mono);
-  font-size: var(--font-size-caption);
-}
-
-.quoteCard:hover {
-  color: var(--color-text);
-}
-
-.quoteRef {
-  letter-spacing: 0.04em;
-}
-
 .toolbar {
   display: flex;
   justify-content: flex-end;
@@ -187,12 +160,11 @@
   color: var(--color-bg);
 }
 
-.feedSection {
-  margin-top: var(--space-4);
-}
-
-/* Activity — the flat on-chain register: one mono row per event, attributed. */
+/* Activity — the flat on-chain register: one mono row per event, attributed. Reversed like the
+   transcript it shares a window with, so the newest event rests on the floor in both views. */
 .register {
+  display: flex;
+  flex-direction: column-reverse;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -236,50 +208,8 @@
   }
 }
 
-/* Posts — the device (.noesis-post) draws each post's wall-label look; the page only stacks them. */
-.list {
-  display: flex;
-  flex-direction: column;
-}
-
-.senderLink {
-  text-decoration: none;
-}
-
-.channelLink {
-  text-decoration: none;
-}
-
-.actions {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-}
-
-.actionBar {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-md);
-}
-
-.replyBtn {
-  font-family: var(--brand-font-mono);
-  font-size: var(--font-size-caption);
-  color: var(--color-text-muted);
-  background-color: transparent;
-  border: none;
-  padding: var(--space-1) 0;
-  cursor: pointer;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.replyBtn:hover {
-  color: var(--color-text);
-}
-
-/* Tier 1B: "load older" pager under the feed — fetches the next reverse window. */
+/* Tier 1B: "load older" pager — fetches the next reverse window. It is last in the transcript's
+   DOM, so the reversed pane puts it at the top of the scrollback. */
 .loadOlder {
   display: flex;
   justify-content: center;

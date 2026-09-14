@@ -12,10 +12,23 @@
  *     the entries as a `data:application/json,` URI so the mint page's fetch path is identical either
  *     way. Keep this to TINY lists — a large list as a data-URI in `metadataURI` is gas-heavy (persisted
  *     on-chain via `MasterRegistry.updateInstanceMetadata`).
+ *
+ * DENOMINATION (noesis-266). A creator authors caps in NFTs and the hosted list states them in NFTs, but
+ * `MerkleGatingModule` compares the leaf's cap against whatever the calling instance forwards — an NFT
+ * count on ERC-1155, coin at wei scale on ERC-404. So every entry point here takes an explicit
+ * `qtyScale` (`merkle.ts`'s `NO_QTY_SCALE` for ERC-1155, the instance's `unit()` for ERC-404) and the
+ * leaves are built through `scaleQty`. Build and resolve MUST be handed the same scale: disagree and
+ * every proof fails to verify, which is indistinguishable from the bug the scaling exists to fix.
  */
 import { getAddress, isAddress, type Hex } from 'viem'
 import { fetchJson, jsonOrNull, type CollectionMetadata, type AllowlistRow } from '../metadata'
-import { buildMerkleRoot, getProof, parseAllowlist, type AllowlistEntry } from '../merkle'
+import {
+  buildMerkleRoot,
+  getProof,
+  parseAllowlist,
+  scaleAllowlist,
+  type AllowlistEntry,
+} from '../merkle'
 
 /** The `MerkleConfig` shape `MerkleGatingModule.configureFor` expects (uint256 fields → bigint). */
 export interface MerkleConfigInput {
@@ -26,7 +39,16 @@ export interface MerkleConfigInput {
 
 /** Successful build: a rooted allowlist ready to submit on-chain + persist. */
 export interface AllowlistBuildResult {
+  /** Entries as the creator authored them — caps in NFTs, matching what `listURI` serves. */
   entries: AllowlistEntry[]
+  /**
+   * The same entries with every cap put through `scaleQty` into the instance's own denomination. These
+   * are what `root` commits to and what a mint-time proof is checked against; on ERC-404 they are coin
+   * wei, not NFTs. Never render these to a creator.
+   */
+  leafEntries: AllowlistEntry[]
+  /** The scale applied (see `qtyScale` on the build functions) — `NO_QTY_SCALE` when none was. */
+  qtyScale: bigint
   root: Hex
   count: number
   /** The URI to persist in `CollectionMetadata.allowlists[].listURI` (hosted URL or self-hosted data:). */
@@ -52,13 +74,17 @@ export function isAllowlistBuildError(
 function fromParsed(
   parsed: ReturnType<typeof parseAllowlist>,
   listURI: string,
+  qtyScale: bigint,
 ): AllowlistBuildOutcome {
   if (parsed.entries.length === 0) {
     return { error: 'no valid address,maxQty rows found', invalid: parsed.invalid }
   }
-  const { root, count } = buildMerkleRoot(parsed.entries)
+  const leafEntries = scaleAllowlist(parsed.entries, qtyScale)
+  const { root, count } = buildMerkleRoot(leafEntries)
   return {
     entries: parsed.entries,
+    leafEntries,
+    qtyScale,
     root,
     count,
     listURI,
@@ -74,13 +100,14 @@ function fromParsed(
  */
 export async function buildAllowlistFromUri(
   uri: string,
+  qtyScale: bigint,
   signal?: AbortSignal,
 ): Promise<AllowlistBuildOutcome> {
   const trimmed = uri.trim()
   if (trimmed === '') return { error: 'enter a listURI', invalid: [] }
   const json = jsonOrNull(await fetchJson(trimmed, signal))
   if (json === null) return { error: `could not fetch or parse ${trimmed}`, invalid: [] }
-  return fromParsed(parseAllowlist(json), trimmed)
+  return fromParsed(parseAllowlist(json), trimmed, qtyScale)
 }
 
 /**
@@ -89,13 +116,15 @@ export async function buildAllowlistFromUri(
  * `data:application/json,` URI so the mint page's fetch path is identical either way. Keep to tiny
  * lists — this URI round-trips through `MasterRegistry.updateInstanceMetadata`.
  */
-export function buildAllowlistFromPaste(raw: string): AllowlistBuildOutcome {
+export function buildAllowlistFromPaste(raw: string, qtyScale: bigint): AllowlistBuildOutcome {
   const parsed = parseAllowlist(raw)
   if (parsed.entries.length === 0) {
     return { error: 'no valid address,maxQty rows found', invalid: parsed.invalid }
   }
+  // Self-host the entries AS TYPED, in NFTs. The scale is re-applied on the resolve path from the
+  // instance's own `unit()`, so the hosted list stays readable and stays valid if it is ever re-rooted.
   const listURI = selfHostDataUri(parsed.entries)
-  return fromParsed(parsed, listURI)
+  return fromParsed(parsed, listURI, qtyScale)
 }
 
 /** Self-host a small entry list as an inline `data:application/json,` URI (fetchable by `fetchJson`). */
@@ -132,6 +161,15 @@ export function patchAllowlistRow(
   return { ...metadata, allowlists: [...filtered, row] }
 }
 
+/** A resolved member's proof: what to encode on-chain, and what to say to the holder. */
+export interface MemberProof {
+  proof: Hex[]
+  /** The cap committed in the leaf, in the instance's own denomination — encode this, never render it. */
+  maxQty: bigint
+  /** The same cap in NFTs, as the creator authored it — render this, never encode it. */
+  maxQtyNfts: bigint
+}
+
 /** Look up the `listURI` for a given (editionId,tierIndex) — `undefined` when not yet configured. */
 export function findAllowlistListURI(
   metadata: CollectionMetadata | undefined,
@@ -143,19 +181,26 @@ export function findAllowlistListURI(
 }
 
 /**
- * Mint-side resolution: fetch `listURI`, parse it, and return the connected wallet's `{proof,maxQty}` —
- * or `null` when the wallet isn't on the list (or the list can't be fetched/parsed). Callers ABI-encode
- * the result into `gatingData` (see `erc1155/gatingMint.ts` / `erc404/gating.ts`'s merkle encoders).
+ * Mint-side resolution: fetch `listURI`, parse it, scale it with the SAME `qtyScale` the root was built
+ * under, and return the connected wallet's proof — or `null` when the wallet isn't on the list (or the
+ * list can't be fetched/parsed). Callers ABI-encode `{proof, maxQty}` into `gatingData` (see
+ * `erc1155/gatingMint.ts` / `erc404/gating.ts`'s merkle encoders) and show `maxQtyNfts` to the holder.
  */
 export async function resolveMemberProof(
   listURI: string,
   address: `0x${string}`,
+  qtyScale: bigint,
   signal?: AbortSignal,
-): Promise<{ proof: Hex[]; maxQty: bigint } | null> {
+): Promise<MemberProof | null> {
   if (!isAddress(address, { strict: false })) return null
   const json = jsonOrNull(await fetchJson(listURI, signal))
   if (json === null) return null
   const { entries } = parseAllowlist(json)
   if (entries.length === 0) return null
-  return getProof(entries, getAddress(address))
+  const target = getAddress(address)
+  const authored = entries.find((e) => e.address.toLowerCase() === target.toLowerCase())
+  if (authored === undefined) return null
+  const proven = getProof(scaleAllowlist(entries, qtyScale), target)
+  if (proven === null) return null
+  return { proof: proven.proof, maxQty: proven.maxQty, maxQtyNfts: authored.maxQty }
 }

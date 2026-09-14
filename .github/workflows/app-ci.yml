@@ -60,19 +60,19 @@ jobs:
       # from committed contracts/src. We build the contracts from source, regenerate
       # the bindings from the fresh out/, and fail on ANY diff vs the committed file.
       #
-      # Why the explicit forge install: contracts/lib is gitignored with NO committed
-      # submodule gitlinks (contracts/.gitmodules is an orphaned manifest of URLs with
-      # no commit pins), so actions/checkout fetches nothing. We clone each of the 11
-      # declared deps by hand. The glob-form `--skip "*/test/**" "*/script/**"` builds
-      # only src/, which imports none of forge-std / aave-address-book (test/ + script/
-      # only), so the 11 deps suffice. The glob form (not the bare word-form
-      # `--skip test script`) is required to exclude deps' OWN nested test dirs: lib/dn404
-      # vendors its own forge-std under test/, which the word-form does not skip (CI errors
-      # "Declaration `console` not found"). Forge is PINNED to v1.5.1 because `--skip` glob
-      # semantics differ across releases: nightly red'd where v1.5.1 is green.
-      # NOTE (known follow-up): deps are unpinned — forge install pulls default-branch
-      # HEAD, so an upstream breaking change could red this gate with no local repro.
-      # Proper fix = pin deps (foundry.lock / real gitlinks); tracked as a separate item.
+      # Why the explicit dep install: contracts/lib is gitignored with NO committed
+      # submodule gitlinks, so actions/checkout fetches nothing and the deps have to be
+      # cloned here.
+      # `install-libs.sh src` installs the subset src/ compiles against, pinned to exact
+      # commits in contracts/scripts/lib-pins.txt — the same file contracts-ci installs
+      # from, so a drift gate cannot be comparing bindings built from different dependency
+      # code than the contracts gate compiled. The `src` scope deliberately omits forge-std
+      # and aave-address-book: the glob-form `--skip "*/test/**" "*/script/**"` builds only
+      # src/, which imports neither (test/ + script/ only). The glob form (not the bare
+      # word-form `--skip test script`) is required to exclude deps' OWN nested test dirs:
+      # lib/dn404 vendors its own forge-std under test/, which the word-form does not skip
+      # (CI errors "Declaration `console` not found"). Forge is PINNED to v1.5.1 because
+      # `--skip` glob semantics differ across releases: nightly red'd where v1.5.1 is green.
       - name: Install Foundry (G7)
         uses: foundry-rs/foundry-toolchain@v1
         with:
@@ -80,19 +80,7 @@ jobs:
 
       - name: Install contracts/lib deps (G7)
         working-directory: contracts
-        run: |
-          forge install \
-            OpenZeppelin/openzeppelin-contracts \
-            transmissions11/solmate \
-            vectorized/solady \
-            Uniswap/v4-core \
-            vectorized/dn404 \
-            Uniswap/v3-core \
-            Uniswap/v3-periphery \
-            Uniswap/v2-core \
-            z-fi/zamm \
-            z-fi/zRouter \
-            radeksvarz/createx-forge
+        run: ./scripts/install-libs.sh src
 
       - name: Build contracts (G7)
         working-directory: contracts
@@ -104,6 +92,26 @@ jobs:
       - name: Bindings drift gate (G7)
         working-directory: ${{ github.workspace }}
         run: git diff --exit-code app/src/generated/contracts.ts
+
+      # G8 — the testnet walk still describes this app. Every contract write the app can send has
+      # to be a numbered step in data/walk/manifest.json or a line under outOfWalk saying why a
+      # tester cannot reach it, and every step's route has to actually reach the code that sends
+      # its calls. A panel that gains a button, or a page that moves, fails here — which is the
+      # point: the walk two testers follow cannot quietly stop being a description of the app.
+      # No network, no build artifacts; it reads app/src and the committed bindings. The second line
+      # renders the walk: the invite a tester is handed and the form their defect comes back on are
+      # rendered from this same file, so a renderer that cannot walk it is caught here rather than in
+      # front of the tester.
+      - name: Testnet walk covers the app (G8)
+        working-directory: ${{ github.workspace }}
+        run: |
+          node tools/validate-walk.mjs
+          node tools/validate-walk.mjs --print > /dev/null
+          # The walk still describing the app and the walk still being handable to a person are two
+          # claims. Every deployment file in the tree holds the zero registry, so --invite refuses on
+          # every chain this build carries and only --selftest, against a fixture chain, ever runs the
+          # renderer a tester's packet comes out of.
+          node tools/validate-walk.mjs --selftest
 
       # The Playwright e2e suite (app/e2e/) is NOT part of this workflow. Most of its specs are
       # tagged @fork and read an anvil mainnet-fork on :8545 with the platform contracts deployed,

@@ -72,7 +72,7 @@ const REQ_ABI = [
     type: 'function',
     name: 'approveRequest',
     stateMutability: 'nonpayable',
-    inputs: [{ type: 'uint256' }],
+    inputs: [{ type: 'uint256' }, { type: 'uint256' }],
     outputs: [],
   },
   {
@@ -284,7 +284,7 @@ test('target request: submit via the form, admin register+approve, target goes a
     address: REQ,
     abi: REQ_ABI,
     functionName: 'approveRequest',
-    args: [id],
+    args: [id, targetId], // the approval names the target the register step just produced
     chain: forkChain,
     account: ADMIN,
   })

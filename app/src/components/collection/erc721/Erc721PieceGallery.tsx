@@ -213,7 +213,7 @@ export function Erc721PieceGallery({ instance }: { instance: `0x${string}` }) {
   if (isError) {
     return (
       <p className={styles.note} data-testid="erc721-piece-gallery">
-        couldn&apos;t load pieces — is the fork up?
+        couldn&apos;t load pieces — no response from the network.
       </p>
     )
   }

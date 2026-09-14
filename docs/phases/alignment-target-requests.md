@@ -83,7 +83,8 @@ requester can now align to it.**
 - **D6 (was O2) — Refundable ETH deposit.** Deposit at submit: **refunded on approve**, **forfeited to
   treasury on spam-reject**, plus a plain **reject-and-refund** for good-faith-but-declined requests.
   Deposit size + bounds are `onlyOwner` knobs. Bounded pending list + lazy prune as a second line.
-- **D7 (was O3) — Two admin txs in v1.** `approveRequest(id)` on the request contract (deposit handling)
+- **D7 (was O3) — Two admin txs in v1.** `approveRequest(id, targetId)` on the request contract (deposit
+  handling, bound to the target that was registered for it)
   + `registerAlignmentTarget` on the registry, **prefilled from the request in the UI**. Zero
   core-registry risk now; a one-tx `authorizedRegistrar` role is a v2 upgrade (out of scope here).
 - **D8 (was O4) — Minimal public browse.** A "request a target" form + a requester "my requests" status
@@ -132,6 +133,16 @@ requester can now align to it.**
 `app/e2e/target-requests.spec.ts` submit→approve walk; manual `/admin` review of a seeded pending request.
 
 ## Decision log
+- **2026-09-04 (approval bound to a target id)** — `approveRequest` takes the `targetId` the register
+  step produced, checks that target is active (`TargetNotRegistered`) and that the request's token is in
+  its asset set (`TokenNotInTarget`), and records the id on the request + in `RequestApproved`. The
+  previous gate ("the token is in *an* active target") was a property of the token, not of the request:
+  `submitRequest` only rejects a token that is ALREADY active, so several requests can name one
+  not-yet-active token and registering a single target made all of them approvable — the approval
+  receipt then claimed a target the requester's submission may not have produced. Additive struct field
+  on a non-upgradeable contract: redeploy, no migration (nothing is deployed). The forfeit leg of
+  `rejectRequest` moved to `forceSafeTransferETH` in the same pass, matching the bond escrow and the
+  overlay module. +5 forge tests (28 in the suite).
 - **2026-07-01 (review — pull-payment refund)** — Switched deposit refunds from push to **pull-payment**:
   approve / good-faith-reject / expiry credit a `refunds[requester]` ledger, claimed via `withdrawRefund()`
   (+ a "claim refund" action on `/request-target`). A requester that can't receive ETH can now only revert

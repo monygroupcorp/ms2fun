@@ -21,9 +21,9 @@ import { Currency } from "v4-core/types/Currency.sol";
 ///      spent as a bound on PRICE on this path.
 ///
 ///      That matters because the same knob is read by a second consumer on the same call
-///      (`_validateExistingPool`, which compares sqrtPrice deltas). Pinning this side means a later
-///      change to either consumer cannot silently move this one. These tests assert the acquire
-///      floor's own contract and make no claim about the pool guard's band.
+///      (`_validateExistingPool`). Pinning this side means a later change to either consumer cannot
+///      silently move this one. These tests assert the acquire floor's own contract; the pool guard's
+///      band is pinned beside them in `CypherLpPoolBand.t.sol`.
 contract CypherOracleFloorBandTest is Test {
     TestableCypherAlignmentVault vault;
     TestableCypherAlignmentVault impl;

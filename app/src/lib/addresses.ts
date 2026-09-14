@@ -193,8 +193,8 @@ export function deployBlockForChain(chainId: number): bigint {
 }
 
 /**
- * Chain ids the app's wagmi `config` knows how to talk to (`src/lib/wagmi.ts`:
- * `[mainnet, sepolia, anvilFork]`) — the generated read/write hooks type their `chainId` param
+ * Chain ids the app's wagmi `config` knows how to talk to (`SUPPORTED_CHAINS` in
+ * `src/lib/chains.ts`) — the generated read/write hooks type their `chainId` param
  * against this exact union, so any chain-scoped chainId that reaches them must be narrowed to it
  * (route params arrive as plain `number`).
  */

@@ -1,6 +1,15 @@
 import { concat, keccak256, type Hex } from 'viem'
 import { describe, expect, it } from 'vitest'
-import { buildMerkleRoot, getProof, leafHash, parseAllowlist, type AllowlistEntry } from './merkle'
+import {
+  buildMerkleRoot,
+  getProof,
+  leafHash,
+  NO_QTY_SCALE,
+  parseAllowlist,
+  scaleAllowlist,
+  scaleQty,
+  type AllowlistEntry,
+} from './merkle'
 
 const A = '0x54EfD4549AE44bD03B2cCC1C72492CA9A3219C86' as const
 const B = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC' as const
@@ -210,5 +219,34 @@ describe('getProof — proofs verify the way the on-chain module would', () => {
     // Same valid sibling path, but claim a larger cap: the recomputed leaf differs, so verify fails —
     // exactly what stops a user from proving a bigger allocation than they were granted.
     expect(verify(res.proof, root, leafHash(A, res.maxQty + 1n))).toBe(false)
+  })
+})
+
+describe('scaleQty / scaleAllowlist — the one place the cap changes denomination', () => {
+  const UNIT = 10n ** 24n
+
+  it('NO_QTY_SCALE is the identity — an ERC-1155 cap reaches the leaf as the creator typed it', () => {
+    expect(scaleQty(5n, NO_QTY_SCALE)).toBe(5n)
+    expect(scaleAllowlist([entry(A, 5n), entry(B, 1n)], NO_QTY_SCALE)).toEqual([
+      entry(A, 5n),
+      entry(B, 1n),
+    ])
+  })
+
+  it('an ERC-404 cap of 5 NFTs is 5 * unit of coin — the denomination the module compares against', () => {
+    expect(scaleQty(5n, UNIT)).toBe(5n * UNIT)
+    expect(scaleAllowlist([entry(A, 5n)], UNIT)).toEqual([entry(A, 5n * UNIT)])
+  })
+
+  it('leaves addresses and order alone, and does not mutate its input', () => {
+    const authored = [entry(C, 9n), entry(A, 5n), entry(B, 2n)]
+    const scaled = scaleAllowlist(authored, UNIT)
+    expect(scaled.map((e) => e.address)).toEqual([C, A, B])
+    expect(authored.map((e) => e.maxQty)).toEqual([9n, 5n, 2n])
+  })
+
+  it('rejects a scale below 1 rather than silently zeroing every cap', () => {
+    expect(() => scaleQty(5n, 0n)).toThrow(/positive/)
+    expect(() => scaleAllowlist([entry(A, 5n)], -1n)).toThrow(/positive/)
   })
 })

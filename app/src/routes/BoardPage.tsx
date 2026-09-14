@@ -12,55 +12,17 @@ import { DEFAULT_LOG_WINDOW } from '../lib/logScan'
 import { useAllVaults } from '../lib/vaults/useAllVaults'
 import { truncateAddress } from '../lib/format'
 import { MessageComposer } from '../components/MessageComposer'
-import { ReplyComposer } from '../components/ReplyComposer'
-import { ReactButton } from '../components/ReactButton'
-import {
-  type ThreadView,
-  meetsThreshold,
-  reactionFor,
-  threadMessages,
-} from '../components/threadMessages'
+import { meetsThreshold, threadMessages } from '../components/threadMessages'
 import { type FeedMessage, usePostThreshold } from '../components/useMessageFeed'
+import { ActivityBox } from '../components/activity/ActivityBox'
+import { ActivityMessage } from '../components/activity/ActivityMessage'
+import { channelRef, messageVerb } from '../components/activity/messageMeta'
 import { StateBlock } from '../components/ui/StateBlock'
-import { Linkify } from '../components/ui/Linkify'
 import styles from './BoardPage.module.css'
 
 /** The board's two honest views: the threaded salon, and the flat on-chain register. (The spec's
  * third "All" stream would fold in mint/align/list events, which the board feed doesn't emit yet.) */
 type BoardView = 'discourse' | 'activity'
-
-/** Register verbs for the flat Activity view — the on-chain event, stated plainly. */
-const ACTIVITY_VERB: Record<number, string> = {
-  0: 'posted',
-  1: 'replied',
-  2: 'quoted',
-  3: 'endorsed',
-}
-
-/**
- * A post's channel (`instance`) is one of: a WALL (the sender's own address, the profile-wall
- * convention), a VAULT (S3 — vaults are postable channels), or a collection. Each routes to its own
- * page; only a genuine collection links to `/collection/…`. Fixes the dead `/collection/<wallet>`
- * links general-board posts render (N6) and the equivalent for vault channels (S3). `vaults` is the
- * set of known vault addresses (lowercased); omit it and vault posts fall back to collection links.
- */
-function channelRef(
-  message: Pick<FeedMessage, 'instance' | 'sender'>,
-  vaults?: Set<string>,
-): {
-  href: string
-  isWall: boolean
-  isVault: boolean
-} {
-  const isWall = message.instance.toLowerCase() === message.sender.toLowerCase()
-  const isVault = !isWall && (vaults?.has(message.instance.toLowerCase()) ?? false)
-  const href = isWall
-    ? `/profile/${message.instance}`
-    : isVault
-      ? `/vault/${message.instance}`
-      : `/collection/${message.instance}`
-  return { href, isWall, isVault }
-}
 
 /** Channels rail — the distinct walls in the feed (All · per-collection · your wall). Each carries
  * a swatch (mono until the work's colour is wired) + its post count; selecting one filters the
@@ -239,6 +201,9 @@ export function BoardPage() {
 
   const view = useMemo(() => threadMessages(data ?? [], connected), [data, connected])
 
+  // The endorse/reply affordances every rendered message gets, in one stable object.
+  const actions = useMemo(() => ({ view, connected: connected !== undefined }), [view, connected])
+
   // Known vault addresses → route vault-channel posts to /vault/… (not a dead collection link).
   const { vaults } = useAllVaults()
   const vaultSet = useMemo(() => new Set(vaults.map((v) => v.address.toLowerCase())), [vaults])
@@ -260,6 +225,21 @@ export function BoardPage() {
   const activityRows = (data ?? []).filter(
     (m) => (channel === 'all' || m.instance === channel) && meetsThreshold(m, threshold),
   )
+
+  // The window's name plate says which channel you are standing in — the rail's own labels, so the
+  // room you picked and the room you are in are named the same way.
+  const roomName =
+    channel === 'all'
+      ? 'All discourse'
+      : connected && channel.toLowerCase() === connected.toLowerCase()
+        ? 'Your wall'
+        : truncateAddress(channel)
+
+  // What the plate counts: the lines actually in the transcript of the active view.
+  const rows =
+    boardView === 'discourse'
+      ? visibleThreads.reduce((n, t) => n + 1 + t.replies.length, 0)
+      : activityRows.length
 
   return (
     <div className={styles.page}>
@@ -307,35 +287,37 @@ export function BoardPage() {
             </nav>
           </div>
 
-          {connected !== undefined && (
-            <section className={styles.composeSection}>
-              {/* channel = sender's own address — the established per-wall convention */}
-              <MessageComposer channel={connected} />
-              <p className={styles.composeNote}>
-                signed by {truncateAddress(connected)} · permanent — posts appear in the feed and on
-                your profile
-              </p>
-            </section>
-          )}
-
-          {connected === undefined && (
-            <StateBlock variant="empty" boxed>
-              connect your wallet to post — every voice on the board is attributed.
-            </StateBlock>
-          )}
-
-          <section className={styles.feedSection}>
-            {threshold > 0n && (
-              <StateBlock variant="empty" testId="board-threshold-note">
-                spam lever on: showing posts of {formatEther(threshold)} ETH or more — cheaper posts
-                are hidden until the threshold is lowered.
-              </StateBlock>
-            )}
-
+          {/* The salon is the same chat box home's preview and every collection feed are drawn in
+              — one window, named for the channel you are standing in, with the composer in its
+              well. The composer used to sit above the feed as a section of its own, which read as
+              a form over a list rather than as a room you speak in. */}
+          <ActivityBox
+            room={roomName}
+            status={rows > 0 ? `${rows} posts` : undefined}
+            scrolls
+            composer={
+              connected !== undefined ? (
+                <>
+                  {/* channel = sender's own address — the established per-wall convention */}
+                  <MessageComposer channel={connected} />
+                  <p className={styles.composeNote}>
+                    signed by {truncateAddress(connected)} · permanent — posts appear in the feed
+                    and on your profile
+                  </p>
+                </>
+              ) : (
+                <StateBlock variant="empty">
+                  connect your wallet to post — every voice on the board is attributed.
+                </StateBlock>
+              )
+            }
+          >
             {isPending && <StateBlock variant="loading">hanging the work…</StateBlock>}
 
             {isError && (
-              <StateBlock variant="error">couldn&apos;t load activity — is the fork up?</StateBlock>
+              <StateBlock variant="error">
+                couldn&apos;t load activity — no response from the network.
+              </StateBlock>
             )}
 
             {!isPending && !isError && data !== undefined && data.length === 0 && (
@@ -344,75 +326,48 @@ export function BoardPage() {
               </StateBlock>
             )}
 
-            {/* Discourse — the threaded salon (filtered to the active channel). */}
-            {!isPending && !isError && boardView === 'discourse' && visibleThreads.length > 0 && (
-              <div className={styles.list}>
-                {visibleThreads.map((thread) => (
-                  <article
-                    key={String(thread.message.messageId)}
-                    className="noesis-post"
-                    data-testid="board-thread"
-                  >
-                    <BoardMessage
-                      message={thread.message}
-                      view={view}
-                      connected={connected !== undefined}
-                      vaults={vaultSet}
-                    />
+            {/* Discourse — the threaded salon (filtered to the active channel). Newest first in the
+                DOM; the transcript reverses it onto the floor of the window. */}
+            {!isPending &&
+              !isError &&
+              boardView === 'discourse' &&
+              visibleThreads.map((thread) => (
+                <ActivityMessage
+                  key={String(thread.message.messageId)}
+                  message={thread.message}
+                  replies={thread.replies}
+                  vaults={vaultSet}
+                  actions={actions}
+                />
+              ))}
 
-                    {thread.replies.map((reply) => (
-                      <div
-                        key={String(reply.messageId)}
-                        className="reply"
-                        data-testid="board-reply"
-                      >
-                        <BoardMessage
-                          message={reply}
-                          view={view}
-                          connected={connected !== undefined}
-                          vaults={vaultSet}
-                        />
-                      </div>
-                    ))}
-                  </article>
-                ))}
-              </div>
-            )}
-
-            {/* Activity — the flat on-chain register, every event attributed, newest first. */}
+            {/* Activity — the flat on-chain register, every event attributed. */}
             {!isPending && !isError && boardView === 'activity' && data !== undefined && (
               <ul className={styles.register} data-testid="board-activity">
-                {activityRows.map((m) => (
-                  <li key={String(m.messageId)} className={styles.regRow}>
-                    <Link href={`/profile/${m.sender}`} className={styles.regWho}>
-                      {truncateAddress(m.sender)}
-                    </Link>
-                    <span className={styles.regVerb}>
-                      {ACTIVITY_VERB[m.messageType] ?? 'posted'}
-                    </span>
-                    {(() => {
-                      const { href, isWall, isVault } = channelRef(m, vaultSet)
-                      // A wall post has no collection channel — it's a general-board post; show it
-                      // as such (linking to the wall/profile) rather than a dead collection link.
-                      // A vault channel links to the vault page.
-                      return (
-                        <Link href={href} className={styles.regCh}>
-                          {isWall
-                            ? 'the salon'
-                            : isVault
-                              ? `vault ${truncateAddress(m.instance)}`
-                              : truncateAddress(m.instance)}
-                        </Link>
-                      )
-                    })()}
-                    {m.content.length > 0 && <span className={styles.regContent}>{m.content}</span>}
-                  </li>
-                ))}
+                {activityRows.map((m) => {
+                  const chan = channelRef(m, vaultSet)
+                  return (
+                    <li key={String(m.messageId)} className={styles.regRow}>
+                      <Link href={`/profile/${m.sender}`} className={styles.regWho}>
+                        {truncateAddress(m.sender)}
+                      </Link>
+                      <span className={styles.regVerb}>{messageVerb(m.messageType)}</span>
+                      <Link href={chan.href} className={styles.regCh}>
+                        {chan.label}
+                      </Link>
+                      {m.content.length > 0 && (
+                        <span className={styles.regContent}>{m.content}</span>
+                      )}
+                    </li>
+                  )
+                })}
               </ul>
             )}
 
-            {/* Load older — fetches the next window back (ADR-0010 Tier 1B); hidden once the feed
-                reaches the deploy-block floor. */}
+            {/* Both of these are scrollback: last in the DOM, so the reversed transcript puts them
+                at the top of the pane, above the oldest line — where you go looking for them.
+                "Load older" fetches the next window back (ADR-0010 Tier 1B); it is hidden once the
+                feed reaches the deploy-block floor. */}
             {!isPending && !isError && data !== undefined && data.length > 0 && hasNextPage && (
               <div className={styles.loadOlder}>
                 <button
@@ -426,87 +381,16 @@ export function BoardPage() {
                 </button>
               </div>
             )}
-          </section>
+
+            {threshold > 0n && (
+              <StateBlock variant="empty" testId="board-threshold-note">
+                spam lever on: showing posts of {formatEther(threshold)} ETH or more — cheaper posts
+                are hidden until the threshold is lowered.
+              </StateBlock>
+            )}
+          </ActivityBox>
         </div>
       </div>
     </div>
-  )
-}
-
-function BoardMessage({
-  message,
-  view,
-  connected,
-  vaults,
-}: {
-  message: FeedMessage
-  view: ThreadView
-  connected: boolean
-  vaults?: Set<string>
-}) {
-  const [replying, setReplying] = useState(false)
-  const reaction = reactionFor(view, message.messageId)
-  const chan = channelRef(message, vaults)
-
-  return (
-    <>
-      <div className="phead">
-        <Link href={`/profile/${message.sender}`} className={`name ${styles.senderLink}`}>
-          {truncateAddress(message.sender)}
-        </Link>
-
-        {/* A wall post is a general-board post (channel = the sender's own wall), not a collection
-            pointer — read it as "· on the salon" linking to their wall, never a dead collection. */}
-        <Link href={chan.href} className={`ch ${styles.channelLink}`}>
-          {chan.isWall
-            ? '· on the salon'
-            : `→ ${chan.isVault ? 'vault ' : ''}${truncateAddress(message.instance)}`}
-        </Link>
-      </div>
-
-      {/* Quote — a card carrying the referenced work's swatch (mono until colour is wired). */}
-      {message.messageType === 2 && (
-        <Link href={chan.href} className={styles.quoteCard}>
-          <span className={styles.swatch} aria-hidden />
-          <span className={styles.quoteRef}>
-            re: {chan.isWall ? 'the salon' : truncateAddress(message.instance)}
-          </span>
-        </Link>
-      )}
-
-      {message.content.length > 0 && (
-        <p className="ptext">
-          <Linkify text={message.content} />
-        </p>
-      )}
-
-      <div className={styles.actions}>
-        <div className={styles.actionBar}>
-          <ReactButton
-            targetId={message.messageId}
-            channel={message.instance}
-            count={reaction.count}
-            reactedByMe={reaction.reactedByMe}
-          />
-          {connected && !replying && (
-            <button
-              type="button"
-              className={styles.replyBtn}
-              onClick={() => setReplying(true)}
-              data-testid="board-reply-toggle"
-            >
-              Reply
-            </button>
-          )}
-        </div>
-        {replying && (
-          <ReplyComposer
-            parentId={message.messageId}
-            channel={message.instance}
-            onCancel={() => setReplying(false)}
-          />
-        )}
-      </div>
-    </>
   )
 }

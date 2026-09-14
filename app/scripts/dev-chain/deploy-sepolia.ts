@@ -24,13 +24,17 @@
  *     CreateX salt set is bound to; nobody holds that key. The fork runs with `--auto-impersonate`,
  *     this script funds the address with `anvil_setBalance`, and forge signs `--unlocked`.
  *   - THE SALT SET IS CLEARED FIRST. A CreateX CREATE3 salt is consumed by the deploy that used it,
- *     and this set is already spent on live Sepolia — so a fork at latest reverts `CreateCollision`.
- *     The six CREATE2 proxies (and the addresses they produce) are re-derived from
- *     `script/SepoliaSalts.sol` and cleared on the fork before the deploy. Deriving them is also the
- *     check that the derivation is right: each one must reproduce the address the salt set
- *     documents.
+ *     so once this set has been spent on live Sepolia a fork at latest would revert
+ *     `CreateCollision`. IT IS NOT SPENT YET — verified 2026-09-04 against live Sepolia: none of the
+ *     six CREATE2 proxies, nor the six addresses they produce, holds code. So this step currently
+ *     clears six empty accounts and becomes load-bearing only after the first live deploy; do not
+ *     read it passing as evidence that a live deploy has happened. The six proxies (and the
+ *     addresses they produce) are re-derived from `script/SepoliaSalts.sol` rather than restated, so
+ *     a wrong constant fails loudly instead of clearing the wrong accounts.
  *   - ADDRESSES ARE FORK-EPHEMERAL. Everything below the salt set comes out of a fresh nonce
- *     sequence on the fork and will differ on the real network.
+ *     sequence on the fork and will differ on the real network. Every artifact this run writes is
+ *     STAMPED as a rehearsal (see `stampForkArtifact`), because a fork record and a live one are
+ *     otherwise identical in shape, chain id and path.
  *
  * Run (from `app/`, with the channel up — `pnpm chain:fork:sepolia`):
  *
@@ -44,7 +48,7 @@
  * `src/config/sepolia-deployment.json` (the committed placeholder for the real network).
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -175,6 +179,47 @@ async function clearAccount(address: Address): Promise<void> {
   await testClient.setNonce({ address, nonce: 0 })
 }
 
+/**
+ * The deployment artifacts this channel produces, at the paths the LIVE broadcast writes too.
+ * `DeploySepolia` writes the first two; the seed's phase 1 writes the third.
+ */
+const FORK_ARTIFACTS = [
+  'deployments/sepolia.json',
+  'deployments/sepolia-venues.json',
+  'deployments/sepolia-seed.json',
+] as const
+
+/**
+ * Mark one artifact as this channel's output.
+ *
+ * A fork record and a live record are written by the same scripts, to the same path, and both carry
+ * chain id 11155111 — the fork keeps Sepolia's id on purpose, so the app and the wallet behave
+ * exactly as they will on the real network. Nothing in the file itself therefore says which network
+ * it describes, and the one bridge that turns such a record into the config the LIVE SITE ships
+ * (`sepolia-config.ts`) would otherwise have no way to tell them apart.
+ *
+ * So the run that knows says so. The stamp is written after each producing step rather than once at
+ * the end, so a run that fails partway still leaves its artifacts marked.
+ */
+function stampForkArtifact(relPath: string): void {
+  const path = resolve(contractsDir, relPath)
+  if (!existsSync(path)) return
+  const record = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>
+  record.forkRehearsal = {
+    channel: 'sepolia-fork',
+    rpc: rpcUrl,
+    stampedAt: new Date().toISOString(),
+    note: 'Written against a local Sepolia FORK. These addresses do not exist on public Sepolia.',
+  }
+  writeFileSync(path, `${JSON.stringify(record, null, 2)}\n`)
+}
+
+/** Stamp every artifact that exists, after a step that may have written some of them. */
+function stampForkArtifacts(): void {
+  for (const rel of FORK_ARTIFACTS) stampForkArtifact(rel)
+  console.log("✓ Stamped this run's deployment artifacts as a fork rehearsal")
+}
+
 interface AlgebraRecord {
   chainId: number
   contracts: { role: string; address: Address }[]
@@ -288,7 +333,8 @@ async function main(): Promise<void> {
     await clearAccount(deployed)
   }
   console.log(
-    `✓ Cleared ${salts.length} CREATE3 salts on the fork (proxy + address) — the live set is spent`,
+    `✓ Cleared ${salts.length} CREATE3 salts on the fork (proxy + address).` +
+      ' The live set is NOT spent — this clears empty accounts until the first live deploy.',
   )
 
   // ── 3. DeploySepolia ──
@@ -322,6 +368,7 @@ async function main(): Promise<void> {
       SEPOLIA_CYPHER_ALGEBRA_FACTORY: cypher.factory,
     },
   )
+  stampForkArtifacts()
 
   // ── 4. The showcase seed, both phases ──
   //
@@ -346,12 +393,17 @@ async function main(): Promise<void> {
     appDir,
     forgeEnv,
   )
+  stampForkArtifacts()
 
   // ── 5. The channel's app config artifact ──
   //
   // The same bridge the live deploy uses, pointed at the channel's own output file. It is a separate
   // artifact on purpose: `local-deployment.json` belongs to the mainnet channel and
   // `sepolia-deployment.json` is the committed placeholder for the real network.
+  //
+  // `--fork` is what lets the bridge accept the stamped record written above: it says the caller
+  // means to write the CHANNEL's config, so the live-network code check is neither run nor needed.
+  // Without it the bridge refuses a stamped record outright, which is the point of the stamp.
   console.log(`\n▶ dev-chain/sepolia-config.ts   (→ ${APP_CONFIG_REL})`)
   run(
     'pnpm',
@@ -359,6 +411,7 @@ async function main(): Promise<void> {
       'exec',
       'tsx',
       'scripts/dev-chain/sepolia-config.ts',
+      '--fork',
       '--out',
       APP_CONFIG_REL,
       '--deploy-block',

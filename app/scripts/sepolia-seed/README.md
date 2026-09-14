@@ -171,9 +171,24 @@ assertions can fail:
 
 ### Re-running the fork rehearsal against a fresh deployment
 
-The CREATE3 vanity salts `DeploySepolia` uses are already consumed on live Sepolia, so a fresh deploy
-on a fork **at latest** reverts `CreateCollision` on the proxy and then on the vanity address itself.
+A CREATE3 vanity salt is consumed by the deploy that used it, so once the set `DeploySepolia` uses
+has been spent on live Sepolia, a fresh deploy on a fork **at latest** reverts `CreateCollision` on
+the proxy and then on the vanity address itself. **The set is not spent yet** — verified 2026-09-04
+against live Sepolia: none of the six CREATE2 proxies, nor the six addresses they produce, holds
+code. Until the first live broadcast the clearing step below is a no-op, and it passing is not
+evidence that a deploy has happened.
+
 Clear both on the local fork (`anvil_setCode <addr> 0x` plus `anvil_setNonce <addr> 0x0`) and retry
-until the deploy runs clean — it takes a handful of rounds, one per salt. Pass `--no-storage-caching`
-to every `forge script`, or forge answers those reads out of its own Sepolia RPC cache and the
-collision never clears.
+until the deploy runs clean — it takes a handful of rounds, one per salt. `pnpm chain:deploy:sepolia`
+does this for you. Pass `--no-storage-caching` to every `forge script`, or forge answers those reads
+out of its own Sepolia RPC cache and the collision never clears.
+
+### The artifacts this seed writes are the LIVE paths
+
+`contracts/deployments/sepolia{,-seed,-venues}.json` are written by both the live broadcast and the
+fork rehearsal, at the same paths and with the same chain id — the fork keeps Sepolia's id on
+purpose. A rehearsal's artifacts therefore look exactly like a live deploy's. The fork orchestrator
+stamps everything it writes with a `forkRehearsal` block, and `scripts/dev-chain/sepolia-config.ts`
+refuses to project a stamped record onto the committed config the live site reads. Neither of those
+makes a file trustworthy on its own: the decisive test for whether something is on public Sepolia is
+`eth_getCode` against a real endpoint, never a file read.

@@ -15,7 +15,7 @@ contract AlignmentRegistryCommunityPayoutTest is Test {
     address public payoutAddr = makeAddr("payout");
 
     function setUp() public {
-        registry = new AlignmentRegistryV1(makeAddr("WETH"));
+        registry = new AlignmentRegistryV1(makeAddr("WETH"), address(0), address(0));
         registry.initialize(daoOwner);
     }
 
@@ -56,6 +56,22 @@ contract AlignmentRegistryCommunityPayoutTest is Test {
     function test_GetCommunityPayout_DefaultZero() public {
         uint256 targetId = _registerTarget();
         assertEq(registry.getCommunityPayout(targetId), address(0));
+    }
+
+    /// A de-curated target's sink stays pinnable. Its vaults may still hold an accrued community cut
+    /// whose only exit resolves this address, and `deactivateAlignmentTarget` is one-way — so gating the
+    /// setter on `active` would seal that ETH in for the life of the contract.
+    function test_SetCommunityPayout_AllowedOnInactiveTarget() public {
+        uint256 targetId = _registerTarget();
+
+        vm.prank(daoOwner);
+        registry.deactivateAlignmentTarget(targetId);
+
+        vm.prank(daoOwner);
+        registry.setCommunityPayout(targetId, payoutAddr);
+
+        assertEq(registry.getCommunityPayout(targetId), payoutAddr);
+        assertFalse(registry.isAlignmentTargetActive(targetId), "and the target is still de-curated");
     }
 
     /// The payee — and only the payee — moves a pinned payout onward, with its own event carrying `from`.
@@ -167,18 +183,6 @@ contract AlignmentRegistryCommunityPayoutTest is Test {
         vm.prank(daoOwner);
         vm.expectRevert(AlignmentRegistryV1.TargetNotFound.selector);
         registry.setCommunityPayout(999, payoutAddr);
-    }
-
-    /// Deactivated target reverts with TargetNotFound.
-    function test_SetCommunityPayout_RevertOnInactiveTarget() public {
-        uint256 targetId = _registerTarget();
-
-        vm.prank(daoOwner);
-        registry.deactivateAlignmentTarget(targetId);
-
-        vm.prank(daoOwner);
-        vm.expectRevert(AlignmentRegistryV1.TargetNotFound.selector);
-        registry.setCommunityPayout(targetId, payoutAddr);
     }
 
     /// A second set is refused outright — the payout is pinned once, by anyone's hand including the owner's.

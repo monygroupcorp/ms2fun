@@ -7,6 +7,7 @@ import { CollectionCard, type HomePageCard } from '../components/CollectionCard'
 import { ActivityPreview } from '../components/home/ActivityPreview'
 import { StateBlock } from '../components/ui/StateBlock'
 import { orderFeatured } from '../lib/featuredOrder'
+import { activeNetworkName, activeNetworkStatus } from '../lib/network'
 import styles from './HomePage.module.css'
 
 /**
@@ -30,14 +31,14 @@ function HeroLanding() {
   return (
     <div className={styles.hero}>
       <div className={styles.heroLeft}>
-        <p className="noesis-kicker">Onchain · Ethereum · No grift</p>
+        <p className="noesis-kicker">Onchain · {activeNetworkName} · No grift</p>
         <h1 className={styles.heroTitle}>
           <span className="text-chromatic-strong">alignment</span> launchpad.
         </h1>
         <p className={styles.heroSub}>
-          Onchain releases that are <b>forced to align.</b> Deploy a collection and ~20% of every
-          fee binds, by contract, to the work that inspired you. No promises — just commitment you
-          can read onchain.
+          Onchain releases that are <b>forced to align.</b> Deploy a collection and 19% of every fee
+          routes to the work that inspired you. The ratio is set in the contract, and nobody can
+          change it.
         </p>
         <div className={styles.heroActions}>
           <Link href="/launch" className={styles.heroPrimary}>
@@ -52,7 +53,9 @@ function HeroLanding() {
         <div className="noesis-ledger">
           <div className="noesis-ledger-head">
             <span>How alignment works</span>
-            <span>Ethereum · Live</span>
+            <span>
+              {activeNetworkName} · {activeNetworkStatus}
+            </span>
           </div>
           <div className="noesis-ledger-row">
             <span className="n">01</span>
@@ -64,16 +67,21 @@ function HeroLanding() {
           <div className="noesis-ledger-row">
             <span className="n">02</span>
             <span>
-              Fee split<small>set once, enforced forever</small>
+              Fee split
+              <small>19% to the community — a contract constant, not a creator setting</small>
             </span>
-            <span className="v">~20%</span>
+            <span className="v">19%</span>
           </div>
           <div className="noesis-ledger-row">
             <span className="n">03</span>
             <span>
-              Bind<small>to your stated inspiration&rsquo;s vault</small>
+              Bind
+              <small>
+                to your stated inspiration&rsquo;s vault — at edition mint, auction close, or ERC404
+                graduation
+              </small>
             </span>
-            <span className="v">on-mint</span>
+            <span className="v">at settlement</span>
           </div>
         </div>
         <div className={`noesis-bind ${styles.heroBind}`}>
@@ -82,10 +90,12 @@ function HeroLanding() {
           </div>
           <div className="arrow">→</div>
           <div className="cell vault">
-            alignment vault<b>~20%</b>
+            alignment vault<b>fixed share</b>
           </div>
         </div>
-        <p className={styles.heroFoot}>▪ contract-enforced · no promises, just commitment</p>
+        <p className={styles.heroFoot}>
+          ▪ the split is contract-enforced · the destination is a listing you can read
+        </p>
       </aside>
     </div>
   )
@@ -136,7 +146,7 @@ export function HomePage() {
           )}
           {isError && (
             <StateBlock variant="error" boxed>
-              discovery unreachable — is the fork up?
+              discovery unreachable — no response from the network.
             </StateBlock>
           )}
 
@@ -170,7 +180,7 @@ export function HomePage() {
                   testId="collections-empty"
                   className={styles.gridSpan}
                 >
-                  this wall is empty — run the seed script to populate.
+                  no collections are featured yet.
                 </StateBlock>
               )}
 

@@ -387,9 +387,11 @@ abstract contract SeedSepoliaShared is Script {
     ///      fraction of the raise, and the row stops being faucet-priced.
     ///
     ///      From above: `maxSupply = nftCount * unitPerNFT * 1e18` and DN404 holds total supply in a
-    ///      `uint96`, so on the NICHE preset (`unitPerNFT` 1e9, hence a `1e27` unit) anything past ~79
-    ///      pieces reverts `TotalSupplyOverflow` AT CREATE. 60 sits inside that ceiling with margin
-    ///      and puts the walk at a tenth of supply. Raising it means changing preset, not this number.
+    ///      `uint96`, so on the NICHE preset (`unitPerNFT` 1e6, hence a `1e24` unit) anything past
+    ///      79,228 pieces reverts `TotalSupplyOverflow` AT CREATE. That bound used to be the tight
+    ///      one — NICHE ran at 1e9 units/NFT and admitted 79 pieces, so 60 was nearly the whole
+    ///      preset. On the re-spaced ladder it is three orders of magnitude away, and only the bound
+    ///      from below still decides this number.
     uint256 internal constant TIER_NFT_COUNT = 60;
     /// @dev The OPEN rung: denomination 2, three ids. Minted up into and back down out of, and left
     ///      with room, so the reversible half of Token Tiers is walkable after the seed.

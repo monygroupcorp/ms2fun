@@ -12,6 +12,7 @@ import { MockVaultPriceValidator } from "../mocks/MockVaultPriceValidator.sol";
 import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
 import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
 import { Currency } from "v4-core/types/Currency.sol";
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 
 contract ZAMMAlignmentVaultTest is Test {
     // Mirror events for expectEmit matching
@@ -183,11 +184,15 @@ contract ZAMMAlignmentVaultTest is Test {
 
         assertGt(vault.calculateClaimableAmount(address(attacker)), 0, "attacker has claimable yield");
 
+        // The conversion carries the ratio-unconsumed residual back as the attacker's pending
+        // contribution, so the check below is that the reentry adds NOTHING to that standing balance.
+        uint256 pendingBefore = vault.pendingContribution(address(attacker));
+
         attacker.claim(); // claim payout hits attacker.receive() → reentry attempt
 
         assertTrue(attacker.reentryAttempted(), "attacker attempted reentry");
         assertFalse(attacker.reentrySucceeded(), "reentrant receiveContribution must be guard-blocked");
-        assertEq(vault.pendingContribution(address(attacker)), 0, "no reentrant contribution registered");
+        assertEq(vault.pendingContribution(address(attacker)), pendingBefore, "no reentrant contribution registered");
     }
 
     function test_receive_tracksSenderAsBenefactor() public {
@@ -220,14 +225,19 @@ contract ZAMMAlignmentVaultTest is Test {
         assertGt(lpAfter, lpBefore, "LP should increase");
     }
 
+    /// @dev Conversion clears everything it actually deploys. What survives is exactly the ETH the
+    ///      pool's ratio refused, still owned by the benefactor who put it in — see
+    ///      `test_convertAndAddLiquidity_recreditsUnconsumedEth`. Against a pool that consumes the
+    ///      whole LP side, nothing survives.
     function test_convertAndAddLiquidity_clearsPending() public {
         _receiveFromAlice(2 ether);
         _setupPool(10 ether, 10_000e18);
 
         vault.convertAndAddLiquidity(0, 0, 0);
 
-        assertEq(vault.pendingETH(), 0);
-        assertEq(vault.pendingContribution(alice), 0);
+        uint256 residual = vault.pendingETH();
+        assertLt(residual, 2 ether, "conversion must deploy most of the batch");
+        assertEq(vault.pendingContribution(alice), residual, "only the residual survives, and it is alice's");
     }
 
     function test_convertAndAddLiquidity_tracksBenefactorContribution() public {
@@ -810,6 +820,66 @@ contract ZAMMAlignmentVaultTest is Test {
 
         vm.expectRevert(bytes("MockZRouter: insufficient output"));
         vault.convertAndAddLiquidity(1, 0, 0); // caller minOut=1, but the canonical floor governs
+    }
+
+    // ── addLiquidity residual ─────────────────────────────────────────────
+
+    /// @dev ZAMM adds liquidity at the POOL's ratio, so it consumes at most the `ethForLP` the vault
+    ///      sends and refunds the rest. That refund arrives in `receive()` under the reentrancy guard
+    ///      and is untracked there, so without an accrual it becomes ETH the vault holds but nothing
+    ///      accounts for: no withdrawal path reaches it and `accumulatedFees()` misreports it as yield.
+    ///      Here the ETH side is the abundant one (a 1:1 mock swap against a 1:1000 pool), so the
+    ///      token bought caps the ETH consumed and the residual is large.
+    function test_convertAndAddLiquidity_recreditsUnconsumedEth() public {
+        uint256 deployETH = 1 ether;
+        uint112 reserve0 = 10 ether;
+        uint112 reserve1 = 10_000e18;
+
+        _receiveFromAlice(deployETH);
+        _setupPool(reserve0, reserve1);
+
+        // Mirror the vault's own swap/LP split so the expectation is derived, not hardcoded.
+        uint256 r0 = reserve0;
+        uint256 ethToSwap = FixedPointMathLib.sqrt(r0 * r0 + deployETH * r0) - r0;
+        uint256 ethForLP = deployETH - ethToSwap;
+
+        uint256 vaultBalBefore = address(vault).balance;
+        (uint112 poolEthBefore,,,,,,) = mockZamm.pools(vault.poolId());
+
+        vault.convertAndAddLiquidity(0, 0, 0);
+
+        (uint112 poolEthAfter,,,,,,) = mockZamm.pools(vault.poolId());
+        uint256 ethUsed = uint256(poolEthAfter) - uint256(poolEthBefore);
+        uint256 expectedResidual = ethForLP - ethUsed;
+
+        // Guards the failure mode this test exists for: a mock that consumes everything it is handed
+        // makes every assertion below vacuous.
+        assertGt(expectedResidual, 0, "mock must leave a real residual");
+
+        assertEq(vault.pendingETH(), expectedResidual, "residual must be re-credited to pendingETH");
+        // The vault really is still holding that ETH, and it is no longer counted as harvestable yield.
+        assertEq(address(vault).balance, vaultBalBefore - ethUsed - ethToSwap, "vault must hold the residual");
+        assertEq(vault.accumulatedFees(), 0, "residual must not be reported as fees");
+        // The sole benefactor keeps the residual as a pending claim rather than being credited shares
+        // for ETH that never became liquidity.
+        assertEq(vault.pendingContribution(alice), expectedResidual, "residual must stay alice's");
+        assertEq(vault.benefactorContribution(alice), deployETH - expectedResidual, "shares must exclude residual");
+        assertEq(vault.totalContributions(), deployETH - expectedResidual, "totalContributions must exclude residual");
+    }
+
+    /// @dev The re-credited residual is deployable: a second conversion consumes it with no fresh
+    ///      contribution, so the ETH is not merely parked.
+    function test_convertAndAddLiquidity_residualIsRedeployable() public {
+        _receiveFromAlice(1 ether);
+        _setupPool(10 ether, 10_000e18);
+        vault.convertAndAddLiquidity(0, 0, 0);
+
+        uint256 residual = vault.pendingETH();
+        assertGt(residual, 0, "first conversion must leave a residual");
+
+        uint256 principalBefore = vault.principalETH();
+        vault.convertAndAddLiquidity(0, 0, 0); // no new contribution needed
+        assertGt(vault.principalETH(), principalBefore, "re-credited ETH must reach the pool");
     }
 }
 

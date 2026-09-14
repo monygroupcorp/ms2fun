@@ -176,7 +176,9 @@ function EditionDetail({ instance, id }: EditionDetailProps) {
     return (
       <div className={styles.page} data-testid="edition-detail">
         {crumb}
-        <StateBlock variant="error">couldn't load edition — is the fork up?</StateBlock>
+        <StateBlock variant="error">
+          couldn't load edition — no response from the network.
+        </StateBlock>
       </div>
     )
   }

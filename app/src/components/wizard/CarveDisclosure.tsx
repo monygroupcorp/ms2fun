@@ -4,8 +4,17 @@
  * mirror of the on-chain math); bracket params + pool floor are read LIVE from the factory so the
  * preview tracks owner-tuned regimes (falling back to the protocol defaults while loading).
  *
- * Also carries the sub-2-ETH honesty nudge: minnow raises carve ~nothing — the art path (editions/
- * auctions) on a cash-now (Liquidity) vault pays the creator 80% of settlements.
+ * LIVE is the right read HERE and only here. A collection is sealed onto the carve terms standing at
+ * its create and is never moved by a later change, so a surface describing an EXISTING collection must
+ * read that collection's own terms — which is what the on-chain `previewCarve` the admin panel calls
+ * already resolves. This is the wizard: the collection does not exist yet, so the terms the next create
+ * would be sealed onto are exactly the ones to quote.
+ *
+ * Also carries the dead-band honesty nudge: raises below the pool floor's reach carve ~nothing —
+ * the art path (editions/auctions) on a cash-now (Liquidity) vault pays the creator 80% of
+ * settlements. The threshold is computed from the live `minPoolEth`, never hardcoded: the floor is
+ * an owner-settable parameter, and a fixed figure beside a live table goes wrong silently the first
+ * time it is moved.
  */
 import { formatEther } from 'viem'
 import {
@@ -14,6 +23,7 @@ import {
 } from '../../generated/contracts'
 import { forkAddresses, forkChainId } from '../../lib/addresses'
 import {
+  carveDeadBandRaise,
   carveDisclosurePreview,
   DEFAULT_CARVE_BRACKETS,
   DEFAULT_MIN_POOL_ETH,
@@ -84,15 +94,16 @@ export function CarveDisclosure({ declaredValue }: { declaredValue: string | und
         </table>
       </div>
       <p className={styles.note}>
-        The carve is taken from the LP share only — the vault&apos;s 19% and the pool floor (
-        {fmt(minPoolEth)} ETH) always come first, and the carved amount is itself tithed 80/19/1
-        (you / vault / protocol). This declared max is immutable and shown to buyers before the
-        first buy.
+        The carve is taken from the LP share only — the vault&apos;s 19% comes first, and the pool
+        floor ({fmt(minPoolEth)} ETH) bounds how much of the rest the carve may take. The carved
+        amount is itself tithed 80/19/1 (you / vault / protocol). This declared max is immutable and
+        shown to buyers before the first buy.
       </p>
       <p className={styles.nudge}>
-        Raising under ~2 ETH? The carve is structurally near zero there — if you want money today,
-        the art path (editions / auctions) on a cash-now (Liquidity) vault pays you 80% of every
-        settlement (an endowment / Yield vault keeps the 19% creator split).
+        Raising under {fmt(carveDeadBandRaise(minPoolEth))} ETH? The carve is near zero there — the
+        LP share does not clear the pool floor, so there is no headroom for it to come out of. If
+        you want money today, the art path (editions / auctions) pays you 80% of every settlement —
+        the same split on every vault family.
       </p>
     </div>
   )

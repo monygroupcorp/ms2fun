@@ -6,6 +6,7 @@ import { MasterRegistryV1 } from "../src/master/MasterRegistryV1.sol";
 import { IMasterRegistry } from "../src/master/interfaces/IMasterRegistry.sol";
 import { ComponentRegistry } from "../src/registry/ComponentRegistry.sol";
 import { LaunchManager } from "../src/factories/erc404/LaunchManager.sol";
+import { LaunchPresets } from "./LaunchPresets.sol";
 import { FeatureUtils } from "../src/master/libraries/FeatureUtils.sol";
 
 /// @notice Read-only validation script. Checks all Sepolia protocol config
@@ -288,17 +289,29 @@ contract ValidateSepolia is Script {
     ///      is strictly weaker (`isApproved[c]` alone, without `componentTag[c] == tag`), so a component
     ///      approved under some other tag satisfies it while every `createInstance` reverts
     ///      `UnapprovedCurveComputer`.
+    ///
+    ///      The economics are asserted against `LaunchPresets` — the ladder this repo ships — and not
+    ///      merely logged. A preset is read ONCE, at create, and written into the instance's stored
+    ///      bonding params, so a chain left on a superseded rung does not announce itself: every
+    ///      `createInstance` succeeds and mints a collection permanently capped by the old
+    ///      `unitPerNFT`, with no later `setPreset` able to reach it. That is the failure this
+    ///      script exists to catch, and it is invisible to a check that only reads the curve
+    ///      computer back.
     function _checkLaunchManager(address launchManagerAddr) internal view {
         console.log("-- LaunchManager presets --");
         console.log("  address:", launchManagerAddr);
         LaunchManager lm = LaunchManager(launchManagerAddr);
         ComponentRegistry cr = _componentRegistry();
 
-        for (uint256 i = 0; i <= 2; i++) {
+        for (uint256 i = 0; i < LaunchPresets.COUNT; i++) {
             LaunchManager.Preset memory preset = lm.getPreset(i);
+            LaunchManager.Preset memory shipped = LaunchPresets.preset(i, preset.curveComputer);
             console.log("  preset", i);
             console.log("    active:", preset.active);
             console.log("    targetETH:", preset.targetETH);
+            console.log("    unitPerNFT:", preset.unitPerNFT);
+            console.log("    max pieces a collection may have:", LaunchPresets.maxNftSupply(preset.unitPerNFT));
+            console.log("    liquidityReserveBps:", preset.liquidityReserveBps);
             console.log("    curveComputer:", preset.curveComputer);
             require(
                 preset.curveComputer != address(0),
@@ -310,6 +323,44 @@ contract ValidateSepolia is Script {
                 curveApproved,
                 string.concat(
                     "preset ", vm.toString(i), ": curve computer is not approved under the curve_computer tag"
+                )
+            );
+            require(
+                preset.unitPerNFT == shipped.unitPerNFT,
+                string.concat(
+                    "preset ",
+                    vm.toString(i),
+                    ": on-chain unitPerNFT is ",
+                    vm.toString(preset.unitPerNFT),
+                    " (a ceiling of ",
+                    vm.toString(LaunchPresets.maxNftSupply(preset.unitPerNFT)),
+                    " pieces), but this repo ships ",
+                    vm.toString(shipped.unitPerNFT),
+                    " (",
+                    vm.toString(LaunchPresets.maxNftSupply(shipped.unitPerNFT)),
+                    " pieces). The owner must setPreset before any collection is created under it."
+                )
+            );
+            require(
+                preset.targetETH == shipped.targetETH,
+                string.concat(
+                    "preset ",
+                    vm.toString(i),
+                    ": on-chain targetETH is ",
+                    vm.toString(preset.targetETH),
+                    ", but this repo ships ",
+                    vm.toString(shipped.targetETH)
+                )
+            );
+            require(
+                preset.liquidityReserveBps == shipped.liquidityReserveBps,
+                string.concat(
+                    "preset ",
+                    vm.toString(i),
+                    ": on-chain liquidityReserveBps is ",
+                    vm.toString(preset.liquidityReserveBps),
+                    ", but this repo ships ",
+                    vm.toString(shipped.liquidityReserveBps)
                 )
             );
         }

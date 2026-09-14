@@ -26,6 +26,7 @@ import {
 } from '../lib/vaults/targetRollup'
 import { vaultFamilyLabel } from '../components/vault/useVaultOverview'
 import { useCollectionMetadata } from '../components/useCollectionMetadata'
+import { AmbassadorPanel } from '../components/target/AmbassadorPanel'
 import { IpfsImage } from '../components/ui/IpfsImage'
 import { StateBlock } from '../components/ui/StateBlock'
 import { truncateAddress } from '../lib/format'
@@ -180,6 +181,11 @@ export function TargetPage() {
         </dl>
       </header>
 
+      {/* The ambassador's own controls, if the connected wallet holds this community's seat. The
+          registry grants an ambassador the community's description and metadata pointer; the admin
+          console is owner-only, so without this the seat is usable only by raw contract call. */}
+      <AmbassadorPanel targets={community.targets} venueByTargetId={venueByTargetId} />
+
       {/* The venues. One registry target per curated venue, because the registry curates exactly one
           venue per (target, asset) — so this is where that on-chain shape is shown rather than
           leaked onto the index as duplicate rows. */}
@@ -222,7 +228,7 @@ export function TargetPage() {
         )}
         {isError && (
           <StateBlock variant="error" boxed>
-            couldn&apos;t load vaults — is the fork up?
+            couldn&apos;t load vaults — no response from the network.
           </StateBlock>
         )}
         {!isPending && !isError && mine.length === 0 && (

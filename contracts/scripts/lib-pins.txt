@@ -1,0 +1,50 @@
+# Pinned dependency set for the CI bootstrap of contracts/lib.
+#
+# WHY THIS FILE EXISTS
+# contracts/lib is gitignored and holds no submodule gitlinks, so `actions/checkout` fetches no
+# dependency source at all: a CI job starts with an empty lib/ and has to clone all of it. That
+# bootstrap used to name only the repositories, which resolves to each dependency's default-branch
+# HEAD -- so the same project commit compiled against different dependency code on different days,
+# and an upstream push could red the gate with nothing changed here and no way to reproduce it
+# locally. Every dependency is pinned to an exact commit here, and this file is the only place a
+# dependency's URL or commit is written: the contracts workflow and the app workflow's
+# bindings-drift step both install from it, so the two cannot drift apart. It replaces
+# contracts/.gitmodules, which listed 11 of the 13 as bare URLs, pinned none of them, and -- with
+# no gitlinks anywhere in the tree for it to describe -- was read by nothing.
+#
+# FORMAT
+#   <scope>  <owner/repo>  <commit>
+#
+#   src   required to compile contracts/src. This is the set the app workflow's bindings-drift
+#         step installs -- it builds src/ only, and deliberately not the two below.
+#   test  additionally required by contracts/test and contracts/script.
+#
+# The two `test` entries are kept out of the src-only build on purpose: that build passes
+# `--skip "*/test/**" "*/script/**"`, and adding dependencies src/ does not import only adds
+# compile units that the skip globs then have to exclude.
+#
+# CHOICE OF REVISIONS
+# These are the revisions the contracts are developed and tested against, recovered from the
+# dependency trees themselves rather than from upstream HEAD: for each dependency, the working
+# tree was hashed and matched against the upstream history, and every one resolved to exactly
+# one commit. Pinning therefore records the status quo -- it does not move any dependency.
+#
+# MOVING A DEPENDENCY
+# Edit its commit here, then run the full contracts gate (forge fmt --check, forge build, the
+# EIP-170 + storage-layout gate, `FOUNDRY_PROFILE=ci forge test`, and the foundry.v4.toml
+# RealSettlement run) and regenerate the wagmi bindings. A dependency move can change compiled
+# bytecode and ABIs, so the bindings churn belongs in the same commit as the bump.
+
+src   OpenZeppelin/openzeppelin-contracts  fcbae5394ae8ad52d8e580a3477db99814b9d565
+src   transmissions11/solmate              89365b880c4f3c786bdd453d4b8e8fe410344a69
+src   vectorized/solady                    acd959aa4bd04720d640bf4e6a5c71037510cc4b
+src   Uniswap/v4-core                      e50237c43811bd9b526eff40f26772152a42daba
+src   vectorized/dn404                     3397cb11558ac853912ee87871422b6a29c9d346
+src   Uniswap/v3-core                      e3589b192d0be27e100cd0daaf6c97204fdb1899
+src   Uniswap/v3-periphery                 80f26c86c57b8a5e4b913f42844d4c8bd274d058
+src   Uniswap/v2-core                      4dd59067c76dea4a0e8e4bfdda41877a6b16dedc
+src   z-fi/zamm                            f1a2dc3151c0d746b812e4409f96b06afc7996d8
+src   z-fi/zRouter                         3f4b7cc99fdaa94120a33d4a5fd754fd1621a156
+src   radeksvarz/createx-forge             cef15824154b2a7117bdac60870466b185fba684
+test  foundry-rs/forge-std                 3f999523613ab5454a5c4ae4abeaa8ea2ba7bcae
+test  bgd-labs/aave-address-book           86e3ab73939b5580d6b4642ac8bf52b6a9a9ceb7

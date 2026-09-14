@@ -35,6 +35,8 @@ contract GoodERC404Instance {
     uint256 public totalBondingSupply = 500e18;
     uint256 public maxSupply = 10_000e18;
     uint256 public unit = 1_000_000 * 1e18;
+    uint256 public liquidityReserve = 0;
+    uint256 public freeMintAllocation = 0;
     bool public bondingActive = true;
     uint256 public bondingOpenTime = 0;
     bool public graduated = false;

@@ -53,9 +53,9 @@ contract DeactivationScopeInstance {
 ///      deactivated factory ever produced — fleet-wide, at the moment the DAO retires a factory
 ///      version. This suite makes that change fail loudly.
 ///
-///      It pins the SCOPE of deactivation only. It deliberately asserts nothing about what
-///      `revokeInstance` does to the same path — that behaviour is under a ruling (`noesis-289`) and
-///      asserting today's answer would encode it.
+///      It pins the SCOPE of deactivation only. What `revokeInstance` does to the same path is pinned
+///      separately in `test/registry/GlobalMessageRegistryRevocation.t.sol`: revocation drops the
+///      comment and leaves the trade alone.
 contract MasterRegistryDeactivationScopeTest is Test {
     MasterRegistryV1 registry;
     AlignmentRegistryV1 alignmentRegistry;
@@ -75,7 +75,7 @@ contract MasterRegistryDeactivationScopeTest is Test {
         registry = MasterRegistryV1(LibClone.deployERC1967(address(impl)));
         registry.initialize(dao);
 
-        alignmentRegistry = new AlignmentRegistryV1(makeAddr("WETH"));
+        alignmentRegistry = new AlignmentRegistryV1(makeAddr("WETH"), address(0), address(0));
         alignmentRegistry.initialize(dao);
         vm.prank(dao);
         registry.setAlignmentRegistry(address(alignmentRegistry));

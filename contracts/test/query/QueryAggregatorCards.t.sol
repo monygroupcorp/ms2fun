@@ -11,6 +11,10 @@ contract MockERC404Card {
     uint256 public totalBondingSupply;
     uint256 public maxSupply;
     uint256 public unit;
+    // The buy path caps at maxSupply - liquidityReserve - freeMintAllocation * unit; the card lens
+    // reports that ceiling. Default 0 keeps the ceiling at maxSupply for cases that do not care.
+    uint256 public liquidityReserve;
+    uint256 public freeMintAllocation;
     bool public bondingActive;
     uint256 public bondingOpenTime;
     bool public graduated;
@@ -32,6 +36,11 @@ contract MockERC404Card {
         graduated = graduated_;
         bondingOpenTime = openTime_;
         _params = p;
+    }
+
+    function setReserves(uint256 liquidityReserve_, uint256 freeMintAllocation_) external {
+        liquidityReserve = liquidityReserve_;
+        freeMintAllocation = freeMintAllocation_;
     }
 
     function instanceType() external pure returns (bytes32) {

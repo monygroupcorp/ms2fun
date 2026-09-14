@@ -127,6 +127,26 @@ contract CurveParamsComputer is Ownable, ICurveComputer {
     }
 
     /**
+     * @notice Whether a liquidity reserve is one this computer can actually solve a curve for
+     * @dev The admissible reserve band is DERIVED, not declared: `targetGraduationMultiple` is
+     *      strictly decreasing in the reserve and `graduationMultipleAt` is strictly decreasing in
+     *      the pole, so a reserve is admissible exactly when its parity target lands within the
+     *      multiples the pole band [MIN_POLE_WAD, MAX_POLE_WAD] can reach. This is the same
+     *      predicate `solvePole` reverts on, expressed as a question rather than an assertion, so a
+     *      caller can refuse an unusable reserve at STORE time rather than at every create.
+     *      Retuning either pole constant moves this answer with it, which is the point: the band has
+     *      one definition and cannot drift out of agreement with a second copy.
+     * @param liquidityReserveBps Bps of total supply reserved for liquidity
+     * @return admissible True if `computeCurveParams` can return params for this reserve
+     */
+    function isReserveBpsAdmissible(uint256 liquidityReserveBps) external pure returns (bool admissible) {
+        // Guarded before the parity math, which divides by the reserve and subtracts it from 10000.
+        if (liquidityReserveBps == 0 || liquidityReserveBps >= 10000) return false;
+        uint256 targetG = targetGraduationMultiple(liquidityReserveBps);
+        return targetG <= graduationMultipleAt(MIN_POLE_WAD) && targetG >= graduationMultipleAt(MAX_POLE_WAD);
+    }
+
+    /**
      * @notice Solve the pole that puts the curve's end price at the pool's opening price
      * @dev Bisection over the band. `graduationMultipleAt` is monotone decreasing there, so the
      *      bracket is [MIN_POLE_WAD, MAX_POLE_WAD] and a target outside the endpoints' multiples is

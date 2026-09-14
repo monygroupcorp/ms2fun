@@ -1,4 +1,5 @@
 export type { ProjectCard, CollectionFilters } from './types'
+export { chunk, fetchProjectCardsBatched, MAX_QUERY_LIMIT, QUERY_WINDOW } from './batchRead'
 export { scanAllInstances } from './scanInstances'
 export { useAllCollectionsRaw, allCollectionsQueryKey } from './useAllCollectionsRaw'
 export { useAllCollections } from './useAllCollections'

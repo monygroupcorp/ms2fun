@@ -37,13 +37,16 @@ Locked sub-decisions (from the task's O1–O4):
   action (forfeit still pushes to the trusted treasury directly). The deposit is the spam lever: if abused,
   the owner raises it (stronger deterrent + more revenue), so no per-request asset cap is needed. Second
   line of defense: a bounded pending list (`maxPending`) + permissionless `pruneExpired` past `requestTTL`.
-- **D7 — Two admin txs (v1), order enforced on-chain.** `approveRequest(id)` (refunds the deposit,
-  delists) and `registerAlignmentTarget(...)` (prefilled from the request in the admin UI) are
-  **separate** transactions. This keeps the core registry untouched. To make the split safe,
-  **`approveRequest` reverts (`TargetNotRegistered`) unless the request's token is now in an active
-  target** — so an admin can't refund + delist a request without having registered it (a "register THEN
-  approve" invariant, not just UI label ordering). Reject has no such requirement (declining ≠
-  registering). Submit correspondingly requires the primary token to be among the proposed assets, so
+- **D7 — Two admin txs (v1), order enforced on-chain.** `approveRequest(id, targetId)` (refunds the
+  deposit, delists) and `registerAlignmentTarget(...)` (prefilled from the request in the admin UI) are
+  **separate** transactions. This keeps the core registry untouched. To make the split safe, the
+  approval **names the target it was granted for**: `approveRequest` reverts `TargetNotRegistered`
+  unless that target is active, and `TokenNotInTarget` unless the request's token is in its asset set —
+  so an admin can't refund + delist a request without having registered it (a "register THEN approve"
+  invariant, not just UI label ordering), and the receipt records which target it produced.
+  **Amended 2026-09-04:** the gate was originally "the request's token is now in *an* active target",
+  which is a property of the token rather than of the request — once one target existed for a token,
+  every pending request naming it passed. Reject has no such requirement (declining ≠ registering). Submit correspondingly requires the primary token to be among the proposed assets, so
   registering makes it active. A one-tx path (a narrow `authorizedRegistrar` role on
   `AlignmentRegistryV1` so approval registers directly) is a **v2** upgrade, deliberately out of scope —
   it would touch the Safe/Timelock contract.

@@ -7,13 +7,17 @@
  * product passes `type(uint96).max`. The preset therefore fixes a HARD maximum NFT supply, and it is
  * not a small number in the "nobody will hit it" sense — with the deployed presets:
  *
- *   NICHE     unitPerNFT 1e9 →         79 NFTs
- *   STANDARD  unitPerNFT 1e6 →     79,228 NFTs
+ *   NICHE     unitPerNFT 1e6 →     79,228 NFTs
+ *   STANDARD  unitPerNFT 1e5 →    792,281 NFTs
  *   HYPE      unitPerNFT 1e3 → 79,228,162 NFTs
  *
  * Nothing surfaced this: the wizard accepted any supply, priced a gas estimate for a call that could
  * not succeed, and the create reverted as "transaction failed — try again". A creator picking the
  * default preset and a round supply of 1,000 — the obvious first thing to type — could not launch.
+ * The ladder above is the second half of that fix: NICHE ran at 1e9 units/NFT, which left it a
+ * 79-piece preset that no real collection fits, so the rungs were re-spaced a decade apart. The
+ * ceiling is still a real bound — HYPE is the only rung a million-piece collection fits under — which
+ * is why this validator stays whatever the presets are set to.
  *
  * `unitPerNFT` is read LIVE from `LaunchManager.getPreset` (see `usePresetSupplyCeiling`), never
  * hardcoded here: presets are DAO-settable via `setPreset`, and a hardcoded mirror would silently
