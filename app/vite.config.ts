@@ -6,6 +6,7 @@ import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { precacheGlobs } from './precache.globs'
+import { resolveAnvilPort } from './scripts/dev-chain/anvil-port'
 import {
   PUBLIC_ORIGIN_ENV_KEY,
   injectPublicOrigin,
@@ -110,9 +111,13 @@ function spaFallback404(): Plugin {
 // `serve`/`preview`, never in the emitted build, so the IPFS/prod artifact is untouched.
 // `rewrite` strips the `/__rpc/<channel>` prefix: anvil's JSON-RPC server answers only at `/`,
 // so forwarding the prefixed path through unrewritten 404s at the target (verified live).
+// The mainnet channel's port follows ANVIL_PORT — the same variable `scripts/dev-chain/fork.sh`
+// reads — so a channel started elsewhere is still reachable from the page without editing this
+// file. Unset, the target is `:8545` as before. (The dev server reads it at startup, so a changed
+// ANVIL_PORT needs a restart.) The Sepolia channel's port is fixed and does not follow it.
 const devChainProxy = {
   '/__rpc/mainnet': {
-    target: 'http://localhost:8545',
+    target: `http://localhost:${resolveAnvilPort(process.env.ANVIL_PORT)}`,
     changeOrigin: true,
     rewrite: (path: string) => path.replace(/^\/__rpc\/mainnet/, ''),
   },

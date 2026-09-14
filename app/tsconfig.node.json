@@ -18,5 +18,13 @@
   // `src/lib/share/origin.ts` is listed because `vite.config.ts` imports it: the share-card origin
   // is resolved by the build, and the rules for resolving it are unit-tested with the rest of the
   // share-card code rather than living unreachable inside this config.
-  "include": ["vite.config.ts", "precache.globs.ts", "src/lib/share/origin.ts"]
+  // `scripts/dev-chain/anvil-port.ts` likewise: the dev server's `/__rpc/mainnet` proxy target
+  // follows ANVIL_PORT, and the scripts that start the chain read the port through that same
+  // module, so the proxy and the fork cannot drift apart.
+  "include": [
+    "vite.config.ts",
+    "precache.globs.ts",
+    "src/lib/share/origin.ts",
+    "scripts/dev-chain/anvil-port.ts"
+  ]
 }

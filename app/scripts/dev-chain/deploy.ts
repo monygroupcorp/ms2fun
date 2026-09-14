@@ -3,7 +3,8 @@
  *
  * Replaces the legacy ethers-v5 loop (scripts/local-chain/{deploy-contracts,run-local,
  * write-config}.mjs). Assumes an anvil mainnet-fork is already running on :8545
- * (start it with `pnpm chain:fork`). It:
+ * (start it with `pnpm chain:fork`), or on ANVIL_PORT where that is set — the same
+ * variable `fork.sh` reads, so a channel moved there needs no edit here. It:
  *
  *   1. Clears EIP-7702 delegations from anvil's default accounts (a mainnet fork carries
  *      them; they make _safeMint and other deploys revert).
@@ -30,6 +31,7 @@ import {
   type Address,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
+import { anvilRpcUrl } from './anvil-port'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const appDir = resolve(here, '../..')
@@ -39,7 +41,7 @@ const anvilJsonPath = resolve(contractsDir, 'deployments/anvil.json')
 const seedStatePath = resolve(contractsDir, 'deployments/anvil-seed.json')
 const configPath = resolve(appDir, 'src/config/local-deployment.json')
 
-const RPC = 'http://127.0.0.1:8545'
+const RPC = anvilRpcUrl()
 const CHAIN_ID = 1337
 // Anvil's well-known account #0 (public test key — safe to hardcode for a local fork).
 const ANVIL_DEPLOYER_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'

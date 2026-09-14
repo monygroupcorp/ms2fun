@@ -62,3 +62,41 @@ port_holder_pid() {
   # No probe tool available.
   return 2
 }
+
+# dev_chain_port
+#   Resolves the mainnet dev channel's port from ANVIL_PORT, defaulting to 8545. An unset or empty
+#   ANVIL_PORT yields exactly the historical port, so the default loop is unchanged. A value that is
+#   not a decimal port number is refused rather than handed to anvil, which would otherwise fail
+#   later and less legibly. Prints the port on stdout; returns 1 with a message on stderr if invalid.
+dev_chain_port() {
+  local port="${ANVIL_PORT:-8545}"
+
+  case "$port" in
+    '' | *[!0-9]*)
+      echo "❌ ANVIL_PORT must be a port number, got '$port'" >&2
+      return 1
+      ;;
+  esac
+  if [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
+    echo "❌ ANVIL_PORT must be between 1 and 65535, got '$port'" >&2
+    return 1
+  fi
+
+  echo "$port"
+}
+
+# dev_chain_pid_file <repo_root> <port>
+#   The ownership record for the mainnet channel at <port>. At the default port this is the
+#   historical `/.anvil.pid` verbatim, so nothing about the untouched loop moves. An overridden port
+#   gets its own file under the already-ignored `.cache/`, because one fixed path shared by two
+#   ports would let the second fork overwrite the first's record and orphan it — and the refusal in
+#   fork.sh/stop.sh is only as good as the record it compares against.
+dev_chain_pid_file() {
+  local repo_root="$1" port="$2"
+
+  if [ "$port" = "8545" ]; then
+    echo "$repo_root/.anvil.pid"
+  else
+    echo "$repo_root/.cache/anvil-$port.pid"
+  fi
+}

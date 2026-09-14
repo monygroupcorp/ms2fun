@@ -36,12 +36,13 @@ import {
   type Address,
   type PublicClient,
 } from 'viem'
+import { anvilRpcUrl } from './anvil-port'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const appDir = resolve(here, '../..')
 const configPath = resolve(appDir, 'src/config/local-deployment.json')
 
-const RPC = 'http://127.0.0.1:8545'
+const RPC = anvilRpcUrl()
 
 // Minimal identity-check ABIs — one view function per hub contract, just enough to corroborate
 // that the deployed code behaves like the named contract rather than merely occupying the address.
