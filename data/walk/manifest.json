@@ -31,7 +31,8 @@
   },
   "report": {
     "destination": "Reply to the post you were invited from. That is the channel the invite came down, and it is where a reply is read.",
-    "secondary": "The app's own /board is public, permissionless and on-chain, so a report posted there is one anybody can read back. One trap: the feed shows only posts whose attached value clears the registry's postThreshold. The in-app composer defaults the amount to the live threshold, so post through the composer rather than by hand and your report will be visible.",
+    "secondary": "The app's own /board is public, permissionless and on-chain, so a report posted there is one anybody can read back. Two traps, and both of them lose a report silently. Posting is batched: the composer's Post button only queues your report into the board cart, and nothing reaches the chain until you press \"finalize N on-chain\" on the cart bar at the foot of the page — a report left in the cart was never filed. And the feed shows only posts whose attached value clears the registry's postThreshold; the in-app composer defaults the amount to the live threshold, so post through the composer rather than by hand and your report will be visible.",
+    "secondaryRoute": "/board",
     "include": [
       "the step id — every finding is filed against one, and a finding with no step id is a finding nobody can walk back to",
       "what you did, in the words you would use to do it again",
