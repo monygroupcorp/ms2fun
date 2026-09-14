@@ -22,10 +22,27 @@ import { ActivityMessage } from './activity/ActivityMessage'
 import { ActivityStates, ActivityThresholdNote } from './activity/ActivityStates'
 import styles from './MessageFeed.module.css'
 
+/**
+ * What an empty transcript says, which depends on what the feed is.
+ *
+ * Filtered by `instance` it is a room: anyone with a wallet can speak in it, and the box carries
+ * the composer that does it, so an empty room asks for the first word. Filtered by `sender` it is
+ * a wall — one address's posts, gathered from every channel it has spoken in — and there is no way
+ * to post *to* it, so inviting a visitor to say the first thing here describes a room that does not
+ * exist. A surface whose own wall reads differently (the owner's) passes `empty` instead.
+ */
+function zeroState(filter: FeedFilter): string {
+  if (filter.sender !== undefined) {
+    return 'nothing from this address yet — a wall gathers what it has posted, wherever it posted.'
+  }
+  return 'no activity yet — be the first to say something here.'
+}
+
 export function MessageFeed({
   filter,
   vaults,
   footer,
+  empty,
 }: {
   filter: FeedFilter
   /** Known vault addresses, lowercased, so vault channels link to /vault/… (see `channelRef`). */
@@ -33,6 +50,9 @@ export function MessageFeed({
   /** Docked in the box's well (e.g. the "write something" composer), so the empty "no activity yet"
       state sits directly above it. */
   footer?: ReactNode
+  /** Overrides what an empty transcript says, for a surface whose zero-state `zeroState` cannot
+      know: the profile wall reads one way to its owner and another to a visitor. */
+  empty?: ReactNode
 }) {
   const { data, isPending, isError } = useMessageFeed(filter)
   const { address: connected } = useAccount()
@@ -60,7 +80,7 @@ export function MessageFeed({
           isError={isError}
           fetched={data?.length}
           shown={threads.length}
-          empty="no activity yet — be the first to say something here."
+          empty={empty ?? zeroState(filter)}
           emptyTestId="message-feed-empty"
         />
 

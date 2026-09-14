@@ -10,6 +10,10 @@
  *
  * Both now draw `ActivityStates`, so these pin the wiring: that each surface hands it the count it
  * FETCHED as well as the count it SHOWS, which is the whole of what tells the two apart.
+ *
+ * The same sentence is wrong a second way on the profile wall, where the feed is filtered by sender:
+ * there is no room to be first in and no composer for a visitor, so these also pin that a wall says
+ * what it is, and that a surface which knows better can say so itself.
  */
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -93,5 +97,37 @@ describe('home’s recent-activity preview', () => {
     const state = screen.getByTestId('home-activity-empty')
     expect(state).toHaveTextContent('nothing to show in this view')
     expect(state).not.toHaveTextContent('be the first')
+  })
+})
+
+describe('the profile wall’s zero-state', () => {
+  it('does not invite a visitor to speak on a wall nobody can post to', () => {
+    render(<MessageFeed filter={{ sender: SENDER }} />)
+
+    const state = screen.getByTestId('message-feed-empty')
+    expect(state).toHaveTextContent('nothing from this address yet')
+    expect(state).not.toHaveTextContent('be the first')
+  })
+
+  it('takes the surface’s own words when it has them — the owner, who does have a composer', () => {
+    render(
+      <MessageFeed
+        filter={{ sender: SENDER }}
+        empty="nothing from you yet — anything you post lands here."
+      />,
+    )
+
+    expect(screen.getByTestId('message-feed-empty')).toHaveTextContent('nothing from you yet')
+  })
+
+  it('names the threshold on a wall whose every post sits under it', () => {
+    feed.threshold = parseEther('1')
+    feed.messages = [post({ value: 0n })]
+
+    render(<MessageFeed filter={{ sender: SENDER }} />)
+
+    const state = screen.getByTestId('message-feed-empty')
+    expect(state).toHaveTextContent('nothing to show in this view')
+    expect(state).not.toHaveTextContent('nothing from this address yet')
   })
 })

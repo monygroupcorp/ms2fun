@@ -253,7 +253,13 @@ export function ProfilePage() {
         <section className={styles.wall}>
           <h2 className={styles.wallHead}>The wall</h2>
           {isOwn && <MessageComposer channel={target} />}
-          <MessageFeed filter={{ sender: target }} />
+          {/* The wall is filtered by sender, so it is this address's posts from every channel, and
+              only its owner can add to it. A visitor gets MessageFeed's wall wording; the owner,
+              who has the composer above, gets the invitation it would be false to show a visitor. */}
+          <MessageFeed
+            filter={{ sender: target }}
+            empty={isOwn ? 'nothing from you yet — anything you post lands here.' : undefined}
+          />
         </section>
       )}
 
