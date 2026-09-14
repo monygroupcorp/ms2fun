@@ -135,7 +135,12 @@ contract CurveParamsComputer is Ownable, ICurveComputer {
      *      predicate `solvePole` reverts on, expressed as a question rather than an assertion, so a
      *      caller can refuse an unusable reserve at STORE time rather than at every create.
      *      Retuning either pole constant moves this answer with it, which is the point: the band has
-     *      one definition and cannot drift out of agreement with a second copy.
+     *      one definition and cannot drift out of agreement with a second copy. Measured, that band
+     *      is 592..3567 bps at today's constants — deliberately NOT written down here, because a
+     *      hardcoded copy would go quietly wrong the moment those constants move.
+     *
+     *      Total by construction: the degenerate reserves are rejected by the first line rather than
+     *      reaching the division, so there is no input for which this reverts instead of answering.
      * @param liquidityReserveBps Bps of total supply reserved for liquidity
      * @return admissible True if `computeCurveParams` can return params for this reserve
      */

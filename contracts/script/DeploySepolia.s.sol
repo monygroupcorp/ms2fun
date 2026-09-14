@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import { DeployCore } from "./DeployCore.sol";
 import { ChainConfig } from "../src/peripherals/zRouter.sol";
 import { SepoliaSalts } from "./SepoliaSalts.sol";
+import { SepoliaRouteQuoter } from "./SepoliaRouteQuoter.sol";
 
 /// @notice Deploys the full protocol to Sepolia.
 ///         Run with: forge script script/DeploySepolia.s.sol --account <keystore> \
@@ -39,7 +40,22 @@ contract DeploySepolia is DeployCore {
             "DeploySepolia: sender is not the deployer the salt set is bound to (see script/SepoliaSalts.sol)"
         );
         vm.startBroadcast();
-        deploy(msg.sender, _networkConfig());
+        NetworkConfig memory cfg = _networkConfig();
+        // THE ONE PART OF THE CONFIG THAT HAS TO BE DEPLOYED BEFORE IT CAN BE NAMED.
+        //
+        // `cfg.zQuoter` is operator input everywhere else, because everywhere else there is a
+        // canonical quoter already on the chain to point at. Sepolia has none, and the vendored
+        // upstream sources are a Base-chain forwarder pinned above this tree's solc — see
+        // `SepoliaRouteQuoter` for the whole reckoning. So this network brings its own, and it is
+        // deployed here rather than in `_sepoliaConfig()` because that function is `pure`: it is a
+        // statement of what is FIXED about Sepolia, and an address minted per run is not that.
+        //
+        // It ships with an EMPTY route table, so at the end of this script every vault behaves
+        // exactly as it would with no quoter wired. `SeedSepolia` registers a route per roster token
+        // once that token exists and its pool has depth, which is the first moment a route could be
+        // truthful.
+        cfg.zQuoter = address(new SepoliaRouteQuoter(msg.sender));
+        deploy(msg.sender, cfg);
         vm.stopBroadcast();
         _writeVenueHandoff();
     }

@@ -984,6 +984,19 @@ contract ERC404BondingOps is ERC404BondingStorage {
     ///      the protocol's own outer horizon for a creator bond (see the constant's derivation in
     ///      `ERC404BondingStorage`). The cap is measured from `bondingOpenTime`, not from `now`, so
     ///      the legal window is the same regardless of when within the pre-open period it is set.
+    ///
+    ///      WHY THE CEILING IS OWED HERE AND NOT ONLY IN THE ESCROW. This setter once reached real
+    ///      money: `DeployBondEscrow.forfeit` anchored its deadline on
+    ///      `max(bondingMaturityTime, hardCap)`, so a creator could set maturity to the year 3000 and
+    ///      make the forfeit of their own escrowed bond unreachable forever. That path was closed at
+    ///      the escrow on 2026-09-04 by fixing the deadline at the terms the bond was posted under,
+    ///      and `forfeit` no longer reads this value at all.
+    ///
+    ///      What that fix removed was one consumer; what it did not remove is an owner-or-agent
+    ///      setter accepting any `uint256` on a field every other consumer — the app's bonding-phase
+    ///      logic today, anything on chain tomorrow — reads as a real date. A bound at the writer is
+    ///      what makes that safe for readers that do not exist yet, which matters because the deploy
+    ///      bond ships at 0 as an owner-tunable lever and turning it on is a one-line call.
     // slither-disable-next-line timestamp
     function setBondingMaturityTime(uint256 timestamp) external {
         _requireOwnerOrAgent();

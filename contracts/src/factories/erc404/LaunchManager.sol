@@ -40,11 +40,15 @@ contract LaunchManager is Ownable {
     ///      bound written down here. `(0, 10000)` is the arithmetically legal range for a bps, but it
     ///      is far wider than the range a curve can actually be solved over: the reserve fixes the
     ///      pool parity target, and a target outside the multiples the computer's pole band reaches
-    ///      is unreachable. A preset stored outside that band used to be accepted here and then
-    ///      reverted at EVERY create against it — the setter accepted what the curve could not solve.
+    ///      is unreachable. At today's constants that band is 592..3567 bps, so a preset anywhere in
+    ///      the other ~7,000 values used to store cleanly, emit `PresetUpdated`, read back live from
+    ///      `getPreset` — and then revert every `create` made against it, on a CREATOR's transaction,
+    ///      with an error from a contract they never named.
+    ///
     ///      Asking the computer keeps the bound in one place; a copy of the numbers here would be a
     ///      second definition, and a retune of the computer's shape constants would silently put the
-    ///      two out of agreement.
+    ///      two out of agreement. A preset names its own `curveComputer`, so the right answer is
+    ///      per-preset in any case.
     function setPreset(uint256 presetId, Preset calldata preset) external onlyOwner {
         if (preset.targetETH == 0) revert InvalidTargetETH();
         if (preset.unitPerNFT == 0) revert InvalidUnitPerNFT();

@@ -16,9 +16,14 @@ interface ICurveComputer {
     /// @notice Whether this computer can actually solve a curve for a given liquidity reserve.
     /// @dev The admissible reserve band is not an independent policy number — it is implied by the
     ///      implementation's own curve shape limits, because the parity target the reserve sets must
-    ///      land inside the multiples those limits can reach. Callers that STORE a reserve ahead of
-    ///      any create (LaunchManager.setPreset) ask here instead of carrying a copy of the band, so
-    ///      the bound has exactly one definition: this implementation's.
+    ///      land inside the multiples those limits can reach. The answer is therefore a property of
+    ///      THIS computer, and not a constant anyone else can hardcode without it drifting the next
+    ///      time those limits move. Callers that STORE a reserve ahead of any create
+    ///      (LaunchManager.setPreset) ask here instead of carrying a copy of the band, so the bound
+    ///      has exactly one definition: this implementation's — and a preset the computer could
+    ///      never serve is refused at store time rather than failing on a creator's `create` much
+    ///      later.
+    ///      MUST NOT revert — a reserve this computer cannot serve is `false`, not an error.
     /// @param liquidityReserveBps Bps of total supply reserved for liquidity.
     /// @return admissible True if `computeCurveParams` can return params for this reserve.
     function isReserveBpsAdmissible(uint256 liquidityReserveBps) external view returns (bool admissible);

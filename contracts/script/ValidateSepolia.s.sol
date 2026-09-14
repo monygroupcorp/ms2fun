@@ -156,6 +156,12 @@ contract ValidateSepolia is Script {
         // actually wired into the launch deployers and vault factories.
         _checkExternalDep(_recordAddress(json, ".contracts.zRouter", "zRouter"), "zRouter");
         _checkExternalDep(ZAMM_V1, "ZAMM V1");
+        // NOT a third-party singleton — `SepoliaRouteQuoter` is deployed by `DeploySepolia`, because
+        // this network has no canonical quoter to point at. It is checked here anyway, and by code
+        // rather than by record: a codeless address in this slot does not fail loudly, it makes
+        // `BestRouteAcquirer` degrade every acquire to the fixed pool, which looks like a working
+        // deployment until someone asks why the best-route path never runs.
+        _checkExternalDep(_recordAddress(json, ".contracts.zQuoter", "zQuoter"), "zQuoter (best-route)");
         console.log("");
     }
 
