@@ -24,7 +24,8 @@ import {
 } from 'wagmi'
 import { alignmentRegistryV1Abi } from '../../generated/contracts'
 import { forkAddresses, forkChainId } from '../../lib/addresses'
-import { humanEth, humanGas, REF_GWEI } from '../../lib/wizard/embedGas'
+import { humanEth, humanGas, humanGwei } from '../../lib/wizard/embedGas'
+import { useGasPriceGwei } from './useGasPriceGwei'
 import { truncateAddress } from '../../lib/format'
 import styles from './AlignmentTargetPicker.module.css'
 
@@ -45,6 +46,7 @@ export function YieldVaultRequestCard({
   const registry = forkAddresses.AlignmentRegistryV1
   const { address: account } = useAccount()
   const publicClient = usePublicClient({ chainId: forkChainId })
+  const gasPrice = useGasPriceGwei()
 
   // Resolve the approved token(s) for this target. Single asset auto-selects; multi renders a chooser.
   const { data: assetsRaw } = useReadContract({
@@ -110,9 +112,11 @@ export function YieldVaultRequestCard({
     })
   }
 
+  // Priced at the chain's own fee when it answers; the reference price is named as one when it does
+  // not, so the figure never reads as a quote it isn't.
   const gasNote =
     gas !== undefined
-      ? `~${humanGas(Number(gas))} (${humanEth(Number(gas))} @ ${REF_GWEI}gwei)`
+      ? `~${humanGas(Number(gas))} (${humanEth(Number(gas), gasPrice.gwei)} @ ${humanGwei(gasPrice.gwei)} gwei${gasPrice.isLive ? '' : ' ref.'})`
       : null
 
   return (
