@@ -24,6 +24,7 @@ import {
 import { embedBreakdown } from '../lib/wizard/deployGasBreakdown'
 import { DeployGasBreakdown } from '../components/wizard/DeployGasBreakdown'
 import { useDeployGasEstimate } from '../components/wizard/useDeployGasEstimate'
+import { useGasPriceGwei } from '../components/wizard/useGasPriceGwei'
 import { collectionToDataUri, type CollectionMetadata } from '../lib/metadata'
 import { useReadDeployBondEscrowBondAmount } from '../generated/contracts'
 import { forkChainId } from '../lib/addresses'
@@ -397,6 +398,7 @@ export function WizardPage() {
       ? assembleCall(vault, estimateSalt)
       : undefined
   const gasEstimate = useDeployGasEstimate(reviewCall, wallet)
+  const gasPrice = useGasPriceGwei()
   const embedBreakdownData = useMemo(() => embedBreakdown(metadata), [metadata])
 
   // All hooks have run — safe to bail now. Stable non-null binding so the step-body / slot closures
@@ -836,6 +838,7 @@ export function WizardPage() {
                 breakdown={embedBreakdownData}
                 liveGas={gasEstimate.gas}
                 liveLoading={gasEstimate.isLoading}
+                gasPrice={gasPrice}
               />
             </aside>
           </div>

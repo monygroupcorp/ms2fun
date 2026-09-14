@@ -31,6 +31,7 @@ vi.mock('wagmi', () => ({
   }),
   useWaitForTransactionReceipt: () => ({ isLoading: false, isSuccess: false }),
   usePublicClient: () => undefined,
+  useGasPrice: () => ({ data: undefined, isLoading: false }),
 }))
 
 vi.mock('@tanstack/react-query', () => ({
