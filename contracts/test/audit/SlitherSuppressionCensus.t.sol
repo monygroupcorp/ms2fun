@@ -69,7 +69,15 @@ contract SlitherSuppressionCensusTest is Test {
 
     // ── The census ────────────────────────────────────────────────────────
 
-    function test_missingZeroCheckSuppressionCensusIsPinned() public view {
+    function test_missingZeroCheckSuppressionCensusIsPinned() public {
+        // The census reads every `.sol` under `src` in one call frame, and `vm.readFile` is charged
+        // for the bytes it returns. At 89 files it drew 1.0723e9 gas against the 1.0737e9 default
+        // ceiling — 0.14% of headroom, so the census was a few dozen added source LINES from reverting
+        // `OutOfGas` no matter what it found, and the guard would have stopped reporting on
+        // suppressions and started reporting on its own gas. Gas has no meaning for a guard that only
+        // reads the tree and compares counts, so it is not metered rather than being given a bigger
+        // number that the same growth would eat again.
+        vm.pauseGasMetering();
         (string[] memory expectedPaths, uint256[] memory expectedCounts) = _expected();
         bool[] memory seen = new bool[](expectedPaths.length);
 
