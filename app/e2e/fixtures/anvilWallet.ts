@@ -16,9 +16,11 @@
  * through the injected browser wallet, driving admin actions through the real UI instead of raw viem).
  *
  * Use the exported `test`/`expect` from this module instead of '@playwright/test' in write-path specs.
+ * The fork it talks to is the one `ANVIL_PORT` names — see {@link ANVIL_RPC}.
  */
 import { test as base, expect } from '@playwright/test'
 import { createTestClient, http, type Address } from 'viem'
+import { anvilRpcUrl } from '../../scripts/dev-chain/anvil-port'
 
 /** anvil default account #0 — funded with 10000 ETH and unlocked on the fork. */
 export const TEST_ACCOUNT = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266' as const
@@ -26,7 +28,18 @@ export const TEST_ACCOUNT = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266' as cons
  *  (SeedAnvil.s.sol `_transferAdmin`). Not an anvil default key, so driving it through the injected
  *  browser wallet needs impersonation (see `adminTest`). */
 export const ADMIN = '0x54EfD4549AE44bD03B2cCC1C72492CA9A3219C86' as const
-export const ANVIL_RPC = 'http://127.0.0.1:8545'
+/**
+ * The fork's JSON-RPC endpoint, resolved from `ANVIL_PORT` through the same module `fork.sh`,
+ * `chain:deploy`/`chain:check` and the dev server's `/__rpc/mainnet` proxy target read
+ * (`scripts/dev-chain/anvil-port.ts`); unset, it is `:8545` as before.
+ *
+ * It has to follow that variable rather than pin a port. A `@fork` spec drives BOTH sides of the
+ * same chain — the page reads through the dev server, which is on the moved port, while this
+ * fixture impersonates and signs over this URL. Pinned at `:8545`, a run under
+ * `ANVIL_PORT=8600 pnpm dev` wrote to whatever fork still held `:8545` while the page read `:8600`:
+ * two chains, no error, assertions failing against state the test had never written.
+ */
+export const ANVIL_RPC = anvilRpcUrl()
 
 const forkChain = {
   id: 1337,

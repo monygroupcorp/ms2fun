@@ -17,7 +17,7 @@ test('app shell loads', async ({ page }) => {
 })
 
 /**
- * @fork — the connected discovery grid resolves off the local fork (localhost:8545) with the
+ * @fork — the connected discovery grid resolves off the local fork (the `ANVIL_PORT` one) with the
  * platform contracts deployed. Run with: pnpm test:e2e  (after `pnpm chain:fork` + `pnpm chain:deploy`).
  */
 test('connected home renders the discovery grid off the fork @fork', async ({ page }) => {

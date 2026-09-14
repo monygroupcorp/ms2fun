@@ -10,23 +10,39 @@ import { mainnet, sepolia } from 'wagmi/chains'
  * `createConfig` to run). `./wagmi` still owns the config; this file owns the chain list.
  */
 
+// The dev channel's port, inlined by vite from the same `ANVIL_PORT` that `scripts/dev-chain/`
+// and the `/__rpc/mainnet` proxy read (`vite.config.ts`, `scripts/dev-chain/anvil-port.ts`), so a
+// channel moved off :8545 is declared at the port it actually listens on. A define, not
+// `import.meta.env`: the variable is the scripts' own name, not a `VITE_`-prefixed one, and like
+// the proxy target it is read at config time, so a changed `ANVIL_PORT` needs a dev-server
+// restart. The fallback covers a toolchain that compiles this module without our vite config.
+declare const __ANVIL_PORT__: number
+/** The port this build was compiled against. Exported for the test; callers want {@link anvilFork}. */
+export const ANVIL_PORT: number = typeof __ANVIL_PORT__ === 'number' ? __ANVIL_PORT__ : 8545
+
+/**
+ * The chain's DECLARED rpc — this is what a WALLET is told to add/switch to
+ * (`WrongNetworkBanner`'s manual fallback, `wallet_addEthereumChain`), so it is an absolute
+ * loopback URL: the wallet is a separate app on the user's machine, not the page, so it is bound
+ * by neither the page's CSP nor Chrome's Local Network Access gate and cannot reach anvil through
+ * the dev-server's same-origin proxy. Host-aware for Tailscale (walking the app from another
+ * machine): on localhost that's `localhost`, off it, that machine's own hostname — the wallet runs
+ * alongside the browser, so it resolves the same host the page did. An absent hostname
+ * (SSR/no-window) falls back to localhost.
+ *
+ * Exported for the test; callers want {@link anvilFork}.
+ */
+export function anvilRpcFor(hostname: string | undefined, port: number = ANVIL_PORT): string {
+  const host = hostname === undefined || hostname === '' ? 'localhost' : hostname
+  return `http://${host}:${port}`
+}
+
+const ANVIL_RPC = anvilRpcFor(typeof window !== 'undefined' ? window.location.hostname : undefined)
+
 /**
  * The local anvil mainnet-fork. Chain id is 1337 (from the local-chain deploy bridge,
  * `contracts/.../contracts.local.json`), NOT anvil's default 31337.
  */
-// The chain's DECLARED rpc — this is what a WALLET is told to add/switch to
-// (`WrongNetworkBanner`'s manual fallback, `wallet_addEthereumChain`), so it stays the absolute
-// loopback URL: the wallet is a separate app on the user's machine, not the page, so it is bound
-// by neither the page's CSP nor Chrome's Local Network Access gate and cannot reach anvil through
-// the dev-server's same-origin proxy. Host-aware for Tailscale (walking the app from another
-// machine): on localhost that's localhost:8545, off it, that machine's own hostname:8545 — the
-// wallet runs alongside the browser, so it resolves the same host the page did. Falls back to
-// localhost for SSR/no-window.
-const ANVIL_RPC =
-  typeof window !== 'undefined' && window.location.hostname !== 'localhost'
-    ? `http://${window.location.hostname}:8545`
-    : 'http://localhost:8545'
-
 export const anvilFork = defineChain({
   id: 1337,
   name: 'Anvil Fork',

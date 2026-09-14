@@ -42,8 +42,10 @@ Run from `app/`.
 `e2e/` is tagged in three tiers, described in full at the top of `playwright.config.ts`:
 
 - **untagged** — fork-independent, shell and navigation only.
-- **`@fork`** — needs the local anvil fork on `:8545` with the platform contracts deployed. Start it
-  with `pnpm chain:fork && pnpm chain:deploy`.
+- **`@fork`** — needs the local anvil fork with the platform contracts deployed. Start it with
+  `pnpm chain:fork && pnpm chain:deploy`. It runs on `ANVIL_PORT` (`:8545` unset); export that one
+  variable and the fork, the dev server and these specs all follow it
+  (`app/scripts/dev-chain/README.md`).
 - **`@archive`** — additionally reads forked-mainnet state, so it needs an archive-capable fork RPC.
   Excluded from `pnpm test:e2e`; run it with `pnpm test:e2e:archive`.
 

@@ -6,6 +6,7 @@ import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { precacheGlobs } from './precache.globs'
+import { resolveAnvilPort } from './scripts/dev-chain/anvil-port'
 import {
   PUBLIC_ORIGIN_ENV_KEY,
   injectPublicOrigin,
@@ -110,9 +111,13 @@ function spaFallback404(): Plugin {
 // `serve`/`preview`, never in the emitted build, so the IPFS/prod artifact is untouched.
 // `rewrite` strips the `/__rpc/<channel>` prefix: anvil's JSON-RPC server answers only at `/`,
 // so forwarding the prefixed path through unrewritten 404s at the target (verified live).
+// The mainnet channel's port follows ANVIL_PORT — the same variable `scripts/dev-chain/fork.sh`
+// reads — so a channel started elsewhere is still reachable from the page without editing this
+// file. Unset, the target is `:8545` as before. (The dev server reads it at startup, so a changed
+// ANVIL_PORT needs a restart.) The Sepolia channel's port is fixed and does not follow it.
 const devChainProxy = {
   '/__rpc/mainnet': {
-    target: 'http://localhost:8545',
+    target: `http://localhost:${resolveAnvilPort(process.env.ANVIL_PORT)}`,
     changeOrigin: true,
     rewrite: (path: string) => path.replace(/^\/__rpc\/mainnet/, ''),
   },
@@ -131,7 +136,16 @@ export default defineConfig({
   // mode is deliberately NOT a define: it is read from `import.meta.env.VITE_DIST_TARGET` at render
   // time so the routing-mode matrix in `src/ipfs-routing.test.tsx` can exercise both modes in one
   // suite instead of asserting against whichever one the test run happened to be compiled for.
-  define: { __BUILD_COMMIT__: JSON.stringify(buildCommit()) },
+  // `__ANVIL_PORT__` carries the dev channel's port into the bundle so the local chain's DECLARED
+  // rpc (`src/lib/chains.ts`) names the port the fork actually listens on. That URL is handed to a
+  // WALLET (`wallet_addEthereumChain`, `WrongNetworkBanner`'s manual fallback), which cannot use
+  // the same-origin proxy below, so it is the one place the port has to be absolute in the page.
+  // A define rather than `import.meta.env`: `ANVIL_PORT` is the scripts' own variable name, not a
+  // `VITE_`-prefixed one, and reading it here keeps the page and the proxy on one value.
+  define: {
+    __BUILD_COMMIT__: JSON.stringify(buildCommit()),
+    __ANVIL_PORT__: JSON.stringify(resolveAnvilPort(process.env.ANVIL_PORT)),
+  },
   ...(isIpfsTarget ? { build: { outDir: 'dist/ipfs', emptyOutDir: true } } : {}),
   plugins: [
     react(),

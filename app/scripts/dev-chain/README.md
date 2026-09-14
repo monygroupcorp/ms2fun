@@ -17,6 +17,29 @@ pnpm chain:fork            # leave running in its own terminal
 pnpm chain:deploy
 ```
 
+### Running this channel on another port
+
+`ANVIL_PORT` moves the whole mainnet channel. Export it once and `chain:fork`, `chain:deploy`,
+`chain:check`, `chain:stop`, the dev server's `/__rpc/mainnet` proxy, the local chain's declared
+rpc — the one a wallet is asked to add — and the `@fork` e2e suite's injected wallet
+(`e2e/fixtures/anvilWallet.ts`) all follow it; no file is edited to run a second channel:
+
+```bash
+ANVIL_PORT=8600 pnpm chain:fork     # terminal 1
+ANVIL_PORT=8600 pnpm chain:deploy   # terminal 2
+ANVIL_PORT=8600 pnpm dev            # the proxy target is read at dev-server startup
+ANVIL_PORT=8600 pnpm test:e2e       # same export, or the wallet signs on a different fork
+```
+
+Unset, every path is the `:8545` loop exactly as documented above. A value that is not a port
+number is refused up front rather than passed to anvil. Each port keeps its OWN ownership record —
+`:8545` uses `/.anvil.pid` as it always has, any other port uses `.cache/anvil-<port>.pid` — so two
+channels cannot overwrite each other's and orphan a fork.
+
+> `:8546` already belongs to the **Sepolia** channel (`SEPOLIA-CHANNEL.md`), which is a different
+> fork at a different chain id. Pointing the mainnet channel there while that one runs is refused
+> by the port guard; pick another port.
+
 ## Notes
 
 - **Addresses are non-deterministic.** `DeployAnvil.s.sol` derives CreateX salts from
@@ -29,13 +52,17 @@ pnpm chain:deploy
   collection world (the old `scenarios/*`) is rebuilt in Phase 3 on the typed viem domain layer
   - the real create flows.
 - **Port-ownership guard needs one of `lsof`, `ss`, or `fuser`.** `fork.sh` and `stop.sh` probe
-  `:8545` before starting or stopping the fork, so they never touch a process this repo did not
-  start. `ss` ships with `iproute2` and is present on most Linux boxes; `lsof` and `fuser` also
+  the channel's port before starting or stopping the fork, so they never touch a process this repo
+  did not start. `ss` ships with `iproute2` and is present on most Linux boxes; `lsof` and `fuser` also
   work if installed. With none of the three available, both scripts refuse to start or stop
   rather than guess at the port's state.
 - **The app reaches this fork same-origin, through the dev server.** `pnpm dev`/`pnpm preview`
-  proxy `/__rpc/mainnet` to `http://localhost:8545` (`vite.config.ts`); the app's own transport
+  proxy `/__rpc/mainnet` to `http://localhost:8545` — or to `ANVIL_PORT` where it is set
+  (`vite.config.ts`); the app's own transport
   uses that path, never a plain loopback URL, so it clears the page's CSP and Chrome's Local
-  Network Access gate. A **wallet** adding this network manually still needs the absolute RPC,
-  `http://localhost:8545` — the wallet is a separate app, not the page, so neither the CSP nor the
-  proxy applies to it.
+  Network Access gate. A **wallet** adding this network manually still needs the absolute RPC —
+  the wallet is a separate app, not the page, so neither the CSP nor the proxy applies to it. That
+  URL is the chain's declared rpc (`src/lib/chains.ts`), and it follows `ANVIL_PORT` through the
+  same resolver the proxy uses, so a wallet added while the channel runs on `:8600` is told
+  `:8600`. Vite inlines the value at startup, so a changed `ANVIL_PORT` needs a dev-server
+  restart — the same restart the proxy target already needs.
