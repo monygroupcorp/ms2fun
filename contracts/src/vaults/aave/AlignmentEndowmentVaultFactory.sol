@@ -10,9 +10,11 @@ import { Ownable } from "solady/auth/Ownable.sol";
 
 /// @title AlignmentEndowmentVaultFactory
 /// @notice Deploys AlignmentEndowmentVault clones via CREATE3 (EIP-1167 minimal proxy).
-///         The factory becomes the owner of every vault it deploys, so community-payout
-///         updates must go through setVaultCommunityPayout (onlyOwner) rather than
-///         calling the vault directly.
+///         The factory becomes the owner of every vault it deploys. That ownership carries the
+///         emergency escrow migration and nothing about the community payout: a vault's target sink is
+///         read live from the alignment registry on every send, this factory has no setter for it, and
+///         the vault has none either. Redirecting a community's money is not a capability the protocol
+///         holds — the registry pins a payout once and only the address receiving it rotates it.
 ///
 ///         Vault creation is owner-gated: only the protocol may deploy a vault for an approved,
 ///         active alignment target. The factory self-registers each vault in the
@@ -83,13 +85,11 @@ contract AlignmentEndowmentVaultFactory is Ownable, IFactory {
         return new bytes32[](0);
     }
 
-    /// @notice Update the community payout address on a vault deployed by this factory.
-    ///         Only the factory owner can call this — the vault's owner is the factory.
-    /// @param vault Address of the vault (must have been deployed by this factory)
-    /// @param payout New community payout address
-    function setVaultCommunityPayout(address vault, address payout) external onlyOwner {
-        AlignmentEndowmentVault(payable(vault)).setCommunityPayout(payout);
-    }
+    // `setVaultCommunityPayout` is deliberately absent. It forwarded to the vault's owner-only sink
+    // setter, which was consulted whenever the alignment registry's payout for the target was zero —
+    // and since pinning that registry payout is itself owner-gated, an owner who never pinned one kept a
+    // sink they could re-point here at will, over a community that had nothing to rotate. The vault now
+    // reads the registry and only the registry, so there is nothing for this to write.
 
     /// @notice Emergency: migrate a vault's ESCROWED tranche (pro-rata, impairment-aware) to `to` (the
     ///         factory owns its vaults, and the vault's `migratePosition` is onlyOwner). For an Aave
@@ -127,18 +127,11 @@ contract AlignmentEndowmentVaultFactory is Ownable, IFactory {
         bytes32 senderBoundSalt = keccak256(abi.encodePacked(msg.sender, salt));
         vault = ICreateX(CREATEX).deployCreate3(senderBoundSalt, proxyCreationCode);
 
-        address payout = alignmentRegistry.getCommunityPayout(alignmentTargetId);
-
+        // No payout is passed: the vault resolves its target sink from `alignmentRegistry` on every send,
+        // so there is no deploy-time copy to seed and no window in which a stale one could be paid.
         AlignmentEndowmentVault(payable(vault))
             .initialize(
-                address(this),
-                weth,
-                stataToken,
-                protocolTreasury,
-                masterRegistry,
-                alignmentToken,
-                alignmentTargetId,
-                payout
+                address(this), weth, stataToken, protocolTreasury, masterRegistry, alignmentToken, alignmentTargetId
             );
 
         canonicalVault[dedupKey] = vault;

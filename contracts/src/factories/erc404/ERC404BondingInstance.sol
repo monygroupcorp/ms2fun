@@ -797,6 +797,11 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle, IGra
     /// @dev Zero-request / zero-declared short-circuits BEFORE touching the factory, so a plain
     ///      deployLiquidity(0) never depends on the factory exposing carve math (exact pre-carve
     ///      behavior). The pool floor (`minPoolEth`) clamps — it never gates.
+    /// @dev RULED, so it is not re-raised as an oversight: no line compares `minPoolEth` to
+    ///      `ethForPool`, deliberately. The floor is a bound on the carve and never a condition on
+    ///      graduation, so a collection whose own creator misconfigured it can always leave the curve
+    ///      rather than sit on it holding other people's ETH. `ERC404Factory.effectiveCarveEth` is
+    ///      where the clamp is applied.
     function previewCarve(uint256 carveRequestBps) external view returns (uint256) {
         return _effectiveCarve(reserve, carveRequestBps);
     }

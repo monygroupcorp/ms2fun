@@ -17,9 +17,9 @@ contract MockCurveComputer is ICurveComputer {
         });
     }
 
-    /// @dev This mock solves nothing, so every arithmetically-valid reserve is serviceable for it.
+    /// @dev This mock solves nothing, so every arithmetically-valid reserve is admissible for it.
     ///      The real band belongs to `CurveParamsComputer` and is tested there and in `LaunchManager`.
-    function supportsReserveBps(uint256 liquidityReserveBps) external pure override returns (bool) {
+    function isReserveBpsAdmissible(uint256 liquidityReserveBps) external pure override returns (bool) {
         return liquidityReserveBps != 0 && liquidityReserveBps < 10000;
     }
 }

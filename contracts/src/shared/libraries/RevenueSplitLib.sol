@@ -2,13 +2,12 @@
 pragma solidity ^0.8.20;
 
 /// @title RevenueSplitLib
-/// @notice Revenue splits: `split` = 1/19/80 (DN404 graduation); `splitMint` = 1/80/19 (mints);
-///         `splitMintFor` = family-aware mint split; `carveAllowance` + `splitGraduation` =
-///         graduation with an optional tithed creator carve.
+/// @notice Revenue splits: `split` = 1/19/80, the one split every vault family takes, for graduation
+///         and for mint settlement alike; `carveAllowance` + `splitGraduation` = graduation with an
+///         optional tithed creator carve.
 library RevenueSplitLib {
-    /// @notice A collection's mint proceeds route by its alignment vault's family, resolved from
-    ///         `vaultType()`. A vaultType that matches neither the liquidity nor the yield set is a
-    ///         deploy-config error and reverts loud rather than falling through to a default split.
+    /// @notice A vaultType that matches neither the liquidity nor the yield set is a deploy-config
+    ///         error and reverts loud rather than being settled against silently.
     error UnknownVaultFamily(string vaultType);
 
     // Precomputed keccak of the recognized vaultType() literals. The strings are compile-time
@@ -25,35 +24,16 @@ library RevenueSplitLib {
         uint256 remainder; // creator/LP share
     }
 
-    /// @notice 1/19/80 split (DN404/ERC404 graduation — vault 19%, remainder 80% to LP).
+    /// @notice The split, 1/19/80 — 1% protocol, 19% vault (the community tithe), 80% remainder to the
+    ///         creator or the LP. Every family takes it, on graduation and on mint settlement alike:
+    ///         the endowment's inverted 1/80/19 mint split went with the vesting duality it existed to
+    ///         feed, so there is one split left and it does not vary with anything.
     /// @dev Protocol = amount / 100 (floor), vault = amount * 19 / 100 (floor),
     ///      remainder = amount - protocol - vault (absorbs rounding dust).
     function split(uint256 amount) internal pure returns (Split memory s) {
         s.protocolCut = amount / 100;
         s.vaultCut = (amount * 19) / 100;
         s.remainder = amount - s.protocolCut - s.vaultCut;
-    }
-
-    /// @notice Mint settlement split (ERC1155/ERC721): 1% protocol / 80% vault / 19% creator.
-    /// @dev ADR-0003: mints route the heavy share to the (endowment) vault — the inverse of `split`'s
-    ///      vault/creator weights. Same `Split` shape: `vaultCut` = 80%, `remainder` = creator's 19%.
-    function splitMint(uint256 amount) internal pure returns (Split memory s) {
-        s.protocolCut = amount / 100;
-        s.vaultCut = (amount * 80) / 100;
-        s.remainder = amount - s.protocolCut - s.vaultCut;
-    }
-
-    /// @notice Family-aware mint settlement split.
-    /// @dev Liquidity-family collections flip the heavy leg to the creator (1% protocol / 19% vault /
-    ///      80% creator — the same weights as `split`); yield-family (endowment) collections keep
-    ///      `splitMint`'s 1/80/19 (the 80% is permanent endowment principal — it is NOT refundable).
-    ///      Delegating to the two existing
-    ///      primitives keeps the yield path byte-identical to today and conserves value on both
-    ///      branches (each primitive absorbs rounding dust into `remainder`).
-    /// @param amount The settlement amount to split.
-    /// @param liquidityFamily True for a liquidity-family vault, false for a yield-family vault.
-    function splitMintFor(uint256 amount, bool liquidityFamily) internal pure returns (Split memory) {
-        return liquidityFamily ? split(amount) : splitMint(amount);
     }
 
     /// @notice Classify an alignment vault's `vaultType()` string into its revenue-split family.
@@ -72,22 +52,6 @@ library RevenueSplitLib {
             return false;
         }
         revert UnknownVaultFamily(vaultType);
-    }
-
-    /// @notice Is this vaultType in the YIELD (endowment) family? A pure membership test — it NEVER
-    ///         reverts, and every string outside the yield set (including unrecognized ones) is `false`.
-    /// @dev FAIL-OPEN BY CONTRACT, and that is why this exists instead of reusing `isLiquidityFamily`.
-    ///      `isLiquidityFamily` reverts `UnknownVaultFamily` on an unrecognized string, which is right
-    ///      where the family DECIDES a split (ERC1155/ERC721 settlement + withdraw: an unclassifiable
-    ///      vault there is a deploy-config error and must be caught loud). This predicate is for the
-    ///      opposite job — a create-time REFUSAL gate (see `ERC404Factory.createInstance`), where a
-    ///      revert-on-unknown would brick creation against a future, legitimately-registered vault type
-    ///      for an unrelated reason. Only a positively-identified endowment vault answers `true`; the
-    ///      master registry remains the curation control for everything else.
-    /// @param vaultType The vault's self-reported `vaultType()`.
-    /// @return endowmentFamily True only for "AaveEndowment"; false for every other string.
-    function isEndowmentFamily(string memory vaultType) internal pure returns (bool endowmentFamily) {
-        return keccak256(bytes(vaultType)) == _HASH_AAVE_ENDOWMENT;
     }
 
     // ── Graduation carve-out ───────────────────────────────────────────────────

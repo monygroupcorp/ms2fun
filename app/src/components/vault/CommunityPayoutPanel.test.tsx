@@ -21,17 +21,19 @@ const ZERO = '0x0000000000000000000000000000000000000000' as const
 
 const chain = vi.hoisted(() => ({
   sink: '0x0000000000000000000000000000000000000c1c' as string,
-  /** The endowment clone's own stored sink — what `_targetSink()` falls back to. */
-  stored: '0x0000000000000000000000000000000000000000' as string,
   curated: true as boolean | undefined,
   seats: 2n as bigint | undefined,
   waiting: 0n as bigint | undefined,
   corpus: 0n as bigint | undefined,
+  residue: 0n as bigint | undefined,
+  /** The connected wallet. The move-payout row shows only to whoever the payout currently points at. */
+  connected: undefined as string | undefined,
 }))
 
 const send = vi.hoisted(() => vi.fn())
 
 vi.mock('../../generated/contracts', () => ({
+  alignmentRegistryV1Abi: [],
   useReadAlignmentRegistryV1GetCommunityPayout: () => ({
     data: chain.sink,
     refetch: vi.fn(),
@@ -41,12 +43,13 @@ vi.mock('../../generated/contracts', () => ({
 }))
 
 vi.mock('wagmi', () => ({
+  useAccount: () => ({ address: chain.connected }),
   useReadContract: ({ functionName }: { functionName: string }) => ({
     data:
       functionName === 'deployableCorpus'
         ? chain.corpus
-        : functionName === 'communityPayout'
-          ? chain.stored
+        : functionName === 'roundResidue'
+          ? chain.residue
           : chain.waiting,
     refetch: vi.fn(),
   }),
@@ -73,11 +76,12 @@ afterEach(() => {
   cleanup()
   send.mockReset()
   chain.sink = SINK
-  chain.stored = ZERO
   chain.curated = true
   chain.seats = 2n
   chain.waiting = 0n
   chain.corpus = 0n
+  chain.residue = 0n
+  chain.connected = undefined
 })
 
 describe('CommunityPayoutPanel', () => {
@@ -120,24 +124,24 @@ describe('CommunityPayoutPanel', () => {
     expect(screen.getByText(/until a payout address is set/i)).toBeTruthy()
   })
 
-  test('an endowment vault falls back to its own stored sink when the registry has none', () => {
+  test('an endowment vault with no registry sink reads as unwired, with no fallback behind it', () => {
     chain.sink = ZERO
-    chain.stored = STORED
     chain.waiting = 190000000000000000n
     render(<CommunityPayoutPanel vault={VAULT} targetId={7n} isEndowment />)
 
-    // The vault's `_targetSink()` would deliver here, so the panel must not grey the button out.
+    // The endowment clone used to carry an owner-writable sink of its own that `_targetSink()` fell
+    // back to. Naming such an address here would show a community a payout it never chose and cannot
+    // rotate, and offer a delivery button aimed at it.
     const sinkCell = screen.getByTestId('vault-payout-sink')
-    expect(sinkCell.textContent).toContain(STORED)
-    expect(sinkCell.textContent).toMatch(/the vault.s own fallback/i)
+    expect(sinkCell.textContent).toMatch(/not wired yet/i)
+    expect(sinkCell.textContent).not.toMatch(/fallback/i)
     expect(
       (screen.getByRole('button', { name: /deliver to the community/i }) as HTMLButtonElement)
         .disabled,
-    ).toBe(false)
+    ).toBe(true)
   })
 
-  test('the registry sink outranks the stored one, as it does at send time', () => {
-    chain.stored = STORED
+  test('the registry sink is the whole answer on the endowment family too', () => {
     chain.waiting = 1n
     render(<CommunityPayoutPanel vault={VAULT} targetId={7n} isEndowment />)
 
@@ -175,8 +179,32 @@ describe('CommunityPayoutPanel', () => {
     )
     expect(screen.getByTestId('vault-payout-corpus').textContent).toBe('3 ETH')
 
-    fireEvent.click(screen.getByRole('button', { name: /release the corpus/i }))
+    fireEvent.click(screen.getByRole('button', { name: /release the principal/i }))
     expect(send.mock.calls[0]?.[0]).toMatchObject({ functionName: 'releaseCorpusToCommunity' })
+  })
+
+  test('a de-curated endowment vault folds any parked residue into the release figure', () => {
+    chain.curated = false
+    chain.corpus = 3000000000000000000n
+    chain.residue = 500000000000000000n
+    render(<CommunityPayoutPanel vault={VAULT} targetId={7n} isEndowment />)
+
+    expect(screen.getByTestId('vault-payout-corpus').textContent).toBe('3.5 ETH')
+    // The residue-flush row is curated-only — once de-curated, `flushRoundResidue` reverts and only
+    // the release above can move it.
+    expect(screen.queryByTestId('vault-payout-residue')).toBeNull()
+  })
+
+  test('a curated endowment vault with parked residue offers the permissionless flush', () => {
+    chain.residue = 250000000000000000n
+    render(<CommunityPayoutPanel vault={VAULT} targetId={7n} isEndowment />)
+
+    expect(screen.getByTestId('vault-payout-residue-figure').textContent).toBe('0.25 ETH')
+    fireEvent.click(screen.getByRole('button', { name: /deliver the residue/i }))
+    expect(send.mock.calls[0]?.[0]).toMatchObject({
+      address: VAULT,
+      functionName: 'flushRoundResidue',
+    })
   })
 
   test('a de-curated LP vault gets the notice but no corpus release — it has no corpus', () => {
@@ -200,5 +228,76 @@ describe('CommunityPayoutPanel', () => {
 
     expect(screen.getByTestId('vault-payout-curation').textContent).toBe('—')
     expect(screen.queryByTestId('vault-payout-decurated')).toBeNull()
+  })
+
+  // ── moving the payout: the one authority here that is the community's alone ──────────
+
+  test('the payee sees the move-payout row and it sends rotateCommunityPayout', () => {
+    chain.connected = SINK
+    render(<CommunityPayoutPanel vault={VAULT} targetId={7n} isEndowment />)
+
+    fireEvent.change(screen.getByTestId('vault-payout-rotate-input'), {
+      target: { value: STORED },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /move the payout/i }))
+
+    expect(send.mock.calls[0]?.[0]).toMatchObject({
+      address: REGISTRY,
+      functionName: 'rotateCommunityPayout',
+      args: [7n, STORED],
+    })
+  })
+
+  test('the row is matched case-insensitively against the connected wallet', () => {
+    // Wallets and registry reads disagree on checksum casing all the time; comparing raw would hide
+    // the row from the very address that holds the authority.
+    chain.connected = SINK.toUpperCase().replace('0X', '0x')
+    render(<CommunityPayoutPanel vault={VAULT} targetId={7n} isEndowment />)
+
+    expect(screen.getByTestId('vault-payout-rotate')).toBeTruthy()
+  })
+
+  test('nobody but the current payee sees the move-payout row', () => {
+    // Not the operator, not a passer-by, and not yesterday's payee. The contract would revert them
+    // all; showing the row would be claiming an authority the app does not have.
+    for (const who of [undefined, STORED, REGISTRY]) {
+      chain.connected = who
+      const { unmount } = render(<CommunityPayoutPanel vault={VAULT} targetId={7n} isEndowment />)
+      expect(screen.queryByTestId('vault-payout-rotate')).toBeNull()
+      unmount()
+    }
+  })
+
+  test('an unset payout offers nobody the row — there is nothing to move yet', () => {
+    chain.sink = ZERO
+    chain.connected = SINK
+    render(<CommunityPayoutPanel vault={VAULT} targetId={7n} isEndowment />)
+
+    expect(screen.queryByTestId('vault-payout-rotate')).toBeNull()
+  })
+
+  test('the move button stays disabled until the address entered is a real one', () => {
+    chain.connected = SINK
+    render(<CommunityPayoutPanel vault={VAULT} targetId={7n} isEndowment />)
+
+    const button = screen.getByRole('button', { name: /move the payout/i }) as HTMLButtonElement
+    expect(button.disabled).toBe(true)
+
+    fireEvent.change(screen.getByTestId('vault-payout-rotate-input'), {
+      target: { value: '0xnope' },
+    })
+    expect(button.disabled).toBe(true)
+
+    // Zero would burn the sink; the registry rejects it and so does the row.
+    fireEvent.change(screen.getByTestId('vault-payout-rotate-input'), {
+      target: { value: ZERO },
+    })
+    expect(button.disabled).toBe(true)
+
+    fireEvent.change(screen.getByTestId('vault-payout-rotate-input'), {
+      target: { value: STORED },
+    })
+    expect(button.disabled).toBe(false)
+    expect(send).not.toHaveBeenCalled()
   })
 })

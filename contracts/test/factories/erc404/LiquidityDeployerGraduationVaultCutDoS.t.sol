@@ -122,13 +122,15 @@ contract LiquidityDeployerGraduationVaultCutDoSTest is Test {
         assertEq(stashedAmount, 0, "no stash on the happy path");
     }
 
-    // ── noesis-126: target-revocation redirect on the graduation primary send + flush retry ──
+    // ── noesis-126/noesis-435: de-curation returns the cut to the creator, primary send + flush retry ──
 
-    /// @notice If the alignment target is revoked, the graduation vault cut is redirected to
-    ///         `protocolTreasury` instead of being fed to (or stashed for) the de-curated vault.
-    function test_postUnlock_RevokedTarget_RedirectsVaultCutToTreasury() public {
-        MockVault vault = new MockVault(); // healthy — but the redirect must never touch it
+    /// @notice If the alignment target is de-curated, the graduation community cut is returned to the
+    ///         CREATOR instead of being fed to (or stashed for) the de-curated vault, and the protocol
+    ///         treasury receives nothing.
+    function test_postUnlock_DecuratedTarget_ReturnsVaultCutToCreator() public {
+        MockVault vault = new MockVault(); // healthy — but the return must never touch it
         address treasury = makeAddr("treasury");
+        address creator = makeAddr("creator");
         registry.setVaultRegistered(address(vault), false);
 
         ILiquidityDeployerModule.DeployParams memory p = ILiquidityDeployerModule.DeployParams({
@@ -138,28 +140,32 @@ contract LiquidityDeployerGraduationVaultCutDoSTest is Test {
             vault: address(vault),
             token: address(0x4),
             instance: instance,
-            creator: address(0),
+            creator: creator,
             carveEth: 0,
             excessEth: 0
         });
 
         vm.expectEmit(true, true, false, true);
-        emit LiquidityDeployerModule.VaultCutRedirected(address(vault), treasury, VAULT_CUT);
+        emit LiquidityDeployerModule.VaultCutReturnedToCreator(address(vault), creator, VAULT_CUT);
         harness.postUnlock(p, _amounts());
 
-        assertEq(treasury.balance, VAULT_CUT, "tithe redirected to treasury");
+        assertEq(creator.balance, VAULT_CUT, "community cut returned to the creator");
+        assertEq(treasury.balance, 0, "treasury balance unchanged");
         assertEq(address(vault).balance, 0, "de-curated vault received nothing");
-        assertEq(address(harness).balance, 0, "no ETH stashed on the redirect path");
+        assertEq(address(harness).balance, 0, "no ETH stashed on the return path");
         (, uint256 stashedAmount) = harness.pendingVaultCut(instance);
-        assertEq(stashedAmount, 0, "redirect is not the pending-retry lane");
+        assertEq(stashedAmount, 0, "the return is not the pending-retry lane");
     }
 
     /// @notice A cut stashed while the target was live must NOT be force-fed to the vault on flush once the
-    ///         target has since been revoked — it is redirected to the instance's protocol treasury.
-    function test_flushPendingVaultCut_RevokedTarget_RedirectsToTreasury() public {
+    ///         target has since been de-curated — it is returned to the instance's creator, read back via
+    ///         `IFactoryInstance.owner()` with no change to the `PendingCut` struct.
+    function test_flushPendingVaultCut_DecuratedTarget_ReturnsToCreator() public {
         MockToggleVault vault = new MockToggleVault(); // broken -> forces the stash
-        MockInstance mi = new MockInstance(address(vault)); // exposes protocolTreasury() == 0xFEE
+        MockInstance mi = new MockInstance(address(vault)); // exposes protocolTreasury() and owner()
         address treasury = mi.protocolTreasury();
+        address creator = makeAddr("creator");
+        mi.setOwner(creator);
 
         ILiquidityDeployerModule.DeployParams memory p = ILiquidityDeployerModule.DeployParams({
             ethReserve: 10 ether,
@@ -168,7 +174,7 @@ contract LiquidityDeployerGraduationVaultCutDoSTest is Test {
             vault: address(vault),
             token: address(0x4),
             instance: address(mi),
-            creator: address(0),
+            creator: creator,
             carveEth: 0,
             excessEth: 0
         });
@@ -181,29 +187,59 @@ contract LiquidityDeployerGraduationVaultCutDoSTest is Test {
         registry.setVaultRegistered(address(vault), false);
 
         vm.expectEmit(true, true, false, true);
-        emit LiquidityDeployerModule.PendingVaultCutRedirected(address(vault), treasury, VAULT_CUT);
+        emit LiquidityDeployerModule.PendingVaultCutReturnedToCreator(address(vault), creator, VAULT_CUT);
         vm.prank(makeAddr("rando")); // permissionless
         harness.flushPendingVaultCut(address(mi));
 
-        assertEq(treasury.balance, VAULT_CUT, "flush redirected the tithe to treasury");
+        assertEq(creator.balance, VAULT_CUT, "flush returned the cut to the creator");
+        assertEq(treasury.balance, 0, "treasury balance unchanged");
         assertEq(address(vault).balance, 0, "de-curated vault received nothing");
         (, uint256 stashedAfter) = harness.pendingVaultCut(address(mi));
         assertEq(stashedAfter, 0, "stash cleared");
     }
 
-    /// @notice The two redirects are distinguishable in the log. Drives BOTH branches — a cut redirected
-    ///         as it is earned, and a stashed cut redirected on flush — and asserts each path emits its
-    ///         own signal and only its own. Same money, same destination, but one is new revenue and the
-    ///         other is a re-route of revenue already reported; a tithe report reading a single event for
-    ///         both would count that cut twice.
-    function test_redirectSignals_primaryAndFlush_differ() public {
+    /// @notice noesis-435 acceptance 3: the returned cut keeps the brick-proof send. A creator contract
+    ///         that rejects plain ETH still receives the flushed cut and the flush does not revert.
+    function test_flushPendingVaultCut_DecuratedTarget_EthRejectingCreator() public {
+        MockToggleVault vault = new MockToggleVault(); // broken -> forces the stash
+        MockInstance mi = new MockInstance(address(vault));
+        EthRejectingCreator rejecter = new EthRejectingCreator();
+        mi.setOwner(address(rejecter));
+
+        ILiquidityDeployerModule.DeployParams memory p = ILiquidityDeployerModule.DeployParams({
+            ethReserve: 10 ether,
+            tokenReserve: 100 ether,
+            protocolTreasury: address(0),
+            vault: address(vault),
+            token: address(0x4),
+            instance: address(mi),
+            creator: address(rejecter),
+            carveEth: 0,
+            excessEth: 0
+        });
+        harness.postUnlock(p, _amounts());
+        registry.setVaultRegistered(address(vault), false);
+
+        harness.flushPendingVaultCut(address(mi)); // must NOT revert
+
+        assertEq(address(rejecter).balance, VAULT_CUT, "rejecting creator was force-paid the cut");
+        (, uint256 stashedAfter) = harness.pendingVaultCut(address(mi));
+        assertEq(stashedAfter, 0, "stash cleared");
+    }
+
+    /// @notice noesis-314: the two returns are distinguishable in the log. Drives BOTH branches — a cut
+    ///         returned as it is earned, and a stashed cut returned on flush — and asserts each path emits
+    ///         its own signal and only its own. Same money, same destination, but one is new revenue and
+    ///         the other is a re-route of revenue already reported; a tithe report reading a single event
+    ///         for both would count that cut twice.
+    function test_returnSignals_primaryAndFlush_differ() public {
         assertTrue(
-            LiquidityDeployerModule.VaultCutRedirected.selector
-                != LiquidityDeployerModule.PendingVaultCutRedirected.selector,
-            "the two redirect signals are distinct topics"
+            LiquidityDeployerModule.VaultCutReturnedToCreator.selector
+                != LiquidityDeployerModule.PendingVaultCutReturnedToCreator.selector,
+            "the two return signals are distinct topics"
         );
 
-        // ── Branch 1: redirected as it is earned. ──
+        // ── Branch 1: returned as it is earned. ──
         MockVault live = new MockVault();
         registry.setVaultRegistered(address(live), false); // revoked before the cut is even earned
         address treasury = makeAddr("earnedTreasury");
@@ -213,17 +249,17 @@ contract LiquidityDeployerGraduationVaultCutDoSTest is Test {
         harness.postUnlock(pe, _amounts());
         Vm.Log[] memory primary = vm.getRecordedLogs();
         assertEq(
-            TitheSignals.count(primary, LiquidityDeployerModule.VaultCutRedirected.selector),
+            TitheSignals.count(primary, LiquidityDeployerModule.VaultCutReturnedToCreator.selector),
             1,
             "primary path emits the earned signal"
         );
         assertEq(
-            TitheSignals.count(primary, LiquidityDeployerModule.PendingVaultCutRedirected.selector),
+            TitheSignals.count(primary, LiquidityDeployerModule.PendingVaultCutReturnedToCreator.selector),
             0,
             "primary path does not claim to be a retry"
         );
 
-        // ── Branch 2: stashed while the target was live, redirected on flush. ──
+        // ── Branch 2: stashed while the target was live, returned on flush. ──
         MockToggleVault broken = new MockToggleVault(); // broken -> forces the stash
         MockInstance mi = new MockInstance(address(broken));
         ILiquidityDeployerModule.DeployParams memory pf = _params(address(broken));
@@ -235,14 +271,22 @@ contract LiquidityDeployerGraduationVaultCutDoSTest is Test {
         harness.flushPendingVaultCut(address(mi));
         Vm.Log[] memory flushed = vm.getRecordedLogs();
         assertEq(
-            TitheSignals.count(flushed, LiquidityDeployerModule.PendingVaultCutRedirected.selector),
+            TitheSignals.count(flushed, LiquidityDeployerModule.PendingVaultCutReturnedToCreator.selector),
             1,
             "flush path emits the retry signal"
         );
         assertEq(
-            TitheSignals.count(flushed, LiquidityDeployerModule.VaultCutRedirected.selector),
+            TitheSignals.count(flushed, LiquidityDeployerModule.VaultCutReturnedToCreator.selector),
             0,
             "flush path is not reported as new revenue"
         );
+    }
+}
+
+/// @notice A creator that rejects plain ETH. Proves the returned community cut keeps the brick-proof
+///         property the redirect leg had before noesis-435 folded it into the creator payout.
+contract EthRejectingCreator {
+    receive() external payable {
+        revert("no ETH");
     }
 }

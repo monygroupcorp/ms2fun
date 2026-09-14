@@ -18,6 +18,11 @@ import {
     TooEarly
 } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
 import { ERC404BondingOps } from "../../../src/factories/erc404/ERC404BondingOps.sol";
+import {
+    SetBondingMaturityTimeFailed,
+    MaturityTooFarAfterOpenTime,
+    MAX_BONDING_DURATION
+} from "../../../src/factories/erc404/ERC404BondingStorage.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
 import { CurveParamsComputer } from "../../../src/factories/erc404/CurveParamsComputer.sol";
 import { BondingCurveMath } from "../../../src/factories/erc404/libraries/BondingCurveMath.sol";
@@ -203,43 +208,69 @@ contract ERC404BondingInstanceTest is Test {
     // ── The bonding-maturity ceiling ────────────────────────────────────────────────────────────
     //
     // `setBondingMaturityTime` is owner-or-agent and was bounded only from below, so any timestamp a
-    // `uint256` holds could be written to a field consumers read as a real date. The ceiling is one
-    // year past `bondingOpenTime`.
+    // `uint256` holds could be written to a field consumers read as a real date. The ceiling is
+    // `MAX_BONDING_DURATION` past `bondingOpenTime`.
 
-    function test_SetBondingMaturityTime_AcceptsUpToOneYearPastOpen() public {
+    /// @notice The upper bound is inclusive: a maturity exactly `MAX_BONDING_DURATION` after the open
+    ///         time is the longest schedule the setter accepts, and it lands.
+    function test_SetBondingMaturityTime_AtUpperBoundAccepted() public {
         vm.startPrank(owner);
         uint256 openTime = block.timestamp + 1 days;
         instance.setBondingOpenTime(openTime);
+        instance.setBondingMaturityTime(openTime + MAX_BONDING_DURATION);
+        assertEq(instance.bondingMaturityTime(), openTime + MAX_BONDING_DURATION, "maturity at the bound stored");
 
-        instance.setBondingMaturityTime(openTime + 365 days); // exactly the ceiling
-        assertEq(instance.bondingMaturityTime(), openTime + 365 days);
-
-        instance.setBondingMaturityTime(openTime + 30 days); // and anything under it
+        // And anything under it, so the bound is a ceiling and not an exact-value check.
+        instance.setBondingMaturityTime(openTime + 30 days);
         assertEq(instance.bondingMaturityTime(), openTime + 30 days);
         vm.stopPrank();
     }
 
-    /// @dev The config trampolines discard Ops' returndata and re-revert with one generic error per
-    ///      entry point (noesis-149), so the SPECIFIC error is not observable from out here. What
-    ///      pins the ceiling is the boundary instead: the call above at exactly `openTime + 365 days`
-    ///      succeeds and the first call below is that same call one second later. Nothing else about
-    ///      them differs, so only the ceiling can be what separates them.
-    function test_SetBondingMaturityTime_RevertIfBeyondCeiling() public {
+    /// @notice One second past the bound is refused and the field does not move. Through the instance
+    ///         the refusal surfaces as the trampoline's `SetBondingMaturityTimeFailed`; the Ops layer
+    ///         underneath is called directly so the specific error, `MaturityTooFarAfterOpenTime`, is
+    ///         observed by selector rather than inferred. The bound is measured from `bondingOpenTime`,
+    ///         not from `block.timestamp`, so the open time is set a day out to make that distinction
+    ///         visible: `openTime + MAX + 1` is refused even though it is only `MAX` from now.
+    function test_SetBondingMaturityTime_OneSecondPastUpperBoundRefused() public {
+        vm.startPrank(owner);
+        uint256 openTime = block.timestamp + 1 days;
+        instance.setBondingOpenTime(openTime);
+        vm.expectRevert(SetBondingMaturityTimeFailed.selector);
+        instance.setBondingMaturityTime(openTime + MAX_BONDING_DURATION + 1);
+        vm.stopPrank();
+        assertEq(instance.bondingMaturityTime(), 0, "refused maturity must leave the field unset");
+
+        // Same clock, same values, against a bare Ops deployment so the revert is not collapsed by the
+        // trampoline. An uninitialized Ownable reads owner() == address(0), which is who calls here.
+        ERC404BondingOps ops = new ERC404BondingOps();
+        vm.startPrank(address(0));
+        ops.setBondingOpenTime(openTime);
+        vm.expectRevert(MaturityTooFarAfterOpenTime.selector);
+        ops.setBondingMaturityTime(openTime + MAX_BONDING_DURATION + 1);
+        // Control on the same deployment: the bound itself is accepted, so the refusal above is the
+        // upper bound and nothing else.
+        ops.setBondingMaturityTime(openTime + MAX_BONDING_DURATION);
+        vm.stopPrank();
+        assertEq(ops.bondingMaturityTime(), openTime + MAX_BONDING_DURATION);
+    }
+
+    /// @dev The shapes the finding actually named — a maturity nobody will live to see. The config
+    ///      trampolines discard Ops' returndata and re-revert with one generic error per entry point
+    ///      (noesis-149), so out here the refusal is the trampoline's; the selector-level assertion
+    ///      lives in the test above.
+    function test_SetBondingMaturityTime_AbsurdMaturitiesRefused() public {
         vm.startPrank(owner);
         uint256 openTime = block.timestamp + 1 days;
         instance.setBondingOpenTime(openTime);
 
-        vm.expectRevert(abi.encodeWithSignature("SetBondingMaturityTimeFailed()"));
-        instance.setBondingMaturityTime(openTime + 365 days + 1);
-
-        // And the shape the finding actually named — a maturity nobody will live to see.
         vm.expectRevert(abi.encodeWithSignature("SetBondingMaturityTimeFailed()"));
         instance.setBondingMaturityTime(openTime + 365_000 days);
 
         vm.expectRevert(abi.encodeWithSignature("SetBondingMaturityTimeFailed()"));
         instance.setBondingMaturityTime(type(uint256).max);
 
-        // Nothing was written by any of them.
+        // Nothing was written by either of them.
         assertEq(instance.bondingMaturityTime(), 0, "a refused maturity is not stored");
         vm.stopPrank();
     }
@@ -251,15 +282,15 @@ contract ERC404BondingInstanceTest is Test {
         uint256 openTime = block.timestamp + 300 days;
         instance.setBondingOpenTime(openTime);
 
-        // 600 days from now, and well over a year — but inside a one-year window from open.
-        instance.setBondingMaturityTime(openTime + 300 days);
-        assertEq(instance.bondingMaturityTime(), openTime + 300 days);
+        // Far more than `MAX_BONDING_DURATION` from now, but inside one window from the open time.
+        instance.setBondingMaturityTime(openTime + MAX_BONDING_DURATION);
+        assertEq(instance.bondingMaturityTime(), openTime + MAX_BONDING_DURATION);
         vm.stopPrank();
     }
 
     /// @dev The three lower bounds still refuse what they always refused — adding a ceiling did not
     ///      reorder or swallow them. (Same trampoline flattening as above; each is a refusal, and
-    ///      the paired accepting case for all three is `test_SetBondingMaturityTime_Accepts...`.)
+    ///      the paired accepting case for all three is `test_SetBondingMaturityTime_AtUpperBound...`.)
     function test_SetBondingMaturityTime_LowerBoundsUnchanged() public {
         vm.startPrank(owner);
         // open time not set yet

@@ -134,13 +134,43 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     ///         means the lever is OFF and create behaves byte-identically to today.
     address public deployBondEscrow;
 
-    // ── Graduation-carve params (read LIVE by instances at graduation) ────────
+    // ── Graduation-carve params ───────────────────────────────────────────────
+    // These are the terms a create is made UNDER. An instance is sealed onto the values standing at its
+    // own create (`_carveTermsOf`, written in `createInstance`), and `effectiveCarveEth` resolves
+    // against that seal rather than against whatever the protocol has moved the live values to since.
+    // The pair below is therefore the CURRENT regime — what the next create will be sealed onto, and
+    // what the wizard previews — and never a term any deployed collection is still exposed to.
+
     /// @notice Minimum ETH the LP pool must keep at graduation. A carve-CLAMP, never a
     ///         graduation gate: thin raises still graduate, the floor only eats carve headroom.
     uint256 public minPoolEth = 1 ether;
     /// @dev Progressive carve-allowance brackets: 50% of first 4 ETH, 25% of next 16, 10% beyond 20.
     RevenueSplitLib.BracketParams internal _carveBrackets =
         RevenueSplitLib.BracketParams({ b1: 4 ether, b2: 20 ether, r1: 5000, r2: 2500, r3: 1000 });
+
+    /// @notice Hard ceiling on `setMinPoolEth`, 4× the shipped 1 ETH default.
+    /// @dev    The floor eats carve headroom out of the LP's 80% share, so a floor of F leaves nothing
+    ///         to carve until a raise clears `F / 0.8`. At this ceiling that dead band ends at 5 ETH,
+    ///         which is a regime the protocol can argue for; there is no raise size at which an
+    ///         unbounded floor stops being "every carve is zero". The seal below is what protects
+    ///         collections that already exist — this bounds what the protocol may offer the next one.
+    uint256 public constant MAX_MIN_POOL_ETH = 4 ether;
+
+    /// @dev The carve terms one instance was created under. Flattened rather than holding a nested
+    ///      `BracketParams` so `recorded` packs into the rate slot: four slots written once at create.
+    struct CarveTerms {
+        uint256 minPoolEth;
+        uint256 b1;
+        uint256 b2;
+        uint16 r1;
+        uint16 r2;
+        uint16 r3;
+        bool recorded;
+    }
+
+    /// @dev instance => the terms sealed at its create. Absent (`recorded` false) for any address this
+    ///      factory did not create, which is the pre-create case the wizard previews.
+    mapping(address => CarveTerms) internal _carveTermsOf;
 
     LaunchManager public immutable launchManager;
     IComponentRegistry public immutable componentRegistry;
@@ -180,19 +210,18 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     error NotAuthorizedAgent();
     error InvalidDeclaredMaxAllowance();
     error InvalidBracketParams();
+    error MinPoolEthTooHigh();
     error InsufficientBond();
-    /// @notice ERC404 + endowment is not a selectable pairing (rth ruling 2026-08-05). ERC404
-    ///         graduation splits with `RevenueSplitLib.split` (flat 1/19/80) and is family-blind, so
-    ///         an endowment vault's yield leg would bypass the stakers the endowment exists to fund.
-    ///         Refused at create-time rather than made family-aware downstream.
-    error EndowmentVaultNotSupported();
-
     event ProtocolTreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
     event DeployBondEscrowUpdated(address indexed oldEscrow, address indexed newEscrow);
     event BondingFeeUpdated(uint256 newBps);
     event MinPoolEthUpdated(uint256 newMinPoolEth);
     event CarveBracketsUpdated(uint256 b1, uint256 b2, uint16 r1, uint16 r2, uint16 r3);
     event DeclaredMaxAllowance(address indexed instance, uint16 declaredMaxAllowanceBps);
+    /// @notice The carve terms `instance` was created under, and is bound to for the rest of its life.
+    event CarveTermsSealed(
+        address indexed instance, uint256 minPoolEth, uint256 b1, uint256 b2, uint16 r1, uint16 r2, uint16 r3
+    );
 
     constructor(CoreConfig memory core, ModuleConfig memory modules) {
         if (core.implementation == address(0)) revert InvalidImplementation();
@@ -309,7 +338,6 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         // to an unregistered contract. Vaults are NOT componentRegistry components; the authority
         // is masterRegistry.isVaultRegistered (mirrors migrateVault's registry gate).
         if (!masterRegistry.isVaultRegistered(params.vault)) revert UnapprovedVault();
-        _rejectEndowmentVault(params.vault);
         if (params.declaredMaxAllowanceBps > 10000) revert InvalidDeclaredMaxAllowance();
 
         // Agent-on-behalf-of check
@@ -353,6 +381,11 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         // Metadata-resolution stack — its OWN wiring path (NOT routed through gatingModule).
         // Empty config (resolver == address(0)) = feature off.
         _wireMetadata(instance, metadataConfig);
+        // Seal the carve terms this collection is created under. `declaredMaxAllowanceBps` is written
+        // once here with no setter, so the creator's ceiling is already immutable; without this seal the
+        // two inputs the ceiling is measured AGAINST stayed live, and a later `setMinPoolEth` moved the
+        // economics of every collection already on chain.
+        _sealCarveTerms(instance);
         emit DeclaredMaxAllowance(instance, params.declaredMaxAllowanceBps);
         emit InstanceCreated(instance, params.owner, params.name, params.symbol, params.vault);
     }
@@ -507,53 +540,6 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
             || componentRegistry.isApprovedForTag(component, FeatureUtils.TIER);
     }
 
-    /// @dev Create-time family gate: refuse an endowment-family alignment vault for an ERC404.
-    ///      ERC404 graduation uses the family-BLIND `RevenueSplitLib.split` (1/19/80), so an
-    ///      `AaveEndowment` vault paired here would route today's yield down a path that bypasses
-    ///      the stakers the endowment is meant to fund. rth's ruling (2026-08-05): refuse the
-    ///      pairing at create rather than make the graduation split family-aware.
-    ///
-    ///      FAILS OPEN on anything that is not a positively-decoded endowment string: an unknown
-    ///      `vaultType()`, a reverting one, or one returning undecodable data all CREATE FINE.
-    ///      Only the master registry curates which vaults may be used at all; this gate exists to
-    ///      exclude one known-bad family, never to brick a future, legitimately-registered type.
-    ///
-    ///      Hence a raw `staticcall` + a fully guarded decode rather than the `try
-    ///      IAlignmentVault(...).vaultType() returns (string memory)` shape used by the capability
-    ///      probe below: `try…returns` catches a REVERT but NOT a return-data DECODE failure — the
-    ///      decode happens in the caller's frame, so malformed return data bubbles out of the
-    ///      `catch` and would brick the create. Decoding by hand behind explicit bounds is the only
-    ///      way to honour "fail open" against a hostile/buggy vault.
-    function _rejectEndowmentVault(address vault) private view {
-        (bool ok, bytes memory ret) = vault.staticcall(abi.encodeCall(IAlignmentVault.vaultType, ()));
-        // A single dynamic return value is ABI-encoded as: [0x00..0x1f] head offset,
-        // [offset..offset+0x1f] byte length, then `length` bytes of payload right-padded to a
-        // 32-byte multiple. So the shortest well-formed encoding (an empty string) is 64 bytes.
-        if (!ok || ret.length < 64) return;
-
-        uint256 head;
-        uint256 len;
-        assembly ("memory-safe") {
-            head := mload(add(ret, 0x20)) // the head word: offset to the string's length word
-            len := mload(add(ret, 0x40)) // the word at offset 0x20 — the length, if canonical
-        }
-        uint256 payload = ret.length - 64; // safe: `ret.length >= 64` checked above
-
-        // Each bound rules out a distinct way `abi.decode` could revert (an unavoidable revert,
-        // since it happens in THIS frame — see the fail-open contract above):
-        //   head == 0x20  — the offset is the canonical one for a lone dynamic return. Rules out a
-        //                   dangling/oversized offset pointing past the buffer, and pins that `len`
-        //                   was read from the right word.
-        //   len <= payload — the declared length fits in the bytes actually returned. Rules out a
-        //                   huge/adversarial length, and (evaluated first, short-circuiting) keeps
-        //                   `len + 31` below from overflowing.
-        //   payload >= padded(len) — the payload word-count is present in full. Rules out a
-        //                   truncated final word.
-        if (head != 0x20 || len > payload || payload < ((len + 31) / 32) * 32) return;
-
-        if (RevenueSplitLib.isEndowmentFamily(abi.decode(ret, (string)))) revert EndowmentVaultNotSupported();
-    }
-
     function _deployAndInitialize(
         CreateParams calldata params,
         string calldata metadataURI,
@@ -671,15 +657,28 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         emit BondingFeeUpdated(_bps);
     }
 
-    /// @notice Set the graduation pool floor. A carve-clamp only — NEVER blocks graduation.
+    /// @notice Set the graduation pool floor for FUTURE creates. A carve-clamp only — NEVER blocks
+    ///         graduation, and never reaches a collection that already exists.
+    /// @dev    Bounded at `MAX_MIN_POOL_ETH`: an unbounded floor is a one-call zeroing of the carve on
+    ///         every raise below it, and the bound is what stops the offer made to the next creator
+    ///         from being one no creator would take.
     function setMinPoolEth(uint256 _minPoolEth) external onlyRoles(PROTOCOL_ROLE) {
+        if (_minPoolEth > MAX_MIN_POOL_ETH) revert MinPoolEthTooHigh();
         minPoolEth = _minPoolEth;
         emit MinPoolEthUpdated(_minPoolEth);
     }
 
-    /// @notice Set the progressive carve-allowance brackets (market regimes change).
+    /// @notice Set the progressive carve-allowance brackets for FUTURE creates (market regimes change).
+    ///         Collections already deployed keep the brackets sealed at their own create.
     function setCarveBrackets(RevenueSplitLib.BracketParams calldata p) external onlyRoles(PROTOCOL_ROLE) {
         if (p.b1 > p.b2 || p.r1 > 10000 || p.r2 > 10000 || p.r3 > 10000) revert InvalidBracketParams();
+        // The first bracket's rate carries every ladder: with the monotonicity guard below, `r1 == 0`
+        // forces r2 and r3 to zero too, and an all-zero ladder is an allowance of zero on every raise —
+        // the carve switched off wholesale under a setter whose subject is meant to be its SHAPE.
+        // Turning the carve off is a decision about what the protocol offers creators, and it must not
+        // be reachable as a bracket tune. r2 and r3 are deliberately still free to reach zero: a ladder
+        // that tapers to nothing on the largest raises is an ordinary regime.
+        if (p.r1 == 0) revert InvalidBracketParams();
         // Marginal rate must fall (or hold) as the raise grows — the documented income-tax-inverted
         // shape (r1 >= r2 >= r3). Guards against a PROTOCOL_ROLE holder inverting design intent so
         // larger raises carve a higher marginal rate.
@@ -693,29 +692,67 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         return _carveBrackets;
     }
 
-    /// @notice Effective creator-carve ETH for a graduation. Called LIVE by instances at
-    ///         graduation (and by their previewCarve view) — the bracket/floor math lives here
-    ///         because the DN404 instance has no EIP-170 headroom, and living here means
-    ///         owner-tuned regime changes apply to every future graduation.
+    /// @notice The carve terms `instance` is bound to: the ones sealed at its create, or — for an
+    ///         address this factory did not create — the current ones, which is the pre-create preview
+    ///         the wizard wants.
+    function carveTermsOf(address instance)
+        external
+        view
+        returns (uint256 minPoolEth_, RevenueSplitLib.BracketParams memory brackets_)
+    {
+        return _carveTermsFor(instance);
+    }
+
+    /// @notice Effective creator-carve ETH for a graduation. Called by instances at graduation (and by
+    ///         their previewCarve view) — the bracket/floor math lives here because the DN404 instance
+    ///         has no EIP-170 headroom.
     /// @dev effective = min(request, allowance(raise) × declaredMax / 10000, headroom above the
     ///      pool floor). The floor is a carve-CLAMP, never a graduation gate.
+    /// @dev The terms come from `msg.sender`'s OWN seal, not from the live values. The caller of record
+    ///      is the instance itself — both call sites are `ICarveParamsSource(factory).effectiveCarveEth`
+    ///      from inside the instance — so the seal needs no argument threaded through the instance and
+    ///      costs it no storage, which is what makes this fit under EIP-170. Any other caller (an
+    ///      off-chain preview with no `from`, a wizard quote for a collection that does not exist yet)
+    ///      has no seal and gets the current terms, which is the right answer for a create that has not
+    ///      happened.
     function effectiveCarveEth(uint256 raise, uint256 declaredMaxBps, uint256 carveRequestBps)
         external
         view
         returns (uint256 carveEth)
     {
         if (raise == 0 || declaredMaxBps == 0 || carveRequestBps == 0) return 0;
+        (uint256 floor_, RevenueSplitLib.BracketParams memory brackets_) = _carveTermsFor(msg.sender);
 
-        uint256 allowanceEth = RevenueSplitLib.carveAllowance(raise, _carveBrackets);
+        uint256 allowanceEth = RevenueSplitLib.carveAllowance(raise, brackets_);
         uint256 effBps = carveRequestBps < declaredMaxBps ? carveRequestBps : declaredMaxBps;
         if (effBps > 10000) effBps = 10000;
         carveEth = (allowanceEth * effBps) / 10000;
 
         // Clamp to the headroom the LP 80 has above the pool floor.
         uint256 lpShare = RevenueSplitLib.split(raise).remainder;
-        uint256 floor_ = minPoolEth;
         uint256 headroom = lpShare > floor_ ? lpShare - floor_ : 0;
         if (carveEth > headroom) carveEth = headroom;
+    }
+
+    /// @dev Seal the current carve terms onto a freshly created instance. Called once, from
+    ///      `createInstance`, before the instance can reach any path that reads them back.
+    function _sealCarveTerms(address instance) internal {
+        RevenueSplitLib.BracketParams memory b = _carveBrackets;
+        uint256 floor_ = minPoolEth;
+        _carveTermsOf[instance] =
+            CarveTerms({ minPoolEth: floor_, b1: b.b1, b2: b.b2, r1: b.r1, r2: b.r2, r3: b.r3, recorded: true });
+        emit CarveTermsSealed(instance, floor_, b.b1, b.b2, b.r1, b.r2, b.r3);
+    }
+
+    /// @dev The sealed terms, falling back to the current ones when there is no seal.
+    function _carveTermsFor(address instance)
+        internal
+        view
+        returns (uint256 floor_, RevenueSplitLib.BracketParams memory brackets_)
+    {
+        CarveTerms storage t = _carveTermsOf[instance];
+        if (!t.recorded) return (minPoolEth, _carveBrackets);
+        return (t.minPoolEth, RevenueSplitLib.BracketParams({ b1: t.b1, b2: t.b2, r1: t.r1, r2: t.r2, r3: t.r3 }));
     }
 
     // ── IFactory ─────────────────────────────────────────────────────────────

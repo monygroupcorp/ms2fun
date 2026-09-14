@@ -15,21 +15,21 @@ import {
 } from "../vaults/aave/AlignmentEndowmentVault.t.sol";
 
 /// @title  EndowmentImpairmentInvariant
-/// @notice Fuzz-invariant harness backing the endowment's impairment-socialization correctness
-///         (spec-completeness-critic §4.4, punch-list P2 #14). REFRAMED to the post-095 reworked vault's
-///         ACTUAL surface: principal is a PERMANENT donation with NO per-benefactor refund/exit path, so
-///         "first-mover advantage / claim ordering / refunded ≤ deposited" is structurally impossible and is
-///         asserted by CONSTRUCTION (this suite exposes no per-benefactor exit; a `withdrawPrincipal` selector
-///         does not exist). The only socialization surface is the aggregate owner-only `migratePosition`
-///         (escrow pro-rata) plus the ambassador `execute` on the vested corpus and the two-class `harvest`.
+/// @notice Fuzz-invariant harness backing the endowment's impairment-socialization correctness. Principal
+///         is a PERMANENT donation with NO per-benefactor refund/exit path, so "first-mover advantage /
+///         claim ordering / refunded ≤ deposited" is structurally impossible and is asserted by
+///         CONSTRUCTION (this suite exposes no per-benefactor exit; a `withdrawPrincipal` selector does not
+///         exist). The socialization surface is the aggregate owner-only `migratePosition`, the ambassador
+///         `execute` on the corpus, and the flat `harvest` — all acting on ONE pooled principal bucket.
 ///
-/// @dev    Under fuzzed interleavings of deposit / accrueYield / harvest / vest / execute / induceImpairment
+/// @dev    Under fuzzed interleavings of deposit / accrueYield / harvest / execute / induceImpairment
 ///         (solvency haircut) / setLiquidityCap / migrate, the suite proves:
-///           - migrate redeems EXACTLY floor(impairedValue·escrowed/basis), never above the escrow principal;
+///           - migrate redeems EXACTLY the written-down realizable basis, never more than the position holds;
 ///           - Σ(migrate + execute) principal ever leaving the vault ≤ Σ deposited (no over-redeem, dust
 ///             strands in the position, never over-redeemed to the recipient);
 ///           - a RedeemShortfall is a liquidity gap, never a solvency haircut (the socialized value conserves);
-///           - the 80/19/1 escrowed + 0/99/1 vested harvest accumulator never credits more than Σ harvested.
+///           - the 80/19/1 harvest accumulator never credits more than Σ harvested;
+///           - Σ per-benefactor live principal never exceeds the basis the position actually holds.
 contract EndowmentImpairmentInvariantTest is StdInvariant, Test {
     AlignmentEndowmentVault public vault;
     MockWETH public weth;
@@ -54,21 +54,16 @@ contract EndowmentImpairmentInvariantTest is StdInvariant, Test {
         ambassadorRegistry = new MockAmbassadorRegistry();
         masterRegistry.setAlignmentRegistry(address(ambassadorRegistry));
         ambassadorRegistry.setAmbassador(TARGET_ID, ambassador, true);
+        // The sink is registry state — the vault reads it live and keeps no copy.
+        ambassadorRegistry.setCommunityPayout(TARGET_ID, communityPayout);
 
         address impl = address(new AlignmentEndowmentVault());
         vault = AlignmentEndowmentVault(payable(LibClone.clone(impl)));
         vault.initialize(
-            vaultOwner,
-            address(weth),
-            address(stata),
-            treasury,
-            address(masterRegistry),
-            alignmentToken,
-            TARGET_ID,
-            communityPayout
+            vaultOwner, address(weth), address(stata), treasury, address(masterRegistry), alignmentToken, TARGET_ID
         );
 
-        // Deterministic base timestamp so vesting math is stable across runs.
+        // Deterministic base timestamp.
         vm.warp(1_000_000);
 
         handler = new EndowmentVaultHandler(
@@ -76,23 +71,22 @@ contract EndowmentImpairmentInvariantTest is StdInvariant, Test {
         );
 
         // Fuzz only the handler's action surface (skip its view getters).
-        bytes4[] memory selectors = new bytes4[](8);
+        bytes4[] memory selectors = new bytes4[](7);
         selectors[0] = handler.deposit.selector;
         selectors[1] = handler.accrueYield.selector;
         selectors[2] = handler.harvest.selector;
-        selectors[3] = handler.vest.selector;
-        selectors[4] = handler.execute.selector;
-        selectors[5] = handler.induceImpairment.selector;
-        selectors[6] = handler.setLiquidityCap.selector;
-        selectors[7] = handler.migrate.selector;
+        selectors[3] = handler.execute.selector;
+        selectors[4] = handler.induceImpairment.selector;
+        selectors[5] = handler.setLiquidityCap.selector;
+        selectors[6] = handler.migrate.selector;
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
         targetContract(address(handler));
     }
 
     // ── Principal never over-redeems ──────────────────────────────────────────
-    // The only two paths principal can leave the vault are the aggregate escrow migrate and the vested-corpus
-    // execute. Their cumulative sum can never exceed everything ever deposited — no path mints principal, and
-    // impairment only ever redeems LESS (pro-rata) than the escrow basis.
+    // The only two paths principal can leave the vault are the aggregate migrate and the ambassador execute.
+    // Their cumulative sum can never exceed everything ever deposited — no path mints principal, and
+    // impairment only ever redeems LESS than the nominal basis.
     function invariant_neverOverRedeem() public view {
         assertLe(
             handler.sumRedeemedViaMigrate() + handler.sumDeployedViaExecute(),
@@ -101,16 +95,16 @@ contract EndowmentImpairmentInvariantTest is StdInvariant, Test {
         );
     }
 
-    // ── Migrate is exactly pro-rata to the escrow basis ───────────────────────
-    // Every aggregate migrate redeemed EXACTLY floor(impairedValue·escrowed/basis) — socialized pro-rata,
-    // never first-come-first-served.
-    function invariant_migrateProRataToBasis() public view {
-        assertFalse(handler.ghost_proRataViolation(), "endowment: migrate redemption not pro-rata to escrow basis");
+    // ── Migrate redeems the whole realizable basis ────────────────────────────
+    // Every aggregate migrate redeemed EXACTLY min(position value, basis) — the loss is socialized by the
+    // write-down across the one bucket, never taken first-come-first-served out of somebody's share.
+    function invariant_migrateTakesTheWholeRealizableBasis() public view {
+        assertFalse(handler.ghost_migrateNotWholePosition(), "endowment: migrate redemption != the realizable basis");
     }
 
     // ── Dust strands in the position; the recipient is never over-paid ────────
-    // Migrate never redeems more than the escrow principal / its pro-rata claim, so rounding dust and the
-    // vested tranche's value strand in the position rather than being over-redeemed to `to`.
+    // Migrate never redeems more than the basis or the position value, so rounding dust strands in the
+    // position rather than being over-redeemed to `to`.
     function invariant_dustStrandsInPosition() public view {
         assertFalse(
             handler.ghost_overRedeemToRecipient(), "endowment: migrate over-redeemed to recipient (dust not stranded)"
@@ -118,8 +112,8 @@ contract EndowmentImpairmentInvariantTest is StdInvariant, Test {
     }
 
     // ── RedeemShortfall is a liquidity event, not a solvency haircut ──────────
-    // With the liquidity cap cleared, the socialized escrow claim is always redeemable: a solvency haircut is
-    // reflected in the (pro-rated) claim, never surfaced as a RedeemShortfall revert.
+    // With the liquidity cap cleared, the written-down basis is always redeemable: a solvency haircut is
+    // reflected in the write-down, never surfaced as a RedeemShortfall revert.
     function invariant_redeemShortfallIsLiquidityNotSolvency() public view {
         assertFalse(
             handler.ghost_solvencyMigrateReverted(),
@@ -127,16 +121,23 @@ contract EndowmentImpairmentInvariantTest is StdInvariant, Test {
         );
     }
 
-    // ── Two-class harvest accumulator conserves ───────────────────────────────
-    // Each harvest split the realized yield exactly (80/19/1 on escrowed, 0/99/1 on vested), and the running
-    // accumulator never distributed more yield than was ever injected.
-    function invariant_harvestTwoClassConserves() public view {
-        assertFalse(handler.ghost_harvestSplitViolation(), "endowment: two-class harvest split mismatch");
+    // ── The flat harvest accumulator conserves ────────────────────────────────
+    // Each harvest split the realized yield exactly 80/19/1, and the running accumulator never distributed
+    // more yield than was ever injected.
+    function invariant_harvestFlatSplitConserves() public view {
+        assertFalse(handler.ghost_harvestSplitViolation(), "endowment: harvest split mismatch");
         assertLe(
             handler.sumHarvestDistributed(),
             handler.sumYieldInjected(),
             "endowment: harvest distributed more yield than was injected"
         );
+    }
+
+    // ── Live per-benefactor principal never exceeds the basis ─────────────────
+    // Each benefactor's principal is a share of one pool. Σ of those shares must never promise out more
+    // principal than the position's basis actually holds — that would be the share arithmetic minting money.
+    function invariant_perBenefactorPrincipalNeverExceedsBasis() public view {
+        assertFalse(handler.ghost_principalExceedsBasis(), "endowment: Sum per-benefactor principal exceeded the basis");
     }
 
     // ── No per-benefactor exit exists (structural: no first-mover advantage) ──

@@ -70,7 +70,7 @@ contract LaunchDeployerWiringTest is Test {
     /// @notice Mainnet-shaped deploy: all three LP deployers are the REAL modules, zero mocks under
     ///         LIQUIDITY_DEPLOYER, and the canonical zRouter is reused.
     function test_mainnetLike_allRealDeployers_noMockUnderFunctionalTag() public {
-        zRouter canonical = new zRouter(mainnetChainConfig());
+        zRouter canonical = new zRouter(mainnetChainConfig(), address(this));
 
         DeployCore s = new DeployCore();
         s.deploy(address(s), _mainnetLikeConfig(address(canonical)));

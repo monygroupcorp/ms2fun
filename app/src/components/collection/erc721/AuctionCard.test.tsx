@@ -37,12 +37,6 @@ vi.mock('../../ui/useTxAction', () => ({
   txErrorReason: () => undefined,
 }))
 
-// Mutable, hoist-safe vault-family state so individual tests can flip between a liquidity-family
-// vault (UniswapV4LP — 1% protocol / 19% vault / 80% creator) and a yield-family vault (AaveEndowment
-// — 1% protocol / 80% vault / 19% creator, the flip that would misstate a creator's net by roughly 4x
-// if inverted). Defaults to liquidity-family, matching this seat's fork-walk measurement.
-const vaultFamilyState = vi.hoisted(() => ({ vaultType: 'UniswapV4LP' as string }))
-
 vi.mock('wagmi', () => ({
   useAccount: () => ({ isConnected: true }),
   useWaitForTransactionReceipt: () => ({
@@ -51,12 +45,10 @@ vi.mock('wagmi', () => ({
     isError: false,
     data: undefined,
   }),
-  useReadContract: () => ({ data: vaultFamilyState.vaultType }),
 }))
 
 vi.mock('../../../generated/contracts', () => ({
   erc721AuctionInstanceAbi: [],
-  useReadErc721AuctionInstanceGenesisVault: () => ({ data: INSTANCE }),
   useReadErc721AuctionInstanceProtocolTreasury: () => ({
     data: '0x3333333333333333333333333333333333333333',
   }),
@@ -87,11 +79,10 @@ const config: AuctionConfig = { lines: 1, baseDuration: 0n, timeBuffer: 0n, bidI
 
 afterEach(() => {
   cleanup()
-  vaultFamilyState.vaultType = 'UniswapV4LP'
 })
 
 describe('AuctionAction — settled', () => {
-  it('renders the creator net alongside the existing gross sale line', () => {
+  it('renders the creator net alongside the existing gross sale line, family-blind', () => {
     render(
       <AuctionAction
         instance={INSTANCE}
@@ -105,34 +96,13 @@ describe('AuctionAction — settled', () => {
     // The existing gross line stays — it's true and useful.
     expect(screen.getByTestId('erc721-sold').textContent).toContain('0.1 ETH')
     // But it is no longer the only number: the creator's net (80% of 0.1 + the 0.05 deposit
-    // returned = 0.13 ETH) is now shown too.
+    // returned = 0.13 ETH) is now shown too. Every vault family settles 1/19/80 the same way —
+    // the endowment's inverted 1/80/19 mint split went with the vesting/escrow duality it existed
+    // to feed, so there is no second family case to check here any more.
     const net = screen.getByTestId('erc721-sold-net').textContent ?? ''
     expect(net).toContain('0.13 ETH')
     expect(net).toContain('protocol 0.001 ETH')
     expect(net).toContain('vault 0.019 ETH')
-  })
-})
-
-describe('AuctionAction — settled (yield-family vault)', () => {
-  it('renders the yield-family split (1% protocol / 80% vault / 19% creator), not the liquidity-family one', () => {
-    vaultFamilyState.vaultType = 'AaveEndowment'
-    render(
-      <AuctionAction
-        instance={INSTANCE}
-        auction={makeAuction()}
-        config={config}
-        state="settled"
-        isOwner={false}
-        refetch={() => {}}
-      />,
-    )
-    // Yield-family flips vault/creator vs. liquidity-family: vault 80% (0.08), creator 19% (0.019 +
-    // the 0.05 deposit returned = 0.069 net). Inverting the family here would misstate the creator's
-    // net by roughly 4x (0.069 vs. the liquidity-family 0.13).
-    const net = screen.getByTestId('erc721-sold-net').textContent ?? ''
-    expect(net).toContain('0.069 ETH')
-    expect(net).toContain('protocol 0.001 ETH')
-    expect(net).toContain('vault 0.08 ETH')
   })
 })
 

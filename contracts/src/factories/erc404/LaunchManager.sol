@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 import { Ownable } from "solady/auth/Ownable.sol";
-
 import { ICurveComputer } from "../../interfaces/ICurveComputer.sol";
 
 /**
@@ -37,25 +36,25 @@ contract LaunchManager is Ownable {
     }
 
     /// @notice Set or update a graduation preset. Only callable by owner (DAO).
-    /// @dev `liquidityReserveBps` is checked TWICE, and the second check is the one that matters.
-    ///      `(0, 10000)` is only the arithmetic range; the reserves a collection can actually be
-    ///      created at are a much narrower band, because the curve computer solves the pole that
-    ///      puts the curve's end price at the pool's opening price and refuses a parity target its
-    ///      pole band cannot reach. At today's constants that band is 592..3567 bps, so a preset
-    ///      anywhere in the other ~7,000 values stores cleanly, emits `PresetUpdated`, reads back
-    ///      live from `getPreset` — and then reverts every `create` made against it, on a CREATOR's
-    ///      transaction, with an error from a contract they never named.
+    /// @dev The reserve is validated against the preset's OWN curve computer rather than against a
+    ///      bound written down here. `(0, 10000)` is the arithmetically legal range for a bps, but it
+    ///      is far wider than the range a curve can actually be solved over: the reserve fixes the
+    ///      pool parity target, and a target outside the multiples the computer's pole band reaches
+    ///      is unreachable. At today's constants that band is 592..3567 bps, so a preset anywhere in
+    ///      the other ~7,000 values used to store cleanly, emit `PresetUpdated`, read back live from
+    ///      `getPreset` — and then revert every `create` made against it, on a CREATOR's transaction,
+    ///      with an error from a contract they never named.
     ///
-    ///      The band is not written down here on purpose. It is a consequence of the computer's own
-    ///      shape constants, so the computer is asked (`supportsReserveBps`) rather than copied; a
-    ///      constant in this file would go quietly wrong the day those constants move, and a preset
-    ///      names its own `curveComputer`, so the right answer is per-preset in any case.
+    ///      Asking the computer keeps the bound in one place; a copy of the numbers here would be a
+    ///      second definition, and a retune of the computer's shape constants would silently put the
+    ///      two out of agreement. A preset names its own `curveComputer`, so the right answer is
+    ///      per-preset in any case.
     function setPreset(uint256 presetId, Preset calldata preset) external onlyOwner {
         if (preset.targetETH == 0) revert InvalidTargetETH();
         if (preset.unitPerNFT == 0) revert InvalidUnitPerNFT();
-        if (preset.liquidityReserveBps == 0 || preset.liquidityReserveBps >= 10000) revert InvalidReserveBps();
+        // Checked before the reserve, which is validated by calling into this address.
         if (preset.curveComputer == address(0)) revert InvalidCurveComputer();
-        if (!ICurveComputer(preset.curveComputer).supportsReserveBps(preset.liquidityReserveBps)) {
+        if (!ICurveComputer(preset.curveComputer).isReserveBpsAdmissible(preset.liquidityReserveBps)) {
             revert InvalidReserveBps();
         }
         _presets[presetId] = preset;

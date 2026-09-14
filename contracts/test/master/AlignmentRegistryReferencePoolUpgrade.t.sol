@@ -6,7 +6,7 @@ import { LibClone } from "solady/utils/LibClone.sol";
 import { AlignmentRegistryV1 } from "../../src/master/AlignmentRegistryV1.sol";
 import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
 import { AlignmentRegistryV1Pre035 } from "./legacy/AlignmentRegistryV1Pre035.sol";
-import { MockUniV3RefPool } from "./AlignmentRegistryReferencePool.t.sol";
+import { MockUniV3RefFactory, MockUniV3RefPool } from "./AlignmentRegistryReferencePool.t.sol";
 
 /// @notice noesis-035 — LOAD-BEARING storage-layout proof for the appended `referencePools` mapping.
 /// @dev Seeds curated targets/assets/ambassadors/payouts AND acquire routes against the PRE-noesis-035
@@ -58,7 +58,11 @@ contract AlignmentRegistryReferencePoolUpgradeTest is Test {
         assertEq(t2, 2);
 
         // ── upgrade the SAME proxy to the NEW (post-035) implementation ──
-        AlignmentRegistryV1 newImpl = new AlignmentRegistryV1(weth);
+        // The new impl carries the canonical factories as IMMUTABLES — impl bytecode, never proxy storage.
+        // That is precisely why this layout proof still holds across the noesis-283 upgrade: two addresses
+        // were added to the implementation and not one storage slot moved.
+        MockUniV3RefFactory uniFactory = new MockUniV3RefFactory();
+        AlignmentRegistryV1 newImpl = new AlignmentRegistryV1(weth, address(uniFactory), address(0));
         vm.prank(daoOwner);
         legacy.upgradeToAndCall(address(newImpl), "");
 
@@ -104,6 +108,7 @@ contract AlignmentRegistryReferencePoolUpgradeTest is Test {
 
         // ── the new surface works on the migrated proxy without disturbing old state ──
         MockUniV3RefPool pool = new MockUniV3RefPool(tokenA, weth);
+        uniFactory.register(tokenA, weth, pool.fee(), address(pool));
         vm.prank(daoOwner);
         upgraded.setReferencePool(
             t1, tokenA, IAlignmentRegistry.ReferencePool({ pool: address(pool), kind: 0, twapWindow: 0 })

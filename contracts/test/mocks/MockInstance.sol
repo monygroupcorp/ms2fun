@@ -8,10 +8,18 @@ contract MockInstance is IInstanceLifecycle {
     address public vault;
     address public protocolTreasury;
     address public globalMessageRegistryAddr;
+    /// @dev IFactoryInstance.owner() — the creator a shared module reads back when a de-curated target
+    ///      sends the community cut home (noesis-435).
+    address public owner;
 
     constructor(address _vault) {
         vault = _vault;
         protocolTreasury = address(0xFEE);
+        owner = address(0xC0FFEE);
+    }
+
+    function setOwner(address _owner) external {
+        owner = _owner;
     }
 
     function getGlobalMessageRegistry() external view returns (address) {

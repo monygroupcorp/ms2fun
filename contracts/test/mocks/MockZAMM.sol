@@ -92,7 +92,12 @@ contract MockZAMM {
         }
     }
 
-    /// @notice Simulates addLiquidity: accepts ETH + token, mints LP to `to`
+    /// @notice Simulates addLiquidity: accepts ETH + token, mints LP to `to`.
+    /// @dev Binds the deposit to the pool's reserve ratio the way a constant-product AMM does: the
+    ///      side that is scarce relative to the ratio caps the other, so the caller's `amountXDesired`
+    ///      is an upper bound, not a promise. When the ETH side is capped, the unconsumed ETH is
+    ///      refunded to the caller and shows up as a nonzero residual (`msg.value - amount0`). A pool
+    ///      with an empty reserve on either side is still bootstrapping and takes both amounts whole.
     function addLiquidity(
         PoolKey calldata poolKey,
         uint256 amount0Desired,
@@ -104,26 +109,39 @@ contract MockZAMM {
         address to,
         uint256 /*deadline*/
     ) external payable returns (uint256 amount0, uint256 amount1, uint256 liquidity) {
-        amount0 = amount0Desired;
-        amount1 = amount1Desired;
+        uint256 pid_ = uint256(keccak256(abi.encode(poolKey)));
+        uint256 res0 = pools[pid_].reserve0;
+        uint256 res1 = pools[pid_].reserve1;
+        if (res0 != 0 && res1 != 0) {
+            uint256 amount1Optimal = amount0Desired * res1 / res0;
+            if (amount1Optimal <= amount1Desired) {
+                (amount0, amount1) = (amount0Desired, amount1Optimal);
+            } else {
+                (amount0, amount1) = (amount1Desired * res0 / res1, amount1Desired);
+            }
+        } else {
+            (amount0, amount1) = (amount0Desired, amount1Desired);
+        }
         liquidity = lpToMint;
 
         // Pull the token from caller
         if (poolKey.token1 != address(0)) {
             IERC20(poolKey.token1).transferFrom(msg.sender, address(this), amount1);
         }
-        // ETH is sent as msg.value; refund any excess
+        // ETH is sent as msg.value; refund the ratio-capped remainder. Real ZAMM refunds via a
+        // full-gas call, so use one here too rather than a 2300-gas `transfer` that a receiving
+        // contract's `receive()` could run out of gas in.
         if (msg.value > amount0) {
-            payable(msg.sender).transfer(msg.value - amount0);
+            (bool refunded,) = payable(msg.sender).call{ value: msg.value - amount0 }("");
+            require(refunded, "MockZAMM: ETH refund failed");
         }
 
-        uint256 poolId = uint256(keccak256(abi.encode(poolKey)));
-        lpBalances[to][poolId] += liquidity;
+        lpBalances[to][pid_] += liquidity;
 
         // Update synthetic reserves
-        pools[poolId].reserve0 += uint112(amount0);
-        pools[poolId].reserve1 += uint112(amount1);
-        pools[poolId].supply += liquidity;
+        pools[pid_].reserve0 += uint112(amount0);
+        pools[pid_].reserve1 += uint112(amount1);
+        pools[pid_].supply += liquidity;
     }
 
     /// @notice Simulates removeLiquidity: burns LP from caller, sends ETH+token to `to`

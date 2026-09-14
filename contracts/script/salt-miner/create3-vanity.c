@@ -29,10 +29,12 @@
 //
 // ── Build & run ───────────────────────────────────────────────────────────────────────────────
 //     cc -O3 -march=native -pthread -o create3-vanity create3-vanity.c
-//     ./create3-vanity --deployer 0x<20-byte address> --prefix-bytes 4 --count 6
+//     ./create3-vanity --deployer 0x<20-byte address> --prefix-bytes 5 --count 6
 //
 //     --deployer      the address that will broadcast the deploy (REQUIRED; a salt is bound to it)
-//     --prefix-bytes  how many leading 0x00 bytes the address must have (default 4)
+//     --prefix-bytes  how many leading 0x00 bytes the address must have (default 5, which is what
+//                     SepoliaSalts declares and its salt-set test asserts; a set mined shorter is
+//                     rejected by the suite)
 //     --count         how many distinct salts to mine (default 6)
 //     --threads       worker threads (default: all online CPUs)
 //     --seed          64-bit entropy seed (default: /dev/urandom, or time)
@@ -252,7 +254,7 @@ int main(int argc, char **argv)
 {
     uint8_t deployer[20];
     int have_deployer = 0;
-    int prefix_bytes = 4;
+    int prefix_bytes = 5; // the shipped sets' ADDRESS_ZERO_PREFIX_BYTES; see README Cost
     int count = 6;
     int threads = (int)sysconf(_SC_NPROCESSORS_ONLN);
     uint64_t seed = 0;

@@ -110,7 +110,7 @@ contract NamespaceCollisionTest is Test {
 
         // Wire an alignment registry + target so the vault can be registered through the real,
         // alignment-validated registerVault path (createInstance now gates on isVaultRegistered).
-        AlignmentRegistryV1 alignmentRegistry = new AlignmentRegistryV1(makeAddr("WETH"));
+        AlignmentRegistryV1 alignmentRegistry = new AlignmentRegistryV1(makeAddr("WETH"), address(0), address(0));
         alignmentRegistry.initialize(owner);
         registry.setAlignmentRegistry(address(alignmentRegistry));
         address alignmentToken = makeAddr("CULT");

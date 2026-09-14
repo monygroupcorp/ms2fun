@@ -91,7 +91,7 @@ contract MigrateOwnership is Script {
     ///      metadata-only component stub. Both flavors are plain `Ownable` and deployer-owned, so the
     ///      same single-step transfer covers either.
     function _plainOwnableContracts() internal view returns (address[] memory list) {
-        address[] memory tmp = new address[](20);
+        address[] memory tmp = new address[](21);
         uint256 n;
 
         // ── Required — created by DeployCore on every network ──
@@ -117,11 +117,19 @@ contract MigrateOwnership is Script {
         address zammVaultFactory = vm.envOr("ZAMM_VAULT_FACTORY", address(0)); // D2
         address cypherVaultFactory = vm.envOr("CYPHER_VAULT_FACTORY", address(0)); // D2 — Ownable as of noesis-094
         address cypherModule = vm.envOr("MODULE_CYPHER_DEPLOYER", address(0)); // only where Cypher is configured
+        // zRouter takes its owner as a constructor argument and exposes the same single-step
+        // `transferOwnership(address)`, so it migrates like any other plain-Ownable contract. OPTIONAL
+        // on purpose: only a network that SELF-DEPLOYS the router (`cfg.zrouter == address(0)` — Sepolia
+        // and Anvil) leaves it deployer-owned. A network that reuses the canonical external singleton
+        // (mainnet) does not own it, and the transfer would revert `Unauthorized()` — leave ZROUTER
+        // unset there.
+        address zrouter = vm.envOr("ZROUTER", address(0));
         if (uniVaultFactory != address(0)) tmp[n++] = uniVaultFactory;
         if (aaveVaultFactory != address(0)) tmp[n++] = aaveVaultFactory;
         if (zammVaultFactory != address(0)) tmp[n++] = zammVaultFactory;
         if (cypherVaultFactory != address(0)) tmp[n++] = cypherVaultFactory;
         if (cypherModule != address(0)) tmp[n++] = cypherModule;
+        if (zrouter != address(0)) tmp[n++] = zrouter;
 
         list = new address[](n);
         for (uint256 i; i < n; i++) {

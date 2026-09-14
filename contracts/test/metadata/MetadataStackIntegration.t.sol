@@ -331,8 +331,9 @@ contract MetadataStackIntegrationTest is Test {
             MetadataOverlayModule.Payout.ARTIST
         );
         vm.deal(creator, 0.5 ether);
+        bytes32 uriHash1 = keccak256(bytes(overlay.commissionURI(address(b), 12)));
         vm.prank(creator);
-        overlay.unlock{ value: 0.5 ether }(address(b), 12);
+        overlay.unlock{ value: 0.5 ether }(address(b), 12, uriHash1);
         assertEq(mirror.tokenURI(12), "comm-12"); // overlay commission over band art "rare-12"
 
         // id 5 is still pure base — the stack is fully transparent where no module claims it.

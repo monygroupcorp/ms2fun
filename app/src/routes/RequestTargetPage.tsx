@@ -4,10 +4,17 @@
  *   1. Request form — token + proposed title/description/metadataURI + a repeatable asset list. Reads
  *      requestDeposit() and submits submitRequest(...) with exactly that value (refundable on approve).
  *   2. My requests — indexes RequestSubmitted filtered to the connected address, then reads
- *      getRequest(id) for each to show the current status + deposit.
+ *      getRequest(id) for each to show the current status + deposit, and offers `pruneExpired` on any
+ *      of them the registry would now let anyone expire.
  *
  * Validation mirrors the contract via ../lib/targetRequests (nonzero token, non-empty title, ≥1 asset
  * with a nonzero token) so submit is disabled before a guaranteed revert.
+ *
+ * The queue line under the header exists because `submitRequest` reverts once `pendingCount` reaches
+ * `maxPending`: the cap is a real reason a submission fails that has nothing to do with the form, and
+ * a requester who cannot see it has no way to tell "my request is malformed" from "the queue is
+ * full". Expiry is the release valve the contract pairs with the cap — an un-acted request past
+ * `requestTTL` can be pruned by anyone, refunding its deposit — so the two are said together.
  */
 import { useState } from 'react'
 import { Link } from 'wouter'
@@ -16,12 +23,16 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAccount, usePublicClient } from 'wagmi'
 import {
   alignmentTargetRequestRegistryAbi,
+  useReadAlignmentTargetRequestRegistryMaxPending,
+  useReadAlignmentTargetRequestRegistryPendingCount,
   useReadAlignmentTargetRequestRegistryRefunds,
   useReadAlignmentTargetRequestRegistryRequestDeposit,
+  useReadAlignmentTargetRequestRegistryRequestTtl,
 } from '../generated/contracts'
 import { deployBlock, forkAddresses, forkChainId } from '../lib/addresses'
 import { scanBackward } from '../lib/logScan'
 import {
+  isPrunable,
   pickMyRequestIds,
   requestStatusLabel,
   toContractAssets,
@@ -53,6 +64,7 @@ export function RequestTargetPage() {
           if it&apos;s rejected as spam.
         </p>
       </header>
+      <QueueStatus />
       <RequestForm />
       <MyRequests />
     </div>
@@ -245,11 +257,48 @@ function RequestForm() {
   )
 }
 
+/** Whole days, floored — the registry's TTL is seconds and a requester reads it in days. */
+function ttlDays(ttl: bigint): string {
+  const days = ttl / 86_400n
+  return days > 0n ? `${days} day${days === 1n ? '' : 's'}` : `${ttl} seconds`
+}
+
+/**
+ * The pending queue's occupancy and its expiry rule — the two facts that decide whether a submission
+ * can land at all. Rendered whenever the registry answers; silent if it does not, rather than
+ * guessing a cap.
+ */
+function QueueStatus() {
+  const at = { address: REQUEST_REGISTRY, chainId: forkChainId } as const
+  const { data: pending } = useReadAlignmentTargetRequestRegistryPendingCount(at)
+  const { data: maxPending } = useReadAlignmentTargetRequestRegistryMaxPending(at)
+  const { data: ttl } = useReadAlignmentTargetRequestRegistryRequestTtl(at)
+
+  if (pending === undefined || maxPending === undefined) return null
+  const full = maxPending > 0n && pending >= maxPending
+
+  return (
+    <p className={styles.sub} data-testid="request-queue-status">
+      <b>
+        {String(pending)} of {String(maxPending)}
+      </b>{' '}
+      pending requests
+      {full
+        ? ' — the queue is full, so a new request reverts until one is acted on or expires'
+        : ''}
+      {ttl !== undefined && ttl > 0n
+        ? `. A request nobody acts on for ${ttlDays(ttl)} can be expired by anyone, refunding its deposit.`
+        : '.'}
+    </p>
+  )
+}
+
 interface MyRequest {
   id: bigint
   title: string
   status: number
   deposit: bigint
+  submittedAt: bigint
 }
 
 function useMyRequests(): {
@@ -305,7 +354,13 @@ function useMyRequests(): {
       ids.forEach((id, i) => {
         const r = results[i]
         if (!r || r.status !== 'success') return
-        out.push({ id, title: r.result.title, status: r.result.status, deposit: r.result.deposit })
+        out.push({
+          id,
+          title: r.result.title,
+          status: r.result.status,
+          deposit: r.result.deposit,
+          submittedAt: BigInt(r.result.submittedAt),
+        })
       })
       return out
     },
@@ -357,6 +412,49 @@ function ClaimRefund() {
   )
 }
 
+/**
+ * `pruneExpired(id)` on one request, shown only where the registry would accept it. The prune is
+ * permissionless and refunds the requester, so on your own stale request it is simply how you get the
+ * deposit back without waiting on an admin — the refund then lands in the pull-payment balance the
+ * "claim refund" row above already draws from.
+ */
+function PruneRow({ request }: { request: MyRequest }) {
+  const queryClient = useQueryClient()
+  const { data: ttl } = useReadAlignmentTargetRequestRegistryRequestTtl({
+    address: REQUEST_REGISTRY,
+    chainId: forkChainId,
+  })
+  const tx = useTxAction({
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['my-target-requests'] })
+    },
+  })
+
+  const nowSec = BigInt(Math.floor(Date.now() / 1000))
+  if (!isPrunable(request, ttl, nowSec)) return null
+
+  return (
+    <TxButton
+      state={tx.state}
+      onClick={() =>
+        tx.send({
+          address: REQUEST_REGISTRY,
+          abi: alignmentTargetRequestRegistryAbi,
+          functionName: 'pruneExpired',
+          args: [request.id],
+          chainId: forkChainId,
+        })
+      }
+      label="expire & refund"
+      className="btn btn-secondary"
+      successLabel="expired — the deposit is claimable above."
+      onReset={tx.reset}
+      errorText="expire failed — try again"
+      testId={`prune-request-${request.id}`}
+    />
+  )
+}
+
 function MyRequests() {
   const { isConnected } = useAccount()
   const { data, isPending, isError } = useMyRequests()
@@ -395,6 +493,7 @@ function MyRequests() {
                 {formatEther(r.deposit)} ETH ·{' '}
                 <span className={styles.status}>{requestStatusLabel(r.status)}</span>
               </span>
+              <PruneRow request={r} />
             </li>
           ))}
         </ul>

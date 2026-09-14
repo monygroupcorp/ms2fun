@@ -556,11 +556,12 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         assertEq(creator.balance - creatorBefore, expectedCreator, "creator cut should be ~80%");
     }
 
-    /// noesis-113 Part 2: an already-created instance whose alignment target is revoked AFTER bind must
-    /// NOT feed the 19% tithe to the de-curated vault at settle. It is redirected to `protocolTreasury`
-    /// (preserved at the safe sink, not stranded), `VaultCutRedirected` is emitted, and — critically —
+    /// noesis-113 Part 2 / noesis-435: an already-created instance whose alignment target is revoked AFTER
+    /// bind must NOT feed the 19% tithe to the de-curated vault at withdraw. It is returned to the CREATOR
+    /// and the protocol treasury balance is unchanged beyond its own 1% — de-curation may destroy value,
+    /// it may not transfer value to the protocol. `VaultCutReturnedToCreator` is emitted and — critically —
     /// the withdraw still SUCCEEDS (the creator is never frozen for the DAO's revocation).
-    function test_Withdraw_RevokedTarget_RedirectsVaultCutToTreasury() public {
+    function test_Withdraw_RevokedTarget_ReturnsVaultCutToCreator() public {
         address treasury = address(0xF00D);
         vm.prank(owner);
         factory.setProtocolTreasury(treasury);
@@ -591,35 +592,32 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
 
         uint256 amount = 1 ether;
         uint256 expectedProtocol = amount / 100; // 1%
-        uint256 expectedVault = (amount * 19) / 100; // 19% — redirected, not sent to vault
-        uint256 expectedCreator = amount - expectedProtocol - expectedVault; // 80%
+        uint256 expectedVault = (amount * 19) / 100; // 19% — returned to the creator, not sent to vault
+        uint256 expectedCreator = amount - expectedProtocol; // 80% + the returned 19%
 
         vm.expectEmit(true, true, false, true, address(instanceContract));
-        emit ERC1155Instance.VaultCutRedirected(address(vault), treasury, expectedVault);
+        emit ERC1155Instance.VaultCutReturnedToCreator(address(vault), creator, expectedVault);
 
         vm.prank(creator);
         instanceContract.withdraw(amount); // must NOT revert — creator not frozen
 
-        // Vault got nothing; treasury absorbed BOTH the protocol cut and the redirected tithe.
+        // Vault got nothing; the treasury got its own 1% and NOT one wei of the community cut.
         assertEq(address(vault).balance - vaultBefore, 0, "revoked vault must receive nothing");
-        assertEq(
-            treasury.balance - treasuryBefore,
-            expectedProtocol + expectedVault,
-            "treasury got protocol + redirected tithe"
-        );
-        assertEq(creator.balance - creatorBefore, expectedCreator, "creator still gets 80%");
-        assertEq(instanceContract.pendingVaultCut(), 0, "redirect is not the pending-retry lane");
+        assertEq(treasury.balance - treasuryBefore, expectedProtocol, "treasury gets its 1% and nothing more");
+        assertEq(creator.balance - creatorBefore, expectedCreator, "creator gets 80% plus the returned cut");
+        assertEq(instanceContract.pendingVaultCut(), 0, "the return is not the pending-retry lane");
     }
 
-    /// noesis-269: the two redirects are distinguishable in the log. Drives BOTH branches — a cut
-    /// redirected at withdraw as it is earned, and a stashed cut redirected on `retryVaultContribution`
-    /// — and asserts each path emits its own signal and only its own. Same money, same destination, but
-    /// one is new revenue and the other is a re-route of revenue already reported; a tithe report
-    /// reading a single event for both would count that cut twice.
-    function test_RedirectSignals_PrimaryAndRetry_Differ() public {
+    /// noesis-269/noesis-314: the two returns are distinguishable in the log. Drives BOTH branches — a cut
+    /// returned at withdraw as it is earned, and a stashed cut returned on `retryVaultContribution` — and
+    /// asserts each path emits its own signal and only its own. Same money, same destination, but one is
+    /// new revenue and the other is a re-route of revenue already reported; a tithe report reading a
+    /// single event for both would count that cut twice.
+    function test_ReturnSignals_PrimaryAndRetry_Differ() public {
         assertTrue(
-            ERC1155Instance.VaultCutRedirected.selector != ERC1155Instance.PendingVaultCutRedirected.selector,
-            "the two redirect signals are distinct topics"
+            ERC1155Instance.VaultCutReturnedToCreator.selector
+                != ERC1155Instance.PendingVaultCutReturnedToCreator.selector,
+            "the two return signals are distinct topics"
         );
 
         address treasury = address(0xF00D);
@@ -636,12 +634,12 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         earned.withdraw(1 ether);
         Vm.Log[] memory primary = vm.getRecordedLogs();
         assertEq(
-            TitheSignals.count(primary, ERC1155Instance.VaultCutRedirected.selector),
+            TitheSignals.count(primary, ERC1155Instance.VaultCutReturnedToCreator.selector),
             1,
             "primary path emits the earned signal"
         );
         assertEq(
-            TitheSignals.count(primary, ERC1155Instance.PendingVaultCutRedirected.selector),
+            TitheSignals.count(primary, ERC1155Instance.PendingVaultCutReturnedToCreator.selector),
             0,
             "primary path does not claim to be a retry"
         );
@@ -657,12 +655,12 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         stashed.retryVaultContribution();
         Vm.Log[] memory retried = vm.getRecordedLogs();
         assertEq(
-            TitheSignals.count(retried, ERC1155Instance.PendingVaultCutRedirected.selector),
+            TitheSignals.count(retried, ERC1155Instance.PendingVaultCutReturnedToCreator.selector),
             1,
             "retry path emits the retry signal"
         );
         assertEq(
-            TitheSignals.count(retried, ERC1155Instance.VaultCutRedirected.selector),
+            TitheSignals.count(retried, ERC1155Instance.VaultCutReturnedToCreator.selector),
             0,
             "retry path is not reported as new revenue"
         );
@@ -680,10 +678,11 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         inst.mint{ value: 1 ether }(1, 1, bytes(""), bytes(""), 0);
     }
 
-    /// noesis-126: a vault cut STASHED at withdraw (the vault reverted) while the target was live must NOT be
-    /// force-fed to the vault on `retryVaultContribution` once the target has since been revoked — it is
-    /// redirected to `protocolTreasury`, mirroring the `withdraw` primary path.
-    function test_RetryVaultContribution_RevokedTarget_RedirectsToTreasury() public {
+    /// noesis-126/noesis-435: a vault cut STASHED at withdraw (the vault reverted) while the target was live
+    /// must NOT be force-fed to the vault on `retryVaultContribution` once the target has since been revoked
+    /// — it is returned to the CREATOR, mirroring the `withdraw` primary path, and the treasury balance is
+    /// unchanged. The stashed cut is the same money as a fresh one and must not survive as a treasury path.
+    function test_RetryVaultContribution_RevokedTarget_ReturnsToCreator() public {
         address treasury = address(0xF00D);
         vm.prank(owner);
         factory.setProtocolTreasury(treasury);
@@ -720,11 +719,13 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         mockRegistry.setVaultRegistered(address(brokenVault), false);
 
         uint256 treasuryBefore = treasury.balance;
+        uint256 creatorBefore = creator.balance;
         vm.expectEmit(true, true, false, true, address(inst));
-        emit ERC1155Instance.PendingVaultCutRedirected(address(brokenVault), treasury, expectedVault);
+        emit ERC1155Instance.PendingVaultCutReturnedToCreator(address(brokenVault), creator, expectedVault);
         inst.retryVaultContribution(); // permissionless
 
-        assertEq(treasury.balance - treasuryBefore, expectedVault, "retry redirected the tithe to treasury");
+        assertEq(creator.balance - creatorBefore, expectedVault, "retry returned the cut to the creator");
+        assertEq(treasury.balance - treasuryBefore, 0, "treasury balance unchanged");
         assertEq(address(brokenVault).balance, 0, "de-curated vault received nothing");
         assertEq(inst.pendingVaultCut(), 0, "stash cleared");
     }

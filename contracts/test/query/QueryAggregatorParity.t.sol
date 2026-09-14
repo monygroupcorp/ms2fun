@@ -624,9 +624,16 @@ contract QueryAggregatorParityTest is Test {
         uint256 unit_ = 1_000_000 * 1e18;
         ParityMockERC404 inst = new ParityMockERC404(supply, max, unit_, active, graduated_, 0, _defaultParams());
 
-        bool expectedActive = inst.bondingActive() && block.timestamp >= inst.bondingOpenTime() && !inst.graduated();
+        // `supply` sweeps 0..ceiling INCLUSIVE, so a bought-out curve is one of the draws. It is armed
+        // and ungraduated and nothing on chain flips for it, yet every further buy reverts
+        // ExceedsBonding — so the card is inactive, and an expectation that stops at the phase flags
+        // disagrees with the lens at exactly that point. The hand-written cases above all derive the
+        // ceiling this way; this one did not, and the sweep found the single supply where it mattered.
+        uint256 ceiling = _buyableCeiling(inst);
+        bool expectedActive =
+            inst.bondingActive() && block.timestamp >= inst.bondingOpenTime() && !inst.graduated() && supply < ceiling;
         uint256 expectedPrice = BondingCurveMath.calculateCost(inst.params(), supply, unit_);
 
-        _assertCardEq(_card(address(inst)), expectedPrice, supply, max, expectedActive, "erc404-fuzz");
+        _assertCardEq(_card(address(inst)), expectedPrice, supply, ceiling, expectedActive, "erc404-fuzz");
     }
 }

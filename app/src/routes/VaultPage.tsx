@@ -1,7 +1,9 @@
 /**
  * VaultPage (`/vault/:address`) — one vault's detail: family + bound alignment target, live stats
- * (honest TVL — real principal for endowment vaults, pool status for LP), where the community's cut
- * is owed and the permissionless calls that deliver it (`CommunityPayoutPanel`), the collections
+ * (honest TVL — real principal for endowment vaults, pool status for LP), the connected wallet's own
+ * contribution/shares/delegate/claimable and the writes that act on them (`BenefactorPosition`),
+ * where the community's cut is owed and the permissionless calls that deliver it
+ * (`CommunityPayoutPanel`), the protocol's own accrued cut (`VaultDeliveries`), the collections
  * aligned to it, and a board channel (post about the vault). The board channel is free:
  * GlobalMessageRegistry's
  * post/postBatch accept ANY address as a channel, so it's just MessageFeed + MessageComposer keyed on
@@ -14,6 +16,8 @@ import { truncateAddress } from '../lib/format'
 import { useAllCollections } from '../lib/discovery'
 import { useVaultOverview, vaultFamilyLabel } from '../components/vault/useVaultOverview'
 import { CommunityPayoutPanel } from '../components/vault/CommunityPayoutPanel'
+import { VaultDeliveries } from '../components/vault/VaultDeliveries'
+import { BenefactorPosition } from '../components/vault/BenefactorPosition'
 import { useCollectionMetadata } from '../components/useCollectionMetadata'
 import { IpfsImage } from '../components/ui/IpfsImage'
 import { MessageFeed } from '../components/MessageFeed'
@@ -101,6 +105,13 @@ export function VaultPage() {
             </div>
           </section>
 
+          {/* The connected wallet's own stake, and the claim/delegate calls that act on it. Every
+              figure above this point is the vault's; these are the reader's. */}
+          <BenefactorPosition vault={vault} isEndowment={overview.isEndowment} />
+
+          {/* The protocol's 1%, accrued here and not yet pushed to its treasury (liquidity only). */}
+          <VaultDeliveries vault={vault} isEndowment={overview.isEndowment} />
+
           {/* Bound alignment target */}
           {overview.target && (
             <section className={styles.target} data-testid="vault-target">
@@ -124,8 +135,7 @@ export function VaultPage() {
                     <p className={styles.targetDesc}>{overview.target.description}</p>
                   )}
                   <p className={styles.targetWho}>
-                    A fixed share of every aligned collection&rsquo;s fees routes here — 19% on
-                    liquidity collections, 80% on endowment ones.
+                    19% of every aligned collection&rsquo;s fees route here.
                   </p>
                 </div>
               </div>

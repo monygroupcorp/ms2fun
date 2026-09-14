@@ -105,7 +105,7 @@ const CONTINUES = new Set(['?', ':', '|', '&', '+']);
  * a scan that reads to the next comma would swallow the rest of the type and report its literals as
  * function names.
  */
-function valueAfter(src, i) {
+export function valueAfter(src, i) {
   const start = i;
   let depth = 0;
   while (i < src.length) {

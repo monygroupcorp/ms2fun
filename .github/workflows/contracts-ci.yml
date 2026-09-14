@@ -8,6 +8,21 @@ name: contracts-ci
 # for that reason. `main` currently has no branch protection (no required checks), so an
 # absent run here reads as not-applicable rather than a stuck "Expected" check; revisit
 # this filter if branch protection is ever added.
+#
+# Shape: one `build` job compiles and runs every source-level gate, then `test` fans the
+# ci-profile suite out across the shards in contracts/scripts/test-shards.json, each on its
+# own hosted runner. Before sharding the single job took 39-48 minutes on a 4-vCPU runner:
+# 14.6 of them compiling (via_ir, 434 files) and 22.9 running tests, of which one file,
+# BondingCurveInvariant.t.sol, is more CPU than every other suite together. The shards are
+# partitioned on measured CPU-seconds, and scripts/test-shards-cover.sh proves in the build
+# job that every test file is in exactly one of them. The compiled tree moves from build to
+# the shards through actions/cache under one content-addressed key, so a shard compiles
+# nothing; the same cache, restored by prefix, is what makes the build step incremental
+# from one push to the next instead of a cold 14-minute compile.
+#
+# Everything runs on GitHub-hosted runners. This is a public repository, and a self-hosted
+# runner would execute any pull request's workflow on our own machine; GitHub's guidance is
+# not to, and this workflow follows it.
 on:
   push:
     paths:
@@ -22,21 +37,27 @@ defaults:
   run:
     working-directory: contracts
 
+env:
+  # Foundry PINNED to v1.5.1 to match app-ci.yml's G7: `--skip` glob semantics
+  # differ across releases, and nightly reds where v1.5.1 is green. Keep the pin
+  # identical so this job and G7 agree on the same toolchain behavior.
+  FOUNDRY_VERSION: v1.5.1
+
 jobs:
-  contracts:
+  build:
     runs-on: ubuntu-latest
+    outputs:
+      shards: ${{ steps.shards.outputs.shards }}
+      cache_key: ${{ steps.cache-key.outputs.key }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Foundry PINNED to v1.5.1 to match app-ci.yml's G7: `--skip` glob semantics
-      # differ across releases, and nightly reds where v1.5.1 is green. Keep the pin
-      # identical so this job and G7 agree on the same toolchain behavior.
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: v1.5.1
+          version: ${{ env.FOUNDRY_VERSION }}
 
       # contracts/lib is gitignored with NO committed submodule gitlinks, so
       # actions/checkout fetches nothing and every dependency has to be cloned here.
@@ -65,6 +86,24 @@ jobs:
           ./scripts/zrouter-approval-gate.sh --self-test
           ./scripts/zrouter-approval-gate.sh
 
+      # The compiled tree is keyed on everything the compiler reads: sources, tests, scripts,
+      # the config, and the dependency pins. Exact key when this tree was compiled before;
+      # otherwise the newest older tree, which forge's per-file cache turns into an incremental
+      # compile. The save at job end is under the exact key, which is what the shards wait for.
+      - name: Cache key
+        id: cache-key
+        run: echo "key=forge-${{ hashFiles('contracts/src/**', 'contracts/test/**', 'contracts/script/**', 'contracts/foundry.toml', 'contracts/foundry.v4.toml', 'contracts/scripts/lib-pins.txt') }}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore compiled tree
+        uses: actions/cache@v4
+        with:
+          path: |
+            contracts/out
+            contracts/cache
+          key: ${{ steps.cache-key.outputs.key }}
+          restore-keys: |
+            forge-
+
       - name: Build contracts
         run: forge build
 
@@ -75,6 +114,48 @@ jobs:
       - name: EIP-170 + storage-layout gate
         run: bash test/factories/erc404/eip170-diet-gate.sh
 
+      # Every test file is in exactly one shard, or nothing below runs.
+      - name: Shard coverage
+        run: ./scripts/test-shards-cover.sh
+
+      - name: Read shards
+        id: shards
+        run: echo "shards=$(jq -c . scripts/test-shards.json)" >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.build.outputs.shards) }}
+    name: test (${{ matrix.shard.name }})
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      # The compiled tree is keyed on the sources but forge still reads them, and the
+      # cache does not carry lib/. Same pins as the build job, so the same bytes.
+      - name: Install contracts/lib deps
+        run: ./scripts/install-libs.sh all
+
+      # Exact key only: a shard that had to compile would be paying the cost the build job
+      # already paid. fail-on-cache-miss makes that a red step, not a slow one.
+      - name: Restore compiled tree
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            contracts/out
+            contracts/cache
+          key: ${{ needs.build.outputs.cache_key }}
+          fail-on-cache-miss: true
+
       # `ci` profile (foundry.toml): elevated fuzz depth, default invariant depth. The profile
       # MUST be named here — a profile table in foundry.toml that nothing selects has no effect
       # on this step. Invariant depth deliberately stays at the default; see the `deep` profile
@@ -82,11 +163,36 @@ jobs:
       # Everything else is inherited from `default`, so `skip=[…RealSettlement…]` still keeps the
       # exact-0.8.26 v4 test out of this pinned-0.8.28 compile, and the test/fork/** suites still
       # self-skip at runtime (vm.skip(true) when no fork URL), so no RPC secret is needed.
+      # The filter pair is this shard's row of scripts/test-shards.json; an absent field passes
+      # no flag.
       - name: Run tests
-        run: FOUNDRY_PROFILE=ci forge test
+        env:
+          MATCH: ${{ matrix.shard.match }}
+          NO_MATCH: ${{ matrix.shard.no_match }}
+        run: |
+          args=()
+          [ -n "$MATCH" ] && args+=(--match-path "$MATCH")
+          [ -n "$NO_MATCH" ] && args+=(--no-match-path "$NO_MATCH")
+          FOUNDRY_PROFILE=ci forge test "${args[@]}"
 
-      # Audit-#1 guard: the real-v4 RealSettlement regression. foundry.v4.toml enables
-      # auto_detect_solc so forge selects 0.8.26 for v4-core's real PoolManager. It uses
-      # an in-memory real PoolManager (not a fork), so it needs no RPC.
+  # Audit-#1 guard: the real-v4 RealSettlement regression. foundry.v4.toml enables
+  # auto_detect_solc so forge selects 0.8.26 for v4-core's real PoolManager. It uses
+  # an in-memory real PoolManager (not a fork), so it needs no RPC. Its own compile under
+  # its own config, so it does not wait on the build job.
+  real-settlement:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Install contracts/lib deps
+        run: ./scripts/install-libs.sh all
+
       - name: RealSettlement regression (real v4)
         run: FOUNDRY_CONFIG=foundry.v4.toml forge test --match-path test/hooks/UniAlignmentV4Hook_RealSettlement.t.sol

@@ -54,14 +54,14 @@ contract ZRouterChainConfigTest is Test {
     function setUp() public {
         ChainConfig memory c;
         c.weth = STAND_IN_WETH;
-        dark = new zRouter(c);
+        dark = new zRouter(c, address(this));
         vm.deal(user, 100 ether);
     }
 
     // ── 1. The mainnet defaults are the former compile-time constants ─────────────────────────
 
     function test_mainnetDefaultsMatchTheFormerConstants() public {
-        zRouter r = new zRouter(mainnetChainConfig());
+        zRouter r = new zRouter(mainnetChainConfig(), address(this));
 
         assertEq(r.WETH(), MAINNET_WETH, "weth");
         assertEq(r.V4_POOL_MANAGER(), MAINNET_V4_POOL_MANAGER, "v4PoolManager");
@@ -86,7 +86,7 @@ contract ZRouterChainConfigTest is Test {
         ChainConfig memory c = mainnetChainConfig();
         c.weth = address(0);
         vm.expectRevert(zRouter.LegUnavailable.selector);
-        new zRouter(c);
+        new zRouter(c, address(this));
     }
 
     // ── 3. Dark Lido legs revert loudly instead of forwarding ETH to address(0) ────────────────
@@ -133,7 +133,7 @@ contract ZRouterChainConfigTest is Test {
         c.weth = STAND_IN_WETH;
         c.steth = address(steth);
         c.wsteth = STAND_IN_WSTETH;
-        zRouter r = new zRouter(c);
+        zRouter r = new zRouter(c, address(this));
 
         vm.prank(user);
         uint256 shares = r.exactETHToSTETH{ value: 1 ether }(user);
@@ -155,7 +155,7 @@ contract ZRouterChainConfigTest is Test {
         ChainConfig memory c;
         c.weth = STAND_IN_WETH;
         c.zamm = STAND_IN_ZAMM; // V1 bound, predecessor dark
-        zRouter r = new zRouter(c);
+        zRouter r = new zRouter(c, address(this));
 
         vm.prank(user);
         vm.expectRevert(zRouter.LegUnavailable.selector);
@@ -178,7 +178,7 @@ contract ZRouterChainConfigTest is Test {
         ChainConfig memory c;
         c.weth = STAND_IN_WETH;
         c.v4PoolManager = address(new StubPoolManager());
-        zRouter r = new zRouter(c);
+        zRouter r = new zRouter(c, address(this));
 
         vm.prank(user);
         vm.expectRevert(StubPoolManager.Reached.selector);

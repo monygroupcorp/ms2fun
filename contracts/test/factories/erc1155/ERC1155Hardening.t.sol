@@ -62,6 +62,26 @@ contract MockMRHard {
     }
 }
 
+/// @notice Master-registry stub whose target is DE-CURATED: `isVaultRegistered` answers false, so the
+///         withdraw path takes the noesis-435 return-to-creator branch.
+contract MockMRDecurated {
+    function isAgent(address) external pure returns (bool) {
+        return false;
+    }
+
+    function isVaultRegistered(address) external pure returns (bool) {
+        return false;
+    }
+}
+
+/// @notice A creator that rejects plain ETH. Proves the returned community cut keeps the brick-proof
+///         property the redirect leg had before noesis-435 folded it into the creator payout.
+contract EthRejectingCreator {
+    receive() external payable {
+        revert("no ETH");
+    }
+}
+
 contract ERC1155HardeningTest is Test {
     address creator = makeAddr("creator");
     address user1 = makeAddr("user1");
@@ -206,5 +226,55 @@ contract ERC1155HardeningTest is Test {
         assertEq(creator.balance, ownerBefore + 0.8 ether);
         // Protocol cut (1%) landed as WETH on the reverting treasury via the fallback.
         assertEq(weth.balanceOf(address(treasury)), 0.01 ether);
+    }
+
+    // ── noesis-435: the returned community cut stays brick-proof ──────────────
+
+    /// A de-curated target folds the community cut into the creator's remainder. A creator that rejects
+    /// plain ETH must still be paid — `smartTransferETH` wraps to WETH — the withdraw must not revert, and
+    /// the treasury must receive nothing beyond its own 1%.
+    function test_decuratedTarget_ethRejectingCreator_stillReceivesReturnedCut() public {
+        MockFamilyVault vault = new MockFamilyVault("UniswapV4LP");
+        MockMRDecurated decurated = new MockMRDecurated();
+        EthRejectingCreator rejecter = new EthRejectingCreator();
+        address treasury = address(0xFEE);
+
+        ERC1155Instance inst = new ERC1155Instance(
+            "Hardening",
+            address(rejecter),
+            address(this), // factory
+            address(vault),
+            "",
+            ERC1155Instance.InstanceInit({
+                globalMessageRegistry: gmr,
+                protocolTreasury: treasury,
+                masterRegistry: address(decurated),
+                gatingModule: address(0),
+                dynamicPricingModule: address(0),
+                weth: address(weth)
+            }),
+            false,
+            "",
+            ""
+        );
+
+        vm.prank(address(rejecter));
+        inst.addEdition("Piece", 1 ether, 100, "ipfs://ed", ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0, 0);
+        uint256 ed = inst.nextEditionId() - 1;
+
+        vm.deal(user1, 1 ether);
+        vm.prank(user1);
+        inst.mint{ value: 1 ether }(ed, 1, "", "", 0);
+
+        uint256 treasuryBefore = treasury.balance;
+
+        vm.prank(address(rejecter));
+        inst.withdraw(1 ether); // must NOT revert on a creator that rejects plain ETH
+
+        // 80% remainder + the returned 19% community cut, paid as WETH by the fallback.
+        assertEq(weth.balanceOf(address(rejecter)), 0.99 ether, "creator paid remainder + returned cut in WETH");
+        assertEq(address(rejecter).balance, 0, "no raw ETH reached the rejecting creator");
+        assertEq(address(vault).balance, 0, "de-curated vault received nothing");
+        assertEq(treasury.balance - treasuryBefore, 0.01 ether, "treasury gets its 1% and nothing more");
     }
 }

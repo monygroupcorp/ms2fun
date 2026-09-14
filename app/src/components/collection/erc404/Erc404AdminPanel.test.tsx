@@ -32,6 +32,26 @@ vi.mock('../../ui/useOwnerGate', () => ({
 
 vi.mock('./MetadataArtistPanel', () => ({ MetadataArtistPanel: () => null }))
 
+// The stranded-tithe row's only logic is the hint it picks from the module's stash; resolving WHICH
+// module holds it is useGraduatedVenue's job and is covered there. Mocked here so this file keeps
+// testing the panel's rows rather than the venue-detection chain behind one of them.
+const mockStrandedTithe = vi.hoisted(() =>
+  vi.fn(() => ({
+    amount: undefined as bigint | undefined,
+    canFlush: false,
+    flush: vi.fn(),
+    tx: {
+      state: 'idle',
+      reset: vi.fn(),
+      send: vi.fn(),
+      isBusy: false,
+      hash: undefined,
+      reason: undefined,
+    },
+  })),
+)
+vi.mock('./useStrandedTithe', () => ({ useStrandedTithe: mockStrandedTithe }))
+
 vi.mock('../../useCollection', () => ({
   useCollection: () => ({ data: { metadataURI: 'ipfs://placeholder' } }),
 }))
@@ -67,6 +87,7 @@ const mockPreviewCarve = vi.hoisted(() => vi.fn<(bps: bigint) => bigint | undefi
 
 vi.mock('wagmi', () => ({
   usePublicClient: () => undefined,
+  useBalance: () => ({ data: undefined, refetch: vi.fn() }),
   useWriteContract: () => ({
     writeContract: mockWriteContract,
     data: undefined,
@@ -106,6 +127,8 @@ vi.mock('../../../generated/contracts', () => ({
     data: mockPreviewCarve(cfg.args[0]),
   }),
   useReadErc404BondingInstanceStakingActive: () => ({ data: false, refetch: vi.fn() }),
+  useReadErc404BondingInstanceReserve: () => ({ data: 0n, refetch: vi.fn() }),
+  useReadErc404BondingInstanceStakingReserve: () => ({ data: 0n, refetch: vi.fn() }),
   // `unit()` — coin per whole NFT. The allowlist row roots its tree at this scale (noesis-266).
   useReadErc404BondingInstanceUnit: () => ({ data: 10n ** 24n }),
 }))
@@ -166,7 +189,28 @@ afterEach(() => {
   mockDeclaredMax.mockReset()
   mockPreviewCarve.mockReset()
   mockWriteContract.mockReset()
+  mockStrandedTithe.mockReset()
+  strandedTithe({ amount: undefined, canFlush: false })
 })
+
+/** Point the mocked hook at one stash state; returns the flush spy the row is wired to. */
+function strandedTithe({ amount, canFlush }: { amount: bigint | undefined; canFlush: boolean }) {
+  const flush = vi.fn()
+  mockStrandedTithe.mockReturnValue({
+    amount,
+    canFlush,
+    flush,
+    tx: {
+      state: 'idle',
+      reset: vi.fn(),
+      send: vi.fn(),
+      isBusy: false,
+      hash: undefined,
+      reason: undefined,
+    },
+  })
+  return flush
+}
 
 test('graduated: activate bonding, deploy liquidity, and both time setters are hidden', () => {
   mount(GRADUATED)
@@ -326,4 +370,36 @@ test('leg 7 — no control for the immutable declared max is offered anywhere in
   expect(
     screen.queryByRole('button', { name: /set declared max|declared max allowance/i }),
   ).not.toBeInTheDocument()
+})
+
+// ── stranded graduation tithe ──────────────────────────────────────────────────
+//
+// The cut is stashed on the liquidity module when the alignment vault refuses it, and re-sending it
+// is permissionless. `flushPendingVaultCut` reverts `NoPendingVaultCut` on an empty stash, so the
+// button being disabled at zero is the row's whole job — offering it would guarantee a failed
+// transaction and a wasted fee.
+
+test('stranded tithe: an unread stash offers the flush without asserting an amount', () => {
+  strandedTithe({ amount: undefined, canFlush: false })
+  mount(GRADUATED)
+  const row = screen.getByTestId('erc404-admin-flush-tithe')
+  expect(row).toBeInTheDocument()
+  expect(screen.getByText(/permissionless — re-send a graduation cut/i)).toBeInTheDocument()
+})
+
+test('stranded tithe: an empty stash says so and does not offer a transaction that reverts', () => {
+  strandedTithe({ amount: 0n, canFlush: false })
+  mount(GRADUATED)
+  expect(screen.getByTestId('erc404-admin-flush-tithe')).toBeDisabled()
+  expect(screen.getByText(/nothing stranded/i)).toBeInTheDocument()
+})
+
+test('stranded tithe: a real stash names the amount and sends the flush', () => {
+  const flush = strandedTithe({ amount: 1_000_000_000_000_000n, canFlush: true })
+  mount(GRADUATED)
+  const button = screen.getByTestId('erc404-admin-flush-tithe')
+  expect(button).toBeEnabled()
+  expect(screen.getByText(/0\.001 ETH stranded on the liquidity module/i)).toBeInTheDocument()
+  fireEvent.click(button)
+  expect(flush).toHaveBeenCalledTimes(1)
 })

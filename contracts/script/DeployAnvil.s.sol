@@ -41,7 +41,7 @@ contract DeployAnvil is DeployCore {
         address deployer = vm.addr(pk);
         vm.startBroadcast(pk);
         // The two artist targets' fixture tokens. Deployed here rather than pinned as constants
-        // because there is nothing on mainnet to point at — an artist endowment is escrowed principal
+        // because there is nothing on mainnet to point at — an artist endowment is permanent principal
         // streaming yield to a payout address, and the token is the one field the registry insists on.
         address paradilfToken = address(new MockERC20("Paradilf Fan Club Fixture", "PDLF"));
         address petravoiceToken = address(new MockERC20("Petravoice Fixture", "PTRA"));

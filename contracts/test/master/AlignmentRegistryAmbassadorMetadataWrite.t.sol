@@ -18,7 +18,7 @@ contract AlignmentRegistryAmbassadorMetadataWriteTest is Test {
     address public cultToken = makeAddr("CULT");
 
     function setUp() public {
-        registry = new AlignmentRegistryV1(makeAddr("WETH"));
+        registry = new AlignmentRegistryV1(makeAddr("WETH"), address(0), address(0));
         registry.initialize(daoOwner);
     }
 
@@ -196,6 +196,22 @@ contract AlignmentRegistryAmbassadorMetadataWriteTest is Test {
         vm.prank(ambassador);
         vm.expectRevert(Ownable.Unauthorized.selector);
         registry.setCommunityPayout(targetId, makeAddr("payout"));
+    }
+
+    /// An ambassador CANNOT rotate a pinned payout either. Rotation answers to the sink, not to curation:
+    /// speaking for a community is not the same authority as being the address its money already goes to.
+    function test_RotateCommunityPayout_AmbassadorCannot() public {
+        uint256 targetId = _registerTargetWithAmbassador();
+        address payout = makeAddr("payout");
+
+        vm.prank(daoOwner);
+        registry.setCommunityPayout(targetId, payout);
+
+        vm.prank(ambassador);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        registry.rotateCommunityPayout(targetId, ambassador);
+
+        assertEq(registry.getCommunityPayout(targetId), payout);
     }
 
     /// An ambassador CANNOT set an acquire route (price/route authority stays owner-only).

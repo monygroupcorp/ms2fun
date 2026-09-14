@@ -18,6 +18,11 @@ import { ALGEBRA_DEFAULT_DEPLOYER, IAlgebraSwapRouter } from "../../interfaces/a
 ///
 ///         The declared return type below is the shape documentation and the selector source. It is
 ///         NOT what the reply is decoded through — `_tryBestRoute` decodes the head by hand.
+///
+///         THESE NAMES ARE MAINNET'S AND ARE NOT PORTABLE ACROSS CHAINS. Base's quoter is not merely
+///         a differently-sized `AMM` — it puts AERO at index 1, where this enum reads SUSHI, so a
+///         Base deployment must re-derive the mapping rather than reuse it. The range check keeps an
+///         unknown index safe; it cannot keep a *reused* index honest.
 interface IBestRouteQuoter {
     enum AMM {
         UNI_V2,

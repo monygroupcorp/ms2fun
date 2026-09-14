@@ -135,3 +135,25 @@ export function pickMyRequestIds(
   ids.sort((a, b) => (a > b ? -1 : a < b ? 1 : 0))
   return ids
 }
+
+/**
+ * True when `pruneExpired(id)` would succeed on this request right now — Pending, and past its TTL.
+ *
+ * The prune is the registry's anti-DoS release valve: the pending queue is capped at `maxPending`,
+ * and a queue full of requests nobody ever acted on would otherwise refuse every new submission
+ * forever. So the contract lets ANYONE expire a stale one, refunding the requester (an expiry is not
+ * spam). Mirroring its gate here is what lets the surface offer the button only where it works,
+ * rather than on every row and reverting.
+ *
+ * `requestTTL === 0` disables expiry entirely (the contract reverts `NotExpired` outright), and the
+ * comparison is strictly-greater to match `block.timestamp <= submittedAt + requestTTL` reverting.
+ */
+export function isPrunable(
+  request: { status: number; submittedAt: bigint },
+  requestTTL: bigint | undefined,
+  nowSec: bigint,
+): boolean {
+  if (requestTTL === undefined || requestTTL === 0n) return false
+  if (request.status !== RequestStatus.Pending) return false
+  return nowSec > request.submittedAt + requestTTL
+}

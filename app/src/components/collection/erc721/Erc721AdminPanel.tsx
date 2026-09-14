@@ -9,6 +9,12 @@
  * The rest are the standard per-instance creator setters: claim vault fees, migrate the alignment
  * vault, sweep all fees, and toggle agent delegation. All go through the Phase-0 useTxAction +
  * TxButton idiom inside AdminSection / ActionRow.
+ *
+ * One row is deliberately NOT a creator setter: **flush stranded tithe**. When a settlement's vault
+ * cut cannot be delivered (a de-curated or reverting vault) the instance stashes it in
+ * `pendingVaultCut` and settlement carries on, so the ETH sits here until someone re-sends it. The
+ * contract makes that re-send permissionless for exactly that reason; until now the app had no path
+ * to it on this family, which left the only way to move stranded money a hand-written call.
  */
 import { useState } from 'react'
 import { erc721AuctionInstanceAbi } from '../../../generated/contracts'
@@ -20,7 +26,11 @@ import { parseAmount } from '../../ui/parseAmount'
 import { useOwnerGate } from '../../ui/useOwnerGate'
 import { useTxAction } from '../../ui/useTxAction'
 import { useCollectionChainId } from '../useCollectionChain'
-import { useReadErc721AuctionInstanceAgentDelegationEnabled } from '../../../generated/contracts'
+import {
+  useReadErc721AuctionInstanceAgentDelegationEnabled,
+  useReadErc721AuctionInstancePendingVaultCut,
+} from '../../../generated/contracts'
+import { formatPrice } from '../../../lib/format'
 import formStyles from './Erc721AdminPanel.module.css'
 
 export function Erc721AdminPanel({ instance }: { instance: `0x${string}` }) {
@@ -34,6 +44,7 @@ export function Erc721AdminPanel({ instance }: { instance: `0x${string}` }) {
         <ClaimVaultFeesRow instance={instance} />
         <MigrateVaultRow instance={instance} />
         <ClaimAllFeesRow instance={instance} />
+        <PendingVaultCutRow instance={instance} />
         <DelegationRow instance={instance} />
       </AdminSection>
     </Disclosure>
@@ -206,6 +217,51 @@ function ClaimAllFeesRow({ instance }: { instance: `0x${string}` }) {
         onReset={tx.reset}
         errorText="claim failed — try again"
         testId="erc721-claim-all-fees"
+      />
+    </ActionRow>
+  )
+}
+
+// ── flushPendingVaultCut() ──────────────────────────────────────────────────────
+
+function PendingVaultCutRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
+  const { data: pending, refetch } = useReadErc721AuctionInstancePendingVaultCut({
+    address: instance,
+    chainId,
+  })
+  const tx = useTxAction({ onSuccess: () => void refetch(), instance })
+  const nothingStranded = pending !== undefined && pending === 0n
+
+  return (
+    <ActionRow
+      label="flush stranded tithe"
+      hint={
+        pending === undefined
+          ? 'permissionless — re-send a vault cut an earlier settlement could not deliver'
+          : pending === 0n
+            ? 'nothing stranded — every vault cut so far was delivered'
+            : `${formatPrice(pending)} stranded — permissionless to re-send`
+      }
+    >
+      <TxButton
+        state={tx.state}
+        onClick={() =>
+          tx.send({
+            address: instance,
+            abi: erc721AuctionInstanceAbi,
+            functionName: 'flushPendingVaultCut',
+            chainId: chainId,
+          })
+        }
+        label="flush tithe"
+        className="btn btn-secondary"
+        successLabel="stranded tithe re-sent — tx confirmed."
+        onReset={tx.reset}
+        disabled={nothingStranded}
+        disabledHint="the flush reverts with nothing stashed"
+        errorText="flush failed — try again"
+        testId="erc721-flush-vault-cut"
       />
     </ActionRow>
   )

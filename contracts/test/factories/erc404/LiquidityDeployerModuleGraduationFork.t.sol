@@ -67,7 +67,7 @@ contract LiquidityDeployerModuleGraduationForkTest is ForkTestBase {
             UNISWAP_V4_POOL_MANAGER, WETH, FEE, TICK_SPACING, address(new MockMasterRegistry())
         );
         // Real zRouter (its V4_POOL_MANAGER constant is the mainnet PM) — the exact swap path the UI uses.
-        router = new zRouter(mainnetChainConfig());
+        router = new zRouter(mainnetChainConfig(), address(this));
 
         vm.label(address(module), "LiquidityDeployerModule");
         vm.label(address(token), "GRAD");

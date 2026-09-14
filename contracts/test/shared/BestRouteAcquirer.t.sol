@@ -570,6 +570,26 @@ contract BestRouteAcquirerTest is Test {
         assertEq(got, 100e18);
     }
 
+    /// The mainnet quoter's `AMM` enum carries nine sources; the acquirer maps five. A best route on
+    /// one of the four it cannot map — CURVE, LIDO, WETH_WRAP, V4_HOOKED — must degrade to the vault's
+    /// fixed pool, which is the same answer an unset quoter gets. The route is not merely unexecuted:
+    /// the acquirer must still be able to READ a source it has no leg for, because the quote arrives
+    /// as return data the vault decodes, and a decode that rejects the value reverts the whole convert
+    /// in the vault's own frame, where the `try`/`catch` around `getQuotes` cannot reach it.
+    function test_fallback_whenSourceIsOffTheMappableFive() public {
+        MockZQuoter.AMM[4] memory unmappable =
+            [MockZQuoter.AMM.CURVE, MockZQuoter.AMM.LIDO, MockZQuoter.AMM.WETH_WRAP, MockZQuoter.AMM.V4_HOOKED];
+
+        for (uint256 i = 0; i < unmappable.length; i++) {
+            router.setV4Out(FIXED_FEE, 100e18);
+            quoter.setBest(unmappable[i], 5, ETH_IN, 200e18); // a REAL route, on a venue we cannot call
+            uint256 got = _callV4(address(quoter), 100e18);
+            assertEq(uint256(router.lastLeg()), uint256(RecordingRouter.Leg.V4), "fixed fallback leg");
+            assertEq(router.lastFee(), FIXED_FEE, "unmappable source -> fixed fallback pool");
+            assertEq(got, 100e18, "the fallback's output, not the unreachable quote's");
+        }
+    }
+
     // ── minOut floor: enforced by the router; a breach on the best route reverts (not swallowed) ─
 
     function test_minOut_enforcedOnBestRoute() public {

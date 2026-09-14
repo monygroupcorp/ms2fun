@@ -61,7 +61,7 @@ contract MasterRegistryResolveNameTest is Test {
         registry = MasterRegistryV1(LibClone.deployERC1967(address(impl)));
         registry.initialize(daoOwner);
 
-        alignmentRegistry = new AlignmentRegistryV1(makeAddr("WETH"));
+        alignmentRegistry = new AlignmentRegistryV1(makeAddr("WETH"), address(0), address(0));
         alignmentRegistry.initialize(daoOwner);
 
         vm.prank(daoOwner);

@@ -234,7 +234,9 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         (uint160 sqrtPriceX96,,,) = StateLibrary.getSlot0(IPoolManager(_poolManager), PoolId.wrap(poolId));
 
         // A V4 alignment pool is native-ETH-paired: ETH = address(0) sorts first, so ETH is ALWAYS
-        // currency0. Pass ethIsCurrency0 = true to preserve the pre-refactor V4 numeraire exactly.
+        // currency0. Pass ethIsCurrency0 = true to preserve the pre-refactor V4 numeraire exactly. This
+        // is the SPOT ordering only — the TWAP cross-check inside the core reads its own ordering off the
+        // V3 pool it queries, which for a token sorting below WETH is not this one.
         return _swapProportionFromSqrtPrice(token, tickLower, tickUpper, sqrtPriceX96, true);
     }
 
@@ -276,16 +278,35 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         // manipulation between the spot and the 30-min TWAP. The clamp is a SEPARATE backstop against
         // absolute mis-sizing (see _applyProportionGuards) — it must apply whether or not a TWAP exists.
         //
-        // The TWAP pool is Uniswap V3 WETH/`token`, ordered by `weth < token`. That is the SAME address
-        // comparison an Algebra caller uses to derive `ethIsCurrency0`, so the caller's flag already
-        // matches the TWAP pool's ordering; for the V4 path the flag is `true`, exactly the pre-refactor
-        // numeraire. Reusing it keeps spot and TWAP proportions on one numeraire without a second read.
-        uint160 twapSqrtPrice = _getTwapSqrtPriceX96(token);
+        // Each proportion is computed on the ordering of the pool it came from. The spot uses the
+        // caller's `ethIsCurrency0`; the TWAP uses the ordering of the V3 WETH/`token` pool the TWAP was
+        // actually read out of, which `_getTwapSqrtPriceX96` returns alongside the price.
+        //
+        // Reusing the caller's flag for both looked sound because an Algebra caller derives its flag from
+        // the same `weth < token` comparison the V3 pool is ordered by. The V4 caller does not: a V4
+        // alignment pool is native-ETH-paired, so its flag is unconditionally `true`, while the V3 pool
+        // it is cross-checked against orders WETH second for any token sorting below WETH. For those
+        // tokens the two proportions were derived on opposite numeraires and were not comparable — on a
+        // bounded range that surfaces either as a spurious `SwapProportionDeviationTooHigh` against an
+        // honest pool, or, when the inverted proportion falls outside the tick range, as `twapValid`
+        // staying false and the deviation guard being skipped altogether.
+        (uint160 twapSqrtPrice, bool twapEthIsCurrency0) = _getTwapSqrtPriceX96(token);
         bool twapValid = false;
         uint256 twapProportion = 0;
         if (twapSqrtPrice != 0) {
+            // A flag is half of an ordering; the range is the other half. `tickLower`/`tickUpper` are
+            // stated in the CALLER's pool, so when the TWAP pool orders the pair the other way round the
+            // range has to be carried across with the price or the two halves describe different
+            // positions. Inverting a price maps tick `t` to `-t`, so the interval becomes
+            // `[-tickUpper, -tickLower]` — exact in tick space, where inverting `sqrtPriceX96` instead
+            // would round. Carrying only the flag leaves the check right on a range symmetric about tick
+            // 0 and wrong on every other: at [0, 13863] with the price a factor of two below the range,
+            // the position is entirely ETH and the proportion is 0, while the un-mapped range reads the
+            // inverted price as sitting mid-range and returns a nonzero one.
+            (int24 twapLower, int24 twapUpper) =
+                twapEthIsCurrency0 == ethIsCurrency0 ? (tickLower, tickUpper) : (-tickUpper, -tickLower);
             (twapValid, twapProportion) =
-                _computeProportionFromSqrtPrice(twapSqrtPrice, ethIsCurrency0, tickLower, tickUpper);
+                _computeProportionFromSqrtPrice(twapSqrtPrice, twapEthIsCurrency0, twapLower, twapUpper);
         }
 
         return _applyProportionGuards(spotProportion, twapValid, twapProportion);
@@ -400,8 +421,15 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     ///      so this can only mean the validator was deployed with a wrong or absent factory address.
     ///      That reverts instead of returning 0: silently degrading every vault behind a misconfigured
     ///      validator to the weaker clamp-only floor is the fail-open this function must not repeat.
-    function _getTwapSqrtPriceX96(address token) private view returns (uint160) {
+    ///
+    ///      Returns the pool's numeraire ordering alongside the price. Every pool this scan can pick is a
+    ///      V3 `weth`/`token` pair, ordered by address, so `weth < token` IS that ordering and it is a
+    ///      property of the pool the price came from — never of the caller's own venue. Returning it here
+    ///      is what keeps a caller from cross-checking its spot against a TWAP on the opposite numeraire;
+    ///      `ethIsCurrency0` is meaningless when the price is 0, and the caller ignores it in that case.
+    function _getTwapSqrtPriceX96(address token) private view returns (uint160, bool ethIsCurrency0) {
         if (v3Factory.code.length == 0) revert PriceValidatorMisconfigured();
+        ethIsCurrency0 = weth < token;
 
         uint24[3] memory feeTiers = [uint24(3000), uint24(500), uint24(10000)];
         uint32[] memory secondsAgos = new uint32[](2);
@@ -422,10 +450,11 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
 
             try IUniswapV3Pool(pool).observe(secondsAgos) returns (int56[] memory tickCumulatives, uint160[] memory) {
                 int56 delta = tickCumulatives[1] - tickCumulatives[0];
-                return TickMath.getSqrtPriceAtTick(_meanTickFromCumulativeDelta(delta, twapSecondsAgo));
+                return
+                    (TickMath.getSqrtPriceAtTick(_meanTickFromCumulativeDelta(delta, twapSecondsAgo)), ethIsCurrency0);
             } catch { }
         }
 
-        return 0;
+        return (0, ethIsCurrency0);
     }
 }

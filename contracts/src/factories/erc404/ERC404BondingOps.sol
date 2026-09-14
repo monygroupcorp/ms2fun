@@ -33,13 +33,14 @@ import {
     TimeMustBeInFuture,
     OpenTimeMustBeSetFirst,
     MaturityMustBeAfterOpenTime,
-    BondingMaturityTooLong,
+    MaturityTooFarAfterOpenTime,
     OpenTimeNotSet,
     CannotActivateAfterLiquidityDeployed,
     StakingAlreadyActive,
     AlreadyDeployed,
     NoReserve,
-    NothingForPool
+    NothingForPool,
+    MAX_BONDING_DURATION
 } from "./ERC404BondingStorage.sol";
 // Interface-only import (no bytecode, no storage): `ICarveParamsSource` is declared alongside the
 // instance because that file is what the app's binding generator globs. See the note there.
@@ -638,9 +639,19 @@ contract ERC404BondingOps is ERC404BondingStorage {
      *      creator would pay them in proportion to how early they cut the sale. `availableCoin` is read
      *      from live balances net of custodial liabilities, never from create-time arithmetic — a
      *      create-time constant ceasing to describe reality is the defect this sizing removes.
+     * @dev THE AGENT CANNOT CHOOSE THE AMOUNT. Graduation is one-shot and this argument is supplied by
+     *      the caller, so an agent calling `deployLiquidity(0)` would forfeit the creator's entire carve
+     *      into the pool with no way back. The request is therefore floored at `declaredMaxAllowanceBps`
+     *      for every caller that is not the owner: an agent takes the full declared carve or it does not
+     *      graduate. Flooring rather than rejecting a zero is what makes it hold — a rejected zero is
+     *      defeated by requesting one bps, which forfeits 99.99% of the carve just as permanently. The
+     *      owner's own path is untouched and still waives down to nothing, which is a choice only the
+     *      party losing the money gets to make. The upper clamp, the split and `creator: owner()` are
+     *      unchanged, so this can only ever move ETH toward the creator.
      * @param carveRequestBps Fraction (bps) of the protocol carve allowance the creator takes NOW, on
      *        the same axis as `declaredMaxAllowanceBps`. Effective carve ETH = min(request,
      *        allowance(raise) × declaredMaxAllowanceBps / 10000, headroom above the pool floor).
+     *        From an agent the request is first raised to `declaredMaxAllowanceBps`.
      */
     // slither-disable-next-line reentrancy-eth,timestamp,reentrancy-events
     function deployLiquidity(uint256 carveRequestBps) external nonReentrant {
@@ -660,7 +671,16 @@ contract ERC404BondingOps is ERC404BondingStorage {
         // `split` plus the carve clamp on the next line — reproduced here rather than called so the
         // clamp can be re-run against the combined carve below.
         uint256 lp = RevenueSplitLib.split(ethToSend).remainder;
-        uint256 carveEth = _effectiveCarve(ethToSend, carveRequestBps);
+        // Floor an agent's request at the creator's declared allowance (see THE AGENT CANNOT CHOOSE THE
+        // AMOUNT above). `_requireOwnerOrAgent` has already run, so a caller that is not the owner is an
+        // agent; `msg.sender` survives the instance trampoline's delegatecall, so this reads the caller
+        // the gate itself read.
+        uint256 carveBps = carveRequestBps;
+        if (msg.sender != owner()) {
+            uint256 declaredBps = declaredMaxAllowanceBps;
+            if (carveBps < declaredBps) carveBps = declaredBps;
+        }
+        uint256 carveEth = _effectiveCarve(ethToSend, carveBps);
         if (carveEth > lp) carveEth = lp;
 
         (uint256 tokensForPool, uint256 ethForPool) = _sizePoolAtCurvePrice(lp - carveEth);
@@ -959,37 +979,31 @@ contract ERC404BondingOps is ERC404BondingStorage {
         emit BondingOpenTimeSet(timestamp);
     }
 
-    /// @notice Longest bonding window this instance will record, measured from `bondingOpenTime`.
-    /// @dev An ABSOLUTE ceiling, deliberately generous. `setBondingMaturityTime` is owner-or-agent
-    ///      and was otherwise bounded only from below, so the creator (or their agent) could write
-    ///      any timestamp the word holds. A year is far past any bonding window anyone has proposed
-    ///      and comfortably past the deploy bond's own default patience (`DeployBondEscrow`:
-    ///      180-day `maxBondDuration` + 30 `graceDays`), so this refuses nonsense without cramping
-    ///      a long honest raise. It is a constant rather than a read of the escrow's parameters
-    ///      because the instance holds no reference to the escrow and is EIP-170 constrained; the
-    ///      escrow's own deadline does not depend on this value (see below).
-    uint256 internal constant MAX_BONDING_MATURITY = 365 days;
-
-    /// @dev WHY THE CEILING IS HERE AND NOT ONLY IN THE ESCROW. This setter once reached real money:
-    ///      `DeployBondEscrow.forfeit` anchored its deadline on `max(bondingMaturityTime, hardCap)`,
-    ///      so a creator could set maturity to the year 3000 and make the forfeit of their own
-    ///      escrowed bond unreachable forever. That path was closed at the escrow on 2026-09-04 by
-    ///      fixing the deadline at the terms the bond was posted under, and `forfeit` no longer
-    ///      reads this value at all.
+    /// @dev Bounded on BOTH sides. The lower bound alone let an owner-or-agent park maturity
+    ///      arbitrarily far out; `MAX_BONDING_DURATION` closes that, capping the bonding period at
+    ///      the protocol's own outer horizon for a creator bond (see the constant's derivation in
+    ///      `ERC404BondingStorage`). The cap is measured from `bondingOpenTime`, not from `now`, so
+    ///      the legal window is the same regardless of when within the pre-open period it is set.
     ///
-    ///      The ceiling is still owed. What the escrow fix removed was one consumer; what it did not
-    ///      remove is an owner-or-agent setter that accepts any `uint256`, on a field every other
-    ///      consumer — the app's bonding-phase logic today, anything on chain tomorrow — reads as a
-    ///      real date. A bound at the writer is what makes that safe for readers that do not exist
-    ///      yet, which matters because the deploy bond ships at 0 as an owner-tunable lever and
-    ///      turning it on is a one-line call.
+    ///      WHY THE CEILING IS OWED HERE AND NOT ONLY IN THE ESCROW. This setter once reached real
+    ///      money: `DeployBondEscrow.forfeit` anchored its deadline on
+    ///      `max(bondingMaturityTime, hardCap)`, so a creator could set maturity to the year 3000 and
+    ///      make the forfeit of their own escrowed bond unreachable forever. That path was closed at
+    ///      the escrow on 2026-09-04 by fixing the deadline at the terms the bond was posted under,
+    ///      and `forfeit` no longer reads this value at all.
+    ///
+    ///      What that fix removed was one consumer; what it did not remove is an owner-or-agent
+    ///      setter accepting any `uint256` on a field every other consumer — the app's bonding-phase
+    ///      logic today, anything on chain tomorrow — reads as a real date. A bound at the writer is
+    ///      what makes that safe for readers that do not exist yet, which matters because the deploy
+    ///      bond ships at 0 as an owner-tunable lever and turning it on is a one-line call.
     // slither-disable-next-line timestamp
     function setBondingMaturityTime(uint256 timestamp) external {
         _requireOwnerOrAgent();
         if (timestamp <= block.timestamp) revert TimeMustBeInFuture();
         if (bondingOpenTime == 0) revert OpenTimeMustBeSetFirst();
         if (timestamp <= bondingOpenTime) revert MaturityMustBeAfterOpenTime();
-        if (timestamp - bondingOpenTime > MAX_BONDING_MATURITY) revert BondingMaturityTooLong();
+        if (timestamp - bondingOpenTime > MAX_BONDING_DURATION) revert MaturityTooFarAfterOpenTime();
         bondingMaturityTime = timestamp;
         emit BondingMaturityTimeSet(timestamp);
     }

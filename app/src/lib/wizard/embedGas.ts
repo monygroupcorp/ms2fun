@@ -11,7 +11,11 @@
 
 export const SSTORE_PER_WORD = 22_100
 export const CALLDATA_PER_BYTE = 16
-/** Reference gas price for the ETH readout. Not a promise — just a "what this'd cost" anchor. */
+/**
+ * Fallback gas price for the ETH readouts, in gwei. Used ONLY when the chain cannot be asked for a
+ * fee — every readout that reaches a user names it as a reference when it is what priced the figure.
+ * It is not an anchor to show by default: gas is measured, so the price beside it is read too.
+ */
 export const REF_GWEI = 15
 
 /** UTF-8 byte length — what actually lands on-chain, not `String.length` (which counts UTF-16 units). */
@@ -28,7 +32,15 @@ export const humanBytes = (n: number): string =>
 export const humanGas = (g: number): string =>
   g >= 1_000_000 ? `${(g / 1_000_000).toFixed(1)}M gas` : `${Math.round(g / 1000)}k gas`
 
-export function humanEth(gas: number): string {
-  const eth = (gas * REF_GWEI) / 1e9
+/**
+ * Price a gas figure in ETH at `gwei`. The price is a required argument on purpose: a default here
+ * is how a constant ends up rendered as if it were read off the chain.
+ */
+export function humanEth(gas: number, gwei: number): string {
+  const eth = (gas * gwei) / 1e9
   return eth >= 0.001 ? `~${eth.toFixed(3)} ETH` : '<0.001 ETH'
 }
+
+/** A gwei price as a user reads it: whole numbers bare, sub-gwei fees to enough digits to differ. */
+export const humanGwei = (gwei: number): string =>
+  gwei >= 10 ? gwei.toFixed(0) : gwei >= 1 ? gwei.toFixed(1) : gwei > 0 ? gwei.toFixed(3) : '0'
