@@ -152,10 +152,19 @@ contract MockMasterRegistry is IMasterRegistry {
         return address(0);
     }
 
-    // No-op alignment registry getter so this shared mock still satisfies IMasterRegistry after the
-    // interface gained `alignmentRegistry()` (noesis-058). Vault-execute auth tests use a dedicated mock.
+    // Alignment registry, address(0) until a test wires one. The zero default is what every historic
+    // caller of this mock expects (noesis-058 added the getter as a no-op); a suite that drives a real
+    // alignment vault through this registry — the vault resolves its community sink through
+    // `alignmentRegistry().getCommunityPayout()` on every send — sets one here.
+    IAlignmentRegistry private _alignmentRegistry;
+
+    /// @dev TEST HELPER: wire the alignment registry this mock reports.
+    function setAlignmentRegistry(address registry) external {
+        _alignmentRegistry = IAlignmentRegistry(registry);
+    }
+
     function alignmentRegistry() external view override returns (IAlignmentRegistry) {
-        return IAlignmentRegistry(address(0));
+        return _alignmentRegistry;
     }
 
     // Settable ComponentRegistry (default address(0) preserves the historic no-op behavior other suites
