@@ -21,6 +21,34 @@ contract ApplyLaunchPresetsHarness is ApplyLaunchPresets {
     }
 }
 
+/// @dev Keeps the script's OWN `_launchManager` — the precedence, the zero check and the code check
+///      are all the production ones. Only the two inputs it reads are supplied here: the record that
+///      would come off disk, and the override that would come out of the process environment.
+contract ApplyLaunchPresetsResolutionHarness is ApplyLaunchPresets {
+    string private record;
+    address private override_;
+
+    function setRecord(string memory record_) external {
+        record = record_;
+    }
+
+    function setOverride(address override__) external {
+        override_ = override__;
+    }
+
+    function resolve() external view returns (address) {
+        return _launchManager();
+    }
+
+    function _deploymentJson() internal view override returns (string memory) {
+        return record;
+    }
+
+    function _envLaunchManager() internal view override returns (address) {
+        return override_;
+    }
+}
+
 /// @notice The ladder a chain carries is not the ladder the repo ships until somebody calls
 ///         `setPreset`, and this is what makes that call repeatable rather than hand-typed.
 ///
@@ -135,5 +163,78 @@ contract ApplyLaunchPresetsTest is Test {
 
         vm.expectRevert(LaunchManager.PresetNotActive.selector);
         script.run();
+    }
+}
+
+/// @notice Where the script gets its LaunchManager from. Shipped, it resolved only through
+///         `deployments/sepolia.json`, and that path is empty for the one deployment this script was
+///         written for: Sepolia's live protocol dates from March, its record was superseded into
+///         `deployments/superseded/`, and the CREATE3 salt set that produced those addresses is
+///         spent — no future run writes that file for the contracts live there now. So the script
+///         reverted on `readFile` before reading a rung, and the ladder could not be applied at all.
+///
+///         Vacuity check (vacuity-check): drop the override branch from `_launchManager` and
+///         `test_overrideResolvesWithoutARecord` fails on the unparseable record instead; drop
+///         either `require` and the matching case below stops reverting.
+contract ApplyLaunchPresetsResolutionTest is Test {
+    address constant OWNER = address(0xAA11CE);
+
+    ApplyLaunchPresetsResolutionHarness internal script;
+    LaunchManager internal fromOverride;
+    LaunchManager internal fromRecord;
+
+    function setUp() public {
+        script = new ApplyLaunchPresetsResolutionHarness();
+        fromOverride = new LaunchManager(OWNER);
+        fromRecord = new LaunchManager(OWNER);
+    }
+
+    function _record(address addr) internal pure returns (string memory) {
+        return string.concat('{"contracts":{"LaunchManager":"', vm.toString(addr), '"}}');
+    }
+
+    /// @dev The case in hand: no record on disk at all. The stub returns the empty string, which is
+    ///      what `parseJsonAddress` is handed when the file is missing — so resolution reaching the
+    ///      record at all reverts here rather than reading green.
+    function test_overrideResolvesWithoutARecord() public {
+        script.setRecord("");
+        script.setOverride(address(fromOverride));
+
+        assertEq(script.resolve(), address(fromOverride), "the override names the target");
+    }
+
+    /// @dev A freshly deployed chain needs no override: the record its own deploy run wrote is the
+    ///      zero-config path, and it must keep working.
+    function test_recordIsTheFallbackWhenNoOverrideIsGiven() public {
+        script.setRecord(_record(address(fromRecord)));
+
+        assertEq(script.resolve(), address(fromRecord), "the record supplies the target");
+    }
+
+    /// @dev An operator pointing at one chain while a record for another sits on disk gets the chain
+    ///      they typed. Precedence has to be stated, because both sources can be present at once.
+    function test_overrideWinsOverTheRecord() public {
+        script.setRecord(_record(address(fromRecord)));
+        script.setOverride(address(fromOverride));
+
+        assertEq(script.resolve(), address(fromOverride), "the override outranks the record");
+    }
+
+    /// @dev Both paths owe the same code check. An address carrying no code on the RPC in hand is an
+    ///      address from another chain, and a run against it would broadcast owner calls into
+    ///      nothing — so it stops here rather than reporting rungs rewritten.
+    function test_overridePointingAtACodelessAddressStopsTheRun() public {
+        script.setRecord(_record(address(fromRecord)));
+        script.setOverride(address(0xD00D));
+
+        vm.expectRevert(bytes("LaunchManager: no code at the resolved address"));
+        script.resolve();
+    }
+
+    function test_recordHoldingTheZeroAddressStopsTheRun() public {
+        script.setRecord(_record(address(0)));
+
+        vm.expectRevert(bytes("LaunchManager: deployment record holds the zero address"));
+        script.resolve();
     }
 }

@@ -8,8 +8,13 @@ import { LaunchPresets } from "./LaunchPresets.sol";
 /// @notice Bring a deployed `LaunchManager`'s preset ladder up to the one this repo ships.
 ///
 ///         Run with:
-///         forge script script/ApplyLaunchPresets.s.sol --rpc-url sepolia \
+///         LAUNCH_MANAGER=<address> forge script script/ApplyLaunchPresets.s.sol --rpc-url sepolia \
 ///             --account <keystore> --broadcast
+///
+///         `LAUNCH_MANAGER` may be omitted on a chain whose deploy run left a record at
+///         `deployments/sepolia.json`; see `_launchManager` for why the live Sepolia protocol is
+///         not such a chain. Drop `--broadcast` to read the chain and print the drift without
+///         sending anything — the run is read-only until a rung actually differs.
 ///
 ///         ── WHY THIS EXISTS AS A SCRIPT AND NOT AS THREE `cast send` CALLS ──
 ///
@@ -67,11 +72,44 @@ contract ApplyLaunchPresets is Script {
         console.log("rungs rewritten:", changed);
     }
 
-    /// @dev Overridden in the test, which stands a LaunchManager up in memory rather than reading a
-    ///      record off disk. Production behaviour is the default.
+    /// @dev Which LaunchManager to bring up to the ladder. `LAUNCH_MANAGER` wins over the record,
+    ///      and it has to, because the chain that needs this script most is the one with no record:
+    ///      a deployment record is a BROADCAST artifact written by the deploy run itself, so it
+    ///      describes the deployment that wrote it and no other. Sepolia's live protocol was
+    ///      deployed in March, its record was superseded and moved aside as history, and the salt
+    ///      set that produced it is spent — there will never be a run that writes
+    ///      `deployments/sepolia.json` for the contracts that are live there now. Resolving only
+    ///      through the record therefore fails on `readFile` before it reads a single rung, and the
+    ///      alternative is hand-writing a record for a deployment nothing else on disk describes.
+    ///      `LAUNCH_MANAGER` is the same env var `MigrateOwnership` already takes for this contract.
+    ///
+    ///      The record stays the fallback so a freshly deployed chain needs no env var at all, and
+    ///      both paths are held to the same two checks: an address that is zero, or that carries no
+    ///      code on the RPC in hand, is a pointer at the wrong chain and must stop the run.
     function _launchManager() internal view virtual returns (address addr) {
-        addr = vm.parseJsonAddress(vm.readFile(DEPLOYMENT_PATH), ".contracts.LaunchManager");
-        require(addr != address(0), "LaunchManager: deployment record holds the zero address");
-        require(addr.code.length > 0, "LaunchManager: no code at the address in the deployment record");
+        addr = _envLaunchManager();
+        if (addr != address(0)) {
+            console.log("LaunchManager source: LAUNCH_MANAGER");
+        } else {
+            console.log("LaunchManager source:", DEPLOYMENT_PATH);
+            addr = vm.parseJsonAddress(_deploymentJson(), ".contracts.LaunchManager");
+            require(addr != address(0), "LaunchManager: deployment record holds the zero address");
+        }
+        require(addr.code.length > 0, "LaunchManager: no code at the resolved address");
+    }
+
+    /// @dev Overridden in the test, which supplies a record in memory rather than reading one off
+    ///      disk. Production behaviour is the default. Mirrors the seam in `ValidateSepolia`.
+    function _deploymentJson() internal view virtual returns (string memory) {
+        return vm.readFile(DEPLOYMENT_PATH);
+    }
+
+    /// @dev The override as the operator supplies it, `address(0)` when unset. Its own seam because
+    ///      the process environment is global to a forge run and test cases execute concurrently, so
+    ///      a test that sets `LAUNCH_MANAGER` to exercise precedence races every other test reading
+    ///      it. Overriding here lets the precedence in `_launchManager` — which is where the
+    ///      decisions are — be tested deterministically; what is left below is the builtin read.
+    function _envLaunchManager() internal view virtual returns (address) {
+        return vm.envOr("LAUNCH_MANAGER", address(0));
     }
 }
