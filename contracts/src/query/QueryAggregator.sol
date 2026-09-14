@@ -28,6 +28,11 @@ interface IERC404Balance {
     function balanceOf(address account) external view returns (uint256);
     /// @notice Token units that represent one whole NFT (the ERC404 divisor)
     function unit() external view returns (uint256);
+    /// @notice A holder's coin across every tier band: the free balance plus the extra denomination
+    ///         carried by each banded id they own. Never less than `balanceOf`.
+    function coinBalanceOf(address holder) external view returns (uint256);
+    /// @notice Coin the burn-safety hook has released to `holder` and that is waiting to be pulled.
+    function pendingEscrowRelease(address holder) external view returns (uint256);
 }
 
 /// @notice Interface for ERC1155 balance queries
@@ -195,6 +200,13 @@ contract QueryAggregator is SafeOwnableUUPS {
         uint256 nftBalance;
         uint256 stakedBalance;
         uint256 pendingRewards;
+        /// @dev Coin the holder owns across every tier band, including the denomination locked inside
+        ///      banded ids that `tokenBalance` does not count. Equal to `tokenBalance` on an untiered
+        ///      instance; strictly greater once the holder owns a banded id.
+        uint256 coinBalance;
+        /// @dev Coin already released to the holder by the burn-safety hook and waiting on their pull.
+        ///      It has left `coinBalance`, so the two never double-count the same coin.
+        uint256 pendingEscrowRelease;
     }
 
     /// @notice ERC1155 edition holdings for a user
@@ -457,7 +469,16 @@ contract QueryAggregator is SafeOwnableUUPS {
             try this.readInstanceInfo(instance) returns (IMasterRegistry.InstanceInfo memory info) {
                 if (typeHash == TYPE_ERC404) {
                     ERC404Holding memory holding = _getERC404Holding(instance, user, info.name);
-                    if (holding.tokenBalance > 0 || holding.stakedBalance > 0) {
+                    // A holding is anything the user owns here, and since noesis-316 that includes coin
+                    // they cannot transfer. `tokenBalance` alone is the wrong test: DN404 burns the band
+                    // NFT the moment a debit takes the holder below its unit, so a holder whose whole
+                    // position is released escrow reads balanceOf == 0 while the instance still owes them
+                    // `pendingEscrowRelease` — under the old test their row was dropped and the lens
+                    // showed them nothing at all. Both new terms are ORed in so that row survives.
+                    if (
+                        holding.tokenBalance > 0 || holding.stakedBalance > 0 || holding.coinBalance > 0
+                            || holding.pendingEscrowRelease > 0
+                    ) {
                         acc.tempERC404[acc.erc404Count++] = holding;
                         acc.totalClaimable += holding.pendingRewards;
                     }
@@ -834,6 +855,16 @@ contract QueryAggregator is SafeOwnableUUPS {
         return IERC404Balance(instance).unit();
     }
 
+    /// @notice Guarded read of a holder's coin across every tier band. Not for direct use.
+    function readErc404CoinBalance(address instance, address user) external view returns (uint256) {
+        return IERC404Balance(instance).coinBalanceOf(user);
+    }
+
+    /// @notice Guarded read of a holder's unclaimed released escrow. Not for direct use.
+    function readErc404PendingEscrowRelease(address instance, address user) external view returns (uint256) {
+        return IERC404Balance(instance).pendingEscrowRelease(user);
+    }
+
     /// @notice Guarded read of the staking singleton an ERC404 instance is wired to. Not for direct use.
     function readStakingModule(address instance) external view returns (address) {
         return IERC404StakingHost(instance).stakingModule();
@@ -1023,6 +1054,21 @@ contract QueryAggregator is SafeOwnableUUPS {
                     holding.nftBalance = balance / unit_; // round down: standard integer NFT count
                 }
             } catch { }
+        } catch { }
+
+        // Escrowed coin (noesis-316 option A). Two more guarded siblings rather than arithmetic on
+        // `tokenBalance`: the band denomination lives in the instance's own band walk, and a lens that
+        // re-derived it would be a second implementation free to disagree with the escrow accounting.
+        // `tokenBalance` is deliberately left as the plain `balanceOf` it has always been, so a caller
+        // reading only the old fields sees exactly the numbers it saw before. An instance with no ladder
+        // sealed answers `coinBalanceOf` with its plain balance, and a pre-noesis-316 instance that has
+        // neither symbol leaves both at zero rather than failing the batch.
+        try this.readErc404CoinBalance(instance, user) returns (uint256 coin) {
+            holding.coinBalance = coin;
+        } catch { }
+
+        try this.readErc404PendingEscrowRelease(instance, user) returns (uint256 pending) {
+            holding.pendingEscrowRelease = pending;
         } catch { }
 
         // Get staking info. Staking state lives in the `ERC404StakingModule` singleton keyed by

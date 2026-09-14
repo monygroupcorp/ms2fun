@@ -9798,6 +9798,20 @@ export const ierc404BalanceAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'holder', internalType: 'address', type: 'address' }],
+    name: 'coinBalanceOf',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'holder', internalType: 'address', type: 'address' }],
+    name: 'pendingEscrowRelease',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'unit',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
@@ -13316,6 +13330,12 @@ export const queryAggregatorAbi = [
           { name: 'nftBalance', internalType: 'uint256', type: 'uint256' },
           { name: 'stakedBalance', internalType: 'uint256', type: 'uint256' },
           { name: 'pendingRewards', internalType: 'uint256', type: 'uint256' },
+          { name: 'coinBalance', internalType: 'uint256', type: 'uint256' },
+          {
+            name: 'pendingEscrowRelease',
+            internalType: 'uint256',
+            type: 'uint256',
+          },
         ],
       },
       {
@@ -13520,6 +13540,26 @@ export const queryAggregatorAbi = [
       { name: 'user', internalType: 'address', type: 'address' },
     ],
     name: 'readErc404Balance',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'user', internalType: 'address', type: 'address' },
+    ],
+    name: 'readErc404CoinBalance',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'user', internalType: 'address', type: 'address' },
+    ],
+    name: 'readErc404PendingEscrowRelease',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
@@ -25124,6 +25164,24 @@ export const useReadIerc404BalanceBalanceOf =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc404BalanceAbi}__ and `functionName` set to `"coinBalanceOf"`
+ */
+export const useReadIerc404BalanceCoinBalanceOf =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc404BalanceAbi,
+    functionName: 'coinBalanceOf',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc404BalanceAbi}__ and `functionName` set to `"pendingEscrowRelease"`
+ */
+export const useReadIerc404BalancePendingEscrowRelease =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc404BalanceAbi,
+    functionName: 'pendingEscrowRelease',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc404BalanceAbi}__ and `functionName` set to `"unit"`
  */
 export const useReadIerc404BalanceUnit = /*#__PURE__*/ createUseReadContract({
@@ -28732,6 +28790,24 @@ export const useReadQueryAggregatorReadErc404Balance =
   /*#__PURE__*/ createUseReadContract({
     abi: queryAggregatorAbi,
     functionName: 'readErc404Balance',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readErc404CoinBalance"`
+ */
+export const useReadQueryAggregatorReadErc404CoinBalance =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readErc404CoinBalance',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readErc404PendingEscrowRelease"`
+ */
+export const useReadQueryAggregatorReadErc404PendingEscrowRelease =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readErc404PendingEscrowRelease',
   })
 
 /**
