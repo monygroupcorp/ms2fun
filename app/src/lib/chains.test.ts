@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SUPPORTED_CHAINS, anvilFork, anvilRpcFor } from './chains'
+import { ANVIL_PORT, SUPPORTED_CHAINS, anvilFork, anvilRpcFor } from './chains'
 
 // The chain's declared rpc is what a WALLET is handed (`wallet_addEthereumChain`,
 // `WrongNetworkBanner`'s manual fallback). The wallet cannot use the dev server's same-origin
@@ -28,9 +28,14 @@ describe('anvilRpcFor', () => {
     expect(anvilRpcFor('', 8545)).toBe('http://localhost:8545')
   })
 
-  // Unset ANVIL_PORT is the historical :8545 loop, which is what the test run itself builds with.
-  it('defaults to the port vite inlined, which is 8545 with ANVIL_PORT unset', () => {
-    expect(anvilRpcFor('localhost')).toBe('http://localhost:8545')
+  // The no-arg call takes the port vite inlined from ANVIL_PORT, so it moves with the shell that
+  // started the run — and `scripts/dev-chain/README.md` prescribes exactly that export
+  // (`ANVIL_PORT=8600 pnpm ...`). A literal `:8545` here was therefore red on a correct tree
+  // whenever the channel was moved: the suite asserted the caller's shell, not the code. Pin the
+  // wiring instead — the default argument IS the inlined port — and pin what that port resolves to
+  // when ANVIL_PORT is unset where that is decided, in `scripts/dev-chain/anvil-port.test.ts`.
+  it('defaults to the port vite inlined from ANVIL_PORT', () => {
+    expect(anvilRpcFor('localhost')).toBe(`http://localhost:${ANVIL_PORT}`)
   })
 })
 

@@ -20,13 +20,15 @@ pnpm chain:deploy
 ### Running this channel on another port
 
 `ANVIL_PORT` moves the whole mainnet channel. Export it once and `chain:fork`, `chain:deploy`,
-`chain:check`, `chain:stop`, the dev server's `/__rpc/mainnet` proxy and the local chain's declared
-rpc — the one a wallet is asked to add — all follow it; no file is edited to run a second channel:
+`chain:check`, `chain:stop`, the dev server's `/__rpc/mainnet` proxy, the local chain's declared
+rpc — the one a wallet is asked to add — and the `@fork` e2e suite's injected wallet
+(`e2e/fixtures/anvilWallet.ts`) all follow it; no file is edited to run a second channel:
 
 ```bash
 ANVIL_PORT=8600 pnpm chain:fork     # terminal 1
 ANVIL_PORT=8600 pnpm chain:deploy   # terminal 2
 ANVIL_PORT=8600 pnpm dev            # the proxy target is read at dev-server startup
+ANVIL_PORT=8600 pnpm test:e2e       # same export, or the wallet signs on a different fork
 ```
 
 Unset, every path is the `:8545` loop exactly as documented above. A value that is not a port

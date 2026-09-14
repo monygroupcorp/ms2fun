@@ -17,7 +17,8 @@ import { mainnet, sepolia } from 'wagmi/chains'
 // the proxy target it is read at config time, so a changed `ANVIL_PORT` needs a dev-server
 // restart. The fallback covers a toolchain that compiles this module without our vite config.
 declare const __ANVIL_PORT__: number
-const ANVIL_PORT = typeof __ANVIL_PORT__ === 'number' ? __ANVIL_PORT__ : 8545
+/** The port this build was compiled against. Exported for the test; callers want {@link anvilFork}. */
+export const ANVIL_PORT: number = typeof __ANVIL_PORT__ === 'number' ? __ANVIL_PORT__ : 8545
 
 /**
  * The chain's DECLARED rpc — this is what a WALLET is told to add/switch to
