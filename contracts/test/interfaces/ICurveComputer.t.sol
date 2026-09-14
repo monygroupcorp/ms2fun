@@ -16,6 +16,12 @@ contract MockCurveComputer is ICurveComputer {
             kCoeff: targetETH / nftCount, poleWad: 1.0438e18, normalizationFactor: unitPerNFT * 1e7
         });
     }
+
+    /// @dev This mock solves nothing, so every arithmetically-valid reserve is serviceable for it.
+    ///      The real band belongs to `CurveParamsComputer` and is tested there and in `LaunchManager`.
+    function supportsReserveBps(uint256 liquidityReserveBps) external pure override returns (bool) {
+        return liquidityReserveBps != 0 && liquidityReserveBps < 10000;
+    }
 }
 
 contract ICurveComputerTest is Test {

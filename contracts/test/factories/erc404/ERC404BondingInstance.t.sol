@@ -200,6 +200,85 @@ contract ERC404BondingInstanceTest is Test {
         vm.stopPrank();
     }
 
+    // ── The bonding-maturity ceiling ────────────────────────────────────────────────────────────
+    //
+    // `setBondingMaturityTime` is owner-or-agent and was bounded only from below, so any timestamp a
+    // `uint256` holds could be written to a field consumers read as a real date. The ceiling is one
+    // year past `bondingOpenTime`.
+
+    function test_SetBondingMaturityTime_AcceptsUpToOneYearPastOpen() public {
+        vm.startPrank(owner);
+        uint256 openTime = block.timestamp + 1 days;
+        instance.setBondingOpenTime(openTime);
+
+        instance.setBondingMaturityTime(openTime + 365 days); // exactly the ceiling
+        assertEq(instance.bondingMaturityTime(), openTime + 365 days);
+
+        instance.setBondingMaturityTime(openTime + 30 days); // and anything under it
+        assertEq(instance.bondingMaturityTime(), openTime + 30 days);
+        vm.stopPrank();
+    }
+
+    /// @dev The config trampolines discard Ops' returndata and re-revert with one generic error per
+    ///      entry point (noesis-149), so the SPECIFIC error is not observable from out here. What
+    ///      pins the ceiling is the boundary instead: the call above at exactly `openTime + 365 days`
+    ///      succeeds and the first call below is that same call one second later. Nothing else about
+    ///      them differs, so only the ceiling can be what separates them.
+    function test_SetBondingMaturityTime_RevertIfBeyondCeiling() public {
+        vm.startPrank(owner);
+        uint256 openTime = block.timestamp + 1 days;
+        instance.setBondingOpenTime(openTime);
+
+        vm.expectRevert(abi.encodeWithSignature("SetBondingMaturityTimeFailed()"));
+        instance.setBondingMaturityTime(openTime + 365 days + 1);
+
+        // And the shape the finding actually named — a maturity nobody will live to see.
+        vm.expectRevert(abi.encodeWithSignature("SetBondingMaturityTimeFailed()"));
+        instance.setBondingMaturityTime(openTime + 365_000 days);
+
+        vm.expectRevert(abi.encodeWithSignature("SetBondingMaturityTimeFailed()"));
+        instance.setBondingMaturityTime(type(uint256).max);
+
+        // Nothing was written by any of them.
+        assertEq(instance.bondingMaturityTime(), 0, "a refused maturity is not stored");
+        vm.stopPrank();
+    }
+
+    /// @dev The ceiling is measured from `bondingOpenTime`, not from `block.timestamp` — a window is
+    ///      a length, so pushing the open time out moves the ceiling with it rather than eating it.
+    function test_SetBondingMaturityTime_CeilingMeasuredFromOpenTimeNotNow() public {
+        vm.startPrank(owner);
+        uint256 openTime = block.timestamp + 300 days;
+        instance.setBondingOpenTime(openTime);
+
+        // 600 days from now, and well over a year — but inside a one-year window from open.
+        instance.setBondingMaturityTime(openTime + 300 days);
+        assertEq(instance.bondingMaturityTime(), openTime + 300 days);
+        vm.stopPrank();
+    }
+
+    /// @dev The three lower bounds still refuse what they always refused — adding a ceiling did not
+    ///      reorder or swallow them. (Same trampoline flattening as above; each is a refusal, and
+    ///      the paired accepting case for all three is `test_SetBondingMaturityTime_Accepts...`.)
+    function test_SetBondingMaturityTime_LowerBoundsUnchanged() public {
+        vm.startPrank(owner);
+        // open time not set yet
+        vm.expectRevert(abi.encodeWithSignature("SetBondingMaturityTimeFailed()"));
+        instance.setBondingMaturityTime(block.timestamp + 10 days);
+
+        uint256 openTime = block.timestamp + 1 days;
+        instance.setBondingOpenTime(openTime);
+
+        // not in the future
+        vm.expectRevert(abi.encodeWithSignature("SetBondingMaturityTimeFailed()"));
+        instance.setBondingMaturityTime(block.timestamp);
+
+        // not after the open time
+        vm.expectRevert(abi.encodeWithSignature("SetBondingMaturityTimeFailed()"));
+        instance.setBondingMaturityTime(openTime);
+        vm.stopPrank();
+    }
+
     function test_SetBondingActive() public {
         vm.startPrank(owner);
         uint256 futureTime = block.timestamp + 1 days;

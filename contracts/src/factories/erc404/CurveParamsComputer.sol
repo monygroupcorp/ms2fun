@@ -113,6 +113,30 @@ contract CurveParamsComputer is Ownable, ICurveComputer {
     }
 
     /**
+     * @notice Whether a curve can be solved at this LP reserve at all — the admissible-band test
+     * @dev Derived, never typed. `solvePole` refuses a parity target outside the multiples the pole
+     *      band reaches, so the set of serviceable reserves is exactly
+     *      `G(MAX_POLE_WAD) <= targetGraduationMultiple(bps) <= G(MIN_POLE_WAD)`. Measured, that is
+     *      592..3567 bps at today's constants — but the number is NOT written here, because moving
+     *      `MIN_POLE_WAD`, `MAX_POLE_WAD` or `LP_SHARE_WAD` moves the band, and a hardcoded copy
+     *      would go quietly wrong at exactly that moment.
+     *
+     *      `LaunchManager.setPreset` asks this before storing a preset. Total, by construction: the
+     *      degenerate reserves are rejected by the first line rather than reaching the division, so
+     *      there is no input for which this reverts instead of answering.
+     * @param liquidityReserveBps Bps of total supply reserved for liquidity
+     * @return supported True if `computeCurveParams` can solve at this reserve
+     */
+    function supportsReserveBps(uint256 liquidityReserveBps) external view returns (bool supported) {
+        // `targetGraduationMultiple` divides by the reserve and reads `10000 - bps`; both endpoints
+        // are meaningless as a reserve anyway (all supply to the curve / none of it).
+        if (liquidityReserveBps == 0 || liquidityReserveBps >= 10000) return false;
+
+        uint256 targetG = targetGraduationMultiple(liquidityReserveBps);
+        return targetG <= graduationMultipleAt(MIN_POLE_WAD) && targetG >= graduationMultipleAt(MAX_POLE_WAD);
+    }
+
+    /**
      * @notice Graduation multiple achieved by a pole, in closed form
      * @dev With `eps = poleWad - 1e18` and `R = poleWad / eps` (the last/first price ratio),
      *      `G = (R - 1) / ln R`. Strictly decreasing in `poleWad` over the band.

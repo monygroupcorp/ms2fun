@@ -33,6 +33,7 @@ import {
     TimeMustBeInFuture,
     OpenTimeMustBeSetFirst,
     MaturityMustBeAfterOpenTime,
+    BondingMaturityTooLong,
     OpenTimeNotSet,
     CannotActivateAfterLiquidityDeployed,
     StakingAlreadyActive,
@@ -958,12 +959,37 @@ contract ERC404BondingOps is ERC404BondingStorage {
         emit BondingOpenTimeSet(timestamp);
     }
 
+    /// @notice Longest bonding window this instance will record, measured from `bondingOpenTime`.
+    /// @dev An ABSOLUTE ceiling, deliberately generous. `setBondingMaturityTime` is owner-or-agent
+    ///      and was otherwise bounded only from below, so the creator (or their agent) could write
+    ///      any timestamp the word holds. A year is far past any bonding window anyone has proposed
+    ///      and comfortably past the deploy bond's own default patience (`DeployBondEscrow`:
+    ///      180-day `maxBondDuration` + 30 `graceDays`), so this refuses nonsense without cramping
+    ///      a long honest raise. It is a constant rather than a read of the escrow's parameters
+    ///      because the instance holds no reference to the escrow and is EIP-170 constrained; the
+    ///      escrow's own deadline does not depend on this value (see below).
+    uint256 internal constant MAX_BONDING_MATURITY = 365 days;
+
+    /// @dev WHY THE CEILING IS HERE AND NOT ONLY IN THE ESCROW. This setter once reached real money:
+    ///      `DeployBondEscrow.forfeit` anchored its deadline on `max(bondingMaturityTime, hardCap)`,
+    ///      so a creator could set maturity to the year 3000 and make the forfeit of their own
+    ///      escrowed bond unreachable forever. That path was closed at the escrow on 2026-09-04 by
+    ///      fixing the deadline at the terms the bond was posted under, and `forfeit` no longer
+    ///      reads this value at all.
+    ///
+    ///      The ceiling is still owed. What the escrow fix removed was one consumer; what it did not
+    ///      remove is an owner-or-agent setter that accepts any `uint256`, on a field every other
+    ///      consumer — the app's bonding-phase logic today, anything on chain tomorrow — reads as a
+    ///      real date. A bound at the writer is what makes that safe for readers that do not exist
+    ///      yet, which matters because the deploy bond ships at 0 as an owner-tunable lever and
+    ///      turning it on is a one-line call.
     // slither-disable-next-line timestamp
     function setBondingMaturityTime(uint256 timestamp) external {
         _requireOwnerOrAgent();
         if (timestamp <= block.timestamp) revert TimeMustBeInFuture();
         if (bondingOpenTime == 0) revert OpenTimeMustBeSetFirst();
         if (timestamp <= bondingOpenTime) revert MaturityMustBeAfterOpenTime();
+        if (timestamp - bondingOpenTime > MAX_BONDING_MATURITY) revert BondingMaturityTooLong();
         bondingMaturityTime = timestamp;
         emit BondingMaturityTimeSet(timestamp);
     }

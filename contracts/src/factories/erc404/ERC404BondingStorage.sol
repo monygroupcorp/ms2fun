@@ -99,6 +99,7 @@ error ModuleAlreadySet();
 error TimeMustBeInFuture();
 error OpenTimeMustBeSetFirst();
 error MaturityMustBeAfterOpenTime();
+error BondingMaturityTooLong();
 error OpenTimeNotSet();
 error CannotActivateAfterLiquidityDeployed();
 error StakingAlreadyActive();

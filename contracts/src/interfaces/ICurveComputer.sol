@@ -12,4 +12,16 @@ interface ICurveComputer {
         external
         view
         returns (BondingCurveMath.Params memory);
+
+    /// @notice Whether this computer can solve a curve for `liquidityReserveBps` at all.
+    /// @dev A curve computer's shape constants decide which LP reserves are serviceable, and the
+    ///      answer is a property of THIS computer — not of the caller, and not a constant anyone
+    ///      else can hardcode without it drifting the next time those constants move. So the
+    ///      question is asked here rather than answered elsewhere: `LaunchManager.setPreset` calls
+    ///      this on the preset's own `curveComputer` and refuses a preset the computer could never
+    ///      serve, instead of storing it and failing on a creator's `create` much later.
+    ///      MUST NOT revert — a reserve this computer cannot serve is `false`, not an error.
+    /// @param liquidityReserveBps Bps of total supply reserved for liquidity.
+    /// @return supported True if `computeCurveParams` can solve at this reserve.
+    function supportsReserveBps(uint256 liquidityReserveBps) external view returns (bool supported);
 }
