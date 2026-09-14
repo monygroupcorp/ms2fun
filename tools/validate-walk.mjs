@@ -140,9 +140,22 @@ for (const step of steps) {
   if (!step.calls?.length) fail(`${step.id}: no calls — a step that sends nothing is a paragraph, not a walk step`);
 }
 
+// An id is the only handle anything has on a step. --report renders one by id, a tester files a
+// finding against one, and a `given` names the step it waits on by id. Two steps sharing one makes
+// all three ambiguous, and --report resolves it silently to whichever comes first — so a finding on
+// the second of a colliding pair comes back on the FIRST one's form, carrying its route, its calls
+// and its blocking flag. A tester is then told a launch-blocker is not blocking, which is the one
+// field the form exists to fill in for them.
+const ids = new Set();
+for (const step of steps) {
+  if (ids.has(step.id)) {
+    fail(`${step.id} is the id of two steps, the second being '${step.title}' — a finding names a step by its id, and --report resolves a duplicate to whichever comes first`);
+  }
+  ids.add(step.id);
+}
+
 // Steps lean on each other for their preconditions ("given: the free allocation set in C-8"), and a
 // reference to a step that does not exist sends a tester looking for a page nobody wrote.
-const ids = new Set(steps.map((s) => s.id));
 for (const step of steps) {
   const text = [step.given, step.do, step.expect, step.title].join(' ');
   for (const m of text.matchAll(/\b([OCBH]-\d+)\b/g)) {

@@ -750,7 +750,7 @@
           "blocking": false
         },
         {
-          "id": "B-20",
+          "id": "B-21",
           "title": "see your own stake in a vault, and claim it",
           "route": "/vault/:address",
           "calls": [
@@ -762,25 +762,25 @@
           "blocking": true
         },
         {
-          "id": "B-21",
+          "id": "B-22",
           "title": "send your claims to another wallet, then take them back",
           "route": "/vault/:address",
           "calls": [
             "benefactorPositionAbi.delegateBenefactor"
           ],
-          "given": "the position walked in B-20, with shares and something claimable, plus a second address to hand the payout to",
+          "given": "the position walked in B-21, with shares and something claimable, plus a second address to hand the payout to",
           "do": "type the second address into pay this wallet's claims to and set it. Then press claim from the benefactor's own wallet. Then clear the box, press revoke delegate, and claim again",
           "expect": "before the transaction is sent the panel says plainly that this redirects the money and not merely the button, because the word delegate does not say so. Claims paid to then shows the delegate. The claim pressed afterwards from the benefactor's OWN wallet pays the delegate — check the delegate's balance and the benefactor's, and treat money arriving at the caller as the finding. Clearing the box revokes, the row returns to this wallet — no delegate set, and the next claim pays the benefactor again",
           "blocking": true
         },
         {
-          "id": "B-22",
+          "id": "B-23",
           "title": "claim for the benefactors who named you",
           "route": "/vault/:address",
           "calls": [
             "benefactorPositionAbi.claimFeesAsDelegate"
           ],
-          "given": "the delegate address named in B-21, still set, connected as the wallet doing the walking, and a second benefactor address that has NOT named it",
+          "given": "the delegate address named in B-22, still set, connected as the wallet doing the walking, and a second benefactor address that has NOT named it",
           "do": "on the same vault, paste the delegating benefactor's address into claim for benefactors who delegated to you and press claim for them. Then repeat with the address that never delegated, and once with the box empty",
           "expect": "the whole sum arrives in the delegate's own wallet, which is what being a delegate means here, and the benefactor's balance does not move. The empty box leaves the button disabled asking for an address rather than sending nothing. The address that never delegated reverts, and the panel reports a failed claim — a success state on a transaction that reverted is the finding. The app builds no list of who delegated to whom because the vault publishes no such index, so the addresses being typed rather than offered is correct",
           "blocking": true
