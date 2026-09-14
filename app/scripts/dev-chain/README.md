@@ -20,8 +20,8 @@ pnpm chain:deploy
 ### Running this channel on another port
 
 `ANVIL_PORT` moves the whole mainnet channel. Export it once and `chain:fork`, `chain:deploy`,
-`chain:check`, `chain:stop` and the dev server's `/__rpc/mainnet` proxy all follow it — no file is
-edited to run a second channel:
+`chain:check`, `chain:stop`, the dev server's `/__rpc/mainnet` proxy and the local chain's declared
+rpc — the one a wallet is asked to add — all follow it; no file is edited to run a second channel:
 
 ```bash
 ANVIL_PORT=8600 pnpm chain:fork     # terminal 1
@@ -58,6 +58,9 @@ channels cannot overwrite each other's and orphan a fork.
   proxy `/__rpc/mainnet` to `http://localhost:8545` — or to `ANVIL_PORT` where it is set
   (`vite.config.ts`); the app's own transport
   uses that path, never a plain loopback URL, so it clears the page's CSP and Chrome's Local
-  Network Access gate. A **wallet** adding this network manually still needs the absolute RPC,
-  `http://localhost:8545` (or the overridden port) — the wallet is a separate app, not the page, so
-  neither the CSP nor the proxy applies to it.
+  Network Access gate. A **wallet** adding this network manually still needs the absolute RPC —
+  the wallet is a separate app, not the page, so neither the CSP nor the proxy applies to it. That
+  URL is the chain's declared rpc (`src/lib/chains.ts`), and it follows `ANVIL_PORT` through the
+  same resolver the proxy uses, so a wallet added while the channel runs on `:8600` is told
+  `:8600`. Vite inlines the value at startup, so a changed `ANVIL_PORT` needs a dev-server
+  restart — the same restart the proxy target already needs.

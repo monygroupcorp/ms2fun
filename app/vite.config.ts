@@ -136,7 +136,16 @@ export default defineConfig({
   // mode is deliberately NOT a define: it is read from `import.meta.env.VITE_DIST_TARGET` at render
   // time so the routing-mode matrix in `src/ipfs-routing.test.tsx` can exercise both modes in one
   // suite instead of asserting against whichever one the test run happened to be compiled for.
-  define: { __BUILD_COMMIT__: JSON.stringify(buildCommit()) },
+  // `__ANVIL_PORT__` carries the dev channel's port into the bundle so the local chain's DECLARED
+  // rpc (`src/lib/chains.ts`) names the port the fork actually listens on. That URL is handed to a
+  // WALLET (`wallet_addEthereumChain`, `WrongNetworkBanner`'s manual fallback), which cannot use
+  // the same-origin proxy below, so it is the one place the port has to be absolute in the page.
+  // A define rather than `import.meta.env`: `ANVIL_PORT` is the scripts' own variable name, not a
+  // `VITE_`-prefixed one, and reading it here keeps the page and the proxy on one value.
+  define: {
+    __BUILD_COMMIT__: JSON.stringify(buildCommit()),
+    __ANVIL_PORT__: JSON.stringify(resolveAnvilPort(process.env.ANVIL_PORT)),
+  },
   ...(isIpfsTarget ? { build: { outDir: 'dist/ipfs', emptyOutDir: true } } : {}),
   plugins: [
     react(),
