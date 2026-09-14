@@ -17,6 +17,7 @@ import { useReadContract } from 'wagmi'
 import { exec404Contract } from '../lib/exec404'
 import { ActivityBox } from './activity/ActivityBox'
 import { ActivityLine } from './activity/ActivityLine'
+import { ActivityStates } from './activity/ActivityStates'
 import { StateBlock } from './ui/StateBlock'
 
 /** How many of the most recent legacy messages to surface. */
@@ -101,19 +102,17 @@ export function Exec404Activity() {
       logTestId="exec404-activity"
       scrolls={messages.length > 4}
     >
-      {isPending && <StateBlock variant="loading">reading the ledger…</StateBlock>}
-
-      {isError && (
-        <StateBlock variant="error">
-          couldn&apos;t read legacy messages — no response from the network.
-        </StateBlock>
-      )}
-
-      {!isPending && !isError && messages.length === 0 && (
-        <StateBlock variant="empty" boxed testId="exec404-activity-empty">
-          no legacy messages — the bonding curve closed without a word.
-        </StateBlock>
-      )}
+      {/* Nothing filters this log — the curve is closed and every line it ever carried is here —
+          so what it has in hand is always what it draws. */}
+      <ActivityStates
+        subject="legacy messages"
+        isPending={isPending}
+        isError={isError}
+        fetched={messages.length}
+        shown={messages.length}
+        empty="no legacy messages — the bonding curve closed without a word."
+        emptyTestId="exec404-activity-empty"
+      />
 
       {/* Newest first in the DOM; the transcript reverses it, so the newest line sits on the floor
           of the box the way the live edge of a room does. The event is always named here — "bought"

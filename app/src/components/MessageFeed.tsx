@@ -14,13 +14,12 @@
  * staleTime wait).
  */
 import { type ReactNode, useMemo } from 'react'
-import { formatEther } from 'viem'
 import { useAccount } from 'wagmi'
 import { type FeedFilter, useMessageFeed, usePostThreshold } from './useMessageFeed'
 import { threadMessages, visibleThreads } from './threadMessages'
 import { ActivityBox } from './activity/ActivityBox'
 import { ActivityMessage } from './activity/ActivityMessage'
-import { StateBlock } from './ui/StateBlock'
+import { ActivityStates, ActivityThresholdNote } from './activity/ActivityStates'
 import styles from './MessageFeed.module.css'
 
 export function MessageFeed({
@@ -55,19 +54,15 @@ export function MessageFeed({
         logTestId="message-feed"
         scrolls={threads.length > 4}
       >
-        {isPending && <StateBlock variant="loading">loading activity…</StateBlock>}
-
-        {isError && (
-          <StateBlock variant="error">
-            couldn&apos;t load activity — no response from the network.
-          </StateBlock>
-        )}
-
-        {!isPending && !isError && data !== undefined && threads.length === 0 && (
-          <StateBlock variant="empty" boxed testId="message-feed-empty">
-            no activity yet
-          </StateBlock>
-        )}
+        <ActivityStates
+          subject="activity"
+          isPending={isPending}
+          isError={isError}
+          fetched={data?.length}
+          shown={threads.length}
+          empty="no activity yet — be the first to say something here."
+          emptyTestId="message-feed-empty"
+        />
 
         {/* Newest first in the DOM; the transcript reverses it so the newest line sits on the floor
             and the threshold note lands at the top of the scrollback. */}
@@ -83,12 +78,7 @@ export function MessageFeed({
             />
           ))}
 
-        {threshold > 0n && (
-          <StateBlock variant="empty" testId="feed-threshold-note">
-            showing posts of {formatEther(threshold)} ETH or more — cheaper posts are hidden by the
-            current threshold.
-          </StateBlock>
-        )}
+        <ActivityThresholdNote threshold={threshold} testId="feed-threshold-note" />
       </ActivityBox>
     </div>
   )

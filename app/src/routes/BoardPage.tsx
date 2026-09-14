@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'wouter'
-import { formatEther, formatGwei } from 'viem'
+import { formatGwei } from 'viem'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { usePublicClient, useAccount } from 'wagmi'
 import {
@@ -17,6 +17,7 @@ import { type FeedMessage, usePostThreshold } from '../components/useMessageFeed
 import { ActivityBox } from '../components/activity/ActivityBox'
 import { ActivityLine } from '../components/activity/ActivityLine'
 import { ActivityMessage } from '../components/activity/ActivityMessage'
+import { ActivityStates, ActivityThresholdNote } from '../components/activity/ActivityStates'
 import { channelRef, messageVerb } from '../components/activity/messageMeta'
 import { StateBlock } from '../components/ui/StateBlock'
 import styles from './BoardPage.module.css'
@@ -313,25 +314,19 @@ export function BoardPage() {
               )
             }
           >
-            {isPending && <StateBlock variant="loading">hanging the work…</StateBlock>}
-
-            {isError && (
-              <StateBlock variant="error">
-                couldn&apos;t load activity — no response from the network.
-              </StateBlock>
-            )}
-
             {/* Keyed on the rows this view actually shows, not on the raw feed: filter to a quiet
                 channel, or raise the spam threshold past everything in it, and `data` is full while
-                the transcript is bare. That combination used to draw an empty window with no state
-                in it at all, where every other surface says "no activity yet". */}
-            {!isPending && !isError && data !== undefined && rows === 0 && (
-              <StateBlock variant="empty" boxed testId="board-empty">
-                {data.length === 0
-                  ? 'this wall is empty — be the first to say something considered.'
-                  : 'nothing to show in this view — the current channel and threshold hide every post in the feed.'}
-              </StateBlock>
-            )}
+                the transcript is bare. */}
+            <ActivityStates
+              subject="activity"
+              isPending={isPending}
+              isError={isError}
+              fetched={data?.length}
+              shown={rows}
+              empty="this wall is empty — be the first to say something considered."
+              filters="the current channel and threshold"
+              emptyTestId="board-empty"
+            />
 
             {/* Discourse — the threaded salon (filtered to the active channel). Newest first in the
                 DOM; the transcript reverses it onto the floor of the window. */}
@@ -386,12 +381,7 @@ export function BoardPage() {
               </div>
             )}
 
-            {threshold > 0n && (
-              <StateBlock variant="empty" testId="board-threshold-note">
-                spam lever on: showing posts of {formatEther(threshold)} ETH or more — cheaper posts
-                are hidden until the threshold is lowered.
-              </StateBlock>
-            )}
+            <ActivityThresholdNote threshold={threshold} testId="board-threshold-note" />
           </ActivityBox>
         </div>
       </div>
