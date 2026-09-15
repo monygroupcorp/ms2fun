@@ -23,10 +23,13 @@ import { LaunchPresets } from "./LaunchPresets.sol";
 ///         already exists. So a rung that is wrong when a creator launches is wrong for that
 ///         collection forever — `unitPerNFT` fixes `maxSupply = nftCount * unitPerNFT * 1e18` against
 ///         DN404's `uint96`, which is a permanent ceiling on the pieces it may ever have. Retuning
-///         the ladder in `DeployCore` therefore does nothing to a chain that is already deployed,
-///         and the CREATE3 salt set is single-use per deployer, so "re-run the deploy" is not
-///         available either. The gap is closed by an owner call, and an owner call typed by hand is
-///         an eight-digit number typed by hand.
+///         the ladder in `DeployCore` therefore does nothing to a chain that is already deployed.
+///         Nor does re-running the deploy reach it: a CREATE3 salt is single-use per deployer, so a
+///         fresh run cannot land on the addresses that are live — it stands a SECOND protocol up
+///         beside the first, at fresh addresses, and the first keeps the ladder it was born with.
+///         Re-deploying is a choice about which protocol the network points at; it is not a way to
+///         retune the one already there. That gap is closed by an owner call, and an owner call
+///         typed by hand is an eight-digit number typed by hand.
 ///
 ///         This reads the ladder from `LaunchPresets` — the same statement `DeployCore` writes and
 ///         `ValidateSepolia` asserts — and writes only the rungs that differ, so a second run after
