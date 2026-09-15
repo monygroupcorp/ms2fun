@@ -255,7 +255,7 @@
           "calls": [
             "erc1155FactoryAbi.createInstance"
           ],
-          "given": "the same",
+          "given": "testnet ETH and an image, as in C-1",
           "do": "pick the edition family and deploy with at least one edition",
           "expect": "the collection page shows the edition, and its mint button is offered only once the edition has opened",
           "blocking": true
@@ -267,7 +267,7 @@
           "calls": [
             "erc721AuctionFactoryAbi.createInstance"
           ],
-          "given": "the same",
+          "given": "testnet ETH and an image, as in C-1",
           "do": "pick the auction family and deploy",
           "expect": "the collection page shows an empty auction queue, and C-9 is offered",
           "blocking": true
