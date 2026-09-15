@@ -8,6 +8,11 @@ import { ActivityPreview } from '../components/home/ActivityPreview'
 import { StateBlock } from '../components/ui/StateBlock'
 import { orderFeatured } from '../lib/featuredOrder'
 import { activeNetworkName, activeNetworkStatus } from '../lib/network'
+import {
+  ALIGNMENT_LAW_NOTE,
+  ALIGNMENT_LAW_SENTENCE,
+  ALIGNMENT_SPLIT,
+} from '../lib/vaults/alignmentWording'
 import styles from './HomePage.module.css'
 
 /**
@@ -35,10 +40,12 @@ function HeroLanding() {
         <h1 className={styles.heroTitle}>
           <span className="text-chromatic-strong">alignment</span> launchpad.
         </h1>
-        <p className={styles.heroSub}>
-          Onchain releases that are <b>forced to align.</b> Deploy a collection and 19% of every fee
-          routes to the work that inspired you. The ratio is set in the contract, and nobody can
-          change it.
+        {/* The landing page spans every vault family, so it states the ratio and names no source:
+            "19% of every fee" was the LP reading asserted over every endowment collection behind it.
+            See `lib/vaults/alignmentWording`. */}
+        <p className={styles.heroSub} data-testid="hero-alignment-law">
+          Onchain releases that are <b>forced to align.</b> Deploy a collection and it is bound to
+          the work that inspired you. {ALIGNMENT_LAW_SENTENCE}
         </p>
         <div className={styles.heroActions}>
           <Link href="/launch" className={styles.heroPrimary}>
@@ -67,10 +74,10 @@ function HeroLanding() {
           <div className="noesis-ledger-row">
             <span className="n">02</span>
             <span>
-              Fee split
-              <small>19% to the community — a contract constant, not a creator setting</small>
+              Alignment split
+              <small>{ALIGNMENT_LAW_NOTE}</small>
             </span>
-            <span className="v">19%</span>
+            <span className="v">{ALIGNMENT_SPLIT.communityBps / 100}%</span>
           </div>
           <div className="noesis-ledger-row">
             <span className="n">03</span>

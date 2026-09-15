@@ -12,6 +12,7 @@ import type { ProjectCard } from '../useCreatorCollections'
 import type { CollectionMetadata } from '../../lib/metadata'
 import { activeNetworkName } from '../../lib/network'
 import { cardStatus } from '../../lib/cardStatus'
+import { alignmentLawSentence } from '../../lib/vaults/alignmentWording'
 import styles from '../../routes/CollectionPage.module.css'
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
@@ -114,9 +115,12 @@ export function CollectionHero({ instance, card, metadata, primary }: Collection
                 {vaultLabel} vault<b>fixed share</b>
               </div>
             </div>
-            <p className={styles.who}>
-              Aligned to <b>{vaultLabel}</b> — 19% of fees route to the community on every mint.{' '}
-              <b>The creator can&rsquo;t change the split.</b>
+            {/* Source-blind on purpose: the card carries `vaultName` and no `vaultType()`, so this
+                surface cannot tell an LP vault from an endowment one, and "19% of fees … on every
+                mint" picked one family and one trigger for every collection. See
+                `lib/vaults/alignmentWording`. */}
+            <p className={styles.who} data-testid="hero-alignment-law">
+              {alignmentLawSentence(vaultLabel)} <b>The creator can&rsquo;t change the split.</b>
             </p>
           </div>
         )}
