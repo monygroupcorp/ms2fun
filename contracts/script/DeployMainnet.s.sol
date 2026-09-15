@@ -23,6 +23,13 @@ contract DeployMainnet is DeployCore {
     address constant ZAMM_V1 = 0x000000000000040470635EB91b7CE4D132D616eD;
     // ── zRouter canonical aggregator singleton — set so DeployCore reuses it instead of `new zRouter()`.
     address constant ZROUTER = 0x000000000000FB114709235f1ccBFfb925F600e4;
+    // ── zQuoter canonical best-route quoter — the `getQuotes` lens every vault factory is wired against,
+    //    so an alignment buy takes the deepest venue instead of its fixed family pool. This is the Ethereum
+    //    deployment of `lib/zRouter/src/zQuoter.sol`, whose NINE-member AMM enum is the one
+    //    `BestRouteAcquirer` range-checks the returned source word against. The Base deployment
+    //    (`lib/zRouter/base/zQuoter.sol`, 0x772E2810A471dB2CC7ADA0d37D6395476535889a) answers a different
+    //    six-member enum and is NOT interchangeable with it.
+    address constant ZQUOTER = 0x0180Fe9Ae92Cd04dA670F974DE9d928EA69CfA66;
     // ── Cypher / Algebra (Ethereum mainnet). The launch deployer's ctor takes exactly
     //    (algebraFactory, positionManager/NFPM, weth); the swapRouter feeds the Cypher alignment vault.
     address constant CYPHER_ALGEBRA_FACTORY = 0xfb8Ed3485EfA29a0e4bed93351dD51B59fC4b0f0;
@@ -49,6 +56,7 @@ contract DeployMainnet is DeployCore {
         cfg.cypherAlgebraFactory = CYPHER_ALGEBRA_FACTORY;
         cfg.zamm = ZAMM_V1;
         cfg.zrouter = ZROUTER;
+        cfg.zQuoter = ZQUOTER;
         cfg.safe = address(0); // TODO: real Safe address
         cfg.saltMasterRegistry = bytes32(0); // TODO: mine vanity salts
         cfg.saltTreasury = bytes32(0);

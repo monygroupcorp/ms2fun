@@ -116,8 +116,18 @@ contract DeployCore is Script {
         // On-chain best-route quoter (`zQuoter.getQuotes`) wired into every vault factory so deployed
         // vaults acquire from the deepest venue instead of their fixed family pool. address(0) = best-route
         // DISABLED (fixed-pool fallback only) — the pre-noesis-063 default that silently shipped the
-        // multi-venue purchase capability off. On mainnet set the canonical `zQuoterBase`; on a testnet
-        // with no canonical quoter, leave 0 (fallback-only) or point at a compatible quoter.
+        // multi-venue purchase capability off.
+        //
+        // EVERY DEPLOYMENT WIRES A QUOTER. address(0) IS A TEST SHAPE, NOT A DEPLOYMENT OPTION. A network
+        // that has a canonical quoter points at it (`DeployMainnet.ZQUOTER`); a network that has none
+        // brings its own, as `DeploySepolia` does with `SepoliaRouteQuoter` and `DeployAnvil` with
+        // `AnvilFixedRouteQuoter`. Fixed-pool-only acquisition was weighed as a production shape and is
+        // not one: where a venue can be quoted, it is quoted. The only callers that legitimately leave
+        // this 0 are the tests pinning the fallback leg (`test/vaults/BestRouteFallbackPin.t.sol`).
+        //
+        // Do NOT bake an address here: which quoter is right is a property of the network, and this
+        // struct serves all of them. Getting it wrong is not repairable after the fact — see the note
+        // on the `cfg.zQuoter == address(0)` check in `deploy()`.
         // OPERATOR INPUT.
         address zQuoter;
 
@@ -246,16 +256,28 @@ contract DeployCore is Script {
         // depth is on another tier is simply bought on the wrong one, because that tier is a
         // network-wide factory immutable with no setter.
         //
-        // This is a WARNING and not an assert, because it is a legitimate deployment shape — but it
-        // is only actionable where a quoter exists to point at. Ethereum mainnet has a canonical one.
-        // Sepolia does not, and `DeploySepolia` therefore deploys `SepoliaRouteQuoter` and passes it
-        // here. Do NOT bake an address into this file: which quoter is right is a property of the
-        // network, and this function serves all of them.
+        // EVERY NETWORK THIS REPO DEPLOYS BRINGS A QUOTER. Ethereum mainnet points at the canonical
+        // one. Sepolia has none to point at, so `DeploySepolia` deploys `SepoliaRouteQuoter` and
+        // passes it here; a local fork does the same with `AnvilFixedRouteQuoter`. Fixed-pool-only
+        // acquisition was weighed as a production shape and is not one: where a venue can be quoted,
+        // it is quoted. Do NOT bake an address into this file — which quoter is right is a property
+        // of the network, and this function serves all of them.
+        //
+        // This stays a WARNING rather than an assert for one reason: the fallback is a supported,
+        // tested path, and the tests that exercise it deploy through here
+        // (`test/vaults/BestRouteFallbackPin.t.sol` pins that a vault with no quoter still converts).
+        // On a real network, reaching this branch means the config is wrong.
+        //
+        // And it cannot be repaired after the fact. A factory takes `zQuoter` as a CONSTRUCTOR
+        // immutable and threads it into each vault at deployVault time; the vault's own
+        // `setZQuoter` is onlyOwner, and that owner is the factory, which exposes no passthrough.
+        // Deploying with the quoter unset means redeploying the factories, not calling a setter.
         if (cfg.zQuoter == address(0)) {
             console.log("WARNING: cfg.zQuoter == address(0) -> best-route acquisition DISABLED on all vault");
             console.log("         factories; every acquire uses the fixed zrouterFee/zrouterTickSpacing pool.");
-            console.log("         If this network HAS a quoter, wire it via setZQuoter on each factory");
-            console.log("         before trading opens. If it has none, this is the intended shape.");
+            console.log("         Every network this repo deploys supplies a quoter, so on a real network this");
+            console.log("         is a mis-filled config -- and no setter fixes it afterwards: the factories");
+            console.log("         take it as a constructor immutable. Redeploy with cfg.zQuoter set.");
         }
 
         // ── Phase 1: Protocol proxies (CREATE3) ─────────────────────────────
