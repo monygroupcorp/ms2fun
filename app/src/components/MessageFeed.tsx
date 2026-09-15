@@ -14,19 +14,35 @@
  * staleTime wait).
  */
 import { type ReactNode, useMemo } from 'react'
-import { formatEther } from 'viem'
 import { useAccount } from 'wagmi'
 import { type FeedFilter, useMessageFeed, usePostThreshold } from './useMessageFeed'
 import { threadMessages, visibleThreads } from './threadMessages'
 import { ActivityBox } from './activity/ActivityBox'
 import { ActivityMessage } from './activity/ActivityMessage'
-import { StateBlock } from './ui/StateBlock'
+import { ActivityStates, ActivityThresholdNote } from './activity/ActivityStates'
 import styles from './MessageFeed.module.css'
+
+/**
+ * What an empty transcript says, which depends on what the feed is.
+ *
+ * Filtered by `instance` it is a room: anyone with a wallet can speak in it, and the box carries
+ * the composer that does it, so an empty room asks for the first word. Filtered by `sender` it is
+ * a wall — one address's posts, gathered from every channel it has spoken in — and there is no way
+ * to post *to* it, so inviting a visitor to say the first thing here describes a room that does not
+ * exist. A surface whose own wall reads differently (the owner's) passes `empty` instead.
+ */
+function zeroState(filter: FeedFilter): string {
+  if (filter.sender !== undefined) {
+    return 'nothing from this address yet — a wall gathers what it has posted, wherever it posted.'
+  }
+  return 'no activity yet — be the first to say something here.'
+}
 
 export function MessageFeed({
   filter,
   vaults,
   footer,
+  empty,
 }: {
   filter: FeedFilter
   /** Known vault addresses, lowercased, so vault channels link to /vault/… (see `channelRef`). */
@@ -34,6 +50,9 @@ export function MessageFeed({
   /** Docked in the box's well (e.g. the "write something" composer), so the empty "no activity yet"
       state sits directly above it. */
   footer?: ReactNode
+  /** Overrides what an empty transcript says, for a surface whose zero-state `zeroState` cannot
+      know: the profile wall reads one way to its owner and another to a visitor. */
+  empty?: ReactNode
 }) {
   const { data, isPending, isError } = useMessageFeed(filter)
   const { address: connected } = useAccount()
@@ -55,19 +74,18 @@ export function MessageFeed({
         logTestId="message-feed"
         scrolls={threads.length > 4}
       >
-        {isPending && <StateBlock variant="loading">loading activity…</StateBlock>}
-
-        {isError && (
-          <StateBlock variant="error">
-            couldn&apos;t load activity — no response from the network.
-          </StateBlock>
-        )}
-
-        {!isPending && !isError && data !== undefined && threads.length === 0 && (
-          <StateBlock variant="empty" boxed testId="message-feed-empty">
-            no activity yet
-          </StateBlock>
-        )}
+        {/* Both counts are threads, not events: an endorsement is never a line in a transcript, so
+            a wall whose address has only endorsed has nothing to show and nothing filtering it —
+            counting raw events there would blame the spam lever for an empty wall. */}
+        <ActivityStates
+          subject="activity"
+          isPending={isPending}
+          isError={isError}
+          fetched={data === undefined ? undefined : view.threads.length}
+          shown={threads.length}
+          empty={empty ?? zeroState(filter)}
+          emptyTestId="message-feed-empty"
+        />
 
         {/* Newest first in the DOM; the transcript reverses it so the newest line sits on the floor
             and the threshold note lands at the top of the scrollback. */}
@@ -83,12 +101,7 @@ export function MessageFeed({
             />
           ))}
 
-        {threshold > 0n && (
-          <StateBlock variant="empty" testId="feed-threshold-note">
-            showing posts of {formatEther(threshold)} ETH or more — cheaper posts are hidden by the
-            current threshold.
-          </StateBlock>
-        )}
+        <ActivityThresholdNote threshold={threshold} testId="feed-threshold-note" />
       </ActivityBox>
     </div>
   )

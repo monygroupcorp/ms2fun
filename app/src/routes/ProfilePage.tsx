@@ -252,8 +252,16 @@ export function ProfilePage() {
       {!isPending && !isError && (
         <section className={styles.wall}>
           <h2 className={styles.wallHead}>The wall</h2>
-          {isOwn && <MessageComposer channel={target} />}
-          <MessageFeed filter={{ sender: target }} />
+          {/* The wall is filtered by sender, so it is this address's posts from every channel, and
+              only its owner can add to it. The owner's composer docks in the box's well, the way
+              the collection, vault and salon surfaces dock theirs, so the zero-state reads directly
+              above the thing that answers it. A visitor gets MessageFeed's wall wording and no
+              well; the owner gets the invitation it would be false to show a visitor. */}
+          <MessageFeed
+            filter={{ sender: target }}
+            footer={isOwn ? <MessageComposer channel={target} /> : undefined}
+            empty={isOwn ? 'nothing from you yet — anything you post lands here.' : undefined}
+          />
         </section>
       )}
 

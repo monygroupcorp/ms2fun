@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'wouter'
-import { formatEther, formatGwei } from 'viem'
+import { formatGwei } from 'viem'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { usePublicClient, useAccount } from 'wagmi'
 import {
@@ -15,7 +15,9 @@ import { MessageComposer } from '../components/MessageComposer'
 import { meetsThreshold, threadMessages } from '../components/threadMessages'
 import { type FeedMessage, usePostThreshold } from '../components/useMessageFeed'
 import { ActivityBox } from '../components/activity/ActivityBox'
+import { ActivityLine } from '../components/activity/ActivityLine'
 import { ActivityMessage } from '../components/activity/ActivityMessage'
+import { ActivityStates, ActivityThresholdNote } from '../components/activity/ActivityStates'
 import { channelRef, messageVerb } from '../components/activity/messageMeta'
 import { StateBlock } from '../components/ui/StateBlock'
 import styles from './BoardPage.module.css'
@@ -241,6 +243,14 @@ export function BoardPage() {
       ? visibleThreads.reduce((n, t) => n + 1 + t.replies.length, 0)
       : activityRows.length
 
+  // What the active view HELD before the channel and the threshold — the population the zero-state
+  // measures its "nothing to show" against. It has to be counted in the same units the view draws.
+  // The register names every event, so its population is the raw feed; the discourse view draws
+  // threads, and an endorsement is never a line in one, so a raw-event count there blames a filter
+  // for a channel that has nothing to say.
+  const held =
+    data === undefined ? undefined : boardView === 'discourse' ? view.threads.length : data.length
+
   return (
     <div className={styles.page}>
       <nav className={styles.crumb}>
@@ -312,19 +322,19 @@ export function BoardPage() {
               )
             }
           >
-            {isPending && <StateBlock variant="loading">hanging the work…</StateBlock>}
-
-            {isError && (
-              <StateBlock variant="error">
-                couldn&apos;t load activity — no response from the network.
-              </StateBlock>
-            )}
-
-            {!isPending && !isError && data !== undefined && data.length === 0 && (
-              <StateBlock variant="empty" boxed>
-                this wall is empty — be the first to say something considered.
-              </StateBlock>
-            )}
+            {/* Keyed on the rows this view actually shows against the ones it held: filter to a
+                quiet channel, or raise the spam threshold past everything in it, and the view is
+                full while the transcript is bare. */}
+            <ActivityStates
+              subject="activity"
+              isPending={isPending}
+              isError={isError}
+              fetched={held}
+              shown={rows}
+              empty="this wall is empty — be the first to say something considered."
+              filters="the current channel and threshold"
+              emptyTestId="board-empty"
+            />
 
             {/* Discourse — the threaded salon (filtered to the active channel). Newest first in the
                 DOM; the transcript reverses it onto the floor of the window. */}
@@ -341,27 +351,24 @@ export function BoardPage() {
                 />
               ))}
 
-            {/* Activity — the flat on-chain register, every event attributed. */}
+            {/* Activity — the flat on-chain register, every event attributed. Same line as the
+                discourse view, because it is the same window showing the same posts: it had its own
+                row markup once, with the fields in a different order and the content NOT linkified,
+                so a URL in a post was live in one view of this box and dead text in the other. The
+                one difference the view earns is that every event is named, plain posts included —
+                that is what a register is for. */}
             {!isPending && !isError && boardView === 'activity' && data !== undefined && (
-              <ul className={styles.register} data-testid="board-activity">
-                {activityRows.map((m) => {
-                  const chan = channelRef(m, vaultSet)
-                  return (
-                    <li key={String(m.messageId)} className={styles.regRow}>
-                      <Link href={`/profile/${m.sender}`} className={styles.regWho}>
-                        {truncateAddress(m.sender)}
-                      </Link>
-                      <span className={styles.regVerb}>{messageVerb(m.messageType)}</span>
-                      <Link href={chan.href} className={styles.regCh}>
-                        {chan.label}
-                      </Link>
-                      {m.content.length > 0 && (
-                        <span className={styles.regContent}>{m.content}</span>
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
+              <div className={styles.register} data-testid="board-activity">
+                {activityRows.map((m) => (
+                  <ActivityLine
+                    key={String(m.messageId)}
+                    sender={m.sender}
+                    channel={channelRef(m, vaultSet)}
+                    verb={messageVerb(m.messageType)}
+                    say={m.content}
+                  />
+                ))}
+              </div>
             )}
 
             {/* Both of these are scrollback: last in the DOM, so the reversed transcript puts them
@@ -382,12 +389,7 @@ export function BoardPage() {
               </div>
             )}
 
-            {threshold > 0n && (
-              <StateBlock variant="empty" testId="board-threshold-note">
-                spam lever on: showing posts of {formatEther(threshold)} ETH or more — cheaper posts
-                are hidden until the threshold is lowered.
-              </StateBlock>
-            )}
+            <ActivityThresholdNote threshold={threshold} testId="board-threshold-note" />
           </ActivityBox>
         </div>
       </div>

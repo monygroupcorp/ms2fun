@@ -4,10 +4,10 @@
  * be three renderings of the same `MessagePosted` event, each with its own meta line, its own
  * message-type labels and its own channel links; this is that one thing.
  *
- * It draws one line of the chat box's transcript (`ActivityBox`): a mono byline, the channel it was
- * said in, then what was said, running on and wrapping under a hanging indent. It used to draw the
- * vendored `.noesis-post` wall label — a byline row, a paragraph beneath, a 2px rule under each —
- * which read as a register rather than as a room.
+ * The line itself is `ActivityLine`, the shape shared with every other transcript on the site; what
+ * this adds is what hangs off a BOARD post specifically — its replies, its quote card, its endorse
+ * and reply controls. It used to draw the vendored `.noesis-post` wall label — a byline row, a
+ * paragraph beneath, a 2px rule under each — which read as a register rather than as a room.
  *
  * The row owns its own container and its replies, so a surface hands over a message (and its
  * replies, where it threads) and nothing else. Actions (endorse + reply) are opt-in, so a read-only
@@ -15,12 +15,11 @@
  */
 import { useState } from 'react'
 import { Link } from 'wouter'
-import { truncateAddress } from '../../lib/format'
 import { type ThreadView, reactionFor } from '../threadMessages'
 import type { FeedMessage } from '../useMessageFeed'
 import { ReactButton } from '../ReactButton'
 import { ReplyComposer } from '../ReplyComposer'
-import { Linkify } from '../ui/Linkify'
+import { ActivityLine } from './ActivityLine'
 import { channelRef, messageVerb } from './messageMeta'
 import styles from './ActivityMessage.module.css'
 
@@ -65,32 +64,14 @@ function MessageLine({
   const chan = channelRef(message, vaults)
 
   return (
-    <>
-      <p className={styles.line}>
-        <Link href={`/profile/${message.sender}`} className={styles.name}>
-          {truncateAddress(message.sender)}
-        </Link>
-
-        {/* A wall post is a general-board post (channel = the sender's own wall), not a collection
-            pointer — read it as "· on the salon" linking to their wall, never a dead collection. */}
-        <Link href={chan.href} className={styles.channel}>
-          {chan.isWall ? `· on ${chan.label}` : `→ ${chan.label}`}
-        </Link>
-
-        {/* The event. A plain post says nothing — the line already reads as one — so only a
-            reply/quote/endorsement is named, and it is named the same way on a flat surface as on
-            a threaded one. */}
-        {message.messageType !== 0 && (
-          <span className={styles.verb}>{messageVerb(message.messageType)}</span>
-        )}
-
-        {message.content.length > 0 && (
-          <span className={styles.say}>
-            <Linkify text={message.content} />
-          </span>
-        )}
-      </p>
-
+    <ActivityLine
+      sender={message.sender}
+      channel={chan}
+      // A plain post says nothing — the line already reads as one — so only a reply/quote/
+      // endorsement is named, and it is named the same way on a flat surface as on a threaded one.
+      verb={message.messageType === 0 ? undefined : messageVerb(message.messageType)}
+      say={message.content}
+    >
       {/* Quote — a card carrying the referenced work's swatch (mono until colour is wired). */}
       {message.messageType === 2 && (
         <Link href={chan.href} className={styles.quoteCard}>
@@ -102,7 +83,7 @@ function MessageLine({
       {actions !== undefined && (
         <ActivityActions message={message} view={actions.view} connected={actions.connected} />
       )}
-    </>
+    </ActivityLine>
   )
 }
 

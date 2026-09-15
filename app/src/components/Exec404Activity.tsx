@@ -2,12 +2,23 @@
  * B7 — the fossil's legacy on-chain activity. The genesis DN404 baked a trade-message log into its
  * bonding curve (`totalMessages()` + `getMessagesBatch()`), so EXEC's original chatter lives on-chain
  * even though the curve is long closed. We read the most recent slice and render it read-only.
+ *
+ * It is drawn in `ActivityBox` — the same chat box home's preview, every collection/vault/profile
+ * feed and the salon are drawn in — and each row is the shared `ActivityLine`. It used to carry an
+ * entire second design for the same idea: its own bordered card with an uppercase heading, its own
+ * byline stack with a boxed BOUGHT/SOLD pill and a right-floated time, its own body paragraph, its
+ * own hand-rolled loading/empty/error notes. Two designs for "someone said something on-chain" is
+ * the thing this surface is not allowed to be.
+ *
+ * No composer: the curve is closed, so there is nothing to say here. No channel on the line either
+ * — every one of these was said in this one room, and the name plate already names it.
  */
 import { useReadContract } from 'wagmi'
 import { exec404Contract } from '../lib/exec404'
-import { truncateAddress } from '../lib/format'
-import { Linkify } from './ui/Linkify'
-import styles from './Exec404Activity.module.css'
+import { ActivityBox } from './activity/ActivityBox'
+import { ActivityLine } from './activity/ActivityLine'
+import { ActivityStates } from './activity/ActivityStates'
+import { StateBlock } from './ui/StateBlock'
 
 /** How many of the most recent legacy messages to surface. */
 const LIMIT = 15n
@@ -16,7 +27,6 @@ interface LegacyMessage {
   sender: `0x${string}`
   message: string
   timestamp: number
-  amount: bigint
   isBuy: boolean
 }
 
@@ -42,7 +52,7 @@ function useExec404Messages(): { messages: LegacyMessage[]; isPending: boolean; 
 
   const messages: LegacyMessage[] = []
   if (batchRead.data) {
-    const [senders, timestamps, amounts, isBuys, texts] = batchRead.data
+    const [senders, timestamps, , isBuys, texts] = batchRead.data
     for (let i = 0; i < senders.length; i++) {
       const text = texts[i] ?? ''
       if (text.trim() === '') continue // it's a message feed — skip trades that carried no note
@@ -52,7 +62,6 @@ function useExec404Messages(): { messages: LegacyMessage[]; isPending: boolean; 
         sender,
         message: text,
         timestamp: Number(timestamps[i] ?? 0n),
-        amount: amounts[i] ?? 0n,
         isBuy: isBuys[i] ?? true,
       })
     }
@@ -87,36 +96,47 @@ export function Exec404Activity() {
   const { messages, isPending, isError } = useExec404Messages()
 
   return (
-    <section className={styles.card} data-testid="exec404-activity">
-      <h2 className={styles.title}>Legacy activity</h2>
-      <p className={styles.note}>
-        EXEC&apos;s original on-chain chatter, from the bonding-curve era.
-      </p>
+    <ActivityBox
+      room="Legacy activity"
+      status={messages.length > 0 ? `${messages.length} posts` : undefined}
+      logTestId="exec404-activity"
+      scrolls={messages.length > 4}
+    >
+      {/* Nothing filters this log — the curve is closed and every line it ever carried is here —
+          so what it has in hand is always what it draws. */}
+      <ActivityStates
+        subject="legacy messages"
+        isPending={isPending}
+        isError={isError}
+        fetched={messages.length}
+        shown={messages.length}
+        empty="no legacy messages — the bonding curve closed without a word."
+        emptyTestId="exec404-activity-empty"
+      />
 
-      {isPending ? (
-        <p className={styles.state}>reading the ledger…</p>
-      ) : isError ? (
-        <p className={styles.state}>could not read legacy messages (archive fork needed).</p>
-      ) : messages.length === 0 ? (
-        <p className={styles.state}>no legacy messages.</p>
-      ) : (
-        <ul className={styles.list}>
-          {messages.map((m, i) => (
-            <li key={`${m.timestamp}-${i}`} className={styles.item}>
-              <div className={styles.meta}>
-                <span className={styles.sender}>{truncateAddress(m.sender)}</span>
-                <span className={`${styles.side} ${m.isBuy ? styles.buy : styles.sell}`}>
-                  {m.isBuy ? 'bought' : 'sold'}
-                </span>
-                <span className={styles.time}>{timeAgo(m.timestamp)}</span>
-              </div>
-              <p className={styles.body}>
-                <Linkify text={m.message} />
-              </p>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+      {/* Newest first in the DOM; the transcript reverses it, so the newest line sits on the floor
+          of the box the way the live edge of a room does. The event is always named here — "bought"
+          and "sold" are the whole vocabulary of a curve, and a line that named neither would say
+          nothing at all. */}
+      {!isPending &&
+        !isError &&
+        messages.map((m, i) => (
+          <ActivityLine
+            key={`${m.timestamp}-${i}`}
+            sender={m.sender}
+            verb={m.isBuy ? 'bought' : 'sold'}
+            when={timeAgo(m.timestamp)}
+            say={m.message}
+          />
+        ))}
+
+      {/* What this room is, said once. Last in the DOM, so the reversed transcript puts it at the
+          top of the scrollback, above the oldest line — the same place the salon parks its
+          threshold note. */}
+      <StateBlock variant="empty">
+        EXEC&apos;s original on-chain chatter, from the bonding-curve era. The curve is closed;
+        nothing new is said here.
+      </StateBlock>
+    </ActivityBox>
   )
 }

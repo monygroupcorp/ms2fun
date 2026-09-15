@@ -160,46 +160,16 @@
   color: var(--color-bg);
 }
 
-/* Activity — the flat on-chain register: one mono row per event, attributed. Reversed like the
-   transcript it shares a window with, so the newest event rests on the floor in both views. */
+/* Activity — the flat view of the same transcript. It holds shared `ActivityLine`s and owns no row
+   of its own: only the reversal (newest onto the floor, like the `.log` around it) and the same
+   line rhythm a threaded post gets from `.post`. */
 .register {
   display: flex;
   flex-direction: column-reverse;
-  list-style: none;
-  margin: 0;
-  padding: 0;
 }
 
-.regRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--gap-sm);
-  padding: var(--space-3) 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 14%, transparent);
-  font-family: var(--brand-font-mono);
-  font-size: var(--font-size-body-sm);
-}
-
-.regWho {
-  color: var(--color-text);
-  font-weight: var(--font-weight-bold);
-  text-decoration: none;
-}
-
-.regVerb {
-  color: var(--color-text-subtle);
-}
-
-.regCh {
-  color: var(--color-text-muted);
-  text-decoration: none;
-}
-
-.regContent {
-  flex: 1 1 100%;
-  font-family: var(--brand-font-body);
-  color: var(--color-text-muted);
+.register > * {
+  padding: 7px 0;
 }
 
 @media (max-width: 900px) {
