@@ -24,6 +24,10 @@ import {
   targetFigureLabel,
   type TargetRollup,
 } from '../lib/vaults/targetRollup'
+import {
+  ALIGNMENT_LAW_SECTION_SENTENCE,
+  ALIGNMENT_LAW_SENTENCE,
+} from '../lib/vaults/alignmentWording'
 import { useCollectionMetadata } from '../components/useCollectionMetadata'
 import { IpfsImage } from '../components/ui/IpfsImage'
 import { StateBlock } from '../components/ui/StateBlock'
@@ -147,9 +151,12 @@ export function VaultsPage() {
 
       <header className={styles.head}>
         <h1 className={styles.title}>Alignment</h1>
+        {/* The ratio is one law and is stated as such; WHAT the 19% is taken from is a per-family
+            fact (fees on an LP vault, yield on an endowment corpus) and is stated on each vault's
+            own page, which is the first surface that knows the family. */}
         <p className={styles.sub}>
-          19% of every collection&rsquo;s fees route to the community, at a ratio nobody can change.
-          These are the communities that money flows to — open one to see its venues and its vaults.
+          {ALIGNMENT_LAW_SENTENCE} These are the communities that money flows to — open one to see
+          its venues and its vaults.
         </p>
         <div className={styles.tvl} data-testid="vaults-tvl">
           <span className={styles.tvlLabel}>ETH bound</span>
@@ -164,9 +171,7 @@ export function VaultsPage() {
       {(targets.length > 0 || unattributed !== undefined) && (
         <section className={styles.targets} data-testid="alignment-targets">
           <h2 className={styles.sectionTitle}>Alignment targets</h2>
-          <p className={styles.sectionSub}>
-            The communities collections bind to — 19% of every collection&rsquo;s fees route here.
-          </p>
+          <p className={styles.sectionSub}>{ALIGNMENT_LAW_SECTION_SENTENCE}</p>
           <ul className={styles.targetGrid}>
             {communities.map((c) => (
               <CommunityCard
