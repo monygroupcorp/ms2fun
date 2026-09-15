@@ -75,6 +75,11 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
   const gated = isPaidMintGated(gatingModule, gatingScope)
   const allowlist = useMerkleAllowlistProof(instance, edition.id, gated)
 
+  // The leaf cap is a lifetime number; `allowlist.remainingNfts` is what this wallet may still mint
+  // (noesis-280). Undefined means the counter did not read — block rather than assume the cap.
+  const overRemaining =
+    allowlist.remainingNfts === undefined || BigInt(amount) > allowlist.remainingNfts
+
   const {
     writeContract,
     data: txHash,
@@ -106,6 +111,11 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
     // isn't consulted; an empty blob avoids a spurious abi.decode). A gated mint with no resolved proof
     // must not fire — the button stays disabled until `allowlist.status === 'eligible'`.
     if (gated && (allowlist.status !== 'eligible' || allowlist.proof === undefined)) return
+    // Nor above what this wallet has left: the module compares `claimed + amount` against the leaf
+    // cap and reverts `QtyCapExceeded`, which reaches the user as a generic failure AFTER they have
+    // paid gas. Same condition as the button's `overRemaining`, repeated so the write is unreachable
+    // rather than merely un-clickable.
+    if (gated && overRemaining) return
     const gatingData =
       gated && allowlist.proof !== undefined
         ? encodeMerkleGatingData(0n, allowlist.maxQty ?? 0n, allowlist.proof)
@@ -129,7 +139,7 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
 
   const cost = costData !== undefined ? formatEther(costData) : null
   const isBusy = sigPending || isConfirming
-  const gatingBlocksMint = gated && allowlist.status !== 'eligible'
+  const gatingBlocksMint = gated && (allowlist.status !== 'eligible' || overRemaining)
   // `openTime === 0` means open immediately (ERC1155Instance.sol); a nonzero value gates every
   // mint path — paid and free — until that timestamp, and the contract reverts EditionNotOpen()
   // rather than degrading, so the button must not be clickable before then.
@@ -199,7 +209,18 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
           {allowlist.status === 'no-list' && 'allowlist not yet configured by the creator'}
           {allowlist.status === 'not-eligible' && 'this wallet is not on the allowlist'}
           {allowlist.status === 'eligible' &&
-            `allowlisted — up to ${allowlist.maxQtyNfts?.toString() ?? '0'} per wallet`}
+            (allowlist.remainingNfts === undefined
+              ? 'allowlisted — checking what this wallet has already minted…'
+              : `allowlisted — ${allowlist.remainingNfts.toString()} of ${allowlist.maxQtyNfts?.toString() ?? '0'} left for this wallet`)}
+        </p>
+      )}
+      {gated && allowlist.status === 'eligible' && overRemaining && (
+        <p className={styles.mintInput} data-testid="erc1155-mint-allowlist-over-cap">
+          {allowlist.remainingNfts === undefined
+            ? 'cannot read this wallet\u2019s claimed count — try again'
+            : allowlist.remainingNfts === 0n
+              ? 'this wallet has minted its whole allowance'
+              : `over the allowance — lower the amount to ${allowlist.remainingNfts.toString()}`}
         </p>
       )}
       <textarea
