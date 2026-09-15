@@ -212,10 +212,16 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     ///         target cuts awaiting their push, and (since the residual re-credit) ETH carried
     ///         forward for the next conversion. Appended at the end of storage so the addition is
     ///         slot-append-only, matching the WETH rail above.
-    ///         Carries the accumulator's round-down dust: `accRewardPerContribution` divides by
-    ///         `totalContributions` and truncates, so the sum of all claims is at most the sum of
-    ///         all increments. That makes the counter a ceiling on what is owed, never a shortfall,
-    ///         and the subtraction on claim cannot underflow.
+    ///         It is an aggregate booking, not a per-benefactor one, so it does not agree with the
+    ///         sum of the per-benefactor claims to the wei, and cannot be made to: a claim is
+    ///         `floor(contribution * acc / 1e18)` net of `rewardDebt`, which itself telescopes a
+    ///         chain of independently floored per-settle credits, and only iterating benefactors —
+    ///         the very thing the accumulator pattern exists to avoid — could reproduce that sum at
+    ///         harvest time. The residue runs both ways: `accRewardPerContribution` truncates when
+    ///         it divides by `totalContributions`, leaving unclaimable dust on the counter, while a
+    ///         benefactor settled across several conversions is paid up to a wei per settle more
+    ///         than was booked against them. So the claim path saturates the counter at zero rather
+    ///         than subtracting, and the figure is accurate to within that dust, never to the wei.
     uint256 public _totalAccumulatedFees;
 
     // ── Init ──────────────────────────────────────────────────────────────
@@ -596,7 +602,14 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         uint256 pending = contrib * accRewardPerContribution / 1e18 - rewardDebt[benefactor]; // round down: favors vault
         if (pending == 0) return 0;
         rewardDebt[benefactor] = contrib * accRewardPerContribution / 1e18; // round down: benefactor cannot over-claim
-        _totalAccumulatedFees -= pending; // what is owed falls by what is paid
+        // What is owed falls by what is paid — saturating, never a bare subtraction. `pending` is one
+        // floor over the aggregate contribution net of a `rewardDebt` that accrued as a chain of
+        // separately floored per-settle credits, so a benefactor settled across several conversions
+        // — routine, since every ratio-capped residual re-credit requeues them — can be paid a wei
+        // per settle more than the harvest booked. A claim must not revert on that dust: the counter
+        // is a report, and reporting a wei short beats bricking every claim the vault owes.
+        uint256 booked = _totalAccumulatedFees;
+        _totalAccumulatedFees = pending < booked ? booked - pending : 0;
         // WETH-fallback transfer: a smart-wallet recipient rejecting plain ETH still receives its yield
         // as WETH instead of bricking the claim (adoption-gap F1). Covers both claimFees and delegate.
         SmartTransferLib.smartTransferETH(recipient, pending, weth);
