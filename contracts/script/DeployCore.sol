@@ -116,8 +116,18 @@ contract DeployCore is Script {
         // On-chain best-route quoter (`zQuoter.getQuotes`) wired into every vault factory so deployed
         // vaults acquire from the deepest venue instead of their fixed family pool. address(0) = best-route
         // DISABLED (fixed-pool fallback only) — the pre-noesis-063 default that silently shipped the
-        // multi-venue purchase capability off. On mainnet set the canonical `zQuoterBase`; on a testnet
-        // with no canonical quoter, leave 0 (fallback-only) or point at a compatible quoter.
+        // multi-venue purchase capability off.
+        //
+        // EVERY DEPLOYMENT WIRES A QUOTER. address(0) IS A TEST SHAPE, NOT A DEPLOYMENT OPTION. A network
+        // that has a canonical quoter points at it (`DeployMainnet.ZQUOTER`); a network that has none
+        // brings its own, as `DeploySepolia` does with `SepoliaRouteQuoter` and `DeployAnvil` with
+        // `AnvilFixedRouteQuoter`. Fixed-pool-only acquisition was weighed as a production shape and is
+        // not one: where a venue can be quoted, it is quoted. The only callers that legitimately leave
+        // this 0 are the tests pinning the fallback leg (`test/vaults/BestRouteFallbackPin.t.sol`).
+        //
+        // Do NOT bake an address here: which quoter is right is a property of the network, and this
+        // struct serves all of them. Getting it wrong is not repairable after the fact — see the note
+        // on the `cfg.zQuoter == address(0)` check in `deploy()`.
         // OPERATOR INPUT.
         address zQuoter;
 
