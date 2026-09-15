@@ -26,6 +26,9 @@ const state = vi.hoisted(() => ({
   unit: undefined as bigint | undefined,
   listURI: '' as string,
   list: undefined as unknown,
+  gatingModule: '0x3333333333333333333333333333333333333333' as `0x${string}`,
+  /** `MerkleGatingModule.claimed` for the ERC-1155 hook — 0 here, since this file is about scale. */
+  claimed: 0n as bigint | undefined,
 }))
 
 vi.mock('wagmi', () => ({ useAccount: () => ({ address: HOLDER }) }))
@@ -50,6 +53,11 @@ vi.mock('./useCollectionChain', () => ({
 }))
 vi.mock('../../generated/contracts', () => ({
   useReadErc404BondingInstanceUnit: () => ({ data: state.unit }),
+  // The ERC-1155 hook also reads the wallet's cumulative claim, to report REMAINING rather than the
+  // lifetime cap (noesis-280). Held at 0 throughout this file so `remainingNfts === maxQtyNfts` and
+  // the denomination assertions below read the same numbers they always did.
+  useReadErc1155InstanceGatingModule: () => ({ data: state.gatingModule }),
+  useReadMerkleGatingModuleClaimed: () => ({ data: state.claimed, isPending: false }),
 }))
 vi.mock('../../lib/metadata', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../lib/metadata')>()
