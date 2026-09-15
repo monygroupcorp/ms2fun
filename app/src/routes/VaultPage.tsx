@@ -15,6 +15,7 @@ import { formatEther } from 'viem'
 import { truncateAddress } from '../lib/format'
 import { useAllCollections } from '../lib/discovery'
 import { useVaultOverview, vaultFamilyLabel } from '../components/vault/useVaultOverview'
+import { communityCutSentence } from '../lib/vaults/alignmentWording'
 import { CommunityPayoutPanel } from '../components/vault/CommunityPayoutPanel'
 import { VaultDeliveries } from '../components/vault/VaultDeliveries'
 import { BenefactorPosition } from '../components/vault/BenefactorPosition'
@@ -134,8 +135,14 @@ export function VaultPage() {
                   {overview.target.description && (
                     <p className={styles.targetDesc}>{overview.target.description}</p>
                   )}
-                  <p className={styles.targetWho}>
-                    19% of every aligned collection&rsquo;s fees route here.
+                  {/* Family-aware, because one sentence is not true of both: an LP vault splits the
+                      fees its liquidity earns, an endowment vault splits the YIELD on a corpus that
+                      is itself the 19% tithe. See `lib/vaults/alignmentWording`. */}
+                  <p className={styles.targetWho} data-testid="vault-community-cut">
+                    {communityCutSentence(
+                      overview.isEndowment ? 'yield' : 'lp',
+                      overview.target.title,
+                    )}
                   </p>
                 </div>
               </div>
