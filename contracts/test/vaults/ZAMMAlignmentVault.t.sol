@@ -600,6 +600,93 @@ contract ZAMMAlignmentVaultTest is Test {
         assertEq(vault.accumulatedTargetFees(), fees * 1900 / 10000, "target 19%");
     }
 
+    // ── accumulatedFees reports the unclaimed benefactor entitlement ──────
+
+    /// @dev Pins `accumulatedFees()` to what benefactors can actually claim, across a harvest and a
+    ///      claim, with two benefactors so a partial claim is visible.
+    ///
+    ///      This is the regression test for the figure it replaced. `address(this).balance -
+    ///      pendingETH` swept the whole vault balance into one number, so it counted the accrued 1%
+    ///      protocol cut and 19% target cut — ETH owed to the treasury and the alignment sink, not to
+    ///      benefactors — as benefactor yield. The assertions below name that gap explicitly and by
+    ///      derivation, so the test goes red against the old expression rather than merely restating
+    ///      the new one: under it `accumulatedFees()` IS the balance-derived figure, and the two
+    ///      cannot differ.
+    ///
+    ///      Exactness: `accRewardPerContribution` truncates when it divides by `totalContributions`,
+    ///      so the sum of all claims falls short of the booked total by a few wei. The counter is
+    ///      therefore a ceiling on what is owed and never a shortfall — which is the safe direction,
+    ///      and is asserted as such rather than papered over with a tolerance.
+    function test_accumulatedFees_tracksUnclaimedBenefactorEntitlement() public {
+        // Two benefactors, so the counter has to hold an aggregate and survive one of them claiming.
+        _receiveFromAlice(4 ether);
+        vm.prank(bob);
+        vault.receiveContribution{ value: 2 ether }(Currency.wrap(address(0)), 2 ether, bob);
+        _setupPool(10 ether, 10_000e18);
+        vault.convertAndAddLiquidity(0, 0, 0);
+
+        uint256 fees = _triggerHarvestReturnFees();
+        assertGt(fees, 0, "harvest must collect real fees or every assertion below is vacuous");
+
+        // The dust the accumulator's round-down leaves behind: strictly under one wei of
+        // `accRewardPerContribution` per benefactor, plus the accumulator's own truncation over the
+        // whole contribution base. Derived, not tuned.
+        uint256 dustBound = vault.totalContributions() / 1e18 + 2;
+
+        // ── after harvest ────────────────────────────────────────────────
+        uint256 owed = vault.calculateClaimableAmount(alice) + vault.calculateClaimableAmount(bob);
+        assertGt(owed, 0, "benefactors must have a real claim");
+        assertGe(vault.accumulatedFees(), owed, "counter must never under-report what is owed");
+        assertLe(
+            vault.accumulatedFees() - owed, dustBound, "counter must not exceed what is owed beyond round-down dust"
+        );
+
+        // The defect this replaces: the balance-derived figure over-reports by the two cuts that are
+        // owed elsewhere. Red against the old expression, where these two are the same number.
+        uint256 balanceDerived = address(vault).balance - vault.pendingETH();
+        uint256 owedElsewhere = vault.accumulatedProtocolFees() + vault.accumulatedTargetFees();
+        assertGt(owedElsewhere, 0, "the cuts must be nonzero or the contrast proves nothing");
+        assertEq(
+            balanceDerived - vault.accumulatedFees(),
+            owedElsewhere,
+            "balance-derived figure over-reports by exactly the protocol and target cuts"
+        );
+
+        // ── after a claim ────────────────────────────────────────────────
+        uint256 bobOwedBefore = vault.calculateClaimableAmount(bob);
+        uint256 counterBefore = vault.accumulatedFees();
+        uint256 aliceBefore = alice.balance;
+        vm.prank(alice);
+        uint256 claimed = vault.claimFees();
+        assertGt(claimed, 0, "alice must actually be paid");
+        assertEq(alice.balance - aliceBefore, claimed, "alice must receive what she claimed");
+
+        // The interface's contract: it "decreases when fees claimed", by exactly what was paid out.
+        assertEq(vault.accumulatedFees(), counterBefore - claimed, "counter falls by exactly what was paid out");
+        assertEq(vault.calculateClaimableAmount(alice), 0, "alice has nothing left to claim");
+
+        // Bob's entitlement is untouched and still counted — the counter is an aggregate, not a
+        // per-claim scratch value.
+        assertEq(vault.calculateClaimableAmount(bob), bobOwedBefore, "bob's claim must be unaffected");
+        assertGe(vault.accumulatedFees(), bobOwedBefore, "counter must still cover bob");
+        assertLe(vault.accumulatedFees() - bobOwedBefore, dustBound, "counter must be bob's claim plus dust");
+
+        // ── after every claim ────────────────────────────────────────────
+        vm.prank(bob);
+        uint256 bobClaimed = vault.claimFees();
+        assertEq(bobClaimed, bobOwedBefore, "bob is paid what he was owed");
+        assertLe(vault.accumulatedFees(), dustBound, "nothing owed, so nothing reported but dust");
+
+        // And the vault is still holding the two cuts it never owed benefactors. With every claim
+        // settled, the old expression would report that ETH — a fifth of every fee ever harvested —
+        // as claimable benefactor yield; the counter reports only the unclaimable dust.
+        assertEq(
+            address(vault).balance - vault.pendingETH() - vault.accumulatedFees(),
+            owedElsewhere,
+            "the cuts remain in the vault, owed to the treasury and the sink and to no benefactor"
+        );
+    }
+
     function test_withdrawTargetFees_pushesToRegistrySink() public {
         address sink = makeAddr("communitySink");
         registry.setCommunityPayout(TARGET_ID, sink);
