@@ -118,7 +118,13 @@ contract BondDeadlineHandler is Test {
         // rather than truncating (`BondTermsOutOfRange`, unit-tested). Skip instead of burning the call.
         if (escrow.maxBondDuration() > type(uint40).max || escrow.graceDays() > type(uint32).max) return;
 
-        uint256 amount = bound(amountSeed, 1, 10 ether);
+        _postFreshBond(bound(amountSeed, 1, 10 ether));
+    }
+
+    /// @dev A fresh instance, a fresh creator, a bond posted at whatever terms stand right now, and the
+    ///      ghost record of the deadline those terms imply. Shared by the capped random `postBond` above
+    ///      and by `creatorSetsMaturityUnderALiveBond` below, so both escrow a bond by the same path.
+    function _postFreshBond(uint256 amount) internal returns (address) {
         address creator = address(uint160(uint256(keccak256(abi.encode("bondCreator", calls)))));
         CreatorControlledInstance inst = new CreatorControlledInstance(creator);
         instances.push(inst);
@@ -139,6 +145,7 @@ contract BondDeadlineHandler is Test {
         ghost_amount[address(inst)] = amount;
         ghost_deadlineAtPost[address(inst)] = expected;
         ghost_posts++;
+        return address(inst);
     }
 
     // ── Protocol actions ─────────────────────────────────────────────────────
@@ -187,6 +194,58 @@ contract BondDeadlineHandler is Test {
         bool live = isLive(address(inst));
         inst.setBondingMaturityTime(t);
         if (live) ghost_creatorMaturityWritesUnderALiveBond++;
+    }
+
+    /// @dev The same creator write as above, but carrying its own live bond so the coverage floor in
+    ///      `invariant_theRunActuallyAttackedALiveBond` is reachable BY CONSTRUCTION rather than by a
+    ///      lucky interleaving of two independent draws.
+    ///
+    ///      `creatorSetsMaturity` only counts when the index it happens to draw is a bond that happens
+    ///      to still be live, and a run can put itself where that is impossible for good: re-tune
+    ///      `maxBondDuration` to zero, warp, forfeit each bond in turn, and once the six-instance cap is
+    ///      reached with nothing live, no later draw can ever count again. Such a run then fails the
+    ///      guard no matter how long it continues — which is what CI hit on this branch (run
+    ///      35030425281, "no creator maturity write ever landed under a live bond: 0 < 1"), and what
+    ///      eight local seeds happened not to.
+    ///
+    ///      This call closes that hole from the handler side, leaving the invariant itself untouched:
+    ///      it writes maturity on a bond that is already live, and if none is, escrows one first. The
+    ///      guard still measures the walk — it is satisfied only by calls the walk actually made — but
+    ///      a single draw of this selector now suffices, where before it took a coincidence.
+    function creatorSetsMaturityUnderALiveBond(uint256 idx, uint256 t) external counted {
+        address target;
+        uint256 n = posted.length;
+        if (n > 0) {
+            uint256 start = bound(idx, 0, n - 1);
+            for (uint256 k = 0; k < n; k++) {
+                address candidate = posted[(start + k) % n];
+                if (isLive(candidate)) {
+                    target = candidate;
+                    break;
+                }
+            }
+        }
+
+        if (target == address(0)) {
+            // Nothing live. Post one on a slot the capped `postBond` above cannot consume, so this
+            // call keeps working after the random walk has spent every instance it is allowed.
+            if (instances.length >= 7) return;
+            // The walk is free to push the terms past what the record can hold, and `postBond` refuses
+            // outright there. Narrow them back — the owner's own lever, exercised no differently than
+            // `protocolSetMaxBondDuration` does — so a bond can always be escrowed here.
+            if (escrow.maxBondDuration() > type(uint40).max) {
+                vm.prank(owner);
+                escrow.setMaxBondDuration(180 days);
+            }
+            if (escrow.graceDays() > type(uint32).max) {
+                vm.prank(owner);
+                escrow.setGraceDays(30);
+            }
+            target = _postFreshBond(bound(t, 1, 10 ether));
+        }
+
+        CreatorControlledInstance(target).setBondingMaturityTime(t);
+        ghost_creatorMaturityWritesUnderALiveBond++;
     }
 
     function creatorSetsOpenTime(uint256 idx, uint256 t) external counted {
@@ -252,10 +311,12 @@ contract DeployBondDeadlineInvariantTest is StdInvariant, Test {
     address internal factory = makeAddr("erc404Factory");
     address internal stranger = makeAddr("anyStranger");
 
-    /// @dev Call counts the two coverage invariants wait for. The walk picks uniformly from 13
-    ///      selectors, so a post is overwhelmingly certain well inside 200 calls and the paired
-    ///      attack state well inside 300; below the threshold they say nothing, so a shrunk replay of
-    ///      some other failure — a handful of calls long — stays readable instead of failing here.
+    /// @dev Call counts the two coverage invariants wait for. The walk picks uniformly from 14
+    ///      selectors, so a post is overwhelmingly certain well inside 200 calls, and the paired attack
+    ///      state well inside 300 because one of those selectors —
+    ///      `creatorSetsMaturityUnderALiveBond` — reaches it on its own rather than needing two draws
+    ///      to coincide. Below the threshold they say nothing, so a shrunk replay of some other
+    ///      failure — a handful of calls long — stays readable instead of failing here.
     uint256 internal constant COVERAGE_POSTS_AFTER = 200;
     uint256 internal constant COVERAGE_ATTACK_AFTER = 300;
 
@@ -273,7 +334,7 @@ contract DeployBondDeadlineInvariantTest is StdInvariant, Test {
 
         handler = new BondDeadlineHandler(escrow, owner, factory, address(treasury));
 
-        bytes4[] memory selectors = new bytes4[](13);
+        bytes4[] memory selectors = new bytes4[](14);
         selectors[0] = handler.postBond.selector;
         selectors[1] = handler.protocolSetMaxBondDuration.selector;
         selectors[2] = handler.protocolSetGraceDays.selector;
@@ -287,6 +348,7 @@ contract DeployBondDeadlineInvariantTest is StdInvariant, Test {
         selectors[10] = handler.refund.selector;
         selectors[11] = handler.forfeit.selector;
         selectors[12] = handler.postBond.selector; // weighted: every other action needs a bond to act on
+        selectors[13] = handler.creatorSetsMaturityUnderALiveBond.selector;
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
         targetContract(address(handler));
     }
