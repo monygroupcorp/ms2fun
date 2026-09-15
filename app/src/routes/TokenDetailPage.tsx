@@ -31,6 +31,7 @@ import { formatPrice, formatPriceTitle, truncateAddress } from '../lib/format'
 import { StateBlock } from '../components/ui/StateBlock'
 import { MintBar } from '../components/ui/MintBar'
 import { ShareLink } from '../components/ui/ShareLink'
+import { alignmentLawSentence } from '../lib/vaults/alignmentWording'
 import {
   CollectionChainProvider,
   useCollectionAddresses,
@@ -236,15 +237,19 @@ function FramedArt({ image, alt }: { image: string | undefined; alt: string }) {
   )
 }
 
-/** The alignment honesty line — on a token page it states the RESALE bind (every secondary sale),
- * the token page's reason to exist. The SHARE is the protocol constant (no setter, no owner path);
- * the payee is owner-settable, so this line claims the ratio and never the destination. */
+/**
+ * The alignment honesty line. It claims the RATIO and neither the destination nor the source.
+ *
+ * It used to say "19% of every resale", which was wrong twice: no royalty standard is implemented
+ * anywhere in `contracts/src` (`royaltyInfo`/ERC2981 appear in none of it), and a token page knows
+ * its vault's NAME and not its `vaultType()`, so naming a source picks a family blind. See
+ * `lib/vaults/alignmentWording`.
+ */
 function AlignmentLine({ vaultName }: { vaultName?: string | undefined }) {
   return (
-    <p className={styles.alignLine}>
-      <span aria-hidden>▪ </span>19% of every resale routes to{' '}
-      <b>{vaultName || 'its alignment vault'}</b>, on-chain.{' '}
-      <b>The ratio is set in the contract.</b>
+    <p className={styles.alignLine} data-testid="token-alignment-law">
+      <span aria-hidden>▪ </span>
+      {alignmentLawSentence(vaultName || 'its alignment vault')}
     </p>
   )
 }

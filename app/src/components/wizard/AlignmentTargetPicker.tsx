@@ -14,6 +14,7 @@ import type { RegisteredVault } from './useRegisteredVaults'
 import { YieldVaultRequestCard } from './YieldVaultRequestCard'
 import { truncateAddress } from '../../lib/format'
 import { LearnLink } from './LearnLink'
+import { ALIGNMENT_LAW_SENTENCE } from '../../lib/vaults/alignmentWording'
 import styles from './AlignmentTargetPicker.module.css'
 
 /** The full venue catalog, so a target missing a venue can surface a "create it" affordance. */
@@ -211,9 +212,11 @@ export function AlignmentTargetPicker({
     <div className={styles.wrap}>
       {/* Level 1 — the community. */}
       <h3 className={styles.sectionTitle}>Community</h3>
-      <p className={styles.help}>
-        19% of every collection&rsquo;s fees route to a vault aligned with the community you pick.{' '}
-        <LearnLink slug="alignment-vault" />
+      {/* Level 1 picks a COMMUNITY, before any venue and so before any family — "of every
+          collection's fees" asserted the LP reading over the endowment venue sitting in the very
+          next step. The ratio is the half that does not vary. See `lib/vaults/alignmentWording`. */}
+      <p className={styles.help} data-testid="picker-alignment-law">
+        {ALIGNMENT_LAW_SENTENCE} <LearnLink slug="alignment-vault" />
       </p>
       <div className={styles.targetGrid}>
         {targetGroups.map((g) => {

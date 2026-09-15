@@ -72,3 +72,28 @@ describe('CollectionHero status segment', () => {
     expect(kicker(container)?.textContent).not.toContain('Ended')
   })
 })
+
+// ── The alignment line names a payee and never a source ─────────────────────────────────────────
+//
+// The hero used to read "19% of fees route to the community on every mint". The card it renders
+// from carries `vaultName` and no `vaultType()`, so the hero cannot tell an LP vault (which splits
+// trading fees) from an endowment one (which splits the yield on a corpus) — the sentence was one
+// family's reading printed over both. "On every mint" was wrong on a third axis besides: the bind
+// lands at edition mint, auction close or ERC404 graduation depending on the standard.
+
+describe('CollectionHero alignment line', () => {
+  it('names the vault it is bound to', () => {
+    const { getByTestId } = renderHero(card({ vaultName: 'Nouns' }))
+    expect(getByTestId('hero-alignment-law')).toHaveTextContent('Nouns')
+  })
+
+  it('claims no source for the 19% — no fees, no yield, no per-mint trigger', () => {
+    const line = renderHero(card({ vaultName: 'Nouns' })).getByTestId('hero-alignment-law')
+    expect(line.textContent ?? '').not.toMatch(/fees?|yield|every mint/i)
+  })
+
+  it("still says the split is not the creator's to change", () => {
+    const { getByTestId } = renderHero(card({ vaultName: 'Nouns' }))
+    expect(getByTestId('hero-alignment-law')).toHaveTextContent(/nobody can change|can’t change/i)
+  })
+})

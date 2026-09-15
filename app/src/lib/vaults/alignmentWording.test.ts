@@ -6,9 +6,11 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  ALIGNMENT_LAW_NOTE,
   ALIGNMENT_LAW_SECTION_SENTENCE,
   ALIGNMENT_LAW_SENTENCE,
   ALIGNMENT_SPLIT,
+  alignmentLawSentence,
   communityCutSentence,
 } from './alignmentWording'
 
@@ -66,5 +68,50 @@ describe('the cross-family sentences', () => {
       expect(s).not.toMatch(/fees/i)
       expect(s).not.toMatch(/yield/i)
     }
+  })
+})
+
+describe('alignmentLawSentence', () => {
+  // A collection page and a token page know the vault's NAME and not its `vaultType()`, so they may
+  // name the payee and must not name a source.
+  it('names the payee', () => {
+    expect(alignmentLawSentence('Nouns')).toContain('Nouns')
+  })
+
+  it('falls back to "the community" when the vault name is missing or blank', () => {
+    expect(alignmentLawSentence()).toContain('the community')
+    expect(alignmentLawSentence('  ')).toContain('the community')
+  })
+
+  it('states the ratio', () => {
+    expect(alignmentLawSentence('Nouns')).toContain('19%')
+  })
+
+  it('claims NO source — not fees, not yield, and above all not a resale royalty', () => {
+    const s = alignmentLawSentence('Nouns')
+    expect(s).not.toMatch(/fees?/i)
+    expect(s).not.toMatch(/yield/i)
+    // `royaltyInfo`/ERC2981 are implemented in no file under `contracts/src`; "19% of every resale"
+    // was a claim with nothing behind it.
+    expect(s).not.toMatch(/resale|royalt/i)
+    // The bind lands at edition mint, auction close OR ERC404 graduation — never "every mint".
+    expect(s).not.toMatch(/every mint/i)
+  })
+
+  it('says the ratio is fixed, which is the half that is true on every family', () => {
+    expect(alignmentLawSentence('Nouns')).toMatch(/nobody can change/i)
+  })
+})
+
+describe('ALIGNMENT_LAW_NOTE', () => {
+  it('states the ratio in a caption-width slot and still names no source', () => {
+    expect(ALIGNMENT_LAW_NOTE).toContain('19%')
+    expect(ALIGNMENT_LAW_NOTE).not.toMatch(/fees?/i)
+    expect(ALIGNMENT_LAW_NOTE).not.toMatch(/yield/i)
+    expect(ALIGNMENT_LAW_NOTE).not.toMatch(/resale/i)
+  })
+
+  it("says the number is the contract's and not the creator's", () => {
+    expect(ALIGNMENT_LAW_NOTE).toMatch(/not a creator setting/i)
   })
 })
