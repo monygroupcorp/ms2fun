@@ -614,9 +614,10 @@ contract ZAMMAlignmentVaultTest is Test {
     ///      cannot differ.
     ///
     ///      Exactness: `accRewardPerContribution` truncates when it divides by `totalContributions`,
-    ///      so the sum of all claims falls short of the booked total by a few wei. The counter is
-    ///      therefore a ceiling on what is owed and never a shortfall — which is the safe direction,
-    ///      and is asserted as such rather than papered over with a tolerance.
+    ///      so here — one harvest, one settle apiece — the sum of all claims falls short of the booked
+    ///      total by a few wei, and the counter is a ceiling. That is not universal; settling a
+    ///      benefactor repeatedly walks it the other way, which is what
+    ///      {test_accumulatedFees_saturatesWhenSettleFloorsOutrunTheBooking} pins.
     function test_accumulatedFees_tracksUnclaimedBenefactorEntitlement() public {
         // Two benefactors, so the counter has to hold an aggregate and survive one of them claiming.
         _receiveFromAlice(4 ether);
@@ -636,7 +637,7 @@ contract ZAMMAlignmentVaultTest is Test {
         // ── after harvest ────────────────────────────────────────────────
         uint256 owed = vault.calculateClaimableAmount(alice) + vault.calculateClaimableAmount(bob);
         assertGt(owed, 0, "benefactors must have a real claim");
-        assertGe(vault.accumulatedFees(), owed, "counter must never under-report what is owed");
+        assertGe(vault.accumulatedFees(), owed, "one harvest, one settle apiece: the counter covers what is owed");
         assertLe(
             vault.accumulatedFees() - owed, dustBound, "counter must not exceed what is owed beyond round-down dust"
         );
@@ -685,6 +686,78 @@ contract ZAMMAlignmentVaultTest is Test {
             owedElsewhere,
             "the cuts remain in the vault, owed to the treasury and the sink and to no benefactor"
         );
+    }
+
+    /// @dev Pins the claim path against the counter's one unavoidable inexactness: a benefactor who
+    ///      is settled many times is paid slightly more than the harvests booked for them, so the
+    ///      decrement on claim has to saturate instead of subtracting.
+    ///
+    ///      Where the drift comes from. `rewardDebt` is credited per settle as
+    ///      `floor(settled * acc / 1e18)`, each conversion flooring on its own, while a claim is one
+    ///      `floor(contribution * acc / 1e18)` over the aggregate net of that chain — and a floor of
+    ///      a sum is never smaller than the sum of the floors. Every settle can therefore hand the
+    ///      benefactor up to a wei the harvest never booked, and a benefactor is settled on every
+    ///      conversion they have ETH in, which the ratio-capped residual re-credit guarantees is more
+    ///      than once: whatever ZAMM refuses is carried forward and settles again next time.
+    ///      Contributions here are fractions of an ether, so `accRewardPerContribution`'s own
+    ///      round-down leaves under a wei of slack per harvest to absorb it, so within a couple of
+    ///      conversions the claim has already outrun the booking.
+    ///
+    ///      Non-vacuous against the bare `_totalAccumulatedFees -= pending` this replaces: there the
+    ///      `claimFees()` below reverts with an arithmetic underflow, and every benefactor's yield is
+    ///      stranded in the vault permanently.
+    function test_accumulatedFees_saturatesWhenSettleFloorsOutrunTheBooking() public {
+        // Odd wei amounts so nothing divides evenly and each settle floors off a real remainder.
+        uint256[5] memory amounts =
+            [uint256(0.3 ether + 7), 0.11 ether + 13, 0.07 ether + 3, 0.05 ether + 11, 0.13 ether + 17];
+
+        bool sawResidualRecredit;
+        for (uint256 i = 0; i < amounts.length; i++) {
+            vm.roll(block.number + 10);
+            _receiveFromAlice(amounts[i]);
+            if (i == 0) _setupPool(10 ether, 10_000e18);
+            // Conversion harvests first, then settles — so each round credits `rewardDebt` at a
+            // different accumulator value, which is the whole point.
+            vault.convertAndAddLiquidity(0, 0, 0);
+            if (vault.pendingContribution(alice) != 0) sawResidualRecredit = true;
+            _growPoolReserves();
+        }
+        assertTrue(sawResidualRecredit, "the residual must be re-credited or alice is settled only once per round");
+
+        vm.roll(block.number + 10);
+        assertGt(vault.harvest(0), 0, "a final harvest must book real fees or the claim below is vacuous");
+
+        // The drift itself: alice can claim more than the harvests booked. Sub-wei per settle, but
+        // enough to underflow a bare subtraction.
+        uint256 owed = vault.calculateClaimableAmount(alice);
+        uint256 booked = vault.accumulatedFees();
+        assertGt(owed, booked, "settle floors must have outrun the booking or this test proves nothing");
+        assertLe(owed - booked, amounts.length, "and they must outrun it only by dust: at most a wei per settle");
+
+        // The claim must go through. Against the old code this is where it reverted.
+        uint256 balanceBefore = alice.balance;
+        vm.prank(alice);
+        uint256 claimed = vault.claimFees();
+        assertEq(claimed, owed, "alice is paid exactly what she was owed, the counter notwithstanding");
+        assertEq(alice.balance - balanceBefore, claimed, "and she actually receives it");
+
+        // Nothing is owed any more, and the counter says so rather than wrapping to 2^256.
+        assertEq(vault.accumulatedFees(), 0, "counter saturates at zero when the payout exceeds the booking");
+        assertEq(vault.calculateClaimableAmount(alice), 0, "alice has nothing left to claim");
+
+        // And the vault is not left in a state where the next claim reverts either.
+        vm.prank(alice);
+        assertEq(vault.claimFees(), 0, "a second claim is a no-op, not a revert");
+    }
+
+    /// @dev Grow the pool's reserves so the vault's per-share invariant exceeds its baseline and the
+    ///      next harvest sees real fees, without disturbing LP supply or the vault's LP balance.
+    function _growPoolReserves() internal {
+        uint256 pid = vault.poolId();
+        (uint112 r0, uint112 r1,,,,, uint256 supply) = mockZamm.pools(pid);
+        mockZamm.setPool(pid, uint112(uint256(r0) * 103 / 100 + 1), uint112(uint256(r1) * 103 / 100 + 1), supply);
+        vm.deal(address(mockZamm), 100 ether);
+        vm.deal(address(mockZRouter), 100 ether);
     }
 
     function test_withdrawTargetFees_pushesToRegistrySink() public {
