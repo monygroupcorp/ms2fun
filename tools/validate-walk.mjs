@@ -25,7 +25,9 @@
 //                 states its own coverage rather than implying it is total.
 //   invitability  every role owns steps and says what to bring, and the walk names where a finding
 //                 goes and what it has to carry. A role nobody can be invited as, or a walk that
-//                 collects nothing, turns this red.
+//                 collects nothing, turns this red. A step's lines have to read on their own, too:
+//                 they are copied one at a time into a row, so a line pointing at its neighbour by
+//                 position ('given: the same') says nothing by the time anybody reads it.
 //
 // The three renderers read the same file the gate just checked, so the invite a tester is handed and
 // the form their defect comes back on cannot describe a walk the app no longer has. --invite refuses
@@ -167,6 +169,20 @@ for (const act of manifest.acts) {
     if (!ids.has(m[1])) fail(`act ${act.id} note: names ${m[1]}, which is not a step`);
   }
 }
+// A step's lines are read one at a time, away from their neighbours: --report prints one step, and a
+// tester is told to copy their own step's block into a reply. So a line that points at the step
+// above it by POSITION rather than by id says nothing at all once it is copied — 'given: the same'
+// in a row is a precondition nobody filing it can supply. An id is the only handle that survives the
+// move, which is why every other cross-reference in this file is one.
+const POSITIONAL = /^\s*(the same|same|as above|see above|ditto)\b/i;
+for (const step of steps) {
+  for (const [key, text] of [['given', step.given], ['do', step.do], ['expect', step.expect]]) {
+    if (POSITIONAL.test(text ?? '')) {
+      fail(`${step.id}: '${key}' reads '${text}', which points at the step above it by position — a step's lines are copied one at a time into a row, where the step above it is not there. Say it, or name the step by id`);
+    }
+  }
+}
+
 for (const [role, what] of Object.entries(manifest.roles)) {
   for (const m of what.matchAll(/\b([OCBH]-\d+)\b/g)) {
     if (!ids.has(m[1])) fail(`role ${role}: names ${m[1]}, which is not a step`);
@@ -323,12 +339,20 @@ const flag = (name) => {
 // and the only way to see an invite was to have a deployment, which no build has yet had: the whole
 // invite path had never once executed, and its first run would have been in front of a tester.
 
-const stepLines = (step, chainId, at) => [
-  `  - where: ${stepWhere(step, chainId, at)}`,
-  `  - given: ${step.given}`,
-  `  - do: ${step.do}`,
-  `  - expect: ${step.expect}`,
+// The lines of a step that say what the walk asked for, named once. Three things read this list and
+// none of them may drift from the others: the invite renders them under every step, the invite's
+// closing paragraph names them as the lines to copy into a report, and --report fills them in for
+// whoever files the row from the repo instead of from a reply. When the packet and the form carry
+// different lines, the same defect files as two different rows and the one filed from here is the
+// one missing what the step asked for — which is the field a row is walked back by.
+const STEP_LINES = [
+  ['where', (step, chainId, at) => stepWhere(step, chainId, at)],
+  ['given', (step) => step.given],
+  ['do', (step) => step.do],
+  ['expect', (step) => step.expect],
 ];
+
+const stepLines = (step, chainId, at) => STEP_LINES.map(([key, value]) => `  - ${key}: ${value(step, chainId, at)}`);
 
 // The packet one named tester is handed: the role they walk, what to bring, the steps that are
 // theirs, the steps somebody else has to have walked first, and where a finding goes. It is derived
@@ -403,7 +427,7 @@ function renderInvite(role, chain, at) {
   // so the invite says which lines to copy and which three to add instead.
   say('\nYou do not need any of our tooling to send one. That list is the whole form, and the invite has');
   say('already filled most of it in: copy your step\'s own block from above — the id and title, and its');
-  say('where / given / do / expect lines — and the chain line at the top of this page, then add these:\n');
+  say(`${STEP_LINES.map(([key]) => key).join(' / ')} lines — and the chain line at the top of this page, then add these:\n`);
   say('- what I did:');
   say('- what happened instead:');
   say('- transaction hash, or the wallet error if it never sent:\n');
@@ -436,6 +460,11 @@ function renderReport(step, chainId, chain, at) {
   say(`- walked as: ${step.act.role}`);
   say(`- where: ${stepWhere(step, chainId, at)}`);
   say(`- sends: ${step.calls.join(', ')}`);
+  // given and do, not expect alone. A row is walked back by somebody who was not there, and what the
+  // step asked for is the half that tells them whether the tester hit the defect or read the step
+  // wrong. The invite tells a tester to copy all four lines; this form used to carry two of them.
+  say(`- given: ${step.given}`);
+  say(`- the walk says to do: ${step.do}`);
   say(`- the walk says to expect: ${step.expect}`);
   say('- what I did:');
   say('- what happened instead:');
@@ -564,7 +593,15 @@ if (process.argv.includes('--selftest')) {
           `--invite ${role}: step ${step.id} carries the chain id, not a blank for it`,
         );
       }
-      check(text.includes(`- where: ${where}`), `--invite ${role}: step ${step.id} shows that link`);
+      // The same four lines the report form carries, asserted on the packet side too. Either
+      // renderer dropping one is the drift this list exists to prevent, and a claim on only one of
+      // them would catch it in one direction.
+      for (const [key, value] of STEP_LINES) {
+        check(
+          text.includes(`- ${key}: ${value(step, fixture.chainId, fixtureAt)}`),
+          `--invite ${role}: step ${step.id} shows its '${key}' line`,
+        );
+      }
     }
     // Every id in the "somebody else walks" section is a real step of another role. The section is
     // built by a regex over prose, so a typo'd id would send a tester waiting on nothing.
@@ -586,7 +623,15 @@ if (process.argv.includes('--selftest')) {
     const text = lines.join('\n');
     check(text.includes(step.id), `--report ${step.id} names its step`);
     for (const call of step.calls) check(text.includes(call), `--report ${step.id} names the call ${call}`);
-    check(text.includes(step.expect), `--report ${step.id} carries the walk's own acceptance bar`);
+    // Every line the invite tells a tester to copy is a line this form has to carry. The two return
+    // paths — a tester's reply and a row filed from the repo — otherwise produce two shapes of row
+    // for one step, and only one of them says what the walk asked for.
+    for (const [key, value] of STEP_LINES) {
+      check(
+        text.includes(value(step, SEPOLIA, fixtureAt)),
+        `--report ${step.id} carries its '${key}' line, which the invite tells a tester to copy`,
+      );
+    }
     // The one field a tester should never have to decide has to actually be decided for them.
     check(
       text.includes(step.blocking ? 'This step is blocking' : 'This step is not blocking'),
