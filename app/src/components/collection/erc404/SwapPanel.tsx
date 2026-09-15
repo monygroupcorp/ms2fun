@@ -23,9 +23,6 @@ import {
   curveParamsComputerAbi,
   useReadCurveParamsComputerCalculateRefund,
   useReadErc404BondingInstanceBalanceOf,
-  useReadErc404BondingInstanceFreeMintAllocation,
-  useReadErc404BondingInstanceLiquidityReserve,
-  useReadErc404BondingInstanceUnit,
   useWriteErc404BondingInstanceBuyBonding,
   useWriteErc404BondingInstanceSellBonding,
 } from '../../../generated/contracts'
@@ -34,7 +31,7 @@ import { invalidateInstanceQueries, txErrorReason } from '../../ui/useTxAction'
 import { tierErrorCopy } from './tierErrorCopy'
 import { useTierPosition } from './useTierPosition'
 import { previewBandBurn } from './bandBurnPreview'
-import type { BondingView } from './bondingPhase'
+import { type BondingView, buyableCeiling } from './bondingPhase'
 import { applyBuySlippage, applySellSlippage, formatBps } from './bondingFormat'
 import type { CurveParamsTuple } from './useBondingData'
 import { EMPTY_BYTES, ZERO_BYTES32, encodeMerkleGatingData, resolveBuyPasswordHash } from './gating'
@@ -115,26 +112,14 @@ export function SwapPanel({
     sellAmount = undefined
   }
 
-  // Buyable ceiling for the inverse solve (contract's ExceedsBonding guard).
-  const unit = useReadErc404BondingInstanceUnit({ address: instance, chainId: chainId })
-  const reserveRead = useReadErc404BondingInstanceLiquidityReserve({
-    address: instance,
-    chainId: chainId,
-  })
-  const freeMintRead = useReadErc404BondingInstanceFreeMintAllocation({
-    address: instance,
-    chainId: chainId,
-  })
-  let remaining: bigint | undefined
-  if (
-    unit.data !== undefined &&
-    reserveRead.data !== undefined &&
-    freeMintRead.data !== undefined
-  ) {
-    const ceiling = view.maxSupply - reserveRead.data - freeMintRead.data * unit.data
-    const r = ceiling - view.totalBondingSupply
-    remaining = r > 0n ? r : 0n
-  }
+  // Buyable ceiling for the inverse solve (contract's ExceedsBonding guard). The ceiling's three
+  // terms ride on the view, so this is the same expression `canDeployLiquidity` asks its full
+  // question with — the panel and the graduate affordance can no longer disagree about where the
+  // curve ends.
+  const remaining = (() => {
+    const r = buyableCeiling(view) - view.totalBondingSupply
+    return r > 0n ? r : 0n
+  })()
 
   // ── BUY inverse-solve: ETH spend → token amount + exact cost ──────────────────────────────────
   const [resolved, setResolved] = useState<CostInverse | undefined>()
@@ -147,7 +132,6 @@ export function SwapPanel({
     spendWei !== undefined &&
     curveComputer !== undefined &&
     curveParams !== undefined &&
-    remaining !== undefined &&
     remaining > 0n
       ? `${spendWei}|${remaining}|${view.totalBondingSupply}|${curveComputer}|${curveParams.join(',')}`
       : ''
@@ -158,8 +142,7 @@ export function SwapPanel({
       !publicClient ||
       spendWei === undefined ||
       curveComputer === undefined ||
-      curveParams === undefined ||
-      remaining === undefined
+      curveParams === undefined
     ) {
       setResolved(undefined)
       setSolving(false)
@@ -259,11 +242,11 @@ export function SwapPanel({
   } = useTierPosition(instance, address)
 
   // Debit-burns-your-band preview (noesis-173): fed `tierBalance` (balanceOf-primacy, never
-  // `holdings`) and the existing `unit` read above — SEE its own module doc for the arithmetic.
+  // `holdings`) and the view's `unit` — SEE its own module doc for the arithmetic.
   const bandBurnPreview = previewBandBurn({
     balance: tierBalance,
     amount: sellAmount,
-    unit: unit.data,
+    unit: view.unit,
     bandPieces,
   })
 

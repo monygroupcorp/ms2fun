@@ -143,6 +143,11 @@ function view(overrides: Partial<BondingView>): BondingView {
     graduated: false,
     totalBondingSupply: 0n,
     maxSupply: 1000n,
+    // A tenth of supply held for the graduation pool, which is what every shipped preset reserves,
+    // so the buyable ceiling in these fixtures is 900 and not `maxSupply`.
+    liquidityReserve: 100n,
+    freeMintAllocation: 0n,
+    unit: 10n ** 24n,
     ...overrides,
   }
 }
@@ -158,11 +163,12 @@ const BONDING_MATURED = view({
   maxSupply: 1000n,
   bondingMaturityTime: NOW - 100n,
 })
-// Functionally sold out (buys already revert `ExceedsBonding` against the capped supply) but the
-// helper's RAW-`maxSupply` comparison still reads `full === false` — the exact case correction 1
-// exists to route around.
-const BONDING_SOLD_OUT_FULL_FALSE = view({
-  totalBondingSupply: 999n,
+// Sold out: the supply has reached the BUYABLE ceiling (1000 − 100 reserved), so every further buy
+// reverts `ExceedsBonding` even though it is short of `maxSupply`. Against raw `maxSupply` this read
+// `full === false` and the panel told the creator that graduating would close the sale early — on a
+// curve with nothing left to sell.
+const BONDING_SOLD_OUT_AT_CEILING = view({
+  totalBondingSupply: 900n,
   maxSupply: 1000n,
   bondingMaturityTime: NOW + 100n,
 })
@@ -252,9 +258,16 @@ test('bonding and matured: deploy liquidity is present without the early-close h
   expect(screen.queryByText(/closes the sale early/i)).not.toBeInTheDocument()
 })
 
-test('bonding, functionally sold out but raw-maxSupply full is false: deploy liquidity is present', () => {
-  mount(BONDING_SOLD_OUT_FULL_FALSE)
+test('bonding, sold out at the buyable ceiling: deploy liquidity is present and nothing is early', () => {
+  mount(BONDING_SOLD_OUT_AT_CEILING)
   expect(screen.getByTestId('erc404-admin-deploy-liquidity')).toBeInTheDocument()
+  // NON-VACUITY: revert the predicate to `totalBondingSupply >= maxSupply` and 900 < 1000 makes this
+  // curve read not-full, the hint comes back, and this expectation fails.
+  expect(screen.queryByText(/closes the sale early/i)).not.toBeInTheDocument()
+})
+
+test('bonding, one coin below the ceiling: the early-close hint is still shown', () => {
+  mount(view({ totalBondingSupply: 899n, maxSupply: 1000n, bondingMaturityTime: NOW + 100n }))
   expect(screen.getByText(/closes the sale early/i)).toBeInTheDocument()
 })
 

@@ -9,7 +9,9 @@ import {
   useReadErc404BondingInstanceBondingMaturityTime,
   useReadErc404BondingInstanceBondingOpenTime,
   useReadErc404BondingInstanceCurveParams,
+  useReadErc404BondingInstanceFreeMintAllocation,
   useReadErc404BondingInstanceGraduated,
+  useReadErc404BondingInstanceLiquidityReserve,
   useReadErc404BondingInstanceMaxSupply,
   useReadErc404BondingInstanceReserve,
   useReadErc404BondingInstanceTotalBondingSupply,
@@ -42,6 +44,11 @@ export function useBondingData(instance: `0x${string}`): BondingData {
   const graduated = useReadErc404BondingInstanceGraduated(opts)
   const totalSupply = useReadErc404BondingInstanceTotalBondingSupply(opts)
   const maxSupply = useReadErc404BondingInstanceMaxSupply(opts)
+  // The three terms of the BUYABLE ceiling. They ride on the view rather than being read again at
+  // each call site because the ceiling — not `maxSupply` — is what the buy path enforces, so every
+  // consumer that asks "is this curve full" needs all four together or it asks the wrong question.
+  const liquidityReserve = useReadErc404BondingInstanceLiquidityReserve(opts)
+  const freeMintAllocation = useReadErc404BondingInstanceFreeMintAllocation(opts)
   const curve = useReadErc404BondingInstanceCurveParams(opts)
   const reserve = useReadErc404BondingInstanceReserve(opts)
   const unit = useReadErc404BondingInstanceUnit(opts)
@@ -54,6 +61,8 @@ export function useBondingData(instance: `0x${string}`): BondingData {
     graduated,
     totalSupply,
     maxSupply,
+    liquidityReserve,
+    freeMintAllocation,
     curve,
     reserve,
     unit,
@@ -73,7 +82,10 @@ export function useBondingData(instance: `0x${string}`): BondingData {
     maturityTime.data !== undefined &&
     graduated.data !== undefined &&
     totalSupply.data !== undefined &&
-    maxSupply.data !== undefined
+    maxSupply.data !== undefined &&
+    liquidityReserve.data !== undefined &&
+    freeMintAllocation.data !== undefined &&
+    unit.data !== undefined
   ) {
     view = {
       bondingActive: active.data,
@@ -82,6 +94,9 @@ export function useBondingData(instance: `0x${string}`): BondingData {
       graduated: graduated.data,
       totalBondingSupply: totalSupply.data,
       maxSupply: maxSupply.data,
+      liquidityReserve: liquidityReserve.data,
+      freeMintAllocation: freeMintAllocation.data,
+      unit: unit.data,
     }
   }
 
