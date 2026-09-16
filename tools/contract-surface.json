@@ -949,6 +949,10 @@
       "why": "A raw accumulator of the reward math. What a holder is owed is the settled number the contract computes; the accumulator only means something next to rewardDebt."
     },
     {
+      "match": "AlignmentEndowmentVault.creatorYieldRemainder",
+      "why": "The third term of the endowment's creator accumulator, beside `accCreatorYieldPerShare` and `rewardDebt`: the creator leg a harvest could not express per-share, held for the next harvest to fold in rather than dropped. It is not a figure anyone can be shown against their own position, because it sits OUTSIDE every benefactor's `_claimable` -- it is owed to no one collection but to all of them pro-rata, and only once a later harvest's movement clears one unit. Nor is it actionable: nothing but `_creditCreatorLeg` ever writes it and no flush reaches it, unlike `accumulatedTargetFees` and `roundResidue`, which the vault panel renders precisely because a button delivers them. And it is always sub-unit dust -- `creatorYieldRemainder * ACC_PRECISION < totalPrincipalShares`, pinned by AlignmentEndowmentVaultSplitLaw -- which with the share price floored at 1e-9 bounds it under a billionth of everything ever deposited. What a creator acts on is `pendingYieldOf`, which the collection's vault panel shows; the conservation this value exists to keep is stated on `totalYieldToCreators`, whose doc names it. See acc*PerShare."
+    },
+    {
       "match": "*.accRewardPerContribution",
       "why": "A raw accumulator of the reward math. See acc*PerShare."
     },
