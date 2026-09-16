@@ -5537,7 +5537,7 @@ export const erc404BondingInstanceAbi = [
   },
   {
     type: 'function',
-    inputs: [{ name: '', internalType: 'string', type: 'string' }],
+    inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
     name: 'setStyle',
     outputs: [],
     stateMutability: 'nonpayable',
@@ -6240,7 +6240,6 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'SetBondingOpenTimeFailed' },
   { type: 'error', inputs: [], name: 'SetContractURIFailed' },
   { type: 'error', inputs: [], name: 'SetMetadataURIFailed' },
-  { type: 'error', inputs: [], name: 'SetStyleFailed' },
   {
     type: 'error',
     inputs: [
