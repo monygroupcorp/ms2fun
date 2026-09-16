@@ -103,9 +103,12 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     error RedeemShortfall();
     error ExceedsDeployableCorpus();
     /// @dev `execute` may not target the vault's own principal-bearing assets (the stataToken position or
-    ///      its WETH) nor itself. The value-bound alone does not bind the position: a call routed through
-    ///      `data` could move the stataToken shares out without debiting `totalPrincipal`, desyncing the
-    ///      yield basis and leaving the creator purses and accrued target fees this vault holds unbacked.
+    ///      its WETH), itself, or the alignment registry. The value-bound alone does not bind the position:
+    ///      a call routed through `data` could move the stataToken shares out without debiting
+    ///      `totalPrincipal`, desyncing the yield basis and leaving the creator purses and accrued target
+    ///      fees this vault holds unbacked. Nor does it bind the vault's identity: the registry keys the
+    ///      community-payout rotation on `msg.sender`, so a vault that is itself a community's pinned sink
+    ///      would otherwise let any ambassador rotate that payout away in a free zero-value call.
     error ForbiddenExecuteTarget();
     /// @dev The vault has been migrated (decommissioned): intake is permanently closed.
     error VaultMigrated();
@@ -857,24 +860,31 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         // (trivially ≤ corpus) and route through `data` to make the vault call `transfer`/`withdraw`/
         // `approve` on its OWN principal-bearing tokens, moving principal out with no debit to
         // `totalPrincipal`. That desyncs the yield basis and leaves the native ETH this vault holds for
-        // other people — the creator purses, `accumulatedTargetFees` and `roundResidue` — unbacked. Deny
-        // the vault's principal-bearing targets (its stataToken position and the WETH it holds an unbounded
-        // approval on) and itself. Legit value-only deployment to any OTHER `to` (incl. an EOA) is unaffected.
+        // other people — the creator purses, `accumulatedTargetFees` and `roundResidue` — unbacked. Nor does
+        // it bind what the vault's IDENTITY can sign for elsewhere: a zero-value call is free, and its
+        // `msg.sender` is this vault. Deny the vault's principal-bearing targets (its stataToken position
+        // and the WETH it holds an unbounded approval on), itself, and the alignment registry. Legit
+        // value-only deployment to any OTHER `to` (incl. an EOA) is unaffected.
         //
-        // This three-entry denylist is sufficient for the contract AS WRITTEN, and only conditionally so:
-        // its sufficiency rests on three invariants that live outside it, and a denylist that looks
-        // self-evidently complete is exactly how the next change removes an entry or leaves one out. A
-        // change that breaks any of these reopens the audited routes the denylist closes, and must be
-        // reviewed as such:
+        // This denylist is sufficient for the contract AS WRITTEN, and only conditionally so: its
+        // sufficiency rests on invariants that live outside it, and a denylist that looks self-evidently
+        // complete is exactly how the next change removes an entry or leaves one out. A change that breaks
+        // any of these reopens the audited routes the denylist closes, and must be reviewed as such:
         //   (a) the vault never grants a token approval other than WETH → stataToken (set once in
         //       `initialize`), so no `transferFrom` on a third contract can reach the position through
         //       `data`;
         //   (b) the stataToken never gains a contract-signature (EIP-1271) permit path — StaticATokenV2's
         //       permit is ECDSA-only and this vault has no `isValidSignature`, so `data` cannot mint a
         //       permit that lets `to` pull the position later;
-        //   (c) no registry or factory ever trusts msg.sender-is-a-vault, so a call this vault is made to
-        //       place cannot exercise a privilege the vault holds elsewhere.
-        if (to == address(stataToken) || to == address(weth) || to == address(this)) {
+        //   (c) the alignment registry is the one contract that DOES key a privilege on
+        //       msg.sender-is-a-vault, which is why it is denied here rather than assumed away.
+        //       `AlignmentRegistryV1.rotateCommunityPayout` authorizes on `msg.sender ==
+        //       communityPayout[targetId]` and nothing else, so whenever a community's payout is pinned to
+        //       a vault, that vault's call surface IS the rotation key: without this entry any seated
+        //       ambassador could spend a zero-value `execute` at the registry and move the community's
+        //       money to an address of their own, permanently. Any OTHER contract that comes to trust
+        //       msg.sender-is-a-vault belongs in this list in the same change that grants the trust.
+        if (to == address(stataToken) || to == address(weth) || to == address(this) || to == address(ar)) {
             revert ForbiddenExecuteTarget();
         }
 
