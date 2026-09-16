@@ -37,6 +37,8 @@ import {
     OpenTimeNotSet,
     CannotActivateAfterLiquidityDeployed,
     StakingAlreadyActive,
+    NoFeeClaimingVault,
+    NotSupported,
     AlreadyDeployed,
     NoReserve,
     NothingForPool,
@@ -504,7 +506,7 @@ contract ERC404BondingOps is ERC404BondingStorage {
     // slither-disable-next-line calls-loop,unused-return
     function claimAllFees() external onlyOwner nonReentrant {
         uint256 before = address(this).balance;
-        address[] memory allVaults = masterRegistry.getInstanceVaults(address(this));
+        address[] memory allVaults = _instanceVaults();
         for (uint256 i = 0; i < allVaults.length; i++) {
             // Some vaults (e.g. AlignmentEndowmentVault) intentionally revert NotSupported() on
             // claimFees() — they have no pull-claim model. Skip those silently so one such vault
@@ -971,10 +973,28 @@ contract ERC404BondingOps is ERC404BondingStorage {
         agentDelegationEnabled = true;
     }
 
+    /// @dev The window bound is a property of the PAIR, so both writers owe it. `setBondingMaturityTime`
+    ///      below caps `maturity - open` at `MAX_BONDING_DURATION`, but that check reads the open time
+    ///      that is stored at the moment it runs; moving the open time afterwards moves the same window
+    ///      without re-testing it. Open far, set maturity at the cap, then walk the open time back and
+    ///      the stored pair spans an arbitrarily long bonding period that neither setter ever accepted
+    ///      in one call. Re-checking here closes it: the invariant is on the pair, not on either call.
+    ///
+    ///      A violation is REFUSED rather than repaired by clearing `bondingMaturityTime`. Clearing
+    ///      would turn a mistyped open time into the silent loss of a date the creator set and other
+    ///      consumers read as real, and it would do so on the success path, where nothing tells the
+    ///      caller it happened. A refusal costs the owner one extra call — move maturity first, then
+    ///      the open time — and destroys nothing.
     // slither-disable-next-line timestamp
     function setBondingOpenTime(uint256 timestamp) external {
         _requireOwnerOrAgent();
         if (timestamp <= block.timestamp) revert TimeMustBeInFuture();
+        uint256 maturity = bondingMaturityTime;
+        if (maturity != 0) {
+            // Same two bounds `setBondingMaturityTime` applies, read from the other side of the pair.
+            if (maturity <= timestamp) revert MaturityMustBeAfterOpenTime();
+            if (maturity - timestamp > MAX_BONDING_DURATION) revert MaturityTooFarAfterOpenTime();
+        }
         bondingOpenTime = timestamp;
         emit BondingOpenTimeSet(timestamp);
     }
@@ -1022,19 +1042,88 @@ contract ERC404BondingOps is ERC404BondingStorage {
         emit IInstanceLifecycle.StateChanged(_active ? STATE_BONDING : STATE_PAUSED);
     }
 
-    function setStyle(string memory uri) external {
-        _requireOwnerOrAgent();
-        styleUri = uri;
-    }
-
     /// @notice Activate staking for this instance. Irreversible. Requires stakingModule to be set.
+    /// @dev Refused when NO vault registered to this instance has a pull-claim model, because the
+    ///      staking stream has exactly one source and that source is a pull. `claimAllFees` above
+    ///      credits stakers with the ETH BALANCE DELTA its `claimFees()` sweep produces; a vault with
+    ///      no pull-claim model reverts that call by design (`AlignmentEndowmentVault.claimFees` is
+    ///      `revert NotSupported()`) and the sweep skips it. An instance whose whole vault set is of
+    ///      that kind therefore has a delta that is structurally zero: `rewardRate` never leaves 0,
+    ///      and every staker who locks tokens accrues nothing, for as long as staking stays on — and
+    ///      activation is irreversible, so "for as long" is forever. A refusal at the one irreversible
+    ///      moment is the only place this can be said; afterwards there is nothing to say it to.
+    ///
+    ///      This does NOT refuse the pairing itself. Creating an endowment-aligned ERC404 collection
+    ///      stays legal and the wizard still offers it; only turning on a rewards stream that has no
+    ///      way to be fed is refused, and only while that is true — registering a fee-pushing vault
+    ///      alongside the endowment makes the same call succeed.
+    ///
+    ///      The condition is read off the vaults themselves rather than off a list of type names, so
+    ///      a vault type written after this line answers for itself; `_vaultSetCannotFundStaking`
+    ///      below explains how it is asked. An instance with NO registered vault set is not refused:
+    ///      the finding is about a vault set that exists and cannot feed the stream, and an empty set
+    ///      is not that — it is an instance the registry does not know, which `ERC404Factory` never
+    ///      creates and which `claimAllFees` already declines to credit through its
+    ///      `isRegisteredInstance` gate. Turning that into a refusal here would be a second, unrelated
+    ///      rule wearing this one's error.
     function activateStaking() external {
         _requireOwnerOrAgent();
         if (address(stakingModule) == address(0)) revert StakingModuleNotSet();
         if (stakingActive) revert StakingAlreadyActive();
+        if (_vaultSetCannotFundStaking()) revert NoFeeClaimingVault();
         stakingActive = true;
         stakingModule.enableStaking();
         emit StakingActivated(address(stakingModule));
+    }
+
+    /// @dev The instance's registered vault set. One accessor for the two callers that need it —
+    ///      `claimAllFees`, which pulls on the set, and the guard below, which asks whether pulling on
+    ///      it could ever yield anything. Shared because the ABI decode of a returned `address[]` is
+    ///      not free on a contract this close to EIP-170, and because the two must never disagree
+    ///      about which set they mean.
+    function _instanceVaults() internal view returns (address[] memory) {
+        return masterRegistry.getInstanceVaults(address(this));
+    }
+
+    /// @dev Gas handed to one vault's `claimFees()` probe. Sized for a refusal, not for a claim: a
+    ///      clone hop plus an unconditional revert is on the order of a few thousand gas, and nothing
+    ///      this walk needs to observe costs more. See `_vaultSetCannotFundStaking` for why an
+    ///      under-budgeted probe is safe.
+    uint256 private constant _PROBE_GAS = 50_000;
+
+    /// @dev True when the instance has a registered vault set and EVERY member of it answers
+    ///      `claimFees()` with "I have no pull-claim model". See `activateStaking` for why that, and
+    ///      not the empty set, is the condition.
+    ///
+    ///      The probe asks each vault the QUESTION THE SWEEP WILL ASK, through a `staticcall` so the
+    ///      asking cannot move anything. A vault that would really deliver fees fails that staticcall
+    ///      — paying out writes storage and moves ETH, neither of which a static context allows — so
+    ///      failure alone says nothing. What separates the two is the answer's CONTENT: a vault with
+    ///      no pull-claim model refuses by design, with `NotSupported()`, and that is the only reply
+    ///      counted as "not a source". Everything else — success, an empty revert from the write the
+    ///      staticcall blocked, `NothingToClaim`, a vault type this contract has never seen — counts
+    ///      as a source. The asymmetry is deliberate: refusing to activate is the disruptive outcome,
+    ///      so only the tree's own explicit "there is nothing to pull here" signal earns it.
+    ///
+    ///      THE GAS CAP IS LOAD-BEARING, and it is not a micro-optimization. A vault that really has
+    ///      fees to deliver tries to MOVE ETH, and a value-bearing call inside a static context is an
+    ///      exceptional halt, not an ordinary revert: it consumes every unit of gas forwarded to that
+    ///      frame. Uncapped, one funded vault burns 63/64 of the gas in the transaction, and an owner
+    ///      would have to send roughly sixty-four times what this call needs for it to complete at
+    ///      all. The cap bounds the whole walk at `_PROBE_GAS` per vault. It cannot cause a wrong
+    ///      answer in the dangerous direction, because running out of gas is not `NotSupported` — a
+    ///      probe that dies early reads as a source, which is the outcome that lets activation
+    ///      proceed. And it cannot plausibly cut a real refusal short: `NotSupported` is an
+    ///      unconditional first-statement revert, which is what "no pull-claim model" means.
+    // slither-disable-next-line calls-loop,low-level-calls
+    function _vaultSetCannotFundStaking() internal view returns (bool) {
+        address[] memory allVaults = _instanceVaults();
+        for (uint256 i = 0; i < allVaults.length; i++) {
+            (bool ok, bytes memory ret) =
+                allVaults[i].staticcall{ gas: _PROBE_GAS }(abi.encodeWithSelector(IAlignmentVault.claimFees.selector));
+            if (ok || ret.length < 4 || bytes4(ret) != NotSupported.selector) return false;
+        }
+        return allVaults.length != 0;
     }
 
     // ┌─────────────────────────┐
