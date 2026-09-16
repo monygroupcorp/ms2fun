@@ -60,8 +60,8 @@ contract ReentrantCreator {
 ///         handed, and who the target leg reaches when the registry's answer is an address that is not a
 ///         community.
 ///
-///         Every test here drives the REAL `AlignmentRegistryV1`, not a payout mock. Two of the findings
-///         below live in the seam between the registry's "only the current payee may rotate" rule and the
+///         Every test here drives the REAL `AlignmentRegistryV1`, not a payout mock. The sharpest question
+///         below lives in the seam between the registry's "only the current payee may rotate" rule and the
 ///         vault's `execute`, and a mock registry has no such seam.
 contract AlignmentEndowmentVaultSplitLawTest is Test {
     AlignmentEndowmentVault internal vault;
@@ -392,17 +392,21 @@ contract AlignmentEndowmentVaultSplitLawTest is Test {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 4. Where the target leg lands  (FINDING — see noesis-453)
+    // 4. Where the target leg lands
     // ═══════════════════════════════════════════════════════════════════════
 
-    /// @dev FINDING (noesis-453), half one. `AlignmentRegistryV1.setCommunityPayout` (line 369) accepts any
-    ///      non-zero address and pins it write-once. Nothing stops that address being an alignment vault —
-    ///      including the very vault whose target leg it decides. When it is, `_targetSink()` returns the
-    ///      vault, the 19% leg is force-sent from the vault to itself on every harvest, and
-    ///      `_totalYieldToTarget` books it as delivered: `totalYieldToTarget()` reports a community
-    ///      payment that never left the building, `accumulatedTargetFees` stays at zero because a sink
-    ///      WAS resolved, and the ETH joins the vault's untracked native balance where no counter reaches
-    ///      it. The pin is write-once and the community never held the sink, so it can never rotate away.
+    /// @dev A pin the registry still accepts, and what it costs. `setCommunityPayout` takes any non-zero
+    ///      address and pins it write-once; nothing stops that address being an alignment vault, including
+    ///      the very vault whose target leg it decides. When it is, `_targetSink()` returns the vault, the
+    ///      19% leg is force-sent from the vault to itself on every harvest, and `_totalYieldToTarget`
+    ///      books it as delivered: `totalYieldToTarget()` reports a community payment that never left the
+    ///      building, `accumulatedTargetFees` stays at zero because a sink WAS resolved, and the ETH joins
+    ///      the vault's untracked native balance where no counter reaches it. The pin is write-once and
+    ///      the community never held the sink, so it can never rotate away.
+    ///
+    ///      This is a wrong first address and the registry documents it as permanent: the owner has no
+    ///      correction path by design, and the recovery is a new curated target. What it is NOT, since
+    ///      `execute` denies the registry, is a lever anyone can pull — the next test is that half.
     function test_targetSink_aVaultPinnedAsItsOwnSinkAbsorbsTheCommunityLegWhileTheCounterSaysDelivered() public {
         _pinSink(address(vault)); // the registry accepts this today
         assertEq(registry.getCommunityPayout(targetId), address(vault), "the sink is the vault itself");
@@ -424,45 +428,74 @@ contract AlignmentEndowmentVaultSplitLawTest is Test {
         assertEq(communityMultisig.balance, 0, "and no community address is any richer");
     }
 
-    /// @dev FINDING (noesis-453), half two — the part that turns a misconfiguration into an escalation.
-    ///      `AlignmentEndowmentVault.execute` denies three targets (line 877: the stataToken, the WETH and
-    ///      the vault itself) and the comment above it rests on an invariant stated as already true:
-    ///      "(c) no registry or factory ever trusts msg.sender-is-a-vault". `AlignmentRegistryV1
-    ///      .rotateCommunityPayout` (line 392) trusts exactly that — its whole auth is
-    ///      `msg.sender == communityPayout[targetId]`. So with the sink pinned to the vault, ANY seated
-    ///      ambassador can spend a zero-value `execute` at the registry and move the community's payout to
-    ///      an address of their choosing, permanently: the community never held the sink, so it never had
-    ///      the rotation lever this steals.
+    /// @dev The seam that would have turned that misconfiguration into an escalation, and the denylist
+    ///      entry that closes it. `AlignmentRegistryV1.rotateCommunityPayout` authorizes on
+    ///      `msg.sender == communityPayout[targetId]` and nothing else, so a vault holding the pin holds
+    ///      the rotation key — and `execute` hands an ambassador the vault's `msg.sender` for free
+    ///      (`value = 0` is trivially within `deployableCorpus()`). Without the registry on the denylist
+    ///      any seated ambassador could point the community's money at an address of their own,
+    ///      permanently, and the community could not undo it: it never held the sink, so it never had the
+    ///      rotation lever being spent.
     ///
-    ///      This is the #370 redirect reopened by a different door. #370 closed the owner's ability to
-    ///      point a community's money somewhere; this points it somewhere on an ambassador's say-so, off
-    ///      one owner keystroke that the registry does not refuse.
+    ///      Drive it from the worst configuration — the sink pinned to this very vault, so the registry
+    ///      would say yes to the rotation if the call ever reached it — and assert the call does not
+    ///      reach it. The denylist is checked before `deployableCorpus()`, so the refusal does not depend
+    ///      on there being nothing to deploy.
     function test_execute_anAmbassadorRotatesTheCommunityPayoutWhenTheSinkIsPinnedToTheVault() public {
         _pinSink(address(vault));
         _contribute(address(benefactor), 10 ether);
 
-        // The ambassador spends nothing: `value = 0` is trivially within `deployableCorpus()`, the
-        // registry is not on the denylist, and the vault is the current payee.
         bytes memory rotate = abi.encodeWithSelector(registry.rotateCommunityPayout.selector, targetId, attackerSink);
         vm.prank(ambassador);
+        vm.expectRevert(AlignmentEndowmentVault.ForbiddenExecuteTarget.selector);
         vault.execute(address(registry), 0, rotate);
 
         assertEq(
-            registry.getCommunityPayout(targetId),
-            attackerSink,
-            "DEFECT: an ambassador moved the community's payout through the vault's own identity"
+            registry.getCommunityPayout(targetId), address(vault), "the community's payout is where the owner pinned it"
         );
 
-        // And the redirect is live on the next harvest: the 19% leg now pays the attacker.
-        _simulateYield(1 ether);
-        vault.harvest();
-        assertEq(attackerSink.balance, (1 ether * TARGET_BPS) / BPS, "DEFECT: the community's leg follows the theft");
+        // The registry would have accepted the rotation: the vault IS the payee. Prove the refusal came
+        // from the vault's denylist and not from the registry declining the inner call, by making the
+        // same call as the vault itself.
+        vm.prank(address(vault));
+        registry.rotateCommunityPayout(targetId, attackerSink);
+        assertEq(registry.getCommunityPayout(targetId), attackerSink, "the registry's own rule is unchanged");
+    }
+
+    /// @dev The denylist entry is the registry the vault actually reads, resolved live through
+    ///      `masterRegistry.alignmentRegistry()` — not a constructor snapshot. A platform re-point of the
+    ///      alignment registry moves the auth the vault answers to, and the denial has to move with it, or
+    ///      the re-point silently reopens the rotation.
+    function test_execute_theDeniedRegistryFollowsAPlatformRepoint() public {
+        _pinSink(communityMultisig);
+        _contribute(address(benefactor), 1 ether);
+
+        AlignmentRegistryV1 replacement = new AlignmentRegistryV1(address(weth), address(0), address(0));
+        replacement.initialize(protocolOwner);
+        IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);
+        assets[0] =
+            IAlignmentRegistry.AlignmentAsset({ token: alignmentToken, symbol: "ALGN", info: "", metadataURI: "" });
+        vm.prank(protocolOwner);
+        uint256 newTargetId = replacement.registerAlignmentTarget("Remilia", "", "", assets);
+        assertEq(newTargetId, targetId, "the re-point keeps the target id the vault was built with");
+        vm.prank(protocolOwner);
+        replacement.addAmbassador(targetId, ambassador);
+        masterRegistry.setAlignmentRegistry(address(replacement));
+
+        vm.prank(ambassador);
+        vm.expectRevert(AlignmentEndowmentVault.ForbiddenExecuteTarget.selector);
+        vault.execute(address(replacement), 0, "");
+
+        // And the registry it no longer reads is just another address: denying it was never the point.
+        vm.prank(ambassador);
+        vault.execute(address(registry), 0, abi.encodeWithSelector(registry.getCommunityPayout.selector, targetId));
     }
 
     /// @dev The same identity survives decommissioning. `migrated` closes intake and nothing else —
     ///      `execute` has no `migrated` check — so an ambassador of a still-curated target keeps the
-    ///      vault's zero-value call surface after the position has been migrated out. On its own that is a
-    ///      dormant capability; with noesis-453 it is the same theft, available forever.
+    ///      vault's zero-value call surface after the position has been migrated out. That surface is a
+    ///      dormant capability rather than a theft only because of what it may not reach: the registry is
+    ///      denied here too, and the denial does not weaken as the vault empties.
     function test_execute_theAmbassadorKeepsTheVaultsCallSurfaceAfterMigration() public {
         _pinSink(communityMultisig);
         _contribute(address(benefactor), 1 ether);
@@ -478,6 +511,11 @@ contract AlignmentEndowmentVaultSplitLawTest is Test {
         vault.execute(makeAddr("anywhere"), 1, "");
 
         vm.prank(ambassador);
+        vault.execute(makeAddr("anywhere"), 0, "");
+
+        // Except at the registry, decommissioned or not.
+        vm.prank(ambassador);
+        vm.expectRevert(AlignmentEndowmentVault.ForbiddenExecuteTarget.selector);
         vault.execute(address(registry), 0, abi.encodeWithSelector(registry.getCommunityPayout.selector, targetId));
     }
 
