@@ -133,6 +133,18 @@ contract EndowmentImpairmentInvariantTest is StdInvariant, Test {
         );
     }
 
+    // ── A creator leg is never held once the accumulator could carry it ───────
+    // The creator leg reaches a benefactor only through the per-share accumulator, so a leg the accumulator
+    // cannot express is held rather than booked as paid. That hold is legitimate only while it is too small
+    // to move the accumulator at all: once the held pot is worth a whole unit, the next harvest must spend
+    // it. A pot standing at or above a unit after a harvest is the stranded-leg defect returning.
+    function invariant_heldCreatorYieldIsAlwaysTooSmallToCredit() public view {
+        assertFalse(
+            handler.ghost_creatorYieldHeldWhenItCouldBeCredited(),
+            "endowment: creator yield held while the accumulator could have carried it"
+        );
+    }
+
     // ── Live per-benefactor principal never exceeds the basis ─────────────────
     // Each benefactor's principal is a share of one pool. Σ of those shares must never promise out more
     // principal than the position's basis actually holds — that would be the share arithmetic minting money.
