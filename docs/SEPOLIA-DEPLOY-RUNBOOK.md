@@ -185,17 +185,42 @@ Everything here is read-only. None of it sends a transaction.
    - the **bindings drift gate** (`app-ci.yml`) is what guarantees the committed ABI bindings match
      the contracts about to be deployed. See §5.4.
 
-2. **The salt set is unspent.** For each of the six addresses in §1.3, and for the CREATE2 proxy each
-   is derived from, confirm neither holds code:
+2. **The salt set is unspent.** A salt is consumed by *two* addresses: the CREATE2 proxy CreateX
+   deploys under the guarded salt, and the address that proxy's first `CREATE` produces — the one
+   in §1.3. The proxy is the one that collides, so both must be checked, and the proxy addresses
+   are written down nowhere: they are derived. The derivation is the one documented at the head of
+   `contracts/script/SepoliaSalts.sol`, and this loop performs it against the salt constants
+   themselves, so it stays right across a re-mine:
 
-   ```
-   cast code <address> --rpc-url <sepolia-rpc>     # must print 0x
+   ```sh
+   cd contracts
+   RPC=<sepolia-rpc>
+   CREATEX=0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed
+   # keccak256 of CreateX's CREATE3 proxy initcode — the only bytecode a salt commits to.
+   PROXY_INITCODE_HASH=$(cast keccak 0x67363d3d37363d34f03d5260086018f3)
+   DEPLOYER=$(sed -n 's/.*constant DEPLOYER = \(0x[0-9a-fA-F]\{40\}\);.*/\1/p' script/SepoliaSalts.sol)
+
+   sed -n 's/.*bytes32 internal constant \([A-Z_]*\) = \(0x[0-9a-f]\{64\}\);.*/\1 \2/p' script/SepoliaSalts.sol |
+   while read -r NAME SALT; do
+     GUARDED=$(cast keccak "$(cast concat-hex "$(cast to-uint256 "$DEPLOYER")" "$SALT")")
+     PROXY=$(cast create2 --deployer "$CREATEX" --salt "$GUARDED" --init-code-hash "$PROXY_INITCODE_HASH")
+     ADDR=$(cast compute-address --nonce 1 "$PROXY" | cut -d' ' -f3)
+     printf '%-21s proxy %s %s  address %s %s\n' "$NAME" \
+       "$PROXY" "$(cast code "$PROXY" --rpc-url "$RPC")" \
+       "$ADDR"  "$(cast code "$ADDR"  --rpc-url "$RPC")"
+   done
    ```
 
-   `contracts/test/coverage/SepoliaSaltSet.t.sol` re-derives the proxy addresses from the salt
-   constants, so run it and read the derivations out of it rather than recomputing them by hand.
-   A non-empty result here stops the deployment: the set needs re-mining
-   (`contracts/script/salt-miner/`) before anything is broadcast.
+   Twelve addresses, each printed with its code. **Every code field must read `0x`**, and the six
+   `address` fields must be the six in §1.3 — a mismatch there means that table has gone stale
+   against the constants, and §6 would be verifying the wrong chain state. Either failure stops
+   the deployment: the set needs re-mining (`contracts/script/salt-miner/`) before anything is
+   broadcast.
+
+   `contracts/test/coverage/SepoliaSaltSet.t.sol` is the CI-side guard on the same constants — the
+   deployer binding, the protection flag, the zero-byte prefix, distinctness. It asserts rather
+   than prints, and it derives only the six §1.3 addresses and not the proxies, so it is not a
+   substitute for the loop above.
 
 3. **The RPC endpoint is an archive endpoint.** The deploy and seed read historical state. A
    non-archive, load-balanced public endpoint fails partway through with missing-trie-node errors —
