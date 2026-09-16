@@ -56,35 +56,38 @@ bug report from the pinned site names the build it was found on.
 
 ### 2. Pin it
 
-**Decision point — pin host.** rth's ruling is that we self-pin: the release lives on a node we
-operate, not on a third-party pinning service. Standing that node up (or confirming it is up and
-reachable) is an operator step, not fleet work, and it is a prerequisite for this step. The
-alternative not chosen — a commercial pinning service — trades the operational work for a dependency
-that can drop the pin or read our publishing cadence; revisit only if running the node stops being
-worth it.
+**Decision point — pin host. The host is Pinata**, and rth holds the account. Ruled for the testnet
+release, superseding the earlier self-pinning ruling: standing up and operating our own node is real
+work with a lead time, and it is not work the testnet should wait on. The tradeoff taken with it is
+a dependency that can drop the pin or read our publishing cadence — which is why the retrievability
+check below is not optional, and why revisiting self-pinning stays open for mainnet.
 
-The packer takes no endpoint and reaches no network. Import the CAR into whichever node is doing the
-pinning, addressing it by its own API endpoint:
+No credential, endpoint or account identifier belonging to the pinning account appears anywhere in
+this repository, and none should.
+
+The packer takes no endpoint and reaches no network: it produces `app/dist/ipfs.car` and a root CID,
+and pinning is getting that CAR into the pinning account. A node addressed by its own kubo RPC
+endpoint takes it directly:
 
 ```
 # $IPFS_API is the kubo RPC endpoint of the pinning node (a parameter — never committed here).
 curl -X POST -F file=@app/dist/ipfs.car "$IPFS_API/api/v0/dag/import?pin-roots=true"
 ```
 
-`dag/import` reports the root it stored. **Check it equals the CID the packer printed** — that is the
-cross-check that the packing parameters and the node agree, and it is worth doing at least the first
-time and after any bump of `ipfs-unixfs-importer`.
+Whichever path the CAR takes, the host reports the root it stored. **Check it equals the CID the
+packer printed** — that is the cross-check that the packing parameters and the host agree, and it is
+worth doing at least the first time and after any bump of `ipfs-unixfs-importer`.
 
 Confirm the pin and that the content is retrievable before touching the chain:
 
 ```
-curl -s "$IPFS_API/api/v0/pin/ls?arg=<cid>"
-curl -sI "https://ipfs.io/ipfs/<cid>/"      # a public gateway can fetch it
+curl -s "$IPFS_API/api/v0/pin/ls?arg=<cid>"   # or the host's own pin listing
+curl -sI "https://ipfs.io/ipfs/<cid>/"        # an INDEPENDENT public gateway can fetch it
 ```
 
 A CID nobody else can retrieve makes a dead site the moment the record points at it, so do not skip
 the second check: the gwei gateway proxies from public gateways, which have to be able to find the
-content from our node.
+content from wherever it is pinned. The pinning host's own gateway answering is not that check.
 
 ### 3. Point the name at it
 
@@ -115,6 +118,7 @@ console. When triaging a report from noesis.gwei.domains, read the stamp before 
 - **CI.** `pnpm build:ipfs` is not in `app-ci.yml`; the ipfs target is exercised locally and by the
   routing matrix in `src/ipfs-routing.test.tsx`, which does run in CI. Adding the ipfs build to the
   workflow is a follow-on.
-- **Standing up the pinning node.** Operator step, above.
+- **Standing up a pinning node.** Not a step while the host is Pinata; it returns if self-pinning
+  does.
 - **Announcement copy.** The announcement points people at noesis.gwei.domains as the bug-hunting
   surface; that copy is not this tooling's concern.
