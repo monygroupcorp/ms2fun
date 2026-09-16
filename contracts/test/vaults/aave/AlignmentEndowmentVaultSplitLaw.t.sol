@@ -286,27 +286,24 @@ contract AlignmentEndowmentVaultSplitLawTest is Test {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 2. The creator leg the accumulator cannot carry  (FINDING — see noesis-452)
+    // 2. The creator leg the accumulator cannot carry in one harvest
     // ═══════════════════════════════════════════════════════════════════════
 
-    /// @dev FINDING (noesis-452). `AlignmentEndowmentVault.sol:454` credits the creator leg as
-    ///      `accCreatorYieldPerShare += (creatorLeg * ACC_PRECISION) / totalPrincipalShares`, and line 455
-    ///      books the whole leg in `_totalYieldToCreators` whatever that division returned. When the share
-    ///      count has outrun `creatorLeg · 1e18` the division is ZERO: the accumulator does not move, no
-    ///      benefactor can ever claim the leg, the ETH stays in the vault as untracked native balance —
-    ///      and `totalYieldToCreators()` reports it as routed to creators anyway.
-    ///
-    ///      This is not sub-wei dust. The share-price floor deliberately admits prices down to 1e-9
+    /// @dev The per-share accumulator moves in whole units of `1 / ACC_PRECISION` per share, so a creator
+    ///      leg worth less than `totalPrincipalShares / ACC_PRECISION` wei moves it by nothing. That is not
+    ///      an edge case at the margin: the share-price floor deliberately admits prices down to 1e-9
     ///      (`MIN_SHARE_PRICE_INVERSE`), so a pool drained to the floor and refunded carries ~1e27 shares
-    ///      per ETH, and EVERY creator leg below 1 gwei is swallowed whole. One gwei on a 1 ETH pool is
-    ///      about one second of yield at 3% APR, so on a drained-and-refunded pool any harvest cadence
-    ///      faster than a few seconds loses the entire 80% leg — repeatably, and with the stat surface
-    ///      saying it was paid. Drain-and-refund is a SUPPORTED cycle; the suite already exercises it in
-    ///      `test_drainToASliver_repeatedly_doesNotBrickIntake`.
+    ///      per ETH and every creator leg under a gwei is in that class. One gwei on a 1 ETH pool is about
+    ///      one second of yield at 3% APR, and drain-and-refund is a SUPPORTED cycle — the suite exercises
+    ///      it in `test_drainToASliver_repeatedly_doesNotBrickIntake` — so this is a harvest cadence the
+    ///      vault is expected to run at, not a contrived one.
     ///
-    ///      This test pins the defect as it stands today so the shape of it is on the record. It is
-    ///      expected to go red when noesis-452 is fixed, and the assertions name what a fix must change.
-    function test_split_creatorLegIsSwallowedWholeByTheAccumulatorOnADrainedAndRefundedPool() public {
+    ///      The vault carries what the division cannot express in `creatorYieldRemainder` and folds it into
+    ///      the next harvest. This drives the whole cycle on a floor-drained pool: the leg that does not
+    ///      fit is HELD and not booked as routed, the harvest that clears a unit credits it, the benefactor
+    ///      can claim it, and across the sequence not one wei of the 80% leg is either lost or reported as
+    ///      paid before the accumulator can pay it.
+    function test_split_aCreatorLegBelowOneAccumulatorUnitIsHeldAndCreditedByTheNextHarvest() public {
         _pinSink(communityMultisig);
         _contribute(address(benefactor), 1 ether);
 
@@ -326,8 +323,9 @@ contract AlignmentEndowmentVaultSplitLawTest is Test {
         uint256 routedBefore = vault.totalYieldToCreators();
         uint256 claimableBefore = vault.pendingYieldOf(address(benefactor));
         uint256 vaultBalanceBefore = address(vault).balance;
+        assertEq(vault.creatorYieldRemainder(), 0, "nothing is held before the first small harvest");
 
-        // One second of 3% APR on a 1 ETH pool, near enough: 1 gwei.
+        // ── Harvest one: one second of 3% APR on a 1 ETH pool, near enough — 1 gwei. ──
         uint256 y = 1 gwei;
         uint256 creatorLeg = y - (y * TARGET_BPS) / BPS - (y * PROTOCOL_BPS) / BPS;
         assertLt(creatorLeg * ACC_PRECISION, shares, "the leg is below one unit of the accumulator");
@@ -335,23 +333,122 @@ contract AlignmentEndowmentVaultSplitLawTest is Test {
         _simulateYield(y);
         vault.harvest();
 
-        assertEq(vault.accCreatorYieldPerShare(), accBefore, "DEFECT: the accumulator does not move");
-        assertEq(vault.pendingYieldOf(address(benefactor)), claimableBefore, "DEFECT: nobody can claim the leg");
+        // The accumulator cannot move on this leg — that is arithmetic, not a defect. What matters is
+        // where the wei went and what the vault says about it.
+        assertEq(vault.accCreatorYieldPerShare(), accBefore, "one unit is more than this leg can buy");
+        assertEq(vault.creatorYieldRemainder(), creatorLeg, "so the whole leg is HELD for the next harvest");
         assertEq(
-            vault.totalYieldToCreators() - routedBefore,
-            creatorLeg,
-            "DEFECT: the stat surface reports the whole leg as routed to creators"
+            vault.totalYieldToCreators(),
+            routedBefore,
+            "and nothing is booked as routed: the accumulator took none of it"
         );
-        assertEq(
-            address(vault).balance - vaultBalanceBefore,
-            creatorLeg,
-            "DEFECT: the leg is redeemed out of Aave and stranded as untracked vault balance"
-        );
+        assertEq(vault.pendingYieldOf(address(benefactor)), claimableBefore, "nobody can claim it yet");
+        assertEq(address(vault).balance - vaultBalanceBefore, creatorLeg, "the ETH is here, and named by a counter");
 
-        // The other two legs are unaffected, which is what makes this a creator-side loss and not a
-        // harvest failure anyone would notice.
+        // The other two legs are unaffected, as before.
         assertEq(communityMultisig.balance, (y * TARGET_BPS) / BPS, "the 19% leg still lands");
         assertEq(treasury.balance, (y * PROTOCOL_BPS) / BPS, "the 1% leg still lands");
+
+        // ── Harvest two: the same leg again. Pooled with the held one it clears a unit. ──
+        _simulateYield(y);
+        vault.harvest();
+
+        // One unit of the accumulator is worth `shares / ACC_PRECISION` wei across the whole weight, and
+        // the pooled legs buy exactly one: 1.6 gwei against a ~1.000000001 gwei unit.
+        uint256 unit = shares / ACC_PRECISION;
+        assertEq(vault.accCreatorYieldPerShare(), accBefore + 1, "the pooled legs move the accumulator one unit");
+        assertEq(vault.totalYieldToCreators() - routedBefore, unit, "exactly the wei the accumulator took on");
+        assertEq(vault.creatorYieldRemainder(), 2 * creatorLeg - unit, "the rest stays held, not dropped");
+        assertLt(vault.creatorYieldRemainder() * ACC_PRECISION, shares, "and what is held is under one unit");
+
+        // The benefactor holds every share, so the credit reaches them whole, and it is really payable.
+        assertEq(vault.pendingYieldOf(address(benefactor)) - claimableBefore, unit, "the credit reaches the creator");
+        uint256 creatorBalanceBefore = alice.balance;
+        vm.prank(alice);
+        uint256 paid = vault.claimYieldPurse(address(benefactor));
+        assertEq(paid, claimableBefore + unit, "and the claim pays it out in native ETH");
+        assertEq(alice.balance - creatorBalanceBefore, paid, "to the benefactor's owner");
+
+        // Conservation over the whole sequence: every wei of both creator legs is either credited to the
+        // creator or still held for them. None is stranded, and none was ever reported as paid early.
+        assertEq(
+            vault.totalYieldToCreators() - routedBefore + vault.creatorYieldRemainder(),
+            2 * creatorLeg,
+            "both 80% legs are fully accounted for, credited or held"
+        );
+    }
+
+    /// @dev The counter is the claim the stat surface makes, so pin it against what the vault can actually
+    ///      pay: run a long cadence of sub-unit harvests on the same floor-drained pool and assert, at
+    ///      every step, that `totalYieldToCreators()` never runs ahead of what the sole benefactor could
+    ///      claim, that the held remainder never reaches a whole unit, and that the two together account
+    ///      for every wei of creator leg the split has cut.
+    function test_split_theCreatorCounterNeverOutrunsWhatTheAccumulatorCanPay() public {
+        _pinSink(communityMultisig);
+        _contribute(address(benefactor), 1 ether);
+        vm.prank(ambassador);
+        vault.execute(makeAddr("elsewhere"), 1 ether - MIN_SHARE_PRICE_INVERSE, "");
+        _contribute(address(benefactor), 1 ether);
+
+        uint256 shares = vault.totalPrincipalShares();
+        uint256 legs;
+        for (uint256 i; i < 12; ++i) {
+            uint256 y = 1 gwei + i; // co-prime with the unit, so the divisions keep a remainder
+            legs += y - (y * TARGET_BPS) / BPS - (y * PROTOCOL_BPS) / BPS;
+
+            _simulateYield(y);
+            vault.harvest();
+
+            assertLt(vault.creatorYieldRemainder() * ACC_PRECISION, shares, "the held part is always sub-unit");
+            assertEq(
+                vault.totalYieldToCreators(),
+                vault.pendingYieldOf(address(benefactor)),
+                "the counter is exactly what the sole shareholder can claim"
+            );
+            assertEq(
+                vault.totalYieldToCreators() + vault.creatorYieldRemainder(),
+                legs,
+                "and every wei of every leg is one or the other"
+            );
+        }
+        assertGt(vault.totalYieldToCreators(), 0, "the cadence does credit the creator, it does not only hold");
+    }
+
+    /// @dev The other side of the same division, and the one that bites in the opposite direction. On a pool
+    ///      whose share count is BELOW `ACC_PRECISION` — any pool under 1 ETH at 1:1 — one unit of the
+    ///      accumulator is worth a FRACTION of a wei, so the movement a small leg buys costs more than the
+    ///      floor of its wei value. Charging the held pot that floor would let the same fraction be paid for
+    ///      once and credited again on every later harvest, and the accumulator would slowly promise more
+    ///      creator yield than the vault ever took in. The vault charges the ceiling instead, so the counter
+    ///      is an upper bound on what creators can claim and the vault stays good for it.
+    function test_split_onASubPrecisionSharePoolTheCounterBoundsWhatCreatorsCanClaim() public {
+        _pinSink(communityMultisig);
+        _contribute(address(benefactor), 0.03 ether); // 3e16 shares: one accumulator unit is 0.03 wei
+        assertLt(vault.totalPrincipalShares(), ACC_PRECISION, "a unit of the accumulator is worth under a wei");
+
+        uint256 legs;
+        for (uint256 i; i < 20; ++i) {
+            _simulateYield(1); // the whole wei falls to the creator: both percentage legs floor to nothing
+            vault.harvest();
+            legs += 1;
+
+            assertGe(
+                vault.totalYieldToCreators(),
+                vault.pendingYieldOf(address(benefactor)),
+                "the counter never understates what the sole shareholder can claim"
+            );
+            assertLe(
+                vault.pendingYieldOf(address(benefactor)),
+                legs,
+                "and the accumulator never promises more creator yield than the vault took in"
+            );
+            assertEq(
+                vault.totalYieldToCreators() + vault.creatorYieldRemainder(),
+                legs,
+                "every wei of creator leg is booked or held, here too"
+            );
+        }
+        assertGt(vault.pendingYieldOf(address(benefactor)), 0, "and the creator really is being credited");
     }
 
     // ═══════════════════════════════════════════════════════════════════════

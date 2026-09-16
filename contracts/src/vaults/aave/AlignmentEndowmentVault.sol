@@ -50,7 +50,10 @@ interface IOwnable {
  *        constants, no setter (the ratio is sacred). The creator leg flows through a per-benefactor
  *        MasterChef accumulator (`accCreatorYieldPerShare` + `rewardDebt`) and is pulled via
  *        `claimYieldPurse()`. Target leg → the registry's community payout for `targetId`, resolved at
- *        send time (native ETH). Protocol leg → `protocolTreasury`.
+ *        send time (native ETH). Protocol leg → `protocolTreasury`. The accumulator moves in whole
+ *        units, so a creator leg too small for the live share count to divide is carried in
+ *        `creatorYieldRemainder` until a later harvest can express it — never booked as paid and never
+ *        dropped (see `_creditCreatorLeg`).
  *      - **Ambassador assignment is eligibility to WITHDRAW, not withdrawal.** It gates `execute`
  *        (below) and nothing else; it never gates the yield split, which runs flat from the first
  *        deposit whether or not the target has a seated ambassador yet.
@@ -195,6 +198,15 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     uint256 public totalPrincipalShares;
     /// @notice Creator-yield-per-share accumulator, scaled by 1e18 (MasterChef).
     uint256 public accCreatorYieldPerShare;
+    /// @notice Creator-leg yield (native ETH wei) that the per-share accumulator could not express at the
+    ///         weight standing when it was crystallized, held for the next harvest to fold in. The
+    ///         accumulator moves in whole units of `1 / ACC_PRECISION` per share, so a leg worth less than
+    ///         `totalPrincipalShares / ACC_PRECISION` wei buys no movement at all; that wei waits here
+    ///         instead of being credited to nobody. It is creator money — not corpus, not a fee: no flush
+    ///         reaches it and nothing delivers it but the accumulator itself, on the first later harvest
+    ///         whose pooled leg clears one unit. `totalYieldToCreators()` deliberately excludes it; see
+    ///         `_creditCreatorLeg`.
+    uint256 public creatorYieldRemainder;
     /// @notice Target-leg yield (native ETH wei) held by the vault because `_targetSink()` was unset at
     ///         crystallize time. Delivered by the permissionless `flushTargetFees()` once a sink exists.
     uint256 public accumulatedTargetFees;
@@ -435,6 +447,15 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     ///      out with the principal). Only the `nonReentrant`-guarded external entrypoints call this; it
     ///      performs external ETH sends itself and MUST NOT be invoked from an unguarded path.
     function _crystallizeYield() internal {
+        // Spend any carried creator remainder FIRST, before the returns below. Every one of them is
+        // reachable with weight still standing — a migrated vault and a round closed by a collapsed share
+        // price both leave `totalPrincipal == 0` with the shares outstanding, and a harvest with nothing to
+        // realize returns at `y == 0` — so a remainder left behind them would sit uncreditable for as long
+        // as no new yield arrived, which on a decommissioned vault is forever. It is also what credits the
+        // carry when a round boundary makes it creditable: `_deposit` crystallizes before it opens the new
+        // round, so the old round's holders are credited at their own weight while it is still theirs.
+        _creditCreatorLeg(0);
+
         uint256 y = _pendingYield();
         if (y == 0) return;
 
@@ -451,12 +472,7 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         uint256 targetLeg = (got * TARGET_BPS) / BPS;
         uint256 creatorLeg = got - protocolLeg - targetLeg;
 
-        // Creator leg → per-benefactor accumulator. There is principal in the position (checked above), so
-        // there is weight behind it; the guard protects the division.
-        if (creatorLeg > 0 && totalPrincipalShares > 0) {
-            accCreatorYieldPerShare += (creatorLeg * ACC_PRECISION) / totalPrincipalShares;
-            _totalYieldToCreators += creatorLeg;
-        }
+        _creditCreatorLeg(creatorLeg);
 
         // Target + protocol legs are pushed out now (creator leg stays as ETH for `claimYieldPurse`).
         if (targetLeg > 0) {
@@ -483,6 +499,68 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
 
         emit YieldDistributed(creatorLeg, targetLeg, protocolLeg, block.timestamp);
         emit FeesAccumulated(got);
+    }
+
+    /// @dev Route a creator leg into the per-benefactor accumulator, which is the ONLY way a benefactor is
+    ///      ever paid: a wei the accumulator does not carry is a wei nobody can claim.
+    ///
+    ///      The accumulator moves in whole units of `1 / ACC_PRECISION` per share, so a leg worth less than
+    ///      `totalPrincipalShares / ACC_PRECISION` wei moves it by nothing at all. That is not a sub-wei
+    ///      concern: the share-price floor deliberately admits prices down to 1e-9
+    ///      (`MIN_SHARE_PRICE_INVERSE`), so a pool drained to the floor and refunded — a supported cycle —
+    ///      carries ~1e27 shares per ETH, and EVERY creator leg under a gwei falls in that class. Crediting
+    ///      by the division alone and booking the whole leg as routed reported the entire 80% as paid to
+    ///      creators while the ETH sat in the vault's native balance with no claim on it.
+    ///
+    ///      So the leg is pooled with what earlier harvests could not express, the pool is credited by
+    ///      whatever the division CAN carry, and the shortfall is carried in `creatorYieldRemainder` for
+    ///      the next harvest instead of being dropped. Carrying the remainder is preferred over holding the
+    ///      whole leg back until it clears a unit on its own: it credits benefactors on the harvest that
+    ///      earned it whenever any part of the leg fits, and it recovers the truncation dust of an ORDINARY
+    ///      harvest too, which a hold-the-leg rule would go on booking as paid. The counters fall out of the
+    ///      same arithmetic — `_totalYieldToCreators` takes the wei the accumulator's movement can demand,
+    ///      so the stat surface is an upper bound on what creators can claim and never a payment the vault
+    ///      cannot make, and the rest is named by `creatorYieldRemainder` rather than left as untracked
+    ///      vault balance. Across any sequence of harvests the two sum to the creator legs exactly.
+    ///
+    ///      Pure accounting: no external call, no ETH movement. The creator leg is already native ETH in
+    ///      the vault by the time it gets here, and it leaves only through `claimYieldPurse`.
+    function _creditCreatorLeg(uint256 leg) internal {
+        uint256 pot = creatorYieldRemainder + leg;
+        if (pot == 0) return;
+
+        uint256 shares = totalPrincipalShares;
+        if (shares == 0) {
+            // No weight to divide by, so there is nobody to credit yet; hold the whole pot. Reachable only
+            // defensively — a live basis implies a deposit minted shares — but a guard that swallows the
+            // leg is the defect this function exists to close.
+            creatorYieldRemainder = pot;
+            return;
+        }
+
+        // The most accumulator movement `pot` can buy.
+        uint256 perShare = (pot * ACC_PRECISION) / shares;
+        if (perShare == 0) {
+            // Not even one unit: hold the whole pot for a later harvest, and book nothing.
+            creatorYieldRemainder = pot;
+            return;
+        }
+
+        // What that movement can DEMAND across the whole weight, rounded UP. Rounding down here would be
+        // the stranding defect inverted: `perShare · shares / ACC_PRECISION` is a fraction of a wei
+        // whenever `shares < ACC_PRECISION`, and charging the pot its floor lets the same sub-wei
+        // fraction be paid for once and credited again on every later harvest, until the accumulator
+        // promises more creator yield than the vault ever took in. Rounding up costs the pot at most one
+        // wei more than the movement is strictly worth, and keeps the counter an upper bound on what the
+        // accumulator can pay rather than an under-statement of it. It never exceeds `pot`, because
+        // `perShare · shares ≤ pot · ACC_PRECISION` by the floor above, so the subtraction is safe.
+        uint256 cost = (perShare * shares + ACC_PRECISION - 1) / ACC_PRECISION;
+
+        accCreatorYieldPerShare += perShare;
+        _totalYieldToCreators += cost;
+        // Strictly less than one unit's worth of wei (`shares / ACC_PRECISION`), by the same arithmetic:
+        // whatever is left could not have bought another unit.
+        creatorYieldRemainder = pot - cost;
     }
 
     // ┌─────────────────────────┐
@@ -1051,7 +1129,10 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         return _totalDeployedByTarget;
     }
 
-    /// @notice Cumulative creator-leg yield routed to the per-benefactor accumulator.
+    /// @notice Cumulative creator-leg yield the per-benefactor accumulator actually took on — the wei it
+    ///         can pay out, not the wei the 80/19/1 split cut. The two differ by `creatorYieldRemainder`,
+    ///         the part no harvest has yet been able to express per-share; that is still creator money and
+    ///         is booked here on the harvest that credits it.
     function totalYieldToCreators() external view returns (uint256) {
         return _totalYieldToCreators;
     }
