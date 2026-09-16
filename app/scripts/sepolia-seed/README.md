@@ -2,6 +2,9 @@
 
 Two `forge script` runs with a **real wall-clock wait** between them, driven by `seed.ts`.
 
+This is one step of the public-testnet deployment; `docs/SEPOLIA-DEPLOY-RUNBOOK.md` is the whole
+sequence and says what runs either side of it.
+
 ## Why two phases and a wait
 
 `setBondingOpenTime` rejects a non-future timestamp; `buyBonding` reverts `TooEarly` before the open
