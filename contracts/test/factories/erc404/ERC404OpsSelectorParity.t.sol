@@ -88,7 +88,10 @@ contract ERC404OpsSelectorParityTest is Test {
             ERC404BondingOps.setBondingActive.selector,
             "setBondingActive"
         );
-        _assertParity(ERC404BondingInstance.setStyle.selector, ERC404BondingOps.setStyle.selector, "setStyle");
+        // `setStyle` is deliberately ABSENT. Its body came back into the instance when the Ops side
+        // needed room for the endowment-only staking guard, so there is no delegatecall seam left for
+        // it and `ERC404BondingOps` no longer declares the function at all. Restoring a line for it
+        // here would not compile, which is the only guard this absence needs.
         _assertParity(
             ERC404BondingInstance.activateStaking.selector, ERC404BondingOps.activateStaking.selector, "activateStaking"
         );

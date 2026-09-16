@@ -35,7 +35,6 @@ import {
     SetBondingOpenTimeFailed,
     SetBondingMaturityTimeFailed,
     SetBondingActiveFailed,
-    SetStyleFailed,
     ActivateStakingFailed,
 
     // Graduation: the body lives on the Ops side (noesis-188), so these are declared in the shared
@@ -429,10 +428,22 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle, IGra
         if (!ok) revert SetBondingActiveFailed();
     }
 
-    // slither-disable-next-line low-level-calls,unused-return
-    function setStyle(string memory) external {
-        (bool ok,) = _ops.delegatecall(msg.data);
-        if (!ok) revert SetStyleFailed();
+    /// @notice Set the collection's cosmetic style pointer.
+    /// @dev The ONE config body that lives here rather than on the Ops side, and it is here because
+    ///      the budget runs the other way now. `ERC404BondingOps` is the contract against the EIP-170
+    ///      ceiling — the diet gate holds a 500-byte floor under its headroom precisely so an Ops-side
+    ///      addition trips a warning instead of landing over the limit — while this contract has
+    ///      thousands of bytes free. When the endowment-only staking guard needed room on the Ops
+    ///      side, the gate's own instruction was to move a body back here, and this is the body with
+    ///      the least reason to be over there: `styleUri` is a cosmetic pointer with no protocol
+    ///      meaning, no ordering constraint and no interaction with any other entry point.
+    ///
+    ///      Being in-instance also buys back what the trampolines give up: an unauthorized caller now
+    ///      gets `Unauthorized` verbatim instead of the generic `SetStyleFailed`, which is the same
+    ///      thing `migrateVault` does and for the same reason.
+    function setStyle(string memory uri) external {
+        _requireOwnerOrAgent();
+        styleUri = uri;
     }
 
     function migrateVault(address newVault) external onlyOwner {

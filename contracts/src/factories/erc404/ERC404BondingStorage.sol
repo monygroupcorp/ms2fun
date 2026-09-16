@@ -103,6 +103,18 @@ error MaturityTooFarAfterOpenTime();
 error OpenTimeNotSet();
 error CannotActivateAfterLiquidityDeployed();
 error StakingAlreadyActive();
+error NoFeeClaimingVault();
+
+// ── The "no pull-claim model" signal ────────────────────────────────────────────────────────────
+// `AlignmentEndowmentVault.claimFees()` is `revert NotSupported()`: an endowment holds a permanent
+// position and never hands ETH back on a pull, so it answers the pull-claim entry point by refusing
+// it. `claimAllFees` has always skipped that revert; `activateStaking` now READS it, which needs the
+// selector on this side of the call. Declared here rather than imported from the vault because core
+// contracts in this tree never import a concrete vault (the registry resolves vault families through
+// `RevenueSplitLib` for the same reason). What travels on chain is the four-byte selector, and an
+// error's selector is fixed by its signature, so this declaration and the vault's are the same value
+// by construction — an assertion in `ERC404EndowmentStakingGuard.t.sol` pins them equal.
+error NotSupported();
 
 // ── Bonding schedule bound ──────────────────────────────────────────────────────────────────────
 // The longest bonding period `setBondingMaturityTime` will accept, measured from `bondingOpenTime`.
@@ -139,7 +151,6 @@ error SetAgentDelegationFromFactoryFailed();
 error SetBondingOpenTimeFailed();
 error SetBondingMaturityTimeFailed();
 error SetBondingActiveFailed();
-error SetStyleFailed();
 error ActivateStakingFailed();
 
 // ── Graduation errors (raised on the Ops side; surfaced by the instance trampoline) ─────────────
