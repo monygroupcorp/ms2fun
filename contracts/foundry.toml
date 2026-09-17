@@ -36,7 +36,24 @@ gas_limit = 4294967296
 # The RealSettlement regression imports v4-core's real PoolManager (exact pragma 0.8.26),
 # which cannot compile under the pinned 0.8.28 default. Exclude it from the default compile
 # set; it is exercised via `FOUNDRY_CONFIG=foundry.v4.toml forge test --match-path ...`.
-skip = ["test/hooks/UniAlignmentV4Hook_RealSettlement.t.sol"]
+skip = [
+    "test/hooks/UniAlignmentV4Hook_RealSettlement.t.sol",
+    # Same reason — these three audit proofs drive the real PoolManager:
+    "test/audit/HookQueuedFeesMigratedVault.t.sol",
+    "test/audit/HookSecondPoolNotBound.t.sol",
+    "test/audit/UniVaultPoolKeyRotation.t.sol",
+    # DIFFERENT reason. The proofs below are the 2026-09-17 pre-testnet audit's
+    # reproductions of defects that are still OPEN (see contracts/audits/
+    # 2026-09-17-pre-testnet.md). They assert the property the code SHOULD hold, so
+    # they FAIL on purpose, and a failing test in the default set would make the
+    # contracts gate red for a defect the gate did not cause. They are excluded here
+    # and run by path instead; the audit report carries the command and the output for
+    # each. WHEN A FIX LANDS, DELETE ITS LINE — the proof turning green is how the fix
+    # is shown to work, and a proof left skipped is a fix nobody verified.
+    "test/audit/FreeMintCurveSolvency.t.sol",
+    "test/audit/GraduationLpResidue.t.sol",
+    "test/audit/UniVaultShareAccounting.t.sol",
+]
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "solady/=lib/solady/src/",

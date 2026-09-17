@@ -1,0 +1,80 @@
+# Companion Foundry config for the 2026-09-17 pre-testnet audit's proofs (`test/audit/`).
+#
+# WHY A SEPARATE FILE, and why these proofs are not in the default set.
+#
+# Two independent reasons put `test/audit/` outside `foundry.toml`'s compile set, and this
+# config answers both at once.
+#
+#   1. PRAGMA. Three of the proofs drive v4-core's real `PoolManager`, whose pragma is EXACTLY
+#      `0.8.26`. The default profile is deterministically pinned to `solc = "0.8.28"` for
+#      deploy-determinism (noesis-120), and `skip=` drops a file from the compile set without
+#      exempting an imported dependency from the version check — so, exactly as with
+#      `foundry.v4.toml`, the only way to compile them is a standalone config whose own
+#      `[profile.default]` sets `auto_detect_solc = true`.
+#
+#   2. THEY FAIL ON PURPOSE. The rest assert the property the code SHOULD hold for a defect that
+#      is still OPEN. A red test in the default set would make the contracts gate report a
+#      failure the gate did not cause, and a gate that is red for a known reason stops being
+#      read. So the proofs are excluded there and run by name here.
+#
+# WHERE THIS IS RUN BY HAND (the repo's rule is that a profile with no selector is not a gate,
+# so this is its selector). The whole set:
+#
+#   FOUNDRY_CONFIG=foundry.audit.toml forge test --match-path "test/audit/*"
+#
+# One proof at a time, e.g.:
+#
+#   FOUNDRY_CONFIG=foundry.audit.toml forge test --match-path test/audit/FreeMintCurveSolvency.t.sol -vv
+#
+# `contracts/audits/2026-09-17-pre-testnet.md` carries the command and the recorded output for
+# every proof, and names which defect each one reproduces.
+#
+# WHEN A FIX LANDS: delete that proof's line from `skip` in `foundry.toml` so it joins the
+# default set and the gate keeps it honest. The proof turning green is how the fix is shown to
+# work; a proof left skipped is a fix nobody verified.
+#
+# WHY ITS OWN `out`/`cache_path`: same reason `foundry.v4.toml` has its own — under auto-detect
+# the shared source graph is compiled by a different solc, forge disambiguates the second
+# artifact with an extra path segment, and the wagmi binding generator globs `out` by artifact
+# path, so sharing `out` would resolve the same contract twice and abort the bindings-drift gate
+# with `Contract name "<Name>" must be unique.`
+#
+# Remappings mirror foundry.toml so the shared source graph resolves identically.
+[profile.default]
+src = "src"
+out = "out-audit"
+cache_path = "cache-audit"
+libs = ["lib"]
+auto_detect_solc = true
+optimizer = true
+optimizer_runs = 100
+via_ir = true
+evm_version = "cancun"
+test = "test"
+script = "script"
+broadcast = "broadcast"
+gas_limit = 4294967296
+fs_permissions = [
+    { access = "read-write", path = "./deployments/" },
+    { access = "read", path = "./src/" },
+]
+remappings = [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "solady/=lib/solady/src/",
+    "solmate/=lib/solmate/",
+    "v4-core/=lib/v4-core/src/",
+    "v4-core/test/=lib/v4-core/test/",
+    "dn404/=lib/dn404/",
+    "@uniswap/v3-core/=lib/v3-core/contracts/",
+    "@uniswap/v3-periphery/=lib/v3-periphery/contracts/",
+    "@uniswap/v2-core/=lib/v2-core/contracts/",
+    "zamm/=lib/zamm/src/",
+    "zRouter/=lib/zRouter/src/",
+    "createx-forge/=lib/createx-forge/",
+    "aave-address-book/=lib/aave-address-book/src/"
+]
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = true
