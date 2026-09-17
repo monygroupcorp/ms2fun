@@ -147,12 +147,15 @@ contract UniVaultShareAccountingTest is Test {
     }
 
     // ------------------------------------------------------------------
-    // A.1 — the carried residual is owned by nobody: sum(pendingETH) != totalPendingETH
+    // A.1 — the carried residual is owned by its own contributor
     // ------------------------------------------------------------------
     /// @dev This is exactly `invariant_pendingSumConsistency` from test/invariant/UniVaultInvariant.t.sol.
-    ///      That invariant is VACUOUS today because TestableUniAlignmentVault._addToLpPosition hardcodes
-    ///      `ethDeposited` to the whole ETH leg, so `ethUnabsorbed` is always 0 under the mock.
-    function test_A1_carriedResidualIsOwnedByNobody() public {
+    ///      That invariant WAS vacuous, because `TestableUniAlignmentVault._addToLpPosition` hardcoded
+    ///      `ethDeposited` to the whole ETH leg and `ethUnabsorbed` was structurally 0 under the mock.
+    ///      The harness now carries a settable absorption shortfall and the handler lets the fuzzer drive
+    ///      it, so the invariant can reach this case on its own; this test pins the worst legal instance
+    ///      of it directly, with the real v4 sizing rule rather than the mock's shortcut.
+    function test_A1_carriedResidualIsOwnedByItsContributor() public {
         // A 5% shortfall on the token leg is the WORST the oracle floor permits:
         // _floorTokenOut = expected * (10000 - maxPriceDeviationBps)/10000, maxPriceDeviationBps = 500.
         router.setOutRatio(0.95e18);
@@ -163,20 +166,33 @@ contract UniVaultShareAccountingTest is Test {
 
         vault.convertAndAddLiquidity(1);
 
-        uint256 orphaned = vault.totalPendingETH();
-        console2.log("orphaned totalPendingETH (wei):", orphaned);
+        uint256 carried = vault.totalPendingETH();
+        console2.log("carried totalPendingETH (wei)  :", carried);
         console2.log("alice pendingETH after convert :", vault.pendingETH(alice));
         console2.log("alice shares                   :", vault.getBenefactorShares(alice));
 
-        assertGt(orphaned, 0, "no residual was carried - test setup is wrong");
-        // THE DEFECT: the carried ETH is credited to no benefactor.
-        assertEq(vault.pendingETH(alice), orphaned, "UniAlignmentVault:495 - carried residual has no owner");
+        assertGt(carried, 0, "no residual was carried - test setup is wrong");
+        // The invariant: every wei of `totalPendingETH` is somebody's. Alice is the only contributor, so
+        // the whole carry — the round-down remainder included — is hers.
+        assertEq(vault.pendingETH(alice), carried, "the carried residual is owned by its contributor");
+
+        // And she is still a tracked participant, so the next convert actually deploys it for her rather
+        // than reverting on an empty participant set. Exactly one entry: the clear-then-re-register
+        // ordering must not leave the pre-convert list behind alongside the carriers.
+        assertEq(vault.conversionParticipants(0), alice, "the carrier is re-registered as a participant");
+        vm.expectRevert();
+        vault.conversionParticipants(1);
     }
 
     // ------------------------------------------------------------------
-    // A.2 — the orphaned ETH mints shares that are handed to a later batch's largest contributor
+    // A.2 — carried ETH buys shares for its own owner, not for a later batch's largest contributor
     // ------------------------------------------------------------------
-    function test_A2_orphanedEthMintsSharesForSomeoneElse() public {
+    /// @dev The steerable half of the finding. `convertAndAddLiquidity` is permissionless, so a
+    ///      sandwicher could push the swap to the 95% floor to maximise the orphan and then be the next
+    ///      batch's `largestContributor` and collect it through `accumulatedDustShares`. With the carry
+    ///      owned, the orphan is no longer there to collect: the only thing the dust block can still hand
+    ///      out is the wei-scale rounding dust that test C measures.
+    function test_A2_carriedEthBuysSharesForItsOwner() public {
         router.setOutRatio(0.95e18);
 
         // Batch 1: alice alone. 100 ETH in; part of the ETH leg is not absorbed and is carried.
@@ -185,8 +201,9 @@ contract UniVaultShareAccountingTest is Test {
 
         uint256 aliceShares = vault.getBenefactorShares(alice);
         uint256 lpAfter1 = vault.totalLPUnits();
-        uint256 orphaned = vault.totalPendingETH();
-        assertGt(orphaned, 0, "no residual carried - setup wrong");
+        uint256 carried = vault.totalPendingETH();
+        assertGt(carried, 0, "no residual carried - setup wrong");
+        assertEq(vault.pendingETH(alice), carried, "precondition: the carry is alice's");
 
         // Batch 2: bob small, mallory large. Mallory is this batch's `largestContributor`.
         _contribute(bob, 100 ether);
@@ -196,26 +213,40 @@ contract UniVaultShareAccountingTest is Test {
         vault.convertAndAddLiquidity(1);
 
         uint256 malloryGain = vault.getBenefactorShares(mallory) - malloryBefore;
+        uint256 aliceGain = vault.getBenefactorShares(alice) - aliceShares;
         uint256 lpBatch2 = vault.totalLPUnits() - lpAfter1;
-        uint256 batchEth = 500 ether + orphaned;
+        uint256 batchEth = 500 ether + carried;
         uint256 malloryFair = lpBatch2 * 400 ether / batchEth;
+        uint256 aliceFair = lpBatch2 * carried / batchEth;
 
         console2.log("alice contributed (wei)        :", uint256(100 ether));
-        console2.log("alice ETH orphaned by batch 1  :", orphaned);
+        console2.log("alice ETH carried from batch 1 :", carried);
         console2.log("alice shares before batch 2    :", aliceShares);
         console2.log("alice shares after  batch 2    :", vault.getBenefactorShares(alice));
         console2.log("batch-2 liquidity units        :", lpBatch2);
+        console2.log("alice  FAIR (carried/batchEth) :", aliceFair);
+        console2.log("alice  ACTUAL                  :", aliceGain);
         console2.log("mallory FAIR (400/batchEth)    :", malloryFair);
         console2.log("mallory ACTUAL                 :", malloryGain);
-        console2.log("mallory windfall               :", malloryGain > malloryFair ? malloryGain - malloryFair : 0);
         console2.log("accumulatedDustShares left     :", vault.accumulatedDustShares());
 
-        // Alice is never credited for the ETH the vault carried forward on her behalf.
-        assertEq(vault.getBenefactorShares(alice), aliceShares, "alice got nothing for her carried ETH");
+        // Alice is credited for the ETH the vault carried forward on her behalf, in the batch that
+        // finally deployed it. Round-down only, so she can be a hair under fair and never over.
+        assertGt(aliceGain, 0, "alice is credited for her carried ETH");
+        assertLe(aliceGain, aliceFair, "and never more than it funded");
+        assertApproxEqRel(aliceGain, aliceFair, 1e12, "alice's credit tracks her carried ETH");
 
-        // THE DEFECT: mallory receives more than the liquidity her own ETH funded, because the
-        // dust block minted by alice's orphaned ETH is handed to the batch's largestContributor.
-        assertLe(malloryGain, malloryFair, "UniAlignmentVault:476-483 - mallory took shares she did not fund");
+        // Mallory receives no more than the liquidity her own ETH funded: the block that used to be
+        // minted by alice's orphaned ETH no longer exists to be handed to this batch's largest
+        // contributor.
+        assertLe(malloryGain, malloryFair, "mallory took no shares she did not fund");
+
+        // The sum invariant holds across both batches.
+        assertEq(
+            vault.pendingETH(alice) + vault.pendingETH(bob) + vault.pendingETH(mallory),
+            vault.totalPendingETH(),
+            "sum(pendingETH) == totalPendingETH"
+        );
     }
 
     // ------------------------------------------------------------------

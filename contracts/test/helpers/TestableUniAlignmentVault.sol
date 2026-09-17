@@ -36,6 +36,21 @@ contract FeeSeamUniAlignmentVault is UniAlignmentVault {
 /// @dev Swap behavior is handled by MockZRouter injected at initialize().
 ///      Only _addToLpPosition is overridden here since it requires a real V4 pool.
 contract TestableUniAlignmentVault is FeeSeamUniAlignmentVault {
+    /// @notice Fraction of the ETH leg the mock pool refuses to absorb, in basis points.
+    /// @dev Default 0 preserves the original harness behaviour exactly — the full ETH leg is reported
+    ///      deposited, so `ethUnabsorbed` is zero. That default is precisely why
+    ///      `invariant_pendingSumConsistency` was vacuous: with no way to produce a residual, the
+    ///      invariant could never observe the case where one exists (audit M-2). A real pool absorbs
+    ///      less than the leg offered whenever the position's ratio does not divide the deposit evenly,
+    ///      and this knob is the mock's stand-in for that, so the invariant can drive the carry-forward
+    ///      path the fork tests otherwise reach alone.
+    uint256 public lpUnabsorbedBps;
+
+    function setLpUnabsorbedBps(uint256 bps) external {
+        require(bps < 10_000, "bps must leave something deposited");
+        lpUnabsorbedBps = bps;
+    }
+
     function _addToLpPosition(uint256 amount0, uint256 amount1, int24 tickLower, int24 tickUpper)
         internal
         override
@@ -45,10 +60,10 @@ contract TestableUniAlignmentVault is FeeSeamUniAlignmentVault {
         lastTickLower = tickLower;
         lastTickUpper = tickUpper;
         liquidityUnits = uint128((amount0 + amount1) / 2);
-        // The mock has no real pool to pull ETH, so report the full ETH leg as deposited. This keeps
-        // ethUnabsorbed == 0 for mock-based tests (behaviorally identical to pre-noesis-034: no
-        // residual re-credit, totalEthLocked == ethToAdd); the residual path is exercised in the fork
-        // tests against the real V4 PoolManager. ETH is currency0 for these pool keys.
-        ethDeposited = Currency.unwrap(v4PoolKey.currency0) == address(0) ? amount0 : amount1;
+        // ETH is currency0 for these pool keys.
+        uint256 ethLeg = Currency.unwrap(v4PoolKey.currency0) == address(0) ? amount0 : amount1;
+        // Report only what the mock "pool" absorbed. At the default 0 bps this is the whole leg, which
+        // is the harness's original behaviour; above 0 it produces the residual a real pool produces.
+        ethDeposited = ethLeg - (ethLeg * lpUnabsorbedBps) / 10_000;
     }
 }

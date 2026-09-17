@@ -340,6 +340,16 @@ so "no wei of pendingETH is left unowned". That is the reference implementation 
 (`test/helpers/TestableUniAlignmentVault.sol:39-54`). `ethUnabsorbed` is *structurally* always zero
 there, so `invariant_pendingSumConsistency` cannot see this.
 
+That was the half this audit found. Fixing it turned up a second, larger one underneath: **no
+conversion had ever run in that suite at all.** The setup wires no reference pool, so
+`_floorTokenOut` reverts `NoReferencePool` and every `convertAndAddLiquidity` call in the run
+reverts — measured at 18,125 reverts out of 18,239 calls. Every invariant in the file that only says
+something after a conversion was holding over a vault that had never converted anything. One of them,
+`invariant_noDilutionInversion`, turns out not to be a property of this vault at all: it compared
+lifetime converted ETH against share counts across batches, but shares are LP *units* and the
+liquidity minted per ETH differs per batch, so the ordering it asserted is false by construction. It
+failed the moment the path went live. That is the claim being wrong, not the code.
+
 **Proof:** `test/audit/UniVaultShareAccounting.t.sol` — 2 failing.
 
 #### M-3 · One unguarded owner call bricks every fee path on a live Uni vault
@@ -667,7 +677,8 @@ independent reasons recorded in `foundry.toml`'s `skip` list and in `foundry.aud
    `foundry.v4.toml`.
 2. The proofs for open defects **fail on purpose** — they assert the property the code should hold.
    A red test in the default set would make the contracts gate report a failure the gate did not
-   cause, and a gate that is red for a known reason stops being read.
+   cause, and a gate that is red for a known reason stops being read. As each fix lands its proof
+   leaves this group and joins the default set; `UniVaultShareAccounting.t.sol` already has.
 
 Run the whole set:
 
@@ -679,7 +690,7 @@ cd contracts && FOUNDRY_CONFIG=foundry.audit.toml forge test --match-path "test/
 |---|---|---|
 | `FreeMintCurveSolvency.t.sol` | H-1 | **3 fail**, 1 control passes |
 | `GraduationLpResidue.t.sol` | M-1 | **5 fail** (v4 ×2, ZAMM ×2, Cypher ×1), 3 pass |
-| `UniVaultShareAccounting.t.sol` | M-2 (and strikes C, D) | **2 fail**, 2 pass |
+| `UniVaultShareAccounting.t.sol` | M-2 (and strikes C, D) | 4 pass (rewritten around the fix; now in the default set) |
 | `UniVaultPoolKeyRotation.t.sol` | M-3 | **1 fail**, 1 recovery test passes |
 | `HookQueuedFeesMigratedVault.t.sol` | M-4 | 3 pass (the trap, its exit, and the halted tithe) |
 | `AuctionTimeBufferLock.t.sol` | M-5 | 4 pass (assert the merged guard, and the bounded lock) |
@@ -719,11 +730,22 @@ test/audit/GraduationLpResidue.t.sol
 [PASS] test_v4_tolerance_isTwoPercentOnPrice()
 [PASS] test_v4_strandedEth_hasNoExit()
 
-test/audit/UniVaultShareAccounting.t.sol
+test/audit/UniVaultShareAccounting.t.sol   (as first recorded, before the fix)
 [FAIL: UniAlignmentVault:495 - carried residual has no owner: 0 != 2500000000000000001]
 [FAIL: UniAlignmentVault:476-483 - mallory took shares she did not fund:
        191187500000000000118 > 190000000000000000009]
   mallory windfall: 1.1875e18 LP units, funded entirely by alice's orphaned 2.5 ETH
+
+test/audit/UniVaultShareAccounting.t.sol   (as it stands, on `uni-vault-conversion-residue`)
+[PASS] test_A1_carriedResidualIsOwnedByItsContributor()
+  carried totalPendingETH (wei)  : 2500000000000000001
+  alice pendingETH after convert : 2500000000000000001      <- the whole carry, remainder included
+[PASS] test_A2_carriedEthBuysSharesForItsOwner()
+  alice ETH carried from batch 1 : 2500000000000000001
+  alice  FAIR (carried/batchEth) : 1187500000000000000
+  alice  ACTUAL                  : 1187499999999999824      <- her carry now buys her own shares
+  mallory FAIR (400/batchEth)    : 190000000000000000009
+  mallory ACTUAL                 : 189999999999999999815    <- was 191187500000000000118
 
 test/audit/UniVaultPoolKeyRotation.t.sol
 [FAIL: convertAndAddLiquidity bricked by unguarded setV4PoolKey (:940-944)]
@@ -804,7 +826,7 @@ proof committed and the three options costed.
 | # | finding | disposition |
 |---|---|---|
 | M-1 | graduation modules cannot return unconsumed LP capital (v4 197 bps) | **rth's ruling.** The fix routes the remainder back onto the 80/19/1 rail in-transaction and touches all three venue modules plus the tolerance constant. An owner sweep — the obvious shortcut — is forbidden by `LpLockInvariant.t.sol`'s `RemovalProbe` on purpose, so this needs a shape decision before code. The tolerance half (apply the band to price, or halve the constant) is a one-line change that can ship first and independently. |
-| M-2 | Uni vault conversion residue is unowned and mints shares for the wrong benefactor | **rth's ruling.** `ZAMMAlignmentVault.sol:398-439` is the reference implementation — carry the residual as per-benefactor `pendingContribution[b]` and settle the remainder on a `dustTaker`. Porting it also requires fixing `TestableUniAlignmentVault` so `invariant_pendingSumConsistency` stops being vacuous. |
+| M-2 | Uni vault conversion residue is unowned and mints shares for the wrong benefactor | **fixed — branch `uni-vault-conversion-residue`.** Ports `ZAMMAlignmentVault.sol:398-439` exactly: each benefactor's pro-rata share of the residual is carried back as their own `pendingETH`, they are re-registered as conversion participants, and the round-down remainder is settled on a `dustTaker` so `sum(pendingETH) == totalPendingETH` holds to the wei. The orphan the dust block used to hand a later batch's largest contributor no longer exists. The invariant suite is repaired on both counts — a reference pool so conversions actually run, and a settable absorption shortfall the fuzzer drives — and `afterInvariant` now asserts that coverage rather than assuming it. `invariant_noDilutionInversion` was restated: its cross-batch form is not a property of this vault. |
 | M-3 | `setV4PoolKey` bricks every fee path on a live vault | **fixed — branch `uni-vault-poolkey-lock`, PR #423.** Ports the `PoolKeyLocked()` guard the ZAMM sibling has carried since it was written, against this vault's own `totalLPUnits`. Wiring an unwired vault is untouched; both halves are pinned by tests. |
 | M-4 | a migrated vault traps the hook's queued fees forever | **fixed — branch `hook-queued-fees-exit`.** Both named shapes, arranged so neither adds a way to take the money. The hook now holds the master registry and answers to `deactivateVault`, the same lever `flushPendingVaultCut` already reads: `haltTithe()` is permissionless and stops the tax the moment the registry drops the vault, so nothing further is charged for a destination that no longer exists. `rescueQueuedFees(address)` is the owner's, but its destination must be a vault the registry currently curates and the credit goes to the hook's own immutable `benefactor` — so the owner chooses which curated vault, never whether to take it. Both refuse while the vault is still registered. |
 | M-5 | unbounded anti-snipe buffer locks a bidder's ETH | **fixed — branch `auction-timebuffer-bound`, PR #424.** `timeBuffer <= baseDuration` in the constructor, inclusive, so nothing legal is narrowed; every auction in the tree and both seed scripts already sit far under it. A `max` on the wizard field is still owed. |

@@ -67,6 +67,17 @@ contract UniVaultInvariantTest is StdInvariant, Test {
         });
         vault.setV4PoolKey(mockPoolKey);
 
+        // The oracle floor reads a DAO-pinned reference pool and has NO fail-open: without one,
+        // `_floorTokenOut` reverts `NoReferencePool` and `convertAndAddLiquidity` cannot run at all.
+        // It was never wired here, so EVERY convert in this suite reverted and every invariant that
+        // only says something after a conversion was holding over an empty path (audit M-2).
+        mockAlignmentRegistry.setReferencePool(
+            TARGET_ID,
+            address(alignmentToken),
+            IAlignmentRegistry.ReferencePool({ pool: address(0xBEEF), kind: 0, twapWindow: 1800 })
+        );
+        mockValidator.setEthPer1e18Tokens(1e18); // 1 token == 1 ETH at the oracle
+
         actors.push(address(0xA11CE));
         actors.push(address(0xB0B));
         actors.push(address(0xCAFE));
@@ -132,40 +143,24 @@ contract UniVaultInvariantTest is StdInvariant, Test {
     // Additionally: no actor's shares can exceed totalShares, and the sum equals totalShares
     // (covered by invariant 1).
 
-    function invariant_noDilutionInversion() public view {
-        if (vault.totalShares() == 0) return;
-
-        address[] memory a = handler.getActors();
-
-        // Check monotonicity among converted ETH (excluding pending):
-        // if convertedETH[a] >= convertedETH[b], then shares[a] >= shares[b]
-        // Only compare actors with no pending ETH (fully settled).
-        for (uint256 i = 0; i < a.length; i++) {
-            uint256 sharesI = vault.benefactorShares(a[i]);
-            if (sharesI == 0) continue;
-            if (vault.pendingETH(a[i]) > 0) continue; // skip actors with unconverted contributions
-
-            uint256 convertedI = vault.benefactorTotalETH(a[i]) - vault.pendingETH(a[i]);
-
-            for (uint256 j = i + 1; j < a.length; j++) {
-                uint256 sharesJ = vault.benefactorShares(a[j]);
-                if (sharesJ == 0) continue;
-                if (vault.pendingETH(a[j]) > 0) continue;
-
-                uint256 convertedJ = vault.benefactorTotalETH(a[j]) - vault.pendingETH(a[j]);
-
-                if (convertedI >= convertedJ) {
-                    if (sharesJ > sharesI) {
-                        // Allow rounding tolerance: 1 share unit per conversion
-                        assertLe(
-                            sharesJ - sharesI,
-                            handler.ghost_conversions(),
-                            "Uni: dilution inversion - lower contributor has more shares"
-                        );
-                    }
-                }
-            }
-        }
+    /// @dev Within ONE conversion, more ETH into the batch must never buy fewer shares out of it.
+    ///
+    ///      This replaces a cross-batch claim — "more lifetime converted ETH implies at least as many
+    ///      shares" — that is not a property of this vault and never was. Shares are LP UNITS, and the
+    ///      liquidity minted per ETH differs from conversion to conversion, so a holder with more
+    ///      lifetime ETH can legitimately hold fewer shares than one who contributed less into a batch
+    ///      that minted more liquidity. The old form only ever passed because `convertAndAddLiquidity`
+    ///      reverted on every call in this suite (no reference pool was wired), so it was asserting
+    ///      over a vault that had never converted anything. With the path live it fails immediately,
+    ///      and it should — the claim is wrong, not the code.
+    ///
+    ///      The per-batch ordering is the real property, and the handler records it at the only moment
+    ///      the inputs exist: the convert zeroes `pendingETH`, so the batch's own contributions cannot
+    ///      be recovered afterwards.
+    function invariant_noDilutionInversionWithinAConversion() public view {
+        assertEq(
+            handler.ghost_dilutionInversions(), 0, "Uni: within one conversion, more ETH in bought fewer shares out"
+        );
     }
 
     // ── Invariant 5: pending sum consistency ──
@@ -177,5 +172,23 @@ contract UniVaultInvariantTest is StdInvariant, Test {
             sumPending += vault.pendingETH(a[i]);
         }
         assertEq(sumPending, vault.totalPendingETH(), "Uni: sum(pendingETH) != totalPendingETH");
+    }
+
+    /// @dev Coverage, asserted rather than assumed — and in `afterInvariant` rather than an invariant,
+    ///      because it is a fact about the run as a whole and is false before the first call.
+    ///
+    ///      Two separate things made this suite's post-conversion invariants vacuous at once: no
+    ///      reference pool was wired, so every `convertAndAddLiquidity` reverted `NoReferencePool`; and
+    ///      the mock reported the whole ETH leg as deposited, so `ethUnabsorbed` was structurally zero
+    ///      even if one had landed. An invariant that cannot reach its own subject passes forever
+    ///      without saying anything, so pin both here: a change that re-breaks either path fails loudly
+    ///      instead of going quiet (audit M-2).
+    function afterInvariant() public view {
+        assertGt(handler.ghost_convertsLanded(), 0, "no convert ever landed: the invariants are vacuous");
+        assertGt(
+            handler.ghost_convertsWithResidual(),
+            0,
+            "no convert ever left a residual: the carry-forward path is unobserved"
+        );
     }
 }
