@@ -75,6 +75,7 @@ contract HookQueuedFeesMigratedVaultTest is Test {
     uint256 internal constant TARGET_ID = 1;
     uint256 internal constant HOOK_FEE_BIPS = 100; // 1%
     uint24 internal constant LP_FEE_RATE = 3000;
+    int24 internal constant POOL_TICK_SPACING = 60;
 
     function setUp() public {
         manager = new PoolManager(address(this));
@@ -121,7 +122,9 @@ contract HookQueuedFeesMigratedVaultTest is Test {
                 address(benefactorInstance),
                 HOOK_FEE_BIPS,
                 LP_FEE_RATE,
-                address(masterRegistry)
+                address(masterRegistry),
+                address(token), // the pool this hook is bound to (audit L-6)
+                POOL_TICK_SPACING
             ),
             hookAddr
         );
@@ -131,7 +134,7 @@ contract HookQueuedFeesMigratedVaultTest is Test {
             currency0: ethCurrency,
             currency1: tokenCurrency,
             fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
-            tickSpacing: 60,
+            tickSpacing: POOL_TICK_SPACING,
             hooks: IHooks(hookAddr)
         });
         manager.initialize(poolKey, SQRT_PRICE_1_1);
