@@ -436,8 +436,12 @@ but reading "anti-snipe buffer" as "how long a fresh bid keeps the auction alive
 
 Fix is one line in the constructor: `if (p.timeBuffer > p.baseDuration) revert InvalidTimeBuffer();`
 
-**Proof:** `test/audit/AuctionTimeBufferLock.t.sol` — 3 passing tests that demonstrate the lock, the
-absence of any withdraw path, and the indefinite roll-forward.
+**Proof:** `test/audit/AuctionTimeBufferLock.t.sol` — 4 passing tests. The proof was rewritten once
+the fix merged (PR #424): the two tests that built the century and the one-year buffer now assert the
+constructor's refusal, and two more run the same bid-and-rescue sequence at the largest legal buffer
+(`timeBuffer == baseDuration`) to show what the bound buys — every reset is capped at one
+`baseDuration` from the bid, and the auction settles. The absence of a withdraw path is unchanged and
+was never the defect; the unbounded wait was.
 
 ---
 
@@ -688,7 +692,7 @@ cd contracts && FOUNDRY_CONFIG=foundry.audit.toml forge test --match-path "test/
 | `UniVaultShareAccounting.t.sol` | M-2 (and strikes C, D) | 4 pass (rewritten around the fix; now in the default set) |
 | `UniVaultPoolKeyRotation.t.sol` | M-3 | **1 fail**, 1 recovery test passes |
 | `HookQueuedFeesMigratedVault.t.sol` | M-4 | **1 fail** |
-| `AuctionTimeBufferLock.t.sol` | M-5 | 3 pass (demonstrate the lock) |
+| `AuctionTimeBufferLock.t.sol` | M-5 | 4 pass (assert the merged guard, and the bounded lock) |
 | `CreateXSaltSquat.t.sol` | L-1 | 7 pass (squat, recovery, wrong preview) |
 | `AccessControlCluster.t.sol` | L-2, L-3, L-4 | passes |
 | `CurveExactOutRoundingBuffer.t.sol` | L-5 | 2 pass (isolates the missing wei) |
@@ -752,10 +756,16 @@ test/audit/HookQueuedFeesMigratedVault.t.sol
 [FAIL: swap-tax ETH queued against a migrated vault has no exit]
   ETH trapped in the hook after 4 post-migrate swaps: 0.040000000000000000
 
-test/audit/AuctionTimeBufferLock.t.sol
+test/audit/AuctionTimeBufferLock.t.sol   (as first recorded, before PR #424 merged)
 [PASS] test_A_hundredYearTimeBuffer_locksWinningBidderETH()
   posted end, seconds away, BEFORE the bid: 3599
   actual end, seconds away, AFTER  the bid: 3153600000   (100 years)
+
+test/audit/AuctionTimeBufferLock.t.sol   (as it stands, against the merged guard)
+[PASS] test_A_hundredYearTimeBuffer_isRefusedAtConstruction()
+[PASS] test_A_plausibleMisconfig_oneYearBufferOnADayAuction_isRefused()
+[PASS] test_A_atTheMaximumLegalBuffer_theLockIsBoundedByOneBaseDuration()
+[PASS] test_A_rollForward_survivesTheFixButIsBoundedPerBid()
 ```
 
 ---
