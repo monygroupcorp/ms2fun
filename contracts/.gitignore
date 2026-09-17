@@ -11,6 +11,8 @@ broadcast/
 # second solc and so is kept out of `out/` entirely (see foundry.v4.toml).
 out-v4/
 cache-v4/
+out-audit/
+cache-audit/
 
 # Internal docs (promote to docs/spec/ or docs/examples/ when ready)
 docs/*
