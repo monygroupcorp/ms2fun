@@ -8,7 +8,8 @@ import { ERC404Factory } from "../../src/factories/erc404/ERC404Factory.sol";
 import { UniAlignmentVaultFactory } from "../../src/vaults/uni/UniAlignmentVaultFactory.sol";
 import { UniAlignmentVault } from "../../src/vaults/uni/UniAlignmentVault.sol";
 import { ZAMMAlignmentVaultFactory } from "../../src/vaults/zamm/ZAMMAlignmentVaultFactory.sol";
-import { ZAMMAlignmentVault } from "../../src/vaults/zamm/ZAMMAlignmentVault.sol";
+import { IZAMM, ZAMMAlignmentVault } from "../../src/vaults/zamm/ZAMMAlignmentVault.sol";
+import { CypherAlignmentVault } from "../../src/vaults/cypher/CypherAlignmentVault.sol";
 import { ProtocolTreasuryV1 } from "../../src/treasury/ProtocolTreasuryV1.sol";
 import { ProtocolOwnedLiquidityV1 } from "../../src/treasury/ProtocolOwnedLiquidityV1.sol";
 import { IVaultPriceValidator } from "../../src/interfaces/IVaultPriceValidator.sol";
@@ -19,8 +20,8 @@ import { PoolKey } from "v4-core/types/PoolKey.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 import { IHooks } from "v4-core/interfaces/IHooks.sol";
 
-/// @notice Findings B (role renounce), C/D (seizable implementations), E (unreachable setters),
-///         F (renounce on the vault factories).
+/// @notice Findings B (role renounce), C/D (seizable implementations), E/L-4 (the treasury setter no
+///         address could call), F (renounce on the vault factories).
 contract AccessControlClusterTest is Test {
     address internal protocol = address(0xDA0);
     address internal attacker = address(0xBAD);
@@ -186,10 +187,10 @@ contract AccessControlClusterTest is Test {
         assertEq(UniAlignmentVault(payable(clone)).owner(), address(f), "seizing the impl did not block a real clone");
     }
 
-    // ── E: owner setters no address can ever call ──────────────────────────────
+    // ── E / L-4: the documented treasury setter is reachable by its owner ──────
 
-    function test_E_zammSetProtocolTreasuryIsUnreachable() public {
-        ZAMMAlignmentVaultFactory f = new ZAMMAlignmentVaultFactory(
+    function _zammFactory() internal returns (ZAMMAlignmentVaultFactory) {
+        return new ZAMMAlignmentVaultFactory(
             address(0x1111),
             address(0x2222),
             address(0xE7),
@@ -198,16 +199,75 @@ contract AccessControlClusterTest is Test {
             IAlignmentRegistry(address(0)),
             address(0)
         );
-        // The vault's owner is the factory, and the factory exposes no passthrough for it.
-        (bool ok,) = address(f)
-            .call(abi.encodeWithSignature("setVaultProtocolTreasury(address,address)", address(1), address(2)));
-        assertFalse(ok, "ZAMMAlignmentVaultFactory has no setProtocolTreasury passthrough");
+    }
 
-        // Only the factory could call the vault's setter, and no factory code path does.
-        address clone = LibClone.clone(f.vaultImplementation());
+    /// @dev A clone initialized BY the factory, which is the shape `deployVault` produces: the vault's
+    ///      owner is the factory and nothing else.
+    function _cloneOwnedByFactory(ZAMMAlignmentVaultFactory f) internal returns (address clone) {
+        clone = LibClone.clone(f.vaultImplementation());
+        IZAMM.PoolKey memory key;
         vm.prank(address(f));
+        ZAMMAlignmentVault(payable(clone))
+            .initialize(
+                address(0x1111),
+                address(0x2222),
+                address(0xE7),
+                address(0x9999),
+                key,
+                address(0xFEE),
+                address(0),
+                IAlignmentRegistry(address(0)),
+                1
+            );
+        assertEq(ZAMMAlignmentVault(payable(clone)).owner(), address(f), "factory owns the vault");
+    }
+
+    /// @dev The vault's `setProtocolTreasury` is onlyOwner and the factory is the owner, so the
+    ///      factory is the only address that could ever reach it. Without a passthrough nobody could,
+    ///      while the vault's own docstring promised that "only `setProtocolTreasury` moves the
+    ///      destination" — a documented lever no address could pull.
+    function test_E_zammTreasuryIsReachableThroughItsOwner() public {
+        ZAMMAlignmentVaultFactory f = _zammFactory();
+        address clone = _cloneOwnedByFactory(f);
+        assertEq(ZAMMAlignmentVault(payable(clone)).protocolTreasury(), address(0xFEE), "born with the sink");
+
+        // Raw-called on purpose: this assertion is what was false before the passthrough existed,
+        // and a typed call would have been a compile error rather than a red test.
+        (bool ok,) = address(f)
+            .call(abi.encodeWithSignature("setVaultProtocolTreasury(address,address)", clone, address(0xC0FFEE)));
+        assertTrue(ok, "the factory can reach the vault's documented treasury setter");
+        assertEq(ZAMMAlignmentVault(payable(clone)).protocolTreasury(), address(0xC0FFEE), "destination moved");
+    }
+
+    /// @dev The passthrough is the factory owner's, and only the factory's own call reaches the vault.
+    function test_E_zammTreasuryPassthroughIsOwnerGated() public {
+        ZAMMAlignmentVaultFactory f = _zammFactory();
+        address clone = _cloneOwnedByFactory(f);
+
+        vm.prank(attacker);
+        (bool ok,) =
+            address(f).call(abi.encodeWithSignature("setVaultProtocolTreasury(address,address)", clone, address(0xBAD)));
+        assertFalse(ok, "the passthrough is the factory owner's");
+
+        // And going at the vault directly still fails: the factory is its only owner.
+        vm.prank(attacker);
         vm.expectRevert(Ownable.Unauthorized.selector);
-        ZAMMAlignmentVault(payable(clone)).setProtocolTreasury(address(0xFEE));
+        ZAMMAlignmentVault(payable(clone)).setProtocolTreasury(address(0xBAD));
+        assertEq(ZAMMAlignmentVault(payable(clone)).protocolTreasury(), address(0xFEE), "nothing moved");
+    }
+
+    /// @dev Cypher and Uni genuinely have no setter — their sink is written once at `initialize`.
+    ///      What L-4 names there is a docstring that claimed otherwise, copied from the ZAMM sibling.
+    ///      Whether those two families should gain a setter is a separate question and is not touched:
+    ///      `test/vaults/ProtocolFeeExitParity.t.sol` still pins the table as it stands.
+    function test_E_cypherAndUniStillCarryNoSetter() public {
+        CypherAlignmentVault cypher = new CypherAlignmentVault();
+        UniAlignmentVault uni = new UniAlignmentVault();
+
+        (bool cypherOk,) = address(cypher).call(abi.encodeWithSignature("setProtocolTreasury(address)", address(0xFEE)));
+        (bool uniOk,) = address(uni).call(abi.encodeWithSignature("setProtocolTreasury(address)", address(0xFEE)));
+        assertFalse(cypherOk, "CypherAlignmentVault has no setProtocolTreasury");
+        assertFalse(uniOk, "UniAlignmentVault has no setProtocolTreasury");
     }
 
     // ── F: renounceOwnership is reachable on the vault factories ───────────────
