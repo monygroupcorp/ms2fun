@@ -44,6 +44,36 @@ contract HealthyEditionCounter {
     }
 }
 
+/// @notice `HealthyEditionCounter` with two lines changed: a second edition, and a `minted` figure
+///         of 2**255. Folding two of those overflows `totalMinted` — the accumulator is summed in
+///         QueryAggregator's own frame inside the inner try's success block, outside the reach of
+///         both `catch {}`, so the panic 0x11 it raises reverts the whole batch rather than costing
+///         this one card. Every other line is the healthy instance's, so nothing but the overflow
+///         distinguishes it from a card the lens is expected to render.
+contract OverflowingEditionCounter {
+    function nextEditionId() external pure returns (uint256) {
+        return 3; // two editions, 1-indexed
+    }
+
+    function getEdition(uint256 id) external pure returns (IERC1155EditionReader.Edition memory) {
+        return IERC1155EditionReader.Edition({
+            id: id,
+            pieceTitle: "",
+            basePrice: 0.05 ether,
+            supply: 10,
+            minted: 2 ** 255,
+            metadataURI: "",
+            pricingModel: IERC1155EditionReader.PricingModel.LIMITED_FIXED,
+            priceIncreaseRate: 0,
+            openTime: 0 // ungated: every timestamp clears it
+        });
+    }
+
+    function getCurrentPrice(uint256) external pure returns (uint256) {
+        return 0.05 ether;
+    }
+}
+
 /// @notice noesis-320 — the ERC1155 card leg was the one card path doing its arithmetic in the
 ///         parent frame, so a zero edition counter took every sibling card in the batch with it.
 ///         `getProjectCardsBatch` takes a caller-supplied, unfiltered address array, and the two
@@ -109,6 +139,38 @@ contract QueryAggregatorCardBatchGuardTest is Test {
 
         assertTrue(cards[2].isActive, "healthy sibling stays active");
         assertEq(cards[2].currentPrice, 0.05 ether, "healthy sibling keeps its floor price");
+        assertEq(cards[2].maxSupply, 10, "healthy sibling keeps its cap");
+    }
+
+    /// THE SECOND LEG. The `nextId - 1` decrement was not the only arithmetic this function performs
+    /// in its own frame: `totalMinted += ed.minted` and `maxSupply += ed.supply` fold there too, and
+    /// an instance is free to answer any `uint256` it likes to `getEdition`. Two editions reporting
+    /// 2**255 minted overflow the sum, raising panic 0x11 where no `catch {}` reaches it. Asserting
+    /// the siblings' real figures, not merely the absence of a revert, so a guard that answered by
+    /// zeroing the whole batch fails here too.
+    function test_overflowingEditionYieldsZeroCardInsteadOfRevertingTheBatch() public {
+        address[] memory a = new address[](3);
+        a[0] = address(new HealthyEditionCounter());
+        a[1] = address(new OverflowingEditionCounter());
+        a[2] = address(new HealthyEditionCounter());
+
+        QueryAggregator.ProjectCard[] memory cards = agg.getProjectCardsBatch(a);
+
+        assertEq(cards.length, 3, "batch returns every card it was asked for");
+
+        assertTrue(cards[0].isActive, "healthy sibling stays active");
+        assertEq(cards[0].currentPrice, 0.05 ether, "healthy sibling keeps its floor price");
+        assertEq(cards[0].totalSupply, 0, "healthy sibling keeps its real minted figure");
+        assertEq(cards[0].maxSupply, 10, "healthy sibling keeps its cap");
+
+        assertFalse(cards[1].isActive, "overflowing instance yields a zero card");
+        assertEq(cards[1].currentPrice, 0, "overflowing instance carries no price");
+        assertEq(cards[1].totalSupply, 0, "overflowing instance contributes no supply");
+        assertEq(cards[1].maxSupply, 0, "overflowing instance carries no cap");
+
+        assertTrue(cards[2].isActive, "healthy sibling stays active");
+        assertEq(cards[2].currentPrice, 0.05 ether, "healthy sibling keeps its floor price");
+        assertEq(cards[2].totalSupply, 0, "healthy sibling keeps its real minted figure");
         assertEq(cards[2].maxSupply, 10, "healthy sibling keeps its cap");
     }
 }
