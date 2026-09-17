@@ -743,6 +743,12 @@ test/audit/AuctionTimeBufferLock.t.sol
 The line is careful: nothing here is merged. Every item below is either a branch with a PR open for
 rth's hand, or a named question for his ruling.
 
+Two of the five Mediums carry fixes, chosen because each is a single guard with a sibling in this
+same tree that already has it — so the fix is a consistency repair rather than a new design:
+**#423** (`uni-vault-poolkey-lock`) and **#424** (`auction-timebuffer-bound`). Both are green on the
+full contracts gate. The other three, and the High, turn on decisions that are rth's rather than an
+auditor's, and are named below with the shapes each could take.
+
 ### The one High
 
 **H-1 (free-mint curve solvency) is named for rth's ruling, not fixed on a branch.** This is the
@@ -781,10 +787,10 @@ proof committed and the three options costed.
 | # | finding | disposition |
 |---|---|---|
 | M-1 | graduation modules cannot return unconsumed LP capital (v4 197 bps) | **rth's ruling.** The fix routes the remainder back onto the 80/19/1 rail in-transaction and touches all three venue modules plus the tolerance constant. An owner sweep — the obvious shortcut — is forbidden by `LpLockInvariant.t.sol`'s `RemovalProbe` on purpose, so this needs a shape decision before code. The tolerance half (apply the band to price, or halve the constant) is a one-line change that can ship first and independently. |
-| M-2 | Uni vault conversion residue is unowned and mints shares for the wrong benefactor | **fix recommended, shape already exists.** `ZAMMAlignmentVault.sol:398-439` is the reference implementation — carry the residual as per-benefactor `pendingContribution[b]` and settle the remainder on a `dustTaker`. Porting it also requires fixing `TestableUniAlignmentVault` so `invariant_pendingSumConsistency` stops being vacuous. |
-| M-3 | `setV4PoolKey` bricks every fee path on a live vault | **fix recommended, one line.** Port `PoolKeyLocked()` from `ZAMMAlignmentVault.sol:325-326`. The sibling guard already exists and is already tested. |
+| M-2 | Uni vault conversion residue is unowned and mints shares for the wrong benefactor | **rth's ruling.** `ZAMMAlignmentVault.sol:398-439` is the reference implementation — carry the residual as per-benefactor `pendingContribution[b]` and settle the remainder on a `dustTaker`. Porting it also requires fixing `TestableUniAlignmentVault` so `invariant_pendingSumConsistency` stops being vacuous. |
+| M-3 | `setV4PoolKey` bricks every fee path on a live vault | **fixed — branch `uni-vault-poolkey-lock`, PR #423.** Ports the `PoolKeyLocked()` guard the ZAMM sibling has carried since it was written, against this vault's own `totalLPUnits`. Wiring an unwired vault is untouched; both halves are pinned by tests. |
 | M-4 | a migrated vault traps the hook's queued fees forever | **rth's ruling.** Two shapes: give the hook the `isVaultRegistered` gate the deployer module already has (so `deactivateVault` releases it, consistent with the existing runbook), or add an owner `rescueQueuedFees(address)`. The first is consistent with the rest of the system; the second is simpler and adds a trust surface to a hook that currently has none. His call which. Low urgency while `alignmentHookFactory` stays `address(0)`. |
-| M-5 | unbounded anti-snipe buffer locks a bidder's ETH | **fix recommended, one line.** `if (p.timeBuffer > p.baseDuration) revert InvalidTimeBuffer();` in the constructor, and a `max` on the wizard field. |
+| M-5 | unbounded anti-snipe buffer locks a bidder's ETH | **fixed — branch `auction-timebuffer-bound`, PR #424.** `timeBuffer <= baseDuration` in the constructor, inclusive, so nothing legal is narrowed; every auction in the tree and both seed scripts already sit far under it. A `max` on the wizard field is still owed. |
 
 ### Lows and Infos
 
