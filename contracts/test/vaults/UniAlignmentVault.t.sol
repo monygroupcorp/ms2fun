@@ -965,6 +965,57 @@ contract UniAlignmentVaultTest is Test {
         vault.setV4PoolKey(invalidPoolKey);
     }
 
+    /// @notice Regression (2026-09-17 pre-testnet audit, M-3): re-pointing the pool key while the
+    ///         vault holds a position orphans that position and bricks every path that pokes it.
+    ///
+    ///         The position is identified by (poolId, tickLower, tickUpper) but only the ticks are
+    ///         stored — `unlockCallback` reads `v4PoolKey` live for the poolId. So a rotation aims
+    ///         the zero-`liquidityDelta` fee poke at a position that was never opened, v4 answers
+    ///         `Position.CannotUpdateEmptyPosition`, and `claimFees`, `claimFeesAsDelegate` and
+    ///         `convertAndAddLiquidity` revert together with the benefactors' 80% leg inside. The
+    ///         owner sees a successful setter and a vault that has quietly stopped paying.
+    ///
+    ///         `ZAMMAlignmentVault.setPoolKey` has always refused this against `principalInvariant`.
+    ///         Before the fix this test's setter call succeeded.
+    function test_SetV4PoolKey_RefusedOnceAPositionIsLive() public {
+        vm.prank(alice);
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
+        assertTrue(s1);
+
+        vm.prank(dave);
+        vault.convertAndAddLiquidity(1);
+        assertGt(vault.totalLPUnits(), 0, "precondition: the vault must hold a position");
+
+        PoolKey memory rotated = PoolKey({
+            currency0: Currency.wrap(address(0)),
+            currency1: Currency.wrap(address(alignmentToken)),
+            fee: 10_000,
+            tickSpacing: 200,
+            hooks: IHooks(address(0))
+        });
+
+        vm.prank(owner);
+        vm.expectRevert(UniAlignmentVault.PoolKeyLocked.selector);
+        vault.setV4PoolKey(rotated);
+    }
+
+    /// @notice The lock closes only the case that orphans a position. Wiring a vault that has never
+    ///         deployed liquidity is the whole reason the setter exists, and stays open.
+    function test_SetV4PoolKey_StillWiresAVaultWithNoPosition() public {
+        assertEq(vault.totalLPUnits(), 0, "precondition: no position yet");
+
+        PoolKey memory rewired = PoolKey({
+            currency0: Currency.wrap(address(0)),
+            currency1: Currency.wrap(address(alignmentToken)),
+            fee: 10_000,
+            tickSpacing: 200,
+            hooks: IHooks(address(0))
+        });
+
+        vm.prank(owner);
+        vault.setV4PoolKey(rewired);
+    }
+
     function test_SetV4PoolKey_RevertsWhenNotOwner() public {
         PoolKey memory newPoolKey = PoolKey({
             currency0: Currency.wrap(address(0x8888)),
