@@ -48,6 +48,13 @@ contract MockV4PoolManager {
     int128 public owed0;
     int128 public owed1;
     bool public owedOverridden;
+    /// @dev Basis points of each honest leg the pool DECLINES, for driving the deployer's residue
+    ///      return without hand-computing the legs. 0 (the default) is an honest full take.
+    uint256 public shortBps;
+
+    function setShortBps(uint256 bps) external {
+        shortBps = bps;
+    }
 
     function setOwed(int128 a0, int128 a1) external {
         owed0 = a0;
@@ -83,6 +90,8 @@ contract MockV4PoolManager {
             TickMath.getSqrtPriceAtTick(p.tickUpper),
             uint128(uint256(p.liquidityDelta))
         );
+        amount0 = amount0 * (10_000 - shortBps) / 10_000;
+        amount1 = amount1 * (10_000 - shortBps) / 10_000;
         return
             (toBalanceDelta(-int128(int256(amount0)), -int128(int256(amount1))), toBalanceDelta(int128(0), int128(0)));
     }
@@ -263,6 +272,46 @@ contract ERC404GraduationSkipNFTTest is Test {
         assertEq(mirror.balanceOf(address(poolManager)), 0, "the pool holds no id");
         assertTrue(instance.getSkipNFT(address(deployer)), "the module is flagged NFT-skipping");
         assertTrue(instance.getSkipNFT(address(poolManager)), "the pool is flagged NFT-skipping");
+    }
+
+    /// @notice THE RESIDUE COMES BACK THROUGH THE SAME EYE OF THE NEEDLE. A venue that finds its pool
+    ///         pre-initialized away from the graduation price takes one side in full and declines part
+    ///         of the other; the deployer module now hands that remainder back to the instance rather
+    ///         than stranding it (audit M-1, 2026-09-17). On this collection 1% of the coin side is
+    ///         ~200 ids' worth, so if the instance were not itself NFT-skipping the return leg would
+    ///         mint that many ids and the burn would destroy them again — the same round trip
+    ///         `markGraduationSkipNFT` exists to prevent, reintroduced on the way out. It is flagged at
+    ///         `_initializeDN404`, and this is the assertion that says so rather than the comment that
+    ///         claims it.
+    /// @dev The returned coin is BURNED, not kept: after `graduated` no path can move instance-held
+    ///         coin, so the instance is empty afterwards and total supply is down by the residue.
+    function test_graduation_returnedResidueMintsNoIdsAndIsBurned() public {
+        _seedReserve();
+        // The venue declines 99 bps of each leg — just inside the deployer's own 99% floor, which the
+        // inverse-math amounts are already a hair under before the short is applied.
+        uint256 shortBps = 99;
+        poolManager.setShortBps(shortBps);
+
+        uint256 supplyBefore = instance.totalSupply();
+        uint256 idsBefore = mirror.totalSupply();
+
+        vm.prank(owner);
+        uint256 before = gasleft();
+        instance.deployLiquidity(0);
+        uint256 spent = before - gasleft();
+
+        uint256 delivered = instance.balanceOf(address(poolManager));
+        uint256 residue = supplyBefore - instance.totalSupply();
+        assertGt(residue, 100 * UNIT, "precondition: the declined leg is worth more than 100 ids");
+        assertApproxEqRel(
+            residue, delivered * shortBps / (10_000 - shortBps), 1e15, "the residue is what the venue declined"
+        );
+
+        assertEq(instance.balanceOf(address(instance)), 0, "the returned residue was not burned");
+        assertEq(instance.balanceOf(address(deployer)), 0, "coin stranded on the deployer module");
+        assertEq(mirror.totalSupply(), idsBefore, "the return leg minted ids");
+        assertEq(mirror.balanceOf(address(instance)), 0, "the instance was minted ids for the residue");
+        assertLt(spent, GRADUATION_GAS_BOUND, "the residue return put the id round trip back");
     }
 
     /// @dev The flag is set permanently, not saved and restored: the pool keeps receiving coin for the
