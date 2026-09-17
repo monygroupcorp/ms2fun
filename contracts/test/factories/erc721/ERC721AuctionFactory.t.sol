@@ -15,7 +15,8 @@ import {
     AuctionNotEnded,
     NoBids,
     HasBids,
-    InvalidSymbol
+    InvalidSymbol,
+    InvalidTimeBuffer
 } from "../../../src/factories/erc721/ERC721AuctionInstance.sol";
 import { UniAlignmentVault } from "../../../src/vaults/uni/UniAlignmentVault.sol";
 import { MockEXECToken } from "../../mocks/MockEXECToken.sol";
@@ -499,6 +500,61 @@ contract ERC721AuctionFactoryTest is Test {
         inst.createBid{ value: 1 ether }(1, bytes(""));
 
         vm.warp(inst.getAuction(1).endTime);
+    }
+
+    /// @notice Regression (2026-09-17 pre-testnet audit, M-5): `timeBuffer` had only a `!= 0` check,
+    ///         and the anti-snipe rule is an absolute RESET — `endTime = block.timestamp + timeBuffer`
+    ///         — so an unbounded buffer let the FIRST bid push `endTime` decades out with the
+    ///         bidder's ETH inside and no exit: no cancel, no withdraw, and both `settleAuction` and
+    ///         `reclaimUnsold` gate on `endTime`. The buffer may now extend an auction by at most one
+    ///         of its own base durations.
+    /// @dev    Asserted against the constructor directly rather than through the factory: the factory
+    ///         deploys via CreateX, which catches a constructor revert and re-raises its own
+    ///         `FailedContractCreation`, so the specific error is only visible here. The factory path
+    ///         is covered by the sibling test below, which proves the bound does not narrow what is
+    ///         legal.
+    function test_Constructor_RefusesATimeBufferLongerThanTheAuction() public {
+        GlobalMessageRegistry msgRegistry = new GlobalMessageRegistry();
+        ERC721AuctionInstance.ConstructorParams memory p = ERC721AuctionInstance.ConstructorParams({
+            vault: address(vault),
+            protocolTreasury: treasury,
+            owner: artist,
+            name: "Century Collection",
+            symbol: "ART",
+            metadataURI: "ipfs://meta",
+            lines: 1,
+            baseDuration: BASE_DURATION,
+            timeBuffer: BASE_DURATION + 1,
+            bidIncrement: BID_INCREMENT,
+            globalMessageRegistry: address(msgRegistry),
+            masterRegistry: address(mockRegistry),
+            factory: address(factory),
+            weth: address(0)
+        });
+
+        vm.expectRevert(InvalidTimeBuffer.selector);
+        new ERC721AuctionInstance(p);
+    }
+
+    /// @notice The bound is inclusive: a buffer exactly equal to the base duration is still legal, so
+    ///         the fix refuses only what was never intended rather than narrowing the live range. Run
+    ///         through the real factory path, so it also proves the bound does not break `createInstance`.
+    function test_CreateInstance_AllowsABufferEqualToTheBaseDuration() public {
+        ERC721AuctionFactory.CreateParams memory p = ERC721AuctionFactory.CreateParams({
+            name: "Edge Collection",
+            metadataURI: "ipfs://meta",
+            creator: artist,
+            vault: address(vault),
+            symbol: "ART",
+            lines: 1,
+            baseDuration: BASE_DURATION,
+            timeBuffer: BASE_DURATION,
+            bidIncrement: BID_INCREMENT
+        });
+        vm.deal(artist, 100 ether);
+        vm.prank(artist);
+        ERC721AuctionInstance inst2 = ERC721AuctionInstance(payable(factory.createInstance{ value: 0 }(_nextSalt(), p)));
+        assertEq(inst2.timeBuffer(), BASE_DURATION);
     }
 
     /// noesis-126/noesis-435: a vault cut STASHED at settle (the vault reverted) while the target was live
