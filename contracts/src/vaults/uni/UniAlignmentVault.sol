@@ -76,6 +76,8 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     error TransferFailed();
     error NotBenefactor();
     error NotDelegate();
+    /// @notice `setV4PoolKey` was called while this vault already holds a v4 position.
+    error PoolKeyLocked();
     error DeviationTooHigh();
     error ExceedsMaxBps();
     error TreasuryNotSet();
@@ -936,8 +938,26 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
     /// @notice Set the Uniswap V4 pool key for liquidity operations
     /// @dev Validates fee tier, tick spacing, currency ordering, and alignment token presence.
+    ///
+    ///      LOCKED ONCE A POSITION EXISTS, and the lock is load-bearing rather than tidy. The
+    ///      position this vault holds is identified by (poolId, tickLower, tickUpper), but only the
+    ///      ticks are stored — `unlockCallback` reads `v4PoolKey` LIVE for the poolId. Re-pointing
+    ///      the key while `totalLPUnits != 0` therefore does not move the position: it leaves the
+    ///      real one orphaned under the old poolId and aims every later call at a position that was
+    ///      never opened. The fee poke `_claimVaultFees` makes is a zero-`liquidityDelta`
+    ///      `modifyLiquidity`, which v4 refuses on an empty position with
+    ///      `Position.CannotUpdateEmptyPosition` — so `claimFees`, `claimFeesAsDelegate` and
+    ///      `convertAndAddLiquidity` (which crystallizes first) all revert together, and the
+    ///      benefactors' 80% leg is unreachable until the key is put back. Nothing on chain says
+    ///      that happened; the owner sees a successful setter and a vault that has stopped paying.
+    ///
+    ///      `ZAMMAlignmentVault.setPoolKey` has carried the same guard against `principalInvariant`
+    ///      since it was written; this is that guard, against this vault's own liveness counter.
+    ///      Wiring an unwired vault is unaffected — `totalLPUnits` is zero until the first
+    ///      `convertAndAddLiquidity` — which is the whole of the post-init gap the setter exists for.
     /// @param newPoolKey V4 PoolKey struct identifying the target pool
     function setV4PoolKey(PoolKey calldata newPoolKey) external onlyOwner {
+        if (totalLPUnits != 0) revert PoolKeyLocked();
         _validateV4Pool(newPoolKey);
         v4PoolKey = newPoolKey;
         emit V4PoolKeyUpdated(keccak256(abi.encode(newPoolKey)));
