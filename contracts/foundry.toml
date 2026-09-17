@@ -52,7 +52,6 @@ skip = [
     # is shown to work, and a proof left skipped is a fix nobody verified.
     "test/audit/FreeMintCurveSolvency.t.sol",
     "test/audit/GraduationLpResidue.t.sol",
-    "test/audit/UniVaultShareAccounting.t.sol",
 ]
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",

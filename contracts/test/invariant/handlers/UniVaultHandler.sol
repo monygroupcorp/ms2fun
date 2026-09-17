@@ -63,27 +63,73 @@ contract UniVaultHandler is Test {
     function convertAndAddLiquidity() external {
         if (vault.totalPendingETH() == 0) return;
 
-        // Snapshot pre-conversion shares
+        // Snapshot pre-conversion shares AND the pending ETH each actor brought to THIS batch. The
+        // pending side matters: the convert zeroes it, so it cannot be read back afterwards, and it is
+        // the only figure the batch's share split is actually proportional to.
         uint256[] memory preShares = new uint256[](actors.length);
+        uint256[] memory prePending = new uint256[](actors.length);
         for (uint256 i = 0; i < actors.length; i++) {
             preShares[i] = vault.benefactorShares(actors[i]);
+            prePending[i] = vault.pendingETH(actors[i]);
         }
         uint256 preTotalShares = vault.totalShares();
 
         vault.convertAndAddLiquidity(1);
+        ghost_convertsLanded++;
+        if (vault.totalPendingETH() > 0) ghost_convertsWithResidual++;
         ghost_hasLP = true;
         ghost_conversions++;
 
         // Track new shares issued this conversion per actor
         uint256 newTotalShares = vault.totalShares() - preTotalShares;
         if (newTotalShares > 0) {
+            uint256[] memory gained = new uint256[](actors.length);
             for (uint256 i = 0; i < actors.length; i++) {
-                uint256 newShares = vault.benefactorShares(actors[i]) - preShares[i];
-                ghost_sharesSnapshot[actors[i]] += newShares;
-                // ethAtConversion tracks how much ETH this actor had pending for this conversion
-                // (already captured in ghost_actorContributed)
+                gained[i] = vault.benefactorShares(actors[i]) - preShares[i];
+                ghost_sharesSnapshot[actors[i]] += gained[i];
+            }
+            _recordDilutionOrdering(prePending, gained);
+        }
+    }
+
+    /// @dev Within ONE conversion the split is a single proportion of one liquidity mint, so more ETH
+    ///      into this batch must never buy fewer shares out of it. That is the dilution property that
+    ///      actually holds. It is recorded per batch rather than read off cumulative totals because
+    ///      shares are LP UNITS, and the LP minted per ETH differs from batch to batch — so a holder who
+    ///      contributed more ETH across their lifetime can legitimately hold fewer shares than someone
+    ///      who contributed less into a batch that minted more liquidity.
+    function _recordDilutionOrdering(uint256[] memory prePending, uint256[] memory gained) internal {
+        for (uint256 i = 0; i < actors.length; i++) {
+            for (uint256 j = 0; j < actors.length; j++) {
+                if (i == j) continue;
+                if (prePending[i] < prePending[j]) continue;
+                // i put in at least as much as j, so i must come out with at least as much, up to the
+                // one-unit round-down each of the two divisions in the split can cost.
+                if (gained[j] > gained[i] && gained[j] - gained[i] > 1) {
+                    ghost_dilutionInversions++;
+                }
             }
         }
+    }
+
+    /// @dev Count of converts that actually landed. Asserted non-zero by the suite: this handler's
+    ///      `convertAndAddLiquidity` reverted on EVERY call until the reference pool was wired, so every
+    ///      invariant that only holds interestingly after a conversion was passing on an empty path.
+    uint256 public ghost_convertsLanded;
+    /// @dev Count of within-batch orderings where more ETH in bought fewer shares out. Must stay 0.
+    uint256 public ghost_dilutionInversions;
+
+    /// @dev Count of converts that left a residual behind. Also asserted non-zero: a run in which the
+    ///      mock pool always absorbed the whole ETH leg cannot observe the carry-forward at all.
+    uint256 public ghost_convertsWithResidual;
+
+    /// @dev Let the fuzzer choose how much of the ETH leg the mock pool refuses to absorb, so the
+    ///      conversion residual is a value the run varies rather than a structural zero. Without this the
+    ///      harness reported the whole ETH leg as deposited on every convert, `ethUnabsorbed` was always
+    ///      0, and `invariant_pendingSumConsistency` could not observe the case it exists to catch
+    ///      (audit M-2). Capped well under 10_000 so every convert still deploys the bulk of the leg.
+    function setUnabsorbed(uint256 bps) external {
+        vault.setLpUnabsorbedBps(bound(bps, 0, 2_000));
     }
 
     /// @dev Fee accrual via the test-only seam (production accrual needs a live V4 PoolManager).

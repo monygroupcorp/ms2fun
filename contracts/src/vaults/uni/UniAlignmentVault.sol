@@ -451,6 +451,19 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         address largestContributor = activeBenefactors[0];
         uint256 largestContribution = 0;
 
+        // Cleared HERE rather than at the end, because the loop below re-registers the benefactors that
+        // carry a residual. `activeBenefactors` is already a memory copy (`_getActiveBenefactors` returns
+        // the storage array by value), so emptying storage first is what makes the re-registrations the
+        // whole of the new participant set instead of appending to the old one.
+        _clearConversionParticipants();
+
+        // Carry-forward bookkeeping for the unabsorbed ETH, ported from the ZAMM sibling
+        // (`ZAMMAlignmentVault._addLiquidity`): `carriedTotal` is the sum of the per-benefactor carries
+        // and `dustTaker` the last benefactor eligible for one, so the round-down remainder can be
+        // settled after the loop and `sum(pendingETH)` stays exactly equal to `totalPendingETH`.
+        uint256 carriedTotal;
+        address dustTaker;
+
         for (uint256 i = 0; i < activeBenefactors.length; i++) {
             address benefactor = activeBenefactors[i];
             uint256 contribution = pendingETH[benefactor];
@@ -469,7 +482,35 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
             // and prior holders are NOT diluted (accFeesPerShare is unchanged by minting).
             shareValueAtLastClaim[benefactor] += (sharesToIssue * accFeesPerShare) / 1e18;
             totalSharesActuallyIssued += sharesToIssue;
-            pendingETH[benefactor] = 0;
+
+            // Zeroing unconditionally is what left the unabsorbed ETH unowned: `totalPendingETH` was set
+            // to `ethUnabsorbed` with no benefactor's `pendingETH` backing a wei of it, so the NEXT batch
+            // minted shares against it and the attribution shortfall landed in `accumulatedDustShares` —
+            // paid to THAT batch's largest contributor. Carry each benefactor's own pro-rata share of the
+            // residual forward instead, so the ETH that did not become liquidity stays theirs and buys
+            // them shares in the batch that finally deploys it.
+            if (ethUnabsorbed != 0) {
+                uint256 carried = (contribution * ethUnabsorbed) / ethToAdd; // round down; remainder settled below
+                pendingETH[benefactor] = carried;
+                if (carried != 0) {
+                    conversionParticipants.push(benefactor);
+                    carriedTotal += carried;
+                }
+                dustTaker = benefactor;
+            } else {
+                pendingETH[benefactor] = 0;
+            }
+        }
+
+        if (ethUnabsorbed != 0) {
+            // Hand the round-down remainder to the last eligible benefactor so the carried amounts sum to
+            // `ethUnabsorbed` exactly — no wei of `totalPendingETH` is left unowned, which is the
+            // invariant `invariant_pendingSumConsistency` is meant to hold.
+            uint256 dust = ethUnabsorbed - carriedTotal;
+            if (dust != 0 && dustTaker != address(0)) {
+                if (pendingETH[dustTaker] == 0) conversionParticipants.push(dustTaker);
+                pendingETH[dustTaker] += dust;
+            }
         }
 
         uint256 dust = totalSharesIssued - totalSharesActuallyIssued;
@@ -492,10 +533,10 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         // (No consumer reads totalEthLocked except its public getter — share math keys off shares and
         //  accFeesPerShare, never this field — so the semantics change is payout-neutral.)
         totalEthLocked += ethDeployed;
-        // Re-credit the unabsorbed rounding residual so no ETH becomes unspendable; it is untracked at
-        // the per-benefactor level and is swept into the next convert that has a live participant.
+        // Re-credit the unabsorbed residual so no ETH becomes unspendable. It is owned at the
+        // per-benefactor level by the carry-forward loop above, so this total is exactly the sum of the
+        // `pendingETH` entries that loop rewrote, and the participants carrying them are already pushed.
         totalPendingETH = ethUnabsorbed;
-        _clearConversionParticipants();
     }
 
     // ========== Fee Claims ==========
