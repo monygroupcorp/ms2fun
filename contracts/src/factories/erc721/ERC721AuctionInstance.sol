@@ -167,7 +167,19 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
         if (bytes(p.symbol).length == 0) revert InvalidSymbol();
         if (p.lines < 1 || p.lines > 3) revert InvalidLines();
         if (p.baseDuration == 0) revert InvalidDuration();
-        if (p.timeBuffer == 0) revert InvalidTimeBuffer();
+        // Bounded on BOTH sides, and the upper bound is the one that holds someone else's money.
+        // The anti-snipe rule at `placeBid` is an absolute RESET, not an increment —
+        // `endTime = block.timestamp + timeBuffer` — so `timeBuffer` is not "a little extra time",
+        // it is the auction's whole remaining life recomputed on every late bid. Unbounded, the
+        // FIRST bid on a fresh auction can push `endTime` decades out, and the bidder has no exit:
+        // this contract has no cancel, no withdraw and no rescue, `settleAuction` and
+        // `reclaimUnsold` both gate on `endTime`, and the only refund path is a higher bid from
+        // someone else, which locks that volunteer instead and re-arms the clock. The creator gains
+        // nothing by it — their 80% leg only pays at settlement — so the realistic cause is not
+        // malice but reading the field as "how long a fresh bid keeps this alive" and typing a year.
+        // Capping it at `baseDuration` says the buffer may extend an auction by at most one of its
+        // own lengths, which is the invariant every caller already assumed.
+        if (p.timeBuffer == 0 || p.timeBuffer > p.baseDuration) revert InvalidTimeBuffer();
         if (p.bidIncrement == 0) revert InvalidBidIncrement();
 
         _initializeOwner(p.owner);
