@@ -264,12 +264,16 @@ contract CreatorYieldPurseOnLaunchTest is Test {
         instance.transferOwnership(successor);
 
         uint256 expected = vault.pendingYieldOf(address(instance));
+        // Graduation itself already paid the creator their carve leg — and, since the venue declines a
+        // few wei of the LP leg that now ride the same rail, that leg is not necessarily zero. Snapshot
+        // it, so this asserts what it means to: the PURSE did not go to the former owner.
+        uint256 creatorBeforeClaim = creator.balance;
         vm.prank(successor);
         uint256 paid = vault.claimYieldPurse(address(instance));
 
         assertEq(paid, expected, "the claim paid something other than what had accrued");
         assertEq(successor.balance, paid, "the purse did not follow the collection to its new owner");
-        assertEq(creator.balance, 0, "the purse paid an owner the collection no longer has");
+        assertEq(creator.balance, creatorBeforeClaim, "the purse paid an owner the collection no longer has");
     }
 
     /// A partial raise pays too: the purse is a share of whatever tithe the launch actually produced,

@@ -188,6 +188,17 @@ contract ERC404PartialRaiseGraduationTest is Test {
         revert("no GraduationSupplyBurned");
     }
 
+    /// @dev `GraduationResidueBurned(burned)`, emitted by the instance. Zero when absent.
+    function _residueBurned(Vm.Log[] memory logs, address instance) internal pure returns (uint256) {
+        bytes32 sig = keccak256("GraduationResidueBurned(uint256)");
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == instance && logs[i].topics[0] == sig) {
+                return abi.decode(logs[i].data, (uint256));
+            }
+        }
+        return 0;
+    }
+
     /// @dev `GraduationEthDiverted(ethToPool, excessEth, creatorCarveEth)`, emitted by the instance.
     function _divertEvent(Vm.Log[] memory logs, address instance)
         internal
@@ -347,12 +358,13 @@ contract ERC404PartialRaiseGraduationTest is Test {
 
         (, uint256 ethToPool) = _graduate(r, 0);
 
-        // The mock venue settles nothing, so the pool's ETH stays on the deployer module — that balance
-        // IS the pool leg here. Everything else went out through the split.
-        uint256 accounted = address(r.deployer).balance + (treasury.balance - treasuryBefore)
+        // The mock venue charges for the liquidity it mints, so the pool's ETH is on the POOL and the
+        // deployer module is left holding nothing. Everything else went out through the split.
+        uint256 accounted = address(r.pool).balance + (treasury.balance - treasuryBefore)
             + (address(r.vault).balance - vaultBefore) + (owner.balance - creatorBefore);
 
-        assertEq(address(r.deployer).balance, ethToPool, "the module did not retain exactly the pool leg");
+        assertEq(address(r.pool).balance, ethToPool, "the pool did not take exactly the pool leg");
+        assertEq(address(r.deployer).balance, 0, "ETH was stranded on the deployer module");
         assertEq(accounted, raise, "graduation ETH did not sum to the raise");
         assertEq(address(r.instance).balance, 0, "ETH was stranded on the instance");
     }
@@ -370,12 +382,24 @@ contract ERC404PartialRaiseGraduationTest is Test {
         (uint256 availableCoin, uint256 tokensToPool, uint256 burned) = _burnEvent(logs, address(r.instance));
 
         assertEq(availableCoin - tokensToPool, burned, "the burn event's components do not sum");
-        assertEq(r.instance.totalSupply() + burned, MAX_SUPPLY, "burned coin did not leave total supply");
+        // Two burns, two topics. The first is the coin the pool was never offered; the second is the
+        // coin the venue was offered and declined, handed back by the deployer module and burned here
+        // rather than left on the instance as a fresh overhang.
+        assertEq(
+            r.instance.totalSupply() + burned + _residueBurned(logs, address(r.instance)),
+            MAX_SUPPLY,
+            "burned coin did not leave total supply"
+        );
         assertEq(r.instance.balanceOf(address(r.instance)), 0, "coin stranded on the instance");
-        assertEq(r.instance.balanceOf(address(r.deployer)), tokensToPool, "the pool leg's coin did not travel");
+        assertEq(r.instance.balanceOf(address(r.deployer)), 0, "coin stranded on the deployer module");
+        assertEq(
+            r.instance.balanceOf(address(r.pool)) + _residueBurned(logs, address(r.instance)),
+            tokensToPool,
+            "the pool leg's coin neither travelled nor burned"
+        );
         assertEq(r.instance.balanceOf(buyer), bought, "a buyer's position moved");
         assertEq(
-            r.instance.balanceOf(address(r.deployer)) + r.instance.balanceOf(buyer),
+            r.instance.balanceOf(address(r.pool)) + r.instance.balanceOf(buyer),
             r.instance.totalSupply(),
             "coin exists outside the pool and its buyers"
         );

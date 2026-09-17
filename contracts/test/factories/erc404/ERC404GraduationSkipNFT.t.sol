@@ -10,6 +10,8 @@ import { Currency } from "v4-core/types/Currency.sol";
 import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
 import { IUnlockCallback } from "v4-core/interfaces/callback/IUnlockCallback.sol";
 import { BalanceDelta, toBalanceDelta } from "v4-core/types/BalanceDelta.sol";
+import { TickMath } from "v4-core/libraries/TickMath.sol";
+import { LiquidityAmounts } from "../../../src/libraries/v4/LiquidityAmounts.sol";
 
 import { ERC404BondingInstance } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
 import { ERC404BondingOps } from "../../../src/factories/erc404/ERC404BondingOps.sol";
@@ -30,17 +32,27 @@ import { MockAlgebraFactory, MockAlgebraPositionManager } from "../../mocks/Mock
 
 /// @dev Minimal V4 PoolManager: enough of the surface for one full graduation add — `extsload` for
 ///      `StateLibrary.getSlot0`, `initialize`, `unlock` (re-entering the caller's `unlockCallback`),
-///      `modifyLiquidity` returning a caller-configured debt, and the `sync`/`settle`/`take` triple the
-///      deployer settles through. The real add-liquidity math is fork-tested elsewhere; what this stands
-///      in for is the leg that matters here — the graduated coin actually landing on the pool.
+///      `modifyLiquidity` charging for the liquidity it was handed, and the `sync`/`settle`/`take`
+///      triple the deployer settles through. The real add-liquidity math is fork-tested elsewhere.
+/// @dev IT CHARGES FOR WHAT IT MINTS. `modifyLiquidity` inverts the caller's own `liquidityDelta` at
+///      the pool's live price — `getAmountsForLiquidity` is the exact counterpart of the
+///      `getLiquidityForAmounts` the deployer sized it with — so the debt it reports is the debt a real
+///      pool would report, and the ETH and coin both actually move. It used to report a debt the TEST
+///      configured, defaulting to zero, which meant a graduation here settled nothing and the whole LP
+///      leg stayed on the deployer module. Several suites then read that retained balance as a stand-in
+///      for the pool's. That was the strand M-1 names, written into the fixtures as if it were the
+///      design, and it is why the deployer's own slippage floor had nothing to bite on here.
+///      `setOwed` remains for the one test that wants a specific debt rather than an honest one.
 contract MockV4PoolManager {
     bytes32 private _slot0;
     int128 public owed0;
     int128 public owed1;
+    bool public owedOverridden;
 
     function setOwed(int128 a0, int128 a1) external {
         owed0 = a0;
         owed1 = a1;
+        owedOverridden = true;
     }
 
     function extsload(bytes32) external view returns (bytes32) {
@@ -56,13 +68,23 @@ contract MockV4PoolManager {
         return IUnlockCallback(msg.sender).unlockCallback(data);
     }
 
-    function modifyLiquidity(PoolKey calldata, IPoolManager.ModifyLiquidityParams calldata, bytes calldata)
+    function modifyLiquidity(PoolKey calldata, IPoolManager.ModifyLiquidityParams calldata p, bytes calldata)
         external
         view
         returns (BalanceDelta, BalanceDelta)
     {
         // Negative = the adder owes the pool; this is the settle path that moves the coin.
-        return (toBalanceDelta(-owed0, -owed1), toBalanceDelta(int128(0), int128(0)));
+        if (owedOverridden) {
+            return (toBalanceDelta(-owed0, -owed1), toBalanceDelta(int128(0), int128(0)));
+        }
+        (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(
+            uint160(uint256(_slot0)),
+            TickMath.getSqrtPriceAtTick(p.tickLower),
+            TickMath.getSqrtPriceAtTick(p.tickUpper),
+            uint128(uint256(p.liquidityDelta))
+        );
+        return
+            (toBalanceDelta(-int128(int256(amount0)), -int128(int256(amount1))), toBalanceDelta(int128(0), int128(0)));
     }
 
     function sync(Currency) external { }
@@ -71,9 +93,20 @@ contract MockV4PoolManager {
         return 0;
     }
 
-    function take(Currency, address, uint256) external { }
+    function take(Currency currency, address to, uint256 amount) external {
+        if (Currency.unwrap(currency) == address(0)) {
+            (bool ok,) = payable(to).call{ value: amount }("");
+            require(ok, "take: eth");
+        } else {
+            IERC20Like(Currency.unwrap(currency)).transfer(to, amount);
+        }
+    }
 
     receive() external payable { }
+}
+
+interface IERC20Like {
+    function transfer(address to, uint256 amount) external returns (bool);
 }
 
 /**
@@ -193,12 +226,10 @@ contract ERC404GraduationSkipNFTTest is Test {
         return want > available ? available : want;
     }
 
-    /// @dev The mock pool reports the debt the real one would on the coin leg. The ETH leg is left at
-    ///      zero — this file measures the id traffic the coin leg generates, not the ETH settlement.
-    function _armPool() internal {
-        // ETH is currency0 (address(0) sorts below any token), so the coin is currency1.
-        poolManager.setOwed(int128(0), int128(int256(_poolCoinSide())));
-    }
+    /// @dev Nothing to arm: `MockV4PoolManager` charges for the liquidity it is handed, on both legs.
+    ///      This used to set the coin leg by hand and leave the ETH leg at zero, which meant the whole
+    ///      ETH side stayed on the deployer module for the rest of the test.
+    function _armPool() internal { }
 
     function test_graduation_isGasBoundedAtALargeCollection() public {
         _seedReserve();
