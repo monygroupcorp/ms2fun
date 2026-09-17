@@ -44,6 +44,10 @@ contract HookQueuedFeesMigratedVaultTest is Test {
 
     UniAlignmentV4Hook internal hook;
     AlignmentEndowmentVault internal vault;
+    /// @dev A second, healthy vault the registry still curates — the destination the rescue is allowed
+    ///      to reach. Its existence is the point: the exit is a move between curated vaults.
+    AlignmentEndowmentVault internal liveVault;
+    uint256 internal benefactorPrincipalBefore;
     TestToken internal token;
 
     MockWETH internal weth;
@@ -97,6 +101,10 @@ contract HookQueuedFeesMigratedVaultTest is Test {
         vault.initialize(
             vaultOwner, address(weth), address(stata), treasury, address(masterRegistry), alignmentToken, TARGET_ID
         );
+        liveVault = AlignmentEndowmentVault(payable(LibClone.clone(impl)));
+        liveVault.initialize(
+            vaultOwner, address(weth), address(stata), treasury, address(masterRegistry), alignmentToken, TARGET_ID
+        );
 
         // The hook credits a fixed benefactor, and the vault requires a contract benefactor.
         benefactorInstance = new MockOwnable(address(this));
@@ -112,7 +120,8 @@ contract HookQueuedFeesMigratedVaultTest is Test {
                 hookOwner,
                 address(benefactorInstance),
                 HOOK_FEE_BIPS,
-                LP_FEE_RATE
+                LP_FEE_RATE,
+                address(masterRegistry)
             ),
             hookAddr
         );
@@ -131,6 +140,8 @@ contract HookQueuedFeesMigratedVaultTest is Test {
         IPoolManager.ModifyLiquidityParams memory lp =
             IPoolManager.ModifyLiquidityParams({ tickLower: -6000, tickUpper: 6000, liquidityDelta: 100e18, salt: 0 });
         modifyLiquidityRouter.modifyLiquidity{ value: 500 ether }(poolKey, lp, ZERO_BYTES);
+
+        benefactorPrincipalBefore = liveVault.principalOf(address(benefactorInstance));
     }
 
     function _settings() internal pure returns (PoolSwapTest.TestSettings memory) {
@@ -145,7 +156,11 @@ contract HookQueuedFeesMigratedVaultTest is Test {
         swapRouter.swap{ value: amount }(poolKey, p, _settings(), ZERO_BYTES);
     }
 
-    function test_migratedVault_trapsQueuedFeesForever_whileHookKeepsTaxing() public {
+    /// @dev The finding, and the shape of its defence. Steps 1-3 are the reproduction unchanged: a
+    ///      healthy tithe, the vault's own documented emergency, and then swap-tax ETH piling up in the
+    ///      hook with nowhere to go. Step 4 is the invariant that was violated — real users' swap tax
+    ///      must have SOME route out — and step 5 walks the runbook that now provides it.
+    function test_migratedVault_queuedFeesHaveAnExit_andTheTitheStops() public {
         // ── 1. Healthy: the tithe reaches the vault and nothing queues. ──
         _ethBuy(1 ether);
         assertEq(hook.queuedFees(), 0, "healthy vault: nothing queued");
@@ -165,50 +180,105 @@ contract HookQueuedFeesMigratedVaultTest is Test {
 
         _ethBuy(1 ether);
         _ethBuy(1 ether);
-        uint256 afterThree = hook.queuedFees();
-        assertGt(afterThree, afterOne, "the trap is not a one-off: it grows with every swap");
-        assertEq(address(hook).balance, afterThree, "the hook physically holds the trapped ETH");
+        uint256 trapped = hook.queuedFees();
+        assertGt(trapped, afterOne, "the trap is not a one-off: it grows with every swap");
+        assertEq(address(hook).balance, trapped, "the hook physically holds the queued ETH");
 
-        // ── 4. THE INVARIANT UNDER TEST ──
+        // ── 4. Nothing is reachable while the registry still calls this vault a vault. ──
         //
-        //     Swap-tax ETH taken from real users must have SOME route out of the hook. The hook's whole
-        //     `queuedFees` design exists on the premise that a vault revert is transient and a later
-        //     retry clears it — that is what `flushQueuedFees` is for, and it is what the existing suite
-        //     covers (RealSettlement `vm.etch`es a working vault in before flushing). `migrated` is not
-        //     transient. Assert the premise instead of the defect: after any amount of waiting, the
-        //     trapped ETH is recoverable by SOMEBODY.
+        //     The exits are deliberately gated on the registry rather than on the hook owner's word, so
+        //     a live vault's tithe can never be halted or diverted by anyone. Prove that first, or the
+        //     recovery below would only be showing that an owner can take the money.
+        vm.expectRevert(); // VaultMigrated — the retry lane is real, and genuinely stuck
+        hook.flushQueuedFees();
+
+        vm.expectRevert(UniAlignmentV4Hook.VaultStillRegistered.selector);
+        hook.haltTithe();
+
+        vm.prank(hookOwner);
+        vm.expectRevert(UniAlignmentV4Hook.VaultStillRegistered.selector);
+        hook.rescueQueuedFees(address(liveVault));
+
+        // ── 5. THE INVARIANT UNDER TEST ──
+        //
+        //     Swap-tax ETH taken from real users must have SOME route out of the hook, and the hook must
+        //     stop charging a tax it cannot deliver. The route is the runbook step the deployer module's
+        //     own retry lane already relies on: the protocol owner retires the dead vault in the master
+        //     registry, exactly as it would to clear a stashed graduation cut.
         vm.warp(block.timestamp + 365 days);
         vm.roll(block.number + 2_500_000);
+        masterRegistry.setVaultRegistered(address(vault), false); // == MasterRegistryV1.deactivateVault
 
-        uint256 trapped = hook.queuedFees();
-        assertGt(trapped, 0, "precondition: ETH is trapped in the hook");
+        // (a) the tithe stops. Permissionless — it needs no owner, only the registry's word.
+        hook.haltTithe();
+        assertTrue(hook.titheHalted(), "the tithe is halted once the vault is off the registry");
 
-        bool recoverable;
-
-        // (a) the permissionless retry lane
-        (bool ok,) = address(hook).call(abi.encodeCall(UniAlignmentV4Hook.flushQueuedFees, ()));
-        if (ok) recoverable = true;
-
-        // (b) any owner lever. The hook's ENTIRE owner surface is `setLpFeeRate` — `vault`,
-        //     `benefactor` and `hookFeeBips` are all `immutable`, and there is no sweep, no pause and
-        //     no re-point. Exercise the one lever there is, then retry.
-        vm.prank(hookOwner);
-        hook.setLpFeeRate(0);
-        (ok,) = address(hook).call(abi.encodeCall(UniAlignmentV4Hook.flushQueuedFees, ()));
-        if (ok) recoverable = true;
-
-        // (c) the vault side: `migrated` is one-way. No call re-opens intake.
-        vm.prank(vaultOwner);
-        (ok,) = address(vault).call(abi.encodeWithSignature("unmigrate()"));
-        if (ok) recoverable = true;
-
-        assertTrue(recoverable, "swap-tax ETH queued against a migrated vault has no exit");
-
-        // And the trap is not static: the tithe is still live, so it keeps growing.
+        uint256 swapperBefore = address(this).balance;
         _ethBuy(1 ether);
-        assertEq(hook.queuedFees(), trapped, "the hook must stop taxing once its vault can no longer accept");
+        assertEq(hook.queuedFees(), trapped, "a halted hook charges nothing: the queue does not grow");
+        assertEq(address(hook).balance, trapped, "and it takes nothing from the pool");
+        assertGt(swapperBefore - address(this).balance, 0, "the swap itself still went through");
 
-        emit log_named_decimal_uint("ETH trapped in the hook", hook.queuedFees(), 18);
+        // (b) the queued ETH leaves, to another vault the registry curates — never to the owner.
+        uint256 liveBefore = liveVault.totalPrincipal();
+        vm.prank(hookOwner);
+        hook.rescueQueuedFees(address(liveVault));
+
+        assertEq(hook.queuedFees(), 0, "the queue is cleared");
+        assertEq(address(hook).balance, 0, "no swap-tax ETH is left stranded in the hook");
+        assertEq(liveVault.totalPrincipal() - liveBefore, trapped, "every trapped wei reached a live vault");
+        assertEq(
+            liveVault.principalOf(address(benefactorInstance)) - benefactorPrincipalBefore,
+            trapped,
+            "and it is credited to the hook's own benefactor, not to whoever called the rescue"
+        );
+
+        emit log_named_decimal_uint("ETH recovered from the hook", trapped, 18);
+    }
+
+    /// @dev The owner's new lever moves money only between vaults the registry curates. It cannot be
+    ///      pointed at the owner, at an EOA, or at an unregistered contract — so the exit added above is
+    ///      not a sweep with extra steps.
+    function test_rescue_refusesAnyDestinationTheRegistryDoesNotCurate() public {
+        _ethBuy(1 ether);
+        vm.prank(vaultOwner);
+        vault.migratePosition(recoveryVenue);
+        _ethBuy(1 ether);
+        assertGt(hook.queuedFees(), 0, "precondition: ETH is queued");
+
+        masterRegistry.setVaultRegistered(address(vault), false);
+        hook.haltTithe();
+
+        address outsider = makeAddr("outsider");
+        masterRegistry.setVaultRegistered(outsider, false);
+
+        vm.prank(hookOwner);
+        vm.expectRevert(UniAlignmentV4Hook.VaultNotRegistered.selector);
+        hook.rescueQueuedFees(outsider);
+
+        // And it is the owner's lever, not the public's: the destination choice is a curation judgement.
+        vm.expectRevert(); // Unauthorized
+        hook.rescueQueuedFees(address(liveVault));
+    }
+
+    /// @dev De-registration that is reversed must put the tithe back, or a mis-click would silently end
+    ///      a community's swap income with no way to restart it.
+    function test_resumeTithe_restoresTheTitheWhenTheVaultIsRegisteredAgain() public {
+        masterRegistry.setVaultRegistered(address(vault), false);
+        hook.haltTithe();
+        assertTrue(hook.titheHalted(), "halted");
+
+        vm.expectRevert(UniAlignmentV4Hook.VaultNotRegistered.selector);
+        hook.resumeTithe();
+
+        masterRegistry.setVaultRegistered(address(vault), true);
+        hook.resumeTithe();
+        assertFalse(hook.titheHalted(), "resumed");
+
+        uint256 principalBefore = vault.totalPrincipal();
+        _ethBuy(1 ether);
+        assertEq(hook.queuedFees(), 0, "a resumed hook forwards again");
+        assertGt(vault.totalPrincipal(), principalBefore, "and the tithe lands in the vault");
     }
 
     /// @dev The liquidity router refunds unspent native value to the caller.

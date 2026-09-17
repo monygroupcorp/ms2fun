@@ -397,8 +397,9 @@ Note the asymmetry that shows this was an oversight rather than a decision: the 
 own retry lane gates on `isVaultRegistered`, so an operator can clear a stashed cut with
 `deactivateVault`. The hook has no such gate and `deactivateVault` does nothing for it.
 
-**Proof:** `test/audit/HookQueuedFeesMigratedVault.t.sol` — 1 failing, against a real vault, real
-hook and real in-memory `PoolManager`.
+**Proof:** `test/audit/HookQueuedFeesMigratedVault.t.sol` — against a real vault, real hook and real
+in-memory `PoolManager`. Rewritten around the fix (branch `hook-queued-fees-exit`): 3 passing. The
+reproduction is unchanged through the trap, and the tail now walks the runbook that releases it.
 
 #### M-5 · An unbounded anti-snipe buffer can lock a winning bidder's ETH for a century
 
@@ -680,7 +681,7 @@ cd contracts && FOUNDRY_CONFIG=foundry.audit.toml forge test --match-path "test/
 | `GraduationLpResidue.t.sol` | M-1 | **5 fail** (v4 ×2, ZAMM ×2, Cypher ×1), 3 pass |
 | `UniVaultShareAccounting.t.sol` | M-2 (and strikes C, D) | **2 fail**, 2 pass |
 | `UniVaultPoolKeyRotation.t.sol` | M-3 | **1 fail**, 1 recovery test passes |
-| `HookQueuedFeesMigratedVault.t.sol` | M-4 | **1 fail** |
+| `HookQueuedFeesMigratedVault.t.sol` | M-4 | 3 pass (the trap, its exit, and the halted tithe) |
 | `AuctionTimeBufferLock.t.sol` | M-5 | 4 pass (assert the merged guard, and the bounded lock) |
 | `CreateXSaltSquat.t.sol` | L-1 | 7 pass (squat, recovery, wrong preview) |
 | `AccessControlCluster.t.sol` | L-2, L-3, L-4 | passes |
@@ -730,9 +731,15 @@ test/audit/UniVaultPoolKeyRotation.t.sol
   totalEthLocked stranded: 20.0 ETH        totalShares: 10e18
 [PASS] test_B_rotatingBackRestoresTheVault()
 
-test/audit/HookQueuedFeesMigratedVault.t.sol
+test/audit/HookQueuedFeesMigratedVault.t.sol   (as first recorded, before the fix)
 [FAIL: swap-tax ETH queued against a migrated vault has no exit]
   ETH trapped in the hook after 4 post-migrate swaps: 0.040000000000000000
+
+test/audit/HookQueuedFeesMigratedVault.t.sol   (as it stands, on `hook-queued-fees-exit`)
+[PASS] test_migratedVault_queuedFeesHaveAnExit_andTheTitheStops()
+  ETH recovered from the hook: 0.030000000000000000
+[PASS] test_rescue_refusesAnyDestinationTheRegistryDoesNotCurate()
+[PASS] test_resumeTithe_restoresTheTitheWhenTheVaultIsRegisteredAgain()
 
 test/audit/AuctionTimeBufferLock.t.sol   (as first recorded, before PR #424 merged)
 [PASS] test_A_hundredYearTimeBuffer_locksWinningBidderETH()
@@ -799,7 +806,7 @@ proof committed and the three options costed.
 | M-1 | graduation modules cannot return unconsumed LP capital (v4 197 bps) | **rth's ruling.** The fix routes the remainder back onto the 80/19/1 rail in-transaction and touches all three venue modules plus the tolerance constant. An owner sweep — the obvious shortcut — is forbidden by `LpLockInvariant.t.sol`'s `RemovalProbe` on purpose, so this needs a shape decision before code. The tolerance half (apply the band to price, or halve the constant) is a one-line change that can ship first and independently. |
 | M-2 | Uni vault conversion residue is unowned and mints shares for the wrong benefactor | **rth's ruling.** `ZAMMAlignmentVault.sol:398-439` is the reference implementation — carry the residual as per-benefactor `pendingContribution[b]` and settle the remainder on a `dustTaker`. Porting it also requires fixing `TestableUniAlignmentVault` so `invariant_pendingSumConsistency` stops being vacuous. |
 | M-3 | `setV4PoolKey` bricks every fee path on a live vault | **fixed — branch `uni-vault-poolkey-lock`, PR #423.** Ports the `PoolKeyLocked()` guard the ZAMM sibling has carried since it was written, against this vault's own `totalLPUnits`. Wiring an unwired vault is untouched; both halves are pinned by tests. |
-| M-4 | a migrated vault traps the hook's queued fees forever | **rth's ruling.** Two shapes: give the hook the `isVaultRegistered` gate the deployer module already has (so `deactivateVault` releases it, consistent with the existing runbook), or add an owner `rescueQueuedFees(address)`. The first is consistent with the rest of the system; the second is simpler and adds a trust surface to a hook that currently has none. His call which. Low urgency while `alignmentHookFactory` stays `address(0)`. |
+| M-4 | a migrated vault traps the hook's queued fees forever | **fixed — branch `hook-queued-fees-exit`.** Both named shapes, arranged so neither adds a way to take the money. The hook now holds the master registry and answers to `deactivateVault`, the same lever `flushPendingVaultCut` already reads: `haltTithe()` is permissionless and stops the tax the moment the registry drops the vault, so nothing further is charged for a destination that no longer exists. `rescueQueuedFees(address)` is the owner's, but its destination must be a vault the registry currently curates and the credit goes to the hook's own immutable `benefactor` — so the owner chooses which curated vault, never whether to take it. Both refuse while the vault is still registered. |
 | M-5 | unbounded anti-snipe buffer locks a bidder's ETH | **fixed — branch `auction-timebuffer-bound`, PR #424.** `timeBuffer <= baseDuration` in the constructor, inclusive, so nothing legal is narrowed; every auction in the tree and both seed scripts already sit far under it. A `max` on the wizard field is still owed. |
 
 ### Lows and Infos
