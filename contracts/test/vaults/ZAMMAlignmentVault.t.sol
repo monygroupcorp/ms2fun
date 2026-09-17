@@ -600,6 +600,166 @@ contract ZAMMAlignmentVaultTest is Test {
         assertEq(vault.accumulatedTargetFees(), fees * 1900 / 10000, "target 19%");
     }
 
+    // ── accumulatedFees reports the unclaimed benefactor entitlement ──────
+
+    /// @dev Pins `accumulatedFees()` to what benefactors can actually claim, across a harvest and a
+    ///      claim, with two benefactors so a partial claim is visible.
+    ///
+    ///      This is the regression test for the figure it replaced. `address(this).balance -
+    ///      pendingETH` swept the whole vault balance into one number, so it counted the accrued 1%
+    ///      protocol cut and 19% target cut — ETH owed to the treasury and the alignment sink, not to
+    ///      benefactors — as benefactor yield. The assertions below name that gap explicitly and by
+    ///      derivation, so the test goes red against the old expression rather than merely restating
+    ///      the new one: under it `accumulatedFees()` IS the balance-derived figure, and the two
+    ///      cannot differ.
+    ///
+    ///      Exactness: `accRewardPerContribution` truncates when it divides by `totalContributions`,
+    ///      so here — one harvest, one settle apiece — the sum of all claims falls short of the booked
+    ///      total by a few wei, and the counter is a ceiling. That is not universal; settling a
+    ///      benefactor repeatedly walks it the other way, which is what
+    ///      {test_accumulatedFees_saturatesWhenSettleFloorsOutrunTheBooking} pins.
+    function test_accumulatedFees_tracksUnclaimedBenefactorEntitlement() public {
+        // Two benefactors, so the counter has to hold an aggregate and survive one of them claiming.
+        _receiveFromAlice(4 ether);
+        vm.prank(bob);
+        vault.receiveContribution{ value: 2 ether }(Currency.wrap(address(0)), 2 ether, bob);
+        _setupPool(10 ether, 10_000e18);
+        vault.convertAndAddLiquidity(0, 0, 0);
+
+        uint256 fees = _triggerHarvestReturnFees();
+        assertGt(fees, 0, "harvest must collect real fees or every assertion below is vacuous");
+
+        // The dust the accumulator's round-down leaves behind: strictly under one wei of
+        // `accRewardPerContribution` per benefactor, plus the accumulator's own truncation over the
+        // whole contribution base. Derived, not tuned.
+        uint256 dustBound = vault.totalContributions() / 1e18 + 2;
+
+        // ── after harvest ────────────────────────────────────────────────
+        uint256 owed = vault.calculateClaimableAmount(alice) + vault.calculateClaimableAmount(bob);
+        assertGt(owed, 0, "benefactors must have a real claim");
+        assertGe(vault.accumulatedFees(), owed, "one harvest, one settle apiece: the counter covers what is owed");
+        assertLe(
+            vault.accumulatedFees() - owed, dustBound, "counter must not exceed what is owed beyond round-down dust"
+        );
+
+        // The defect this replaces: the balance-derived figure over-reports by the two cuts that are
+        // owed elsewhere. Red against the old expression, where these two are the same number.
+        uint256 balanceDerived = address(vault).balance - vault.pendingETH();
+        uint256 owedElsewhere = vault.accumulatedProtocolFees() + vault.accumulatedTargetFees();
+        assertGt(owedElsewhere, 0, "the cuts must be nonzero or the contrast proves nothing");
+        assertEq(
+            balanceDerived - vault.accumulatedFees(),
+            owedElsewhere,
+            "balance-derived figure over-reports by exactly the protocol and target cuts"
+        );
+
+        // ── after a claim ────────────────────────────────────────────────
+        uint256 bobOwedBefore = vault.calculateClaimableAmount(bob);
+        uint256 counterBefore = vault.accumulatedFees();
+        uint256 aliceBefore = alice.balance;
+        vm.prank(alice);
+        uint256 claimed = vault.claimFees();
+        assertGt(claimed, 0, "alice must actually be paid");
+        assertEq(alice.balance - aliceBefore, claimed, "alice must receive what she claimed");
+
+        // The interface's contract: it "decreases when fees claimed", by exactly what was paid out.
+        assertEq(vault.accumulatedFees(), counterBefore - claimed, "counter falls by exactly what was paid out");
+        assertEq(vault.calculateClaimableAmount(alice), 0, "alice has nothing left to claim");
+
+        // Bob's entitlement is untouched and still counted — the counter is an aggregate, not a
+        // per-claim scratch value.
+        assertEq(vault.calculateClaimableAmount(bob), bobOwedBefore, "bob's claim must be unaffected");
+        assertGe(vault.accumulatedFees(), bobOwedBefore, "counter must still cover bob");
+        assertLe(vault.accumulatedFees() - bobOwedBefore, dustBound, "counter must be bob's claim plus dust");
+
+        // ── after every claim ────────────────────────────────────────────
+        vm.prank(bob);
+        uint256 bobClaimed = vault.claimFees();
+        assertEq(bobClaimed, bobOwedBefore, "bob is paid what he was owed");
+        assertLe(vault.accumulatedFees(), dustBound, "nothing owed, so nothing reported but dust");
+
+        // And the vault is still holding the two cuts it never owed benefactors. With every claim
+        // settled, the old expression would report that ETH — a fifth of every fee ever harvested —
+        // as claimable benefactor yield; the counter reports only the unclaimable dust.
+        assertEq(
+            address(vault).balance - vault.pendingETH() - vault.accumulatedFees(),
+            owedElsewhere,
+            "the cuts remain in the vault, owed to the treasury and the sink and to no benefactor"
+        );
+    }
+
+    /// @dev Pins the claim path against the counter's one unavoidable inexactness: a benefactor who
+    ///      is settled many times is paid slightly more than the harvests booked for them, so the
+    ///      decrement on claim has to saturate instead of subtracting.
+    ///
+    ///      Where the drift comes from. `rewardDebt` is credited per settle as
+    ///      `floor(settled * acc / 1e18)`, each conversion flooring on its own, while a claim is one
+    ///      `floor(contribution * acc / 1e18)` over the aggregate net of that chain — and a floor of
+    ///      a sum is never smaller than the sum of the floors. Every settle can therefore hand the
+    ///      benefactor up to a wei the harvest never booked, and a benefactor is settled on every
+    ///      conversion they have ETH in, which the ratio-capped residual re-credit guarantees is more
+    ///      than once: whatever ZAMM refuses is carried forward and settles again next time.
+    ///      Contributions here are fractions of an ether, so `accRewardPerContribution`'s own
+    ///      round-down leaves under a wei of slack per harvest to absorb it, so within a couple of
+    ///      conversions the claim has already outrun the booking.
+    ///
+    ///      Non-vacuous against the bare `_totalAccumulatedFees -= pending` this replaces: there the
+    ///      `claimFees()` below reverts with an arithmetic underflow, and every benefactor's yield is
+    ///      stranded in the vault permanently.
+    function test_accumulatedFees_saturatesWhenSettleFloorsOutrunTheBooking() public {
+        // Odd wei amounts so nothing divides evenly and each settle floors off a real remainder.
+        uint256[5] memory amounts =
+            [uint256(0.3 ether + 7), 0.11 ether + 13, 0.07 ether + 3, 0.05 ether + 11, 0.13 ether + 17];
+
+        bool sawResidualRecredit;
+        for (uint256 i = 0; i < amounts.length; i++) {
+            vm.roll(block.number + 10);
+            _receiveFromAlice(amounts[i]);
+            if (i == 0) _setupPool(10 ether, 10_000e18);
+            // Conversion harvests first, then settles — so each round credits `rewardDebt` at a
+            // different accumulator value, which is the whole point.
+            vault.convertAndAddLiquidity(0, 0, 0);
+            if (vault.pendingContribution(alice) != 0) sawResidualRecredit = true;
+            _growPoolReserves();
+        }
+        assertTrue(sawResidualRecredit, "the residual must be re-credited or alice is settled only once per round");
+
+        vm.roll(block.number + 10);
+        assertGt(vault.harvest(0), 0, "a final harvest must book real fees or the claim below is vacuous");
+
+        // The drift itself: alice can claim more than the harvests booked. Sub-wei per settle, but
+        // enough to underflow a bare subtraction.
+        uint256 owed = vault.calculateClaimableAmount(alice);
+        uint256 booked = vault.accumulatedFees();
+        assertGt(owed, booked, "settle floors must have outrun the booking or this test proves nothing");
+        assertLe(owed - booked, amounts.length, "and they must outrun it only by dust: at most a wei per settle");
+
+        // The claim must go through. Against the old code this is where it reverted.
+        uint256 balanceBefore = alice.balance;
+        vm.prank(alice);
+        uint256 claimed = vault.claimFees();
+        assertEq(claimed, owed, "alice is paid exactly what she was owed, the counter notwithstanding");
+        assertEq(alice.balance - balanceBefore, claimed, "and she actually receives it");
+
+        // Nothing is owed any more, and the counter says so rather than wrapping to 2^256.
+        assertEq(vault.accumulatedFees(), 0, "counter saturates at zero when the payout exceeds the booking");
+        assertEq(vault.calculateClaimableAmount(alice), 0, "alice has nothing left to claim");
+
+        // And the vault is not left in a state where the next claim reverts either.
+        vm.prank(alice);
+        assertEq(vault.claimFees(), 0, "a second claim is a no-op, not a revert");
+    }
+
+    /// @dev Grow the pool's reserves so the vault's per-share invariant exceeds its baseline and the
+    ///      next harvest sees real fees, without disturbing LP supply or the vault's LP balance.
+    function _growPoolReserves() internal {
+        uint256 pid = vault.poolId();
+        (uint112 r0, uint112 r1,,,,, uint256 supply) = mockZamm.pools(pid);
+        mockZamm.setPool(pid, uint112(uint256(r0) * 103 / 100 + 1), uint112(uint256(r1) * 103 / 100 + 1), supply);
+        vm.deal(address(mockZamm), 100 ether);
+        vm.deal(address(mockZRouter), 100 ether);
+    }
+
     function test_withdrawTargetFees_pushesToRegistrySink() public {
         address sink = makeAddr("communitySink");
         registry.setCommunityPayout(TARGET_ID, sink);

@@ -955,11 +955,21 @@ contract QueryAggregator is SafeOwnableUUPS {
                         nextOpenTime = ed.openTime;
                         nextOpenPrice = edPrice;
                     }
+                    // noesis-320, the second leg: these two folds run in THIS frame, exactly like the
+                    // `nextId - 1` decrement guarded above, so neither `catch {}` covers them either.
+                    // `getEdition` is the instance's own answer and may be any uint256 it likes: two
+                    // editions reporting 2**255 minted overflow the sum and raise panic 0x11 here,
+                    // reverting all of getProjectCardsBatch and taking every healthy sibling card with
+                    // it. Fold checked and answer an overflow the way the zero counter is answered —
+                    // abandon this card, leaving it zero like every other bad read, and let the batch
+                    // carry on. A real collection cannot reach either ceiling; only a hostile one can.
+                    if (ed.minted > type(uint256).max - totalMinted) return;
                     totalMinted += ed.minted;
                     if (ed.supply == 0) {
                         hasUnlimited = true;
                         if (open) hasOpenUnlimited = true;
                     } else {
+                        if (ed.supply > type(uint256).max - maxSupply) return; // see the fold note above
                         maxSupply += ed.supply;
                         if (open && ed.minted < ed.supply) isActive = true;
                     }

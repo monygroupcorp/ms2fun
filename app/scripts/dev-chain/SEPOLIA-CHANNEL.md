@@ -5,6 +5,10 @@ before it holds it. It forks **Sepolia** on **:8546**, runs the **real** deploy 
 against that fork, and hands the app a config artifact of its own — so the showcase can be walked in
 the browser rather than read out of a forge log.
 
+It is also step 4 of the public-testnet deployment — the mandatory rehearsal before anything is
+broadcast. `docs/SEPOLIA-DEPLOY-RUNBOOK.md` is that sequence end to end; this file is the channel
+itself.
+
 The mainnet-fork channel is untouched. `pnpm chain:fork` / `chain:deploy` / `chain:check` /
 `chain:stop` still drive anvil on **:8545** at chain id **1337**, still write
 `src/config/local-deployment.json`, and behave exactly as before. The two channels run at the same

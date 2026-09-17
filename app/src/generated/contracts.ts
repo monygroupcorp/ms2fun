@@ -87,6 +87,13 @@ export const alignmentEndowmentVaultAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'creatorYieldRemainder',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'currentPolicy',
     outputs: [{ name: '', internalType: 'bytes', type: 'bytes' }],
     stateMutability: 'pure',
@@ -5530,7 +5537,7 @@ export const erc404BondingInstanceAbi = [
   },
   {
     type: 'function',
-    inputs: [{ name: '', internalType: 'string', type: 'string' }],
+    inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
     name: 'setStyle',
     outputs: [],
     stateMutability: 'nonpayable',
@@ -6233,7 +6240,6 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'SetBondingOpenTimeFailed' },
   { type: 'error', inputs: [], name: 'SetContractURIFailed' },
   { type: 'error', inputs: [], name: 'SetMetadataURIFailed' },
-  { type: 'error', inputs: [], name: 'SetStyleFailed' },
   {
     type: 'error',
     inputs: [
@@ -15452,6 +15458,15 @@ export const useReadAlignmentEndowmentVaultClaimFeesAsDelegate =
   /*#__PURE__*/ createUseReadContract({
     abi: alignmentEndowmentVaultAbi,
     functionName: 'claimFeesAsDelegate',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"creatorYieldRemainder"`
+ */
+export const useReadAlignmentEndowmentVaultCreatorYieldRemainder =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'creatorYieldRemainder',
   })
 
 /**

@@ -15,7 +15,6 @@ import {
     SetBondingOpenTimeFailed,
     SetBondingMaturityTimeFailed,
     SetBondingActiveFailed,
-    SetStyleFailed,
     ActivateStakingFailed,
     SetAgentDelegationFailed,
     SetAgentDelegationFromFactoryFailed,
@@ -272,17 +271,21 @@ contract ERC404AgentDelegationTest is Test {
     ///      the same Ownable slot (`msg.sender` is preserved under `delegatecall`) — but the instance's
     ///      discard-returndata trampoline collapses `Unauthorized` into that entry point's generic
     ///      error. So the assertion is per-selector rather than blanket-`Unauthorized`. `deployLiquidity`
-    ///      joined them in noesis-188, so every entry in this list is now a trampoline; the CONTROL
-    ///      proving the collapse is a trampoline artifact and not a weakened gate is `migrateVault`,
-    ///      which kept its body in the instance and still surfaces `Unauthorized` verbatim
-    ///      (`test_delegated_agent_cannot_call_value_fns`).
+    ///      joined them in noesis-188. The CONTROL proving the collapse is a trampoline artifact and
+    ///      not a weakened gate is `migrateVault`, which kept its body in the instance and still
+    ///      surfaces `Unauthorized` verbatim (`test_delegated_agent_cannot_call_value_fns`) — and
+    ///      `setStyle` is now a second one, having come back into the instance to free Ops-side bytes
+    ///      for the endowment-only staking guard. Same gate, same caller, un-collapsed error.
     function _delegableRejections() internal pure returns (bytes4[] memory sels) {
         sels = new bytes4[](8);
         sels[0] = SetMetadataURIFailed.selector;
         sels[1] = SetBondingOpenTimeFailed.selector;
         sels[2] = SetBondingMaturityTimeFailed.selector;
         sels[3] = SetBondingActiveFailed.selector;
-        sels[4] = SetStyleFailed.selector;
+        // `setStyle` is the exception, and it is a SECOND control on the same point: its body moved
+        // back into the instance, so its gate is not behind a trampoline and `Unauthorized` reaches
+        // the caller verbatim — exactly like `migrateVault` below.
+        sels[4] = Ownable.Unauthorized.selector;
         sels[5] = ActivateStakingFailed.selector;
         sels[6] = GraduationFailed.selector; // body externalized by noesis-188
         sels[7] = SetContractURIFailed.selector;

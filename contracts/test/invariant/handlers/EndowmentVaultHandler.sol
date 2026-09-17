@@ -26,6 +26,7 @@ contract EndowmentVaultHandler is Test {
     uint256 internal constant PROTOCOL_BPS = 100; // 1%
     uint256 internal constant TARGET_BPS = 1_900; // 19%
     uint256 internal constant REDEEM_DUST = 1e6; // wei — mirror of the vault constant
+    uint256 internal constant ACC_PRECISION = 1e18; // mirror of the vault's accumulator scale
 
     AlignmentEndowmentVault public immutable vault;
     MockWETH public immutable weth;
@@ -62,6 +63,7 @@ contract EndowmentVaultHandler is Test {
     bool public ghost_overRedeemToRecipient; // migrate redeemed more than the position could back
     bool public ghost_solvencyMigrateReverted; // migrate RedeemShortfall'd under a solvency-only haircut (cap==0)
     bool public ghost_harvestSplitViolation; // harvest split (80/19/1) mismatched
+    bool public ghost_creatorYieldHeldWhenItCouldBeCredited; // held creator leg large enough to move the accumulator
     bool public ghost_principalExceedsBasis; // Σ live per-benefactor principal drifted above the basis
 
     constructor(
@@ -160,12 +162,17 @@ contract EndowmentVaultHandler is Test {
 
     /// @notice Realize + split the compounded yield 80/19/1, and pin the split wei-exactly.
     function harvest(uint256) external {
-        uint256 c0 = vault.totalYieldToCreators();
+        // The creator LEG is `totalYieldToCreators` plus `creatorYieldRemainder`. The counter books only the
+        // wei the per-share accumulator could actually take on; a leg the accumulator cannot express at the
+        // live share count waits in the remainder for a later harvest to fold in. Reading the counter alone
+        // under-reports the leg by whatever is held, and the 80/19/1 recomputation below would fail on a
+        // pool whose share count has outrun it — which is the state the share-price floor admits.
+        uint256 c0 = vault.totalYieldToCreators() + vault.creatorYieldRemainder();
         uint256 t0 = vault.totalYieldToTarget();
         uint256 p0 = vault.totalProtocolFees();
 
         try vault.harvest() {
-            uint256 dCred = vault.totalYieldToCreators() - c0;
+            uint256 dCred = (vault.totalYieldToCreators() + vault.creatorYieldRemainder()) - c0;
             uint256 dTgt = vault.totalYieldToTarget() - t0;
             uint256 dProt = vault.totalProtocolFees() - p0;
             uint256 got = dCred + dTgt + dProt; // realized+distributed yield this harvest
@@ -181,6 +188,14 @@ contract EndowmentVaultHandler is Test {
                 if (dCred != expCred || dTgt != expTgt || dProt != expProt) {
                     ghost_harvestSplitViolation = true;
                 }
+            }
+
+            // Creator yield is held ONLY because one unit of the accumulator costs more than the held pot:
+            // the moment that pot can buy a unit, the harvest must spend it. A pot standing at or above a
+            // unit after a harvest is a creator leg parked where no benefactor can reach it.
+            uint256 shares = vault.totalPrincipalShares();
+            if (shares > 0 && vault.creatorYieldRemainder() * ACC_PRECISION >= shares) {
+                ghost_creatorYieldHeldWhenItCouldBeCredited = true;
             }
         } catch { }
     }
