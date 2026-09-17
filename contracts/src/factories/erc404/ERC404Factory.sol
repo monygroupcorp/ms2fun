@@ -16,7 +16,7 @@ import { LaunchManager } from "./LaunchManager.sol";
 import { IComponentRegistry } from "../../registry/interfaces/IComponentRegistry.sol";
 import { FreeMintParams } from "../../interfaces/IFactoryTypes.sol";
 import { GatingScope } from "../../gating/IGatingModule.sol";
-import { ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
+import { CreateXSalt, ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
 import { RevenueSplitLib } from "../../shared/libraries/RevenueSplitLib.sol";
 import { MetadataResolverRouter } from "../../metadata/MetadataResolverRouter.sol";
 import { TokenTierBandResolver } from "../../metadata/TokenTierBandResolver.sol";
@@ -583,12 +583,14 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         });
 
         // Deploy EIP-1167 minimal proxy via CREATE3.
-        // Bind salt to msg.sender to prevent front-running.
         bytes memory proxyCreationCode = abi.encodePacked(
             hex"3d602d80600a3d3981f3363d3d373d3d3d363d73", implementation, hex"5af43d82803e903d91602b57fd5bf3"
         );
-        bytes32 senderBoundSalt = keccak256(abi.encodePacked(msg.sender, params.salt));
-        instance = ICreateX(CREATEX).deployCreate3(senderBoundSalt, proxyCreationCode);
+        // CreateX reads its front-run guard off the SHAPE of this salt: first 20 bytes the caller,
+        // 21st byte 0x00, and the guard becomes keccak256(msg.sender, salt), which no third party can
+        // reproduce. See CreateXSalt.
+        bytes32 create3Salt = CreateXSalt.permissioned(address(this), msg.sender, params.salt);
+        instance = ICreateX(CREATEX).deployCreate3(create3Salt, proxyCreationCode);
 
         // The DN404 mirror is deployed HERE, not inside the instance: `new` is a CREATE, so the
         // mirror's ~3.1KB of creation code would otherwise have to live inline in the instance's
@@ -774,9 +776,11 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     // ── Utilities ────────────────────────────────────────────────────────────
 
     /// @notice Preview the deterministic address for a given (creator, salt) pair.
+    /// @dev Derives the salt through the same `CreateXSalt.permissioned` the deploy uses, so the
+    ///      preview and the deploy cannot drift: this function previewed the permissioned guard while
+    ///      the deploy took CreateX's Random path, and returned an address CreateX would never use.
     function computeInstanceAddress(address creator, bytes32 salt) external view returns (address) {
-        bytes32 senderBoundSalt = keccak256(abi.encodePacked(creator, salt));
-        bytes32 guardedSalt = keccak256(abi.encodePacked(uint256(uint160(address(this))), senderBoundSalt));
-        return ICreateX(CREATEX).computeCreate3Address(guardedSalt, CREATEX);
+        bytes32 create3Salt = CreateXSalt.permissioned(address(this), creator, salt);
+        return ICreateX(CREATEX).computeCreate3Address(CreateXSalt.guarded(address(this), create3Salt), CREATEX);
     }
 }
