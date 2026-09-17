@@ -697,7 +697,7 @@ cd contracts && FOUNDRY_CONFIG=foundry.audit.toml forge test --match-path "test/
 | `CreateXSaltSquat.t.sol` | L-1 | 7 pass (squat, recovery, wrong preview) |
 | `AccessControlCluster.t.sol` | L-2, L-3, L-4 | passes |
 | `CurveExactOutRoundingBuffer.t.sol` | L-5 | 2 pass (isolates the missing wei) |
-| `HookSecondPoolNotBound.t.sol` | L-6 | passes (shows it drains nothing) |
+| `HookSecondPoolNotBound.t.sol` | L-6 | passes (shows it drains nothing) — rewritten by the fix, see below |
 | `PriceValidatorFullRangeInertGuards.t.sol` | L-7 | 3 pass (inert, and where it *does* bind) |
 | `OverlayFakeInstance.t.sol` | Info (overlay) | 3 pass (attack works, value conserved) |
 | `QueueSpamAndSquatDisproof.t.sol` | the strikes | passes — evidence for what was struck |
@@ -833,11 +833,26 @@ proof committed and the three options costed.
 
 ### Lows and Infos
 
-None carries a branch. Each is stated above with its file:line and, where the fix is a one-liner,
-the line. The four worth doing soonest, because they are cheap and each closes a promise the code
-itself makes: **L-4** (a docstring promising a setter no address can call), **L-8** (a
-`MIN_TWAP_WINDOW` floor), **L-2** (override `renounceRoles`), and the `AlignmentRegistryV1` comment
-under INFO that sends a monitor to watch the wrong event.
+Each is stated above with its file:line and, where the fix is a one-liner, the line. The four worth
+doing soonest, because they are cheap and each closes a promise the code itself makes: **L-4** (a
+docstring promising a setter no address can call), **L-8** (a `MIN_TWAP_WINDOW` floor), **L-2**
+(override `renounceRoles`), and the `AlignmentRegistryV1` comment under INFO that sends a monitor to
+watch the wrong event.
+
+Four of them now carry branches. Every other Low and every Info is still as this report left it: no
+branch, and the file:line above is the whole of what exists.
+
+| # | finding | disposition |
+|---|---|---|
+| L-6 | the alignment hook does not bind its pool key | **fixed — branch `audit-lows-hook-validator-router`, PR #429.** The graduation pool becomes part of the hook's identity: `deployHook` takes the pool's `currency1` and tick spacing, both become hook immutables inside the init-code hash the factory mines, and the swap hooks refuse every other key. A hook for a different pool is therefore a different hook at a different address, so no rogue pool can bind first and an early `deployHook` caller can pre-empt nothing. `HookSecondPoolNotBound.t.sol` is rewritten against the fix: the rogue pool can still be initialized — `beforeInitialize` is not one of this hook's permission bits and adding it would move the address the hook must be mined to — but its first swap reverts and nothing leaves the PoolManager. |
+| L-7 | the price validator's proportion guards are inert for the positions the vaults use | **fixed — branch `audit-lows-hook-validator-router`, PR #429.** The proportion guards are left exactly as they are: this report is right that they are correct and that they bind for bounded ranges. Added beside them is the guard that survives the position's shape — the caller's spot must sit within `maxPriceDeviationBps` of the V3 TWAP, measured on price and with the numeraire carried across first. `maxPriceDeviationBps` was a constructor argument the contract never read; it is read now, and its degenerate values are refused at deploy. Note for whoever reviews: this is a hard revert with no escape, the posture `CypherAlignmentVault._validateExistingPool` already takes, so a venue that has genuinely drifted past the band cannot convert until it re-converges. |
+| L-8 | no minimum TWAP window | **fixed — branch `audit-lows-hook-validator-router`, PR #429.** `MIN_TWAP_WINDOW` is 300 seconds, checked on the RESOLVED window so the `0` shorthand is measured against the same floor as an explicit value. The default is 1800 and the shortest window pinned anywhere in this tree is 600, so nothing legal narrows. |
+| L-9 | `zRouter`'s value-moving hatches are unauthenticated | **fixed — branch `audit-low-zrouter-hatch-auth`, PR #432.** Authenticated rather than closed, so the router keeps being a router: `sweep`, `snwap`/`snwapMulti`'s zero-`amountIn` branch and `revealName` may move what THIS transaction credited to the router, and the owner may move anything — which is what keeps a balance no credit describes recoverable rather than stranded. `execute` takes `onlyOwner` beside its trusted-target map, because it is an arbitrary call and no balance credit describes it; as deployed it is inert, so what that closes is what one future `trust()` call would otherwise open to every caller at once. |
+
+Each of the four carries a proof that measures the defect against this report's revision rather than
+asserting it: `HookSecondPoolNotBound.t.sol`, `PriceValidatorSpotTwapBand.t.sol`,
+`ReferenceTwapWindowFloor.t.sol`, `ZRouterHatchAuth.t.sol`. Both branches are green on the full
+contracts gate.
 
 ### What this audit does not cover
 
