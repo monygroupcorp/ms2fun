@@ -628,11 +628,11 @@ contract DeployCore is Script {
 
             // Register alignment-hook TYPE #1 — the Uni-V4 swap-tithe hook (117a's UniTitheHookFactory) —
             // under the ALIGNMENT_HOOK component tag so a future governed op can point the module's
-            // alignmentHookFactory at it. Registered, NOT selected (module stays OFF). PoolManager/WETH/owner
-            // are the factory's immutables; the per-graduation fee data comes from the module at
+            // alignmentHookFactory at it. Registered, NOT selected (module stays OFF). PoolManager/WETH/owner/
+            // masterRegistry are the factory's immutables; the per-graduation fee data comes from the module at
             // deployHook time. Mirrors the moduleUniV4Deployer approveComponent registration.
             UniTitheHookFactory titheFactory =
-                new UniTitheHookFactory(IPoolManager(cfg.v4PoolManager), cfg.weth, deployer);
+                new UniTitheHookFactory(IPoolManager(cfg.v4PoolManager), cfg.weth, deployer, masterRegistry);
             uniTitheHookFactory = address(titheFactory);
             componentRegistry.approveComponent(
                 uniTitheHookFactory, FeatureUtils.ALIGNMENT_HOOK, "Uniswap V4 Alignment Tithe Hook"

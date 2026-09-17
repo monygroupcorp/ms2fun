@@ -35,6 +35,8 @@ contract HookMineScanStartTest is Test {
 
     IPoolManager internal constant DUMMY_PM = IPoolManager(address(0xBEEF));
     address internal constant WETH = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    // Non-zero dummy registry — the hook ctor only null-checks it; nothing here reads it.
+    address internal constant REGISTRY = address(0x5EE9);
     address internal constant HOOK_OWNER = address(0xB055);
 
     IAlignmentVault internal constant VAULT = IAlignmentVault(payable(address(0xA17)));
@@ -56,7 +58,7 @@ contract HookMineScanStartTest is Test {
     );
 
     function setUp() public {
-        factory = new UniTitheHookFactory(DUMMY_PM, WETH, HOOK_OWNER);
+        factory = new UniTitheHookFactory(DUMMY_PM, WETH, HOOK_OWNER, REGISTRY);
         harness = new MinerHarness();
     }
 
@@ -214,7 +216,8 @@ contract HookMineScanStartTest is Test {
             HOOK_OWNER,
             benefactor,
             hookFeeBips,
-            lpFeeRate
+            lpFeeRate,
+            REGISTRY
         );
     }
 

@@ -193,6 +193,20 @@ contract MockMasterRegistry {
     function alignmentRegistry() external view returns (IAlignmentRegistry) {
         return _alignmentRegistry;
     }
+
+    /// @dev Stored inverted so an unconfigured vault reads as REGISTERED, matching a registry whose
+    ///      vaults are registered from creation; only a `false` here — this mock's stand-in for
+    ///      `MasterRegistryV1.deactivateVault` — flips one off. Same convention as
+    ///      `test/mocks/MockMasterRegistry.sol`.
+    mapping(address => bool) private _vaultDeregistered;
+
+    function setVaultRegistered(address vault, bool registered) external {
+        _vaultDeregistered[vault] = !registered;
+    }
+
+    function isVaultRegistered(address vault) external view returns (bool) {
+        return !_vaultDeregistered[vault];
+    }
 }
 
 /// @dev Alignment-registry mock with a settable ambassador set, so `execute` auth can be driven and the

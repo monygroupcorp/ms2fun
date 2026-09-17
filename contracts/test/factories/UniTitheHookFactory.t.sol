@@ -27,6 +27,9 @@ contract UniTitheHookFactoryTest is Test {
     IPoolManager internal constant DUMMY_PM = IPoolManager(address(0xBEEF));
     address internal constant WETH = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     address internal constant HOOK_OWNER = address(0xB055);
+    // Non-zero dummy registry — the hook ctor only null-checks it, and nothing in this file reaches the
+    // halt/resume/rescue paths that read it.
+    address internal constant REGISTRY = address(0x5EE9);
 
     IAlignmentVault internal constant VAULT = IAlignmentVault(payable(address(0xA17)));
     address internal constant BENEFACTOR = address(0x7777777777777777777777777777777777777777);
@@ -34,7 +37,7 @@ contract UniTitheHookFactoryTest is Test {
     uint24 internal constant LP_FEE_RATE = 3000; // 0.3%
 
     function setUp() public {
-        factory = new UniTitheHookFactory(DUMMY_PM, WETH, HOOK_OWNER);
+        factory = new UniTitheHookFactory(DUMMY_PM, WETH, HOOK_OWNER, REGISTRY);
     }
 
     function test_hookFlags_are_0xCC_mask() public view {
@@ -82,11 +85,13 @@ contract UniTitheHookFactoryTest is Test {
 
     function test_constructor_rejects_zero_config() public {
         vm.expectRevert(UniTitheHookFactory.InvalidAddress.selector);
-        new UniTitheHookFactory(IPoolManager(address(0)), WETH, HOOK_OWNER);
+        new UniTitheHookFactory(IPoolManager(address(0)), WETH, HOOK_OWNER, REGISTRY);
         vm.expectRevert(UniTitheHookFactory.InvalidAddress.selector);
-        new UniTitheHookFactory(DUMMY_PM, address(0), HOOK_OWNER);
+        new UniTitheHookFactory(DUMMY_PM, address(0), HOOK_OWNER, REGISTRY);
         vm.expectRevert(UniTitheHookFactory.InvalidAddress.selector);
-        new UniTitheHookFactory(DUMMY_PM, WETH, address(0));
+        new UniTitheHookFactory(DUMMY_PM, WETH, address(0), REGISTRY);
+        vm.expectRevert(UniTitheHookFactory.InvalidAddress.selector);
+        new UniTitheHookFactory(DUMMY_PM, WETH, HOOK_OWNER, address(0));
     }
 
     /**

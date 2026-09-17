@@ -82,6 +82,9 @@ contract V4HookTaxationTest is ForkTestBase, IUnlockCallback {
     uint160 constant HOOK_FLAGS = 0x00CC;
 
     /// @notice The fixed project instance the hook credits — distinct from any swapper/router address.
+    /// @dev Non-zero stand-in for the master registry: the hook ctor only null-checks it, and no
+    ///      test here reaches `haltTithe`/`resumeTithe`/`rescueQueuedFees`, the only readers.
+    address internal constant DUMMY_REGISTRY = address(0x5EE9);
     address constant BENEFACTOR = address(0x7777777777777777777777777777777777777777);
 
     uint256 constant DEFAULT_HOOK_FEE_BIPS = 100; // 1%
@@ -531,7 +534,8 @@ contract V4HookTaxationTest is ForkTestBase, IUnlockCallback {
                 address(this), // owner
                 BENEFACTOR,
                 hookFeeBips,
-                DEFAULT_LP_FEE_RATE
+                DEFAULT_LP_FEE_RATE,
+                DUMMY_REGISTRY
             ),
             hookAddr
         );

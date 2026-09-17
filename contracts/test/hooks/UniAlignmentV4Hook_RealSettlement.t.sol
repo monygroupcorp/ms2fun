@@ -21,6 +21,7 @@ import { LiquidityDeployerModule } from "../../src/factories/erc404/LiquidityDep
 import { ILiquidityDeployerModule } from "../../src/interfaces/ILiquidityDeployerModule.sol";
 import { MockMasterRegistry } from "../mocks/MockMasterRegistry.sol";
 import { Vm } from "forge-std/Vm.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 /**
  * @title UniAlignmentV4Hook_RealSettlement
@@ -61,6 +62,11 @@ contract UniAlignmentV4Hook_RealSettlement is Test {
     uint160 internal MIN_PRICE_LIMIT = TickMath.MIN_SQRT_PRICE + 1;
     uint160 internal MAX_PRICE_LIMIT = TickMath.MAX_SQRT_PRICE - 1;
 
+    /// @dev The registry the hook reads to learn its vault has been retired. Real (not a stand-in)
+    ///      because the halt/resume/rescue paths are driven here, against a real PoolManager.
+    ///      `isVaultRegistered` defaults true for every address; `setVaultRegistered(x, false)` is this
+    ///      mock's stand-in for `MasterRegistryV1.deactivateVault`.
+    MockMasterRegistry internal registry;
     address internal constant WETH = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     address internal owner = address(0xB055);
     address internal benefactor = address(0x7777777777777777777777777777777777777777);
@@ -81,6 +87,7 @@ contract UniAlignmentV4Hook_RealSettlement is Test {
         ethCurrency = CurrencyLibrary.ADDRESS_ZERO;
 
         vault = new MockVault();
+        registry = new MockMasterRegistry();
 
         // Address carrying EXACTLY beforeSwap|beforeSwapReturnDelta|afterSwap|afterSwapReturnDelta (0xCC)
         // in the low 14 bits, so the real constructor's validateHookPermissions() passes. Higher bits free.
@@ -96,7 +103,8 @@ contract UniAlignmentV4Hook_RealSettlement is Test {
                 owner,
                 benefactor,
                 HOOK_FEE_BIPS,
-                LP_FEE_RATE
+                LP_FEE_RATE,
+                address(registry)
             ),
             hookAddr
         );
@@ -236,6 +244,119 @@ contract UniAlignmentV4Hook_RealSettlement is Test {
         assertEq(MockVault(payable(address(revertingVault))).totalReceived(), queued, "vault received the flushed ETH");
     }
 
+    // ---- audit M-4: the queue must have an exit, and the tithe must stop, once the vault is retired ----
+
+    /// @dev `flushQueuedFees` is the retry lane for a TRANSIENT vault revert, and the test above proves
+    ///      it works. It cannot answer a vault whose intake closed for good — `vault` is immutable, so
+    ///      the retry can only ever be into the same dead address. This is that case end to end: the
+    ///      protocol owner retires the vault in the registry (the same lever `flushPendingVaultCut`
+    ///      already reads), the hook stops charging a tax it cannot deliver, and the queued ETH is moved
+    ///      to a vault the registry still curates, credited to the hook's own fixed benefactor.
+    function test_retiredVault_titheHalts_andQueuedFeesReachALiveVault() public {
+        MockRevertingVault deadVault = new MockRevertingVault();
+        (UniAlignmentV4Hook h, PoolKey memory k) = _deployHookedPool(0x5757, address(deadVault));
+
+        IPoolManager.SwapParams memory sell =
+            IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: -1e18, sqrtPriceLimitX96: MAX_PRICE_LIMIT });
+        swapRouter.swap(k, sell, _settings(), ZERO_BYTES);
+        uint256 queued = h.queuedFees();
+        assertGt(queued, 0, "precondition: a fee is queued against the dead vault");
+
+        // Nothing is reachable while the registry still calls this a vault: the exits answer to the
+        // registry, not to the hook owner, so a live vault's tithe can never be halted or diverted.
+        vm.expectRevert(UniAlignmentV4Hook.VaultStillRegistered.selector);
+        h.haltTithe();
+        vm.prank(owner);
+        vm.expectRevert(UniAlignmentV4Hook.VaultStillRegistered.selector);
+        h.rescueQueuedFees(address(vault));
+
+        // The runbook step: retire the dead vault. `haltTithe` is permissionless from here.
+        registry.setVaultRegistered(address(deadVault), false);
+
+        // The retry lane shuts as the rescue opens, so the two exits are disjoint and a de-curated vault
+        // is never fed by a flush — the same refusal `flushPendingVaultCut` makes with a stashed cut.
+        vm.expectRevert(UniAlignmentV4Hook.VaultNotRegistered.selector);
+        h.flushQueuedFees();
+
+        vm.expectEmit(true, false, false, false, address(h));
+        emit UniAlignmentV4Hook.TitheHalted(address(deadVault));
+        h.haltTithe();
+        assertTrue(h.titheHalted(), "tithe halted once the vault is off the registry");
+
+        // A halted hook charges nothing — the swap still settles, and the queue does not grow.
+        swapRouter.swap(k, sell, _settings(), ZERO_BYTES);
+        assertEq(h.queuedFees(), queued, "a halted hook queues nothing further");
+        assertEq(address(h).balance, queued, "and takes nothing further from the pool");
+
+        // Shape 1 (the beforeSwap-taxed ETH buy) is halted on the same flag.
+        IPoolManager.SwapParams memory buy =
+            IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: -1e18, sqrtPriceLimitX96: MIN_PRICE_LIMIT });
+        swapRouter.swap{ value: 1e18 }(k, buy, _settings(), ZERO_BYTES);
+        assertEq(h.queuedFees(), queued, "the ETH-buy shape is halted too");
+
+        // The exit: to a vault the registry curates, crediting the hook's own benefactor.
+        vm.expectEmit(false, false, false, true, address(vault));
+        emit MockVault.Received(Currency.wrap(address(0)), queued, benefactor);
+        vm.expectEmit(true, true, false, true, address(h));
+        emit UniAlignmentV4Hook.QueuedFeesRescued(address(deadVault), address(vault), queued);
+        vm.prank(owner);
+        h.rescueQueuedFees(address(vault));
+
+        assertEq(h.queuedFees(), 0, "the queue is cleared");
+        assertEq(address(h).balance, 0, "no swap-tax ETH is left stranded in the hook");
+        assertEq(vault.totalReceived(), queued, "every queued wei reached the live vault");
+    }
+
+    /// @dev The rescue is not a sweep. Its destination must be a vault the registry currently curates,
+    ///      and only the hook owner chooses which — so it can move the community's ETH between curated
+    ///      vaults and nowhere else.
+    function test_rescue_refusesAnUncuratedDestination_andANonOwnerCaller() public {
+        MockRevertingVault deadVault = new MockRevertingVault();
+        (UniAlignmentV4Hook h, PoolKey memory k) = _deployHookedPool(0x5858, address(deadVault));
+
+        IPoolManager.SwapParams memory sell =
+            IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: -1e18, sqrtPriceLimitX96: MAX_PRICE_LIMIT });
+        swapRouter.swap(k, sell, _settings(), ZERO_BYTES);
+        assertGt(h.queuedFees(), 0, "precondition: a fee is queued");
+
+        registry.setVaultRegistered(address(deadVault), false);
+        h.haltTithe();
+
+        address outsider = address(0xDEADBEEF);
+        registry.setVaultRegistered(outsider, false);
+        vm.prank(owner);
+        vm.expectRevert(UniAlignmentV4Hook.VaultNotRegistered.selector);
+        h.rescueQueuedFees(outsider);
+
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        h.rescueQueuedFees(address(vault));
+    }
+
+    /// @dev A de-registration that is reversed puts the tithe back. Permissionless in both directions and
+    ///      gated on the registry both ways, so neither the halt nor the resume is anyone's opinion.
+    function test_resumeTithe_restoresTheTitheAndTheFeeReachesTheVault() public {
+        registry.setVaultRegistered(address(vault), false);
+        hook.haltTithe();
+
+        IPoolManager.SwapParams memory sell =
+            IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: -1e18, sqrtPriceLimitX96: MAX_PRICE_LIMIT });
+        swapRouter.swap(poolKey, sell, _settings(), ZERO_BYTES);
+        assertEq(vault.totalReceived(), 0, "halted: nothing reaches the vault");
+        assertEq(hook.queuedFees(), 0, "halted: nothing is queued either");
+
+        vm.expectRevert(UniAlignmentV4Hook.VaultNotRegistered.selector);
+        hook.resumeTithe();
+
+        registry.setVaultRegistered(address(vault), true);
+        vm.expectEmit(true, false, false, false, address(hook));
+        emit UniAlignmentV4Hook.TitheResumed(address(vault));
+        hook.resumeTithe();
+        assertFalse(hook.titheHalted(), "resumed");
+
+        swapRouter.swap(poolKey, sell, _settings(), ZERO_BYTES);
+        assertGt(vault.totalReceived(), 0, "a resumed hook forwards to the vault again");
+    }
+
     // ---- helpers for the queue/flush paths ----
 
     /// @dev Deploy the REAL hook at a fresh 0xCC-permission address wired to `vaultAddr`, initialize its
@@ -255,7 +376,8 @@ contract UniAlignmentV4Hook_RealSettlement is Test {
                 owner,
                 benefactor,
                 HOOK_FEE_BIPS,
-                LP_FEE_RATE
+                LP_FEE_RATE,
+                address(registry)
             ),
             addr
         );
@@ -345,6 +467,10 @@ contract TestToken {
  *         file so the pinned-0.8.28 default profile never compiles the real PoolManager import).
  */
 contract UniTitheHookFactory_RealSettlement is Test {
+    /// @dev Non-zero stand-in for the master registry: the hook ctor only null-checks it, and nothing
+    ///      in this contract reaches the halt/resume/rescue paths that read it.
+    address internal constant DUMMY_REGISTRY = address(0x5EE9);
+
     PoolManager internal manager;
     PoolSwapTest internal swapRouter;
     PoolModifyLiquidityTest internal modifyLiquidityRouter;
@@ -383,7 +509,7 @@ contract UniTitheHookFactory_RealSettlement is Test {
         vault = new MockVault();
 
         // The factory mines a salt on-chain and CREATE2-deploys the hook at a 0xCC-valid address.
-        factory = new UniTitheHookFactory(IPoolManager(address(manager)), WETH, owner);
+        factory = new UniTitheHookFactory(IPoolManager(address(manager)), WETH, owner, DUMMY_REGISTRY);
         hookAddr = factory.deployHook(IAlignmentVault(payable(address(vault))), benefactor, HOOK_FEE_BIPS, LP_FEE_RATE);
     }
 
@@ -508,7 +634,7 @@ contract LiquidityDeployerModuleGraduation_RealSettlement is Test {
 
         vault = new MockVault();
         registry = new MockMasterRegistry(); // isRegisteredInstance() defaults true
-        factory = new UniTitheHookFactory(IPoolManager(address(manager)), WETH, owner);
+        factory = new UniTitheHookFactory(IPoolManager(address(manager)), WETH, owner, address(registry));
         // poolManager = the real in-memory manager; static poolFee + tickSpacing are the module immutables.
         module = new LiquidityDeployerModule(address(manager), WETH, POOL_FEE, TICK_SPACING, address(registry));
     }

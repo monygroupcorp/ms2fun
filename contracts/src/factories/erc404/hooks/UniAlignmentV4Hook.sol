@@ -13,6 +13,7 @@ import { BeforeSwapDelta, BeforeSwapDeltaLibrary, toBeforeSwapDelta } from "v4-c
 import { Currency, CurrencyLibrary } from "v4-core/types/Currency.sol";
 import { PoolKey } from "v4-core/types/PoolKey.sol";
 import { IAlignmentVault } from "../../../interfaces/IAlignmentVault.sol";
+import { IMasterRegistry } from "../../../master/interfaces/IMasterRegistry.sol";
 import { IAlignmentHook } from "./IAlignmentHook.sol";
 
 /**
@@ -36,10 +37,23 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
     error PoolCurrency0MustBeNativeETH();
     error RateTooHigh();
     error NoQueuedFees();
+    error VaultStillRegistered();
+    error VaultNotRegistered();
+    error TitheNotHalted();
 
     IPoolManager public immutable poolManager;
     IAlignmentVault public immutable vault;
     address public immutable weth;
+
+    /// @notice The registry that says whether `vault` is still a vault the protocol curates.
+    /// @dev The hook's only oracle for "this vault is gone for good". `vault` is immutable and the
+    ///      vault flavors have no shared "can you still accept?" call, so a failed forward on its own
+    ///      cannot tell a transient revert from a permanent one — which is exactly the ambiguity that
+    ///      let `queuedFees` grow without an exit (audit M-4). `deactivateVault` is the protocol
+    ///      owner's existing lever for retiring a vault, and it is the same signal
+    ///      `LiquidityDeployerModule.flushPendingVaultCut` already reads before returning a stashed
+    ///      graduation cut, so the hook now answers to the same runbook step the rest of the system does.
+    IMasterRegistry public immutable masterRegistry;
 
     /// @notice The project instance credited for this pool's swap-fee contributions — immutable, set
     ///         at deploy. NOT the per-swap `sender`: in Uniswap v4 `afterSwap`'s `sender` is whoever
@@ -58,10 +72,20 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
     event AlignmentFeeCollected(uint256 ethAmount, address indexed benefactor);
     event AlignmentFeeQueued(uint256 ethAmount, address indexed benefactor);
     event QueuedFeesForwarded(uint256 ethAmount);
+    event TitheHalted(address indexed vault);
+    event TitheResumed(address indexed vault);
+    event QueuedFeesRescued(address indexed fromVault, address indexed toVault, uint256 ethAmount);
     event LpFeeRateUpdated(uint24 newRate);
 
     /// @notice ETH held in hook pending retry after a failed vault.receiveContribution call
     uint256 public queuedFees;
+
+    /// @notice While true the swap tithe is not charged at all — no take, no fee delta, nothing queued.
+    /// @dev Set only while the registry says `vault` is no longer registered, and cleared only while it
+    ///      says it is, so this tracks the registry rather than anyone's opinion. It is read on the swap
+    ///      hot path, which is why it is a stored bool and not a registry call: one warm SLOAD per swap
+    ///      instead of a cross-contract read on every trade in the pool.
+    bool public titheHalted;
 
     constructor(
         IPoolManager _poolManager,
@@ -70,13 +94,15 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
         address _owner,
         address _benefactor,
         uint256 _hookFeeBips,
-        uint24 _initialLpFeeRate
+        uint24 _initialLpFeeRate,
+        IMasterRegistry _masterRegistry
     ) {
         if (address(_poolManager) == address(0)) revert InvalidAddress();
         if (address(_vault) == address(0)) revert InvalidAddress();
         if (_weth == address(0)) revert InvalidAddress();
         if (_owner == address(0)) revert InvalidAddress();
         if (_benefactor == address(0)) revert InvalidAddress();
+        if (address(_masterRegistry) == address(0)) revert InvalidAddress();
         if (_hookFeeBips > 10000) revert HookFeeTooHigh();
         if (_initialLpFeeRate > LPFeeLibrary.MAX_LP_FEE) revert LpFeeTooHigh();
 
@@ -87,6 +113,7 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
         benefactor = _benefactor;
         hookFeeBips = _hookFeeBips;
         lpFeeRate = _initialLpFeeRate;
+        masterRegistry = _masterRegistry;
 
         // Validate hook permissions — beforeSwap + afterSwap with return delta
         Hooks.validateHookPermissions(
@@ -140,7 +167,10 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
         uint24 feeOverride = lpFeeRate | LPFeeLibrary.OVERRIDE_FEE_FLAG;
 
         // Shape 1 only: exact-input ETH buy — ETH (currency0) is the specified input.
-        if (params.zeroForOne && params.amountSpecified < 0) {
+        // `titheHalted` skips the tax entirely rather than taking it and queueing it: once the vault is
+        // off the registry there is nothing for a take to settle into, so charging the swapper would be
+        // taking their ETH for a destination that no longer exists (audit M-4).
+        if (!titheHalted && params.zeroForOne && params.amountSpecified < 0) {
             uint256 ethIn = uint256(-params.amountSpecified); // exact-input magnitude
             uint256 feeAmount = (ethIn * hookFeeBips) / 10000; // round down: favors swapper
             if (feeAmount > 0) {
@@ -177,7 +207,7 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
         // ETH (currency0) is the specified currency exactly when (amountSpecified < 0) == zeroForOne.
         // For those shapes (1 and 4) afterSwap must cleanly skip — no take, no revert.
         bool ethIsSpecified = (params.amountSpecified < 0) == params.zeroForOne;
-        if (ethIsSpecified) {
+        if (ethIsSpecified || titheHalted) {
             return (IHooks.afterSwap.selector, int128(0));
         }
 
@@ -216,14 +246,76 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
     /**
      * @notice Retry forwarding accumulated queued fees to the vault
      * @dev Callable by anyone. Reverts if no queued fees or if vault still reverts.
+     *
+     *      Also refuses once the registry has retired `vault`, which makes this and `rescueQueuedFees`
+     *      disjoint: while the vault is curated this is the only exit, and once it is not, the rescue is.
+     *      Without the guard a de-curated-but-healthy vault would still accept a flush, which is exactly
+     *      what `LiquidityDeployerModule.flushPendingVaultCut` refuses to do with a stashed graduation
+     *      cut — de-curation is supposed to stop the money reaching that vault, not just slow it down.
      */
     function flushQueuedFees() external nonReentrant {
         uint256 amount = queuedFees;
         if (amount == 0) revert NoQueuedFees();
+        if (!masterRegistry.isVaultRegistered(address(vault))) revert VaultNotRegistered();
         queuedFees = 0;
         // Credit the same fixed benefactor the live afterSwap path would have — not the hook itself.
         vault.receiveContribution{ value: amount }(Currency.wrap(address(0)), amount, benefactor);
         emit QueuedFeesForwarded(amount);
+    }
+
+    /**
+     * @notice Stop charging the swap tithe, once the registry says `vault` is no longer registered
+     * @dev Permissionless, and gated on the registry rather than on anyone's judgement: the only way
+     *      this succeeds is if the protocol owner has already retired `vault` with `deactivateVault`.
+     *      Before this existed the hook kept taxing every swap into a vault that could never accept
+     *      again, and 100% of the take fell into `queuedFees` with no exit (audit M-4).
+     */
+    function haltTithe() external {
+        if (masterRegistry.isVaultRegistered(address(vault))) revert VaultStillRegistered();
+        titheHalted = true;
+        emit TitheHalted(address(vault));
+    }
+
+    /**
+     * @notice Resume the swap tithe once `vault` is a registered vault again
+     * @dev The mirror of `haltTithe`, and permissionless for the same reason. A de-registration that is
+     *      reversed — a mis-click, or a vault retired and restored — must not leave the tithe off with
+     *      only an owner able to turn it back on.
+     */
+    function resumeTithe() external {
+        if (!masterRegistry.isVaultRegistered(address(vault))) revert VaultNotRegistered();
+        titheHalted = false;
+        emit TitheResumed(address(vault));
+    }
+
+    /**
+     * @notice Forward queued fees to another registered vault, after `vault` has been retired
+     * @dev The exit `queuedFees` never had. `vault` is immutable, so ETH queued against a vault whose
+     *      intake closed for good — `AlignmentEndowmentVault.migratePosition` is the documented way that
+     *      happens — could only ever be retried into the same dead address.
+     *
+     *      Deliberately NOT a sweep. The destination is not an address the owner picks freely: it must
+     *      be a vault the registry currently curates, and the contribution is credited to the hook's own
+     *      immutable `benefactor`, exactly as the live path credits it. So this moves the community's
+     *      ETH between curated vaults and cannot move it to the owner, to the protocol treasury, or to
+     *      anywhere else — the owner's discretion here is which curated vault, never whether to take it.
+     *
+     *      Reachable only once the protocol owner has retired `vault` and the tithe is halted, so it can
+     *      never divert the tithe of a live vault, and never races a `flushQueuedFees` that would still
+     *      have worked.
+     * @param destinationVault The registered vault to credit instead.
+     */
+    function rescueQueuedFees(address destinationVault) external onlyOwner nonReentrant {
+        uint256 amount = queuedFees;
+        if (amount == 0) revert NoQueuedFees();
+        if (masterRegistry.isVaultRegistered(address(vault))) revert VaultStillRegistered();
+        if (!titheHalted) revert TitheNotHalted();
+        if (!masterRegistry.isVaultRegistered(destinationVault)) revert VaultNotRegistered();
+        queuedFees = 0;
+        IAlignmentVault(payable(destinationVault)).receiveContribution{ value: amount }(
+            Currency.wrap(address(0)), amount, benefactor
+        );
+        emit QueuedFeesRescued(address(vault), destinationVault, amount);
     }
 
     /**

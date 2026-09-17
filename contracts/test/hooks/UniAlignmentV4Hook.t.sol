@@ -43,6 +43,9 @@ contract UniAlignmentV4HookTest is Test {
     /// @notice The fixed project instance the hook credits — distinct from any swapper/router address.
     address public projectInstance = address(0x7777777777777777777777777777777777777777);
 
+    /// @dev Non-zero stand-in for the master registry: the hook ctor only null-checks it, and no
+    ///      test here reaches `haltTithe`/`resumeTithe`/`rescueQueuedFees`, the only readers.
+    address internal constant DUMMY_REGISTRY = address(0x5EE9);
     uint256 constant DEFAULT_HOOK_FEE_BIPS = 100; // 1%
     uint24 constant DEFAULT_LP_FEE_RATE = 3000; // 0.3%
 
@@ -76,7 +79,8 @@ contract UniAlignmentV4HookTest is Test {
             owner,
             benefactor,
             hookFeeBips,
-            DEFAULT_LP_FEE_RATE
+            DEFAULT_LP_FEE_RATE,
+            DUMMY_REGISTRY
         );
     }
 

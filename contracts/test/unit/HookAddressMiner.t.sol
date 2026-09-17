@@ -209,11 +209,12 @@ contract HookAddressMinerTest is Test {
 
     // ========== Init Code Hash Tests ==========
 
-    /// @notice computeInitCodeHash must hash the FULL 7-arg constructor tail (poolManager, vault, weth,
-    ///         owner, benefactor, hookFeeBips, initialLpFeeRate) in that exact order — the `benefactor`
-    ///         arg added in #115. The factory relies on this being byte-identical to what
-    ///         `new UniAlignmentV4Hook{salt}(...)` assembles, so the mined address matches the deployed one.
-    function test_computeInitCodeHash_matches7ArgConstructorTail() public pure {
+    /// @notice computeInitCodeHash must hash the FULL 8-arg constructor tail (poolManager, vault, weth,
+    ///         owner, benefactor, hookFeeBips, initialLpFeeRate, masterRegistry) in that exact order —
+    ///         the `benefactor` arg added in #115, the `masterRegistry` arg by the audit-M-4 fix. The
+    ///         factory relies on this being byte-identical to what `new UniAlignmentV4Hook{salt}(...)`
+    ///         assembles, so the mined address matches the deployed one.
+    function test_computeInitCodeHash_matches8ArgConstructorTail() public pure {
         bytes memory creationCode = hex"60806040523480156100"; // arbitrary creation-code stand-in
         address poolManager = address(0xA1);
         address vault = address(0xA2);
@@ -222,19 +223,21 @@ contract HookAddressMinerTest is Test {
         address benefactor = address(0xA5);
         uint256 hookFeeBips = 100;
         uint24 initialLpFeeRate = 3000;
+        address masterRegistry = address(0xA6);
 
         bytes32 expected = keccak256(
             abi.encodePacked(
-                creationCode, abi.encode(poolManager, vault, weth, owner, benefactor, hookFeeBips, initialLpFeeRate)
+                creationCode,
+                abi.encode(poolManager, vault, weth, owner, benefactor, hookFeeBips, initialLpFeeRate, masterRegistry)
             )
         );
 
         assertEq(
             HookAddressMiner.computeInitCodeHash(
-                creationCode, poolManager, vault, weth, owner, benefactor, hookFeeBips, initialLpFeeRate
+                creationCode, poolManager, vault, weth, owner, benefactor, hookFeeBips, initialLpFeeRate, masterRegistry
             ),
             expected,
-            "init-code hash must cover the 7-arg ctor tail including benefactor"
+            "init-code hash must cover the 8-arg ctor tail including benefactor and masterRegistry"
         );
     }
 
@@ -243,12 +246,58 @@ contract HookAddressMinerTest is Test {
     function test_computeInitCodeHash_benefactorAffectsHash() public pure {
         bytes memory creationCode = hex"60806040523480156100";
         bytes32 hashA = HookAddressMiner.computeInitCodeHash(
-            creationCode, address(0xA1), address(0xA2), address(0xA3), address(0xA4), address(0xA5), 100, 3000
+            creationCode,
+            address(0xA1),
+            address(0xA2),
+            address(0xA3),
+            address(0xA4),
+            address(0xA5),
+            100,
+            3000,
+            address(0xA6)
         );
         bytes32 hashB = HookAddressMiner.computeInitCodeHash(
-            creationCode, address(0xA1), address(0xA2), address(0xA3), address(0xA4), address(0xB5), 100, 3000
+            creationCode,
+            address(0xA1),
+            address(0xA2),
+            address(0xA3),
+            address(0xA4),
+            address(0xB5),
+            100,
+            3000,
+            address(0xA6)
         );
         assertTrue(hashA != hashB, "changing benefactor must change the init-code hash");
+    }
+
+    /// @notice A different master registry must change the init-code hash too — the same property the
+    ///         benefactor test pins, for the argument the audit-M-4 fix appended. A helper that dropped
+    ///         it would mine an address the factory's own `new` does not land on.
+    function test_computeInitCodeHash_masterRegistryAffectsHash() public pure {
+        bytes memory creationCode = hex"60806040523480156100";
+        bytes32 hashA = HookAddressMiner.computeInitCodeHash(
+            creationCode,
+            address(0xA1),
+            address(0xA2),
+            address(0xA3),
+            address(0xA4),
+            address(0xA5),
+            100,
+            3000,
+            address(0xA6)
+        );
+        bytes32 hashB = HookAddressMiner.computeInitCodeHash(
+            creationCode,
+            address(0xA1),
+            address(0xA2),
+            address(0xA3),
+            address(0xA4),
+            address(0xA5),
+            100,
+            3000,
+            address(0xB6)
+        );
+        assertTrue(hashA != hashB, "changing masterRegistry must change the init-code hash");
     }
 
     // ========== Flag Decoding Tests ==========

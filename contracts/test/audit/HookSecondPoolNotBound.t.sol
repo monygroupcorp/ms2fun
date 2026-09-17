@@ -52,6 +52,9 @@ contract HookSecondPoolNotBoundTest is Test {
     address internal benefactorInstance = makeAddr("benefactorInstance");
     address internal attacker = makeAddr("attacker");
 
+    /// @dev Non-zero stand-in for the master registry: the hook ctor only null-checks it, and no
+    ///      test here reaches `haltTithe`/`resumeTithe`/`rescueQueuedFees`, the only readers.
+    address internal constant DUMMY_REGISTRY = address(0x5EE9);
     uint256 internal constant HOOK_FEE_BIPS = 100; // 1%
     uint24 internal constant LP_FEE_RATE = 3000;
 
@@ -71,7 +74,8 @@ contract HookSecondPoolNotBoundTest is Test {
                 hookOwner,
                 benefactorInstance,
                 HOOK_FEE_BIPS,
-                LP_FEE_RATE
+                LP_FEE_RATE,
+                DUMMY_REGISTRY
             ),
             hookAddr
         );

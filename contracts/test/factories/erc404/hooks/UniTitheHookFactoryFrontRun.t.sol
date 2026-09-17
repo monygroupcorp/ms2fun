@@ -23,6 +23,8 @@ contract UniTitheHookFactoryFrontRunTest is Test {
 
     IPoolManager internal constant DUMMY_PM = IPoolManager(address(0xBEEF));
     address internal constant WETH = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    // Non-zero dummy registry — the hook ctor only null-checks it; nothing here reads it.
+    address internal constant REGISTRY = address(0x5EE9);
     address internal constant HOOK_OWNER = address(0xB055);
 
     IAlignmentVault internal constant VAULT = IAlignmentVault(payable(address(0xA17)));
@@ -38,7 +40,7 @@ contract UniTitheHookFactoryFrontRunTest is Test {
     );
 
     function setUp() public {
-        factory = new UniTitheHookFactory(DUMMY_PM, WETH, HOOK_OWNER);
+        factory = new UniTitheHookFactory(DUMMY_PM, WETH, HOOK_OWNER, REGISTRY);
     }
 
     /// @dev The graduation path: a hook pre-deployed by an unrelated caller is adopted, not collided with.
@@ -98,7 +100,8 @@ contract UniTitheHookFactoryFrontRunTest is Test {
             HOOK_OWNER,
             BENEFACTOR,
             HOOK_FEE_BIPS,
-            LP_FEE_RATE
+            LP_FEE_RATE,
+            REGISTRY
         );
         // The factory's own starting offset, reproduced here so this is the factory's search rather than
         // a different one. Pinning the formula is deliberate: a change that "simplified" the factory's

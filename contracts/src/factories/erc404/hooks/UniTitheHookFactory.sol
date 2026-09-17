@@ -6,6 +6,7 @@ import { IAlignmentVault } from "../../../interfaces/IAlignmentVault.sol";
 import { IAlignmentHookFactory } from "./IAlignmentHookFactory.sol";
 import { HookAddressMiner } from "./HookAddressMiner.sol";
 import { UniAlignmentV4Hook } from "./UniAlignmentV4Hook.sol";
+import { IMasterRegistry } from "../../../master/interfaces/IMasterRegistry.sol";
 
 /**
  * @title UniTitheHookFactory
@@ -39,6 +40,11 @@ contract UniTitheHookFactory is IAlignmentHookFactory {
     /// @notice Governance owner set on each deployed hook (can adjust its LP fee rate).
     address public immutable hookOwner;
 
+    /// @notice Master registry passed to each deployed hook (immutable, factory config).
+    /// @dev The hook reads it to learn that its immutable `vault` has been retired with
+    ///      `deactivateVault`, which is what lets it stop taxing and release its queued fees.
+    address public immutable masterRegistry;
+
     /// @notice Required permission bits (0xCC = beforeSwap|afterSwap|beforeSwapReturnDelta|afterSwapReturnDelta).
     uint160 public constant REQUIRED_FLAGS = HookAddressMiner.ULTRA_ALIGNMENT_HOOK_FLAGS;
 
@@ -68,13 +74,15 @@ contract UniTitheHookFactory is IAlignmentHookFactory {
         address indexed hook, address indexed vault, address indexed benefactor, uint256 hookFeeBips, uint24 lpFeeRate
     );
 
-    constructor(IPoolManager _poolManager, address _weth, address _hookOwner) {
+    constructor(IPoolManager _poolManager, address _weth, address _hookOwner, address _masterRegistry) {
         if (address(_poolManager) == address(0)) revert InvalidAddress();
         if (_weth == address(0)) revert InvalidAddress();
         if (_hookOwner == address(0)) revert InvalidAddress();
+        if (_masterRegistry == address(0)) revert InvalidAddress();
         poolManager = _poolManager;
         weth = _weth;
         hookOwner = _hookOwner;
+        masterRegistry = _masterRegistry;
     }
 
     /// @inheritdoc IAlignmentHookFactory
@@ -95,7 +103,8 @@ contract UniTitheHookFactory is IAlignmentHookFactory {
             hookOwner,
             benefactor,
             hookFeeBips,
-            lpFeeRate
+            lpFeeRate,
+            masterRegistry
         );
 
         // Idempotent deploy, checked BEFORE the mine: `deployHook` is callable by anyone, and its four
@@ -153,7 +162,7 @@ contract UniTitheHookFactory is IAlignmentHookFactory {
         // remains the on-chain guard that the address carries the required permission bits.
         hook = address(
             new UniAlignmentV4Hook{ salt: salt }(
-                poolManager, vault, weth, hookOwner, benefactor, hookFeeBips, lpFeeRate
+                poolManager, vault, weth, hookOwner, benefactor, hookFeeBips, lpFeeRate, IMasterRegistry(masterRegistry)
             )
         );
 
