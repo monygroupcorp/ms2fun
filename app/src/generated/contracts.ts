@@ -10997,6 +10997,7 @@ export const liquidityDeployerModuleAbi = [
   { type: 'error', inputs: [], name: 'ETHMismatch' },
   { type: 'error', inputs: [], name: 'HookFeeTooHigh' },
   { type: 'error', inputs: [], name: 'InsufficientLiquidityConsumed' },
+  { type: 'error', inputs: [], name: 'LiquidityConsumedExceedsLeg' },
   { type: 'error', inputs: [], name: 'LpFeeRateTooHigh' },
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
   { type: 'error', inputs: [], name: 'NoETHForPool' },

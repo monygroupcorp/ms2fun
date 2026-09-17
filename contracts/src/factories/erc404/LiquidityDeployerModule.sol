@@ -61,6 +61,8 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
     error InsufficientLiquidityConsumed();
     /// @dev sweepUnconsumedCoin called for an instance holding no stray coin here.
     error NoUnconsumedCoin();
+    /// @dev The pool charged more for one side than the LP leg it was offered.
+    error LiquidityConsumedExceedsLeg();
 
     /// @notice Max deviation (bps) tolerated between an already-initialized pool's PRICE and the
     ///         intended graduation price. 100 bps (1%) mirrors the 99/100 LP-min-slippage convention
@@ -502,33 +504,43 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
         int256 delta0 = delta.amount0();
         int256 delta1 = delta.amount1();
 
-        // Settle/take against THIS module: the instance transfers the LP tokens to the module
-        // (ERC404BondingInstance.deployLiquidity) and the ETH is wrapped to WETH into the module
-        // (_setupPoolAndUnlock) before the unlock, so the module — not ctx.instance — holds both
-        // currencies. Using address(this) makes CurrencySettler.settle pay via ERC20 `transfer`
-        // (the payer==address(this) branch) instead of a `transferFrom` from an instance that no
-        // longer holds the funds. Mirrors the fork-verified UniAlignmentVault._settleLPDelta.
-        // Settle debts (negative delta = we owe tokens)
-        if (delta0 < 0) ctx.poolKey.currency0.settle(ctx.poolManager, address(this), uint256(-delta0), false);
-        if (delta1 < 0) ctx.poolKey.currency1.settle(ctx.poolManager, address(this), uint256(-delta1), false);
-        // Take credits (positive delta = pool owes us dust)
-        if (delta0 > 0) ctx.poolKey.currency0.take(ctx.poolManager, address(this), uint256(delta0), false);
-        if (delta1 > 0) ctx.poolKey.currency1.take(ctx.poolManager, address(this), uint256(delta1), false);
-
-        // What the pool actually TOOK, per side. `getLiquidityForAmounts` fits one liquidity figure to
-        // both legs by taking `min(L0, L1)` at the LIVE price, so on a pool that was already
-        // initialized away from the graduation price exactly one leg binds and the other is
-        // over-supplied. A negative delta is a debt we just settled — that is the consumption; a
-        // positive delta is credit the pool handed back and is not consumed at all.
+        // What the pool is charging, per side, BEFORE anything is paid. `getLiquidityForAmounts` fits
+        // one liquidity figure to both legs by taking `min(L0, L1)` at the LIVE price, so on a pool
+        // that was already initialized away from the graduation price exactly one leg binds and the
+        // other is over-supplied. A negative delta is a debt about to be settled — that is the
+        // consumption; a positive delta is credit the pool is handing back and is not consumed at all.
         uint256 used0 = delta0 < 0 ? uint256(-delta0) : 0;
         uint256 used1 = delta1 < 0 ? uint256(-delta1) : 0;
 
         // The slippage floor v4 gives no parameter for. ZAMM and Cypher pass `amount * 99 / 100` mins
         // and their venues revert past them; here the only cap on how little the pool takes was the
-        // init-price band, so the same floor is asserted directly on the settled delta.
+        // init-price band, so the same floor is asserted directly on the delta.
         if (used0 * 10_000 < ctx.amount0 * MIN_LP_CONSUMED_BPS || used1 * 10_000 < ctx.amount1 * MIN_LP_CONSUMED_BPS) {
             revert InsufficientLiquidityConsumed();
         }
+        // And the ceiling, which is the half the siblings get for free. Their venues PULL through an
+        // approval or a `msg.value`, so neither can be charged past the leg it offered; this module
+        // settles by direct transfer out of a balance that also holds the graduation's fee legs and the
+        // `pendingVaultCut` stash, so an overcharge would be paid out of somebody else's money.
+        // `getLiquidityForAmounts` floors the liquidity it fits, so a correct pool cannot reach this —
+        // which is the reason to name it rather than let it land as an arithmetic panic on the way out.
+        if (used0 > ctx.amount0 || used1 > ctx.amount1) revert LiquidityConsumedExceedsLeg();
+
+        // BOTH CHECKS PRECEDE THE SETTLE. They are conditions on the trade, not a reconciliation after
+        // it: a module that has already paid an overcharge has nothing left to refuse with.
+        //
+        // Settle/take against THIS module: the instance transfers the LP tokens to the module
+        // (ERC404BondingInstance.deployLiquidity) and the ETH arrives as msg.value, so the module —
+        // not ctx.instance — holds both currencies. Using address(this) makes CurrencySettler.settle
+        // pay via ERC20 `transfer` (the payer==address(this) branch) instead of a `transferFrom` from
+        // an instance that no longer holds the funds. Mirrors the fork-verified
+        // UniAlignmentVault._settleLPDelta.
+        // Settle debts (negative delta = we owe tokens)
+        if (delta0 < 0) ctx.poolKey.currency0.settle(ctx.poolManager, address(this), used0, false);
+        if (delta1 < 0) ctx.poolKey.currency1.settle(ctx.poolManager, address(this), used1, false);
+        // Take credits (positive delta = pool owes us dust)
+        if (delta0 > 0) ctx.poolKey.currency0.take(ctx.poolManager, address(this), uint256(delta0), false);
+        if (delta1 > 0) ctx.poolKey.currency1.take(ctx.poolManager, address(this), uint256(delta1), false);
 
         return abi.encode(liq, used0, used1);
     }

@@ -365,6 +365,24 @@ contract V4GraduationLpResidueTest is Test {
         assertEq(instance.balanceOf(address(m)), 0, "no coin left in the module");
     }
 
+    /// @notice The other half of the same guard, and the half the siblings get for free: their venues
+    ///         PULL through an approval or a `msg.value`, so neither can be charged past the leg it was
+    ///         offered. This module settles by direct transfer out of a balance that also holds the
+    ///         graduation's fee legs and the `pendingVaultCut` stash, so a pool that charged more than
+    ///         the LP leg would be paid out of somebody else's money.
+    function test_v4_venueChargingMoreThanTheLeg_reverts() public {
+        LazyV4PoolManager lazy = new LazyV4PoolManager();
+        LiquidityDeployerModule m =
+            new LiquidityDeployerModule(address(lazy), address(0x3), POOL_FEE, TICK_SPACING, address(registry));
+        lazy.setDesired(ETH_FOR_POOL, TOKEN_RESERVE);
+        lazy.setTakeBps(10_001);
+
+        instance.mint(address(m), TOKEN_RESERVE);
+        vm.deal(address(instance), ETH_RESERVE);
+        vm.expectRevert(LiquidityDeployerModule.LiquidityConsumedExceedsLeg.selector);
+        instance.graduate(address(m), _params(), ETH_RESERVE);
+    }
+
     /// @notice The fix adds NO removal path. The graduation position still lives in the pool manager
     ///         and no selector on the module reaches it — the property `LpLockInvariant.t.sol` pins.
     ///         What changed is only that nothing is left behind to need one.
