@@ -72,6 +72,8 @@ contract UniAlignmentV4Hook_RealSettlement is Test {
     address internal benefactor = address(0x7777777777777777777777777777777777777777);
     uint256 internal constant HOOK_FEE_BIPS = 100; // 1%
     uint24 internal constant LP_FEE_RATE = 3000; // 0.3%
+    /// @dev The spacing of every pool key in this file; bound into the hook since audit L-6.
+    int24 internal constant POOL_TICK_SPACING = 60;
 
     function setUp() public {
         manager = new PoolManager(address(this));
@@ -104,7 +106,9 @@ contract UniAlignmentV4Hook_RealSettlement is Test {
                 benefactor,
                 HOOK_FEE_BIPS,
                 LP_FEE_RATE,
-                address(registry)
+                address(registry),
+                address(token), // the pool this hook is bound to (audit L-6)
+                POOL_TICK_SPACING
             ),
             hookAddr
         );
@@ -115,7 +119,7 @@ contract UniAlignmentV4Hook_RealSettlement is Test {
             currency0: ethCurrency,
             currency1: tokenCurrency,
             fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
-            tickSpacing: 60,
+            tickSpacing: POOL_TICK_SPACING,
             hooks: IHooks(hookAddr)
         });
         manager.initialize(poolKey, SQRT_PRICE_1_1);
@@ -377,7 +381,9 @@ contract UniAlignmentV4Hook_RealSettlement is Test {
                 benefactor,
                 HOOK_FEE_BIPS,
                 LP_FEE_RATE,
-                address(registry)
+                address(registry),
+                address(token), // the pool this hook is bound to (audit L-6)
+                POOL_TICK_SPACING
             ),
             addr
         );
@@ -387,7 +393,7 @@ contract UniAlignmentV4Hook_RealSettlement is Test {
             currency0: ethCurrency,
             currency1: tokenCurrency,
             fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
-            tickSpacing: 60,
+            tickSpacing: POOL_TICK_SPACING,
             hooks: IHooks(addr)
         });
         manager.initialize(k, SQRT_PRICE_1_1);
@@ -489,6 +495,8 @@ contract UniTitheHookFactory_RealSettlement is Test {
     address internal benefactor = address(0x7777777777777777777777777777777777777777);
     uint256 internal constant HOOK_FEE_BIPS = 100; // 1%
     uint24 internal constant LP_FEE_RATE = 3000; // 0.3%
+    /// @dev The spacing of the pool this contract's hook is bound to (audit L-6).
+    int24 internal constant POOL_TICK_SPACING = 60;
 
     bytes internal constant ZERO_BYTES = "";
     uint160 internal constant SQRT_PRICE_1_1 = 79228162514264337593543950336;
@@ -510,7 +518,14 @@ contract UniTitheHookFactory_RealSettlement is Test {
 
         // The factory mines a salt on-chain and CREATE2-deploys the hook at a 0xCC-valid address.
         factory = new UniTitheHookFactory(IPoolManager(address(manager)), WETH, owner, DUMMY_REGISTRY);
-        hookAddr = factory.deployHook(IAlignmentVault(payable(address(vault))), benefactor, HOOK_FEE_BIPS, LP_FEE_RATE);
+        hookAddr = factory.deployHook(
+            IAlignmentVault(payable(address(vault))),
+            benefactor,
+            HOOK_FEE_BIPS,
+            LP_FEE_RATE,
+            address(token),
+            POOL_TICK_SPACING
+        );
     }
 
     /// @notice The factory-mined address carries exactly 0xCC and a real pool initializes with it — no revert.
@@ -529,7 +544,7 @@ contract UniTitheHookFactory_RealSettlement is Test {
             currency0: ethCurrency,
             currency1: tokenCurrency,
             fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
-            tickSpacing: 60,
+            tickSpacing: POOL_TICK_SPACING,
             hooks: IHooks(hookAddr)
         });
         // The decisive assertion: real v4-core validates the hook's permission bits at initialize().
@@ -542,7 +557,7 @@ contract UniTitheHookFactory_RealSettlement is Test {
             currency0: ethCurrency,
             currency1: tokenCurrency,
             fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
-            tickSpacing: 60,
+            tickSpacing: POOL_TICK_SPACING,
             hooks: IHooks(hookAddr)
         });
         manager.initialize(poolKey, SQRT_PRICE_1_1);

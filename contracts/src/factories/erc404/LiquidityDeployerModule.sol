@@ -259,8 +259,12 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
         IHooks hooks = IHooks(address(0));
         uint24 fee = poolFee;
         if (alignmentHookFactory != address(0)) {
+            // The hook binds the whole `PoolKey` it will serve (audit L-6), so it is told which pool
+            // that is HERE, before the key is assembled below — `p.token` is the pool's `currency1` and
+            // `tickSpacing` this module's own immutable. Both are part of the hook's init-code hash, so
+            // the pool is part of the hook's identity rather than state set on it afterwards.
             address hookAddr = IAlignmentHookFactory(alignmentHookFactory)
-                .deployHook(IAlignmentVault(payable(p.vault)), p.instance, hookFeeBips, lpFeeRate);
+                .deployHook(IAlignmentVault(payable(p.vault)), p.instance, hookFeeBips, lpFeeRate, p.token, tickSpacing);
             hooks = IHooks(hookAddr);
             fee = LPFeeLibrary.DYNAMIC_FEE_FLAG;
         }

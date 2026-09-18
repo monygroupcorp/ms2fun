@@ -95,19 +95,51 @@ contract UniSwapProportionTwapTest is Test {
 
     /// @notice A full-range position is 50% by value at EVERY price, so the spot and TWAP proportions are
     ///         equal by construction and their difference can never exceed the 5% deviation band. This is
-    ///         why the guard is a no-op for both shipped vaults, and it is not recorded anywhere else.
-    function test_fullRange_isFiftyPercent_evenWhenTheTwapDisagreesWildly() public {
+    ///         why the PROPORTION guards are a no-op for both shipped vaults, and it is not recorded
+    ///         anywhere else. Measured with no reference pool, so nothing but the proportion maths acts.
+    function test_fullRange_isFiftyPercentAtEveryPrice() public view {
+        int24 lower = TickMath.minUsableTick(SPACING);
+        int24 upper = TickMath.maxUsableTick(SPACING);
+
+        assertApproxEqAbs(
+            validator.calculateSwapProportionFromSqrtPrice(TOKEN, lower, upper, TickMath.getSqrtPriceAtTick(0), true),
+            5e17,
+            16,
+            "full range is 50% by value at tick 0"
+        );
+        assertApproxEqAbs(
+            validator.calculateSwapProportionFromSqrtPrice(
+                TOKEN, lower, upper, TickMath.getSqrtPriceAtTick(50_000), true
+            ),
+            5e17,
+            16,
+            "and at a price three orders of magnitude away"
+        );
+        assertApproxEqAbs(
+            validator.calculateSwapProportionFromSqrtPrice(
+                TOKEN, lower, upper, TickMath.getSqrtPriceAtTick(-50_000), true
+            ),
+            5e17,
+            16,
+            "and three orders the other way"
+        );
+    }
+
+    /// @notice The other side of the same theorem, and the reason audit L-7 was filed: BECAUSE the
+    ///         proportion is a constant on a full range, a TWAP that disagrees wildly used to pass every
+    ///         guard in the contract and return 5e17 without complaint. The price guard is what sees it,
+    ///         and it is the guard that does not depend on the position's shape.
+    function test_fullRange_aWildlyDisagreeingTwapIsRefusedOnPrice() public {
         factory.set(3000, address(new MockV3TwapPool(1e24, int24(600000), false)));
 
-        uint256 proportion = validator.calculateSwapProportionFromSqrtPrice(
+        vm.expectRevert(UniswapVaultPriceValidator.SpotTwapPriceDeviationTooHigh.selector);
+        validator.calculateSwapProportionFromSqrtPrice(
             TOKEN,
             TickMath.minUsableTick(SPACING),
             TickMath.maxUsableTick(SPACING),
             TickMath.getSqrtPriceAtTick(0),
             true
         );
-
-        assertApproxEqAbs(proportion, 5e17, 16, "full range is 50% by value at every price");
     }
 
     // ── (2) A zero-liquidity pool is skipped ──────────────────────────────────────────────────────
@@ -193,16 +225,35 @@ contract UniSwapProportionTwapTest is Test {
         assertEq(proportion, 35e16, "the range must be carried into the TWAP pool's tick space");
     }
 
-    /// @notice Non-vacuity: reading the TWAP in its own coordinates must not disarm the guard. Same
+    /// @notice Non-vacuity: reading the TWAP in its own coordinates must not disarm the guards. Same
     ///         inverse-ordered pool, but its TWAP is a genuine factor away from the spot — the deviation
-    ///         the guard exists for — and the call must still revert.
+    ///         the guards exist for — and the call must still revert. A 3000-tick gap is 35% of price, so
+    ///         since audit L-7 the PRICE guard is the one that reaches it first; the proportion guard
+    ///         below is what still catches a divergence small enough to stay inside the price band.
     function test_twapOnTheInverseOrdering_realDeviationStillReverts() public {
         // An honest quote of the spot would be tick -3000; this pool says the price has not moved at all.
         factory.set(3000, address(new MockV3TwapPool(1e24, int24(0), false)));
 
-        vm.expectRevert(UniswapVaultPriceValidator.SwapProportionDeviationTooHigh.selector);
+        vm.expectRevert(UniswapVaultPriceValidator.SpotTwapPriceDeviationTooHigh.selector);
         validator.calculateSwapProportionFromSqrtPrice(
             TOKEN_BELOW_WETH, BOUNDED_LOWER, BOUNDED_UPPER, TickMath.getSqrtPriceAtTick(3000), true
+        );
+    }
+
+    // ── (6) The two guards are independent, and the proportion one still has work ─────────────────
+
+    /// @notice The price band and the proportion band measure different things, and on a NARROW range the
+    ///         proportion moves far faster than the price does. 150 ticks is 1.5% of price — well inside
+    ///         the validator's 1000bps band, so `_requireSpotWithinTwapBand` passes — but across a
+    ///         [-200, 200] range it is most of the position, so the proportion deviation guard fires.
+    ///         This is the case audit L-7's fix deliberately leaves to the existing guard: the shared
+    ///         validator must stay correct for bounded ranges, and there the proportion is the signal.
+    function test_aNarrowRangeTripsTheProportionGuardInsideThePriceBand() public {
+        factory.set(3000, address(new MockV3TwapPool(1e24, int24(150), false)));
+
+        vm.expectRevert(UniswapVaultPriceValidator.SwapProportionDeviationTooHigh.selector);
+        validator.calculateSwapProportionFromSqrtPrice(
+            TOKEN, int24(-200), int24(200), TickMath.getSqrtPriceAtTick(0), true
         );
     }
 }

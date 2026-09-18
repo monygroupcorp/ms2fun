@@ -1549,6 +1549,14 @@ export const alignmentRegistryV1Abi = [
   { type: 'error', inputs: [], name: 'ReferencePoolNotCanonical' },
   { type: 'error', inputs: [], name: 'ReferencePoolTokenMismatch' },
   { type: 'error', inputs: [], name: 'ReferencePoolUnusable' },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'window', internalType: 'uint32', type: 'uint32' },
+      { name: 'minimum', internalType: 'uint32', type: 'uint32' },
+    ],
+    name: 'ReferenceTwapWindowTooShort',
+  },
   { type: 'error', inputs: [], name: 'RenounceDisabled' },
   { type: 'error', inputs: [], name: 'TargetNotFound' },
   { type: 'error', inputs: [], name: 'TokenNotInTarget' },
