@@ -323,10 +323,25 @@ contract CurationRegistryTest is Test {
         assertEq(rest[0], 1);
     }
 
+    /// A page wider than the registry allocates for the registry, and still returns everything.
+    function test_latestCurations_limitIsClampedToWhatExists() public {
+        _publish(alice, 3);
+
+        (uint256[] memory ids, ICurationRegistry.Curation[] memory got) = registry.latestCurations(0, type(uint256).max);
+
+        assertEq(ids.length, 3);
+        assertEq(got.length, 3);
+        assertEq(ids[0], 3);
+        assertEq(ids[2], 1);
+    }
+
     function test_latestCurations_emptyRegistry() public view {
         (uint256[] memory ids, ICurationRegistry.Curation[] memory got) = registry.latestCurations(0, 12);
         assertEq(ids.length, 0);
         assertEq(got.length, 0);
+
+        (uint256[] memory huge,) = registry.latestCurations(0, type(uint256).max);
+        assertEq(huge.length, 0);
     }
 
     // ── no admin surface exists ────────────────────────────────────────────────

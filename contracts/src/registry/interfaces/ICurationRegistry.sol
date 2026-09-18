@@ -61,13 +61,21 @@ interface ICurationRegistry {
     /// @notice Many records in one call, in the order asked. Reverts on any unknown id.
     function getCurations(uint256[] calldata ids) external view returns (Curation[] memory);
 
-    /// @notice The ids `curator` published, oldest first.
+    /**
+     * @notice The ids `curator` published, oldest first — retired ones included, since a curation
+     *         taken off view is still theirs.
+     * @dev Returns the whole list; it grows with every curation that address publishes and is never
+     *      pruned. An off-chain read path, like the rest of this section.
+     */
     function curationIdsOf(address curator) external view returns (uint256[] memory);
 
     /// @notice True when `who` may repoint curation `id` — its curator, or a collaborator on it.
     function canEdit(uint256 id, address who) external view returns (bool);
 
-    /// @notice A page of the newest curations, newest first, skipping `offset` of them.
+    /**
+     * @notice A page of the curations that are on view, newest first, skipping `offset` of them.
+     * @dev `offset` counts ON-VIEW curations, not ids, and `limit` is clamped to `totalCurations()`.
+     */
     function latestCurations(uint256 offset, uint256 limit)
         external
         view

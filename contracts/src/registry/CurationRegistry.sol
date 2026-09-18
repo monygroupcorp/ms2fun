@@ -158,19 +158,26 @@ contract CurationRegistry is ICurationRegistry {
      *      counts ON-VIEW curations, not ids — paging stays correct while a curator retires things
      *      underneath it. The walk is descending over ids and bounded by `totalCurations()`; this is
      *      an off-chain read path (no contract calls it) and callers page rather than ask for all.
+     *
+     *      `limit` is clamped to `totalCurations()` before anything is allocated. Nothing is
+     *      truncated by that — a page can never hold more rows than there are curations — but it
+     *      stops a caller asking for a page far wider than the registry from paying to expand
+     *      memory it could not have filled.
      */
     function latestCurations(uint256 offset, uint256 limit)
         external
         view
         returns (uint256[] memory ids, Curation[] memory curations)
     {
+        uint256 count = _count;
+        if (limit > count) limit = count;
         ids = new uint256[](limit);
         curations = new Curation[](limit);
         if (limit == 0) return (ids, curations);
 
         uint256 seen;
         uint256 filled;
-        for (uint256 id = _count; id > 0 && filled < limit; id--) {
+        for (uint256 id = count; id > 0 && filled < limit; id--) {
             Curation storage c = _curations[id];
             if (c.retired) continue;
             if (seen++ < offset) continue;
