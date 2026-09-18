@@ -61,11 +61,20 @@ contract BondDeadlineHandler is Test {
     /// @notice instance => the bond amount escrowed, so the forfeit leg can be value-checked.
     mapping(address => uint256) public ghost_amount;
 
+    /// @notice Instances the capped random `postBond` may create. Held low because every invariant
+    ///         below sweeps the posted list once per call.
+    uint256 internal constant RANDOM_POST_CAP = 6;
+    /// @notice The above plus one reserve slot for each of the two by-construction calls, which escrow
+    ///         at most one bond EACH however long the walk runs. So neither can starve the other of a
+    ///         slot, and the sweeps grow by two and no more.
+    uint256 internal constant RESERVE_CAP = 8;
+
     uint256 public calls;
     /// @notice Posts that landed. Nothing below proves anything on a run that never escrowed a bond.
     uint256 public ghost_posts;
     /// @notice Protocol re-tunings of the forfeit terms that landed while some posted bond was live —
-    ///         the state the second half of the invariant is about. A run with none of these is vacuous.
+    ///         the state the second half of the invariant is about. A run with none of these is
+    ///         vacuous, which is why `protocolRetunesUnderALiveBond` exists to reach it on purpose.
     uint256 public ghost_retunesUnderALiveBond;
     /// @notice Creator writes to an instance's `bondingMaturityTime` that landed while its bond was live.
     uint256 public ghost_creatorMaturityWritesUnderALiveBond;
@@ -113,7 +122,7 @@ contract BondDeadlineHandler is Test {
     /// @dev A fresh instance, a fresh creator, a bond posted at whatever terms stand right now. Capped
     ///      at six so the per-call sweeps in the invariants stay cheap over the default depth.
     function postBond(uint256 amountSeed) external counted {
-        if (instances.length >= 6) return;
+        if (instances.length >= RANDOM_POST_CAP) return;
         // A run that has pushed the terms past the record's narrowing cannot post — `postBond` refuses
         // rather than truncating (`BondTermsOutOfRange`, unit-tested). Skip instead of burning the call.
         if (escrow.maxBondDuration() > type(uint40).max || escrow.graceDays() > type(uint32).max) return;
@@ -146,6 +155,21 @@ contract BondDeadlineHandler is Test {
         ghost_deadlineAtPost[address(inst)] = expected;
         ghost_posts++;
         return address(inst);
+    }
+
+    /// @dev The walk is free to push the forfeit terms past what the bond record can hold, and
+    ///      `postBond` refuses outright there rather than truncating. Narrow them back — the owner's
+    ///      own lever, exercised no differently than `protocolSetMaxBondDuration` does — so the two
+    ///      by-construction calls below can always escrow the bond they need to carry.
+    function _narrowTermsIntoRange() internal {
+        if (escrow.maxBondDuration() > type(uint40).max) {
+            vm.prank(owner);
+            escrow.setMaxBondDuration(180 days);
+        }
+        if (escrow.graceDays() > type(uint32).max) {
+            vm.prank(owner);
+            escrow.setGraceDays(30);
+        }
     }
 
     // ── Protocol actions ─────────────────────────────────────────────────────
@@ -181,6 +205,45 @@ contract BondDeadlineHandler is Test {
         escrow.setProtocolTreasury(address(uint160(bound(seed, 1, type(uint160).max))));
         vm.prank(owner);
         escrow.setProtocolTreasury(treasury);
+    }
+
+    /// @dev The protocol half of the coverage floor, carried by construction rather than by luck.
+    ///
+    ///      `protocolSetMaxBondDuration` and `protocolSetGraceDays` above move
+    ///      `ghost_retunesUnderALiveBond` only when the draw happens to fall while some bond happens to
+    ///      still be live — two independent coincidences, exactly the shape the maturity leg was
+    ///      rebuilt to stop depending on. And a run can shut that state off for good: re-tune
+    ///      `maxBondDuration` to zero, warp, forfeit each bond in turn, and once `RANDOM_POST_CAP` is
+    ///      reached with nothing live, neither plain selector can ever count again. Such a run then
+    ///      fails `invariant_theRunActuallyAttackedALiveBond` no matter how long it continues.
+    ///
+    ///      This call carries its own live bond. If none is live it escrows one on a reserve slot the
+    ///      capped random `postBond` cannot consume, narrowing terms the walk pushed out of range
+    ///      first, and only then re-tunes — so a single draw counts from an empty walk, from the
+    ///      settled-and-capped trap, and with the terms out of range.
+    ///
+    ///      It escrows that reserve bond only while the floor is unmet, so it can ever add ONE
+    ///      instance to the per-call sweeps and no more. Past the floor it is an ordinary re-tune that
+    ///      counts only when a bond really was live, exactly as the two plain selectors do. The guard
+    ///      still measures the walk: it is satisfied only by calls the walk actually made.
+    function protocolRetunesUnderALiveBond(uint256 lever, uint256 v) external counted {
+        if (ghost_retunesUnderALiveBond == 0 && liveCount() == 0 && instances.length < RESERVE_CAP) {
+            _narrowTermsIntoRange();
+            _postFreshBond(bound(v, 1, 10 ether));
+        }
+
+        uint256 live = liveCount();
+        // The same two levers and the same bounds the plain selectors use — straddling the uint40 and
+        // uint32 narrowings in both directions — so the re-tune this lands is no gentler than one the
+        // random walk would have made under a live bond by chance.
+        if (lever % 2 == 0) {
+            vm.prank(owner);
+            escrow.setMaxBondDuration(bound(v, 0, uint256(type(uint40).max) + 1e6));
+        } else {
+            vm.prank(owner);
+            escrow.setGraceDays(bound(v, 0, uint256(type(uint32).max) + 1e3));
+        }
+        if (live > 0) ghost_retunesUnderALiveBond++;
     }
 
     // ── Creator actions ──────────────────────────────────────────────────────
@@ -227,20 +290,14 @@ contract BondDeadlineHandler is Test {
         }
 
         if (target == address(0)) {
-            // Nothing live. Post one on a slot the capped `postBond` above cannot consume, so this
-            // call keeps working after the random walk has spent every instance it is allowed.
-            if (instances.length >= 7) return;
-            // The walk is free to push the terms past what the record can hold, and `postBond` refuses
-            // outright there. Narrow them back — the owner's own lever, exercised no differently than
-            // `protocolSetMaxBondDuration` does — so a bond can always be escrowed here.
-            if (escrow.maxBondDuration() > type(uint40).max) {
-                vm.prank(owner);
-                escrow.setMaxBondDuration(180 days);
-            }
-            if (escrow.graceDays() > type(uint32).max) {
-                vm.prank(owner);
-                escrow.setGraceDays(30);
-            }
+            // Nothing live: escrow one, on a slot the capped `postBond` above cannot consume, so this
+            // call keeps working after the random walk has spent every instance it is allowed. Only
+            // while the floor is still unmet, though. That is the whole of what the guard asks for, and
+            // it bounds the instances this call can ever add to the per-call sweeps at ONE however long
+            // the walk runs — which is what leaves the retune sibling below a reserve slot of its own.
+            if (ghost_creatorMaturityWritesUnderALiveBond > 0) return;
+            if (instances.length >= RESERVE_CAP) return;
+            _narrowTermsIntoRange();
             target = _postFreshBond(bound(t, 1, 10 ether));
         }
 
@@ -311,12 +368,12 @@ contract DeployBondDeadlineInvariantTest is StdInvariant, Test {
     address internal factory = makeAddr("erc404Factory");
     address internal stranger = makeAddr("anyStranger");
 
-    /// @dev Call counts the two coverage invariants wait for. The walk picks uniformly from 14
+    /// @dev Call counts the two coverage invariants wait for. The walk picks uniformly from 15
     ///      selectors, so a post is overwhelmingly certain well inside 200 calls, and the paired attack
-    ///      state well inside 300 because one of those selectors —
-    ///      `creatorSetsMaturityUnderALiveBond` — reaches it on its own rather than needing two draws
-    ///      to coincide. Below the threshold they say nothing, so a shrunk replay of some other
-    ///      failure — a handful of calls long — stays readable instead of failing here.
+    ///      state well inside 300 because each half of it now has a selector that reaches it on its own
+    ///      — `creatorSetsMaturityUnderALiveBond` and `protocolRetunesUnderALiveBond` — rather than
+    ///      needing two draws to coincide. Below the threshold they say nothing, so a shrunk replay of
+    ///      some other failure — a handful of calls long — stays readable instead of failing here.
     uint256 internal constant COVERAGE_POSTS_AFTER = 200;
     uint256 internal constant COVERAGE_ATTACK_AFTER = 300;
 
@@ -334,7 +391,7 @@ contract DeployBondDeadlineInvariantTest is StdInvariant, Test {
 
         handler = new BondDeadlineHandler(escrow, owner, factory, address(treasury));
 
-        bytes4[] memory selectors = new bytes4[](14);
+        bytes4[] memory selectors = new bytes4[](15);
         selectors[0] = handler.postBond.selector;
         selectors[1] = handler.protocolSetMaxBondDuration.selector;
         selectors[2] = handler.protocolSetGraceDays.selector;
@@ -349,6 +406,7 @@ contract DeployBondDeadlineInvariantTest is StdInvariant, Test {
         selectors[11] = handler.forfeit.selector;
         selectors[12] = handler.postBond.selector; // weighted: every other action needs a bond to act on
         selectors[13] = handler.creatorSetsMaturityUnderALiveBond.selector;
+        selectors[14] = handler.protocolRetunesUnderALiveBond.selector;
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
         targetContract(address(handler));
     }
@@ -445,5 +503,177 @@ contract DeployBondDeadlineInvariantTest is StdInvariant, Test {
             1,
             "deploy bond: no creator maturity write ever landed under a live bond"
         );
+    }
+}
+
+/**
+ * @title  DeployBondCoverageIsReachableTest
+ * @notice The coverage floor in `invariant_theRunActuallyAttackedALiveBond` is worth exactly what its
+ *         REACHABILITY is worth, and that is not something an invariant run can report. A green run
+ *         says the floor was met on the seeds that ran; it never says the floor is met by construction,
+ *         and the difference is what turns a coverage guard into a coin toss that fails in CI on the
+ *         seed a laptop never drew.
+ *
+ *         So this drives the same handler by hand, with no fuzzing at all, into the state where the
+ *         floor is unreachable for every selector the handler carried before — every instance the
+ *         random `postBond` may create spent, the maturity sibling's reserve spent, every bond settled
+ *         — and then shows what each leg does from there: the plain re-tune draws move the counter not
+ *         at all however many are drawn, and one draw of `protocolRetunesUnderALiveBond` moves it.
+ */
+contract DeployBondCoverageIsReachableTest is Test {
+    DeployBondEscrow internal escrow;
+    ProtocolTreasuryV1 internal treasury;
+    MockWETH internal weth;
+    BondDeadlineHandler internal handler;
+
+    address internal owner = makeAddr("bondEscrowOwner");
+    address internal factory = makeAddr("erc404Factory");
+
+    /// @dev The same wiring and the same starting clock as the invariant harness above, so the states
+    ///      reached here are states that run can reach.
+    function setUp() public {
+        ProtocolTreasuryV1 impl = new ProtocolTreasuryV1();
+        bytes memory initData = abi.encodeWithSelector(ProtocolTreasuryV1.initialize.selector, owner);
+        treasury = ProtocolTreasuryV1(payable(address(new ERC1967Proxy(address(impl), initData))));
+
+        weth = new MockWETH();
+        escrow = new DeployBondEscrow(owner, factory, address(treasury), address(weth));
+        vm.warp(365 days);
+        handler = new BondDeadlineHandler(escrow, owner, factory, address(treasury));
+    }
+
+    /// @dev Every instance the capped random `postBond` is allowed, posted and then forfeited. The
+    ///      terms are zeroed FIRST, while nothing is live, so building the trap does not itself move
+    ///      the counter the probe is about — and with both at zero each bond is forfeitable one second
+    ///      after its own post.
+    function _spendTheRandomPosts() internal {
+        handler.protocolSetMaxBondDuration(0);
+        handler.protocolSetGraceDays(0);
+        assertEq(handler.ghost_retunesUnderALiveBond(), 0, "probe: zeroing the terms with nothing live counted");
+
+        for (uint256 i = 0; i < 6; i++) {
+            handler.postBond(i + 1);
+        }
+        assertEq(handler.postedCount(), 6, "probe: the capped random post did not fill its slots");
+
+        handler.warp(1);
+        for (uint256 i = 0; i < 6; i++) {
+            handler.forfeit(i);
+        }
+        assertEq(handler.liveCount(), 0, "probe: a random post is still live");
+        handler.postBond(7);
+        assertEq(handler.postedCount(), 6, "probe: the random post is not actually capped");
+    }
+
+    /// @dev The full trap: the above, plus the maturity sibling's own reserve slot spent the way a walk
+    ///      spends it. From here NOTHING the handler carried before this branch can put a bond back on
+    ///      the board, so no later draw of either plain re-tune selector can ever count again.
+    function _settledAndCapped() internal {
+        _spendTheRandomPosts();
+
+        handler.creatorSetsMaturityUnderALiveBond(0, 1 ether);
+        assertEq(handler.postedCount(), 7, "probe: the maturity sibling did not take its reserve slot");
+        handler.warp(1);
+        handler.forfeit(6);
+
+        assertEq(handler.liveCount(), 0, "probe: the trap is not fully settled");
+        assertEq(handler.ghost_retunesUnderALiveBond(), 0, "probe: the trap was built with the counter already moved");
+    }
+
+    /// @dev The state the guard used to lose in: dead, and dead permanently. 500 draws of each plain
+    ///      re-tune selector, interleaved with the post draw that would have to reopen it, move the
+    ///      counter not at all — so a run that wandered in here fails the coverage floor however long
+    ///      it continues, which is what CI hit and what eight local seeds happened not to.
+    function test_thePlainRetuneDrawsAreDeadInTheSettledAndCappedState() public {
+        _settledAndCapped();
+
+        for (uint256 i = 0; i < 500; i++) {
+            handler.postBond(i + 1);
+            handler.protocolSetMaxBondDuration(i);
+            handler.protocolSetGraceDays(i * 7 + 1);
+        }
+
+        assertEq(handler.ghost_retunesUnderALiveBond(), 0, "probe: a plain re-tune draw counted from the trap");
+        assertEq(handler.liveCount(), 0, "probe: a plain draw put a bond back on the board");
+        assertEq(handler.postedCount(), 7, "probe: a plain draw escrowed past the cap");
+    }
+
+    /// @dev The same trap, one draw of the new selector: the counter moves. It carries its own live
+    ///      bond in on the reserve slot, and the deadline of every bond already on the record — the
+    ///      property the whole file exists to check — is untouched by the re-tune it then lands.
+    function test_theRetuneLegCountsByConstructionFromTheSettledAndCappedState() public {
+        _settledAndCapped();
+
+        handler.protocolRetunesUnderALiveBond(0, 3 ether);
+
+        assertEq(handler.ghost_retunesUnderALiveBond(), 1, "probe: the by-construction re-tune did not count");
+        assertEq(handler.postedCount(), 8, "probe: it did not escrow the live bond it needed");
+        assertEq(handler.liveCount(), 1, "probe: the bond it escrowed is not live");
+        _assertNoPostedDeadlineMoved();
+
+        // Past the floor it escrows nothing further, and counts only because a bond really was live.
+        handler.protocolRetunesUnderALiveBond(1, 12 hours);
+        assertEq(handler.ghost_retunesUnderALiveBond(), 2, "probe: the second re-tune under a live bond did not count");
+        assertEq(handler.postedCount(), 8, "probe: it escrowed a second reserve bond");
+        _assertNoPostedDeadlineMoved();
+    }
+
+    /// @dev From an empty walk — no bond ever posted — a single draw still counts.
+    function test_theRetuneLegCountsFromAnEmptyWalk() public {
+        assertEq(handler.postedCount(), 0, "probe: the walk is not empty");
+
+        handler.protocolRetunesUnderALiveBond(0, 2 ether);
+
+        assertEq(handler.ghost_retunesUnderALiveBond(), 1, "probe: the first draw of the walk did not count");
+        assertEq(handler.postedCount(), 1, "probe: it did not escrow a bond to re-tune under");
+    }
+
+    /// @dev And with the terms pushed past what the bond record can hold, where `postBond` refuses
+    ///      outright: nothing the walk draws can escrow a bond there, so the plain selectors are dead
+    ///      for that reason too, and the new one narrows the terms back the way the owner would.
+    function test_theRetuneLegCountsWithTheTermsPushedOutOfRange() public {
+        handler.protocolSetMaxBondDuration(uint256(type(uint40).max) + 1);
+        handler.protocolSetGraceDays(uint256(type(uint32).max) + 1);
+
+        handler.postBond(1);
+        assertEq(handler.postedCount(), 0, "probe: a bond was escrowed with the terms out of range");
+
+        handler.protocolRetunesUnderALiveBond(0, 5 ether);
+
+        assertEq(handler.ghost_retunesUnderALiveBond(), 1, "probe: the draw did not count with the terms out of range");
+        assertEq(handler.postedCount(), 1, "probe: it did not narrow the terms back and escrow");
+    }
+
+    /// @dev The two by-construction calls share the reserve above `RANDOM_POST_CAP`, and each escrows
+    ///      at most one bond ever — so whichever is drawn first, the other still finds a slot. Without
+    ///      that bound the older sibling could take every reserve slot in turn and starve the new one.
+    function test_neitherByConstructionCallStarvesTheOther() public {
+        _spendTheRandomPosts();
+
+        handler.protocolRetunesUnderALiveBond(0, 4 ether);
+        assertEq(handler.postedCount(), 7, "probe: the re-tune sibling did not take a reserve slot");
+        assertEq(handler.ghost_retunesUnderALiveBond(), 1, "probe: the re-tune sibling did not count");
+
+        handler.warp(1);
+        for (uint256 i = 0; i < 7; i++) {
+            handler.forfeit(i);
+        }
+        assertEq(handler.liveCount(), 0, "probe: the board is not settled again");
+
+        handler.creatorSetsMaturityUnderALiveBond(0, 1 ether);
+        assertEq(handler.postedCount(), 8, "probe: the maturity sibling was starved of a reserve slot");
+        assertEq(handler.ghost_creatorMaturityWritesUnderALiveBond(), 1, "probe: the maturity sibling did not count");
+    }
+
+    function _assertNoPostedDeadlineMoved() internal view {
+        uint256 n = handler.postedCount();
+        for (uint256 i = 0; i < n; i++) {
+            address inst = handler.posted(i);
+            assertEq(
+                handler.deadlineOf(inst),
+                handler.ghost_deadlineAtPost(inst),
+                "probe: an already-posted bond's forfeit deadline moved"
+            );
+        }
     }
 }
