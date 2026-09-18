@@ -8,6 +8,9 @@ import { ERC404Factory } from "../../src/factories/erc404/ERC404Factory.sol";
 import { UniAlignmentVaultFactory } from "../../src/vaults/uni/UniAlignmentVaultFactory.sol";
 import { UniAlignmentVault } from "../../src/vaults/uni/UniAlignmentVault.sol";
 import { ZAMMAlignmentVaultFactory } from "../../src/vaults/zamm/ZAMMAlignmentVaultFactory.sol";
+import { AlignmentEndowmentVaultFactory } from "../../src/vaults/aave/AlignmentEndowmentVaultFactory.sol";
+import { CypherAlignmentVaultFactory } from "../../src/vaults/cypher/CypherAlignmentVaultFactory.sol";
+import { SafeOwnable } from "../../src/shared/SafeOwnable.sol";
 import { ZAMMAlignmentVault } from "../../src/vaults/zamm/ZAMMAlignmentVault.sol";
 import { ProtocolTreasuryV1 } from "../../src/treasury/ProtocolTreasuryV1.sol";
 import { ProtocolOwnedLiquidityV1 } from "../../src/treasury/ProtocolOwnedLiquidityV1.sol";
@@ -19,13 +22,13 @@ import { PoolKey } from "v4-core/types/PoolKey.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 import { IHooks } from "v4-core/interfaces/IHooks.sol";
 
-/// @notice Findings B (role renounce), C/D (seizable implementations), E (unreachable setters),
-///         F (renounce on the vault factories).
+/// @notice Findings B/L-2 (role renounce), C/D (seizable implementations), E/L-4 (unreachable
+///         setters), F/L-3 (renounce on the vault factories).
 contract AccessControlClusterTest is Test {
     address internal protocol = address(0xDA0);
     address internal attacker = address(0xBAD);
 
-    // ── B: renounceRoles destroys PROTOCOL_ROLE irrecoverably ──────────────────
+    // ── B / L-2: PROTOCOL_ROLE cannot be renounced out of existence ────────────
 
     function _factory() internal returns (ERC404Factory f) {
         // The constructor only non-zero-checks these; it makes no external calls.
@@ -44,7 +47,7 @@ contract AccessControlClusterTest is Test {
         );
     }
 
-    function test_B_renounceRolesBricksAllSixProtocolLevers() public {
+    function test_B_renounceRolesCannotDestroyProtocolRole() public {
         ERC404Factory f = _factory();
         uint256 ROLE = f.PROTOCOL_ROLE();
         assertTrue(f.hasAllRoles(protocol, ROLE), "protocol starts with the role");
@@ -55,33 +58,59 @@ contract AccessControlClusterTest is Test {
         vm.expectRevert(ERC404Factory.ProtocolRoleNotTransferable.selector);
         f.grantRoles(address(0xC0FFEE), ROLE);
 
-        // ... but solady's renounceRoles is left un-overridden. One ordinary call destroys it.
-        vm.prank(protocol);
-        f.renounceRoles(ROLE);
-        assertFalse(f.hasAnyRole(protocol, ROLE), "role destroyed");
-
-        // Nothing can restore it. grantRoles refuses; transferProtocolRole needs the role.
+        // ... and now the holder's own side too. Without this override one ordinary solady call
+        // destroyed the role for every address including the owner, with no way to re-grant it.
         vm.prank(protocol);
         vm.expectRevert(ERC404Factory.ProtocolRoleNotTransferable.selector);
-        f.grantRoles(protocol, ROLE);
+        f.renounceRoles(ROLE);
 
-        vm.prank(protocol);
-        vm.expectRevert(Ownable.Unauthorized.selector);
-        f.transferProtocolRole(protocol);
-
-        // Every PROTOCOL_ROLE lever is now dead for every address, the owner included.
+        // The role survives, and so does every lever it gates.
+        assertTrue(f.hasAllRoles(protocol, ROLE), "role intact");
         vm.startPrank(protocol);
-        vm.expectRevert(Ownable.Unauthorized.selector);
         f.setProtocolTreasury(address(0x7777));
-        vm.expectRevert(Ownable.Unauthorized.selector);
         f.setDeployBondEscrow(address(0x7777));
-        vm.expectRevert(Ownable.Unauthorized.selector);
         f.setWeth(address(0x7777));
-        vm.expectRevert(Ownable.Unauthorized.selector);
         f.setBondingFeeBps(1);
-        vm.expectRevert(Ownable.Unauthorized.selector);
         f.setMinPoolEth(1);
         vm.stopPrank();
+    }
+
+    /// @dev A renounce that bundles PROTOCOL_ROLE with anything else is refused whole — the guard is
+    ///      on the bitmask, so it cannot be slipped past by renouncing a superset in one call.
+    function test_B_renounceCannotSmuggleProtocolRoleInsideABiggerMask() public {
+        ERC404Factory f = _factory();
+        uint256 ROLE = f.PROTOCOL_ROLE();
+        uint256 OTHER = 1 << 200;
+
+        vm.prank(protocol);
+        f.grantRoles(protocol, OTHER);
+        assertTrue(f.hasAllRoles(protocol, OTHER));
+
+        vm.prank(protocol);
+        vm.expectRevert(ERC404Factory.ProtocolRoleNotTransferable.selector);
+        f.renounceRoles(ROLE | OTHER);
+        assertTrue(f.hasAllRoles(protocol, ROLE | OTHER), "neither role dropped");
+
+        // An unrelated role still renounces normally: the base behaviour is narrowed, not replaced.
+        vm.prank(protocol);
+        f.renounceRoles(OTHER);
+        assertFalse(f.hasAnyRole(protocol, OTHER), "unrelated role renounced");
+        assertTrue(f.hasAllRoles(protocol, ROLE), "PROTOCOL_ROLE untouched");
+    }
+
+    /// @dev The role is not frozen, only undestroyable: `transferProtocolRole` still hands it on.
+    function test_B_protocolRoleStillMovesToANewHolder() public {
+        ERC404Factory f = _factory();
+        uint256 ROLE = f.PROTOCOL_ROLE();
+        address successor = address(0xC0FFEE);
+
+        vm.prank(protocol);
+        f.transferProtocolRole(successor);
+
+        assertFalse(f.hasAnyRole(protocol, ROLE), "old holder released");
+        assertTrue(f.hasAllRoles(successor, ROLE), "new holder has it");
+        vm.prank(successor);
+        f.setBondingFeeBps(1);
     }
 
     // ── C: seizing a UUPS IMPLEMENTATION buys nothing ──────────────────────────
@@ -210,10 +239,10 @@ contract AccessControlClusterTest is Test {
         ZAMMAlignmentVault(payable(clone)).setProtocolTreasury(address(0xFEE));
     }
 
-    // ── F: renounceOwnership is reachable on the vault factories ───────────────
+    // ── F / L-3: the vault factories sit under the no-renounce policy ──────────
 
-    function test_F_renounceOnUniFactoryPermanentlyKillsSetVaultPoolKey() public {
-        UniAlignmentVaultFactory f = new UniAlignmentVaultFactory(
+    function _uniFactory() internal returns (UniAlignmentVaultFactory) {
+        return new UniAlignmentVaultFactory(
             address(0xE7),
             address(0x4444),
             address(0x5555),
@@ -224,12 +253,53 @@ contract AccessControlClusterTest is Test {
             IAlignmentRegistry(address(0)),
             address(0)
         );
-        assertEq(f.owner(), address(this));
+    }
 
-        // The nine UUPS contracts ban this (SafeOwnableUUPS.renounceOwnership reverts RenounceDisabled).
-        // The four vault factories sit outside that policy: solady Ownable's renounce is live.
+    function test_F_allFourVaultFactoriesRefuseRenounce() public {
+        UniAlignmentVaultFactory uni = _uniFactory();
+        ZAMMAlignmentVaultFactory zamm = new ZAMMAlignmentVaultFactory(
+            address(0x1111),
+            address(0x2222),
+            address(0xE7),
+            address(0xFEE),
+            IVaultPriceValidator(address(0)),
+            IAlignmentRegistry(address(0)),
+            address(0)
+        );
+        AlignmentEndowmentVaultFactory aave = new AlignmentEndowmentVaultFactory(
+            address(0xE7), address(0x57A7A), address(0xFEE), address(0x4444), IAlignmentRegistry(address(0))
+        );
+        CypherAlignmentVaultFactory cypher = new CypherAlignmentVaultFactory(
+            address(0xC0DE),
+            IVaultPriceValidator(address(0)),
+            address(0xA16),
+            address(0x2222),
+            address(0),
+            IAlignmentRegistry(address(0))
+        );
+
+        address[4] memory factories = [address(uni), address(zamm), address(aave), address(cypher)];
+        for (uint256 i; i < factories.length; i++) {
+            assertEq(Ownable(factories[i]).owner(), address(this), "deployer owns it");
+            vm.expectRevert(SafeOwnable.RenounceDisabled.selector);
+            Ownable(factories[i]).renounceOwnership();
+            assertEq(Ownable(factories[i]).owner(), address(this), "still owned after the refusal");
+
+            // The refusal is unconditional, so it is not a question of who is calling: the owner
+            // itself cannot renounce, and neither can anyone who ever came to hold the key.
+            vm.prank(attacker);
+            vm.expectRevert(SafeOwnable.RenounceDisabled.selector);
+            Ownable(factories[i]).renounceOwnership();
+        }
+    }
+
+    /// @dev The capability the renounce used to kill: with the factory still owned, the owner can
+    ///      wire a vault's pool key and deploy another vault. This is what L-3 cost permanently.
+    function test_F_uniFactoryStaysAbleToWireAndDeploy() public {
+        UniAlignmentVaultFactory f = _uniFactory();
+
+        vm.expectRevert(SafeOwnable.RenounceDisabled.selector);
         f.renounceOwnership();
-        assertEq(f.owner(), address(0), "factory ownerless");
 
         PoolKey memory k = PoolKey({
             currency0: Currency.wrap(address(0)),
@@ -239,25 +309,36 @@ contract AccessControlClusterTest is Test {
             hooks: IHooks(address(0))
         });
 
-        // No address can ever wire a pool key on any vault this factory deployed, and the factory
-        // is the only owner those vaults will ever have.
-        vm.expectRevert(Ownable.Unauthorized.selector);
+        // Reaches the vault rather than the owner gate: the call fails INSIDE the (nonexistent)
+        // vault, not with Unauthorized. That is the whole difference the fix makes.
+        vm.expectRevert();
         f.setVaultPoolKey(address(0x1234), k);
         vm.prank(attacker);
         vm.expectRevert(Ownable.Unauthorized.selector);
         f.setVaultPoolKey(address(0x1234), k);
-
-        // deployVault is onlyOwner too: the factory is fully inert.
-        vm.expectRevert(Ownable.Unauthorized.selector);
-        f.deployVault(bytes32(uint256(1)), address(0x9999), 1, IVaultPriceValidator(address(0)));
     }
 
-    /// @dev Control: the same call on a SafeOwnableUUPS contract is refused by policy.
+    /// @dev Single-step `transferOwnership` is deliberately kept — `script/MigrateOwnership.s.sol`
+    ///      hands these four to the governance Timelock with it, and a Timelock cannot broadcast
+    ///      solady's handover request leg. Narrowing this would break the documented migration.
+    function test_F_singleStepTransferIsStillAvailableForTheTimelockMigration() public {
+        UniAlignmentVaultFactory f = _uniFactory();
+        address timelock = address(0x71E10C4);
+        f.transferOwnership(timelock);
+        assertEq(f.owner(), timelock, "migration path intact");
+
+        // And the new owner inherits the same policy.
+        vm.prank(timelock);
+        vm.expectRevert(SafeOwnable.RenounceDisabled.selector);
+        f.renounceOwnership();
+    }
+
+    /// @dev Control: the UUPS contracts refuse it through the same `SafeOwnable` base.
     function test_F_control_uupsRenounceIsBanned() public {
         ProtocolTreasuryV1 t = new ProtocolTreasuryV1();
         t.initialize(address(this));
-        vm.expectRevert();
+        vm.expectRevert(SafeOwnable.RenounceDisabled.selector);
         t.renounceOwnership();
-        assertEq(t.owner(), address(this), "UUPS policy holds; the vault factories are the gap");
+        assertEq(t.owner(), address(this), "one policy, nine UUPS contracts and four vault factories");
     }
 }
