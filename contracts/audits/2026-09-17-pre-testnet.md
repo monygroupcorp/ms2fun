@@ -257,6 +257,18 @@ run against this configuration. The test's own comment shows the author knew why
 **Proof:** `test/audit/FreeMintCurveSolvency.t.sol` — 3 failing, 1 passing control (the same script
 at `allocation = 0`).
 
+**Ruled, 2026-09-17.** The finding above is as it was found, and the sentence in it that no longer
+holds is the one about `decisions.log`: the ruling now exists. The free-mint tranche is a design
+decision, accepted as designed and not a defect — the mechanism stands, and what was owed was
+describing it honestly on the three surfaces that did not. See §4.
+
+`test/audit/FreeMintCurveSolvency.t.sol` stays as written and stays skipped, and that is now a
+different thing from the other skipped proofs: it does not await a fix, because there will not be
+one. It asserts a solvency property the owner has ruled the protocol does not offer, so it is a
+record of the mechanism and not a defect ticket. The proofs that measure the ruled behaviour and run
+*inside* the gate arrive with #430 — `BondingCurveFreeMintInvariant.t.sol` and
+`FreeMintReserveDrain.t.sol`.
+
 ---
 
 ### MEDIUM
@@ -790,9 +802,11 @@ auditor's, and are named below with the shapes each could take.
 
 ### The one High
 
-**H-1 (free-mint curve solvency) is named for rth's ruling, not fixed on a branch.** This is the
-deliberate choice and the reason is that the two available fixes are different products, not
-different implementations:
+**H-1 (free-mint curve solvency) was named for rth's ruling rather than fixed on a branch, and on
+2026-09-17 he ruled: the free-mint tranche is a design decision, accepted as designed and not a
+defect.** Nothing under `src/` changes, and none of the three shapes below was taken. They are kept
+here because they are what the ruling was made against — the question was which product the protocol
+sells, not which implementation is correct:
 
 - **(a) Lock free-minted coin from `sellBonding` until graduation.** The tranche keeps its
   marketing function — holders get the NFT, the art, the tier — and loses its exit. Paid buyers are
@@ -805,21 +819,31 @@ different implementations:
 - **(c) Bound the allocation** so the extracted share stays under a stated tolerance, and keep the
   current behaviour below that bound.
 
-Each of those is an economic decision about what the protocol sells, and the realm's own record
-shows this class of question going to rth rather than to an auditor. What is *not* a judgment call,
-and should happen whichever way he rules:
+Each of those was an economic decision about what the protocol sells, which is why the finding went
+to rth rather than being settled by an auditor. What was *not* a judgment call was the three
+surfaces that described the mechanism wrongly or not at all, and a ruling of "as designed" is what
+makes describing it correctly the whole of the work. All three are done on branch
+`h1-free-mint-made-true`, **PR #430**:
 
-1. `app/src/lib/learn/concepts.ts:141` currently tells creators the ERC-404 allocation is "genuinely
-   held back… so paid buyers cannot eat into the free allocation." That sentence is false today.
-   Under (a) it becomes true; under (b) or (c) it must be rewritten.
-2. `docs/spec/BONDING_CURVE_ARITHMETIC.md:233-237` sizes the effect at 62% for a 10% allocation; the
-   measured figure is 42.5%.
-3. `test/invariant/BondingCurveInvariant.t.sol:175` should stop asserting
-   `freeMintAllocation == 0` once the configuration is defended, so the solvency invariants actually
-   cover it.
+1. `app/src/lib/learn/concepts.ts:141` told creators the ERC-404 allocation is "genuinely held back…
+   so paid buyers cannot eat into the free allocation" — true of supply, silent on ETH, and it
+   presented ERC-404 as the protected case while warning in detail about the ERC-1155 effects. It
+   now states the sizing, that circulating coin permanently exceeds what the curve can redeem by the
+   amount claimed, and that the resulting shortfall can leave paid buyers unable to sell at any
+   price.
+2. `docs/spec/BONDING_CURVE_ARITHMETIC.md:233-237` sized the effect at 62% for a 10% allocation
+   against a measured 42.5%. §7 now carries the sizing table, the band endpoints, the closed form,
+   the circulation identity, and the command that produces every number.
+3. `test/invariant/BondingCurveInvariant.t.sol:175` asserted `freeMintAllocation == 0`, so the two
+   strongest solvency invariants in the tree had never been evaluated against a configuration a
+   creator can select at create. The allocation is on there now, and a dedicated
+   `BondingCurveFreeMintInvariant.t.sol` runs the spec's 10% at production curve parameters —
+   `reserve == balance` and `reserve == F(totalBondingSupply)` both hold at zero tolerance over free
+   coin, and the excess of circulating coin over tracked supply is asserted rather than avoided.
 
-**No High is left both unfixed and unruled:** H-1 is named here for rth's ruling, with the failing
-proof committed and the three options costed.
+**No High is left both unfixed and unruled:** H-1 is ruled — designed, not a defect — with the proof
+that measures it committed, the three options it was ruled against costed above, and the three
+surfaces that misdescribed it corrected on #430.
 
 ### The five Mediums
 
