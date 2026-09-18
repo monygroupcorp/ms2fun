@@ -113,16 +113,35 @@ contract V4FrontRunGuardTest is Test {
         harness.initOrValidate(_key(), INTENDED);
     }
 
-    /// @notice Tolerance boundary: exactly 1% deviation passes; just beyond reverts.
+    /// @dev `sqrtPriceX96` at `bps` basis points of deviation ON PRICE — the axis the band measures.
+    ///      Price is the square of the root, so the root moves by `sqrt(1 + bps/10000)`.
+    function _atPriceDeviationBps(int256 bps) internal pure returns (uint160) {
+        uint256 ratioWad = uint256(int256(1e18) + bps * 1e18 / 10_000);
+        return uint160(uint256(INTENDED) * FixedPointMathLib.sqrt(ratioWad * 1e18) / 1e18);
+    }
+
+    /// @notice Tolerance boundary, ON PRICE: just inside 1% passes, just outside reverts.
     function test_v4_toleranceBoundary() public view {
-        uint160 atEdge = uint160(uint256(INTENDED) * 101 / 100); // +1.00%
-        harness.requireTol(atEdge, INTENDED); // must not revert
+        harness.requireTol(_atPriceDeviationBps(99), INTENDED); // must not revert
+        harness.requireTol(_atPriceDeviationBps(-99), INTENDED); // must not revert
     }
 
     function test_v4_toleranceJustOver_reverts() public {
-        uint160 over = uint160(uint256(INTENDED) * 101 / 100 + 1);
         vm.expectRevert(LiquidityDeployerModule.PoolPriceMismatch.selector);
-        harness.requireTol(over, INTENDED);
+        harness.requireTol(_atPriceDeviationBps(101), INTENDED);
+    }
+
+    function test_v4_toleranceJustUnder_reverts() public {
+        vm.expectRevert(LiquidityDeployerModule.PoolPriceMismatch.selector);
+        harness.requireTol(_atPriceDeviationBps(-101), INTENDED);
+    }
+
+    /// @notice THE REGRESSION. The band used to be measured on `sqrtPriceX96`, so +1% on the ROOT —
+    ///         which is +2.01% on price — sat exactly on the accepted edge. It is now refused, which is
+    ///         what makes `MAX_INIT_PRICE_DEVIATION_BPS = 100` mean what its name says (audit M-1).
+    function test_v4_onePercentOnTheRootIsNowRefused() public {
+        vm.expectRevert(LiquidityDeployerModule.PoolPriceMismatch.selector);
+        harness.requireTol(uint160(uint256(INTENDED) * 101 / 100), INTENDED);
     }
 }
 

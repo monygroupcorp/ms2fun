@@ -369,6 +369,15 @@ abstract contract ERC404BondingStorage is DN404, Ownable, ReentrancyGuard {
     ///         together, whatever the split between them turned out to be.
     event GraduationSupplyBurned(uint256 availableCoin, uint256 tokensToPool, uint256 burned);
 
+    /// @notice Coin the venue was OFFERED and declined, burned on its way back.
+    /// @dev A SECOND, distinct burn, and it has its own topic on purpose. `GraduationSupplyBurned`
+    ///      accounts for the coin the pool was never offered — its three fields sum, and a reader that
+    ///      saw this burn under that signature would find they no longer did. This one covers the coin
+    ///      the deployer module handed back because the venue's pool was already initialized away from
+    ///      the graduation price and took only one side in full (audit M-1, 2026-09-17). Zero on an
+    ///      ordinary graduation into a fresh pool, so the event does not appear at all.
+    event GraduationResidueBurned(uint256 burned);
+
     /// @notice How graduation sized the pool's ETH side. `ethToPool` is exactly the coin side valued at
     ///         the curve's marginal price at the moment of graduation. `excessEth` is LP-share ETH the
     ///         clamp could not place at that price because the instance held no more coin; it rides the

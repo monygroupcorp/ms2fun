@@ -310,6 +310,9 @@ Then apply the tolerance to price, or halve the constant, so the band matches it
 
 **Proof:** `test/audit/GraduationLpResidue.t.sol` — 5 failing across the three venues, plus a
 passing `test_v4_tolerance_isTwoPercentOnPrice` and a passing `test_v4_strandedEth_hasNoExit`.
+Rewritten onto the fixed behaviour when the fix landed (PR #434) and out of `foundry.toml`'s skip
+list: 14 tests, of which 9 of the 10 that still compile against the pre-fix source fail there. The
+tenth is the guard that no removal path was added, and it passes on both sides on purpose.
 
 #### M-2 · A conversion's unabsorbed ETH is owned by nobody, and mints shares for someone else
 
@@ -779,14 +782,16 @@ test/audit/AuctionTimeBufferLock.t.sol   (as it stands, against the merged guard
 
 ## 4. Disposition
 
-The line is careful: nothing here is merged. Every item below is either a branch with a PR open for
-rth's hand, or a named question for his ruling.
+The line is careful: nothing merges without rth's hand. Every item below is either a branch with a
+PR — open, or merged by him since — or a named question for his ruling.
 
-Two of the five Mediums carry fixes, chosen because each is a single guard with a sibling in this
-same tree that already has it — so the fix is a consistency repair rather than a new design:
-**#423** (`uni-vault-poolkey-lock`) and **#424** (`auction-timebuffer-bound`). Both are green on the
-full contracts gate. The other three, and the High, turn on decisions that are rth's rather than an
-auditor's, and are named below with the shapes each could take.
+All five Mediums now carry fixes. Two of them were written with the audit, because each is a single
+guard with a sibling in this same tree that already has it — a consistency repair rather than a new
+design: **#423** (`uni-vault-poolkey-lock`) and **#424** (`auction-timebuffer-bound`). The other
+three turned on decisions that were rth's rather than an auditor's, were named here with the shapes
+each could take, and were then taken: **#427** (M-2), **#426** (M-4) and **#434** (M-1). The High is
+still a ruling and is still unfixed, deliberately — see below. Every branch is green on the full
+contracts gate.
 
 ### The one High
 
@@ -825,7 +830,7 @@ proof committed and the three options costed.
 
 | # | finding | disposition |
 |---|---|---|
-| M-1 | graduation modules cannot return unconsumed LP capital (v4 197 bps) | **rth's ruling.** The fix routes the remainder back onto the 80/19/1 rail in-transaction and touches all three venue modules plus the tolerance constant. An owner sweep — the obvious shortcut — is forbidden by `LpLockInvariant.t.sol`'s `RemovalProbe` on purpose, so this needs a shape decision before code. The tolerance half (apply the band to price, or halve the constant) is a one-line change that can ship first and independently. |
+| M-1 | graduation modules cannot return unconsumed LP capital (v4 197 bps) | **fixed — branch `graduation-lp-residue`, PR #434.** All three venue modules now measure what their venue actually took — v4's settled delta, ZAMM's returned amounts, Cypher's `mint` return, all three of which were being discarded — and route the unconsumed ETH onto the 80/19/1 rail as a third diverted leg, reported apart from the caller's clamp residue because only the module can see it. Coin the venue declined goes back to the instance, which burns it under its own event topic: after graduation no path can move instance-held coin, so any other home is the same overhang at a different address. The init-price band is measured on PRICE on both v4 and Cypher, so the constant labelled 100 bps means it; and v4, which has no min-amount parameter to pass, asserts the siblings' 99% floor on the settled delta instead — with the ceiling they get for free from being pulled rather than pushed, both of them before the settle rather than after it. No removal entry point is added — the `RemovalProbe` still finds none, re-checked after a front-run graduation. The one backstop is `sweepUnconsumedCoin`, coin-only, permissionless and with no destination to choose, so it is not the owner sweep this row warned against and cannot touch the `pendingVaultCut` balance. Four fixtures had the strand written into them: the shared mock pool manager settled nothing by default, so suites read the module's retained balance as the pool's. |
 | M-2 | Uni vault conversion residue is unowned and mints shares for the wrong benefactor | **fixed — branch `uni-vault-conversion-residue`.** Ports `ZAMMAlignmentVault.sol:398-439` exactly: each benefactor's pro-rata share of the residual is carried back as their own `pendingETH`, they are re-registered as conversion participants, and the round-down remainder is settled on a `dustTaker` so `sum(pendingETH) == totalPendingETH` holds to the wei. The orphan the dust block used to hand a later batch's largest contributor no longer exists. The invariant suite is repaired on both counts — a reference pool so conversions actually run, and a settable absorption shortfall the fuzzer drives — and `afterInvariant` now asserts that coverage rather than assuming it. `invariant_noDilutionInversion` was restated: its cross-batch form is not a property of this vault. |
 | M-3 | `setV4PoolKey` bricks every fee path on a live vault | **fixed — branch `uni-vault-poolkey-lock`, PR #423.** Ports the `PoolKeyLocked()` guard the ZAMM sibling has carried since it was written, against this vault's own `totalLPUnits`. Wiring an unwired vault is untouched; both halves are pinned by tests. |
 | M-4 | a migrated vault traps the hook's queued fees forever | **fixed — branch `hook-queued-fees-exit`.** Both named shapes, arranged so neither adds a way to take the money. The hook now holds the master registry and answers to `deactivateVault`, the same lever `flushPendingVaultCut` already reads: `haltTithe()` is permissionless and stops the tax the moment the registry drops the vault, so nothing further is charged for a destination that no longer exists. `rescueQueuedFees(address)` is the owner's, but its destination must be a vault the registry currently curates and the credit goes to the hook's own immutable `benefactor` — so the owner chooses which curated vault, never whether to take it. Both refuse while the vault is still registered. |

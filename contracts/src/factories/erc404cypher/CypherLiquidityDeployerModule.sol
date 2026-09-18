@@ -16,6 +16,7 @@ import { Ownable } from "solady/auth/Ownable.sol";
 
 interface IWETH {
     function deposit() external payable;
+    function withdraw(uint256 wad) external;
 }
 
 /// @title CypherLiquidityDeployerModule
@@ -45,11 +46,16 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     error PoolPriceMismatch();
     /// @dev flushPendingVaultCut called for an instance with no stashed cut.
     error NoPendingVaultCut();
+    /// @dev sweepUnconsumedCoin called for an instance holding no stray coin here.
+    error NoUnconsumedCoin();
 
-    /// @notice Max deviation (bps) tolerated between an already-initialized pool's sqrtPriceX96 and
-    ///         the intended graduation price. 100 bps (1%) mirrors the 99/100 LP-min-slippage
-    ///         convention already used in this module. A larger gap means the pool was seeded by a
-    ///         front-runner at a skewed price — we revert (retryable) rather than mint LP into it.
+    /// @notice Max deviation (bps) tolerated between an already-initialized pool's PRICE and the
+    ///         intended graduation price. 100 bps (1%) mirrors the 99/100 LP-min-slippage convention
+    ///         already used in this module. A larger gap means the pool was seeded by a front-runner
+    ///         at a skewed price — we revert (retryable) rather than mint LP into it.
+    /// @dev The band is measured on price, which is `sqrtPriceX96` SQUARED — see
+    ///      `_requireSqrtPriceWithinTolerance`. Measuring it on the root instead is what made this
+    ///      constant mean 2% for as long as it was labelled 1%.
     uint256 public constant MAX_INIT_PRICE_DEVIATION_BPS = 100;
 
     address public immutable algebraFactory;
@@ -112,6 +118,21 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     ///      them is new revenue: a tithe report that saw a single event for both would double-count
     ///      every cut that was stashed once and returned later. This is the retry.
     event PendingVaultCutReturnedToCreator(address indexed vault, address indexed creator, uint256 amount);
+    /// @notice The LP capital the position manager did not take, and where it went. `ethTithed` was
+    ///         unwrapped and joined the 80/19/1 rail as a second `excessEth` leg; `coinReturned` went
+    ///         back to the graduating instance.
+    /// @dev Both are zero on an ordinary graduation into a fresh pool, and non-zero only when the pool
+    ///      was already initialized at a price inside `MAX_INIT_PRICE_DEVIATION_BPS` but not at the
+    ///      graduation price, which is the only case where a full-range mint binds on one side.
+    /// @dev `ethTithed` is its OWN leg on the rail, beside `CreatorCarvePaid` and
+    ///      `GraduationExcessTithed`, and the three sum to the graduation's whole diverted total. It is
+    ///      reported here rather than inside `GraduationExcessTithed` because it is the one leg the
+    ///      graduating instance cannot compute: the instance knows what its parity clamp could not
+    ///      place, and only this module learns what the venue then declined.
+    ///      Zero when there is no creator — that ETH went to the instance and rode no rail.
+    event GraduationResidueReturned(address indexed instance, uint256 ethTithed, uint256 coinReturned);
+    /// @notice Coin swept out of this module to the instance that graduated it.
+    event UnconsumedCoinSwept(address indexed instance, uint256 amount);
 
     struct PoolSetupResult {
         uint256 tokenId;
@@ -122,6 +143,9 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
         uint256 creatorCut; // 80% of carve → creator
         uint256 carvePaid; // effective gross diversion: carve + excess, post-clamp
         bool tokenIsZero;
+        uint256 residueTithed; // LP ETH the position manager declined, folded onto the rail here
+        uint256 ethUsed; // WETH the position manager actually took out of ethToLP
+        uint256 coinUsed; // coin the position manager actually took out of p.tokenReserve
     }
 
     /// @notice Deploy Algebra pool liquidity and register with vault.
@@ -139,6 +163,7 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
         if (p.token == address(0) || p.vault == address(0)) revert InvalidParams();
 
         PoolSetupResult memory r = _setupPool(p);
+        _returnResidue(p, r);
         _postMint(p, r);
     }
 
@@ -205,8 +230,13 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
         IERC20(p.token).approve(positionManager, p.tokenReserve);
         IERC20(weth).approve(positionManager, r.ethToLP);
 
+        // KEEP THE RETURN VALUES. `mint` takes up to `amountNDesired` of each side and stops at the
+        // pool's live price, so discarding `(amount0, amount1)` was the module never even observing
+        // what its own venue had declined to take.
         uint128 liquidity;
-        (r.tokenId, liquidity,,) = IAlgebraNFTPositionManager(positionManager)
+        uint256 used0;
+        uint256 used1;
+        (r.tokenId, liquidity, used0, used1) = IAlgebraNFTPositionManager(positionManager)
             .mint(
                 IAlgebraNFTPositionManager.MintParams({
                     token0: token0,
@@ -223,6 +253,7 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
                 })
             );
         if (liquidity == 0) revert ZeroLiquidity();
+        (r.coinUsed, r.ethUsed) = tokenIsZero ? (used0, used1) : (used1, used0);
     }
 
     // slither-disable-next-line arbitrary-send-eth,reentrancy-events,timestamp
@@ -284,10 +315,116 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
                 p.instance, p.creator, p.carveEth, r.carvePaid < p.carveEth ? r.carvePaid : p.carveEth
             );
         }
-        if (r.carvePaid > p.carveEth) {
-            emit GraduationExcessTithed(p.instance, r.carvePaid - p.carveEth);
+        // The CALLER's clamp residue, which is `r.carvePaid` less the carve and less the residue this
+        // module discovered for itself. Three legs now ride the rail and each event reports the one its
+        // own layer can see: the instance knows what its parity clamp could not place, and only the
+        // module knows what the venue then declined. `GraduationResidueReturned` carries that third
+        // leg, so the three figures sum to `r.carvePaid` exactly and none of them double-counts.
+        // Guarded, not subtracted blind: with `p.creator == address(0)` the split above zeroes the
+        // carve entirely while `p.carveEth` still carries the caller's request, so the difference runs
+        // backwards. That is the case `test_deployLiquidity_carve_zeroCreatorZeroesCarve` pins.
+        uint256 diverted = p.carveEth + r.residueTithed;
+        if (r.carvePaid > diverted) {
+            emit GraduationExcessTithed(p.instance, r.carvePaid - diverted);
         }
-        emit LiquidityDeployed(p.vault, r.pool, r.tokenId, r.ethToLP, p.tokenReserve);
+        // The DELIVERED legs, not the requested ones: `r.ethToLP` and `r.coinUsed` are what the
+        // position manager actually took. This is the figure indexers read for the graduated pool's
+        // opening depth, and it was reporting the request.
+        emit LiquidityDeployed(p.vault, r.pool, r.tokenId, r.ethToLP, r.coinUsed);
+    }
+
+    /// @dev Give the LP capital the position manager did not take an owner, in the same transaction
+    ///      that discovers it. This module is a SINGLETON shared by every ERC404 graduation on this
+    ///      venue, so anything left here is not merely locked, it is unattributable: it mixes with the
+    ///      next collection's money and with the `pendingVaultCut` stash. Two destinations, neither of
+    ///      them new:
+    ///
+    ///        * WETH is unwrapped and joins the 80/19/1 rail as a second `excessEth` leg — the same
+    ///          treatment the instance already gives LP-share ETH its own parity clamp could not place
+    ///          (`ERC404BondingOps.deployLiquidity`, noesis-188). It has to come back through
+    ///          `withdraw` because this module wraps the WHOLE LP leg up front, so the residue is WETH
+    ///          and the rail pays in ETH. `_titheResidue` re-runs the split with the residue folded
+    ///          into the diverted legs, so the figures `_postMint` pays out account for it.
+    ///        * Coin goes back to the graduating instance, which is the only address with any claim on
+    ///          it. The instance's own skipNFT is set at `_initializeDN404`, so this mints it no ids.
+    ///          Both leftover allowances are zeroed with it: what this module no longer holds must not
+    ///          stay spendable by the position manager.
+    ///
+    ///      NO REMOVAL PATH IS ADDED. The Algebra position NFT is the instance's and is untouched; this
+    ///      moves only what never entered the pool. `test/factories/LpLockInvariant.t.sol` pins that
+    ///      distinction by probing for removal-shaped selectors, and it still finds none.
+    ///
+    ///      With no creator the rail has no 80 leg to pay, so the ETH follows the coin to the instance
+    ///      rather than staying in the singleton — a strictly better home than this contract, and
+    ///      deliberately not a policy decision about what a renounced launch is owed (that is L-11).
+    function _returnResidue(ILiquidityDeployerModule.DeployParams calldata p, PoolSetupResult memory r) private {
+        uint256 ethResidue = r.ethToLP - r.ethUsed;
+        uint256 coinResidue = p.tokenReserve - r.coinUsed;
+
+        if (ethResidue != 0) {
+            IERC20(weth).approve(positionManager, 0);
+            IWETH(weth).withdraw(ethResidue);
+            if (p.creator == address(0)) {
+                SafeTransferLib.forceSafeTransferETH(p.instance, ethResidue);
+            } else {
+                _titheResidue(p, r, ethResidue);
+            }
+        }
+        if (coinResidue != 0) {
+            IERC20(p.token).approve(positionManager, 0);
+            SafeTransferLib.safeTransfer(p.token, p.instance, coinResidue);
+        }
+        if (ethResidue != 0 || coinResidue != 0) {
+            emit GraduationResidueReturned(p.instance, p.creator == address(0) ? 0 : ethResidue, coinResidue);
+        }
+        // From here on `r` describes the pool as it IS, not as it was sized. `_titheResidue` already
+        // lands `ethToLP` on this value; the no-creator branch has to be told.
+        r.ethToLP = r.ethUsed;
+    }
+
+    /// @dev Re-run the graduation split with `residueEth` added to the diverted legs, so every figure
+    ///      `_postMint` pays is computed against the ETH the pool actually took. The residue rides the
+    ///      rail rather than being paid out whole because it IS LP-share ETH: the 1% and 19% legs are
+    ///      levied on the full raise and the 80 is the creator's, and none of that changes because a
+    ///      front-runner moved the pool's price.
+    function _titheResidue(
+        ILiquidityDeployerModule.DeployParams calldata p,
+        PoolSetupResult memory r,
+        uint256 residueEth
+    ) private pure {
+        RevenueSplitLib.GraduationSplit memory g = RevenueSplitLib.splitGraduation(
+            p.ethReserve, p.carveEth + p.excessEth + residueEth, 0
+        );
+        r.protocolFee = g.protocolCut;
+        r.vaultCut = g.vaultCut;
+        r.creatorCut = g.creatorCut;
+        r.carvePaid = g.carveApplied;
+        r.ethToLP = g.ethForPool;
+        r.residueTithed = residueEth;
+    }
+
+    /// @notice Send an instance's coin sitting in this module back to that instance.
+    /// @dev The backstop behind `_returnResidue`, for coin a venue leaves here by a route the
+    ///      in-transaction return does not see. It is deliberately the COIN leg only, and deliberately
+    ///      has no destination parameter:
+    ///
+    ///        * PERMISSIONLESS AND UNDIRECTED. The destination is the argument's own identity — for
+    ///          ERC404 the instance IS the token, so `instance`'s coin can only ever go to `instance`.
+    ///          There is nothing for a caller to choose and so nothing for an owner to be trusted
+    ///          with; it is not the owner sweep the audit warns about, which is why it is not one.
+    ///        * NO ETH, AND NO WETH. An ETH sweep on this module would be a genuine new trust surface:
+    ///          the module custodies live graduation ETH and the `pendingVaultCut` stash, whose
+    ///          invariant is that the sum of every pending amount is covered by this balance. The WETH
+    ///          residue is unwrapped and routed in transaction instead, and no path here moves ETH that
+    ///          is not owed to a named payee.
+    ///        * NOT A REMOVAL PATH. The graduation position is an Algebra NFT owned by the instance,
+    ///          not a coin balance here, so this cannot reach it. Pinned by `LpLockInvariant.t.sol`.
+    /// @param instance The graduated ERC404 instance, which is also its own token.
+    function sweepUnconsumedCoin(address instance) external {
+        uint256 amount = SafeTransferLib.balanceOf(instance, address(this));
+        if (amount == 0) revert NoUnconsumedCoin();
+        SafeTransferLib.safeTransfer(instance, instance, amount);
+        emit UnconsumedCoinSwept(instance, amount);
     }
 
     /// @dev Front-run-safe pool acquisition. Returns a pool initialized at (or within tolerance of)
@@ -307,12 +444,26 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
         }
     }
 
-    /// @dev Reverts unless |existing - intended| / intended <= MAX_INIT_PRICE_DEVIATION_BPS / 10000.
+    /// @dev Reverts unless the existing pool's PRICE is within MAX_INIT_PRICE_DEVIATION_BPS of the
+    ///      intended graduation price.
+    ///
+    ///      MEASURED ON PRICE, NOT ON `sqrtPriceX96`. The band used to be applied to the square root,
+    ///      and price is its square, so a constant labelled 100 bps admitted -1.99%/+2.01% on the
+    ///      quantity that actually decides how much of each side the pool takes. The `amountNMin`
+    ///      floors below capped the damage here at 1% of a leg, but the label was still wrong by a
+    ///      factor of two, and it is the same defect the Uni V4 module carried uncapped.
+    ///
+    ///      The deviation on price is `|e^2 - i^2| / i^2 = diff*sum / i^2`, and both `diff*sum` and
+    ///      `i^2` overflow `uint256` at the top of the `uint160` range, so the comparison is taken one
+    ///      division early: `(diff*sum / i)*10000 <= i*bps`. `fullMulDiv` carries the intermediate at
+    ///      512 bits, so the only rounding is that single floor.
     function _requireSqrtPriceWithinTolerance(uint160 existingSqrtPriceX96, uint160 intendedSqrtPriceX96) private pure {
         uint256 diff = existingSqrtPriceX96 > intendedSqrtPriceX96
             ? existingSqrtPriceX96 - intendedSqrtPriceX96
             : intendedSqrtPriceX96 - existingSqrtPriceX96;
-        if (diff * 10_000 > uint256(intendedSqrtPriceX96) * MAX_INIT_PRICE_DEVIATION_BPS) {
+        uint256 sum = uint256(existingSqrtPriceX96) + intendedSqrtPriceX96;
+        uint256 deviation = FixedPointMathLib.fullMulDiv(diff, sum, intendedSqrtPriceX96);
+        if (deviation * 10_000 > uint256(intendedSqrtPriceX96) * MAX_INIT_PRICE_DEVIATION_BPS) {
             revert PoolPriceMismatch();
         }
     }

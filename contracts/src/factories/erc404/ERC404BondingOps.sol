@@ -713,6 +713,20 @@ contract ERC404BondingOps is ERC404BondingStorage {
             })
         );
 
+        // THE BURN, SECOND PASS. `_sizePoolAtCurvePrice` burned the coin the pool was never going to
+        // be offered; this burns the coin it was offered and DECLINED. A venue that finds its pool
+        // already initialized away from the graduation price takes only one side in full and hands the
+        // rest of the other back — the deployer modules now return it here rather than stranding it in
+        // a singleton (audit M-1, 2026-09-17). The destination has to be the burn for the same reason
+        // the first pass does: after `graduated` no path can move instance-held coin, so leaving it
+        // here is the same permanent unowned overhang under a different address. `_placeableCoin` nets
+        // out custodial coin, so this can only ever reach what just came back.
+        uint256 declined = _placeableCoin();
+        if (declined != 0) {
+            _burn(address(this), declined);
+            emit GraduationResidueBurned(declined);
+        }
+
         graduated = true;
         emit GraduationEthDiverted(ethForPool, excessEth, carveEth);
         emit LiquidityDeployed(address(liquidityDeployer), tokensForPool, ethToSend);
