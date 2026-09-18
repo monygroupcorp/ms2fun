@@ -65,7 +65,6 @@ contract CurationRegistry is ICurationRegistry {
     // └─────────────────────────┘
 
     /// @inheritdoc ICurationRegistry
-    // slither-disable-next-line timestamp
     function createCuration(string calldata uri) external returns (uint256 id) {
         if (!MetadataUtils.isValidURI(uri)) revert InvalidURI();
 
@@ -79,7 +78,6 @@ contract CurationRegistry is ICurationRegistry {
     }
 
     /// @inheritdoc ICurationRegistry
-    // slither-disable-next-line timestamp
     function setCurationURI(uint256 id, string calldata uri) external known(id) {
         Curation storage c = _curations[id];
         if (msg.sender != c.curator && !_collaborators[id][msg.sender]) revert NotEditor();
@@ -92,7 +90,6 @@ contract CurationRegistry is ICurationRegistry {
     }
 
     /// @inheritdoc ICurationRegistry
-    // slither-disable-next-line timestamp
     function setRetired(uint256 id, bool retired) external known(id) {
         Curation storage c = _curations[id];
         if (msg.sender != c.curator) revert NotCurator();

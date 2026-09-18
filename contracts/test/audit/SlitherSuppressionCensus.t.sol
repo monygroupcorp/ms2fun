@@ -38,7 +38,7 @@ contract SlitherSuppressionCensusTest is Test {
 
     /// @dev Number of `.sol` files discovered under `src`. Asserted so that a file — and therefore a
     ///      possible suppression — cannot be added or moved outside the census unnoticed.
-    uint256 internal constant EXPECTED_SOL_FILES = 89;
+    uint256 internal constant EXPECTED_SOL_FILES = 91;
 
     /// @dev Total `missing-zero-check` directives across `src`.
     uint256 internal constant EXPECTED_TOTAL = 20;
