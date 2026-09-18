@@ -110,6 +110,50 @@ describe('a feed that holds only endorsements', () => {
 })
 
 describe('home’s recent-activity preview', () => {
+  // The preview is a glimpse of the DISCOURSE room, so it threads the feed the way every other
+  // discourse surface does. Drawing the raw log instead made the landing page a register: an
+  // endorsement is an event but never a line — it folds into a count on the message it answers —
+  // so it came out as a byline and a verb with nothing said at all.
+  it('does not draw an endorsement as a post with nothing in it', () => {
+    feed.messages = [
+      post({ messageId: 1n, content: 'a considered thing' }),
+      post({ messageId: 7n, messageType: 3, refId: 1n, content: '' }),
+    ]
+
+    render(<ActivityPreview />)
+
+    const log = screen.getByTestId('home-activity')
+    expect(log).toHaveTextContent('a considered thing')
+    expect(log).not.toHaveTextContent('endorsed')
+  })
+
+  // A reply belongs under the post it answers. Drawn flat it reads as its own post, which is the
+  // salon's Activity register — a view you deliberately switch into, not the landing page.
+  it('does not draw a reply as a post of its own', () => {
+    feed.messages = [
+      post({ messageId: 1n, content: 'a considered thing' }),
+      post({ messageId: 8n, messageType: 1, refId: 1n, content: 'an answer to it' }),
+    ]
+
+    render(<ActivityPreview />)
+
+    const log = screen.getByTestId('home-activity')
+    expect(log).toHaveTextContent('a considered thing')
+    expect(log).not.toHaveTextContent('an answer to it')
+  })
+
+  // The count the zero-state measures against has to be in the units the transcript draws, or a
+  // board that only ever endorsed reads as one whose posts a filter is hiding.
+  it('reads a board holding only endorsements as empty, not as filtered', () => {
+    feed.messages = [post({ messageId: 7n, messageType: 3, refId: 1n, content: '' })]
+
+    render(<ActivityPreview />)
+
+    const state = screen.getByTestId('home-activity-empty')
+    expect(state).toHaveTextContent('be the first to post on the board')
+    expect(state).not.toHaveTextContent('nothing to show in this view')
+  })
+
   it('invites the first post when the board itself is empty', () => {
     render(<ActivityPreview />)
     expect(screen.getByTestId('home-activity-empty')).toHaveTextContent(
