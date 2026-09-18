@@ -58,6 +58,11 @@ export interface Addresses {
   AaveEndowmentVaultFactory: `0x${string}`
   ComponentRegistry: `0x${string}`
   ProfileRegistry: `0x${string}`
+  /**
+   * Curations (noesis curation-as-a-collector-act) — the one discovery surface a visitor reaches
+   * without deploying or paying. Ownerless and feeless, like ProfileRegistry beside it.
+   */
+  CurationRegistry: `0x${string}`
   AlignmentTargetRequestRegistry: `0x${string}`
   /** Metadata-resolution stack singletons (ADR-0006/0007). */
   MetadataResolverRouter: `0x${string}`
@@ -98,6 +103,7 @@ export const ADDRESS_KEYS = [
   'AaveEndowmentVaultFactory',
   'ComponentRegistry',
   'ProfileRegistry',
+  'CurationRegistry',
   'AlignmentTargetRequestRegistry',
   'MetadataResolverRouter',
   'MetadataOverlayModule',

@@ -22,6 +22,7 @@ function forgeRecord(overrides: Record<string, unknown> = {}) {
       DeployBondEscrow: address(7),
       ComponentRegistry: address(8),
       ProfileRegistry: address(9),
+      CurationRegistry: address(21),
       AlignmentTargetRequestRegistry: address(10),
       MetadataResolverRouter: address(11),
       MetadataOverlayModule: address(12),

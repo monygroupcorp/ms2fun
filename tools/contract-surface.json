@@ -31,6 +31,10 @@
       "artifact": "ProfileRegistry.sol"
     },
     {
+      "name": "CurationRegistry",
+      "artifact": "CurationRegistry.sol"
+    },
+    {
       "name": "GlobalMessageRegistry",
       "artifact": "GlobalMessageRegistry.sol"
     },
@@ -179,6 +183,10 @@
       "paths": [
         "app/src/routes/HomePage.tsx",
         "app/src/routes/CollectionsPage.tsx",
+        "app/src/routes/CurationsPage.tsx",
+        "app/src/routes/CurationPage.tsx",
+        "app/src/components/curation",
+        "app/src/lib/curation",
         "app/src/routes/LearnPage.tsx",
         "app/src/components/home",
         "app/src/components/CollectionsBrowse.tsx",

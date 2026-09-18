@@ -68,6 +68,48 @@ export interface AllowlistRow {
   listURI: string
 }
 
+/**
+ * One pick in a curation: a collection, or a single piece inside one.
+ *
+ * `instance` is the collection's deployed address, lowercased so two spellings of the same pick
+ * compare equal. `tokenId` empty means the pick IS the collection; a non-empty decimal string
+ * narrows it to one edition (ERC-1155) or token (ERC-721 / ERC-404) within that collection.
+ */
+export interface CurationItem {
+  instance: `0x${string}`
+  tokenId: string
+  /** The curator's own line about this pick. Optional, and usually the reason the set exists. */
+  note: string
+}
+
+/**
+ * Curation metadata behind `CurationRegistry.getCuration(id).uri`.
+ *
+ * The chain holds the curator, the timestamps and this pointer; everything a reader sees is here,
+ * so a curation of two pieces and a curation of two hundred cost the same to publish. Wire keys
+ * are ERC-7572-shaped where an equivalent exists (`name`, `description`, `image`) so an indexer
+ * that knows nothing about curations still reads a title and a cover; `items` is ours.
+ */
+export interface CurationMetadata {
+  schemaVersion: number
+  name: string
+  description: string
+  /** Cover image URI. A curation with no cover draws a mono glyph of its initial instead. */
+  image: string
+  items: CurationItem[]
+}
+
+/**
+ * Ceiling on the items one curation renders.
+ *
+ * The JSON is authored by anyone and fetched from a gateway that can answer anything, so an
+ * unbounded `items` array is a render-time denial of service on whoever opens the page — the
+ * detail view issues a batched on-chain read per window of picks. 200 is far above any set a
+ * person assembles by hand and far below a list that hangs a browser. Picks past it are dropped at
+ * parse, where every other untrusted-shape rule already lives.
+ */
+export const CURATION_MAX_ITEMS = 200
+
 // ── lenient coercion helpers ────────────────────────────────────────────────
 function str(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v : fallback
@@ -158,4 +200,56 @@ function allowlistRows(v: unknown): AllowlistRow[] | undefined {
 function externalLink(v: unknown): ProfileLink[] {
   const url = str(v)
   return HTTP_URL_RE.test(url) ? [{ label: 'Website', url }] : []
+}
+
+/** `0x` + 40 hex, the only shape an instance pointer may take. */
+const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/
+/** A token id as authored: decimal digits only, so it round-trips through `BigInt` and a route. */
+const TOKEN_ID_RE = /^[0-9]{1,78}$/
+
+/**
+ * Coerce arbitrary JSON into a safe CurationMetadata. Never throws.
+ *
+ * A malformed pick is DROPPED rather than repaired: a row whose `instance` is not an address names
+ * no collection, and there is nothing to render it as. Duplicates are dropped too — the same pick
+ * twice is one pick — keeping the first occurrence, so the curator's ordering survives.
+ */
+export function parseCuration(json: unknown): CurationMetadata {
+  const o = (json ?? {}) as Record<string, unknown>
+  return {
+    schemaVersion: num(o.schemaVersion, 1),
+    name: str(o.name),
+    description: str(o.description),
+    image: sanitizeImageUri(str(o.image)),
+    items: curationItems(o.items),
+  }
+}
+
+function curationItems(v: unknown): CurationItem[] {
+  if (!Array.isArray(v)) return []
+  const out: CurationItem[] = []
+  const seen = new Set<string>()
+  for (const raw of v) {
+    if (out.length >= CURATION_MAX_ITEMS) break
+    if (!raw || typeof raw !== 'object') continue
+    const r = raw as { instance?: unknown; tokenId?: unknown; note?: unknown }
+    const instance = str(r.instance).toLowerCase()
+    // The regex IS the proof of the `0x${string}` shape; asserting it here, once, is what keeps
+    // every consumer of a parsed pick free of address casts.
+    if (!ADDRESS_RE.test(instance)) continue
+    // A tokenId that is not a plain decimal cannot address a piece, but the collection behind it is
+    // still a real pick — so the row is kept and widened to the collection rather than dropped.
+    const rawTokenId = str(r.tokenId)
+    const tokenId = TOKEN_ID_RE.test(rawTokenId) ? rawTokenId : ''
+    const key = `${instance}#${tokenId}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({ instance: instance as `0x${string}`, tokenId, note: str(r.note) })
+  }
+  return out
+}
+
+/** The pick's identity, and the key every dedupe/compare in the app uses. */
+export function curationItemKey(item: CurationItem): string {
+  return `${item.instance.toLowerCase()}#${item.tokenId}`
 }

@@ -1,0 +1,74 @@
+.page {
+  composes: page from '../styles/layout.module.css';
+}
+
+.crumb {
+  margin-bottom: var(--space-4);
+}
+
+.back {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.back:hover {
+  color: var(--color-text);
+}
+
+/* The wall label: what it is called, who chose it, and why — in that order, with nothing between
+   the title and the byline, because attributing the selection IS the point of the surface. */
+.head {
+  margin-bottom: var(--space-5);
+}
+
+.title {
+  font-family: var(--brand-font-display);
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-tight);
+  margin: var(--space-1) 0 var(--space-2);
+}
+
+.by {
+  margin: 0;
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}
+
+.curator {
+  color: var(--color-text);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.note {
+  margin: var(--space-3) 0 0;
+  max-width: 60ch;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-relaxed);
+  color: var(--color-text);
+}
+
+.ownerBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-sm);
+  margin-bottom: var(--space-4);
+}
+
+.ownerHint {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}
+
+.composer {
+  border: 1px solid var(--border-secondary);
+  padding: var(--space-4);
+}

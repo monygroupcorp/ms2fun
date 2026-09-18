@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { ALLOW_REMOTE_HTTP_URIS } from './untrusted'
-import { parseCollection, parseProfile } from './schemas'
+import {
+  CURATION_MAX_ITEMS,
+  curationItemKey,
+  parseCollection,
+  parseCuration,
+  parseProfile,
+} from './schemas'
 
 // ── parseProfile ──────────────────────────────────────────────────────────────
 
@@ -334,5 +340,87 @@ describe('untrusted URI allowlist at parse time', () => {
   it('treats a remote http(s) image per the ALLOW_REMOTE_HTTP_URIS ruling', () => {
     const remote = 'https://tracker.example/pixel.png'
     expect(parseCollection({ image: remote }).image).toBe(ALLOW_REMOTE_HTTP_URIS ? remote : '')
+  })
+})
+
+// ── curations ────────────────────────────────────────────────────────────────
+
+describe('parseCuration', () => {
+  const A = '0x111111111111111111111111111111111111aaaa'
+  const B = '0x222222222222222222222222222222222222bbbb'
+
+  it('reads a well-formed curation', () => {
+    const c = parseCuration({
+      schemaVersion: 1,
+      name: 'Blues',
+      description: 'Everything that stopped me.',
+      image: 'ipfs://QmCover',
+      items: [{ instance: A, tokenId: '7', note: 'the one' }, { instance: B }],
+    })
+    expect(c.name).toBe('Blues')
+    expect(c.description).toBe('Everything that stopped me.')
+    expect(c.image).toBe('ipfs://QmCover')
+    expect(c.items).toEqual([
+      { instance: A, tokenId: '7', note: 'the one' },
+      { instance: B, tokenId: '', note: '' },
+    ])
+  })
+
+  it('never throws on junk', () => {
+    expect(parseCuration(null).items).toEqual([])
+    expect(parseCuration('nope').name).toBe('')
+    expect(parseCuration({ items: 'not-an-array' }).items).toEqual([])
+    expect(parseCuration({ items: [null, 3, 'x'] }).items).toEqual([])
+  })
+
+  it('lowercases instances so a checksummed pick and a lowercased one are one pick', () => {
+    const c = parseCuration({
+      items: [{ instance: '0x111111111111111111111111111111111111AAAA' }, { instance: A }],
+    })
+    expect(c.items).toEqual([{ instance: A, tokenId: '', note: '' }])
+  })
+
+  it('drops a pick whose instance is not an address', () => {
+    const c = parseCuration({
+      items: [{ instance: 'bluechips' }, { instance: '0xdead' }, { instance: A }],
+    })
+    expect(c.items).toEqual([{ instance: A, tokenId: '', note: '' }])
+  })
+
+  /** A junk token id loses the piece, not the collection behind it. */
+  it('widens a pick with an unusable token id to the whole collection', () => {
+    const c = parseCuration({ items: [{ instance: A, tokenId: '0x04' }] })
+    expect(c.items).toEqual([{ instance: A, tokenId: '', note: '' }])
+  })
+
+  it('keeps the same collection twice when the picks are different pieces', () => {
+    const c = parseCuration({
+      items: [
+        { instance: A, tokenId: '1' },
+        { instance: A, tokenId: '2' },
+        { instance: A, tokenId: '1' },
+      ],
+    })
+    expect(c.items.map((i) => i.tokenId)).toEqual(['1', '2'])
+  })
+
+  it('refuses a cover the URI allowlist does not admit', () => {
+    expect(parseCuration({ image: 'javascript:alert(1)' }).image).toBe('')
+  })
+
+  it('caps an unbounded item list at CURATION_MAX_ITEMS', () => {
+    const items = Array.from({ length: CURATION_MAX_ITEMS + 50 }, (_, i) => ({
+      instance: `0x${i.toString(16).padStart(40, '0')}`,
+    }))
+    expect(parseCuration({ items }).items).toHaveLength(CURATION_MAX_ITEMS)
+  })
+})
+
+describe('curationItemKey', () => {
+  it('separates a whole-collection pick from a piece in the same collection', () => {
+    const instance = '0x111111111111111111111111111111111111aaaa'
+    expect(curationItemKey({ instance, tokenId: '', note: '' })).not.toBe(
+      curationItemKey({ instance, tokenId: '0', note: '' }),
+    )
   })
 })

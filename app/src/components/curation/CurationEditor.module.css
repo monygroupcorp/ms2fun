@@ -1,0 +1,180 @@
+/* The authoring form. Shares the profile form's field vocabulary (mono, square, hairline borders)
+   because it is the same kind of surface: an owner editing their own record. What is particular to
+   a curation is the pick list — an ordered set the curator reorders in place. */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  font-family: var(--font-mono);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.label {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.count {
+  font-weight: var(--font-weight-regular);
+  color: var(--text-tertiary);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.input {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body);
+  color: var(--text-primary);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-none);
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color var(--transition-fast);
+  outline: none;
+}
+
+.input:focus {
+  border-color: var(--border-primary);
+}
+
+.input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.input:disabled {
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+}
+
+.textarea {
+  composes: input;
+  resize: vertical;
+  line-height: var(--line-height-relaxed);
+}
+
+/* ── picks ─────────────────────────────────────────────────────────────────── */
+
+.picks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border: 1px dashed var(--border-secondary);
+  padding: var(--space-3);
+  margin: 0;
+  min-width: 0;
+}
+
+/* Name / piece-number / add, on one line until the row runs out of room. `.input` is width:100%,
+   so each field resets its basis here or the first one claims the row. */
+.adder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-sm);
+}
+
+.adder .input {
+  flex: 1 1 12rem;
+  width: auto;
+  min-width: 0;
+}
+
+.tokenInput {
+  flex: 0 0 5rem !important;
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--text-tertiary);
+  line-height: var(--line-height-relaxed);
+}
+
+.pickError {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-error, var(--text-primary));
+}
+
+.pickList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.pick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border-left: 2px solid var(--border-secondary);
+  padding-left: var(--space-2);
+}
+
+.pickHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-sm);
+  min-width: 0;
+}
+
+.pickName {
+  font-size: var(--font-size-body);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pickPiece {
+  color: var(--text-tertiary);
+}
+
+.pickActions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-1);
+}
+
+.iconButton {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body);
+  line-height: 1;
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+}
+
+.iconButton:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--border-secondary);
+}
+
+.iconButton:disabled {
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--gap-sm);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-secondary);
+}

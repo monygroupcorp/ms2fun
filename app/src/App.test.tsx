@@ -14,6 +14,9 @@ test('renders the app shell with the canonical nav', () => {
   expect(screen.getByRole('link', { name: 'COLLECTIONS' })).toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'BOARD' })).toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'LAUNCH' })).toBeInTheDocument()
+  // CURATIONS is top-level, not a footer link: it is the one discovery surface a visitor reaches
+  // without deploying a collection or buying a featured slot.
+  expect(screen.getByRole('link', { name: 'CURATIONS' })).toBeInTheDocument()
 })
 
 test('the shell carries a build-identity stamp', () => {

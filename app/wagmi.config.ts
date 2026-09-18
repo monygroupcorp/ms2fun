@@ -20,6 +20,7 @@ export default defineConfig({
         'GlobalMessageRegistry.sol/**',
         'ComponentRegistry.sol/**',
         'ProfileRegistry.sol/**',
+        'CurationRegistry.sol/**',
         'QueryAggregator.sol/**',
         'FeaturedQueueManager.sol/**',
         'ProtocolTreasuryV1.sol/ProtocolTreasuryV1.json',

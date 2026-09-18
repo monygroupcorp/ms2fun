@@ -13,13 +13,19 @@ import { queryClient } from './lib/queryClient'
 import { PERSIST_BUSTER, PERSIST_MAX_AGE, queryPersister } from './lib/queryPersister'
 // HomePage stays eager — it's the landing route, so we don't want a chunk round-trip before first
 // paint. Every other page is a lazy chunk (route code-splitting, ADR-0010) fetched on navigation,
-// so the initial bundle is just the shell + web3 core, not all 13 pages.
+// so the initial bundle is just the shell + web3 core, not every page.
 import { HomePage } from './routes/HomePage'
 const Exec404Page = lazy(() =>
   import('./routes/Exec404Page').then((m) => ({ default: m.Exec404Page })),
 )
 const CollectionsPage = lazy(() =>
   import('./routes/CollectionsPage').then((m) => ({ default: m.CollectionsPage })),
+)
+const CurationsPage = lazy(() =>
+  import('./routes/CurationsPage').then((m) => ({ default: m.CurationsPage })),
+)
+const CurationPage = lazy(() =>
+  import('./routes/CurationPage').then((m) => ({ default: m.CurationPage })),
 )
 const ProfilePage = lazy(() =>
   import('./routes/ProfilePage').then((m) => ({ default: m.ProfilePage })),
@@ -124,8 +130,11 @@ function NoesisLogo() {
 
 /** The site's primary navigation. NOESIS nav (ADR-019 base COLLECTIONS · BOARD · LAUNCH · CONNECT),
  * plus VAULTS (S3) so the alignment vaults / TVL surface is discoverable — a TVL page nobody can
- * reach defeats the point. LAUNCH stays the single black filled CTA — the platform's job is to get
- * creators to launch. The wallet button (CONNECT) is rendered alongside in the header. PROFILE / PORTFOLIO are
+ * reach defeats the point, and CURATIONS, which is here for the same reason: it is the one
+ * discovery surface a visitor reaches without deploying a collection or buying a featured slot, and
+ * a wall that has to be linked from a footer is a wall nobody stands in front of.
+ * LAUNCH stays the single black filled CTA — the platform's job is to get creators to launch.
+ * The wallet button (CONNECT) is rendered alongside in the header. PROFILE / PORTFOLIO are
  * reached via the connected wallet (the merged profile plate); the EXEC404 fossil is linked from
  * Home; ADMIN stays owner-only. Rendered twice — desktop top bar + mobile overlay — so the link set
  * lives in one place. `linkClassName` styles each link for its context; `ctaClassName` (desktop)
@@ -143,6 +152,9 @@ function NavLinks({
     <>
       <Link href="/collections" className={linkClassName} onClick={onNavigate}>
         COLLECTIONS
+      </Link>
+      <Link href="/curations" className={linkClassName} onClick={onNavigate}>
+        CURATIONS
       </Link>
       <Link href="/board" className={linkClassName} onClick={onNavigate}>
         BOARD
@@ -259,6 +271,8 @@ function AppShell() {
                   <Route path="/exec404" component={Exec404Page} />
                   <Route path="/launch" component={WizardPage} />
                   <Route path="/collections" component={CollectionsPage} />
+                  <Route path="/curations" component={CurationsPage} />
+                  <Route path="/curation/:id" component={CurationPage} />
                   <Route path="/board" component={BoardPage} />
                   <Route path="/vaults" component={VaultsPage} />
                   <Route path="/target/:id" component={TargetPage} />

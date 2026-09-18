@@ -468,6 +468,7 @@ async function main(): Promise<void> {
       AaveEndowmentVaultFactory: required(f, 'AAVE'),
       ComponentRegistry: required(c, 'ComponentRegistry'),
       ProfileRegistry: required(c, 'ProfileRegistry'),
+      CurationRegistry: required(c, 'CurationRegistry'),
       AlignmentTargetRequestRegistry: required(c, 'AlignmentTargetRequestRegistry'),
       // Metadata-resolution stack singletons (ADR-0006/0007) — the wizard lists them live via
       // ComponentRegistry, but surfacing the addresses here lets e2e/tests reach them directly.

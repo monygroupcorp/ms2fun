@@ -2323,6 +2323,195 @@ export const componentRegistryAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// CurationRegistry
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const curationRegistryAbi = [
+  {
+    type: 'function',
+    inputs: [
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'who', internalType: 'address', type: 'address' },
+    ],
+    name: 'canEdit',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
+    name: 'createCuration',
+    outputs: [{ name: 'id', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'curator', internalType: 'address', type: 'address' }],
+    name: 'curationIdsOf',
+    outputs: [{ name: '', internalType: 'uint256[]', type: 'uint256[]' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'id', internalType: 'uint256', type: 'uint256' }],
+    name: 'getCuration',
+    outputs: [
+      {
+        name: '',
+        internalType: 'struct ICurationRegistry.Curation',
+        type: 'tuple',
+        components: [
+          { name: 'curator', internalType: 'address', type: 'address' },
+          { name: 'updatedAt', internalType: 'uint64', type: 'uint64' },
+          { name: 'retired', internalType: 'bool', type: 'bool' },
+          { name: 'uri', internalType: 'string', type: 'string' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'ids', internalType: 'uint256[]', type: 'uint256[]' }],
+    name: 'getCurations',
+    outputs: [
+      {
+        name: 'out',
+        internalType: 'struct ICurationRegistry.Curation[]',
+        type: 'tuple[]',
+        components: [
+          { name: 'curator', internalType: 'address', type: 'address' },
+          { name: 'updatedAt', internalType: 'uint64', type: 'uint64' },
+          { name: 'retired', internalType: 'bool', type: 'bool' },
+          { name: 'uri', internalType: 'string', type: 'string' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'offset', internalType: 'uint256', type: 'uint256' },
+      { name: 'limit', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'latestCurations',
+    outputs: [
+      { name: 'ids', internalType: 'uint256[]', type: 'uint256[]' },
+      {
+        name: 'curations',
+        internalType: 'struct ICurationRegistry.Curation[]',
+        type: 'tuple[]',
+        components: [
+          { name: 'curator', internalType: 'address', type: 'address' },
+          { name: 'updatedAt', internalType: 'uint64', type: 'uint64' },
+          { name: 'retired', internalType: 'bool', type: 'bool' },
+          { name: 'uri', internalType: 'string', type: 'string' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'collaborator', internalType: 'address', type: 'address' },
+      { name: 'allowed', internalType: 'bool', type: 'bool' },
+    ],
+    name: 'setCollaborator',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'uri', internalType: 'string', type: 'string' },
+    ],
+    name: 'setCurationURI',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'retired', internalType: 'bool', type: 'bool' },
+    ],
+    name: 'setRetired',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'totalCurations',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'id', internalType: 'uint256', type: 'uint256', indexed: true },
+      {
+        name: 'collaborator',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'allowed', internalType: 'bool', type: 'bool', indexed: false },
+    ],
+    name: 'CurationCollaboratorSet',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'id', internalType: 'uint256', type: 'uint256', indexed: true },
+      {
+        name: 'curator',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'uri', internalType: 'string', type: 'string', indexed: false },
+    ],
+    name: 'CurationCreated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'id', internalType: 'uint256', type: 'uint256', indexed: true },
+      { name: 'retired', internalType: 'bool', type: 'bool', indexed: false },
+    ],
+    name: 'CurationRetired',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'id', internalType: 'uint256', type: 'uint256', indexed: true },
+      {
+        name: 'editor',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'uri', internalType: 'string', type: 'string', indexed: false },
+    ],
+    name: 'CurationUpdated',
+  },
+  { type: 'error', inputs: [], name: 'InvalidCollaborator' },
+  { type: 'error', inputs: [], name: 'InvalidURI' },
+  { type: 'error', inputs: [], name: 'NotCurator' },
+  { type: 'error', inputs: [], name: 'NotEditor' },
+  { type: 'error', inputs: [], name: 'UnknownCuration' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // CurveParamsComputer
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -17747,6 +17936,194 @@ export const useWatchComponentRegistryUpgradedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: componentRegistryAbi,
     eventName: 'Upgraded',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curationRegistryAbi}__
+ */
+export const useReadCurationRegistry = /*#__PURE__*/ createUseReadContract({
+  abi: curationRegistryAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curationRegistryAbi}__ and `functionName` set to `"canEdit"`
+ */
+export const useReadCurationRegistryCanEdit =
+  /*#__PURE__*/ createUseReadContract({
+    abi: curationRegistryAbi,
+    functionName: 'canEdit',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curationRegistryAbi}__ and `functionName` set to `"curationIdsOf"`
+ */
+export const useReadCurationRegistryCurationIdsOf =
+  /*#__PURE__*/ createUseReadContract({
+    abi: curationRegistryAbi,
+    functionName: 'curationIdsOf',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curationRegistryAbi}__ and `functionName` set to `"getCuration"`
+ */
+export const useReadCurationRegistryGetCuration =
+  /*#__PURE__*/ createUseReadContract({
+    abi: curationRegistryAbi,
+    functionName: 'getCuration',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curationRegistryAbi}__ and `functionName` set to `"getCurations"`
+ */
+export const useReadCurationRegistryGetCurations =
+  /*#__PURE__*/ createUseReadContract({
+    abi: curationRegistryAbi,
+    functionName: 'getCurations',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curationRegistryAbi}__ and `functionName` set to `"latestCurations"`
+ */
+export const useReadCurationRegistryLatestCurations =
+  /*#__PURE__*/ createUseReadContract({
+    abi: curationRegistryAbi,
+    functionName: 'latestCurations',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curationRegistryAbi}__ and `functionName` set to `"totalCurations"`
+ */
+export const useReadCurationRegistryTotalCurations =
+  /*#__PURE__*/ createUseReadContract({
+    abi: curationRegistryAbi,
+    functionName: 'totalCurations',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link curationRegistryAbi}__
+ */
+export const useWriteCurationRegistry = /*#__PURE__*/ createUseWriteContract({
+  abi: curationRegistryAbi,
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link curationRegistryAbi}__ and `functionName` set to `"createCuration"`
+ */
+export const useWriteCurationRegistryCreateCuration =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: curationRegistryAbi,
+    functionName: 'createCuration',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link curationRegistryAbi}__ and `functionName` set to `"setCollaborator"`
+ */
+export const useWriteCurationRegistrySetCollaborator =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: curationRegistryAbi,
+    functionName: 'setCollaborator',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link curationRegistryAbi}__ and `functionName` set to `"setCurationURI"`
+ */
+export const useWriteCurationRegistrySetCurationUri =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: curationRegistryAbi,
+    functionName: 'setCurationURI',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link curationRegistryAbi}__ and `functionName` set to `"setRetired"`
+ */
+export const useWriteCurationRegistrySetRetired =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: curationRegistryAbi,
+    functionName: 'setRetired',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link curationRegistryAbi}__
+ */
+export const useSimulateCurationRegistry =
+  /*#__PURE__*/ createUseSimulateContract({ abi: curationRegistryAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link curationRegistryAbi}__ and `functionName` set to `"createCuration"`
+ */
+export const useSimulateCurationRegistryCreateCuration =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: curationRegistryAbi,
+    functionName: 'createCuration',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link curationRegistryAbi}__ and `functionName` set to `"setCollaborator"`
+ */
+export const useSimulateCurationRegistrySetCollaborator =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: curationRegistryAbi,
+    functionName: 'setCollaborator',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link curationRegistryAbi}__ and `functionName` set to `"setCurationURI"`
+ */
+export const useSimulateCurationRegistrySetCurationUri =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: curationRegistryAbi,
+    functionName: 'setCurationURI',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link curationRegistryAbi}__ and `functionName` set to `"setRetired"`
+ */
+export const useSimulateCurationRegistrySetRetired =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: curationRegistryAbi,
+    functionName: 'setRetired',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link curationRegistryAbi}__
+ */
+export const useWatchCurationRegistryEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: curationRegistryAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link curationRegistryAbi}__ and `eventName` set to `"CurationCollaboratorSet"`
+ */
+export const useWatchCurationRegistryCurationCollaboratorSetEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: curationRegistryAbi,
+    eventName: 'CurationCollaboratorSet',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link curationRegistryAbi}__ and `eventName` set to `"CurationCreated"`
+ */
+export const useWatchCurationRegistryCurationCreatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: curationRegistryAbi,
+    eventName: 'CurationCreated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link curationRegistryAbi}__ and `eventName` set to `"CurationRetired"`
+ */
+export const useWatchCurationRegistryCurationRetiredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: curationRegistryAbi,
+    eventName: 'CurationRetired',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link curationRegistryAbi}__ and `eventName` set to `"CurationUpdated"`
+ */
+export const useWatchCurationRegistryCurationUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: curationRegistryAbi,
+    eventName: 'CurationUpdated',
   })
 
 /**

@@ -1,0 +1,33 @@
+/* A curation tile is a collection tile wearing a different label, so it leaves the `.noesis-card`
+   device (vendored signature.css) exactly as the collection grid does and only fills the `.art`
+   tile with the curation's cover — or a centered mono glyph where the curator set none. */
+
+.art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface-2);
+  overflow: hidden;
+}
+
+.artImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.artFallback {
+  font-family: var(--brand-font-display);
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-bold);
+  /* --color-text-subtle (#999) on the #f5f5f5 tile is ~2.5:1 — washed out. Muted (#666) reads
+     as a deliberate placeholder without competing with real art cards. */
+  color: var(--color-text-muted);
+}
+
+.labMain {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}

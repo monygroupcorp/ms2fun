@@ -5,6 +5,7 @@ import { useAccount } from 'wagmi'
 import { ProfileView } from '../components/ProfileView'
 import { ProfileEditForm } from '../components/ProfileEditForm'
 import { CreatorCollections } from '../components/CreatorCollections'
+import { CuratorShelf } from '../components/curation/CuratorShelf'
 import { MessageFeed } from '../components/MessageFeed'
 import { MessageComposer } from '../components/MessageComposer'
 import { useProfileMetadata } from '../components/useProfileMetadata'
@@ -83,7 +84,7 @@ export function ProfilePage() {
   // Held / Vaults tabs read the target's portfolio (own or a visitor's — the aggregator is
   // address-parameterized). The plate leads with the work, so Made is the default tab.
   const portfolio = usePortfolio(target)
-  const [tab, setTab] = useState<'made' | 'held' | 'vaults'>('made')
+  const [tab, setTab] = useState<'made' | 'curated' | 'held' | 'vaults'>('made')
 
   const [editing, setEditing] = useState(false)
 
@@ -207,6 +208,13 @@ export function ProfilePage() {
             </button>
             <button
               type="button"
+              className={`${styles.tab} ${tab === 'curated' ? styles.tabOn : ''}`}
+              onClick={() => setTab('curated')}
+            >
+              Curated
+            </button>
+            <button
+              type="button"
               className={`${styles.tab} ${tab === 'held' ? styles.tabOn : ''}`}
               onClick={() => setTab('held')}
             >
@@ -225,6 +233,11 @@ export function ProfilePage() {
             {tab === 'made' && (
               <div data-testid="profile-collections">
                 <CreatorCollections creator={target} />
+              </div>
+            )}
+            {tab === 'curated' && (
+              <div data-testid="profile-curations">
+                <CuratorShelf curator={target} isOwn={isOwn} />
               </div>
             )}
             {tab === 'held' && (
