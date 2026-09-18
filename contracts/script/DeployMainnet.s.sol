@@ -2,40 +2,24 @@
 pragma solidity ^0.8.20;
 
 import { DeployCore } from "./DeployCore.sol";
+import { MainnetAddresses } from "./MainnetAddresses.sol";
 
 /// @notice Mainnet deployment — populate _mainnetConfig() before use.
 ///         Run with: forge script script/DeployMainnet.s.sol --account <keystore> \
 ///                   --rpc-url mainnet --broadcast --verify
 ///
+///         Every external address this deploys against is stated in `script/MainnetAddresses.sol`
+///         and read from there, because `DeployAnvil` rehearses this deploy on a mainnet fork and
+///         reads the same file. What is left here is what mainnet-the-deployment CHOOSES rather
+///         than inherits: the salts, the governance Safe, the roster, and the oracle/pool params.
+///
 /// TODO before mainnet launch:
-///   1. Mine vanity CREATE3 salts for deployer address
+///   1. Mine vanity CREATE3 salts for the broadcasting address (script/salt-miner), and assert that
+///      address in run() the way DeploySepolia asserts SepoliaSalts.DEPLOYER — CreateX reverts
+///      `InvalidSalt` for any other sender, and a mismatch should surface in simulation.
 ///   2. Set real alignment targets (token addresses, vault flags)
-///   3. Set cfg.safe to the real Gnosis Safe address
+///   3. Set cfg.safe to the real Gnosis Safe address — address(0) deploys a MockSafe
 contract DeployMainnet is DeployCore {
-    address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address constant V4_PM = 0x000000000004444c5dc75cB358380D2e3dE08A90;
-    address constant V3_FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-    address constant V2_FACTORY = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
-
-    // ── ZAMM singleton (canonical CREATE2 deployment) — V1. Verified on a mainnet fork to answer the
-    //    IZAMM.addLiquidity surface the ZAMMLiquidityDeployerModule compiles against (see
-    //    test/fork/LaunchDeployerGraduationFork.t.sol). V0 is 0x00000000000008882D72EfA6cCE4B6a40b24C860.
-    address constant ZAMM_V1 = 0x000000000000040470635EB91b7CE4D132D616eD;
-    // ── zRouter canonical aggregator singleton — set so DeployCore reuses it instead of `new zRouter()`.
-    address constant ZROUTER = 0x000000000000FB114709235f1ccBFfb925F600e4;
-    // ── zQuoter canonical best-route quoter — the `getQuotes` lens every vault factory is wired against,
-    //    so an alignment buy takes the deepest venue instead of its fixed family pool. This is the Ethereum
-    //    deployment of `lib/zRouter/src/zQuoter.sol`, whose NINE-member AMM enum is the one
-    //    `BestRouteAcquirer` range-checks the returned source word against. The Base deployment
-    //    (`lib/zRouter/base/zQuoter.sol`, 0x772E2810A471dB2CC7ADA0d37D6395476535889a) answers a different
-    //    six-member enum and is NOT interchangeable with it.
-    address constant ZQUOTER = 0x0180Fe9Ae92Cd04dA670F974DE9d928EA69CfA66;
-    // ── Cypher / Algebra (Ethereum mainnet). The launch deployer's ctor takes exactly
-    //    (algebraFactory, positionManager/NFPM, weth); the swapRouter feeds the Cypher alignment vault.
-    address constant CYPHER_ALGEBRA_FACTORY = 0xfb8Ed3485EfA29a0e4bed93351dD51B59fC4b0f0;
-    address constant CYPHER_NFPM = 0x0a984a446A116335ac90425d2D1E69A7199A2f7c;
-    address constant CYPHER_SWAP_ROUTER = 0x20C5893f69F635f55b0367C519F3f95e59c0b0Ab;
-
     function run() public {
         vm.startBroadcast();
         deploy(msg.sender, _mainnetConfig());
@@ -47,16 +31,22 @@ contract DeployMainnet is DeployCore {
         // TODO: populate targets
 
         cfg.chainId = 1;
-        cfg.weth = WETH;
-        cfg.v4PoolManager = V4_PM;
-        cfg.v3Factory = V3_FACTORY;
-        cfg.v2Factory = V2_FACTORY;
-        cfg.cypherPositionManager = CYPHER_NFPM;
-        cfg.cypherRouter = CYPHER_SWAP_ROUTER;
-        cfg.cypherAlgebraFactory = CYPHER_ALGEBRA_FACTORY;
-        cfg.zamm = ZAMM_V1;
-        cfg.zrouter = ZROUTER;
-        cfg.zQuoter = ZQUOTER;
+        cfg.weth = MainnetAddresses.WETH;
+        cfg.v4PoolManager = MainnetAddresses.V4_POOL_MANAGER;
+        cfg.v3Factory = MainnetAddresses.V3_FACTORY;
+        cfg.v2Factory = MainnetAddresses.V2_FACTORY;
+        cfg.cypherPositionManager = MainnetAddresses.CYPHER_POSITION_MANAGER;
+        cfg.cypherRouter = MainnetAddresses.CYPHER_SWAP_ROUTER;
+        cfg.cypherAlgebraFactory = MainnetAddresses.CYPHER_ALGEBRA_FACTORY;
+        cfg.zamm = MainnetAddresses.ZAMM_V1;
+        // The Aave endowment family. Unset gates the family off entirely (`DeployCore` treats a zero
+        // stataToken as "this network has no endowment rail"), which is how it came to be missing
+        // here while the mainnet-fork rehearsal wired it — the same omission noesis-404 found on
+        // Sepolia. `cfg.aaveWeth` stays unset on purpose: this token's `asset()` IS canonical WETH,
+        // so the field resolves back to `cfg.weth` and `deploy()` asserts the match.
+        cfg.aaveStataToken = MainnetAddresses.WETH_STATA_TOKEN;
+        cfg.zrouter = MainnetAddresses.ZROUTER;
+        cfg.zQuoter = MainnetAddresses.ZQUOTER;
         cfg.safe = address(0); // TODO: real Safe address
         cfg.saltMasterRegistry = bytes32(0); // TODO: mine vanity salts
         cfg.saltTreasury = bytes32(0);

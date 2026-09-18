@@ -5,13 +5,13 @@ import { IZAMM, ZAMMAlignmentVault } from "./ZAMMAlignmentVault.sol";
 import { IVaultPriceValidator } from "../../interfaces/IVaultPriceValidator.sol";
 import { IAlignmentRegistry } from "../../master/interfaces/IAlignmentRegistry.sol";
 import { CreateXSalt, ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
-import { Ownable } from "solady/auth/Ownable.sol";
+import { SafeOwnable } from "../../shared/SafeOwnable.sol";
 
 /// @title ZAMMAlignmentVaultFactory
 /// @notice Deploys ZAMMAlignmentVault clones via CREATE3. No peripherals — just zamm + zRouter singletons.
 ///         The factory owns every vault it deploys, so post-deploy pool-key wiring routes through
 ///         setVaultPoolKey (onlyOwner), mirroring UniAlignmentVaultFactory.
-contract ZAMMAlignmentVaultFactory is Ownable {
+contract ZAMMAlignmentVaultFactory is SafeOwnable {
     address public immutable vaultImplementation;
     address public immutable zamm;
     address public immutable zRouter;

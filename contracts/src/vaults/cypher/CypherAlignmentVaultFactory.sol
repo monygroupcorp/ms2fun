@@ -5,7 +5,7 @@ import { CypherAlignmentVault } from "./CypherAlignmentVault.sol";
 import { IVaultPriceValidator } from "../../interfaces/IVaultPriceValidator.sol";
 import { IAlignmentRegistry } from "../../master/interfaces/IAlignmentRegistry.sol";
 import { CreateXSalt, ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
-import { Ownable } from "solady/auth/Ownable.sol";
+import { SafeOwnable } from "../../shared/SafeOwnable.sol";
 
 /// @title CypherAlignmentVaultFactory
 /// @notice Deploys CypherAlignmentVault clones via CREATE3. Shared acquisition/registry config
@@ -15,7 +15,7 @@ import { Ownable } from "solady/auth/Ownable.sol";
 /// @dev The factory is the owner of every vault it deploys, so the vaults' onlyOwner setters
 ///      (setPriceValidator/setMaxPriceDeviationBps) are only reachable through the owner-gated
 ///      passthroughs below — mirroring UniAlignmentVaultFactory.setVaultPoolKey.
-contract CypherAlignmentVaultFactory is Ownable {
+contract CypherAlignmentVaultFactory is SafeOwnable {
     /// @notice A constructor argument that must never be zero was zero.
     error InvalidAddress();
 

@@ -6,13 +6,13 @@ import { IVaultPriceValidator } from "../../interfaces/IVaultPriceValidator.sol"
 import { IAlignmentRegistry } from "../../master/interfaces/IAlignmentRegistry.sol";
 import { PoolKey } from "v4-core/types/PoolKey.sol";
 import { CreateXSalt, ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
-import { Ownable } from "solady/auth/Ownable.sol";
+import { SafeOwnable } from "../../shared/SafeOwnable.sol";
 
 /// @title UniAlignmentVaultFactory
 /// @notice Deploys UniAlignmentVault clones; zRouter config is shared across all vaults.
 ///         The factory is the owner of every vault it deploys, so pool key configuration
 ///         must go through setVaultPoolKey (onlyOwner) rather than calling the vault directly.
-contract UniAlignmentVaultFactory is Ownable {
+contract UniAlignmentVaultFactory is SafeOwnable {
     address public immutable vaultImplementation;
     IVaultPriceValidator public immutable defaultPriceValidator;
     IAlignmentRegistry public immutable alignmentRegistry;

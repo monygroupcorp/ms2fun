@@ -51,12 +51,16 @@ contract MockV3DepthFactory {
 ///         reference the manipulable spot price is cross-checked against, so a dust / single-wei pool with
 ///         attacker-controlled `observe` cumulatives cannot drive the guard.
 ///
-///         Selection is observed through the deviation guard itself: the reference pool carries a mean tick
-///         far from the spot price, so IF it is selected the spot-vs-TWAP proportion difference exceeds the
-///         5% band and the call reverts `SwapProportionDeviationTooHigh`. A reference that is skipped leaves
-///         `twapValid` false, the deviation branch does not run, and the call returns the clamped spot
-///         proportion. A bounded, symmetric range at spot tick 0 sits at 50% by value — inside the
-///         [35%,65%] clamp — so the clamp does not mask whether the deviation guard ran.
+///         Selection is observed through the deviation guards themselves: the reference pool carries a mean
+///         tick far from the spot price, so IF it is selected the call reverts. A reference that is skipped
+///         leaves no TWAP at all, no deviation check runs, and the call returns the clamped spot proportion.
+///         A bounded, symmetric range at spot tick 0 sits at 50% by value — inside the [35%,65%] clamp — so
+///         the clamp does not mask whether a deviation guard ran.
+///
+///         The error that revert carries is `SpotTwapPriceDeviationTooHigh` since audit L-7: a 5900-tick
+///         gap is ~80% of price, so the price band is what reaches it first. That is a change of observation
+///         channel and not of subject — this file is about which pool becomes the reference, and a revert
+///         from either guard says the same thing about selection.
 contract ValidatorTwapGuardTest is Test {
     address constant WETH = address(0x1111);
     address constant TOKEN = address(0xBEEF);
@@ -107,7 +111,7 @@ contract ValidatorTwapGuardTest is Test {
     function test_deepPool_isSelectedAsReference() public {
         factory.set(3000, address(new MockV3DepthPool(DEEP_LIQUIDITY, FAR_REFERENCE_TICK)));
 
-        vm.expectRevert(UniswapVaultPriceValidator.SwapProportionDeviationTooHigh.selector);
+        vm.expectRevert(UniswapVaultPriceValidator.SpotTwapPriceDeviationTooHigh.selector);
         _swapProportionAtSpotZero();
     }
 
@@ -120,7 +124,7 @@ contract ValidatorTwapGuardTest is Test {
         factory.set(3000, address(new MockV3DepthPool(FLOOR - 1, FAR_REFERENCE_TICK)));
         factory.set(500, address(new MockV3DepthPool(DEEP_LIQUIDITY, FAR_REFERENCE_TICK)));
 
-        vm.expectRevert(UniswapVaultPriceValidator.SwapProportionDeviationTooHigh.selector);
+        vm.expectRevert(UniswapVaultPriceValidator.SpotTwapPriceDeviationTooHigh.selector);
         _swapProportionAtSpotZero();
     }
 
@@ -131,7 +135,7 @@ contract ValidatorTwapGuardTest is Test {
     function test_exactlyAtFloor_qualifies() public {
         factory.set(3000, address(new MockV3DepthPool(FLOOR, FAR_REFERENCE_TICK)));
 
-        vm.expectRevert(UniswapVaultPriceValidator.SwapProportionDeviationTooHigh.selector);
+        vm.expectRevert(UniswapVaultPriceValidator.SpotTwapPriceDeviationTooHigh.selector);
         _swapProportionAtSpotZero();
     }
 

@@ -51,6 +51,7 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     error ReferencePoolNotCanonical();
     /// @notice No canonical factory is configured for this reference kind on this deployment.
     error ReferenceKindUnavailable();
+    error ReferenceTwapWindowTooShort(uint32 window, uint32 minimum);
     error InvalidMetadataURI();
     error CommunityPayoutAlreadySet();
     error CommunityPayoutNotSet();
@@ -64,6 +65,22 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
 
     /// @notice Default TWAP window (seconds) used when a `ReferencePool.twapWindow` is left at 0.
     uint32 internal constant DEFAULT_TWAP_WINDOW = 1800;
+
+    /// @notice Shortest TWAP window a reference pool may be pinned over.
+    /// @dev The pin is the vaults' only real price floor, and the property it is quoted for is
+    ///      "a price an attacker cannot move within a single transaction". A window's whole
+    ///      contribution to that property is its LENGTH: a one-second window averages over at most
+    ///      one block, so the average IS a spot read and the floor becomes as manipulable as the
+    ///      pool. Everything else the setter checks — factory provenance, the pair, that the oracle
+    ///      answers — is about WHICH pool is read, and none of it bounds that.
+    ///
+    ///      300 seconds is the floor rather than the target. It spans ~25 mainnet blocks, so an
+    ///      attacker holding the price away from the market must pay the arbitrage for every one of
+    ///      them, and it is short enough to leave the owner's real choices untouched: the default is
+    ///      1800 and the shortest window pinned anywhere in this tree is 600. It is a floor under a
+    ///      governance mistake, not a statement that 300 is deep enough for any given pair — depth
+    ///      stays the pinning owner's judgement, exactly as the setter's docstring says of "deep".
+    uint32 internal constant MIN_TWAP_WINDOW = 300;
 
     /// @notice Canonical WETH, injected at deploy. It is the mandatory counter-asset of every reference pool:
     ///         the anti-sandwich floor denominates in ETH, so a reference pool's other side MUST be WETH or its
@@ -480,6 +497,10 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
      *      "Deep" in this function's name is an instruction to the owner, NOT a property the code checks. A
      *      canonical pool can still be thin or freshly seeded; nothing here measures liquidity. What is
      *      enforced is origin, and depth stays the pinning owner's judgement.
+     *
+     *      The one magnitude that IS enforced is the window: it must be at least `MIN_TWAP_WINDOW`. Origin
+     *      says which pool is read; only the window's length says over how long, and a window of a single
+     *      block turns the average into the spot price the pin exists to avoid quoting.
      * @param targetId ID of the alignment target (must exist and be active)
      * @param token    Token that must already belong to the target
      * @param ref      Reference pool: `pool`, `kind` (0 = Uniswap V3, 1 = Algebra), `twapWindow`
@@ -494,6 +515,10 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
         if (ref.kind > 1) revert InvalidReferenceKind();
 
         uint32 window = ref.twapWindow == 0 ? DEFAULT_TWAP_WINDOW : ref.twapWindow;
+        // Checked on the RESOLVED window, so the `0` shorthand is measured against the same floor as an
+        // explicit value rather than slipping past it. `DEFAULT_TWAP_WINDOW` clears the floor by
+        // construction, so the shorthand is never what this rejects.
+        if (window < MIN_TWAP_WINDOW) revert ReferenceTwapWindowTooShort(window, MIN_TWAP_WINDOW);
         if (ref.kind == 0) {
             _probeUniswapReference(ref.pool, token, window);
         } else {

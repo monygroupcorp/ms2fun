@@ -17,16 +17,15 @@ import { PoolModifyLiquidityTest } from "../../lib/v4-core/src/test/PoolModifyLi
 import { UniAlignmentV4Hook } from "../../src/factories/erc404/hooks/UniAlignmentV4Hook.sol";
 import { IAlignmentVault } from "../../src/interfaces/IAlignmentVault.sol";
 
-/// @notice Audit PoC (cluster item C): `UniAlignmentV4Hook` never binds the `PoolKey` it is handed to
-///         the pool it was deployed for. Anyone can `initialize` a SECOND ETH-paired pool on the same
-///         hook address and have its swaps titled to this launch's benefactor.
+/// @notice Audit L-6: `UniAlignmentV4Hook` never bound the `PoolKey` it was handed to the pool it was
+///         deployed for. It checked `currency0 == address(0)` and nothing else, so anyone could
+///         `initialize` a SECOND ETH-paired pool on the same hook address and have its swaps tithed to
+///         this launch's benefactor.
 ///
-///         This test establishes that the surface is REACHABLE and then tests the filing's own
-///         disclaimer — "there is no drain because the take is exactly offset". The decisive
-///         measurement is ETH conservation across the PoolManager: if the hook's `take()` on the
-///         rogue pool were not fully charged back to that pool's swapper, the PoolManager's ETH
-///         (which backs EVERY native pool it holds, the real launch pool included) would fall by
-///         more than the rogue swapper paid in.
+///         This file began as the PoC for that and now pins the fix: the hook is deployed against a
+///         pool (`poolToken`, `poolTickSpacing` are constructor arguments) and refuses every other key,
+///         so a rogue pool can still be initialized on the hook's address but can never swap through it.
+///         Each test here is red against the pre-fix contract.
 contract HookSecondPoolNotBoundTest is Test {
     using StateLibrary for PoolManager;
     using PoolIdLibrary for PoolKey;
@@ -57,12 +56,17 @@ contract HookSecondPoolNotBoundTest is Test {
     address internal constant DUMMY_REGISTRY = address(0x5EE9);
     uint256 internal constant HOOK_FEE_BIPS = 100; // 1%
     uint24 internal constant LP_FEE_RATE = 3000;
+    int24 internal constant POOL_TICK_SPACING = 60;
 
     function setUp() public {
         manager = new PoolManager(address(this));
         swapRouter = new PoolSwapTest(manager);
         modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
         vault = new RecordingVault();
+
+        // The launch's coin is deployed FIRST: since the L-6 fix the hook binds the pool it serves, so
+        // `currency1` is a constructor argument and has to exist before the hook does.
+        address realTokenPredicted = address(new TestToken());
 
         address hookAddr = address((uint160(0x7733) << 14) | uint160(0x00CC));
         deployCodeTo(
@@ -75,13 +79,15 @@ contract HookSecondPoolNotBoundTest is Test {
                 benefactorInstance,
                 HOOK_FEE_BIPS,
                 LP_FEE_RATE,
-                DUMMY_REGISTRY
+                DUMMY_REGISTRY,
+                address(realTokenPredicted),
+                POOL_TICK_SPACING
             ),
             hookAddr
         );
         hook = UniAlignmentV4Hook(payable(hookAddr));
 
-        realToken = new TestToken();
+        realToken = TestToken(realTokenPredicted);
         rogueToken = new TestToken();
 
         realPool = _key(address(realToken), hookAddr);
@@ -102,7 +108,7 @@ contract HookSecondPoolNotBoundTest is Test {
             currency0: CurrencyLibrary.ADDRESS_ZERO,
             currency1: Currency.wrap(token),
             fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
-            tickSpacing: 60,
+            tickSpacing: POOL_TICK_SPACING,
             hooks: IHooks(hookAddr)
         });
     }
@@ -111,12 +117,18 @@ contract HookSecondPoolNotBoundTest is Test {
         return PoolSwapTest.TestSettings({ takeClaims: false, settleUsingBurn: false });
     }
 
-    /// @dev PART 1 — the surface is real: nothing stops a stranger opening a second pool on this hook
-    ///      and crediting its tithe to the launch's benefactor.
-    ///      PART 2 — the claim under test: doing so drains nothing. ETH conservation across the
-    ///      PoolManager is asserted to the wei.
-    function test_secondPoolOnSameHook_isReachable_butDrainsNothing() public {
-        // ── PART 1: an outsider opens a rogue ETH/rogueToken pool on the very same hook ──
+    /// @dev THE FINDING, now pinned as closed. An outsider can still `initialize` a rogue ETH-paired
+    ///      pool naming this hook — `beforeInitialize` is not one of the hook's permission bits and
+    ///      adding it would change the address the hook must be mined to — but the pool is inert: its
+    ///      first swap reverts `PoolNotBound`, so nothing is ever taken from the PoolManager and nothing
+    ///      is ever credited to the launch's benefactor.
+    ///
+    ///      Before the fix this test measured the OTHER half of the finding instead: the rogue swap went
+    ///      through, its tithe was credited to the launch's benefactor, and ETH conservation across the
+    ///      PoolManager held to the wei (crediting the benefactor 0.1 ETH cost the attacker 3.61 ETH) —
+    ///      a donation surface, never a farm, which is why L-6 is a Low. That measurement is what the
+    ///      revert now makes unreachable, so it is recorded here rather than asserted.
+    function test_secondPoolOnSameHook_cannotSwap() public {
         roguePool = _key(address(rogueToken), address(hook));
 
         vm.deal(attacker, 1_000 ether);
@@ -124,7 +136,7 @@ contract HookSecondPoolNotBoundTest is Test {
         rogueToken.mint(attacker, 1_000_000 ether);
         rogueToken.approve(address(modifyLiquidityRouter), type(uint256).max);
 
-        manager.initialize(roguePool, SQRT_PRICE_1_1); // no gate: beforeInitialize is not a hook permission
+        manager.initialize(roguePool, SQRT_PRICE_1_1); // still no gate: beforeInitialize is not a permission
         modifyLiquidityRouter.modifyLiquidity{ value: 100 ether }(
             roguePool,
             IPoolManager.ModifyLiquidityParams({ tickLower: -6000, tickUpper: 6000, liquidityDelta: 10e18, salt: 0 }),
@@ -132,16 +144,12 @@ contract HookSecondPoolNotBoundTest is Test {
         );
         vm.stopPrank();
 
-        emit log_string("rogue pool initialized on the launch's hook: NO revert, no gate");
-
-        // ── PART 2: ETH conservation over a rogue swap ──
         uint256 pmBefore = address(manager).balance;
         uint256 vaultBefore = vault.totalReceived();
-        uint256 attackerBefore = attacker.balance;
-        uint256 realPoolLiquidityBefore = manager.getLiquidity(_id(realPool));
 
         uint256 ethIn = 10 ether;
         vm.prank(attacker);
+        vm.expectRevert();
         swapRouter.swap{ value: ethIn }(
             roguePool,
             IPoolManager.SwapParams({
@@ -151,31 +159,71 @@ contract HookSecondPoolNotBoundTest is Test {
             ZERO_BYTES
         );
 
-        uint256 tithe = vault.totalReceived() - vaultBefore;
-        uint256 attackerSpent = attackerBefore - attacker.balance;
+        assertEq(vault.totalReceived(), vaultBefore, "nothing was tithed out of a pool this hook does not serve");
+        assertEq(address(manager).balance, pmBefore, "nothing was taken off the PoolManager");
+    }
 
-        emit log_named_decimal_uint("tithe credited to the launch benefactor", tithe, 18);
-        emit log_named_decimal_uint("ETH the rogue swapper actually paid    ", attackerSpent, 18);
+    /// @dev The other half of a bind: the pool the hook WAS deployed for still works. A guard that closed
+    ///      the rogue pool by closing every pool would pass the test above and brick the launch.
+    function test_theBoundPoolIsStillTithed() public {
+        uint256 vaultBefore = vault.totalReceived();
 
-        assertEq(tithe, ethIn * HOOK_FEE_BIPS / 10_000, "the rogue pool's swap is tithed to this benefactor");
+        uint256 ethIn = 10 ether;
+        swapRouter.swap{ value: ethIn }(
+            realPool,
+            IPoolManager.SwapParams({
+                zeroForOne: true, amountSpecified: -int256(ethIn), sqrtPriceLimitX96: MIN_PRICE_LIMIT
+            }),
+            _settings(),
+            ZERO_BYTES
+        );
+
+        assertEq(
+            vault.totalReceived() - vaultBefore,
+            ethIn * HOOK_FEE_BIPS / 10_000,
+            "the launch's own pool is tithed exactly as before"
+        );
         assertEq(vault.lastBenefactor(), benefactorInstance, "credited to the launch's fixed benefactor");
+    }
 
-        // THE INVARIANT: every wei the hook `take()`s off the PoolManager is charged to the rogue
-        // pool's own swapper. PM ETH must move by exactly (what the swapper paid) - (tithe taken out).
-        // If the take were unfunded, PM ETH would fall short of this by the tithe.
-        assertEq(
-            address(manager).balance,
-            pmBefore + attackerSpent - tithe,
-            "PoolManager ETH moved by more than the rogue swapper funded -> a real drain"
+    /// @dev The launch's own coin, this hook, and every other field right — except the tick spacing. v4
+    ///      keys on the whole struct, so this is a DIFFERENT pool, and binding `currency1` alone would
+    ///      have left it open.
+    function test_sameTokenDifferentTickSpacing_cannotSwap() public {
+        PoolKey memory offSpacing = PoolKey({
+            currency0: CurrencyLibrary.ADDRESS_ZERO,
+            currency1: Currency.wrap(address(realToken)),
+            fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
+            tickSpacing: POOL_TICK_SPACING + 1,
+            hooks: IHooks(address(hook))
+        });
+
+        vm.deal(attacker, 1_000 ether);
+        vm.startPrank(attacker);
+        realToken.mint(attacker, 1_000_000 ether);
+        realToken.approve(address(modifyLiquidityRouter), type(uint256).max);
+        manager.initialize(offSpacing, SQRT_PRICE_1_1);
+        modifyLiquidityRouter.modifyLiquidity{ value: 100 ether }(
+            offSpacing,
+            // Multiples of the off-spacing key's own 61, so the add is rejected by the hook and never
+            // by v4's tick alignment.
+            IPoolManager.ModifyLiquidityParams({ tickLower: -6100, tickUpper: 6100, liquidityDelta: 10e18, salt: 0 }),
+            ZERO_BYTES
         );
 
-        // And the attacker is strictly POORER by the tithe: the credit is a donation, not a farm.
-        assertGe(attackerSpent, tithe, "the rogue swapper funded the tithe out of their own ETH");
-
-        // The launch pool is untouched.
-        assertEq(
-            manager.getLiquidity(_id(realPool)), realPoolLiquidityBefore, "the real launch pool's liquidity is intact"
+        uint256 vaultBefore = vault.totalReceived();
+        vm.expectRevert();
+        swapRouter.swap{ value: 10 ether }(
+            offSpacing,
+            IPoolManager.SwapParams({
+                zeroForOne: true, amountSpecified: -int256(10 ether), sqrtPriceLimitX96: MIN_PRICE_LIMIT
+            }),
+            _settings(),
+            ZERO_BYTES
         );
+        vm.stopPrank();
+
+        assertEq(vault.totalReceived(), vaultBefore, "an off-spacing pool on the same pair is refused too");
     }
 
     function _id(PoolKey memory k) internal pure returns (PoolId) {

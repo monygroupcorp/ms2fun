@@ -89,6 +89,8 @@ contract V4HookTaxationTest is ForkTestBase, IUnlockCallback {
 
     uint256 constant DEFAULT_HOOK_FEE_BIPS = 100; // 1%
     uint24 constant DEFAULT_LP_FEE_RATE = 3000; // 0.3%
+    /// @dev The tick spacing every pool key in this file carries; bound into the hook since audit L-6.
+    int24 constant POOL_TICK_SPACING = 60;
 
     function setUp() public {
         loadAddresses();
@@ -247,7 +249,7 @@ contract V4HookTaxationTest is ForkTestBase, IUnlockCallback {
             currency0: Currency.wrap(DAI),
             currency1: Currency.wrap(USDC),
             fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
-            tickSpacing: 60,
+            tickSpacing: POOL_TICK_SPACING,
             hooks: IHooks(address(hook))
         });
 
@@ -517,7 +519,7 @@ contract V4HookTaxationTest is ForkTestBase, IUnlockCallback {
             currency0: isToken0 ? CurrencyLibrary.ADDRESS_ZERO : Currency.wrap(token),
             currency1: isToken0 ? Currency.wrap(token) : CurrencyLibrary.ADDRESS_ZERO,
             fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
-            tickSpacing: 60,
+            tickSpacing: POOL_TICK_SPACING,
             hooks: _hook
         });
     }
@@ -535,7 +537,9 @@ contract V4HookTaxationTest is ForkTestBase, IUnlockCallback {
                 BENEFACTOR,
                 hookFeeBips,
                 DEFAULT_LP_FEE_RATE,
-                DUMMY_REGISTRY
+                DUMMY_REGISTRY,
+                USDC, // the pool this hook is bound to (audit L-6): every pool in this file is ETH/USDC
+                POOL_TICK_SPACING
             ),
             hookAddr
         );

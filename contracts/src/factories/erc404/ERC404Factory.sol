@@ -259,6 +259,15 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         super.revokeRoles(user, roles);
     }
 
+    /// @dev Same invariant from the holder's side. `grantRoles` refuses to re-grant PROTOCOL_ROLE, so
+    ///      renouncing it would destroy every protocol lever — treasury, escrow, WETH, fee, pool floor
+    ///      and carve bracket — for every address including the owner, with no way back. The role moves
+    ///      only via `transferProtocolRole`, which hands it on rather than dropping it.
+    function renounceRoles(uint256 roles) public payable override {
+        if (roles & PROTOCOL_ROLE != 0) revert ProtocolRoleNotTransferable();
+        super.renounceRoles(roles);
+    }
+
     /// @notice Create an instance with a caller-supplied liquidity deployer and optional gating module.
     ///         Any ETH forwarded goes directly to treasury — factory holds no ETH.
     /// @dev The gating module is attached (address(0) = open); its config is authored post-create by the

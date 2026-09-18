@@ -32,13 +32,22 @@ import { LibClone } from "solady/utils/LibClone.sol";
 
 /**
  * @title GraduationLpResidue
- * @notice A graduating launch hands its whole LP leg to a venue deployer module. When the venue
- *         consumes LESS than the module handed it — because a front-runner pre-initialized the pool
- *         at a price inside the module's own tolerance band — the remainder sits in the module. None
- *         of the three modules exposes any path that moves a stray balance out: not an owner sweep,
- *         not a permissionless drain, not `flushPendingVaultCut` (which can only pay out an amount a
- *         reverting vault previously stashed). These tests assert the post-graduation module balance
- *         is zero and show that it is not.
+ * @notice M-1, 2026-09-17 pre-testnet audit. A graduating launch hands its whole LP leg to a venue
+ *         deployer module. When the venue consumes LESS than the module handed it — because a
+ *         front-runner pre-initialized the pool at a price inside the module's own tolerance band —
+ *         the remainder used to sit in the module forever: none of the three exposed any path that
+ *         moved a stray balance out, not an owner sweep, not a permissionless drain, not
+ *         `flushPendingVaultCut` (which can only pay out an amount a reverting vault stashed).
+ *
+ *         Every assertion here is on the fixed behaviour, and each one failed before the fix:
+ *
+ *           * the post-graduation module balance is ZERO on every venue, for both sides;
+ *           * the unconsumed ETH shows up on the 80/19/1 rail, so the raise still adds up;
+ *           * the unconsumed coin shows up at the graduating instance;
+ *           * the init-price band is 1% ON PRICE, not 1% on `sqrtPriceX96` — it was the latter, so
+ *             the constant labelled 100 bps admitted +2.01% and stranded 197 bps of the ETH leg;
+ *           * Uniswap v4 has a slippage floor at all. It had none: v4 takes no min-amount
+ *             parameter, so the band was the only cap on how little the pool could take.
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -136,6 +145,62 @@ contract FakeERC404Instance is MockERC20 {
     receive() external payable { }
 }
 
+/// @dev A pool manager that takes a FIXED fraction of each side regardless of price, so the
+///      module's own slippage floor can be exercised independently of the init-price band. Real v4
+///      cannot under-consume this far while the band holds, which is the point: the floor is the
+///      guard that stops a venue surprise from becoming a strand.
+contract LazyV4PoolManager {
+    uint256 public takeBps = 10_000;
+    bytes32 private _slot0;
+
+    function setTakeBps(uint256 bps) external {
+        takeBps = bps;
+    }
+
+    function extsload(bytes32) external view returns (bytes32) {
+        return _slot0;
+    }
+
+    /// @dev A FRESH pool, so the module initializes it at its own intended price and the init-price
+    ///      band is not what this test is measuring.
+    function initialize(PoolKey calldata, uint160 sqrtPriceX96) external returns (int24 tick) {
+        tick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
+        _slot0 = bytes32(uint256(sqrtPriceX96) | (uint256(uint24(tick)) << 160));
+    }
+
+    function unlock(bytes calldata data) external returns (bytes memory) {
+        return IUnlockCallback(msg.sender).unlockCallback(data);
+    }
+
+    uint256 private _a0;
+    uint256 private _a1;
+
+    function setDesired(uint256 a0, uint256 a1) external {
+        (_a0, _a1) = (a0, a1);
+    }
+
+    function modifyLiquidity(PoolKey calldata, IPoolManager.ModifyLiquidityParams calldata, bytes calldata)
+        external
+        view
+        returns (BalanceDelta, BalanceDelta)
+    {
+        return (
+            toBalanceDelta(-int128(int256(_a0 * takeBps / 10_000)), -int128(int256(_a1 * takeBps / 10_000))),
+            toBalanceDelta(int128(0), int128(0))
+        );
+    }
+
+    function sync(Currency) external { }
+
+    function settle() external payable returns (uint256) {
+        return 0;
+    }
+
+    function take(Currency, address, uint256) external { }
+
+    receive() external payable { }
+}
+
 contract V4GraduationLpResidueTest is Test {
     LiquidityDeployerModule internal module;
     RealMathV4PoolManager internal pm;
@@ -167,14 +232,12 @@ contract V4GraduationLpResidueTest is Test {
         return uint160(FixedPointMathLib.sqrt(FixedPointMathLib.fullMulDiv(TOKEN_RESERVE, 1 << 192, ETH_FOR_POOL)));
     }
 
-    function _key() internal view returns (PoolKey memory) {
-        return PoolKey({
-            currency0: Currency.wrap(address(0)),
-            currency1: Currency.wrap(address(instance)),
-            fee: POOL_FEE,
-            tickSpacing: TICK_SPACING,
-            hooks: IHooks(address(0))
-        });
+    /// @dev `sqrtPriceX96` at `bps` basis points of deviation ON PRICE from the intended price, which
+    ///      is the axis the fixed band measures: sqrt(1 + bps/10000) applied to the root.
+    function _sqrtPriceAtPriceDeviationBps(int256 bps) internal pure returns (uint160) {
+        uint256 intended = _intendedSqrtPrice();
+        uint256 ratioWad = uint256(int256(1e18) + bps * 1e18 / 10_000);
+        return uint160(intended * FixedPointMathLib.sqrt(ratioWad * 1e18) / 1e18);
     }
 
     function _params() internal view returns (ILiquidityDeployerModule.DeployParams memory p) {
@@ -197,88 +260,167 @@ contract V4GraduationLpResidueTest is Test {
         instance.graduate(address(module), _params(), ETH_RESERVE);
     }
 
-    /// @notice CONTROL: a fresh pool is initialized at the module's own price, so both sides are
-    ///         consumed to within rounding dust and nothing of consequence is left behind.
-    function test_v4_freshPool_leavesNoMeaningfulResidue() public {
-        _graduate();
-        emit log_named_uint("fresh-pool residue, wei ", address(module).balance);
-        emit log_named_uint("fresh-pool residue, coin", instance.balanceOf(address(module)));
-        assertLt(address(module).balance, 1000, "fresh-pool graduation must leave at most rounding dust");
+    /// @dev Every wei of the raise is accounted for: the pool has what it took, the rail has the rest,
+    ///      and the module has nothing. The second half is what M-1 was about; the first half is what
+    ///      stops a "fix" that simply throws the residue away from passing.
+    function _assertRaiseFullyAccounted() internal view {
+        uint256 railed = treasury.balance + address(vault).balance + CREATOR.balance;
+        assertEq(address(module).balance, 0, "module must hold no ETH after graduation");
+        assertEq(railed + address(pm).balance, ETH_RESERVE, "every wei of the raise is placed or paid");
     }
 
-    /// @notice A front-runner pre-initializes the graduation pool at +1.00% on `sqrtPriceX96` — the
-    ///         exact edge `MAX_INIT_PRICE_DEVIATION_BPS` permits. The module accepts the pool,
-    ///         `getLiquidityForAmounts` takes `min(L0, L1)` at the LIVE price, the token side binds,
-    ///         and the unconsumed ETH stays in a module with no way to move it out.
-    function test_v4_preInitWithinTolerance_strandsEth() public {
-        pm.seed(uint160(uint256(_intendedSqrtPrice()) * 101 / 100));
-
+    /// @notice CONTROL: a fresh pool is initialized at the module's own price. Both sides are consumed
+    ///         to within rounding, and even that rounding dust is now routed rather than retained.
+    function test_v4_freshPool_leavesNoResidue() public {
         _graduate();
 
-        uint256 stranded = address(module).balance;
+        assertEq(instance.balanceOf(address(module)), 0, "no coin left in the module");
+        _assertRaiseFullyAccounted();
+    }
+
+    /// @notice A front-runner pre-initializes the graduation pool ABOVE the graduation price, at the
+    ///         widest deviation the fixed band still accepts. `getLiquidityForAmounts` takes
+    ///         `min(L0, L1)` at the live price, the coin side binds, and the ETH the pool did not take
+    ///         rides the 80/19/1 rail home instead of staying in a singleton with no exit.
+    function test_v4_preInitWithinTolerance_returnsUnconsumedEthToTheRail() public {
+        pm.seed(_sqrtPriceAtPriceDeviationBps(99));
+
+        uint256 railedBefore = treasury.balance + address(vault).balance + CREATOR.balance;
+        _graduate();
+
+        // The pool took less than the LP leg — otherwise this test proves nothing.
+        assertLt(address(pm).balance, ETH_FOR_POOL, "precondition: the pool under-consumed the ETH leg");
+        uint256 residue = ETH_FOR_POOL - address(pm).balance;
         emit log_named_decimal_uint("ETH for pool        ", ETH_FOR_POOL, 18);
-        emit log_named_decimal_uint("stranded in module  ", stranded, 18);
-        emit log_named_uint("stranded, bps of LP ETH", stranded * 10_000 / ETH_FOR_POOL);
+        emit log_named_decimal_uint("returned to the rail", residue, 18);
 
-        assertEq(stranded, 0, "graduation must not leave ETH in the deployer module");
+        // The rail always takes the base 1% + 19% of the raise; the residue is what it gains ON TOP.
+        uint256 railed = treasury.balance + address(vault).balance + CREATOR.balance;
+        assertEq(
+            railed - railedBefore,
+            (ETH_RESERVE - ETH_FOR_POOL) + residue,
+            "the rail gained the base cuts plus exactly the unconsumed ETH"
+        );
+        _assertRaiseFullyAccounted();
     }
 
-    /// @notice The mirror image: pre-initialized 1.00% BELOW on `sqrtPriceX96` strands the COIN side
-    ///         instead, in a module with no ERC20 transfer path at all.
-    function test_v4_preInitWithinTolerance_strandsToken() public {
-        // Largest downward deviation the guard still accepts: diff <= intended/100 (floored).
-        uint160 intended = _intendedSqrtPrice();
-        pm.seed(uint160(uint256(intended) - uint256(intended) / 100));
+    /// @notice The mirror image: pre-initialized BELOW the graduation price binds the ETH side, and
+    ///         the unconsumed COIN goes back to the graduating instance.
+    function test_v4_preInitWithinTolerance_returnsUnconsumedCoinToTheInstance() public {
+        pm.seed(_sqrtPriceAtPriceDeviationBps(-99));
 
+        uint256 instanceCoinBefore = instance.balanceOf(address(instance));
         _graduate();
 
-        uint256 stranded = instance.balanceOf(address(module));
-        emit log_named_decimal_uint("tokens for pool     ", TOKEN_RESERVE, 18);
-        emit log_named_decimal_uint("stranded in module  ", stranded, 18);
-        emit log_named_uint("stranded, bps of LP coin", stranded * 10_000 / TOKEN_RESERVE);
+        uint256 returned = instance.balanceOf(address(instance)) - instanceCoinBefore;
+        emit log_named_decimal_uint("coin for pool       ", TOKEN_RESERVE, 18);
+        emit log_named_decimal_uint("returned to instance", returned, 18);
 
-        assertEq(stranded, 0, "graduation must not leave coin in the deployer module");
+        assertEq(instance.balanceOf(address(module)), 0, "no coin left in the module");
+        assertGt(returned, 0, "precondition: the pool under-consumed the coin leg");
+        assertEq(returned + instance.balanceOf(address(pm)), TOKEN_RESERVE, "every coin is placed or returned");
+        _assertRaiseFullyAccounted();
     }
 
-    /// @notice And there is no way out. After the strand the module holds the ETH; the only
-    ///         value-moving entry point it has is `flushPendingVaultCut`, which can pay out nothing
-    ///         but an amount a reverting vault previously stashed. The contract is `Ownable`, but the
-    ///         only owner-gated functions are `setMetadataURI`, `setAlignmentHookFactory`,
-    ///         `setHookFeeBips` and `setLpFeeRate` — no sweep, no rescue, and `receive()` is bare.
-    function test_v4_strandedEth_hasNoExit() public {
-        pm.seed(uint160(uint256(_intendedSqrtPrice()) * 101 / 100));
+    /// @notice The band is 1% ON PRICE. It used to be applied to `sqrtPriceX96`, whose square is
+    ///         price, so a constant labelled 100 bps admitted +2.01% / -1.99% — and the unconsumed
+    ///         side is `d/(1+d)` of its leg, so twice the band stranded twice the ETH. A pool just
+    ///         inside the band is accepted; a pool just outside it is refused.
+    function test_v4_initPriceBand_isOnePercentOnPrice() public {
+        pm.seed(_sqrtPriceAtPriceDeviationBps(101));
+        instance.mint(address(module), TOKEN_RESERVE);
+        vm.deal(address(instance), ETH_RESERVE);
+        vm.expectRevert(LiquidityDeployerModule.PoolPriceMismatch.selector);
+        instance.graduate(address(module), _params(), ETH_RESERVE);
+    }
+
+    /// @notice And the other edge, so the test above cannot pass by refusing everything.
+    function test_v4_initPriceBand_acceptsJustInside() public {
+        pm.seed(_sqrtPriceAtPriceDeviationBps(99));
+        _graduate();
+        _assertRaiseFullyAccounted();
+    }
+
+    /// @notice Uniswap v4 takes no min-amount parameter, so the ZAMM/Cypher `amount * 99 / 100` floors
+    ///         had no equivalent here and the band was the ONLY cap on how little the pool could take.
+    ///         The floor is now asserted on the settled delta: a venue that takes under 99% of a leg
+    ///         reverts graduation instead of stranding the difference.
+    function test_v4_venueTakingUnder99Percent_revertsRatherThanStranding() public {
+        LazyV4PoolManager lazy = new LazyV4PoolManager();
+        LiquidityDeployerModule m =
+            new LiquidityDeployerModule(address(lazy), address(0x3), POOL_FEE, TICK_SPACING, address(registry));
+        lazy.setDesired(ETH_FOR_POOL, TOKEN_RESERVE);
+
+        instance.mint(address(m), TOKEN_RESERVE);
+        vm.deal(address(instance), ETH_RESERVE);
+
+        lazy.setTakeBps(9899);
+        vm.expectRevert(LiquidityDeployerModule.InsufficientLiquidityConsumed.selector);
+        instance.graduate(address(m), _params(), ETH_RESERVE);
+
+        // 99% exactly is the sibling convention and is accepted — and the 1% it left is returned.
+        lazy.setTakeBps(9900);
+        instance.graduate(address(m), _params(), ETH_RESERVE);
+        assertEq(address(m).balance, 0, "module must hold no ETH after graduation");
+        assertEq(instance.balanceOf(address(m)), 0, "no coin left in the module");
+    }
+
+    /// @notice The other half of the same guard, and the half the siblings get for free: their venues
+    ///         PULL through an approval or a `msg.value`, so neither can be charged past the leg it was
+    ///         offered. This module settles by direct transfer out of a balance that also holds the
+    ///         graduation's fee legs and the `pendingVaultCut` stash, so a pool that charged more than
+    ///         the LP leg would be paid out of somebody else's money.
+    function test_v4_venueChargingMoreThanTheLeg_reverts() public {
+        LazyV4PoolManager lazy = new LazyV4PoolManager();
+        LiquidityDeployerModule m =
+            new LiquidityDeployerModule(address(lazy), address(0x3), POOL_FEE, TICK_SPACING, address(registry));
+        lazy.setDesired(ETH_FOR_POOL, TOKEN_RESERVE);
+        lazy.setTakeBps(10_001);
+
+        instance.mint(address(m), TOKEN_RESERVE);
+        vm.deal(address(instance), ETH_RESERVE);
+        vm.expectRevert(LiquidityDeployerModule.LiquidityConsumedExceedsLeg.selector);
+        instance.graduate(address(m), _params(), ETH_RESERVE);
+    }
+
+    /// @notice The fix adds NO removal path. The graduation position still lives in the pool manager
+    ///         and no selector on the module reaches it — the property `LpLockInvariant.t.sol` pins.
+    ///         What changed is only that nothing is left behind to need one.
+    function test_v4_stillHasNoRemovalPath() public {
+        pm.seed(_sqrtPriceAtPriceDeviationBps(99));
         _graduate();
 
-        uint256 stranded = address(module).balance;
-        assertGt(stranded, 0, "precondition: ETH is stranded");
-
+        string[8] memory sigs = [
+            "removeLiquidity(uint256)",
+            "removeLiquidity(uint256,uint256,uint256)",
+            "decreaseLiquidity(uint256)",
+            "withdraw()",
+            "withdrawLiquidity()",
+            "collect(uint256)",
+            "burn(uint256)",
+            "unwind()"
+        ];
+        for (uint256 i = 0; i < sigs.length; i++) {
+            (bool ok,) = address(module).call(abi.encodeWithSignature(sigs[i]));
+            assertFalse(ok, "removal entry point must not exist");
+        }
         vm.expectRevert(LiquidityDeployerModule.NoPendingVaultCut.selector);
         module.flushPendingVaultCut(address(instance));
-
-        vm.prank(module.owner());
-        vm.expectRevert(); // no owner-gated function moves value; this selector does not exist
-        (bool ok,) = address(module).call(abi.encodeWithSignature("withdraw()"));
-        ok;
-
-        assertEq(address(module).balance, stranded, "the ETH is still there, with no path out");
     }
 
-    /// @notice The label says 1%. The check is applied to `sqrtPriceX96`, and price is its square, so
-    ///         the band a front-runner actually gets is -1.99% / +2.01% on PRICE. This test passes —
-    ///         it is documentation of the real width, not a failure.
-    function test_v4_tolerance_isTwoPercentOnPrice() public view {
-        uint160 intended = _intendedSqrtPrice();
-        // The extreme pool prices the guard accepts: |diff| <= intended/100 (floored).
-        uint160 high = uint160(uint256(intended) + uint256(intended) / 100);
-        uint160 low = uint160(uint256(intended) - uint256(intended) / 100);
+    /// @notice The coin backstop: permissionless, and with no destination to choose. Anyone may push
+    ///         an instance's coin back to that instance, which for ERC404 is the token itself.
+    function test_v4_sweepUnconsumedCoin_sendsItToTheInstance() public {
+        instance.mint(address(module), 5 ether);
 
-        // price ratio in bps, computed as (sqrt/intended)^2. One bps of slack absorbs the
-        // integer truncation in `intended/100` itself.
-        uint256 highBps = FixedPointMathLib.fullMulDiv(uint256(high) * high, 10_000, uint256(intended) * intended);
-        uint256 lowBps = FixedPointMathLib.fullMulDiv(uint256(low) * low, 10_000, uint256(intended) * intended);
+        vm.prank(makeAddr("passerby"));
+        module.sweepUnconsumedCoin(address(instance));
 
-        assertApproxEqAbs(highBps, 10_201, 1, "+1% on sqrtPriceX96 is +2.01% on price");
-        assertApproxEqAbs(lowBps, 9801, 1, "-1% on sqrtPriceX96 is -1.99% on price");
+        assertEq(instance.balanceOf(address(module)), 0, "the module is empty");
+        assertEq(instance.balanceOf(address(instance)), 5 ether, "the instance has it");
+
+        vm.expectRevert(LiquidityDeployerModule.NoUnconsumedCoin.selector);
+        module.sweepUnconsumedCoin(address(instance));
     }
 }
 
@@ -337,36 +479,69 @@ contract ZAMMGraduationLpResidueTest is Test {
         module.deployLiquidity{ value: ETH_RESERVE }(_params());
     }
 
-    /// @notice A front-runner pre-seeds the pool with a reserve ratio 1% richer in coin than the
-    ///         intended graduation ratio — inside `MAX_INIT_PRICE_DEVIATION_BPS`, so the guard
-    ///         passes. ZAMM's `addLiquidity` then caps the ETH leg at the pool ratio and refunds the
-    ///         remainder to `msg.sender` — this module — whose `receive()` is bare. The module
-    ///         discards the returned `(amount0, amount1)` entirely, so it never even observes it.
-    function test_zamm_preSeedWithinTolerance_strandsRefundedEth() public {
-        // reserve1/reserve0 = 1.01 x the intended TOKEN_RESERVE/ETH_FOR_POOL.
-        zamm.setPool(_poolId(), uint112(ETH_FOR_POOL), uint112(TOKEN_RESERVE * 101 / 100), 1000 ether);
-
-        _graduate();
-
-        uint256 stranded = address(module).balance;
-        emit log_named_decimal_uint("ETH for pool        ", ETH_FOR_POOL, 18);
-        emit log_named_decimal_uint("stranded in module  ", stranded, 18);
-        emit log_named_uint("stranded, bps of LP ETH", stranded * 10_000 / ETH_FOR_POOL);
-
-        assertEq(stranded, 0, "ZAMM's ETH refund must not be stranded in the deployer module");
+    function _assertRaiseFullyAccounted() internal view {
+        uint256 railed = treasury.balance + address(vault).balance + CREATOR.balance;
+        assertEq(address(module).balance, 0, "module must hold no ETH after graduation");
+        assertEq(railed + address(zamm).balance, ETH_RESERVE, "every wei of the raise is placed or paid");
     }
 
-    /// @notice The mirror image: a pool 1% poorer in coin caps the COIN leg, and the unpulled
-    ///         balance sits in a module with no ERC20 transfer path.
-    function test_zamm_preSeedWithinTolerance_strandsToken() public {
+    /// @notice A front-runner pre-seeds the pool with a reserve ratio 1% richer in coin than the
+    ///         intended graduation ratio — inside `MAX_INIT_PRICE_DEVIATION_BPS`, so the guard passes.
+    ///         ZAMM's `addLiquidity` caps the ETH leg at the pool ratio and refunds the remainder to
+    ///         `msg.sender` — this module. The module used to DISCARD the returned `(amount0, amount1)`
+    ///         entirely, so it never even observed the refund; now it tithes it onto the rail.
+    function test_zamm_preSeedWithinTolerance_returnsRefundedEthToTheRail() public {
+        zamm.setPool(_poolId(), uint112(ETH_FOR_POOL), uint112(TOKEN_RESERVE * 101 / 100), 1000 ether);
+
+        uint256 railedBefore = treasury.balance + address(vault).balance + CREATOR.balance;
+        _graduate();
+
+        assertLt(address(zamm).balance, ETH_FOR_POOL, "precondition: ZAMM capped the ETH leg");
+        uint256 residue = ETH_FOR_POOL - address(zamm).balance;
+        emit log_named_decimal_uint("ETH for pool        ", ETH_FOR_POOL, 18);
+        emit log_named_decimal_uint("returned to the rail", residue, 18);
+
+        // The rail always takes the base 1% + 19% of the raise; the residue is what it gains ON TOP.
+        uint256 railed = treasury.balance + address(vault).balance + CREATOR.balance;
+        assertEq(
+            railed - railedBefore,
+            (ETH_RESERVE - ETH_FOR_POOL) + residue,
+            "the rail gained the base cuts plus exactly the refunded ETH"
+        );
+        _assertRaiseFullyAccounted();
+    }
+
+    /// @notice The mirror image: a pool 1% poorer in coin caps the COIN leg, and the coin ZAMM never
+    ///         pulled goes back to the instance instead of sitting in a module with no transfer path.
+    ///         The leftover allowance goes with it — coin the module no longer holds must not stay
+    ///         spendable by the AMM.
+    function test_zamm_preSeedWithinTolerance_returnsUnpulledCoinToTheInstance() public {
         zamm.setPool(_poolId(), uint112(ETH_FOR_POOL), uint112(TOKEN_RESERVE * 99 / 100), 1000 ether);
 
         _graduate();
 
-        uint256 stranded = token.balanceOf(address(module));
-        emit log_named_decimal_uint("stranded coin       ", stranded, 18);
-        assertEq(stranded, 0, "unpulled coin must not be stranded in the deployer module");
+        uint256 returned = token.balanceOf(address(this));
+        emit log_named_decimal_uint("returned to instance", returned, 18);
+
+        assertEq(token.balanceOf(address(module)), 0, "no coin left in the module");
+        assertGt(returned, 0, "precondition: ZAMM capped the coin leg");
+        assertEq(token.allowance(address(module), address(zamm)), 0, "no live allowance over coin it no longer holds");
+        assertEq(returned + token.balanceOf(address(zamm)), TOKEN_RESERVE, "every coin is placed or returned");
+        _assertRaiseFullyAccounted();
     }
+
+    /// @notice The coin backstop, same shape as the other two venues.
+    function test_zamm_sweepUnconsumedCoin_sendsItToTheInstance() public {
+        token.mint(address(module), 5 ether);
+
+        vm.prank(makeAddr("passerby"));
+        module.sweepUnconsumedCoin(address(token));
+
+        assertEq(token.balanceOf(address(module)), 0, "the module is empty");
+        assertEq(token.balanceOf(address(token)), 5 ether, "the token contract has it");
+    }
+
+    receive() external payable { }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -448,21 +623,76 @@ contract CypherGraduationLpResidueTest is Test {
 
     /// @notice The module wraps the WHOLE LP leg to WETH up front and mints with `amount*99/100`
     ///         floors, so the position manager may absorb as little as 99% of each side. Whatever it
-    ///         leaves is WETH and ERC20 coin sitting in a module that exposes no ERC20 transfer path
-    ///         — not even an owner one. (`absorbBps = 9900` is the repo mock's own knob for exactly
-    ///         this; real Algebra under-consumes one side rather than both, but the stranded WETH is
-    ///         the same magnitude.)
-    function test_cypher_venueAbsorbsLessThanSent_strandsWeth() public {
+    ///         leaves used to be WETH and coin sitting in a module that exposed no ERC20 transfer path
+    ///         at all — not even an owner one. Now the WETH is unwrapped onto the rail and the coin
+    ///         goes back to the instance. (`absorbBps` is the repo mock's own knob for exactly this.)
+    function test_cypher_venueAbsorbsLessThanSent_returnsBothSides() public {
         positionManager.setAbsorbBps(9900);
 
+        uint256 railedBefore = treasury.balance + address(vault).balance + CREATOR.balance;
         _graduate();
 
-        uint256 strandedWeth = weth.balanceOf(address(module));
-        uint256 strandedToken = token.balanceOf(address(module));
+        uint256 wethToPool = weth.balanceOf(address(positionManager));
+        assertLt(wethToPool, ETH_FOR_POOL, "precondition: the position manager under-absorbed");
+        uint256 residue = ETH_FOR_POOL - wethToPool;
         emit log_named_decimal_uint("ETH for pool (wrapped)", ETH_FOR_POOL, 18);
-        emit log_named_decimal_uint("stranded WETH         ", strandedWeth, 18);
-        emit log_named_decimal_uint("stranded coin         ", strandedToken, 18);
+        emit log_named_decimal_uint("returned to the rail  ", residue, 18);
 
-        assertEq(strandedWeth, 0, "unconsumed WETH must not be stranded in the deployer module");
+        assertEq(weth.balanceOf(address(module)), 0, "no WETH left in the module");
+        assertEq(address(module).balance, 0, "no ETH left in the module");
+        assertEq(token.balanceOf(address(module)), 0, "no coin left in the module");
+        assertEq(
+            token.allowance(address(module), address(positionManager)),
+            0,
+            "no live allowance over coin it no longer holds"
+        );
+        assertGt(token.balanceOf(address(this)), 0, "the unabsorbed coin came back to the instance");
+        assertEq(
+            token.balanceOf(address(this)) + token.balanceOf(address(positionManager)),
+            TOKEN_RESERVE,
+            "every coin is placed or returned"
+        );
+
+        // The rail always takes the base 1% + 19% of the raise; the residue is what it gains ON TOP.
+        uint256 railed = treasury.balance + address(vault).balance + CREATOR.balance;
+        assertEq(
+            railed - railedBefore,
+            (ETH_RESERVE - ETH_FOR_POOL) + residue,
+            "the rail gained the base cuts plus exactly the unabsorbed ETH"
+        );
+        assertEq(railed + wethToPool, ETH_RESERVE, "every wei of the raise is placed or paid");
     }
+
+    /// @notice Same band defect as Uniswap v4, same fix: the tolerance is 1% ON PRICE, where it used
+    ///         to be 1% on `sqrtPriceX96` and therefore 2% on the quantity that decides consumption.
+    ///         Cypher's `amountNMin` floors capped the damage at 1% of a leg, but the label was still
+    ///         wrong by a factor of two.
+    function test_cypher_initPriceBand_isOnePercentOnPrice() public {
+        bool tokenIsZero = address(token) < address(weth);
+        uint256 amount0 = tokenIsZero ? TOKEN_RESERVE : ETH_FOR_POOL;
+        uint256 amount1 = tokenIsZero ? ETH_FOR_POOL : TOKEN_RESERVE;
+        uint256 intended = FixedPointMathLib.sqrt(FixedPointMathLib.fullMulDiv(amount1, 1 << 192, amount0));
+
+        address pool = algebraFactory.createPool(address(token), address(weth), "");
+        // +1.01% on PRICE: inside the old root-measured band, outside the fixed price-measured one.
+        IAlgebraPool(pool).initialize(uint160(intended * FixedPointMathLib.sqrt(10_101e14 * 1e18) / 1e18));
+
+        token.mint(address(module), TOKEN_RESERVE);
+        vm.deal(address(this), ETH_RESERVE);
+        vm.expectRevert(CypherLiquidityDeployerModule.PoolPriceMismatch.selector);
+        module.deployLiquidity{ value: ETH_RESERVE }(_params());
+    }
+
+    /// @notice The coin backstop, same shape as the other two venues.
+    function test_cypher_sweepUnconsumedCoin_sendsItToTheInstance() public {
+        token.mint(address(module), 5 ether);
+
+        vm.prank(makeAddr("passerby"));
+        module.sweepUnconsumedCoin(address(token));
+
+        assertEq(token.balanceOf(address(module)), 0, "the module is empty");
+        assertEq(token.balanceOf(address(token)), 5 ether, "the token contract has it");
+    }
+
+    receive() external payable { }
 }

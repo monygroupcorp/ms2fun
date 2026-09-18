@@ -6,7 +6,7 @@ import { IAlignmentRegistry } from "../../master/interfaces/IAlignmentRegistry.s
 import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
 import { IFactory } from "../../interfaces/IFactory.sol";
 import { CreateXSalt, ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
-import { Ownable } from "solady/auth/Ownable.sol";
+import { SafeOwnable } from "../../shared/SafeOwnable.sol";
 
 /// @title AlignmentEndowmentVaultFactory
 /// @notice Deploys AlignmentEndowmentVault clones via CREATE3 (EIP-1167 minimal proxy).
@@ -24,7 +24,7 @@ import { Ownable } from "solady/auth/Ownable.sol";
 ///         factory must be an active `IFactory` in the MasterRegistry (see MasterRegistryV1.registerVault):
 ///         it implements `IFactory` with `protocol() == owner()` and empty feature sets (a vault factory
 ///         contributes no wizard component-steps).
-contract AlignmentEndowmentVaultFactory is Ownable, IFactory {
+contract AlignmentEndowmentVaultFactory is SafeOwnable, IFactory {
     /// @notice Factory-hardcoded metadataURI for every self-registered vault — NOT caller-supplied, so
     ///         it cannot be weaponised for roster phishing. Matches the deploy seed's literal.
     string constant METADATA_URI = "https://ms2.fun";
