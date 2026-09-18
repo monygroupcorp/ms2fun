@@ -1,14 +1,14 @@
 {
   "version": 1,
   "title": "The noesis testnet walk",
-  "purpose": "Two testers who follow this walk exercise the same protocol. Every write the app can send is either a numbered step here or is listed under outOfWalk with the reason it cannot be reached on a testnet — tools/validate-walk.mjs proves that, against the app source, on every run.",
+  "purpose": "Two testers who follow this walk exercise the same protocol. Every write the app can send is either a numbered step here or is one this walk names as unreachable on a testnet, with the reason why — and that claim is checked against the app's own source on every change, so the walk cannot quietly stop describing the app.",
   "roles": {
     "operator": "holds the protocol owner key. On a fresh testnet this is whoever ran the deploy; the act-O steps are the only ones that need it.",
     "creator": "launches a collection. Needs testnet ETH, an image, and nothing else — no allowlist and no prior standing.",
     "collector": "buys, mints, bids, stakes. Needs testnet ETH only. This is the role most testers should walk first.",
     "artist": "holds the overlay-module role on a collection whose art is published in waves. Reached on a collection whose overlay module was wired at launch in C-1."
   },
-  "blockingRule": "A step marked blocking:true is one whose failure stops a launch — money moves wrongly, or a person cannot complete a thing the app offered them. A failure on any step is filed as a noesis row either way; blocking says whether the row is allowed to stay open when the launch button is pressed.",
+  "blockingRule": "A step marked [blocking] is one whose failure stops a launch — money moves wrongly, or a person cannot complete a thing the app offered them. A failure on any step is filed as a row either way; blocking says whether the row is allowed to stay open when the launch button is pressed.",
   "prerequisites": {
     "operator": [
       "the wallet that owns the protocol on the chain you are walking — the address that ran the deploy",
