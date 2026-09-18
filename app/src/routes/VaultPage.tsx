@@ -22,7 +22,7 @@ import { BenefactorPosition } from '../components/vault/BenefactorPosition'
 import { useCollectionMetadata } from '../components/useCollectionMetadata'
 import { IpfsImage } from '../components/ui/IpfsImage'
 import { MessageFeed } from '../components/MessageFeed'
-import { MessageComposer } from '../components/MessageComposer'
+import { ActivityComposer } from '../components/activity/ActivityComposer'
 import { StateBlock } from '../components/ui/StateBlock'
 import styles from './VaultPage.module.css'
 
@@ -182,7 +182,7 @@ export function VaultPage() {
             <MessageFeed
               filter={{ instance: vault }}
               vaults={vaultChannel}
-              footer={<MessageComposer channel={vault} />}
+              footer={<ActivityComposer channel={vault} lands="in this vault's channel" />}
             />
           </section>
         </main>

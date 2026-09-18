@@ -41,15 +41,6 @@
   margin: 0;
 }
 
-/* Sits in the chat box's well, under the composer. */
-.composeNote {
-  font-family: var(--brand-font-mono);
-  font-size: var(--font-size-caption);
-  color: var(--color-text-subtle);
-  letter-spacing: 0.06em;
-  margin: var(--space-3) 0 0;
-}
-
 /* Channels + featured rail | the salon. Discourse leads; the rail is the index, featured contained. */
 .layout {
   display: grid;

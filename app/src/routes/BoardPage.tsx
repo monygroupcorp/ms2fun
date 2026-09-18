@@ -11,15 +11,14 @@ import { deployBlock, forkAddresses, forkChainId } from '../lib/addresses'
 import { DEFAULT_LOG_WINDOW } from '../lib/logScan'
 import { useAllVaults } from '../lib/vaults/useAllVaults'
 import { truncateAddress } from '../lib/format'
-import { MessageComposer } from '../components/MessageComposer'
 import { meetsThreshold, threadMessages } from '../components/threadMessages'
 import { type FeedMessage, usePostThreshold } from '../components/useMessageFeed'
 import { ActivityBox } from '../components/activity/ActivityBox'
+import { ActivityComposer } from '../components/activity/ActivityComposer'
 import { ActivityLine } from '../components/activity/ActivityLine'
 import { ActivityMessage } from '../components/activity/ActivityMessage'
 import { ActivityStates, ActivityThresholdNote } from '../components/activity/ActivityStates'
 import { channelRef, messageVerb } from '../components/activity/messageMeta'
-import { StateBlock } from '../components/ui/StateBlock'
 import styles from './BoardPage.module.css'
 
 /** The board's two honest views: the threaded salon, and the flat on-chain register. (The spec's
@@ -306,20 +305,8 @@ export function BoardPage() {
             status={rows > 0 ? `${rows} posts` : undefined}
             scrolls
             composer={
-              connected !== undefined ? (
-                <>
-                  {/* channel = sender's own address — the established per-wall convention */}
-                  <MessageComposer channel={connected} />
-                  <p className={styles.composeNote}>
-                    signed by {truncateAddress(connected)} · permanent — posts appear in the feed
-                    and on your profile
-                  </p>
-                </>
-              ) : (
-                <StateBlock variant="empty">
-                  connect your wallet to post — every voice on the board is attributed.
-                </StateBlock>
-              )
+              /* channel = sender's own address — the established per-wall convention */
+              <ActivityComposer channel={connected} lands="in the feed and on your profile" />
             }
           >
             {/* Keyed on the rows this view actually shows against the ones it held: filter to a

@@ -6,7 +6,7 @@ import { ProfileView } from '../components/ProfileView'
 import { ProfileEditForm } from '../components/ProfileEditForm'
 import { CreatorCollections } from '../components/CreatorCollections'
 import { MessageFeed } from '../components/MessageFeed'
-import { MessageComposer } from '../components/MessageComposer'
+import { ActivityComposer } from '../components/activity/ActivityComposer'
 import { useProfileMetadata } from '../components/useProfileMetadata'
 import { usePortfolio } from '../components/portfolio/usePortfolio'
 import { HeldPanel, VaultsPanel } from '../components/portfolio/PortfolioPanels'
@@ -259,7 +259,11 @@ export function ProfilePage() {
               well; the owner gets the invitation it would be false to show a visitor. */}
           <MessageFeed
             filter={{ sender: target }}
-            footer={isOwn ? <MessageComposer channel={target} /> : undefined}
+            footer={
+              isOwn ? (
+                <ActivityComposer channel={target} lands="in the feed and on your profile" />
+              ) : undefined
+            }
             empty={isOwn ? 'nothing from you yet — anything you post lands here.' : undefined}
           />
         </section>

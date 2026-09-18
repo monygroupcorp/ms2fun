@@ -4,8 +4,8 @@ import { useAccount, useSwitchChain } from 'wagmi'
 import { useReadMasterRegistryV1ResolveName } from '../generated/contracts'
 import { useCollection } from '../components/useCollection'
 import { useCollectionMetadata } from '../components/useCollectionMetadata'
-import { MessageComposer } from '../components/MessageComposer'
 import { MessageFeed } from '../components/MessageFeed'
+import { ActivityComposer } from '../components/activity/ActivityComposer'
 import { VaultPanel } from '../components/collection/VaultPanel'
 import { FeaturedPanel } from '../components/featured/FeaturedPanel'
 import { resolveCollectionSurfaces } from '../components/collection/types/collectionSurfaces'
@@ -18,7 +18,7 @@ import {
   useCollectionChainId,
 } from '../components/collection/useCollectionChain'
 import { addressesForChain, forkChainId, type SupportedChainId } from '../lib/addresses'
-import { formatPrice, formatPriceTitle, formatSupplyCount, truncateAddress } from '../lib/format'
+import { formatPrice, formatPriceTitle, formatSupplyCount } from '../lib/format'
 import { StateBlock } from '../components/ui/StateBlock'
 import { MintBar } from '../components/ui/MintBar'
 import { ShareLink } from '../components/ui/ShareLink'
@@ -204,7 +204,6 @@ function CollectionBody({ instance }: { instance: `0x${string}` }) {
   const addresses = useCollectionAddresses()
   const { data: card, isPending, isError } = useCollection(instance, { chainId, addresses })
   const metadata = useCollectionMetadata(card?.metadataURI)
-  const { address: connected } = useAccount()
 
   const isNotFound = !isPending && !isError && (!card || card.instance === ZERO_ADDRESS)
 
@@ -292,20 +291,7 @@ function CollectionBody({ instance }: { instance: `0x${string}` }) {
               channel (channel = instance address); attributed on-chain, gated on a connected wallet. */}
           <MessageFeed
             filter={{ instance }}
-            footer={
-              connected !== undefined ? (
-                <section className={styles.composeSection}>
-                  <MessageComposer channel={instance} />
-                  <p className={styles.composeNote}>
-                    signed by {truncateAddress(connected)} · posts to this collection's activity
-                  </p>
-                </section>
-              ) : (
-                <StateBlock variant="empty" boxed>
-                  connect your wallet to post to this collection's activity.
-                </StateBlock>
-              )
-            }
+            footer={<ActivityComposer channel={instance} lands="in this collection's activity" />}
           />
 
           {/* Mobile: the mint moment stays in thumb reach (the rail's job on desktop). */}

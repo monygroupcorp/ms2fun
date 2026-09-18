@@ -1,0 +1,9 @@
+/* The signature note under the composer. Was duplicated byte-for-byte in BoardPage.module.css and
+   CollectionPage.module.css; it belongs to the well, not to a route. */
+.note {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
+  letter-spacing: 0.06em;
+  margin: var(--space-3) 0 0;
+}
