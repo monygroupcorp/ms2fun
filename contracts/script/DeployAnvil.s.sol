@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import { DeployCore } from "./DeployCore.sol";
+import { MainnetAddresses } from "./MainnetAddresses.sol";
 // The quoter lives in the shared anvil-seed surface rather than here: `forge script` resolves a
 // script by its FILE, and a second concrete contract in this one makes that resolution ambiguous —
 // the orchestrator's invocation names the path, not the contract.
@@ -17,24 +18,14 @@ import { MockERC20 } from "../test/mocks/MockERC20.sol";
 ///         Writes deployments/anvil.json which deploy.mjs copies to
 ///         src/config/contracts.local.json for the frontend.
 contract DeployAnvil is DeployCore {
-    // Mainnet addresses available on an Anvil mainnet fork
-    address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address constant V4_PM = 0x000000000004444c5dc75cB358380D2e3dE08A90;
-    address constant V3_FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-    address constant V2_FACTORY = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
+    // The protocol rails this fork inherits from mainnet are read from the one file that states
+    // them, which `DeployMainnet` reads too — a rehearsal that disagrees with the deploy it
+    // rehearses is worse than none. See `script/MainnetAddresses.sol`.
+    //
+    // The two token addresses below stay here: they are this fork's alignment ROSTER, a curation
+    // choice about what to demonstrate, not a fact about the network.
     address constant MS2_TOKEN = 0x98Ed411B8cf8536657c660Db8aA55D9D4bAAf820;
     address constant CULT_TOKEN = 0x0000000000c5dc95539589fbD24BE07c6C14eCa4;
-    // Aave WETH StataTokenV2 (waEthWETH). = AaveV3EthereumAssets.WETH_STATA_TOKEN in the vendored
-    // aave-dao/aave-address-book; pinned here (verified live on the fork) to avoid dragging the whole
-    // Aave protocol into compilation for one address. Update from the address-book if Aave migrates.
-    address constant WETH_STATA_TOKEN = 0x0bfc9d54Fc184518A81162F8fB99c2eACa081202;
-    // ZAMM singleton (mainnet) — present on the mainnet fork. Enables the ZAMM LP vault family.
-    address constant ZAMM = 0x000000000000040470635EB91b7CE4D132D616eD;
-    // Cypher = Algebra Integral on Ethereum mainnet (live — verified on the fork; addresses from the
-    // camel404 mainnet deployment). Enables the Cypher LP vault family.
-    address constant CYPHER_ALGEBRA_FACTORY = 0xfb8Ed3485EfA29a0e4bed93351dD51B59fC4b0f0;
-    address constant CYPHER_POSITION_MANAGER = 0x0a984a446A116335ac90425d2D1E69A7199A2f7c;
-    address constant CYPHER_SWAP_ROUTER = 0x20C5893f69F635f55b0367C519F3f95e59c0b0Ab;
 
     function run() public {
         uint256 pk = vm.envUint("PRIVATE_KEY");
@@ -121,15 +112,15 @@ contract DeployAnvil is DeployCore {
 
         // Use timestamp-derived salts so repeated Anvil restarts don't collide
         cfg.chainId = block.chainid;
-        cfg.weth = WETH;
-        cfg.v4PoolManager = V4_PM;
-        cfg.v3Factory = V3_FACTORY;
-        cfg.v2Factory = V2_FACTORY;
-        cfg.cypherAlgebraFactory = CYPHER_ALGEBRA_FACTORY; // Algebra Integral factory — live on the fork
-        cfg.cypherPositionManager = CYPHER_POSITION_MANAGER; // Cypher (Algebra Integral) — live on the fork
-        cfg.cypherRouter = CYPHER_SWAP_ROUTER;
-        cfg.zamm = ZAMM; // ZAMM LP family — live on the mainnet fork
-        cfg.aaveStataToken = WETH_STATA_TOKEN; // waEthWETH (mainnet fork)
+        cfg.weth = MainnetAddresses.WETH;
+        cfg.v4PoolManager = MainnetAddresses.V4_POOL_MANAGER;
+        cfg.v3Factory = MainnetAddresses.V3_FACTORY;
+        cfg.v2Factory = MainnetAddresses.V2_FACTORY;
+        cfg.cypherAlgebraFactory = MainnetAddresses.CYPHER_ALGEBRA_FACTORY; // Algebra Integral factory — live on the fork
+        cfg.cypherPositionManager = MainnetAddresses.CYPHER_POSITION_MANAGER; // Cypher (Algebra Integral) — live on the fork
+        cfg.cypherRouter = MainnetAddresses.CYPHER_SWAP_ROUTER;
+        cfg.zamm = MainnetAddresses.ZAMM_V1; // ZAMM LP family — live on the mainnet fork
+        cfg.aaveStataToken = MainnetAddresses.WETH_STATA_TOKEN; // waEthWETH (mainnet fork)
         cfg.zrouter = address(0);
         // Best-route acquisition, pinned to the alignment token's deepest native-ETH V4 pool. Scoped to
         // that one token (see AnvilFixedRouteQuoter) — every other vault keeps the fixed-tier fallback
