@@ -31,6 +31,20 @@ import { MockVault } from "../mocks/MockVault.sol";
  *         Reachable because `ERC404BondingInstance` inherits plain solady `Ownable` and never
  *         overrides `renounceOwnership`; graduation from that state runs through a pre-configured
  *         agent, which is what these tests drive.
+ *
+ *         On the delivered ETH: this suite was written when a venue took exactly what it was
+ *         handed, so it asserted the pool's ETH == the sized leg. The graduation-residue fix
+ *         landed separately and made the shared mock charge for the liquidity it mints, so a
+ *         venue now takes what it charges for and `LiquidityDeployerModule._returnResidue` moves
+ *         the remainder out — tithed onto the 80/19/1 rail when there is a creator, returned to
+ *         the instance when there is not. Both branches were green alone and red together, on a
+ *         merge git had no conflict to report.
+ *
+ *         So delivered == sized is no longer the invariant and asserting it tests the mock's
+ *         rounding. What this suite is about is the SIZING, which is `creatorCarveEth`, and what
+ *         must still hold to the wei is that the pool never takes MORE than the coin side was
+ *         sized for — opening above the last curve price is the whole finding — and that every
+ *         wei the venue declined is somewhere nameable rather than stranded in the singleton.
  */
 contract RenouncedLaunchPoolParityTest is Test {
     address internal owner = address(0xA11CE);
@@ -134,6 +148,21 @@ contract RenouncedLaunchPoolParityTest is Test {
         revert("no GraduationEthDiverted");
     }
 
+    /// @dev `GraduationResidueReturned(instance, ethTithed, coinReturned)` — the LP capital the venue
+    ///      declined. `ethTithed` is the ETH leg ONLY on the owned path: the renounced branch returns
+    ///      that ETH to the instance rather than tithing it and reports 0 here, so a renounced launch's
+    ///      returned ETH is read off the instance's balance below instead.
+    function _residueTithed(Vm.Log[] memory logs) internal view returns (uint256 ethTithed) {
+        bytes32 sig = keccak256("GraduationResidueReturned(address,uint256,uint256)");
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == address(deployer) && logs[i].topics[0] == sig) {
+                (ethTithed,) = abi.decode(logs[i].data, (uint256, uint256));
+                return ethTithed;
+            }
+        }
+        return 0;
+    }
+
     /// @dev What the module actually put in the pool: the ETH it forwarded to the venue.
     function _poolEth(Vm.Log[] memory logs) internal view returns (uint256 amount) {
         bytes32 sig = keccak256("LiquidityDeployed(address,uint256,uint256)");
@@ -167,7 +196,17 @@ contract RenouncedLaunchPoolParityTest is Test {
         // The module pays no creator carve for a renounced launch, so the instance must not withhold
         // one either. Before the fix this was `raise / CARVE_DIVISOR` of the LP share.
         assertEq(carveEth, 0, "no carve is withheld when there is no creator to pay it to");
-        assertEq(_poolEth(logs), ethToPool + excessEth, "the pool got what the instance sized for");
+
+        uint256 sized = ethToPool + excessEth;
+        uint256 delivered = _poolEth(logs);
+        // The direction that matters: more ETH against the same coin opens the pool ABOVE the price
+        // the last curve buyer paid, which is the thing the sizing exists to prevent.
+        assertLe(delivered, sized, "the pool never takes more ETH than the coin side was sized for");
+        assertEq(address(deployer).balance, 0, "the module strands none of the ETH the venue declined");
+        assertEq(instance.balanceOf(address(deployer)), 0, "the module strands none of the coin either");
+        // A renounced launch has nobody to tithe to, so the declined ETH goes back to the instance —
+        // every wei of the gap, and no more.
+        assertEq(address(instance).balance, sized - delivered, "the declined ETH came back to the instance");
     }
 
     /// @notice The reported carve is a carve somebody received. With a creator still in place nothing
@@ -184,7 +223,14 @@ contract RenouncedLaunchPoolParityTest is Test {
 
         (uint256 ethToPool, uint256 excessEth, uint256 carveEth) = _divertEvent(logs);
         assertEq(carveEth, expectedCarve, "an owned launch still withholds its creator carve");
-        assertEq(_poolEth(logs), ethToPool + excessEth, "and the pool still gets what was sized for");
+
+        uint256 sized = ethToPool + excessEth;
+        uint256 delivered = _poolEth(logs);
+        assertLe(delivered, sized, "the pool never takes more ETH than the coin side was sized for");
+        assertEq(address(deployer).balance, 0, "the module strands none of the ETH the venue declined");
+        // With a creator in place the declined ETH rides the 80/19/1 rail, and the event names it, so
+        // the sized leg is accounted for to the wei: what the pool took plus what was tithed.
+        assertEq(delivered + _residueTithed(logs), sized, "the pool's ETH and the tithed residue are the sized leg");
         assertGt(carveEth, 0, "the scenario must actually produce a carve");
     }
 }
