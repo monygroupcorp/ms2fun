@@ -112,6 +112,18 @@ contract ZAMMAlignmentVaultFactory is SafeOwnable {
         ZAMMAlignmentVault(payable(vault)).setPriceValidator(validator);
     }
 
+    /// @notice Re-point the 1% protocol-cut destination on a vault deployed by this factory.
+    /// @dev The vault's `setProtocolTreasury` is onlyOwner and the factory is the owner, so without
+    ///      this passthrough no address could call it — while the vault's own docstring promised that
+    ///      "only `setProtocolTreasury` moves the destination". onlyOwner, like every other
+    ///      passthrough here: the destination is the protocol's own treasury, never a community's
+    ///      sink, which is read live from the alignment registry and has no setter anywhere.
+    /// @param vault Address of the vault (must have been deployed by this factory)
+    /// @param treasury The protocol treasury to set on the vault
+    function setVaultProtocolTreasury(address vault, address treasury) external onlyOwner {
+        ZAMMAlignmentVault(payable(vault)).setProtocolTreasury(treasury);
+    }
+
     /// @notice Set the maximum allowed price deviation on a vault deployed by this factory.
     /// @dev onlyOwner passthrough — the factory owns the vault. Mirrors setVaultPoolKey.
     /// @param vault Address of the vault (must have been deployed by this factory)
