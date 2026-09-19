@@ -379,11 +379,23 @@ contract EndowmentBasisZeroInvariantTest is StdInvariant, Test {
     }
 
     /// @dev Coverage, not belief: a run of the default depth reached the guarded state at least once, or the
-    ///      two-sided ghost below proved nothing about the guard. Checked once the walk is past the point
-    ///      `crunchUnderTheFloor` starts steering (it acts from call 300; this asks from call 400) rather than
-    ///      in `afterInvariant`, so that a shrunk replay of some OTHER failure — a few calls long — is not
-    ///      itself failed here and the real sequence stays readable.
-    function invariant_depositGuardStateWasReached() public view {
+    ///      two-sided ghost below proved nothing about the guard. Asked ONCE, at the end of each run.
+    ///
+    ///      It used to be an invariant, which meant it was asked after every call from call 400 on — and
+    ///      `crunchUnderTheFloor` only starts steering at call 300 and is one of ten selectors, so at call
+    ///      400 it had typically run two or three times. Two steered attempts do not reliably reach a state
+    ///      that needs a de-curated target, a capped partial release and a deposit priced against what is
+    ///      left, so the run died at 400 over a state the remaining hundred calls would have reached.
+    ///      Measured: seeds 5 and 6 failed and 1 through 4 passed, and both failures pass once the question
+    ///      waits for the end of the run. A gate that fails at random teaches a line to re-run rather than
+    ///      to read, which is how a real red gets waved through.
+    ///
+    ///      `afterInvariant` rather than a `calls() >= 500` invariant: 500 is the configured depth, and an
+    ///      assertion keyed to it goes silently vacuous the day the depth is lowered — which is the exact
+    ///      failure this guard exists to catch. The `calls()` floor stays, and is what keeps the original
+    ///      reason for avoiding `afterInvariant` answered: a shrunk replay of some OTHER failure is a few
+    ///      calls long, so it returns here rather than being failed over coverage it was never going to have.
+    function afterInvariant() public view {
         if (handler.calls() < 400) return;
         assertGe(handler.guardFired(), 1, "endowment: this run never reached the state the deposit guard exists for");
     }
