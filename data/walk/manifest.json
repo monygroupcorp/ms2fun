@@ -327,16 +327,17 @@
         },
         {
           "id": "C-8",
-          "title": "add an edition, give it a free allocation, then correct it",
+          "title": "add an edition, schedule it, give it a free allocation, then correct it",
           "route": "/:chainId/:slug",
           "calls": [
             "erc1155InstanceAbi.addEdition",
+            "erc1155InstanceAbi.setEditionSchedule",
             "erc1155InstanceAbi.setEditionFreeMintAllocation",
             "erc1155InstanceAbi.updateEditionMetadata"
           ],
           "given": "your ERC-1155 collection from C-2",
-          "do": "add a second edition, set a free allocation on it, then edit its metadata",
-          "expect": "the new edition is listed and mintable at its own /:chainId/:slug/edition/:id, and the free allocation is what B-8 draws from",
+          "do": "add a second edition with a close time about ten minutes out and a per-wallet limit of 1, correct that close time to about three minutes out before anyone mints it, set a free allocation on it, then edit its metadata",
+          "expect": "the new edition is listed and mintable at its own /:chainId/:slug/edition/:id, its card counts down to the corrected close time, one wallet can take only the single token the limit allows, and once the close time passes the mint button is refused rather than failing at the wallet. The free allocation is what B-8 draws from. After the first mint the schedule form reports the edition has sold instead of offering inputs",
           "blocking": true
         },
         {
