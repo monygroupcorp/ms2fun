@@ -21,6 +21,7 @@ import { TxButton } from '../../ui/TxButton'
 import { formatReceipt, type MoneyReceipt } from '../../ui/receipt'
 import { fetchJson, jsonOrNull } from '../../../lib/metadata'
 import { IpfsImage } from '../../ui/IpfsImage'
+import { FiatAmount } from '../../ui/FiatAmount'
 import { truncateAddress } from '../../../lib/format'
 import { deriveAuctionState } from './auctionState'
 import { minNextBid } from './bidMath'
@@ -76,6 +77,7 @@ export function AuctionCard({
   isOwner,
   refetch,
 }: AuctionCardProps) {
+  const chainId = useCollectionChainId()
   const state = deriveAuctionState(auction, nowSec)
   const { data: meta } = useQuery({
     queryKey: ['erc721-token-meta', auction.tokenURI],
@@ -110,6 +112,13 @@ export function AuctionCard({
           <span className={styles.statLabel}>{auction.highBid > 0n ? 'high bid' : 'min bid'}</span>
           <span className={styles.statValue}>
             {formatEther(auction.highBid > 0n ? auction.highBid : auction.minBid)} ETH
+            {/* What the standing figure is worth in dollars — the bidder is deciding against this
+                number, not against the one they will type. Self-hides with no rate. */}
+            <FiatAmount
+              wei={auction.highBid > 0n ? auction.highBid : auction.minBid}
+              chainId={chainId}
+              data-testid="erc721-auction-stat-fiat"
+            />
           </span>
         </div>
         {state === 'active' && (
@@ -332,7 +341,19 @@ function BidForm({
           {isPending ? 'confirm in wallet…' : isLoading ? 'bidding…' : 'place bid'}
         </button>
       </div>
-      <span className={styles.minNote}>min next bid: {formatEther(min)} ETH</span>
+      <span className={styles.minNote}>
+        min next bid: {formatEther(min)} ETH
+        <FiatAmount wei={min} chainId={chainId} data-testid="erc721-min-bid-fiat" />
+      </span>
+      {/* The bid as typed, in dollars — the figure that is about to leave the wallet, priced while
+          it can still be changed rather than after it is signed. Only once the bidder has gone ABOVE
+          the floor: the field is seeded AT the floor, so until then this would restate the line
+          above it word for word. */}
+      {amountWei !== undefined && amountWei > min && (
+        <span className={styles.minNote}>
+          your bid: <FiatAmount wei={amountWei} chainId={chainId} data-testid="erc721-bid-fiat" />
+        </span>
+      )}
       {tooLow && <p className={`${styles.txStatus} ${styles.txError}`}>below the minimum bid</p>}
       {(isError || waitError) && (
         <p className={`${styles.txStatus} ${styles.txError}`}>

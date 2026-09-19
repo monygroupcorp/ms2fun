@@ -208,9 +208,13 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
     event PendingVaultCutReturnedToCreator(address indexed vault, address indexed creator, uint256 amount);
     /// @notice The LP capital the pool did not take, and where it went. `ethTithed` joined the 80/19/1
     ///         rail as a second `excessEth` leg; `coinReturned` went back to the graduating instance.
-    /// @dev Both are zero on an ordinary graduation into a fresh pool, and non-zero only when the pool
-    ///      was already initialized at a price inside `MAX_INIT_PRICE_DEVIATION_BPS` but not at the
-    ///      graduation price, which is the only case where a full-range add binds on one side.
+    /// @dev Wei-scale even on an ordinary graduation into a FRESH pool, and not zero as this once
+    ///      claimed: `unlockCallback` fits one FLOORED integer liquidity to the two legs it was handed,
+    ///      and the pool then charges what that liquidity is worth, which is a hair under each leg. A
+    ///      full-range add at the graduation price leaves a couple of wei on both sides and no larger
+    ///      liquidity recovers it. MATERIALLY non-zero only when the pool was already initialized at a
+    ///      price inside `MAX_INIT_PRICE_DEVIATION_BPS` but not at the graduation price, which is the
+    ///      case where a full-range add binds on one side.
     /// @dev `ethTithed` is its OWN leg on the rail, beside `CreatorCarvePaid` and
     ///      `GraduationExcessTithed`, and the three sum to the graduation's whole diverted total. It is
     ///      reported here rather than inside `GraduationExcessTithed` because it is the one leg the
