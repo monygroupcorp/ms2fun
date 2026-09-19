@@ -865,6 +865,10 @@
     {
       "site": "app/src/components/collection/erc404/useStrandedTithe.ts:91",
       "why": "the abi is picked at runtime from the venue the collection graduated to — one of three liquidity deployer modules — so the scan cannot pair it. The write is flushPendingVaultCut on whichever module holds the stranded cut; it is walked as C-18 on the auction family, and the ERC-404 row beside it sends the same call against the module instead of the instance."
+    },
+    {
+      "site": "app/src/lib/useEthUsd.ts:76",
+      "why": "the abi is viem's own multicall3Abi, not a project artifact, so the scan has nothing to pair it against. It is a read and not a write — getCurrentBlockTimestamp is how the ETH/USD round's age is measured against the chain's own clock in the same batch that fetches the round — so there is no tester action behind it. A failed or stale read renders the ETH figure alone, which is the degraded state a walker sees rather than a step they perform."
     }
   ]
 }
