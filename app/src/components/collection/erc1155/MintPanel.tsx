@@ -9,6 +9,7 @@ import { useAccount, useWaitForTransactionReceipt } from 'wagmi'
 import {
   erc1155InstanceAbi,
   useReadErc1155InstanceCalculateMintCost,
+  useReadErc1155InstanceEditionMintedBy,
   useReadErc1155InstanceGatingModule,
   useReadErc1155InstanceGatingScope,
   useWriteErc1155InstanceMint,
@@ -17,6 +18,7 @@ import { useCollectionChainId } from '../useCollectionChain'
 import { txErrorReason } from '../../ui/useTxAction'
 import { formatReceipt } from '../../ui/receipt'
 import { encodeMerkleGatingData, encodeMintMessage, isPaidMintGated } from './gatingMint'
+import { isClosed, remainingForWallet, timeRemaining } from './editionSchedule'
 import { useMerkleAllowlistProof } from './useMerkleAllowlist'
 import type { EditionView } from '../useEditions'
 import styles from '../EditionList.module.css'
@@ -50,9 +52,18 @@ function mintReceiptFromLogs(logs: readonly Log[]): bigint | undefined {
 
 export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
   const chainId = useCollectionChainId()
-  const { isConnected } = useAccount()
+  const { address, isConnected } = useAccount()
   const [amount, setAmount] = useState(1)
   const [message, setMessage] = useState('')
+
+  // What this wallet has already minted of this edition, for the per-wallet ceiling. Only read when
+  // the edition sets one — an edition with no ceiling asks the chain nothing extra.
+  const { data: mintedByWallet } = useReadErc1155InstanceEditionMintedBy({
+    address: instance,
+    chainId: chainId,
+    args: address ? [edition.id, address] : undefined,
+    query: { enabled: !!address && edition.maxPerWallet > 0n },
+  })
 
   const { data: costData, isPending: costPending } = useReadErc1155InstanceCalculateMintCost({
     address: instance,
@@ -145,6 +156,16 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
   // rather than degrading, so the button must not be clickable before then.
   const opensAt = edition.openTime > 0n ? new Date(Number(edition.openTime) * 1000) : null
   const notYetOpen = opensAt !== null && Date.now() < opensAt.getTime()
+  // The close time is the same gate on the far side: past it the contract reverts EditionClosed()
+  // on both mint paths, so the button must not be clickable and the panel says the drop is over
+  // rather than leaving a collector to find out from a failed transaction.
+  const closed = isClosed(edition)
+  const remaining = timeRemaining(edition)
+  const closesAtDate = edition.closeTime > 0n ? new Date(Number(edition.closeTime) * 1000) : null
+  // What this wallet may still take, when the edition sets a ceiling. `editionMintedBy` counts what
+  // the wallet MINTED — paid and free together — so it does not move when tokens are sent on.
+  const walletRemaining = remainingForWallet(edition, mintedByWallet)
+  const overWalletLimit = walletRemaining !== null && BigInt(amount) > walletRemaining
 
   if (!isConnected) {
     return (
@@ -193,7 +214,14 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
         <button
           className={styles.mintBtn}
           onClick={handleMint}
-          disabled={isBusy || costData === undefined || gatingBlocksMint || notYetOpen}
+          disabled={
+            isBusy ||
+            costData === undefined ||
+            gatingBlocksMint ||
+            notYetOpen ||
+            closed ||
+            overWalletLimit
+          }
         >
           {sigPending ? 'confirm in wallet…' : isConfirming ? 'confirming…' : 'mint'}
         </button>
@@ -201,6 +229,23 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
       {notYetOpen && (
         <p className={styles.connectNote} data-testid="erc1155-mint-not-open">
           opens {opensAt.toLocaleString()}
+        </p>
+      )}
+      {closed && (
+        <p className={styles.connectNote} data-testid="erc1155-mint-closed">
+          this edition is over — it closed {closesAtDate?.toLocaleString()}
+        </p>
+      )}
+      {!closed && remaining !== null && (
+        <p className={styles.connectNote} data-testid="erc1155-mint-time-remaining">
+          {remaining} — closes {closesAtDate?.toLocaleString()}
+        </p>
+      )}
+      {walletRemaining !== null && (
+        <p className={styles.connectNote} data-testid="erc1155-mint-wallet-limit">
+          {walletRemaining === 0n
+            ? `this wallet has minted its limit of ${edition.maxPerWallet.toString()} for this edition`
+            : `${walletRemaining.toString()} of ${edition.maxPerWallet.toString()} left for this wallet`}
         </p>
       )}
       {gated && (

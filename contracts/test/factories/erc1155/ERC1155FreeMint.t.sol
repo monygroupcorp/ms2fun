@@ -103,7 +103,16 @@ contract ERC1155FreeMintTest is Test {
     function _addEdition(ERC1155Instance inst, uint256 supply, uint256 freeAlloc) internal returns (uint256 editionId) {
         vm.prank(creator);
         inst.addEdition(
-            "Piece", 0.01 ether, supply, "ipfs://edition", ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0, freeAlloc
+            "Piece",
+            0.01 ether,
+            supply,
+            "ipfs://edition",
+            ERC1155Instance.PricingModel.LIMITED_FIXED,
+            0,
+            0,
+            freeAlloc,
+            0,
+            0
         );
         return inst.nextEditionId() - 1;
     }
@@ -111,7 +120,7 @@ contract ERC1155FreeMintTest is Test {
     function _addUnlimited(ERC1155Instance inst, uint256 freeAlloc) internal returns (uint256 editionId) {
         vm.prank(creator);
         inst.addEdition(
-            "OpenPiece", 0.005 ether, 0, "ipfs://open", ERC1155Instance.PricingModel.UNLIMITED, 0, 0, freeAlloc
+            "OpenPiece", 0.005 ether, 0, "ipfs://open", ERC1155Instance.PricingModel.UNLIMITED, 0, 0, freeAlloc, 0, 0
         );
         return inst.nextEditionId() - 1;
     }
@@ -129,7 +138,9 @@ contract ERC1155FreeMintTest is Test {
             ERC1155Instance.PricingModel.LIMITED_FIXED,
             0,
             openTime,
-            freeAlloc
+            freeAlloc,
+            0,
+            0
         );
         return inst.nextEditionId() - 1;
     }
@@ -311,7 +322,9 @@ contract ERC1155FreeMintTest is Test {
         ERC1155Instance inst = _deploy(GatingScope.BOTH);
         vm.prank(creator);
         vm.expectRevert(FreeMintExceedsSupply.selector);
-        inst.addEdition("Piece", 0.01 ether, 5, "ipfs://edition", ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0, 6);
+        inst.addEdition(
+            "Piece", 0.01 ether, 5, "ipfs://edition", ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0, 6, 0, 0
+        );
     }
 
     function test_erc1155_addEdition_reserveCapAtSupplyOk() public {

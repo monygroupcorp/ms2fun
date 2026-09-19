@@ -64,6 +64,14 @@ interface IERC1155EditionReader {
     function getEdition(uint256 editionId) external view returns (Edition memory);
     function getCurrentPrice(uint256 editionId) external view returns (uint256);
     function nextEditionId() external view returns (uint256);
+    /// @notice Unix timestamp at which an edition stops minting; 0 = never closes.
+    /// @dev Deliberately NOT a field on `Edition`: that struct is decoded out of `getEdition` for
+    ///      every instance this aggregator reads, instances deployed before the close time existed
+    ///      included, and a field added to it would break those decodes. Read on its own, guarded,
+    ///      so an older instance that does not answer reads as "never closes".
+    function editionCloseTime(uint256 editionId) external view returns (uint256);
+    /// @notice Most tokens of an edition one wallet may mint; 0 = no ceiling. Guarded like the above.
+    function editionMaxPerWallet(uint256 editionId) external view returns (uint256);
 }
 
 /// @notice The ERC404 instance's pointer at its staking singleton. `address(0)` = staking was never
@@ -845,6 +853,18 @@ contract QueryAggregator is SafeOwnableUUPS {
         return IERC1155EditionReader(instance).getCurrentPrice(editionId);
     }
 
+    /// @notice Guarded read of a single ERC1155 edition's close time. Not for direct use.
+    /// @dev Reverts for an instance predating the edition schedule; every caller treats that as 0.
+    function readEditionCloseTime(address instance, uint256 editionId) external view returns (uint256) {
+        return IERC1155EditionReader(instance).editionCloseTime(editionId);
+    }
+
+    /// @notice Guarded read of a single ERC1155 edition's per-wallet ceiling. Not for direct use.
+    /// @dev Reverts for an instance predating the edition schedule; every caller treats that as 0.
+    function readEditionMaxPerWallet(address instance, uint256 editionId) external view returns (uint256) {
+        return IERC1155EditionReader(instance).editionMaxPerWallet(editionId);
+    }
+
     /// @notice Guarded read of an ERC404 instance's token balance for a user. Not for direct use.
     function readErc404Balance(address instance, address user) external view returns (uint256) {
         return IERC404Balance(instance).balanceOf(user);
@@ -948,10 +968,22 @@ contract QueryAggregator is SafeOwnableUUPS {
                     // buyable price nor an active flag. `openTime == 0` is the ungated case and every
                     // timestamp clears it. Both siblings already gate on time and only this leg did
                     // not: ERC404 ANDs in bondingOpenTime, ERC721 requires block.timestamp < endTime.
-                    bool open = block.timestamp >= ed.openTime;
+                    // The close time is the same gate on the far side, and it has the same
+                    // consequence: past it both mint entry points revert EditionClosed(), so a
+                    // finished drop must stop quoting a price and stop reporting itself buyable.
+                    // Read on its own and guarded — an instance deployed before the schedule existed
+                    // has no such function, and a revert there means "never closes", not "closed".
+                    uint256 edCloseTime;
+                    // slither-disable-next-line calls-loop
+                    try this.readEditionCloseTime(card.instance, i) returns (uint256 t) {
+                        edCloseTime = t;
+                    } catch { }
+                    bool closed = edCloseTime != 0 && block.timestamp >= edCloseTime;
+                    bool open = !closed && block.timestamp >= ed.openTime;
                     if (open) {
                         if (edPrice < floorPrice) floorPrice = edPrice;
-                    } else if (ed.openTime < nextOpenTime) {
+                    } else if (!closed && ed.openTime < nextOpenTime) {
+                        // A closed edition is not the next one to open either: it is over.
                         nextOpenTime = ed.openTime;
                         nextOpenPrice = edPrice;
                     }
@@ -1210,6 +1242,10 @@ contract QueryAggregator is SafeOwnableUUPS {
         IERC1155EditionReader.PricingModel pricingModel;
         uint256 priceIncreaseRate;
         uint256 openTime;
+        /// @dev 0 = never closes, which is also what an instance predating the schedule reads as.
+        uint256 closeTime;
+        /// @dev 0 = no ceiling on what one wallet may take.
+        uint256 maxPerWallet;
     }
 
     /// @notice Batch-fetch edition data for an ERC1155 instance (replaces instance-level getEditionsBatch)
@@ -1239,6 +1275,19 @@ contract QueryAggregator is SafeOwnableUUPS {
                 try this.readEditionPrice(instance, editionId) returns (uint256 price) {
                     currentPrice = price;
                 } catch { }
+                // Both guarded the same way and for the same reason as the close time on the card
+                // path: an instance predating the edition schedule answers neither, and a zero there
+                // is the truth about it — no close, no ceiling.
+                uint256 closeTime;
+                // slither-disable-next-line calls-loop
+                try this.readEditionCloseTime(instance, editionId) returns (uint256 t) {
+                    closeTime = t;
+                } catch { }
+                uint256 maxPerWallet;
+                // slither-disable-next-line calls-loop
+                try this.readEditionMaxPerWallet(instance, editionId) returns (uint256 m) {
+                    maxPerWallet = m;
+                } catch { }
                 result[i] = EditionView({
                     id: ed.id,
                     pieceTitle: ed.pieceTitle,
@@ -1249,7 +1298,9 @@ contract QueryAggregator is SafeOwnableUUPS {
                     metadataURI: ed.metadataURI,
                     pricingModel: IERC1155EditionReader.PricingModel(uint8(ed.pricingModel)),
                     priceIncreaseRate: ed.priceIncreaseRate,
-                    openTime: ed.openTime
+                    openTime: ed.openTime,
+                    closeTime: closeTime,
+                    maxPerWallet: maxPerWallet
                 });
             } catch {
                 result[i].id = editionId;
