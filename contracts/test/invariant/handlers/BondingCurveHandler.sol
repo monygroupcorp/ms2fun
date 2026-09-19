@@ -97,6 +97,20 @@ contract BondingCurveHandler is Test {
     uint256 public ghost_mintDownFailures;
     uint256 public ghost_claimFailures;
 
+    /// @dev Free-mint claims that landed, and claims correctly refused because the allocation was
+    ///      spent. `ghost_claimFreeFailures` counts a refusal this handler had already read every
+    ///      precondition against, and MUST stay 0: it is the reachability of a wallet entitled to a
+    ///      free mint that cannot take it.
+    /// @dev Sells where the actor held more coin than `totalBondingSupply` — i.e. the curve could not
+    ///      have redeemed their whole position. Only reachable with a free-mint allocation on, and
+    ///      expected then rather than a defect: it is the same arithmetic that makes part of the
+    ///      circulating coin unsellable. Counted so the leg's clamping is visible rather than silent.
+    uint256 public ghost_sellClampedByTrackedSupply;
+
+    uint256 public ghost_freeClaimCount;
+    uint256 public ghost_freeExhaustedRefusals;
+    uint256 public ghost_claimFreeFailures;
+
     /// @dev `mintUp` rejections. EXPECTED and not a defect: the escrow leg burns the caller's NFTs LIFO
     ///      off the tail of `owned`, and an id caught by that burn reverts the whole call (a clean revert
     ///      with no state change, by design). Tracked only so a run's mintUp hit rate is legible.
@@ -164,8 +178,21 @@ contract BondingCurveHandler is Test {
         uint256 balance = instance.balanceOf(actor);
         if (balance < unit_) return;
 
-        // Bound NFT count between 1 and what actor holds
+        // Bound NFT count between 1 and what the actor holds — and by what the CURVE can redeem, which
+        // is not the same number once a free-mint allocation exists. Free coin enters circulation
+        // without raising `totalBondingSupply`, so a holder's balance can exceed the supply the curve
+        // tracks (most easily after other actors have sold back down), and `calculateRefund` reverts
+        // `AmountExceedsSupply` above it. Unbounded, that revert is swallowed by the runner
+        // (`fail_on_revert = false`) and the call is simply discarded — measured, 23-43 lost calls per
+        // campaign the moment the allocation went on. Clamping keeps the leg landing sells and records
+        // the clamp instead of losing the call.
         uint256 maxNfts = balance / unit_;
+        uint256 redeemableNfts = instance.totalBondingSupply() / unit_;
+        if (redeemableNfts == 0) return;
+        if (maxNfts > redeemableNfts) {
+            maxNfts = redeemableNfts;
+            ghost_sellClampedByTrackedSupply++;
+        }
         nftCount = bound(nftCount, 1, maxNfts);
         uint256 amount = nftCount * unit_;
 
@@ -194,6 +221,40 @@ contract BondingCurveHandler is Test {
         // treasury, which is why `reserve == address(this).balance` survives), so the ghost tracks gross.
         ghost_expectedReserve -= refund;
         ghost_expectedBondingSupply -= amount;
+    }
+
+    // ┌─────────────────────────┐
+    // │   Free-mint leg         │
+    // └─────────────────────────┘
+
+    /// @notice Claim one free mint (one NFT's worth of coin at zero ETH cost).
+    /// @dev Present so this fixture's curve and TIER claims are evaluated with an allocation on rather
+    ///      than with it configured away. Free coin is ordinary coin the moment it lands: it can fund a
+    ///      `mintUp`, be caught by a band burn, and be sold back down the curve, none of which any
+    ///      fixture reached while `freeMintAllocation` was 0. The drain the allocation causes is not
+    ///      this fixture's subject — `BondingCurveFreeMintInvariant.t.sol` drives that at the spec's
+    ///      operating point with wallets that ONLY claim; here the allocation is deliberately small, so
+    ///      what is added is coexistence with the tier surface and not a second copy of that suite.
+    ///
+    ///      Every precondition is read live before the call, so a refusal that is not
+    ///      `FreeMintExhausted` is counted as a failure rather than shrugged off.
+    function claimFree(uint256 actorSeed) public {
+        ghost_calls++;
+        address actor = _getActor(actorSeed);
+
+        if (instance.freeMintAllocation() == 0) return;
+        if (instance.graduated()) return;
+        if (instance.freeMintClaimed(actor)) return;
+
+        bool exhausted = instance.freeMintsClaimed() >= instance.freeMintAllocation();
+        vm.prank(actor);
+        try instance.claimFreeMint(bytes("")) {
+            if (exhausted) ghost_claimFreeFailures++; // claimed PAST the allocation
+            else ghost_freeClaimCount++;
+        } catch {
+            if (exhausted) ghost_freeExhaustedRefusals++;
+            else ghost_claimFreeFailures++;
+        }
     }
 
     // ┌─────────────────────────┐

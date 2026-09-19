@@ -289,6 +289,8 @@ library HookAddressMiner {
      * @param hookFeeBips The hook fee in basis points
      * @param initialLpFeeRate The initial LP fee rate
      * @param masterRegistry The registry the hook reads to learn that `vault` has been retired
+     * @param poolToken The alignment token that must be `currency1` of the pool the hook serves
+     * @param poolTickSpacing The tick spacing of the pool the hook serves
      * @return The keccak256 hash of the full init code
      */
     function computeInitCodeHash(
@@ -300,12 +302,25 @@ library HookAddressMiner {
         address benefactor,
         uint256 hookFeeBips,
         uint24 initialLpFeeRate,
-        address masterRegistry
+        address masterRegistry,
+        address poolToken,
+        int24 poolTickSpacing
     ) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked(
                 creationCode,
-                abi.encode(poolManager, vault, weth, owner, benefactor, hookFeeBips, initialLpFeeRate, masterRegistry)
+                abi.encode(
+                    poolManager,
+                    vault,
+                    weth,
+                    owner,
+                    benefactor,
+                    hookFeeBips,
+                    initialLpFeeRate,
+                    masterRegistry,
+                    poolToken,
+                    poolTickSpacing
+                )
             )
         );
     }

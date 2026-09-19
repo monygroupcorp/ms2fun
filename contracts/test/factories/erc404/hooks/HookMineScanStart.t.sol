@@ -44,6 +44,11 @@ contract HookMineScanStartTest is Test {
     uint256 internal constant HOOK_FEE_BIPS = 100; // 1%
     uint24 internal constant LP_FEE_RATE = 3000; // 0.3%
 
+    /// @dev The pool the deployed hook binds (audit L-6): `currency1` and the spacing. Constructor
+    ///      arguments, so they sit inside the init-code hash this file mines and keys adoption on.
+    address internal constant POOL_TOKEN = address(0xC011);
+    int24 internal constant POOL_TICK_SPACING = 60;
+
     /// @dev `deployedHook` is the factory's first (and only) storage variable: immutables and constants
     ///      occupy no slots, so the mapping's base slot is 0. `_clearAdoption` asserts the slot really
     ///      holds the entry before wiping it, so a future storage layout change fails here loudly rather
@@ -144,13 +149,14 @@ contract HookMineScanStartTest is Test {
     ///      next call actually mines, roll `prevrandao` and `number`, and the mine must land somewhere
     ///      else. This is the test that fails if the entropy is ever "simplified" to a constant.
     function test_factory_offset_varies_with_the_block() public {
-        address first = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE);
+        address first = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING);
         _clearAdoption(BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE, first);
 
         vm.roll(block.number + 1);
         vm.prevrandao(bytes32(uint256(0xF00DBEEF)));
 
-        address second = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE);
+        address second =
+            factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING);
         assertTrue(second != first, "a later block must scan a different window and mine a different address");
         assertTrue(HookAddressMiner.isValidUniAlignmentHookAddress(second), "second hook must carry exactly 0xCC");
         assertGt(second.code.length, 0, "second hook must be deployed");
@@ -165,7 +171,7 @@ contract HookMineScanStartTest is Test {
     ///      and deploy a duplicate hook — so removing the mapping and leaving only the
     ///      `predicted.code.length` check makes this test fail.
     function test_adoption_survives_a_changed_block() public {
-        address first = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE);
+        address first = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING);
         uint256 codeSizeBefore = first.code.length;
 
         vm.roll(block.number + 1);
@@ -173,7 +179,8 @@ contract HookMineScanStartTest is Test {
 
         vm.expectEmit(true, true, true, true, address(factory));
         emit AlignmentHookAdopted(first, address(VAULT), BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE);
-        address second = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE);
+        address second =
+            factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING);
 
         assertEq(second, first, "a later block must adopt the existing hook, not mine a duplicate");
         assertEq(second.code.length, codeSizeBefore, "adoption must not deploy anything");
@@ -183,11 +190,11 @@ contract HookMineScanStartTest is Test {
     /// @dev An adoption reads the mapping BEFORE mining, so it must be far cheaper than the deploy that
     ///      preceded it — the mine is not paid twice.
     function test_adoption_pays_no_mining_gas() public {
-        factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE);
+        factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING);
 
         vm.roll(block.number + 1);
         uint256 gasBefore = gasleft();
-        factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE);
+        factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING);
         uint256 used = gasBefore - gasleft();
 
         // A mine of even a single expected run is ~3M gas at ~2^14 iterations; an adoption is a mapping
@@ -198,8 +205,8 @@ contract HookMineScanStartTest is Test {
     /// @dev Distinct parameterizations keep distinct mapping entries, so adopting one never shadows
     ///      another.
     function test_distinct_parameterizations_get_distinct_entries() public {
-        address a = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE);
-        address b = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS + 1, LP_FEE_RATE);
+        address a = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING);
+        address b = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS + 1, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING);
         assertTrue(a != b, "distinct parameterizations must yield distinct hooks");
         assertEq(factory.deployedHook(_initCodeHash(BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE)), a, "entry a");
         assertEq(factory.deployedHook(_initCodeHash(BENEFACTOR, HOOK_FEE_BIPS + 1, LP_FEE_RATE)), b, "entry b");
@@ -217,7 +224,9 @@ contract HookMineScanStartTest is Test {
             benefactor,
             hookFeeBips,
             lpFeeRate,
-            REGISTRY
+            REGISTRY,
+            POOL_TOKEN,
+            POOL_TICK_SPACING
         );
     }
 

@@ -25,7 +25,7 @@ import { IMasterRegistry } from "../../../master/interfaces/IMasterRegistry.sol"
  *
  *      The mined ADDRESS is not fixed across attempts: the scan starts at a block-derived offset so that
  *      a mine which does not fit in one block is retryable in the next rather than repeating itself. What
- *      IS fixed is the hook's IDENTITY — the init-code hash over the creation code and all seven
+ *      IS fixed is the hook's IDENTITY — the init-code hash over the creation code and all nine
  *      constructor arguments — and `deployedHook` keys on that, so one parameterization yields one hook.
  *
  *      RE-AUDIT BEFORE DEPLOY: this contract deploys a fee-taking v4 hook via CREATE2 + on-chain mine.
@@ -53,7 +53,7 @@ contract UniTitheHookFactory is IAlignmentHookFactory {
 
     /// @notice The hook this factory has already deployed for a given init-code hash, if any.
     /// @dev Adoption is keyed on IDENTITY, not on a mined address. `initCodeHash` commits to the hook's
-    ///      creation code and to all seven constructor arguments, so an entry here means exactly "this
+    ///      creation code and to all nine constructor arguments, so an entry here means exactly "this
     ///      hook, with this parameterization, already exists" — whichever salt found it. That distinction
     ///      is load-bearing now that the mine's starting offset varies per block: a second call mines a
     ///      different salt and therefore a different candidate address, so an address-only check would
@@ -86,12 +86,16 @@ contract UniTitheHookFactory is IAlignmentHookFactory {
     }
 
     /// @inheritdoc IAlignmentHookFactory
-    function deployHook(IAlignmentVault vault, address benefactor, uint256 hookFeeBips, uint24 lpFeeRate)
-        external
-        returns (address hook)
-    {
+    function deployHook(
+        IAlignmentVault vault,
+        address benefactor,
+        uint256 hookFeeBips,
+        uint24 lpFeeRate,
+        address poolToken,
+        int24 poolTickSpacing
+    ) external returns (address hook) {
         // Init code exactly as `new UniAlignmentV4Hook{salt}(...)` below assembles it: creation code ++
-        // abi.encode(ALL seven constructor args, in order). Both the mine and the deploy derive their
+        // abi.encode(ALL nine constructor args, in order). Both the mine and the deploy derive their
         // address from THIS hash, and it is computed by the shared HookAddressMiner.computeInitCodeHash
         // helper — the single source of truth for the init-code hash, so factory and helper can never
         // disagree about the deployed address.
@@ -104,7 +108,9 @@ contract UniTitheHookFactory is IAlignmentHookFactory {
             benefactor,
             hookFeeBips,
             lpFeeRate,
-            masterRegistry
+            masterRegistry,
+            poolToken,
+            poolTickSpacing
         );
 
         // Idempotent deploy, checked BEFORE the mine: `deployHook` is callable by anyone, and its four
@@ -113,9 +119,14 @@ contract UniTitheHookFactory is IAlignmentHookFactory {
         // than reverting on a CREATE2 collision and leaving the pool un-graduatable — the same posture as
         // `LiquidityDeployerModule._initOrValidatePool`, which accepts a pre-initialized pool.
         //
-        // The key is the init-code hash, which commits to the creation code and to all seven constructor
+        // The key is the init-code hash, which commits to the creation code and to all nine constructor
         // arguments, so a hit is precisely "this hook, this parameterization, already deployed by this
         // factory". Reading it first also means an adoption pays no mining gas at all.
+        //
+        // Since audit L-6 the parameterization names the POOL as well (`poolToken`, `poolTickSpacing`),
+        // and the hook refuses every other key. So a pre-deploy for a pool the graduation is not opening
+        // is a different hook at a different address, and the graduation mines its own — a caller who
+        // deploys ahead can hand the graduation its hook, never a hook bound somewhere else.
         address adopted = deployedHook[initCodeHash];
         if (adopted != address(0)) {
             emit AlignmentHookAdopted(adopted, address(vault), benefactor, hookFeeBips, lpFeeRate);
@@ -155,14 +166,23 @@ contract UniTitheHookFactory is IAlignmentHookFactory {
 
         // `new C{salt}(args)` deploys at keccak256(0xff, address(this), salt, keccak256(creationCode ++
         // abi.encode(args)))[12:], which is `predicted` by construction: the mine derived it from the same
-        // deployer, the same salt, and an init code hash built from this creation code and these seven
+        // deployer, the same salt, and an init code hash built from this creation code and these nine
         // arguments in this order. An equality check here could not fail, so the property is asserted in
         // the tests (a hook deployed through this function lands on the independently derived address)
         // rather than as an unreachable runtime branch. The hook constructor's `validateHookPermissions()`
         // remains the on-chain guard that the address carries the required permission bits.
         hook = address(
             new UniAlignmentV4Hook{ salt: salt }(
-                poolManager, vault, weth, hookOwner, benefactor, hookFeeBips, lpFeeRate, IMasterRegistry(masterRegistry)
+                poolManager,
+                vault,
+                weth,
+                hookOwner,
+                benefactor,
+                hookFeeBips,
+                lpFeeRate,
+                IMasterRegistry(masterRegistry),
+                poolToken,
+                poolTickSpacing
             )
         );
 

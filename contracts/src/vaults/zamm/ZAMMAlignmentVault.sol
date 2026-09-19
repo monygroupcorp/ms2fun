@@ -499,12 +499,16 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         uint256 rootK = FixedPointMathLib.sqrt(uint256(pool.reserve0) * uint256(pool.reserve1));
         uint256 currentInvariant = rootK * lpHeld / totalSupply; // round down: conservative valuation
         uint256 invFees = currentInvariant > principalInvariant ? currentInvariant - principalInvariant : 0;
-        if (invFees == 0) return 0;
+        // round down: slightly fewer LP tokens burned
+        uint256 feeLP = invFees == 0 ? 0 : lpHeld * invFees / currentInvariant;
 
-        uint256 feeLP = lpHeld * invFees / currentInvariant; // round down: slightly fewer LP tokens burned
-        if (feeLP == 0) return 0;
-
+        // Deliberately NOT an early return on `feeLP == 0`. `_removeFeeLP` also sells the token-side
+        // residual the LP add left behind (L-10), and that residue has no other reader: gating the
+        // whole leg on fee growth is what let it accrete across batches with no path out. With no fee
+        // LP to burn the call becomes "sell whatever token is sitting here", and returns zero when
+        // there is none.
         feesCollected = _removeFeeLP(feeLP, minEthOut);
+        if (feesCollected == 0) return 0;
 
         uint256 afterReward = feesCollected;
 
@@ -536,8 +540,20 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     }
 
     function _removeFeeLP(uint256 feeLP, uint256 minEthOut) private returns (uint256 feesCollected) {
-        (uint256 ethRemoved, uint256 tokRemoved) =
-            IZAMM(zamm).removeLiquidity(_poolKey, feeLP, 0, 0, address(this), block.timestamp + 15 minutes);
+        uint256 ethRemoved;
+        if (feeLP != 0) {
+            (ethRemoved,) =
+                IZAMM(zamm).removeLiquidity(_poolKey, feeLP, 0, 0, address(this), block.timestamp + 15 minutes);
+        }
+        // Sell the vault's WHOLE alignment-token balance, not just what this removal returned.
+        // `_swapAndAddLiquidity` buys `tokenBought` and ZAMM's `addLiquidity` takes only `tokenUsed`
+        // at the pool's ratio; the difference stays here. The ETH side of that same rounding is
+        // re-credited through `ethResidual`, but the token side had no reader at all, so it accreted
+        // monotonically with no path out. The vault holds no alignment token in flight at either call
+        // site — this runs before `_swapAndAddLiquidity` inside `convertAndAddLiquidity` and outside
+        // it on `harvest` — so the balance here is exactly fee token plus residue, and both belong to
+        // the same 80/19/1 split.
+        uint256 tokRemoved = IERC20(alignmentToken).balanceOf(address(this));
         uint256 swappedEth;
         if (tokRemoved > 0) {
             // Floor the caller's slippage bound to an oracle-derived minimum (F5).

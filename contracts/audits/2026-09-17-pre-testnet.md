@@ -257,6 +257,18 @@ run against this configuration. The test's own comment shows the author knew why
 **Proof:** `test/audit/FreeMintCurveSolvency.t.sol` — 3 failing, 1 passing control (the same script
 at `allocation = 0`).
 
+**Ruled, 2026-09-17.** The finding above is as it was found, and the sentence in it that no longer
+holds is the one about `decisions.log`: the ruling now exists. The free-mint tranche is a design
+decision, accepted as designed and not a defect — the mechanism stands, and what was owed was
+describing it honestly on the three surfaces that did not. See §4.
+
+`test/audit/FreeMintCurveSolvency.t.sol` stays as written and stays skipped, and that is now a
+different thing from the other skipped proofs: it does not await a fix, because there will not be
+one. It asserts a solvency property the owner has ruled the protocol does not offer, so it is a
+record of the mechanism and not a defect ticket. The proofs that measure the ruled behaviour and run
+*inside* the gate arrive with #430 — `BondingCurveFreeMintInvariant.t.sol` and
+`FreeMintReserveDrain.t.sol`.
+
 ---
 
 ### MEDIUM
@@ -310,6 +322,9 @@ Then apply the tolerance to price, or halve the constant, so the band matches it
 
 **Proof:** `test/audit/GraduationLpResidue.t.sol` — 5 failing across the three venues, plus a
 passing `test_v4_tolerance_isTwoPercentOnPrice` and a passing `test_v4_strandedEth_hasNoExit`.
+Rewritten onto the fixed behaviour when the fix landed (PR #434) and out of `foundry.toml`'s skip
+list: 14 tests, of which 9 of the 10 that still compile against the pre-fix source fail there. The
+tenth is the guard that no removal path was added, and it passes on both sides on purpose.
 
 #### M-2 · A conversion's unabsorbed ETH is owned by nobody, and mints shares for someone else
 
@@ -697,7 +712,7 @@ cd contracts && FOUNDRY_CONFIG=foundry.audit.toml forge test --match-path "test/
 | `CreateXSaltSquat.t.sol` | L-1 | 7 pass (squat, recovery, wrong preview) |
 | `AccessControlCluster.t.sol` | L-2, L-3, L-4 | passes |
 | `CurveExactOutRoundingBuffer.t.sol` | L-5 | 2 pass (isolates the missing wei) |
-| `HookSecondPoolNotBound.t.sol` | L-6 | passes (shows it drains nothing) |
+| `HookSecondPoolNotBound.t.sol` | L-6 | passes (shows it drains nothing) — rewritten by the fix, see below |
 | `PriceValidatorFullRangeInertGuards.t.sol` | L-7 | 3 pass (inert, and where it *does* bind) |
 | `OverlayFakeInstance.t.sol` | Info (overlay) | 3 pass (attack works, value conserved) |
 | `QueueSpamAndSquatDisproof.t.sol` | the strikes | passes — evidence for what was struck |
@@ -779,20 +794,24 @@ test/audit/AuctionTimeBufferLock.t.sol   (as it stands, against the merged guard
 
 ## 4. Disposition
 
-The line is careful: nothing here is merged. Every item below is either a branch with a PR open for
-rth's hand, or a named question for his ruling.
+The line is careful: nothing merges without rth's hand. Every item below is either a branch with a
+PR — open, or merged by him since — or a named question for his ruling.
 
-Two of the five Mediums carry fixes, chosen because each is a single guard with a sibling in this
-same tree that already has it — so the fix is a consistency repair rather than a new design:
-**#423** (`uni-vault-poolkey-lock`) and **#424** (`auction-timebuffer-bound`). Both are green on the
-full contracts gate. The other three, and the High, turn on decisions that are rth's rather than an
-auditor's, and are named below with the shapes each could take.
+All five Mediums now carry fixes. Two of them were written with the audit, because each is a single
+guard with a sibling in this same tree that already has it — a consistency repair rather than a new
+design: **#423** (`uni-vault-poolkey-lock`) and **#424** (`auction-timebuffer-bound`). The other
+three turned on decisions that were rth's rather than an auditor's, were named here with the shapes
+each could take, and were then taken: **#427** (M-2), **#426** (M-4) and **#434** (M-1). The High is
+still a ruling and is still unfixed, deliberately — see below. Every branch is green on the full
+contracts gate.
 
 ### The one High
 
-**H-1 (free-mint curve solvency) is named for rth's ruling, not fixed on a branch.** This is the
-deliberate choice and the reason is that the two available fixes are different products, not
-different implementations:
+**H-1 (free-mint curve solvency) was named for rth's ruling rather than fixed on a branch, and on
+2026-09-17 he ruled: the free-mint tranche is a design decision, accepted as designed and not a
+defect.** Nothing under `src/` changes, and none of the three shapes below was taken. They are kept
+here because they are what the ruling was made against — the question was which product the protocol
+sells, not which implementation is correct:
 
 - **(a) Lock free-minted coin from `sellBonding` until graduation.** The tranche keeps its
   marketing function — holders get the NFT, the art, the tier — and loses its exit. Paid buyers are
@@ -805,27 +824,37 @@ different implementations:
 - **(c) Bound the allocation** so the extracted share stays under a stated tolerance, and keep the
   current behaviour below that bound.
 
-Each of those is an economic decision about what the protocol sells, and the realm's own record
-shows this class of question going to rth rather than to an auditor. What is *not* a judgment call,
-and should happen whichever way he rules:
+Each of those was an economic decision about what the protocol sells, which is why the finding went
+to rth rather than being settled by an auditor. What was *not* a judgment call was the three
+surfaces that described the mechanism wrongly or not at all, and a ruling of "as designed" is what
+makes describing it correctly the whole of the work. All three are done on branch
+`h1-free-mint-made-true`, **PR #430**:
 
-1. `app/src/lib/learn/concepts.ts:141` currently tells creators the ERC-404 allocation is "genuinely
-   held back… so paid buyers cannot eat into the free allocation." That sentence is false today.
-   Under (a) it becomes true; under (b) or (c) it must be rewritten.
-2. `docs/spec/BONDING_CURVE_ARITHMETIC.md:233-237` sizes the effect at 62% for a 10% allocation; the
-   measured figure is 42.5%.
-3. `test/invariant/BondingCurveInvariant.t.sol:175` should stop asserting
-   `freeMintAllocation == 0` once the configuration is defended, so the solvency invariants actually
-   cover it.
+1. `app/src/lib/learn/concepts.ts:141` told creators the ERC-404 allocation is "genuinely held back…
+   so paid buyers cannot eat into the free allocation" — true of supply, silent on ETH, and it
+   presented ERC-404 as the protected case while warning in detail about the ERC-1155 effects. It
+   now states the sizing, that circulating coin permanently exceeds what the curve can redeem by the
+   amount claimed, and that the resulting shortfall can leave paid buyers unable to sell at any
+   price.
+2. `docs/spec/BONDING_CURVE_ARITHMETIC.md:233-237` sized the effect at 62% for a 10% allocation
+   against a measured 42.5%. §7 now carries the sizing table, the band endpoints, the closed form,
+   the circulation identity, and the command that produces every number.
+3. `test/invariant/BondingCurveInvariant.t.sol:175` asserted `freeMintAllocation == 0`, so the two
+   strongest solvency invariants in the tree had never been evaluated against a configuration a
+   creator can select at create. The allocation is on there now, and a dedicated
+   `BondingCurveFreeMintInvariant.t.sol` runs the spec's 10% at production curve parameters —
+   `reserve == balance` and `reserve == F(totalBondingSupply)` both hold at zero tolerance over free
+   coin, and the excess of circulating coin over tracked supply is asserted rather than avoided.
 
-**No High is left both unfixed and unruled:** H-1 is named here for rth's ruling, with the failing
-proof committed and the three options costed.
+**No High is left both unfixed and unruled:** H-1 is ruled — designed, not a defect — with the proof
+that measures it committed, the three options it was ruled against costed above, and the three
+surfaces that misdescribed it corrected on #430.
 
 ### The five Mediums
 
 | # | finding | disposition |
 |---|---|---|
-| M-1 | graduation modules cannot return unconsumed LP capital (v4 197 bps) | **rth's ruling.** The fix routes the remainder back onto the 80/19/1 rail in-transaction and touches all three venue modules plus the tolerance constant. An owner sweep — the obvious shortcut — is forbidden by `LpLockInvariant.t.sol`'s `RemovalProbe` on purpose, so this needs a shape decision before code. The tolerance half (apply the band to price, or halve the constant) is a one-line change that can ship first and independently. |
+| M-1 | graduation modules cannot return unconsumed LP capital (v4 197 bps) | **fixed — branch `graduation-lp-residue`, PR #434.** All three venue modules now measure what their venue actually took — v4's settled delta, ZAMM's returned amounts, Cypher's `mint` return, all three of which were being discarded — and route the unconsumed ETH onto the 80/19/1 rail as a third diverted leg, reported apart from the caller's clamp residue because only the module can see it. Coin the venue declined goes back to the instance, which burns it under its own event topic: after graduation no path can move instance-held coin, so any other home is the same overhang at a different address. The init-price band is measured on PRICE on both v4 and Cypher, so the constant labelled 100 bps means it; and v4, which has no min-amount parameter to pass, asserts the siblings' 99% floor on the settled delta instead — with the ceiling they get for free from being pulled rather than pushed, both of them before the settle rather than after it. No removal entry point is added — the `RemovalProbe` still finds none, re-checked after a front-run graduation. The one backstop is `sweepUnconsumedCoin`, coin-only, permissionless and with no destination to choose, so it is not the owner sweep this row warned against and cannot touch the `pendingVaultCut` balance. Four fixtures had the strand written into them: the shared mock pool manager settled nothing by default, so suites read the module's retained balance as the pool's. |
 | M-2 | Uni vault conversion residue is unowned and mints shares for the wrong benefactor | **fixed — branch `uni-vault-conversion-residue`.** Ports `ZAMMAlignmentVault.sol:398-439` exactly: each benefactor's pro-rata share of the residual is carried back as their own `pendingETH`, they are re-registered as conversion participants, and the round-down remainder is settled on a `dustTaker` so `sum(pendingETH) == totalPendingETH` holds to the wei. The orphan the dust block used to hand a later batch's largest contributor no longer exists. The invariant suite is repaired on both counts — a reference pool so conversions actually run, and a settable absorption shortfall the fuzzer drives — and `afterInvariant` now asserts that coverage rather than assuming it. `invariant_noDilutionInversion` was restated: its cross-batch form is not a property of this vault. |
 | M-3 | `setV4PoolKey` bricks every fee path on a live vault | **fixed — branch `uni-vault-poolkey-lock`, PR #423.** Ports the `PoolKeyLocked()` guard the ZAMM sibling has carried since it was written, against this vault's own `totalLPUnits`. Wiring an unwired vault is untouched; both halves are pinned by tests. |
 | M-4 | a migrated vault traps the hook's queued fees forever | **fixed — branch `hook-queued-fees-exit`.** Both named shapes, arranged so neither adds a way to take the money. The hook now holds the master registry and answers to `deactivateVault`, the same lever `flushPendingVaultCut` already reads: `haltTithe()` is permissionless and stops the tax the moment the registry drops the vault, so nothing further is charged for a destination that no longer exists. `rescueQueuedFees(address)` is the owner's, but its destination must be a vault the registry currently curates and the credit goes to the hook's own immutable `benefactor` — so the owner chooses which curated vault, never whether to take it. Both refuse while the vault is still registered. |
@@ -833,11 +862,26 @@ proof committed and the three options costed.
 
 ### Lows and Infos
 
-None carries a branch. Each is stated above with its file:line and, where the fix is a one-liner,
-the line. The four worth doing soonest, because they are cheap and each closes a promise the code
-itself makes: **L-4** (a docstring promising a setter no address can call), **L-8** (a
-`MIN_TWAP_WINDOW` floor), **L-2** (override `renounceRoles`), and the `AlignmentRegistryV1` comment
-under INFO that sends a monitor to watch the wrong event.
+Each is stated above with its file:line and, where the fix is a one-liner, the line. The four worth
+doing soonest, because they are cheap and each closes a promise the code itself makes: **L-4** (a
+docstring promising a setter no address can call), **L-8** (a `MIN_TWAP_WINDOW` floor), **L-2**
+(override `renounceRoles`), and the `AlignmentRegistryV1` comment under INFO that sends a monitor to
+watch the wrong event.
+
+Four of them now carry branches. Every other Low and every Info is still as this report left it: no
+branch, and the file:line above is the whole of what exists.
+
+| # | finding | disposition |
+|---|---|---|
+| L-6 | the alignment hook does not bind its pool key | **fixed — branch `audit-lows-hook-validator-router`, PR #429.** The graduation pool becomes part of the hook's identity: `deployHook` takes the pool's `currency1` and tick spacing, both become hook immutables inside the init-code hash the factory mines, and the swap hooks refuse every other key. A hook for a different pool is therefore a different hook at a different address, so no rogue pool can bind first and an early `deployHook` caller can pre-empt nothing. `HookSecondPoolNotBound.t.sol` is rewritten against the fix: the rogue pool can still be initialized — `beforeInitialize` is not one of this hook's permission bits and adding it would move the address the hook must be mined to — but its first swap reverts and nothing leaves the PoolManager. |
+| L-7 | the price validator's proportion guards are inert for the positions the vaults use | **fixed — branch `audit-lows-hook-validator-router`, PR #429.** The proportion guards are left exactly as they are: this report is right that they are correct and that they bind for bounded ranges. Added beside them is the guard that survives the position's shape — the caller's spot must sit within `maxPriceDeviationBps` of the V3 TWAP, measured on price and with the numeraire carried across first. `maxPriceDeviationBps` was a constructor argument the contract never read; it is read now, and its degenerate values are refused at deploy. Note for whoever reviews: this is a hard revert with no escape, the posture `CypherAlignmentVault._validateExistingPool` already takes, so a venue that has genuinely drifted past the band cannot convert until it re-converges. |
+| L-8 | no minimum TWAP window | **fixed — branch `audit-lows-hook-validator-router`, PR #429.** `MIN_TWAP_WINDOW` is 300 seconds, checked on the RESOLVED window so the `0` shorthand is measured against the same floor as an explicit value. The default is 1800 and the shortest window pinned anywhere in this tree is 600, so nothing legal narrows. |
+| L-9 | `zRouter`'s value-moving hatches are unauthenticated | **fixed — branch `audit-low-zrouter-hatch-auth`, PR #432.** Authenticated rather than closed, so the router keeps being a router: `sweep`, `snwap`/`snwapMulti`'s zero-`amountIn` branch and `revealName` may move what THIS transaction credited to the router, and the owner may move anything — which is what keeps a balance no credit describes recoverable rather than stranded. `execute` takes `onlyOwner` beside its trusted-target map, because it is an arbitrary call and no balance credit describes it; as deployed it is inert, so what that closes is what one future `trust()` call would otherwise open to every caller at once. |
+
+Each of the four carries a proof that measures the defect against this report's revision rather than
+asserting it: `HookSecondPoolNotBound.t.sol`, `PriceValidatorSpotTwapBand.t.sol`,
+`ReferenceTwapWindowFloor.t.sol`, `ZRouterHatchAuth.t.sol`. Both branches are green on the full
+contracts gate.
 
 ### What this audit does not cover
 

@@ -35,6 +35,12 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
     error HookFeeTooHigh();
     error LpFeeTooHigh();
     error PoolCurrency0MustBeNativeETH();
+    /// @notice The `PoolKey` this hook was called for is not the pool it was deployed to serve.
+    /// @dev The hook address is the only field of a v4 `PoolKey` that cannot be chosen freely, so every
+    ///      other field has to be bound by the hook itself or anyone may `initialize` a SECOND pool on
+    ///      this launch's hook and have its swaps taxed and credited here (audit L-6).
+    error PoolNotBound();
+    error InvalidTickSpacing();
     error RateTooHigh();
     error NoQueuedFees();
     error VaultStillRegistered();
@@ -66,6 +72,17 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
     /// @notice Hook fee in basis points — immutable, set at deploy (e.g., 100 = 1%)
     uint256 public immutable hookFeeBips;
 
+    /// @notice The alignment token that must be `currency1` of the pool this hook serves.
+    /// @dev Together with the native-ETH `currency0` check, `poolTickSpacing`, the dynamic-fee
+    ///      requirement and this hook's own address (which v4 reads out of the key to route the call at
+    ///      all), this pins every field of the `PoolKey`. Supplied by the graduation that deploys the
+    ///      hook, and part of the hook's init-code hash — so a hook bound to a different pool is a
+    ///      different hook at a different address, never this one serving two pools.
+    address public immutable poolToken;
+
+    /// @notice The tick spacing of the pool this hook serves. See {poolToken}.
+    int24 public immutable poolTickSpacing;
+
     /// @notice LP fee rate — owner-configurable, overrides pool's static fee via beforeSwap
     uint24 public lpFeeRate;
 
@@ -95,7 +112,9 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
         address _benefactor,
         uint256 _hookFeeBips,
         uint24 _initialLpFeeRate,
-        IMasterRegistry _masterRegistry
+        IMasterRegistry _masterRegistry,
+        address _poolToken,
+        int24 _poolTickSpacing
     ) {
         if (address(_poolManager) == address(0)) revert InvalidAddress();
         if (address(_vault) == address(0)) revert InvalidAddress();
@@ -103,6 +122,13 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
         if (_owner == address(0)) revert InvalidAddress();
         if (_benefactor == address(0)) revert InvalidAddress();
         if (address(_masterRegistry) == address(0)) revert InvalidAddress();
+        // `currency0` is native ETH, so the alignment token is `currency1` and must sort above
+        // `address(0)` — which every address but zero does. A zero here would name a pool whose two
+        // currencies are the same, and would leave `_requireBoundPool` binding nothing.
+        if (_poolToken == address(0)) revert InvalidAddress();
+        // v4 requires 1 <= tickSpacing <= 32767; a key outside that cannot be initialized, so a hook
+        // bound to it could never serve any pool at all.
+        if (_poolTickSpacing <= 0 || _poolTickSpacing > 32767) revert InvalidTickSpacing();
         if (_hookFeeBips > 10000) revert HookFeeTooHigh();
         if (_initialLpFeeRate > LPFeeLibrary.MAX_LP_FEE) revert LpFeeTooHigh();
 
@@ -114,6 +140,8 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
         hookFeeBips = _hookFeeBips;
         lpFeeRate = _initialLpFeeRate;
         masterRegistry = _masterRegistry;
+        poolToken = _poolToken;
+        poolTickSpacing = _poolTickSpacing;
 
         // Validate hook permissions — beforeSwap + afterSwap with return delta
         Hooks.validateHookPermissions(
@@ -142,6 +170,36 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
         _;
     }
 
+    /// @dev Binds every field of the `PoolKey` to the pool this hook was deployed to serve (audit L-6).
+    ///
+    ///      A v4 hook is reached through the key it is named in, and the caller of `initialize` chooses
+    ///      that key. Checking `currency0 == address(0)` alone said only "some ETH-paired pool", so anyone
+    ///      could stand up a second pool — a worthless token of their own against ETH — on this launch's
+    ///      hook, and its swaps would be taxed here and credited to this launch's benefactor. It drained
+    ///      nothing (the `take` is charged back to that pool's own swapper through the returned delta, and
+    ///      the credit goes to the immutable benefactor either way), which is why the finding is a Low —
+    ///      but an unbound hook is a surface with no reason to exist.
+    ///
+    ///      The five fields, and how each is pinned:
+    ///        * `hooks`   — by v4 itself: the PoolManager only calls the hook the key names, so a key
+    ///                      naming a different hook never reaches this code.
+    ///        * `currency0` — native ETH, the invariant the fee maths already depended on.
+    ///        * `currency1` — `poolToken`, the graduating launch's own coin.
+    ///        * `fee`       — the dynamic-fee flag. `beforeSwap` returns an LP-fee override, which v4
+    ///                      honors only on a dynamic-fee pool; a static-fee key would silently discard it.
+    ///        * `tickSpacing` — `poolTickSpacing`, the graduation module's own immutable.
+    ///
+    ///      The last two immutables are constructor arguments, so they are part of the init-code hash the
+    ///      factory mines and keys adoption on. A hook for a different pool is therefore a DIFFERENT hook
+    ///      at a different address: there is no window in which a rogue pool binds first, and nothing an
+    ///      early `deployHook` caller can pre-empt.
+    function _requireBoundPool(PoolKey calldata key) private view {
+        if (Currency.unwrap(key.currency0) != address(0)) revert PoolCurrency0MustBeNativeETH();
+        if (Currency.unwrap(key.currency1) != poolToken) revert PoolNotBound();
+        if (key.fee != LPFeeLibrary.DYNAMIC_FEE_FLAG) revert PoolNotBound();
+        if (key.tickSpacing != poolTickSpacing) revert PoolNotBound();
+    }
+
     /**
      * @notice Dynamic LP fee override + ETH-input alignment fee collection
      * @dev Two jobs, on every swap:
@@ -161,8 +219,8 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
         onlyPoolManager
         returns (bytes4, BeforeSwapDelta, uint24)
     {
-        // currency0 must be native ETH (same invariant afterSwap enforces)
-        if (Currency.unwrap(key.currency0) != address(0)) revert PoolCurrency0MustBeNativeETH();
+        // This must be the pool this hook was deployed for, whole key (same check afterSwap makes).
+        _requireBoundPool(key);
 
         uint24 feeOverride = lpFeeRate | LPFeeLibrary.OVERRIDE_FEE_FLAG;
 
@@ -202,7 +260,7 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
         BalanceDelta delta,
         bytes calldata
     ) external onlyPoolManager returns (bytes4, int128) {
-        if (Currency.unwrap(key.currency0) != address(0)) revert PoolCurrency0MustBeNativeETH();
+        _requireBoundPool(key);
 
         // ETH (currency0) is the specified currency exactly when (amountSpecified < 0) == zeroForOne.
         // For those shapes (1 and 4) afterSwap must cleanly skip — no take, no revert.

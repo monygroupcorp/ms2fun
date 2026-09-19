@@ -1549,6 +1549,14 @@ export const alignmentRegistryV1Abi = [
   { type: 'error', inputs: [], name: 'ReferencePoolNotCanonical' },
   { type: 'error', inputs: [], name: 'ReferencePoolTokenMismatch' },
   { type: 'error', inputs: [], name: 'ReferencePoolUnusable' },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'window', internalType: 'uint32', type: 'uint32' },
+      { name: 'minimum', internalType: 'uint32', type: 'uint32' },
+    ],
+    name: 'ReferenceTwapWindowTooShort',
+  },
   { type: 'error', inputs: [], name: 'RenounceDisabled' },
   { type: 'error', inputs: [], name: 'TargetNotFound' },
   { type: 'error', inputs: [], name: 'TokenNotInTarget' },
@@ -2792,6 +2800,13 @@ export const cypherLiquidityDeployerModuleAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'sweepUnconsumedCoin',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
     name: 'transferOwnership',
     outputs: [],
@@ -2872,6 +2887,31 @@ export const cypherLiquidityDeployerModuleAbi = [
       },
     ],
     name: 'GraduationFeePaid',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'ethTithed',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'coinReturned',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'GraduationResidueReturned',
   },
   {
     type: 'event',
@@ -3017,6 +3057,25 @@ export const cypherLiquidityDeployerModuleAbi = [
     anonymous: false,
     inputs: [
       {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'UnconsumedCoinSwept',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
         name: 'vault',
         internalType: 'address',
         type: 'address',
@@ -3093,6 +3152,7 @@ export const cypherLiquidityDeployerModuleAbi = [
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
   { type: 'error', inputs: [], name: 'NoPendingVaultCut' },
+  { type: 'error', inputs: [], name: 'NoUnconsumedCoin' },
   { type: 'error', inputs: [], name: 'PoolPriceMismatch' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
   { type: 'error', inputs: [], name: 'UnauthorizedCaller' },
@@ -5872,6 +5932,19 @@ export const erc404BondingInstanceAbi = [
       },
     ],
     name: 'GraduationEthDiverted',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'burned',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'GraduationResidueBurned',
   },
   {
     type: 'event',
@@ -10368,6 +10441,13 @@ export const liquidityDeployerModuleAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'MIN_LP_CONSUMED_BPS',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'alignmentHookFactory',
     outputs: [{ name: '', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
@@ -10530,6 +10610,13 @@ export const liquidityDeployerModuleAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'sweepUnconsumedCoin',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'tickSpacing',
     outputs: [{ name: '', internalType: 'int24', type: 'int24' }],
@@ -10646,6 +10733,31 @@ export const liquidityDeployerModuleAbi = [
       },
     ],
     name: 'GraduationFeePaid',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'ethTithed',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'coinReturned',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'GraduationResidueReturned',
   },
   {
     type: 'event',
@@ -10800,6 +10912,25 @@ export const liquidityDeployerModuleAbi = [
     anonymous: false,
     inputs: [
       {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'UnconsumedCoinSwept',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
         name: 'vault',
         internalType: 'address',
         type: 'address',
@@ -10873,12 +11004,15 @@ export const liquidityDeployerModuleAbi = [
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'ETHMismatch' },
   { type: 'error', inputs: [], name: 'HookFeeTooHigh' },
+  { type: 'error', inputs: [], name: 'InsufficientLiquidityConsumed' },
+  { type: 'error', inputs: [], name: 'LiquidityConsumedExceedsLeg' },
   { type: 'error', inputs: [], name: 'LpFeeRateTooHigh' },
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
   { type: 'error', inputs: [], name: 'NoETHForPool' },
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
   { type: 'error', inputs: [], name: 'NoPendingVaultCut' },
   { type: 'error', inputs: [], name: 'NoTokensForPool' },
+  { type: 'error', inputs: [], name: 'NoUnconsumedCoin' },
   { type: 'error', inputs: [], name: 'NotPoolManager' },
   { type: 'error', inputs: [], name: 'PoolPriceMismatch' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
@@ -14529,6 +14663,13 @@ export const zammLiquidityDeployerModuleAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'sweepUnconsumedCoin',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
     name: 'transferOwnership',
     outputs: [],
@@ -14609,6 +14750,31 @@ export const zammLiquidityDeployerModuleAbi = [
       },
     ],
     name: 'GraduationFeePaid',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'ethTithed',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'coinReturned',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'GraduationResidueReturned',
   },
   {
     type: 'event',
@@ -14743,6 +14909,25 @@ export const zammLiquidityDeployerModuleAbi = [
     anonymous: false,
     inputs: [
       {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'UnconsumedCoinSwept',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
         name: 'vault',
         internalType: 'address',
         type: 'address',
@@ -14820,6 +15005,7 @@ export const zammLiquidityDeployerModuleAbi = [
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
   { type: 'error', inputs: [], name: 'NoPendingVaultCut' },
   { type: 'error', inputs: [], name: 'NoTokensForPool' },
+  { type: 'error', inputs: [], name: 'NoUnconsumedCoin' },
   { type: 'error', inputs: [], name: 'PoolPriceMismatch' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
   { type: 'error', inputs: [], name: 'UnauthorizedCaller' },
@@ -18231,6 +18417,15 @@ export const useWriteCypherLiquidityDeployerModuleSetMetadataUri =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"sweepUnconsumedCoin"`
+ */
+export const useWriteCypherLiquidityDeployerModuleSweepUnconsumedCoin =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'sweepUnconsumedCoin',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"transferOwnership"`
  */
 export const useWriteCypherLiquidityDeployerModuleTransferOwnership =
@@ -18311,6 +18506,15 @@ export const useSimulateCypherLiquidityDeployerModuleSetMetadataUri =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"sweepUnconsumedCoin"`
+ */
+export const useSimulateCypherLiquidityDeployerModuleSweepUnconsumedCoin =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'sweepUnconsumedCoin',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"transferOwnership"`
  */
 export const useSimulateCypherLiquidityDeployerModuleTransferOwnership =
@@ -18352,6 +18556,15 @@ export const useWatchCypherLiquidityDeployerModuleGraduationFeePaidEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: cypherLiquidityDeployerModuleAbi,
     eventName: 'GraduationFeePaid',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"GraduationResidueReturned"`
+ */
+export const useWatchCypherLiquidityDeployerModuleGraduationResidueReturnedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: cypherLiquidityDeployerModuleAbi,
+    eventName: 'GraduationResidueReturned',
   })
 
 /**
@@ -18415,6 +18628,15 @@ export const useWatchCypherLiquidityDeployerModulePendingVaultCutReturnedToCreat
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: cypherLiquidityDeployerModuleAbi,
     eventName: 'PendingVaultCutReturnedToCreator',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"UnconsumedCoinSwept"`
+ */
+export const useWatchCypherLiquidityDeployerModuleUnconsumedCoinSweptEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: cypherLiquidityDeployerModuleAbi,
+    eventName: 'UnconsumedCoinSwept',
   })
 
 /**
@@ -21490,6 +21712,15 @@ export const useWatchErc404BondingInstanceGraduationEthDivertedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc404BondingInstanceAbi,
     eventName: 'GraduationEthDiverted',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"GraduationResidueBurned"`
+ */
+export const useWatchErc404BondingInstanceGraduationResidueBurnedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'GraduationResidueBurned',
   })
 
 /**
@@ -25798,6 +26029,15 @@ export const useReadLiquidityDeployerModuleMaxInitPriceDeviationBps =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"MIN_LP_CONSUMED_BPS"`
+ */
+export const useReadLiquidityDeployerModuleMinLpConsumedBps =
+  /*#__PURE__*/ createUseReadContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'MIN_LP_CONSUMED_BPS',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"alignmentHookFactory"`
  */
 export const useReadLiquidityDeployerModuleAlignmentHookFactory =
@@ -26002,6 +26242,15 @@ export const useWriteLiquidityDeployerModuleSetMetadataUri =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"sweepUnconsumedCoin"`
+ */
+export const useWriteLiquidityDeployerModuleSweepUnconsumedCoin =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'sweepUnconsumedCoin',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"transferOwnership"`
  */
 export const useWriteLiquidityDeployerModuleTransferOwnership =
@@ -26116,6 +26365,15 @@ export const useSimulateLiquidityDeployerModuleSetMetadataUri =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"sweepUnconsumedCoin"`
+ */
+export const useSimulateLiquidityDeployerModuleSweepUnconsumedCoin =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'sweepUnconsumedCoin',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"transferOwnership"`
  */
 export const useSimulateLiquidityDeployerModuleTransferOwnership =
@@ -26173,6 +26431,15 @@ export const useWatchLiquidityDeployerModuleGraduationFeePaidEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: liquidityDeployerModuleAbi,
     eventName: 'GraduationFeePaid',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"GraduationResidueReturned"`
+ */
+export const useWatchLiquidityDeployerModuleGraduationResidueReturnedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'GraduationResidueReturned',
   })
 
 /**
@@ -26254,6 +26521,15 @@ export const useWatchLiquidityDeployerModulePendingVaultCutReturnedToCreatorEven
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: liquidityDeployerModuleAbi,
     eventName: 'PendingVaultCutReturnedToCreator',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"UnconsumedCoinSwept"`
+ */
+export const useWatchLiquidityDeployerModuleUnconsumedCoinSweptEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'UnconsumedCoinSwept',
   })
 
 /**
@@ -29858,6 +30134,15 @@ export const useWriteZammLiquidityDeployerModuleSetMetadataUri =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"sweepUnconsumedCoin"`
+ */
+export const useWriteZammLiquidityDeployerModuleSweepUnconsumedCoin =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'sweepUnconsumedCoin',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"transferOwnership"`
  */
 export const useWriteZammLiquidityDeployerModuleTransferOwnership =
@@ -29938,6 +30223,15 @@ export const useSimulateZammLiquidityDeployerModuleSetMetadataUri =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"sweepUnconsumedCoin"`
+ */
+export const useSimulateZammLiquidityDeployerModuleSweepUnconsumedCoin =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'sweepUnconsumedCoin',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"transferOwnership"`
  */
 export const useSimulateZammLiquidityDeployerModuleTransferOwnership =
@@ -29979,6 +30273,15 @@ export const useWatchZammLiquidityDeployerModuleGraduationFeePaidEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: zammLiquidityDeployerModuleAbi,
     eventName: 'GraduationFeePaid',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `eventName` set to `"GraduationResidueReturned"`
+ */
+export const useWatchZammLiquidityDeployerModuleGraduationResidueReturnedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: zammLiquidityDeployerModuleAbi,
+    eventName: 'GraduationResidueReturned',
   })
 
 /**
@@ -30042,6 +30345,15 @@ export const useWatchZammLiquidityDeployerModulePendingVaultCutReturnedToCreator
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: zammLiquidityDeployerModuleAbi,
     eventName: 'PendingVaultCutReturnedToCreator',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `eventName` set to `"UnconsumedCoinSwept"`
+ */
+export const useWatchZammLiquidityDeployerModuleUnconsumedCoinSweptEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: zammLiquidityDeployerModuleAbi,
+    eventName: 'UnconsumedCoinSwept',
   })
 
 /**
