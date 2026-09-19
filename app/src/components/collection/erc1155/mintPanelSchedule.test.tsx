@@ -26,6 +26,10 @@ vi.mock('wagmi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('wagmi')>()),
   useAccount: () => ({ isConnected: true, address: WALLET }),
   useWaitForTransactionReceipt: () => ({ isLoading: false, isSuccess: false }),
+  // The panel's fiat line reads a price feed through `useReadContracts`. This case is about the
+  // schedule, not the rate, so answer with no data: `useEthUsd` reports the rate unavailable and the
+  // panel renders its ETH figure alone. Without this the real hook runs and wants a WagmiProvider.
+  useReadContracts: () => ({ data: undefined, isPending: false, isError: false }),
 }))
 
 const writeContract = vi.fn()
