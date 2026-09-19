@@ -881,6 +881,24 @@ contract zRouter {
         depositFor(token, id, amount, address(this)); // transient storage tracker
     }
 
+    /// @dev The authentication the value-moving hatches share (audit L-9): a caller may move the
+    ///      router's balance only to the extent THIS transaction credited it to the router, and the owner
+    ///      may move it regardless.
+    ///
+    ///      The credit is the router's own model of whose money is here — `depositFor` writes it on every
+    ///      deposit and on every leg that ships its output back to the router, and every swap leg already
+    ///      spends against it. The hatches were the functions that moved the balance without consulting
+    ///      it. Transient storage is cleared at the end of the transaction, so the credit can only ever
+    ///      describe money that arrived in the same transaction as the call spending it.
+    ///
+    ///      The owner branch does NOT consume credit: it is the recovery path for a balance no credit
+    ///      describes (a donation, a rebase, a token sent here by mistake), which would otherwise have no
+    ///      exit at all once the hatches are closed.
+    function _requireOwnBalance(address token, uint256 id, uint256 amount) internal {
+        if (msg.sender == _owner) return;
+        require(_useTransientBalance(address(this), token, id, amount), Unauthorized());
+    }
+
     function _useTransientBalance(address user, address token, uint256 id, uint256 amount)
         internal
         returns (bool credited)
@@ -917,13 +935,28 @@ contract zRouter {
 
     receive() external payable { }
 
+    /// @notice Move the router's own resting balance of `token` (`id` for ERC-6909) to `to`.
+    /// @dev Authenticated (audit L-9). `sweep` sends the ROUTER's balance, not the caller's, to an
+    ///      address the caller picks, and it used to do so for anybody. Nothing rests here — every leg
+    ///      ships its output to `to` in the same transaction, no protocol contract holds a standing
+    ///      approval, and the router's balances are transient-tracked — so the surface has never had
+    ///      anything to take. That is a property of what happens to be lying around, not a guard.
+    ///      `_requireOwnBalance` makes it one: the caller may sweep what THIS transaction credited to
+    ///      the router, and the owner may sweep anything, which is what keeps a stray donation
+    ///      recoverable instead of stranded.
     function sweep(address token, uint256 id, uint256 amount, address to) public payable {
         if (token == address(0)) {
-            _safeTransferETH(to, amount == 0 ? address(this).balance : amount);
+            uint256 amt = amount == 0 ? address(this).balance : amount;
+            _requireOwnBalance(address(0), 0, amt);
+            _safeTransferETH(to, amt);
         } else if (id == 0) {
-            safeTransfer(token, to, amount == 0 ? balanceOf(token) : amount);
+            uint256 amt = amount == 0 ? balanceOf(token) : amount;
+            _requireOwnBalance(token, 0, amt);
+            safeTransfer(token, to, amt);
         } else {
-            IERC6909(token).transfer(to, id, amount == 0 ? IERC6909(token).balanceOf(address(this), id) : amount);
+            uint256 amt = amount == 0 ? IERC6909(token).balanceOf(address(this), id) : amount;
+            _requireOwnBalance(token, id, amt);
+            IERC6909(token).transfer(to, id, amt);
         }
     }
 
@@ -1027,7 +1060,18 @@ contract zRouter {
         emit OwnershipTransferred(msg.sender, _owner = owner);
     }
 
-    function execute(address target, uint256 value, bytes calldata data) public payable returns (bytes memory result) {
+    /// @notice Call `target` with `value` of the router's ETH and arbitrary calldata.
+    /// @dev Authenticated on BOTH halves (audit L-9). The trusted-target map was the only gate, and
+    ///      `trust()` — the one writer — is called nowhere in this repository, so as deployed the map is
+    ///      empty and this function is inert. Inert is not the same as closed: one `trust()` call opens an
+    ///      arbitrary-call surface to every caller at once. `onlyOwner` means the owner chooses WHEN as
+    ///      well as WHICH, and an accidental or premature `trust()` no longer hands the surface out.
+    function execute(address target, uint256 value, bytes calldata data)
+        public
+        payable
+        onlyOwner
+        returns (bytes memory result)
+    {
         require(_isTrustedForCall[target], Unauthorized());
         assembly ("memory-safe") {
             tstore(0x00, 1) // lock callback (V3/V4)
@@ -1062,9 +1106,16 @@ contract zRouter {
             if (amountIn != 0) {
                 safeTransferFrom(tokenIn, msg.sender, executor, amountIn);
             } else {
+                // `amountIn == 0` means "send the executor what is already here", which is the router's
+                // OWN balance and not the caller's — the same hatch `sweep` carried, with the executor
+                // as the destination (audit L-9). The pull-from-sender branch above needs no guard: it
+                // moves the caller's tokens under the caller's own allowance.
                 unchecked {
                     uint256 bal = balanceOf(tokenIn);
-                    if (bal > 1) safeTransfer(tokenIn, executor, bal - 1);
+                    if (bal > 1) {
+                        _requireOwnBalance(tokenIn, 0, bal - 1);
+                        safeTransfer(tokenIn, executor, bal - 1);
+                    }
                 }
             }
         }
@@ -1096,9 +1147,16 @@ contract zRouter {
             if (amountIn != 0) {
                 safeTransferFrom(tokenIn, msg.sender, executor, amountIn);
             } else {
+                // `amountIn == 0` means "send the executor what is already here", which is the router's
+                // OWN balance and not the caller's — the same hatch `sweep` carried, with the executor
+                // as the destination (audit L-9). The pull-from-sender branch above needs no guard: it
+                // moves the caller's tokens under the caller's own allowance.
                 unchecked {
                     uint256 bal = balanceOf(tokenIn);
-                    if (bal > 1) safeTransfer(tokenIn, executor, bal - 1);
+                    if (bal > 1) {
+                        _requireOwnBalance(tokenIn, 0, bal - 1);
+                        safeTransfer(tokenIn, executor, bal - 1);
+                    }
                 }
             }
         }
@@ -1271,7 +1329,8 @@ contract zRouter {
     ///      The derived secret is `keccak256(abi.encode(innerSecret, to))`, binding the commitment
     ///      to the intended recipient. This prevents mempool front-running of the reveal tx.
     ///      Chain with swap via multicall for atomic swap-to-reveal. Excess ETH stays in
-    ///      router for sweep.
+    ///      router for sweep, and since audit L-9 that sweep is authenticated the same way this
+    ///      function is: the transaction that put the ETH here is the one that may take it back.
     function revealName(string calldata label, bytes32 innerSecret, address to)
         public
         payable
@@ -1279,7 +1338,11 @@ contract zRouter {
     {
         bytes32 secret = keccak256(abi.encode(innerSecret, to));
         uint256 val = address(this).balance;
-        _useTransientBalance(address(this), address(0), 0, val);
+        // The credit was computed and thrown away: the reveal spent the router's whole ETH balance for
+        // whoever asked, and the name landed on their `to` (audit L-9). Requiring it is what makes the
+        // "chain with swap via multicall" pattern above the ONLY way in — the ETH spent is the ETH this
+        // transaction put here.
+        _requireOwnBalance(address(0), 0, val);
         tokenId = INameNFT(NAME_NFT).reveal{ value: val }(label, secret);
         INameNFT(NAME_NFT).transferFrom(address(this), to, tokenId);
     }

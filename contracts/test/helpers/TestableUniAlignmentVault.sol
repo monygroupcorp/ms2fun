@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+
 import { UniAlignmentVault } from "../../src/vaults/uni/UniAlignmentVault.sol";
 import { IVaultPriceValidator } from "../../src/interfaces/IVaultPriceValidator.sol";
 import { Currency } from "v4-core/types/Currency.sol";
@@ -65,5 +67,12 @@ contract TestableUniAlignmentVault is FeeSeamUniAlignmentVault {
         // Report only what the mock "pool" absorbed. At the default 0 bps this is the whole leg, which
         // is the harness's original behaviour; above 0 it produces the residual a real pool produces.
         ethDeposited = ethLeg - (ethLeg * lpUnabsorbedBps) / 10_000;
+        // Take the token leg off the vault's books, the way PoolManager does when it pulls the
+        // position's token side. Without this the harness leaves the ENTIRE acquired token sitting in
+        // the vault — a balance no real pool leaves behind — and any reader of that balance (the
+        // token-side residual sweep in `_collectAndAccrueNow`, L-10) sees a residue the production
+        // path never produces. `RealSizingUniAlignmentVault` in test/audit does the same.
+        uint256 tokenLeg = Currency.unwrap(v4PoolKey.currency0) == address(0) ? amount1 : amount0;
+        if (tokenLeg > 0) SafeTransferLib.safeTransfer(alignmentToken, address(0xDEAD), tokenLeg);
     }
 }

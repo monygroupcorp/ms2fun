@@ -32,6 +32,11 @@ contract UniTitheHookFactoryFrontRunTest is Test {
     uint256 internal constant HOOK_FEE_BIPS = 100; // 1%
     uint24 internal constant LP_FEE_RATE = 3000; // 0.3%
 
+    /// @dev The pool the deployed hook binds (audit L-6): `currency1` and the spacing. Constructor
+    ///      arguments, so they sit inside the init-code hash this file mines and keys adoption on.
+    address internal constant POOL_TOKEN = address(0xC011);
+    int24 internal constant POOL_TICK_SPACING = 60;
+
     address internal constant OUTSIDER = address(0xDEAD01);
     address internal constant GRADUATION_CALLER = address(0x6A4D);
 
@@ -46,12 +51,13 @@ contract UniTitheHookFactoryFrontRunTest is Test {
     /// @dev The graduation path: a hook pre-deployed by an unrelated caller is adopted, not collided with.
     function test_hook_predeployed_by_another_caller_is_adopted() public {
         vm.prank(OUTSIDER);
-        address first = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE);
+        address first = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING);
 
         vm.expectEmit(true, true, true, true, address(factory));
         emit AlignmentHookAdopted(first, address(VAULT), BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE);
         vm.prank(GRADUATION_CALLER);
-        address second = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE);
+        address second =
+            factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING);
 
         assertEq(second, first, "graduation must receive the hook at the deterministic address");
         assertTrue(HookAddressMiner.isValidUniAlignmentHookAddress(second), "adopted hook must carry exactly 0xCC");
@@ -61,9 +67,10 @@ contract UniTitheHookFactoryFrontRunTest is Test {
     ///      address commits to the init code hash, so nothing else can occupy it.
     function test_adopted_hook_carries_the_requested_parameters() public {
         vm.prank(OUTSIDER);
-        address first = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE);
+        address first = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING);
         vm.prank(GRADUATION_CALLER);
-        address second = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE);
+        address second =
+            factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING);
         assertEq(second, first, "same deterministic address");
 
         UniAlignmentV4Hook hook = UniAlignmentV4Hook(payable(second));
@@ -81,9 +88,10 @@ contract UniTitheHookFactoryFrontRunTest is Test {
     ///      adoption of one parameter set does not block another.
     function test_parameter_change_deploys_a_fresh_hook() public {
         vm.prank(OUTSIDER);
-        address first = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE);
+        address first = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING);
 
-        address other = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS + 1, LP_FEE_RATE);
+        address other =
+            factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS + 1, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING);
         assertTrue(other != first, "a different parameter set must mine a different address");
         assertEq(UniAlignmentV4Hook(payable(other)).hookFeeBips(), HOOK_FEE_BIPS + 1, "fresh hook parameterized");
     }
@@ -101,7 +109,9 @@ contract UniTitheHookFactoryFrontRunTest is Test {
             BENEFACTOR,
             HOOK_FEE_BIPS,
             LP_FEE_RATE,
-            REGISTRY
+            REGISTRY,
+            POOL_TOKEN,
+            POOL_TICK_SPACING
         );
         // The factory's own starting offset, reproduced here so this is the factory's search rather than
         // a different one. Pinning the formula is deliberate: a change that "simplified" the factory's
@@ -120,7 +130,8 @@ contract UniTitheHookFactoryFrontRunTest is Test {
             "mine and derivation disagree"
         );
 
-        address deployed = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE);
+        address deployed =
+            factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING);
         assertEq(deployed, predicted, "deployed hook must land on the derived address");
     }
 }

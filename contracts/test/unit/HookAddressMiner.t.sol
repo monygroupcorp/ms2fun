@@ -209,12 +209,13 @@ contract HookAddressMinerTest is Test {
 
     // ========== Init Code Hash Tests ==========
 
-    /// @notice computeInitCodeHash must hash the FULL 8-arg constructor tail (poolManager, vault, weth,
-    ///         owner, benefactor, hookFeeBips, initialLpFeeRate, masterRegistry) in that exact order —
-    ///         the `benefactor` arg added in #115, the `masterRegistry` arg by the audit-M-4 fix. The
+    /// @notice computeInitCodeHash must hash the FULL 10-arg constructor tail (poolManager, vault, weth,
+    ///         owner, benefactor, hookFeeBips, initialLpFeeRate, masterRegistry, poolToken,
+    ///         poolTickSpacing) in that exact order — the `benefactor` arg added in #115, the
+    ///         `masterRegistry` arg by the audit-M-4 fix, the pool pair by the audit-L-6 fix. The
     ///         factory relies on this being byte-identical to what `new UniAlignmentV4Hook{salt}(...)`
     ///         assembles, so the mined address matches the deployed one.
-    function test_computeInitCodeHash_matches8ArgConstructorTail() public pure {
+    function test_computeInitCodeHash_matches10ArgConstructorTail() public pure {
         bytes memory creationCode = hex"60806040523480156100"; // arbitrary creation-code stand-in
         address poolManager = address(0xA1);
         address vault = address(0xA2);
@@ -224,20 +225,43 @@ contract HookAddressMinerTest is Test {
         uint256 hookFeeBips = 100;
         uint24 initialLpFeeRate = 3000;
         address masterRegistry = address(0xA6);
+        address poolToken = address(0xA7);
+        int24 poolTickSpacing = 60;
 
         bytes32 expected = keccak256(
             abi.encodePacked(
                 creationCode,
-                abi.encode(poolManager, vault, weth, owner, benefactor, hookFeeBips, initialLpFeeRate, masterRegistry)
+                abi.encode(
+                    poolManager,
+                    vault,
+                    weth,
+                    owner,
+                    benefactor,
+                    hookFeeBips,
+                    initialLpFeeRate,
+                    masterRegistry,
+                    poolToken,
+                    poolTickSpacing
+                )
             )
         );
 
         assertEq(
             HookAddressMiner.computeInitCodeHash(
-                creationCode, poolManager, vault, weth, owner, benefactor, hookFeeBips, initialLpFeeRate, masterRegistry
+                creationCode,
+                poolManager,
+                vault,
+                weth,
+                owner,
+                benefactor,
+                hookFeeBips,
+                initialLpFeeRate,
+                masterRegistry,
+                poolToken,
+                poolTickSpacing
             ),
             expected,
-            "init-code hash must cover the 8-arg ctor tail including benefactor and masterRegistry"
+            "init-code hash must cover the 10-arg ctor tail including benefactor, masterRegistry and the pool"
         );
     }
 
@@ -254,7 +278,9 @@ contract HookAddressMinerTest is Test {
             address(0xA5),
             100,
             3000,
-            address(0xA6)
+            address(0xA6),
+            address(0xA7),
+            int24(60)
         );
         bytes32 hashB = HookAddressMiner.computeInitCodeHash(
             creationCode,
@@ -265,7 +291,9 @@ contract HookAddressMinerTest is Test {
             address(0xB5),
             100,
             3000,
-            address(0xA6)
+            address(0xA6),
+            address(0xA7),
+            int24(60)
         );
         assertTrue(hashA != hashB, "changing benefactor must change the init-code hash");
     }
@@ -284,7 +312,9 @@ contract HookAddressMinerTest is Test {
             address(0xA5),
             100,
             3000,
-            address(0xA6)
+            address(0xA6),
+            address(0xA7),
+            int24(60)
         );
         bytes32 hashB = HookAddressMiner.computeInitCodeHash(
             creationCode,
@@ -295,9 +325,77 @@ contract HookAddressMinerTest is Test {
             address(0xA5),
             100,
             3000,
-            address(0xB6)
+            address(0xB6),
+            address(0xA7),
+            int24(60)
         );
         assertTrue(hashA != hashB, "changing masterRegistry must change the init-code hash");
+    }
+
+    /// @notice A different pool token must change the init-code hash — the property the audit-L-6 fix
+    ///         rests on. The hook refuses every key but the one it was built for, so "a hook for another
+    ///         pool" has to be a DIFFERENT hook at a different address, never this one serving two pools.
+    function test_computeInitCodeHash_poolTokenAffectsHash() public pure {
+        bytes memory creationCode = hex"60806040523480156100";
+        bytes32 hashA = HookAddressMiner.computeInitCodeHash(
+            creationCode,
+            address(0xA1),
+            address(0xA2),
+            address(0xA3),
+            address(0xA4),
+            address(0xA5),
+            100,
+            3000,
+            address(0xA6),
+            address(0xA7),
+            int24(60)
+        );
+        bytes32 hashB = HookAddressMiner.computeInitCodeHash(
+            creationCode,
+            address(0xA1),
+            address(0xA2),
+            address(0xA3),
+            address(0xA4),
+            address(0xA5),
+            100,
+            3000,
+            address(0xA6),
+            address(0xB7),
+            int24(60)
+        );
+        assertTrue(hashA != hashB, "changing poolToken must change the init-code hash");
+    }
+
+    /// @notice And the same for the tick spacing, the last field of the `PoolKey` the hook binds.
+    function test_computeInitCodeHash_poolTickSpacingAffectsHash() public pure {
+        bytes memory creationCode = hex"60806040523480156100";
+        bytes32 hashA = HookAddressMiner.computeInitCodeHash(
+            creationCode,
+            address(0xA1),
+            address(0xA2),
+            address(0xA3),
+            address(0xA4),
+            address(0xA5),
+            100,
+            3000,
+            address(0xA6),
+            address(0xA7),
+            int24(60)
+        );
+        bytes32 hashB = HookAddressMiner.computeInitCodeHash(
+            creationCode,
+            address(0xA1),
+            address(0xA2),
+            address(0xA3),
+            address(0xA4),
+            address(0xA5),
+            100,
+            3000,
+            address(0xA6),
+            address(0xA7),
+            int24(10)
+        );
+        assertTrue(hashA != hashB, "changing poolTickSpacing must change the init-code hash");
     }
 
     // ========== Flag Decoding Tests ==========

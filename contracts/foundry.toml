@@ -51,7 +51,6 @@ skip = [
     # each. WHEN A FIX LANDS, DELETE ITS LINE — the proof turning green is how the fix
     # is shown to work, and a proof left skipped is a fix nobody verified.
     "test/audit/FreeMintCurveSolvency.t.sol",
-    "test/audit/GraduationLpResidue.t.sol",
 ]
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",

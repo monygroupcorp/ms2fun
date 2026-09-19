@@ -682,7 +682,15 @@ contract ERC404BondingOps is ERC404BondingStorage {
             uint256 declaredBps = declaredMaxAllowanceBps;
             if (carveBps < declaredBps) carveBps = declaredBps;
         }
-        uint256 carveEth = _effectiveCarve(ethToSend, carveBps);
+        // A renounced launch has no creator to pay, and the deployer module knows it: with
+        // `creator == address(0)` it zeroes the whole diverted leg and puts the full LP share in the
+        // pool (`LiquidityDeployerModule._computeAmounts`). Sizing the coin side against a carve the
+        // module will not take opens the pool ABOVE the curve's last price — the one thing graduation
+        // is supposed to guarantee it never does — and makes `GraduationEthDiverted` report a carve
+        // nobody received. Take the module's own rule here so the two agree on the pool's ETH.
+        // Graduation is still reachable in that state through a pre-configured agent, which is what
+        // makes this a live path rather than a hypothetical one.
+        uint256 carveEth = owner() == address(0) ? 0 : _effectiveCarve(ethToSend, carveBps);
         if (carveEth > lp) carveEth = lp;
 
         (uint256 tokensForPool, uint256 ethForPool) = _sizePoolAtCurvePrice(lp - carveEth);
@@ -712,6 +720,20 @@ contract ERC404BondingOps is ERC404BondingStorage {
                 excessEth: excessEth
             })
         );
+
+        // THE BURN, SECOND PASS. `_sizePoolAtCurvePrice` burned the coin the pool was never going to
+        // be offered; this burns the coin it was offered and DECLINED. A venue that finds its pool
+        // already initialized away from the graduation price takes only one side in full and hands the
+        // rest of the other back — the deployer modules now return it here rather than stranding it in
+        // a singleton (audit M-1, 2026-09-17). The destination has to be the burn for the same reason
+        // the first pass does: after `graduated` no path can move instance-held coin, so leaving it
+        // here is the same permanent unowned overhang under a different address. `_placeableCoin` nets
+        // out custodial coin, so this can only ever reach what just came back.
+        uint256 declined = _placeableCoin();
+        if (declined != 0) {
+            _burn(address(this), declined);
+            emit GraduationResidueBurned(declined);
+        }
 
         graduated = true;
         emit GraduationEthDiverted(ethForPool, excessEth, carveEth);

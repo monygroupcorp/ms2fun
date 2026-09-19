@@ -272,22 +272,59 @@ contract UniVaultShareAccountingTest is Test {
     }
 
     // ------------------------------------------------------------------
-    // D — token-side residual is never re-credited
+    // D / L-10 — the token-side residual is re-credited, not abandoned
     // ------------------------------------------------------------------
-    function test_D_tokenResidualStrandedInVault() public {
+    /// @dev `_doSwapAndLP` buys `targetTokenReceived` and offers it to the position, which takes only
+    ///      what the binding leg needs. The ETH half of that same rounding was already carried forward
+    ///      through `ethUnabsorbed`; the token half had no reader at all, so it accreted monotonically
+    ///      with no path out. `_collectAndAccrueNow` now converts the vault's whole token balance, so
+    ///      the residue is sold and split 80/19/1 on the next convert like any other yield.
+    function test_D_tokenResidualIsSweptOnTheNextConvert() public {
         router.setOutRatio(1.05e18); // token surplus -> ETH leg binds -> token left over
 
         _contribute(alice, 100 ether);
         vault.convertAndAddLiquidity(1);
-        uint256 stranded1 = token.balanceOf(address(vault));
+        uint256 residue1 = token.balanceOf(address(vault));
+        assertGt(residue1, 0, "no token residual produced - setup wrong");
+        assertEq(vault.accumulatedProtocolFees(), 0, "nothing collected yet");
+
+        // Batch 2 sweeps batch 1's residue before it adds its own liquidity.
+        _contribute(bob, 100 ether);
+        vault.convertAndAddLiquidity(1);
+        uint256 residue2 = token.balanceOf(address(vault));
+
+        // The sweep is the whole balance, so what is left is batch 2's own residue alone. Both batches
+        // contribute the same 100 ETH at the same price, so without the fix this would be ~2x.
+        console2.log("token residue after batch 1    :", residue1);
+        console2.log("token residue after batch 2    :", residue2);
+        assertApproxEqRel(residue2, residue1, 1e15, "the carried residue was swept, not accumulated");
+
+        // And it went out through the 80/19/1 split rather than anywhere else. At outRatio 1.05 the
+        // swept residue fetches residue1 * 1.05 wei of ETH, of which the protocol takes 1%.
+        uint256 sweptEth = residue1 * 105 / 100;
+        console2.log("ETH the swept residue fetched  :", sweptEth);
+        console2.log("accumulatedProtocolFees        :", vault.accumulatedProtocolFees());
+        assertApproxEqRel(vault.accumulatedProtocolFees(), sweptEth / 100, 1e15, "1% of the swept residue");
+        assertApproxEqRel(vault.accumulatedTargetFees(), sweptEth * 19 / 100, 1e15, "19% of the swept residue");
+    }
+
+    /// @dev A third batch keeps it bounded rather than merely slower: the residue does not creep.
+    function test_D_residueStaysBoundedAcrossBatches() public {
+        router.setOutRatio(1.05e18);
+
+        _contribute(alice, 100 ether);
+        vault.convertAndAddLiquidity(1);
+        uint256 residue1 = token.balanceOf(address(vault));
 
         _contribute(bob, 100 ether);
         vault.convertAndAddLiquidity(1);
-        uint256 stranded2 = token.balanceOf(address(vault));
 
-        console2.log("token stranded after batch 1   :", stranded1);
-        console2.log("token stranded after batch 2   :", stranded2);
-        assertGt(stranded1, 0, "no token residual produced");
-        assertGt(stranded2, stranded1, "D: token residual accretes with no path out");
+        _contribute(mallory, 100 ether);
+        vault.convertAndAddLiquidity(1);
+        uint256 residue3 = token.balanceOf(address(vault));
+
+        console2.log("token residue after batch 1    :", residue1);
+        console2.log("token residue after batch 3    :", residue3);
+        assertLt(residue3, residue1 * 2, "residue is bounded by one batch, not the sum of them");
     }
 }
