@@ -45,6 +45,10 @@ vi.mock('wagmi', () => ({
     isError: false,
     data: undefined,
   }),
+  // The bid figures' fiat equivalents read the ETH/USD feed through this. Left unresolved: the
+  // stepper cases below are about the ETH floor and the increment, and an absent rate is the card
+  // exactly as it was before the dollar figure existed. FiatAmount's own suite covers the rate.
+  useReadContracts: () => ({ data: undefined }),
 }))
 
 vi.mock('../../../generated/contracts', () => ({

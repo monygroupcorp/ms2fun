@@ -40,6 +40,7 @@ import { encodeActionMessage } from '../../../lib/actionMessage'
 import { formatPrice, formatPriceTitle, formatTokenAmount } from '../../../lib/format'
 import { type CostInverse, solveBuyAmount } from './costInverse'
 import { curveParamsFromTuple, curvePriceAt } from './curveSampler'
+import { FiatAmount } from '../../ui/FiatAmount'
 import { SwapQuickFill } from './SwapQuickFill'
 import { buyEthPresets, sellPctPresets } from './swapPresets'
 import styles from './BondingSurface.module.css'
@@ -563,6 +564,16 @@ export function SwapPanel({
         <span className={styles.quoteLabel}>{isBuy ? 'receive' : 'refund'}</span>
         <span className={styles.quoteValue} title={isBuy ? buyQuoteTitle : sellQuoteTitle}>
           {isBuy ? buyQuoteValue : sellQuoteValue}
+          {/* The sell side quotes ETH, so it carries the dollar equivalent. The buy side quotes
+              TOKENS here — a token count has no fiat meaning — and takes its fiat on the cost row
+              below, which is the ETH the buyer actually parts with. */}
+          {!isBuy && (
+            <FiatAmount
+              wei={refundQuote.data}
+              chainId={chainId}
+              data-testid="erc404-sell-refund-fiat"
+            />
+          )}
         </span>
       </div>
       {isBuy && resolved !== undefined && (
@@ -574,6 +585,7 @@ export function SwapPanel({
             title={formatPriceTitle(resolved.cost)}
           >
             ≈ {formatPrice(resolved.cost)}
+            <FiatAmount wei={resolved.cost} chainId={chainId} data-testid="erc404-buy-cost-fiat" />
           </span>
         </div>
       )}

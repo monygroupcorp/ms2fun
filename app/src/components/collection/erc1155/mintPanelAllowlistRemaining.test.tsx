@@ -35,6 +35,10 @@ vi.mock('wagmi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('wagmi')>()),
   useAccount: () => ({ isConnected: true }),
   useWaitForTransactionReceipt: () => ({ isLoading: false, isSuccess: false }),
+  // The cost line's fiat equivalent reads the ETH/USD feed through this. Left unresolved: these
+  // cases are about the allowlist, and an absent rate is the panel exactly as it was before the
+  // dollar figure existed. FiatAmount's own suite is where the rate paths are asserted.
+  useReadContracts: () => ({ data: undefined }),
 }))
 
 const writeContract = vi.fn()

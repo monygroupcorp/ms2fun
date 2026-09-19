@@ -17,6 +17,7 @@ import {
 import { useCollectionChainId } from '../useCollectionChain'
 import { txErrorReason } from '../../ui/useTxAction'
 import { formatReceipt } from '../../ui/receipt'
+import { FiatAmount } from '../../ui/FiatAmount'
 import { encodeMerkleGatingData, encodeMintMessage, isPaidMintGated } from './gatingMint'
 import { isClosed, remainingForWallet, timeRemaining } from './editionSchedule'
 import { useMerkleAllowlistProof } from './useMerkleAllowlist'
@@ -210,6 +211,9 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
           <span className={styles.costValue}>
             {costPending ? '…' : cost !== null ? `${cost} ETH` : '—'}
           </span>
+          {/* What the mint costs in dollars, beside what it costs in ETH. Self-hides when no rate
+              is available, leaving the ETH figure exactly as it read before. */}
+          <FiatAmount wei={costData} chainId={chainId} data-testid="erc1155-mint-cost-fiat" />
         </span>
         <button
           className={styles.mintBtn}
