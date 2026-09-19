@@ -684,7 +684,9 @@ contract SeedAnvil is SeedAnvilShared {
                 ERC1155Instance.PricingModel.LIMITED_FIXED,
                 0,
                 0,
-                VEIL_FREE_ALLOC
+                VEIL_FREE_ALLOC,
+                0,
+                0
             );
 
         // Post-create, by the instance owner — the factory threads no gating config (the generic
@@ -936,6 +938,8 @@ contract SeedAnvil is SeedAnvilShared {
                 ERC1155Instance.PricingModel.LIMITED_FIXED,
                 0,
                 0,
+                0,
+                0,
                 0
             );
         ERC1155Instance(payable(c0))
@@ -945,6 +949,8 @@ contract SeedAnvil is SeedAnvilShared {
                 0,
                 _pieceMeta("Drift Open", ART_DRIFT_OPEN, "neon-drift"),
                 ERC1155Instance.PricingModel.UNLIMITED,
+                0,
+                0,
                 0,
                 0,
                 0
@@ -969,6 +975,8 @@ contract SeedAnvil is SeedAnvilShared {
                 ERC1155Instance.PricingModel.LIMITED_DYNAMIC,
                 DYN_RATE_BPS,
                 0,
+                0,
+                0,
                 0
             );
 
@@ -981,11 +989,14 @@ contract SeedAnvil is SeedAnvilShared {
                 ERC1155Instance.PricingModel.UNLIMITED,
                 0,
                 0,
+                0,
+                0,
                 0
             );
 
-        // ghost-mint needs at least one edition so claimFreeMint has a target. The last argument is
-        // the edition's free-mint allocation: 5 free claims reserved out of the supply of 100.
+        // ghost-mint needs at least one edition so claimFreeMint has a target. The eighth argument is
+        // the edition's free-mint allocation: 5 free claims reserved out of the supply of 100. The
+        // two after it are the schedule — no close time, no per-wallet ceiling.
         ERC1155Instance(payable(c2))
             .addEdition(
                 "Ghost",
@@ -995,7 +1006,9 @@ contract SeedAnvil is SeedAnvilShared {
                 ERC1155Instance.PricingModel.LIMITED_FIXED,
                 0,
                 0,
-                5
+                5,
+                0,
+                0
             );
 
         // Feature each (rentFeatured) so it surfaces in getHomePageData. rankBoost descends for a
@@ -2209,7 +2222,9 @@ contract SeedAnvil is SeedAnvilShared {
                 ERC1155Instance.PricingModel.LIMITED_FIXED,
                 0,
                 0,
-                freeAlloc
+                freeAlloc,
+                0,
+                0
             );
         d.queue.rentFeatured{ value: 1 ether }(instance, 30 days, rankBoost);
     }

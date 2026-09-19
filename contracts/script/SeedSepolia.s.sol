@@ -789,6 +789,8 @@ contract SeedSepolia is SeedSepoliaShared {
             ERC1155Instance.PricingModel.LIMITED_FIXED,
             0,
             0,
+            0,
+            0,
             0
         );
         // Edition 2 — LIMITED_DYNAMIC. Every mint compounds the price by the rate, so the curve is
@@ -800,6 +802,8 @@ contract SeedSepolia is SeedSepoliaShared {
             _pieceMeta("Rising Edition", ART_PIECE_ATLAS_RISING, "atlas-editions"),
             ERC1155Instance.PricingModel.LIMITED_DYNAMIC,
             EDITION_DYNAMIC_RATE_BPS,
+            0,
+            0,
             0,
             0
         );
@@ -813,7 +817,9 @@ contract SeedSepolia is SeedSepoliaShared {
             ERC1155Instance.PricingModel.LIMITED_FIXED,
             0,
             0,
-            EDITION_FREE_ALLOCATION
+            EDITION_FREE_ALLOCATION,
+            0,
+            0
         );
         vm.stopBroadcast();
 
@@ -870,7 +876,9 @@ contract SeedSepolia is SeedSepoliaShared {
                 ERC1155Instance.PricingModel.LIMITED_FIXED,
                 0,
                 0,
-                GATED_FREE_ALLOCATION
+                GATED_FREE_ALLOCATION,
+                0,
+                0
             );
 
         // Post-create, by the instance owner: the factory threads no gating CONFIG (the generic slot
