@@ -2905,6 +2905,12 @@ export const cypherLiquidityDeployerModuleAbi = [
         indexed: false,
       },
       {
+        name: 'ethReturned',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
         name: 'coinReturned',
         internalType: 'uint256',
         type: 'uint256',
@@ -10751,6 +10757,12 @@ export const liquidityDeployerModuleAbi = [
         indexed: false,
       },
       {
+        name: 'ethReturned',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
         name: 'coinReturned',
         internalType: 'uint256',
         type: 'uint256',
@@ -14763,6 +14775,12 @@ export const zammLiquidityDeployerModuleAbi = [
       },
       {
         name: 'ethTithed',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'ethReturned',
         internalType: 'uint256',
         type: 'uint256',
         indexed: false,

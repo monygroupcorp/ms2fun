@@ -194,13 +194,15 @@ contract GraduationCarveExcessReportingTest is Test {
         }
     }
 
-    /// @dev `GraduationResidueReturned(instance, ethTithed, coinReturned)` — the module's third rail
-    ///      leg, the LP capital the venue itself declined. Zero when absent.
+    /// @dev `GraduationResidueReturned(instance, ethTithed, ethReturned, coinReturned)` — the module's
+    ///      third rail leg, the LP capital the venue itself declined. `ethTithed` is the leg that rode
+    ///      the rail, which is the only one that is revenue; `ethReturned` is the same money on the
+    ///      renounced path, where it goes back to the instance instead. Zero when absent.
     function _residueTithed(Vm.Log[] memory logs) internal view returns (uint256 ethTithed) {
-        bytes32 sig = keccak256("GraduationResidueReturned(address,uint256,uint256)");
+        bytes32 sig = keccak256("GraduationResidueReturned(address,uint256,uint256,uint256)");
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].emitter == address(deployer) && logs[i].topics[0] == sig) {
-                (ethTithed,) = abi.decode(logs[i].data, (uint256, uint256));
+                (ethTithed,,) = abi.decode(logs[i].data, (uint256, uint256, uint256));
             }
         }
     }
