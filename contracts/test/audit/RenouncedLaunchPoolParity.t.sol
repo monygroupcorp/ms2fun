@@ -48,6 +48,22 @@ contract RenouncedLaunchPoolParityTest is Test {
     ///      against the full LP share is a visible price error, not a rounding one.
     uint256 internal constant CARVE_DIVISOR = 8;
 
+    /// @dev How far under the sized leg the venue is allowed to land. `LiquidityDeployerModule`'s
+    ///      `unlockCallback` fits ONE integer liquidity to the two legs it was handed
+    ///      (`LiquidityAmounts.getLiquidityForAmounts`, which floors), and the pool then charges
+    ///      `getAmountsForLiquidity` of that figure — an amounts → L → amounts round trip that can only
+    ///      lose. At this price it loses 2 wei off each leg, and the next liquidity up (`L + 1`) charges
+    ///      no more ETH at all, so the residue is irreducible rather than a fit the module could have
+    ///      sized better. `_returnResidue` is the code that exists for it: the ETH is tithed or sent
+    ///      home, the coin goes back to the instance, and `LiquidityDeployed` is re-pointed at the
+    ///      DELIVERED leg — which is the figure `_poolEth` reads.
+    ///
+    ///      The bound is wei-scale on purpose, and sits well above the 2 wei measured only so a change
+    ///      to this test's curve or target does not have to retune it. L-11 is carve-scale —
+    ///      `reserve() / CARVE_DIVISOR` — so no bound of this size can hide it, and a venue that
+    ///      declines even a fraction of a percent of a leg still fails here rather than rounding past.
+    uint256 internal constant VENUE_FIT_RESIDUE_WEI = 16;
+
     ERC404BondingInstance internal instance;
     LiquidityDeployerModule internal deployer;
     MockMasterRegistry internal registry;
@@ -146,6 +162,14 @@ contract RenouncedLaunchPoolParityTest is Test {
         revert("no LiquidityDeployed from the module");
     }
 
+    /// @dev The parity assertion both tests turn on: every wei the instance sized for the pool either
+    ///      reached the pool or was declined by the venue's integer-liquidity fit. Two-sided on purpose —
+    ///      the pool must never take MORE than was sized either, which is the direction L-11 failed in.
+    function _assertPoolGotWhatWasSizedFor(uint256 delivered, uint256 sized, string memory what) internal pure {
+        assertLe(delivered, sized, string.concat(what, ": the pool took more than the instance sized"));
+        assertApproxEqAbs(delivered, sized, VENUE_FIT_RESIDUE_WEI, what);
+    }
+
     // ── The finding ───────────────────────────────────────────────────────────
 
     /// @notice The instance sizes the coin side for exactly the ETH the module puts in the pool.
@@ -167,7 +191,7 @@ contract RenouncedLaunchPoolParityTest is Test {
         // The module pays no creator carve for a renounced launch, so the instance must not withhold
         // one either. Before the fix this was `raise / CARVE_DIVISOR` of the LP share.
         assertEq(carveEth, 0, "no carve is withheld when there is no creator to pay it to");
-        assertEq(_poolEth(logs), ethToPool + excessEth, "the pool got what the instance sized for");
+        _assertPoolGotWhatWasSizedFor(_poolEth(logs), ethToPool + excessEth, "the pool got what the instance sized for");
     }
 
     /// @notice The reported carve is a carve somebody received. With a creator still in place nothing
@@ -184,7 +208,9 @@ contract RenouncedLaunchPoolParityTest is Test {
 
         (uint256 ethToPool, uint256 excessEth, uint256 carveEth) = _divertEvent(logs);
         assertEq(carveEth, expectedCarve, "an owned launch still withholds its creator carve");
-        assertEq(_poolEth(logs), ethToPool + excessEth, "and the pool still gets what was sized for");
+        _assertPoolGotWhatWasSizedFor(
+            _poolEth(logs), ethToPool + excessEth, "and the pool still gets what was sized for"
+        );
         assertGt(carveEth, 0, "the scenario must actually produce a carve");
     }
 }
