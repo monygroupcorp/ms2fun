@@ -122,6 +122,10 @@ vi.mock('../../generated/contracts', () => ({
   useReadErc1155InstanceCalculateMintCost: () => ({ data: MINT_COST, isPending: false }),
   useReadErc1155InstanceGatingModule: () => ({ data: undefined }),
   useReadErc1155InstanceGatingScope: () => ({ data: undefined }),
+  // This mock replaces the generated module whole rather than spreading it, so a hook the mint panel
+  // reads has to be named here or the panel throws on a missing export. The per-wallet ceiling is not
+  // what this case is about: answer with nothing and the panel renders no ceiling line.
+  useReadErc1155InstanceEditionMintedBy: () => ({ data: undefined }),
   useWriteErc1155InstanceMint: () => writeStub,
   useReadCurveParamsComputerCalculateRefund: () => ({ data: SELL_REFUND }),
   useReadErc404BondingInstanceBalanceOf: () => ({ data: 10n * ONE_ETH, refetch: vi.fn() }),
@@ -144,10 +148,18 @@ afterEach(() => {
 })
 
 describe('a mint price', () => {
-  // `EditionView` is the aggregator's full batch row; MintPanel reads exactly two fields off it —
-  // the edition id it mints and the open time it gates the button on. Supplying only those keeps the
-  // fixture from asserting a shape this test does not exercise.
-  const edition = { id: 1n, openTime: 0n } as unknown as EditionView
+  // `EditionView` is the aggregator's full batch row; MintPanel reads four fields off it — the
+  // edition id it mints, and the open time, close time and per-wallet ceiling it gates the button on.
+  // Supplying only those keeps the fixture from asserting a shape this test does not exercise. The
+  // two schedule fields are 0n, which is what an edition with no end and no ceiling reports, and what
+  // an instance deployed before the schedule existed reads as; they have to be present and typed,
+  // because the panel does bigint arithmetic on them.
+  const edition = {
+    id: 1n,
+    openTime: 0n,
+    closeTime: 0n,
+    maxPerWallet: 0n,
+  } as unknown as EditionView
 
   it('shows the dollar cost beside the ETH cost', () => {
     wrap(<MintPanel instance={INSTANCE} edition={edition} refetch={() => {}} />)
