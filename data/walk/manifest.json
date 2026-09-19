@@ -4,9 +4,9 @@
   "purpose": "Two testers who follow this walk exercise the same protocol. Every write the app can send is either a numbered step here or is one this walk names as unreachable on a testnet, with the reason why — and that claim is checked against the app's own source on every change, so the walk cannot quietly stop describing the app.",
   "roles": {
     "operator": "holds the protocol owner key. On a fresh testnet this is whoever ran the deploy; the act-O steps are the only ones that need it.",
-    "creator": "launches a collection. Needs testnet ETH, an image, and nothing else — no allowlist and no prior standing.",
-    "collector": "buys, mints, bids, stakes. Needs testnet ETH only. This is the role most testers should walk first.",
-    "artist": "holds the overlay-module role on a collection whose art is published in waves. Reached on a collection whose overlay module was wired at launch in C-1."
+    "creator": "launches a collection. Needs testnet ETH and an image — no allowlist, no approval and no prior standing.",
+    "collector": "buys, mints, bids, stakes. Needs testnet ETH and, on some steps, a second wallet. This is the role most testers should walk first.",
+    "artist": "walks the standings a collection and a target hand out — the overlay-module role, the ambassador seat, and the address a community payout is pinned to. Those are three different wallets' worth of standing, and the what-to-bring list says which step wants which."
   },
   "blockingRule": "A step marked [blocking] is one whose failure stops a launch — money moves wrongly, or a person cannot complete a thing the app offered them. A failure on any step is filed as a row either way; blocking says whether the row is allowed to stay open when the launch button is pressed.",
   "prerequisites": {
@@ -18,10 +18,10 @@
     "creator": [
       "a wallet with test ETH — enough to seed a pool, so ask for more than a faucet's default drip",
       "one image file to launch with, under a few megabytes",
-      "nothing else: no allowlist, no approval, no prior standing"
+      "no allowlist, no approval and no prior standing — nothing about the account has to be arranged in advance"
     ],
     "collector": [
-      "a wallet with test ETH — a single faucet drip is enough for act B",
+      "a wallet with test ETH — act B spends beyond gas on a curve buy, a target-request deposit, a featured-slot rent, a board fee and a direct send to a vault, so ask for more than a faucet's default drip",
       "a collection that is already live, which act C produces; if nobody has walked C yet, walk it first or ask for the address of one that has"
     ],
     "artist": [
@@ -105,6 +105,9 @@
             "alignmentRegistryV1Abi.setCommunityPayout"
           ],
           "given": "a token address to align to — on a testnet, any ERC-20 the operator can mint",
+          "needs": [
+            "a second address you control, to point the community payout at — H-3 is walked by connecting as it, so make it one you can sign from"
+          ],
           "do": "register the target, then edit it, then point its community payout at an address you control",
           "expect": "the target appears at /target/:id with the payout address it was given, and /launch offers it as an alignment choice",
           "blocking": true
@@ -145,6 +148,10 @@
             "masterRegistryV1Abi.setEmergencyRevoker"
           ],
           "given": "a second address to act as the agent",
+          "needs": [
+            "a second address to act as the agent",
+            "a third address to name as the emergency revoker"
+          ],
           "do": "set the agent, name an emergency revoker, then revoke the agent",
           "expect": "the agent address can act while set and cannot after revocation",
           "blocking": false
@@ -224,6 +231,9 @@
             "alignmentRegistryV1Abi.removeAmbassador"
           ],
           "given": "a curated alignment target from O-4, and a second wallet address to appoint",
+          "needs": [
+            "a second wallet with test ETH that you can sign from — it is appointed as the ambassador here and then walks H-2 from its own key"
+          ],
           "do": "in the alignment panel's ambassador row, add the address against the target id. Have that wallet walk H-2. Then remove it and have the same wallet try H-2 again",
           "expect": "the appointed wallet can edit the target in H-2 and the removed one cannot — the edit is refused by the contract rather than accepted and ignored. The seat survives de-curation: after O-10 the ambassador can still edit the description, and only the spending is frozen",
           "blocking": true
@@ -464,6 +474,9 @@
             "erc721AuctionInstanceAbi.flushPendingVaultCut"
           ],
           "given": "an ERC-721 auction collection from C-3 with an auction settled in B-9, and a graduated ERC-404 collection from C-15 — both aligned to a vault",
+          "needs": [
+            "a second wallet with test ETH for gas that owns nothing in the collection — the flush is permissionless and this step is walked from it as well as from yours"
+          ],
           "do": "in the auction collection's creator admin panel, read the stranded-tithe row and press flush if it names an amount. Then do the same on the ERC-404 collection, whose row sends the same call against the liquidity module it graduated through rather than against the instance. If either says nothing is stranded, say so in the row — that is the expected reading when every settlement delivered",
           "expect": "a stranded amount leaves for the vault and the row falls to nothing stranded, on whichever family had one. With nothing stranded the button is disabled rather than reverting. The call is permissionless on both, so it works from a wallet that owns nothing — walk it once from the creator and once from the collector wallet",
           "blocking": true
@@ -606,6 +619,9 @@
             "erc721AuctionInstanceAbi.reclaimUnsold"
           ],
           "given": "a running auction from C-9, and a second wallet to bid against",
+          "needs": [
+            "a second wallet with test ETH to bid against — it has to outbid you, so fund it beyond gas"
+          ],
           "do": "bid, be outbid, bid again near the end to trigger the time extension, let it end, settle it. Separately, let an auction with no bids expire and reclaim the piece.",
           "expect": "the outbid wallet gets its ETH back without asking; the extension is visible on the clock; settlement delivers the piece and pays the creator; the unsold piece returns to the creator",
           "blocking": true
@@ -710,6 +726,9 @@
             "communityPayoutAbi.flushRoundResidue"
           ],
           "given": "an endowment vault reached in B-16 whose target is still curated, after its ambassador has deployed the corpus down to a sliver — the deploy is sent from the ambassador's own wallet, the app has no control for it — which closes the funding round and parks what was left as round residue",
+          "needs": [
+            "a second wallet with test ETH for gas that owns nothing here — the delivery is permissionless and this step is walked from it"
+          ],
           "do": "read the round-residue row, press deliver the residue, then press it again with none waiting",
           "expect": "the residue leaves for the payout address and the row falls to zero; the second press is refused by a disabled button that says no round residue is waiting. With no payout address set the button is disabled and says the residue waits on one. The call is permissionless, so walk it from a wallet that owns nothing. Once the target is de-curated this control stops working and the residue goes out with the release in B-18 instead",
           "blocking": true
@@ -734,6 +753,9 @@
             "lpVaultAbi.withdrawProtocolFees"
           ],
           "given": "a Uni, ZAMM or Cypher vault that has taken trading fees — the same vault B-16 delivers the community share from",
+          "needs": [
+            "a second wallet with test ETH for gas that owns nothing here — the delivery is permissionless and this step is walked from it"
+          ],
           "do": "open the vault from /vaults and press deliver on the protocol-cut section",
           "expect": "the undelivered figure falls to zero and the treasury the vault was wired with receives it. The call takes no destination, so pressing it from a stranger's wallet sends the money to the same place — walk it from a wallet that owns nothing and check the treasury balance, not the sender's. With nothing accrued the section is not on the page at all",
           "blocking": true
@@ -758,6 +780,10 @@
             "benefactorPositionAbi.claimFees"
           ],
           "given": "a Uni or ZAMM vault reached from /vaults that has taken trading fees from the graduated pool in B-1, and a wallet that has sent that vault at least 0.001 ETH directly. That send is a plain wallet transfer and not an app button — the app offers no way to contribute to a vault, and Uni and ZAMM credit whoever sends them ETH. Walk it once before the vault's pending ETH has been converted into shares and once after; conversion is a keeper's call, not a page's",
+          "needs": [
+            "test ETH beyond gas: this step sends at least 0.001 ETH straight to the vault, and nothing in the walk sends it back",
+            "a second wallet that has never contributed to that vault, to read the position from"
+          ],
           "do": "open the vault with that wallet connected and read the Your position section, then press claim in both states. Also open the same vault from a wallet that has never contributed",
           "expect": "the section states this wallet's own contribution, shares, delegate and claimable, none of which are the vault-wide figures above it. Before conversion the shares read zero and claim is disabled saying a contribution becomes shares at the next conversion, rather than sending a transaction that reverts NoShares. After conversion the claim pays this wallet, and pays at least the claimable figure — it is labelled a minimum rather than a quote because the claim sweeps fresh fees first, so a payout larger than the figure is correct and a smaller one is a finding. A wallet that never contributed is told the figures are its own and not the vault's, instead of reading the vault's totals as if they were its position",
           "blocking": true
@@ -770,6 +796,9 @@
             "benefactorPositionAbi.delegateBenefactor"
           ],
           "given": "the position walked in B-21, with shares and something claimable, plus a second address to hand the payout to",
+          "needs": [
+            "a second wallet you can sign from — it is named as the delegate here and B-23 is walked from its key, so an address you cannot connect as ends the walk at B-23"
+          ],
           "do": "type the second address into pay this wallet's claims to and set it. Then press claim from the benefactor's own wallet. Then clear the box, press revoke delegate, and claim again",
           "expect": "before the transaction is sent the panel says plainly that this redirects the money and not merely the button, because the word delegate does not say so. Claims paid to then shows the delegate. The claim pressed afterwards from the benefactor's OWN wallet pays the delegate — check the delegate's balance and the benefactor's, and treat money arriving at the caller as the finding. Clearing the box revokes, the row returns to this wallet — no delegate set, and the next claim pays the benefactor again",
           "blocking": true
@@ -782,6 +811,9 @@
             "benefactorPositionAbi.claimFeesAsDelegate"
           ],
           "given": "the delegate address named in B-22, still set, connected as the wallet doing the walking, and a second benefactor address that has NOT named it",
+          "needs": [
+            "a third address that has never delegated to you — it is typed into a box and never signs"
+          ],
           "do": "on the same vault, paste the delegating benefactor's address into claim for benefactors who delegated to you and press claim for them. Then repeat with the address that never delegated, and once with the box empty",
           "expect": "the whole sum arrives in the delegate's own wallet, which is what being a delegate means here, and the benefactor's balance does not move. The empty box leaves the button disabled asking for an address rather than sending nothing. The address that never delegated reverts, and the panel reports a failed claim — a success state on a transaction that reverted is the finding. The app builds no list of who delegated to whom because the vault publishes no such index, so the addresses being typed rather than offered is correct",
           "blocking": true
@@ -816,6 +848,9 @@
             "alignmentRegistryV1Abi.updateAlignmentTarget"
           ],
           "given": "an ambassador address added to a target by the operator",
+          "needs": [
+            "the ambassador seat on a target, which the operator grants in O-13 — it is a different standing from the overlay-module role and is held by whichever wallet the operator appointed"
+          ],
           "do": "connect as the ambassador and edit the target from its own page",
           "expect": "the ambassador reaches the edit form and no owner-only control; after the target is de-curated in O-10, the ambassador can still operate what exists and cannot deploy anything new",
           "blocking": true
@@ -828,6 +863,11 @@
             "alignmentRegistryV1Abi.rotateCommunityPayout"
           ],
           "given": "the address O-4 pointed the community payout at, connected as that address, on a vault bound to that target",
+          "needs": [
+            "the wallet the operator pinned the community payout to in O-4 — a third standing again, and not the overlay-module role",
+            "a second address you control, to move the payout to",
+            "the operator, to confirm from their own screen that there is no way to move it there"
+          ],
           "do": "open the vault, find the move-payout row under the payout address, enter a second address you control and send it; then connect as the FIRST address again and confirm the row is gone, and as the operator confirm /admin offers no way to move it either",
           "expect": "the payout moves to the second address and the deliver button in B-16 then pays there; the row shows only to whoever is currently receiving the payout, so the first address loses it the moment it moves and the operator never had it. This is the one authority in the walk the protocol cannot exercise on a community's behalf: the operator pins a payout once in O-4 and can never move it, which is why the row lives here and not on /admin.",
           "blocking": true

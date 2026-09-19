@@ -204,6 +204,46 @@ for (const role of Object.keys(manifest.prerequisites ?? {})) {
   if (!manifest.roles[role]) fail(`prerequisites names role '${role}', which manifest.roles does not define`);
 }
 
+// What a step wants that the walker does not already have. The role's prerequisite list is read
+// once, before anything is arranged; a step's `given` is read at the step, with the faucet already
+// drunk and the second wallet not created. Twelve steps wanted a party that was named only in the
+// second place — a wallet to bid against, a delegate whose key B-23 is walked from, a standing the
+// operator grants — while two roles' prerequisites said in so many words that one wallet was the
+// whole ask. A tester who believed them reached a blocking step and stopped.
+//
+// So a step declares what it wants in `needs`, the invite rolls every one of them into what-to-bring,
+// and this refuses a step that reads as wanting another party while declaring none. The patterns
+// only have to NOTICE — `needs` is the list that has to be complete, and over-declaring costs
+// nothing. They are deliberately the phrasings of a requirement and not of a property: 'walk it from
+// a wallet that owns nothing' is an instruction, 'a second wallet can expire the same request' is a
+// fact about the contract and asks the tester for nothing.
+const ANOTHER_PARTY = [
+  /\b(?:a|an|the|one)\s+(?:second|third|fourth|other|another)\s+(?:wallet|address|account|signer|benefactor)\b/i,
+  /\banother\s+(?:wallet|address|account)\b/i,
+  /\bwallet that (?:owns nothing|has never|has not|never)\b/i,
+  /\ba wallet that has sent\b/i,
+];
+// `expect` describes the outcome, so most of what it says about other wallets is a property. The one
+// shape that is an instruction is the one that tells the tester which wallet to walk from.
+const WALK_IT_FROM = /\bwalk (?:it|this|them) (?:once )?from (?:a|the)\b/i;
+for (const step of steps) {
+  if (step.needs !== undefined && !Array.isArray(step.needs)) {
+    fail(`${step.id}: what it says to bring is not a list`);
+    continue;
+  }
+  for (const need of step.needs ?? []) {
+    if (typeof need !== 'string' || !need.trim()) fail(`${step.id}: carries an empty thing to bring`);
+  }
+  if ((step.needs ?? []).length) continue;
+  const asks = [
+    ...ANOTHER_PARTY.map((re) => [re, `${step.given ?? ''} ${step.do ?? ''}`]),
+    [WALK_IT_FROM, step.expect ?? ''],
+  ].map(([re, text]) => text.match(re)).find(Boolean);
+  if (asks) {
+    fail(`${step.id}: reads '${asks[0].trim()}', so it wants somebody beyond the wallet walking it, and declares nothing to bring — a tester reads the what-to-bring list before the walk and this step's own lines only once they are standing on it`);
+  }
+}
+
 // The return path. A walk that collects nothing is a rehearsal, so the destination and the fields a
 // finding must carry are part of the manifest and are checked like anything else in it.
 if (!manifest.report?.destination?.trim()) fail('report.destination is empty — a walk with no return path collects nothing');
@@ -251,6 +291,7 @@ const invitedProse = (() => {
     if (act.note) out.push([`act ${act.id} note`, act.note]);
     for (const step of act.steps ?? []) {
       for (const key of ['title', 'given', 'do', 'expect']) out.push([`${step.id} ${key}`, step[key]]);
+      (step.needs ?? []).forEach((need, i) => out.push([`${step.id} thing to bring [${i}]`, need]));
     }
   }
   (manifest.report?.include ?? []).forEach((field, i) => out.push([`report.include[${i}]`, field]));
@@ -418,11 +459,19 @@ const flag = (name) => {
 const STEP_LINES = [
   ['where', (step, chainId, at) => stepWhere(step, chainId, at)],
   ['given', (step) => step.given],
+  // What the step needs that is not the walker's own wallet: a second signer, a third address, a
+  // standing somebody else grants. Rendered under `given` because it qualifies it, and rolled up
+  // into the packet's what-to-bring list, which is where a tester reads it in time to go and get it.
+  ['bring', (step) => (step.needs ?? []).join('; ')],
   ['do', (step) => step.do],
   ['expect', (step) => step.expect],
 ];
 
-const stepLines = (step, chainId, at) => STEP_LINES.map(([key, value]) => `  - ${key}: ${value(step, chainId, at)}`);
+// A step with nothing to bring renders no bring line at all, rather than an empty one.
+const stepLines = (step, chainId, at) => STEP_LINES
+  .map(([key, value]) => [key, value(step, chainId, at)])
+  .filter(([, text]) => text)
+  .map(([key, text]) => `  - ${key}: ${text}`);
 
 // The packet one named tester is handed: the role they walk, what to bring, the steps that are
 // theirs, the steps somebody else has to have walked first, and where a finding goes. It is derived
@@ -459,6 +508,26 @@ function renderInvite(role, chain, at) {
   say(`## Who you are\n\n${manifest.roles[role]}\n`);
   say('## What to bring\n');
   for (const need of manifest.prerequisites[role]) say(`- ${need}`);
+  // The role's own line says what every step of it wants. Twelve steps wanted more than that — a
+  // second wallet to bid against, a third address that never delegated, a standing the operator
+  // grants — and each one said so only inside itself, which a tester reads when they are already at
+  // the step and the faucet has already been drunk. Rolled up here, they are read before the walk
+  // starts, which is the only time they can still be gone and got.
+  const bring = new Map();
+  for (const act of mine) {
+    for (const step of act.steps) {
+      for (const need of step.needs ?? []) {
+        if (!bring.has(need)) bring.set(need, []);
+        bring.get(need).push(step.id);
+      }
+    }
+  }
+  if (bring.size) {
+    say('\nAnd these, which single steps want rather than the whole walk. The step id beside each is');
+    say('the one that asks for it; get them before you start, because a step reached without one is a');
+    say('step you have to come back to.\n');
+    for (const [need, where] of bring) say(`- ${need}   (${where.join(', ')})`);
+  }
   if (upstream.size) {
     say('\n## What somebody else walks\n');
     say('Your steps refer to these and none of them is yours. Where one is a precondition rather than a');
@@ -532,8 +601,11 @@ function renderReport(step, chainId, chain, at) {
   say(`- sends: ${step.calls.join(', ')}`);
   // given and do, not expect alone. A row is walked back by somebody who was not there, and what the
   // step asked for is the half that tells them whether the tester hit the defect or read the step
-  // wrong. The invite tells a tester to copy all four lines; this form used to carry two of them.
+  // wrong. The invite tells a tester to copy every one of its lines; this form used to carry two.
   say(`- given: ${step.given}`);
+  // Whoever walks a row back was not there. Half of what looks like a defect on these steps is a
+  // step walked without the second wallet it wanted, and the form says which ones those are.
+  if ((step.needs ?? []).length) say(`- the walk said to bring: ${step.needs.join('; ')}`);
   say(`- the walk says to do: ${step.do}`);
   say(`- the walk says to expect: ${step.expect}`);
   say('- what I did:');
@@ -565,6 +637,7 @@ function renderPrint() {
       say(`### ${step.id}. ${step.title}${step.blocking ? '   [blocking]' : ''}`);
       say(`- where: ${step.route === '*' ? 'anywhere in the app' : step.route}`);
       say(`- given: ${step.given}`);
+      if ((step.needs ?? []).length) say(`- bring: ${step.needs.join('; ')}`);
       say(`- do: ${step.do}`);
       say(`- expect: ${step.expect}`);
       say(`- sends: ${step.calls.join(', ')}\n`);
@@ -626,6 +699,18 @@ if (process.argv.includes('--selftest')) {
     const text = lines.join('\n');
     check(text.includes(chainLine(fixture)), `--invite ${role} names the chain it is walking`);
     check(text.includes('## What to bring'), `--invite ${role} says what to bring`);
+    // What the steps want beyond the walker's own wallet has to reach the what-to-bring list, which
+    // is read before anything is arranged. A need declared on a step and rendered only inside that
+    // step is one a tester meets when it is already too late to go and get it.
+    for (const step of manifest.acts.filter((a) => a.role === role).flatMap((a) => a.steps)) {
+      for (const need of step.needs ?? []) {
+        const listed = text.split('## What to bring')[1]?.split('## Your steps')[0] ?? '';
+        check(
+          listed.includes(need) && listed.includes(step.id),
+          `--invite ${role}: what ${step.id} says to bring is on the what-to-bring list, with the step beside it`,
+        );
+      }
+    }
     check(text.includes(fixtureAt), `--invite ${role} says where to open the app`);
     check(/## Your steps — [1-9]/.test(text), `--invite ${role} carries at least one step`);
     // The three lines that turn a walked failure into a row. They used to be reachable only by
@@ -668,12 +753,16 @@ if (process.argv.includes('--selftest')) {
           `--invite ${role}: step ${step.id} carries the chain id, not a blank for it`,
         );
       }
-      // The same four lines the report form carries, asserted on the packet side too. Either
-      // renderer dropping one is the drift this list exists to prevent, and a claim on only one of
-      // them would catch it in one direction.
+      // The same lines the report form carries, asserted on the packet side too. Either renderer
+      // dropping one is the drift this list exists to prevent, and a claim on only one of them
+      // would catch it in one direction.
       for (const [key, value] of STEP_LINES) {
+        const line = value(step, fixture.chainId, fixtureAt);
+        // A step with nothing to bring renders no bring line, and asserting on an empty value would
+        // match the ': ' of any other step's and pass without looking at this one.
+        if (!line) continue;
         check(
-          text.includes(`- ${key}: ${value(step, fixture.chainId, fixtureAt)}`),
+          text.includes(`- ${key}: ${line}`),
           `--invite ${role}: step ${step.id} shows its '${key}' line`,
         );
       }
