@@ -42,14 +42,27 @@ skip = [
     "test/audit/HookQueuedFeesMigratedVault.t.sol",
     "test/audit/HookSecondPoolNotBound.t.sol",
     "test/audit/UniVaultPoolKeyRotation.t.sol",
-    # DIFFERENT reason. The proofs below are the 2026-09-17 pre-testnet audit's
-    # reproductions of defects that are still OPEN (see contracts/audits/
-    # 2026-09-17-pre-testnet.md). They assert the property the code SHOULD hold, so
-    # they FAIL on purpose, and a failing test in the default set would make the
-    # contracts gate red for a defect the gate did not cause. They are excluded here
-    # and run by path instead; the audit report carries the command and the output for
-    # each. WHEN A FIX LANDS, DELETE ITS LINE — the proof turning green is how the fix
-    # is shown to work, and a proof left skipped is a fix nobody verified.
+    # DIFFERENT reason. The proof below is the 2026-09-17 pre-testnet audit's reproduction
+    # of H-1 — a free-mint tranche is redeemable against a reserve only paid buyers funded
+    # (see contracts/audits/2026-09-17-pre-testnet.md). It asserts a solvency property the
+    # code does not hold, so it FAILS on purpose, and a failing test in the default set
+    # would make the contracts gate red for something the gate did not cause. It is
+    # excluded here and run by path instead; the audit report carries the command and the
+    # recorded output.
+    #
+    # IT IS NOT WAITING FOR A FIX, and that is what makes it different from every other
+    # proof that has sat in this list. The free-mint tranche was ruled a design decision on
+    # 2026-09-17 — accepted as designed, not a defect — so nothing under src/ will ever turn
+    # this proof green. Do NOT delete its line to let the gate keep it honest: that makes
+    # the gate permanently red. It stays here as the record of a mechanism the protocol
+    # sells deliberately. What measures that mechanism INSIDE the default set, and is where
+    # a regression in it would actually surface, is
+    # test/invariant/BondingCurveFreeMintInvariant.t.sol and
+    # test/factories/erc404/FreeMintReserveDrain.t.sol.
+    #
+    # The rule still holds for anything added below it: WHEN A FIX LANDS, DELETE ITS LINE —
+    # the proof turning green is how the fix is shown to work, and a proof left skipped
+    # awaiting a fix is a fix nobody verified.
     "test/audit/FreeMintCurveSolvency.t.sol",
 ]
 remappings = [

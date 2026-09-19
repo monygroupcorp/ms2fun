@@ -12,10 +12,17 @@
 #      `foundry.v4.toml`, the only way to compile them is a standalone config whose own
 #      `[profile.default]` sets `auto_detect_solc = true`.
 #
-#   2. THEY FAIL ON PURPOSE. The rest assert the property the code SHOULD hold for a defect that
-#      is still OPEN. A red test in the default set would make the contracts gate report a
-#      failure the gate did not cause, and a gate that is red for a known reason stops being
-#      read. So the proofs are excluded there and run by name here.
+#   2. IT FAILS ON PURPOSE. One proof — FreeMintCurveSolvency.t.sol, H-1 — asserts a solvency
+#      property the code does not hold. A red test in the default set would make the contracts
+#      gate report a failure the gate did not cause, and a gate that is red for a known reason
+#      stops being read. So it is excluded there and run by name here.
+#
+#      H-1 was RULED on 2026-09-17: the free-mint tranche is a design decision, accepted as
+#      designed and not a defect. So this proof is not a defect ticket waiting on a fix — it is
+#      the record of a mechanism the protocol sells, and no src/ change will turn it green. The
+#      proofs that measure the ruled behaviour and run inside the gate are
+#      test/invariant/BondingCurveFreeMintInvariant.t.sol and
+#      test/factories/erc404/FreeMintReserveDrain.t.sol.
 #
 # WHERE THIS IS RUN BY HAND (the repo's rule is that a profile with no selector is not a gate,
 # so this is its selector). The whole set:
@@ -31,7 +38,9 @@
 #
 # WHEN A FIX LANDS: delete that proof's line from `skip` in `foundry.toml` so it joins the
 # default set and the gate keeps it honest. The proof turning green is how the fix is shown to
-# work; a proof left skipped is a fix nobody verified.
+# work; a proof left skipped awaiting a fix is a fix nobody verified. Every proof this audit
+# wrote for a defect has now made that move except H-1's, which is ruled rather than open and
+# must stay skipped — see above, and do not delete its line.
 #
 # WHY ITS OWN `out`/`cache_path`: same reason `foundry.v4.toml` has its own — under auto-detect
 # the shared source graph is compiled by a different solc, forge disambiguates the second

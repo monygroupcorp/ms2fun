@@ -391,7 +391,8 @@ restores every path, which the proof also demonstrates. It remains a one-call, n
 total DoS of the benefactor leg with no on-chain warning.
 
 **Proof:** `test/audit/UniVaultPoolKeyRotation.t.sol` — 1 failing, 1 passing recovery test, against
-a real in-memory v4-core `PoolManager`.
+a real in-memory v4-core `PoolManager`. That is the proof as filed; it was rewritten against the
+merged guard and now asserts the defect closed. See §3.
 
 #### M-4 · A migrated vault traps the alignment hook's queued fees forever
 
@@ -683,45 +684,94 @@ real finding and a future reader will re-derive it:
 
 ## 3. Proofs of concept
 
-Thirteen proofs sit under `contracts/test/audit/`. They are **not** in the default test set, for two
-independent reasons recorded in `foundry.toml`'s `skip` list and in `foundry.audit.toml`:
+`contracts/test/audit/` holds eighteen files. Seventeen are this audit's — thirteen written with the
+hunt, four added by the fixes that followed — and `SlitherSuppressionCensus.t.sol` predates it
+(2026-08-20) and only shares the directory.
 
-1. Three drive v4-core's real `PoolManager`, whose pragma is exactly `0.8.26`, and the default
-   profile is deterministically pinned to `0.8.28` for deploy-determinism (noesis-120). This is the
-   same constraint that already put `UniAlignmentV4Hook_RealSettlement.t.sol` behind
-   `foundry.v4.toml`.
-2. The proofs for open defects **fail on purpose** — they assert the property the code should hold.
-   A red test in the default set would make the contracts gate report a failure the gate did not
-   cause, and a gate that is red for a known reason stops being read. As each fix lands its proof
-   leaves this group and joins the default set; `UniVaultShareAccounting.t.sol` already has.
+**Fourteen of them run in the default test set**, and that is the change since this section was first
+written. It then described a set wholly outside the gate, because at that point every proof for an
+open defect failed on purpose. As each fix landed its proof was rewritten from recording the defect
+to asserting it closed, and its line was deleted from `foundry.toml`'s `skip`. That migration is
+finished; four files remain outside the default set, and their two reasons are no longer symmetric.
 
-Run the whole set:
+1. **Pragma, not state.** Three drive v4-core's real `PoolManager`, whose pragma is exactly `0.8.26`,
+   while the default profile is pinned to `0.8.28` for deploy-determinism (noesis-120) — the same
+   constraint that already put `UniAlignmentV4Hook_RealSettlement.t.sol` behind `foundry.v4.toml`.
+   All three pass. They are excluded for what they import, not for what they assert, and because no
+   job selected that config, nothing caught them going red on their own — which is exactly what
+   happened. PR #445 (open) adds two of them to the `real-settlement` CI job; the third is the one
+   that had already gone red, and it is the subject of the note below.
+2. **Ruled, not open.** `FreeMintCurveSolvency.t.sol` asserts a solvency property the protocol does
+   not offer, and after the 2026-09-17 ruling it never will. It is the one proof here not waiting on
+   a fix, and its `skip` line must not be deleted: that would make the contracts gate permanently red
+   for a mechanism the protocol sells deliberately. What measures that mechanism *inside* the gate is
+   `test/invariant/BondingCurveFreeMintInvariant.t.sol` and
+   `test/factories/erc404/FreeMintReserveDrain.t.sol`, both landed with #430.
+
+The four the gate does not cover, and the whole set, run under the companion config:
 
 ```
 cd contracts && FOUNDRY_CONFIG=foundry.audit.toml forge test --match-path "test/audit/*"
 ```
 
-| proof | reproduces | state |
-|---|---|---|
-| `FreeMintCurveSolvency.t.sol` | H-1 | **3 fail**, 1 control passes |
-| `GraduationLpResidue.t.sol` | M-1 | **5 fail** (v4 ×2, ZAMM ×2, Cypher ×1), 3 pass |
-| `UniVaultShareAccounting.t.sol` | M-2 (and strikes C, D) | 4 pass (rewritten around the fix; now in the default set) |
-| `UniVaultPoolKeyRotation.t.sol` | M-3 | **1 fail**, 1 recovery test passes |
-| `HookQueuedFeesMigratedVault.t.sol` | M-4 | 3 pass (the trap, its exit, and the halted tithe) |
-| `AuctionTimeBufferLock.t.sol` | M-5 | 4 pass (assert the merged guard, and the bounded lock) |
-| `CreateXSaltSquat.t.sol` | L-1 | 7 pass (squat, recovery, wrong preview) |
-| `AccessControlCluster.t.sol` | L-2, L-3, L-4 | passes |
-| `CurveExactOutRoundingBuffer.t.sol` | L-5 | 2 pass (isolates the missing wei) |
-| `HookSecondPoolNotBound.t.sol` | L-6 | passes (shows it drains nothing) — rewritten by the fix, see below |
-| `PriceValidatorFullRangeInertGuards.t.sol` | L-7 | 3 pass (inert, and where it *does* bind) |
-| `OverlayFakeInstance.t.sol` | Info (overlay) | 3 pass (attack works, value conserved) |
-| `QueueSpamAndSquatDisproof.t.sol` | the strikes | passes — evidence for what was struck |
+Measured on the current tree. "in the gate" means the file is in the default set, so every
+`forge test` and every contracts gate run keeps it honest:
+
+| proof | reproduces | in the gate | measured |
+|---|---|---|---|
+| `AccessControlCluster.t.sol` | L-2, L-3, L-4 | yes | 10 pass |
+| `AuctionTimeBufferLock.t.sol` | M-5 | yes | 4 pass |
+| `CreateXSaltSquat.t.sol` | L-1 | yes | 7 pass |
+| `CurveExactOutRoundingBuffer.t.sol` | L-5 | yes | 2 pass |
+| `FreeMintCurveSolvency.t.sol` | H-1 | **no — ruled** | 1 pass, **3 fail by design** |
+| `GraduationLpResidue.t.sol` | M-1 | yes | 15 pass (v4, ZAMM, Cypher) |
+| `HookQueuedFeesMigratedVault.t.sol` | M-4 | no — pragma | 3 pass |
+| `HookSecondPoolNotBound.t.sol` | L-6 | no — pragma | 3 pass |
+| `OverlayFakeInstance.t.sol` | Info (overlay) | yes | 3 pass |
+| `PriceValidatorFullRangeInertGuards.t.sol` | L-7 | yes | 3 pass |
+| `PriceValidatorSpotTwapBand.t.sol` | L-7 (the fix) | yes | 8 pass |
+| `QueueSpamAndSquatDisproof.t.sol` | the strikes | yes | 3 pass |
+| `ReferenceTwapWindowFloor.t.sol` | L-8 | yes | 5 pass |
+| `RenouncedLaunchPoolParity.t.sol` | L-11 | yes | 2 pass |
+| `SlitherSuppressionCensus.t.sol` | — (predates this audit) | yes | 1 pass |
+| `UniVaultPoolKeyRotation.t.sol` | M-3 | no — pragma | 3 pass |
+| `UniVaultShareAccounting.t.sol` | M-2 (and strikes C, D) | yes | 5 pass |
+| `ZRouterHatchAuth.t.sol` | L-9 | yes | 13 pass |
+
+Whole set: **20 suites, 91 passed, 3 failed** of 94 tests. The three failures are H-1's, and they are
+the only red left in this directory. Inside the default set the sixteen suites these files produce run
+81 tests, all green.
 
 **When a fix lands, delete that proof's line from `skip` in `foundry.toml`** so it joins the default
-set and the gate keeps it honest. A proof left skipped is a fix nobody verified.
+set and the gate keeps it honest. A proof left skipped awaiting a fix is a fix nobody verified. H-1's
+is the exception and the only one: it is skipped because it is ruled, not because it is open.
 
-Whole-set result on this branch: **36 passed, 12 failed** across 16 suites. The twelve failures
-are the twelve reproductions; nothing else in the set is red. The recorded output is below.
+### One proof had gone stale against its own fix
+
+Worth recording, because it is the failure mode the rule above exists to prevent and the rule could not
+catch it. `UniVaultPoolKeyRotation.t.sol` (M-3) is pragma-skipped, so deleting its `skip` line was
+never available, and no job selected `foundry.audit.toml` — so nothing ran it. Its fix (#423, guard
+commit `98aa634b`) merged two minutes BEFORE the audit that carried the proof (#422), and the file has
+not been touched since it was added, so on `main` this proof has never once been meaningful: it arrived
+already reverting `PoolKeyLocked()` — the guard the fix added, hit by a proof still trying to
+demonstrate the defect. It was failing *because the fix worked*, which is evidence of nothing.
+
+It is rewritten against the fix, the same move every other proof made, and against the real
+`PoolManager` that is the reason this file exists at all — `test/vaults/UniAlignmentVault.t.sol` pins
+both halves of the guard against a mock and cannot show the fee poke landing on a real v4 position.
+Three tests: the rotation is refused once a real position is live **and the stored key does not move**;
+after a refused rotation `convertAndAddLiquidity` still succeeds, so the poke lands and
+`Position.CannotUpdateEmptyPosition` — the selector the finding measured — is unreachable rather than
+merely unhit; and wiring a vault that holds no position is still open, at a tick spacing of 200 rather
+than 60, which also disposes of the theory the hunt raised and discarded, that the brick was tick
+spacing failing to divide the stale ticks. Neutering the one-line guard turns all three red.
+
+### State as first recorded
+
+The block below is what each proof printed when its finding was filed, and where a fix followed, what
+it printed after. It is kept as the evidence for the findings — the failing output is the measurement.
+It is a historical record, not the current state: except for H-1's, none of these failures reproduces
+on the tree today. The table above is what runs now.
 
 ```
 Ran 4 tests for test/audit/FreeMintCurveSolvency.t.sol:FreeMintCurveSolvencyTest
@@ -762,11 +812,21 @@ test/audit/UniVaultShareAccounting.t.sol   (as it stands, on `uni-vault-conversi
   mallory FAIR (400/batchEth)    : 190000000000000000009
   mallory ACTUAL                 : 189999999999999999815    <- was 191187500000000000118
 
-test/audit/UniVaultPoolKeyRotation.t.sol
+test/audit/UniVaultPoolKeyRotation.t.sol   (as first recorded, before PR #423)
 [FAIL: convertAndAddLiquidity bricked by unguarded setV4PoolKey (:940-944)]
   claimFees / claimFeesAsDelegate / convertAndAddLiquidity all revert 0xaefeb924
   totalEthLocked stranded: 20.0 ETH        totalShares: 10e18
 [PASS] test_B_rotatingBackRestoresTheVault()
+
+test/audit/UniVaultPoolKeyRotation.t.sol   (as it stands, rewritten against the merged guard)
+[PASS] test_B_rotationIsRefusedOnceARealV4PositionIsLive()
+  totalLPUnits after convert #1 : 5000000000000000000
+[PASS] test_B_theFeePokeStillLandsAfterARefusedRotation()
+  totalLPUnits after convert #2 : 10000000000000000000     <- the poke landed on a real position
+  claimFees revert data          : 0x846d8c5c              <- NoFeesToClaim, not CannotUpdateEmptyPosition
+  claimFeesAsDelegate revert data: 0x1db3b859              <- NotDelegate,   not CannotUpdateEmptyPosition
+[PASS] test_B_wiringAVaultThatHoldsNoPositionIsStillOpen()
+  totalLPUnits on keyB (spacing 200): 10000000000000000000
 
 test/audit/HookQueuedFeesMigratedVault.t.sol   (as first recorded, before the fix)
 [FAIL: swap-tax ETH queued against a migrated vault has no exit]
@@ -916,4 +976,22 @@ cd contracts && forge fmt --check && forge build && \
 - EIP-170 diet gate — PASS (`ERC404BondingOps` 23,715B, headroom 861B against a 500B floor)
 - `FOUNDRY_PROFILE=ci forge test` — **2549 passed, 0 failed, 29 skipped**, 233 suites
 
-The audit proofs are excluded from that set by design and run under their own config; see §3.
+That was the audit branch at its merge, and it recorded the audit proofs as excluded from that set by
+design. They are not any more: fourteen of the eighteen are in the default set and only four are
+outside it — see §3.
+
+**Re-measured on this branch, 2026-09-19,** because the figures above describe the audit branch before
+this report's own fixes merged, and because the contracts gate was red on `main` from #436 (2026-09-18)
+until #447 merged today. The clause this audit is gated on names the plain chain, so that is what was
+run:
+
+```
+cd contracts && forge fmt --check && forge build && forge test
+```
+
+- `forge fmt --check` — clean
+- `forge build` — exit 0
+- `forge test` — **2644 passed, 0 failed, 30 skipped** of 2674, across 246 suites; exit 0
+
+Inside that run, the sixteen suites the `test/audit/` files produce contribute 81 tests, all green. The
+four files the default set does not compile are measured separately in §3.
