@@ -42,14 +42,22 @@ skip = [
     "test/audit/HookQueuedFeesMigratedVault.t.sol",
     "test/audit/HookSecondPoolNotBound.t.sol",
     "test/audit/UniVaultPoolKeyRotation.t.sol",
-    # DIFFERENT reason. The proofs below are the 2026-09-17 pre-testnet audit's
-    # reproductions of defects that are still OPEN (see contracts/audits/
-    # 2026-09-17-pre-testnet.md). They assert the property the code SHOULD hold, so
-    # they FAIL on purpose, and a failing test in the default set would make the
-    # contracts gate red for a defect the gate did not cause. They are excluded here
-    # and run by path instead; the audit report carries the command and the output for
-    # each. WHEN A FIX LANDS, DELETE ITS LINE — the proof turning green is how the fix
-    # is shown to work, and a proof left skipped is a fix nobody verified.
+    # DIFFERENT reason, and it is now the only file left under it. This group held the
+    # 2026-09-17 pre-testnet audit's reproductions of defects that were still OPEN: they
+    # assert the property the code SHOULD hold, so they FAIL on purpose, and a failing
+    # test in the default set would make the contracts gate red for a defect the gate did
+    # not cause. Every one of those fixes has since landed and its proof has left this
+    # group. The one below is NOT waiting for a fix and must not be read as an open
+    # defect: H-1 is ruled as designed (rth, 2026-09-17), so this proof asserts a solvency
+    # property the protocol does not offer and stays red for as long as the ruling stands.
+    # It is kept, and kept out of the gate, as the record of what the mechanism costs —
+    # see §2 and §4 of contracts/audits/2026-09-17-pre-testnet.md. The proofs that measure
+    # the RULED behaviour and do run in the gate are BondingCurveFreeMintInvariant.t.sol
+    # and FreeMintReserveDrain.t.sol.
+    #
+    # If a line is ever added here for an open defect again: WHEN ITS FIX LANDS, DELETE IT
+    # — the proof turning green is how the fix is shown to work, and a proof left skipped
+    # is a fix nobody verified.
     "test/audit/FreeMintCurveSolvency.t.sol",
 ]
 remappings = [
