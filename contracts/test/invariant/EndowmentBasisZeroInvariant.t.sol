@@ -104,8 +104,23 @@ contract EndowmentBasisZeroHandler is Test {
     ///         ≥ 1e18 shares, since the price never exceeds 1), de-curation, a cap leaving exactly
     ///         `REDEEM_DUST + 1` of basis behind — under the floor by construction — and a deposit into it.
     ///         It waits out the first 300 calls so the execute surface stays live for most of every run, and
-    ///         acts on every call after that so no run of the default depth (500) ends without reaching the
-    ///         state; `afterInvariant` refuses the run that does.
+    ///         acts on every call after that; `afterInvariant` refuses the run that never arrives.
+    ///
+    ///         Whether a run arrived used to be luck, and the cap below is why. Instrumented with the
+    ///         `afterInvariant` threshold raised as a probe, the weakest run across six campaigns had
+    ///         reached the state 4 to 7 times out of the 16-to-20 steered attempts a run gets; priced
+    ///         against the basis the release actually spends, 11. And the release then leaves the basis on
+    ///         EXACTLY `REDEEM_DUST + 1` every time it runs — read back off the position, not inferred.
+    ///
+    ///         What still costs an attempt is downstream of the build, and is the mock's rather than the
+    ///         vault's: the ceiling share-burn on the FINAL deposit's own harvest-first redeem can take the
+    ///         last stata share at a tiny share count, `_realizeImpairment` writes the basis to 0 behind it,
+    ///         and a guard keyed to `totalPrincipal != 0` has nothing left to refuse. It is the same mock
+    ///         artifact the `ghost_depositMintedUnderTheFloor` comment in `_deposit` is written against, and
+    ///         it cost one or two attempts of the 16-to-20 wherever it was counted. Every attempt after the
+    ///         first success is refused trivially, so the run's claim rests on the construction landing
+    ///         once and not on any particular attempt; `endowment-guard-coverage-seeds.sh` holds that at
+    ///         pinned seeds, so a red names a number somebody can re-run rather than a flip nobody can.
     function crunchUnderTheFloor(uint256 seed, uint256 amount) external {
         calls++;
         if (calls < 300) return;
@@ -118,8 +133,20 @@ contract EndowmentBasisZeroHandler is Test {
             decurated = true;
         }
         DrainSnap memory d = _snap();
-        if (d.basis <= REDEEM_DUST + 1) return;
-        stata.setMaxWithdrawCap(d.basis - (REDEEM_DUST + 1));
+        // Price the cap against the basis the RELEASE will spend, not the raw counter. Its second act is
+        // `_realizeImpairment`, which writes an impaired basis DOWN to the position's value, and
+        // `induceImpairment` is one of ten selectors — so the walk stands on `value < totalPrincipal` often.
+        // A cap of `totalPrincipal − (REDEEM_DUST + 1)` there is a cap above the whole corpus: the release
+        // takes all of it, `got + REDEEM_DUST >= corpus` closes the round, and nothing is left under the
+        // floor for the deposit below to be refused at — so the attempt is spent and the run may end having
+        // never reached the state. Against `min(basis, value)` the arithmetic closes in every state,
+        // impaired or not and with pending yield or without: each redeem takes `min(what it asks, value,
+        // cap)`, the harvest-first leg cannot leave the position worth less than `cap`, and
+        // `cap < min(basis, value) <= corpus` — so the principal leg takes exactly `cap` and the basis lands
+        // on `REDEEM_DUST + 1`. Under the floor by construction, and one wei short of the close.
+        uint256 effective = d.value < d.basis ? d.value : d.basis;
+        if (effective <= REDEEM_DUST + 1) return;
+        stata.setMaxWithdrawCap(effective - (REDEEM_DUST + 1));
         try vault.releaseCorpusToCommunity() {
             _bookStrandedIfDrained(d);
         } catch { }
