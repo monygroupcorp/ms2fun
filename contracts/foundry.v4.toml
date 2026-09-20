@@ -26,11 +26,20 @@
 # contracts gate first, since that gate ends with this config. A separate artifact directory keeps
 # the 0.8.28 set that the bindings are generated from single-version and order-independent.
 #
+# WHY UNDER `forge-cache/` rather than a top-level `out-v4/`: the directory has to be ignored on the
+# branch the gate is RUN on, not only on the branch that introduced it. `out-v4/` and `cache-v4/`
+# were added to contracts/.gitignore on 2026-09-08, so every branch cut before that date -- 353 of
+# 393 live ones when this was measured -- ran this leg and was left holding two untracked artifact
+# directories. A pool slot reads that as dirty and is never handed on, and the repair the tool
+# offers there commits the artifacts. `forge-cache/` has been ignored since 2026-01-14, the commit
+# that created this file's ignore rules, so an old branch ignores it too. It is not under `out/`,
+# so the wagmi glob still cannot reach these artifacts and the paragraph above still holds.
+#
 # Remappings mirror foundry.toml so the shared source graph resolves identically.
 [profile.default]
 src = "src"
-out = "out-v4"
-cache_path = "cache-v4"
+out = "forge-cache/out-v4"
+cache_path = "forge-cache/cache-v4"
 libs = ["lib"]
 auto_detect_solc = true
 optimizer = true
