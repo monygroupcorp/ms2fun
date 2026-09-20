@@ -7,8 +7,10 @@ out/
 cache/
 broadcast/
 
-# Artifacts of the real-v4 regression config, which compiles the shared source graph under a
-# second solc and so is kept out of `out/` entirely (see foundry.v4.toml).
+# Artifacts of the real-v4 and audit configs, which compile the shared source graph under a second
+# solc and so are kept out of `out/` entirely (see foundry.v4.toml). They are written under
+# `forge-cache/`, which every branch has ignored since 2026-01-14; these four entries cover
+# the directories left at the repo root by a checkout that ran either config before that move.
 out-v4/
 cache-v4/
 out-audit/
