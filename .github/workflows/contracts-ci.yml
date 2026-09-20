@@ -114,6 +114,14 @@ jobs:
       - name: EIP-170 + storage-layout gate
         run: bash test/factories/erc404/eip170-diet-gate.sh
 
+      # The same ceiling, for the three factories that embed their instance's creation code
+      # (ERC1155Factory, ERC721AuctionFactory, UniTitheHookFactory). Those factories — not the
+      # instances they deploy — are the contracts nearest EIP-170, because the embedded blob is
+      # counted in the factory's runtime. Prints each margin and the blob that accounts for it, so
+      # the room runs out on this log before it runs out in a build.
+      - name: EIP-170 embedded-initcode gate
+        run: bash test/factories/eip170-embed-gate.sh
+
       # Every test file is in exactly one shard, or nothing below runs.
       - name: Shard coverage
         run: ./scripts/test-shards-cover.sh
