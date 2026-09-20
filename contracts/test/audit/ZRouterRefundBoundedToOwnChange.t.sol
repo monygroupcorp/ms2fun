@@ -57,6 +57,31 @@ contract StubZAMM {
     receive() external payable { }
 }
 
+/// @dev A Curve-shaped pool that quotes one wei of input for the order and then actually consumes it:
+///      `exchange` pulls `dx` off the router with the allowance the router grants it and hands back the
+///      output. Consuming the input is the point — it leaves the router's balance exactly where it
+///      started, so anything the refund at the bottom of `swapCurve` hands out came from the resting
+///      balance and not from this leg.
+contract StubCurvePool {
+    StubToken internal immutable tokenIn;
+    StubToken internal immutable tokenOut;
+
+    constructor(StubToken _tokenIn, StubToken _tokenOut) {
+        tokenIn = _tokenIn;
+        tokenOut = _tokenOut;
+    }
+
+    /// @dev One wei in per wei out; the router adds its own `+ 1` rounding buffer on top.
+    function get_dx(uint256, uint256, uint256 out_amount) external pure returns (uint256) {
+        return out_amount;
+    }
+
+    function exchange(uint256, uint256, uint256 dx, uint256) external {
+        tokenIn.transferFrom(msg.sender, address(this), dx);
+        tokenOut.mint(msg.sender, dx);
+    }
+}
+
 /**
  * @title ZRouterRefundBoundedToOwnChange
  * @notice Audit L-9, second pass. The fix authenticated the four hatches the report named — `sweep`,
@@ -77,7 +102,15 @@ contract StubZAMM {
  *         The fix measures every one of those refunds against a baseline taken before the leg touches
  *         anything, so what goes back is this transaction's change and not the balance that was already
  *         here. `swapVZ` is the leg exercised below because its venue is a plain external call and can be
- *         stubbed; the other three reach the same helper through a pool this offline harness cannot mint.
+ *         stubbed. `swapCurve` is exercised below too: its pools arrive as `route` arguments rather than
+ *         at an address derived from the pair, so it is the one leg of the three that DOES reach
+ *         `_changeOver` — the shared helper — from an offline harness. `swapV3` and `swapV4` reach the
+ *         same helper through a pool this suite cannot mint, and are covered by inspection.
+ *
+ *         That distinction matters, because `swapVZ` does not use `_changeOver` at all: its refund is
+ *         `amountLimit - amountIn`, the leg's own arithmetic. Restoring `_changeOver` to the whole-balance
+ *         read it replaced leaves every `swapVZ` case here green, so without the `swapCurve` case below
+ *         nothing in this tree held that half of the fix.
  *
  *         Each test below is red against the previous revision, where the refund read the whole balance.
  */
@@ -92,6 +125,9 @@ contract ZRouterRefundBoundedToOwnChangeTest is Test {
 
     /// @dev What a donation, a rebase or a leg's dust leaves behind — the balance the hatches reach.
     uint256 internal constant RESTING = 5 ether;
+
+    /// @dev The same, on the ERC-20 side.
+    uint256 internal constant RESTING_TOKEN = 1_000 ether;
 
     function setUp() public {
         weth = new StubWETH();
@@ -211,6 +247,61 @@ contract ZRouterRefundBoundedToOwnChangeTest is Test {
 
         assertEq(address(router).balance, RESTING, "the resting ETH stayed where it was");
         assertEq(attacker.balance, 1 ether - 1 wei, "and the chained caller got none of it either");
+    }
+
+    /// The same walk again, through `swapCurve` — and this is the case that holds `_changeOver`, the
+    /// helper `swapV3`, `swapV4` and `swapCurve` share and `swapVZ` does not. Curve pools arrive as
+    /// `route` arguments rather than at an address derived from the pair, which is what makes this leg
+    /// reachable offline where the other two are not.
+    ///
+    /// Red against the whole-balance read: the pool consumes every wei the attacker staged, so the
+    /// router's token balance is back at its resting 1000 ether by the time the refund is computed, and
+    /// a refund of `balanceOf(firstToken)` hands all of it to the caller for the price of a one-wei fill.
+    function test_theTokenSweepGuardIsNotWalkedByTheCurveRefund() public {
+        StubToken tokenOut = new StubToken();
+        StubCurvePool pool = new StubCurvePool(token, tokenOut);
+
+        token.mint(address(router), RESTING_TOKEN);
+        // The stub quotes 1:1 and the router adds `+ 1` to every Curve quote — the rounding buffer that
+        // makes an exact-out route executable — so a one-wei order costs this caller two.
+        token.mint(attacker, 2 wei);
+
+        vm.prank(attacker);
+        vm.expectRevert(zRouter.Unauthorized.selector);
+        router.sweep(address(token), 0, 0, attacker);
+        assertEq(token.balanceOf(address(router)), RESTING_TOKEN, "sweep moved nothing, as the fix intends");
+
+        vm.prank(attacker);
+        token.approve(address(router), type(uint256).max);
+
+        address[11] memory route;
+        route[0] = address(token);
+        route[1] = address(pool);
+        route[2] = address(tokenOut);
+
+        uint256[4][5] memory swapParams;
+        // [i, j, swap_type, pool_type] — a plain crypto-ng `exchange`, the simplest hop the router serves.
+        swapParams[0] = [uint256(0), uint256(1), uint256(1), uint256(0)];
+
+        address[5] memory basePools;
+
+        vm.prank(attacker);
+        router.swapCurve({
+            to: attacker,
+            exactOut: true,
+            route: route,
+            swapParams: swapParams,
+            basePools: basePools,
+            swapAmount: 1,
+            amountLimit: 2 wei,
+            deadline: block.timestamp + 1
+        });
+
+        assertEq(token.balanceOf(address(router)), RESTING_TOKEN, "the resting token stayed where it was");
+        assertEq(token.balanceOf(attacker), 0, "and the caller got none of what sweep refused");
+        // The wei they ordered, plus the buffer wei returned as surplus OUTPUT — which is a different
+        // refund path from the leftover-INPUT one under test, and is bounded by the leg's own arithmetic.
+        assertEq(tokenOut.balanceOf(attacker), 2, "they got the output they paid for, and nothing else");
     }
 
     /// The chained shape's legitimate half: change still comes back when the caller really did overpay.
