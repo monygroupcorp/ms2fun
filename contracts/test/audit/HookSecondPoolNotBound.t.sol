@@ -226,6 +226,60 @@ contract HookSecondPoolNotBoundTest is Test {
         assertEq(vault.totalReceived(), vaultBefore, "an off-spacing pool on the same pair is refused too");
     }
 
+    /// @dev The launch's own coin, this hook, the right tick spacing — and a STATIC fee where the bound
+    ///      key carries the dynamic-fee flag. v4 keys on the whole struct, so this is a DIFFERENT pool,
+    ///      and binding `currency1` and `tickSpacing` alone would have left it open.
+    ///
+    ///      The fee field is the one of the four whose absence is not merely a second pool. `beforeSwap`
+    ///      returns `lpFeeRate | OVERRIDE_FEE_FLAG`, and `Hooks.beforeSwap` parses that override only
+    ///      `if (key.fee.isDynamicFee())` — on a static-fee key it is silently dropped and the pool
+    ///      charges `key.fee` instead. So an unbound fee field admits a pool the hook goes on taxing and
+    ///      tithing to the launch's fixed benefactor while `lpFeeRate`, the owner's only lever over it,
+    ///      reaches nothing. The bind is what makes the override's one precondition an invariant.
+    ///
+    ///      Measured with the fee check alone removed and the other three left in place: the swap below
+    ///      goes through and tithes 0.1 ETH of its 10 ETH to `benefactorInstance`, on a pool charging its
+    ///      own `key.fee`. This test is the only one in this file that turns red on that mutation.
+    function test_sameTokenStaticFee_cannotSwap() public {
+        PoolKey memory staticFee = PoolKey({
+            currency0: CurrencyLibrary.ADDRESS_ZERO,
+            currency1: Currency.wrap(address(realToken)),
+            // A real static fee, not `DYNAMIC_FEE_FLAG`. A hook with permission bits may serve either,
+            // so v4's own address/fee validation is not what stops this.
+            fee: LP_FEE_RATE,
+            tickSpacing: POOL_TICK_SPACING,
+            hooks: IHooks(address(hook))
+        });
+
+        vm.deal(attacker, 1_000 ether);
+        vm.startPrank(attacker);
+        realToken.mint(attacker, 1_000_000 ether);
+        realToken.approve(address(modifyLiquidityRouter), type(uint256).max);
+        manager.initialize(staticFee, SQRT_PRICE_1_1);
+        modifyLiquidityRouter.modifyLiquidity{ value: 100 ether }(
+            staticFee,
+            IPoolManager.ModifyLiquidityParams({ tickLower: -6000, tickUpper: 6000, liquidityDelta: 10e18, salt: 0 }),
+            ZERO_BYTES
+        );
+
+        uint256 vaultBefore = vault.totalReceived();
+        uint256 pmBefore = address(manager).balance;
+
+        vm.expectRevert();
+        swapRouter.swap{ value: 10 ether }(
+            staticFee,
+            IPoolManager.SwapParams({
+                zeroForOne: true, amountSpecified: -int256(10 ether), sqrtPriceLimitX96: MIN_PRICE_LIMIT
+            }),
+            _settings(),
+            ZERO_BYTES
+        );
+        vm.stopPrank();
+
+        assertEq(vault.totalReceived(), vaultBefore, "a static-fee pool on the same pair is refused too");
+        assertEq(address(manager).balance, pmBefore, "nothing was taken off the PoolManager");
+    }
+
     function _id(PoolKey memory k) internal pure returns (PoolId) {
         return k.toId();
     }
