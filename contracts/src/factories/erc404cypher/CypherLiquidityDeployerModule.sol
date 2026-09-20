@@ -119,8 +119,8 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     ///      every cut that was stashed once and returned later. This is the retry.
     event PendingVaultCutReturnedToCreator(address indexed vault, address indexed creator, uint256 amount);
     /// @notice The LP capital the position manager did not take, and where it went. `ethTithed` was
-    ///         unwrapped and joined the 80/19/1 rail as a second `excessEth` leg; `coinReturned` went
-    ///         back to the graduating instance.
+    ///         unwrapped and joined the 80/19/1 rail as a second `excessEth` leg; `ethReturned` and
+    ///         `coinReturned` went back to the graduating instance.
     /// @dev Both are zero on an ordinary graduation into a fresh pool, and non-zero only when the pool
     ///      was already initialized at a price inside `MAX_INIT_PRICE_DEVIATION_BPS` but not at the
     ///      graduation price, which is the only case where a full-range mint binds on one side.
@@ -129,8 +129,17 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     ///      reported here rather than inside `GraduationExcessTithed` because it is the one leg the
     ///      graduating instance cannot compute: the instance knows what its parity clamp could not
     ///      place, and only this module learns what the venue then declined.
-    ///      Zero when there is no creator — that ETH went to the instance and rode no rail.
-    event GraduationResidueReturned(address indexed instance, uint256 ethTithed, uint256 coinReturned);
+    /// @dev `ethTithed` and `ethReturned` are the same ETH under the two destinations it can have, and
+    ///      never both non-zero: with a creator the residue rides the rail, and with none — a renounced
+    ///      launch — it is force-transferred to the instance beside the coin. Both are zero when the
+    ///      venue took the whole ETH leg and declined only coin. They are reported apart rather than as one figure because only the tithed leg is
+    ///      revenue: a report summing the ETH a graduation diverted must add `ethTithed` and must NOT
+    ///      add `ethReturned`, which was never levied on anyone. Splitting them is also what makes the
+    ///      returned leg readable at all — it used to be reported nowhere, and where a renounced
+    ///      launch's LP capital went could only be recovered from a balance.
+    event GraduationResidueReturned(
+        address indexed instance, uint256 ethTithed, uint256 ethReturned, uint256 coinReturned
+    );
     /// @notice Coin swept out of this module to the instance that graduated it.
     event UnconsumedCoinSwept(address indexed instance, uint256 amount);
 
@@ -375,7 +384,10 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
             SafeTransferLib.safeTransfer(p.token, p.instance, coinResidue);
         }
         if (ethResidue != 0 || coinResidue != 0) {
-            emit GraduationResidueReturned(p.instance, p.creator == address(0) ? 0 : ethResidue, coinResidue);
+            bool renounced = p.creator == address(0);
+            emit GraduationResidueReturned(
+                p.instance, renounced ? 0 : ethResidue, renounced ? ethResidue : 0, coinResidue
+            );
         }
         // From here on `r` describes the pool as it IS, not as it was sized. `_titheResidue` already
         // lands `ethToLP` on this value; the no-creator branch has to be told.
