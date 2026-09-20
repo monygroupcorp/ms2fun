@@ -99,7 +99,7 @@ contract ERC1155ConformanceTest is Test {
 
     function _addEdition(string memory uri_, uint256 price, uint256 supply) internal returns (uint256 id) {
         vm.prank(creator);
-        inst.addEdition("Piece", price, supply, uri_, ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0, 0);
+        inst.addEdition("Piece", price, supply, uri_, ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0, 0, 0, 0);
         return inst.nextEditionId() - 1;
     }
 
@@ -185,7 +185,7 @@ contract ERC1155ConformanceTest is Test {
         vm.expectEmit(true, false, false, true, address(inst));
         emit URI(ED1_URI, expectedId);
         vm.prank(creator);
-        inst.addEdition("Piece", 0.01 ether, 100, ED1_URI, ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0, 0);
+        inst.addEdition("Piece", 0.01 ether, 100, ED1_URI, ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0, 0, 0, 0);
     }
 
     function test_uriEvent_firesOnMetadataUpdate() public {

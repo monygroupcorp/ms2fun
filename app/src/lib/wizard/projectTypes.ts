@@ -312,6 +312,22 @@ const erc1155: ProjectTypeSchema = {
         help: '0 = open immediately',
         default: 0,
       },
+      {
+        key: 'closeTime',
+        label: 'Close time',
+        kind: 'number',
+        unit: 'seconds',
+        help: '0 = never closes; must be after the open time',
+        default: 0,
+      },
+      {
+        key: 'maxPerWallet',
+        label: 'Per-wallet limit',
+        kind: 'number',
+        unit: 'count',
+        help: '0 = no limit; counts paid mints and free claims together',
+        default: 0,
+      },
     ],
   },
 }

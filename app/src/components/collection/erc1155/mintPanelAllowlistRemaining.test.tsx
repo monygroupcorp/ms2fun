@@ -49,6 +49,9 @@ vi.mock('../../../generated/contracts', async (importOriginal) => ({
   // A module is set and the scope admits the paid path, so `isPaidMintGated` is true.
   useReadErc1155InstanceGatingModule: () => ({ data: MODULE }),
   useReadErc1155InstanceGatingScope: () => ({ data: 0 }),
+  // This edition sets no per-wallet ceiling, so the panel never asks; mocked because the module
+  // spread above would otherwise reach the real hook outside a WagmiProvider.
+  useReadErc1155InstanceEditionMintedBy: () => ({ data: undefined }),
   useWriteErc1155InstanceMint: () => ({
     writeContract,
     data: undefined,
@@ -73,7 +76,12 @@ vi.mock('./useMerkleAllowlist', () => ({
   }),
 }))
 
-const EDITION = { id: 0n, openTime: 0n } as unknown as EditionView
+const EDITION = {
+  id: 0n,
+  openTime: 0n,
+  closeTime: 0n,
+  maxPerWallet: 0n,
+} as unknown as EditionView
 
 afterEach(() => {
   cleanup()

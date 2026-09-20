@@ -26,6 +26,8 @@ function emptyForm() {
     priceIncreaseRate: '',
     openTime: '0',
     freeMintAllocation: '',
+    closeTime: '0',
+    maxPerWallet: '0',
   }
 }
 
@@ -48,6 +50,25 @@ function validate(form: FormState): string | null {
     const rate = parseInt(form.priceIncreaseRate, 10)
     if (!form.priceIncreaseRate || isNaN(rate) || rate <= 0)
       return 'Dynamic pricing requires price increase rate > 0 basis points'
+  }
+  // Mirrors `_validateSchedule` in ERC1155Instance: a close time has to fall after the edition
+  // opens, so the form refuses the window the contract would revert on rather than spending a
+  // transaction to find out. `0` is "never closes" on both sides.
+  const closeRaw = form.closeTime.trim()
+  if (closeRaw !== '' && closeRaw !== '0') {
+    const close = Number(closeRaw)
+    if (!Number.isInteger(close) || close < 0) return 'Close time must be a whole number of seconds'
+    const open = Number(form.openTime.trim() || '0')
+    const opensAt = open === 0 ? Math.floor(Date.now() / 1000) : open
+    if (close <= opensAt)
+      return open === 0
+        ? 'Close time must be in the future'
+        : 'Close time must be after the open time'
+  }
+  const capRaw = form.maxPerWallet.trim()
+  if (capRaw !== '') {
+    const cap = Number(capRaw)
+    if (!Number.isInteger(cap) || cap < 0) return 'Per-wallet limit must be a whole number ≥ 0'
   }
   const allocRaw = form.freeMintAllocation.trim()
   if (allocRaw !== '') {
@@ -125,6 +146,8 @@ export function AddEditionForm({ instance, onAdded }: AddEditionFormProps) {
     const rate = form.pricingModel === 2 ? BigInt(form.priceIncreaseRate) : BigInt(0)
     const openTime = BigInt(form.openTime.trim() || '0')
     const freeMintAllocation = BigInt(form.freeMintAllocation.trim() || '0')
+    const closeTime = BigInt(form.closeTime.trim() || '0')
+    const maxPerWallet = BigInt(form.maxPerWallet.trim() || '0')
 
     resetWrite()
     setNotified(false)
@@ -142,6 +165,8 @@ export function AddEditionForm({ instance, onAdded }: AddEditionFormProps) {
         rate,
         openTime,
         freeMintAllocation,
+        closeTime,
+        maxPerWallet,
       ],
       chainId: chainId,
     })
@@ -279,6 +304,51 @@ export function AddEditionForm({ instance, onAdded }: AddEditionFormProps) {
           placeholder="0"
           disabled={isBusy}
         />
+      </div>
+
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="aef-closetime">
+          Close time (unix seconds; 0 = never closes)
+        </label>
+        <input
+          id="aef-closetime"
+          className={styles.input}
+          type="number"
+          min="0"
+          step="1"
+          value={form.closeTime}
+          onChange={(e) => set('closeTime', e.target.value)}
+          placeholder="0"
+          disabled={isBusy}
+        />
+        <span className={styles.hint}>
+          When minting stops. Mints revert at this timestamp, so it is the first second the edition
+          is over. Leave at 0 to run the edition open-ended. This and the per-wallet limit stay
+          editable until the first mint and are fixed after it — a collector who has paid chose the
+          drop as it was stated.
+        </span>
+      </div>
+
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="aef-maxperwallet">
+          Per-wallet limit (count; 0 = no limit)
+        </label>
+        <input
+          id="aef-maxperwallet"
+          className={styles.input}
+          type="number"
+          min="0"
+          step="1"
+          value={form.maxPerWallet}
+          onChange={(e) => set('maxPerWallet', e.target.value)}
+          placeholder="0"
+          disabled={isBusy}
+        />
+        <span className={styles.hint}>
+          The most tokens of this edition one wallet may mint, counted across paid mints and free
+          claims together. Counted off what a wallet has minted, not what it still holds, so sending
+          tokens away does not reopen the allowance.
+        </span>
       </div>
 
       <div className={styles.field}>
