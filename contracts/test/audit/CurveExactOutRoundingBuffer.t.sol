@@ -4,14 +4,16 @@ pragma solidity ^0.8.28;
 import { Test } from "forge-std/Test.sol";
 import { zRouter, ChainConfig } from "../../src/peripherals/zRouter.sol";
 
-/// @notice Audit PoC (cluster item H): `src/peripherals/zRouter.sol`'s fork of the upstream router
+/// @notice Audit finding L-5: `src/peripherals/zRouter.sol`'s fork of the upstream router had
 ///         dropped the `+ 1` rounding buffer that upstream applies to every Curve backward-pass
-///         quote (`lib/zRouter/src/zRouter.sol:488,490,496,498,512,516,520`).
+///         quote (`lib/zRouter/src/zRouter.sol:488,490,496,498,507,512,516,520`).
 ///
 ///         Curve's `get_dx` rounds DOWN, so `exchange(get_dx(out))` yields `out - 1` on any pool
 ///         whose forward and backward math truncate in the same direction. The fork's forward pass
 ///         then hits `if (amount < swapAmount) revert Slippage();` and the whole exact-out route
 ///         reverts. Upstream's `+ 1` is what keeps that from happening.
+///
+///         The buffer is restored on all eight lines, and this file now asserts the route EXECUTES.
 ///
 ///         The mock below is the minimum pool that exhibits the rounding: forward `out = dx*999/1000`,
 ///         backward `dx = out*1000/999`, both floored — exactly the shape real StableNg pools have.
@@ -41,8 +43,8 @@ contract CurveExactOutRoundingBufferTest is Test {
         tokenIn.approve(address(router), type(uint256).max);
     }
 
-    /// @dev The exact-out route the fork cannot execute. `swapAmount` is the desired OUT amount.
-    function test_exactOutCurve_revertsSlippage_becauseForkDroppedThePlusOneBuffer() public {
+    /// @dev The exact-out route the fork could not execute. `swapAmount` is the desired OUT amount.
+    function test_exactOutCurve_executesWithTheRestoredBuffer() public {
         uint256 want = 1000; // desired tokenOut
 
         // What the backward pass computes, and what that dx actually buys.
@@ -52,36 +54,49 @@ contract CurveExactOutRoundingBufferTest is Test {
         uint256 producedUpstream = pool.previewExchange(dxUpstream);
 
         emit log_named_uint("desired out                       ", want);
-        emit log_named_uint("get_dx(out)            [this fork] ", dxNoBuffer);
+        emit log_named_uint("get_dx(out)            [no buffer] ", dxNoBuffer);
         emit log_named_uint("  -> exchange() produces           ", producedNoBuffer);
-        emit log_named_uint("get_dx(out) + 1        [upstream]  ", dxUpstream);
+        emit log_named_uint("get_dx(out) + 1        [restored]  ", dxUpstream);
         emit log_named_uint("  -> exchange() produces           ", producedUpstream);
 
-        assertLt(producedNoBuffer, want, "no-buffer dx must under-deliver for the PoC to mean anything");
-        assertGe(producedUpstream, want, "upstream's +1 must clear the target");
+        assertLt(producedNoBuffer, want, "no-buffer dx must under-deliver for this test to mean anything");
+        assertGe(producedUpstream, want, "the +1 must clear the target");
 
-        address[11] memory route;
-        route[0] = address(tokenIn);
-        route[1] = address(pool);
-        route[2] = address(tokenOut);
+        uint256 before = tokenOut.balanceOf(trader);
 
-        uint256[4][5] memory swapParams;
-        swapParams[0] = [uint256(0), uint256(1), uint256(1), uint256(10)]; // i, j, swap_type=1, pool_type=10 (StableNg)
+        vm.prank(trader);
+        (uint256 amountIn, uint256 amountOut) = router.swapCurve(
+            trader,
+            true, // exactOut
+            _route(),
+            _params(),
+            _basePools(),
+            want,
+            type(uint256).max, // amountLimit: no input cap, so nothing here is a slippage bound
+            block.timestamp + 1
+        );
 
-        address[5] memory basePools;
+        assertEq(amountIn, dxUpstream, "the quote carries the one-wei buffer");
+        assertGe(amountOut, want, "the leg delivered at least what was asked for");
+        assertEq(tokenOut.balanceOf(trader) - before, amountOut, "and the trader actually received it");
+    }
+
+    /// @dev The buffer is one wei per hop and nothing more — it is a rounding repair, not a fee. The
+    ///      caller's own `amountLimit` still binds, so a route that really is too expensive still
+    ///      reverts `Slippage()` rather than being waved through.
+    function test_exactOutCurve_amountLimitStillBinds() public {
+        uint256 want = 1000;
+        uint256 quoted = pool.get_dx(int128(0), int128(1), want) + 1;
 
         vm.prank(trader);
         vm.expectRevert(zRouter.Slippage.selector);
-        router.swapCurve(
-            trader,
-            true, // exactOut
-            route,
-            swapParams,
-            basePools,
-            want,
-            type(uint256).max, // amountLimit: no input cap at all, so this revert is NOT a slippage bound
-            block.timestamp + 1
-        );
+        router.swapCurve(trader, true, _route(), _params(), _basePools(), want, quoted - 1, block.timestamp + 1);
+
+        // One wei of room is all it needs.
+        vm.prank(trader);
+        (uint256 amountIn,) =
+            router.swapCurve(trader, true, _route(), _params(), _basePools(), want, quoted, block.timestamp + 1);
+        assertEq(amountIn, quoted, "the buffer costs exactly one wei per hop");
     }
 
     /// @dev Control: the same pool, the same route, EXACT-IN. The forward pass never consults

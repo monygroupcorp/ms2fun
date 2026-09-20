@@ -761,6 +761,10 @@
       "why": "Deploy-time wiring. Re-pointing where every protocol fee lands is the single change least suited to a web form."
     },
     {
+      "match": "*.setVaultProtocolTreasury",
+      "why": "Deploy-time wiring, applied by the factory to the vaults it stamps. See setProtocolTreasury."
+    },
+    {
       "match": "*.setWeth",
       "why": "Deploy-time wiring. See setMasterRegistry."
     },
