@@ -114,6 +114,20 @@ jobs:
       - name: EIP-170 + storage-layout gate
         run: bash test/factories/erc404/eip170-diet-gate.sh
 
+      # The same ceiling, for every contract that embeds another contract's creation code — in
+      # either syntax, since `new X(...)` compiles to the same blob as type(X).creationCode. Four
+      # such embeddings sit in a function body and are therefore in the embedder's RUNTIME, against
+      # EIP-170: ERC1155Factory, ERC721AuctionFactory, UniTitheHookFactory, and ERC404Factory, which
+      # holds DN404Mirror. Those embedders — not the contracts they deploy — are the ones nearest
+      # the limit, because the blob is counted in their runtime. Four more sit in a constructor and
+      # are in the embedder's CREATION code only, against EIP-3860's initcode cap. The gate prints
+      # every margin and the blob that accounts for it, so the room runs out on this log before it
+      # runs out in a build; it reads both syntaxes out of src/ and fails on any embedding its table
+      # does not measure; and it verifies which budget each blob actually lands in, so a `new X(...)`
+      # moving out of a constructor cannot put a contract on the EIP-170 clock in silence.
+      - name: EIP-170 embedded-initcode gate
+        run: bash test/factories/eip170-embed-gate.sh
+
       # Every test file is in exactly one shard, or nothing below runs.
       - name: Shard coverage
         run: ./scripts/test-shards-cover.sh
@@ -183,11 +197,11 @@ jobs:
   # default profile cannot compile it. So a proof left out of the path below is a proof nothing
   # ever runs again, which is what this step's single-path version had quietly become — the audit
   # proof for the hook's unbound pool key sat green and unrun from the day it was written.
-  # The path is the whole skip list bar one:
-  #   * test/audit/UniVaultPoolKeyRotation.t.sol — STALE, deliberately still out. It is the PoC
-  #     for the missing `setV4PoolKey` liquidity lock, and the fix added the `PoolKeyLocked()`
-  #     revert the PoC now hits, so it fails asserting a defect that is gone. Rewrite it against
-  #     the fix (as HookSecondPoolNotBound was rewritten) and add it here.
+  # The path is now the whole skip list bar `test/audit/FreeMintCurveSolvency.t.sol`, which is
+  # skipped for a different reason (it fails by design against a ruled-as-designed mechanism; see
+  # `foundry.toml` and §3 of contracts/audits/2026-09-17-pre-testnet.md) and compiles under the
+  # default profile anyway. Anything added to that skip list for a PRAGMA reason belongs here the
+  # same day, or it is unrun.
   # The job id stays `real-settlement` though the step now runs more than RealSettlement: it is a
   # required check, and renaming it silently drops that requirement from branch protection.
   real-settlement:
@@ -208,4 +222,4 @@ jobs:
       - name: Real-v4 regressions
         run: |
           FOUNDRY_CONFIG=foundry.v4.toml forge test --match-path \
-            "test/{hooks/UniAlignmentV4Hook_RealSettlement,audit/HookSecondPoolNotBound,audit/HookQueuedFeesMigratedVault}.t.sol"
+            "test/{hooks/UniAlignmentV4Hook_RealSettlement,audit/HookSecondPoolNotBound,audit/HookQueuedFeesMigratedVault,audit/UniVaultPoolKeyRotation}.t.sol"

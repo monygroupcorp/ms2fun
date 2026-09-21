@@ -36,6 +36,7 @@ import { CarveDisclosure } from '../components/wizard/CarveDisclosure'
 import { BondNotice } from '../components/wizard/BondNotice'
 import { TierSupplyHelper } from '../components/wizard/TierSupplyHelper'
 import { SchemaForm } from '../components/wizard/SchemaForm'
+import { PostCreateEditionStep } from '../components/wizard/PostCreateEditionStep'
 import { ImageSourceInput } from '../components/wizard/ImageSourceInput'
 import { ModuleSlotPicker } from '../components/wizard/ModuleSlotPicker'
 import { CollectionMetaForm } from '../components/wizard/CollectionMetaForm'
@@ -252,6 +253,14 @@ export function WizardPage() {
     creatorOverride.toLowerCase() !== wallet!.toLowerCase()
   const ownerNeedsAgent = settingOtherOwner && walletIsAgent === false
 
+  // The post-create step this project type declares, and whether it is one the wizard can actually
+  // run. `postCreate` is declared for erc1155 (Editions, `addEdition`) and for erc721 (Auction
+  // pieces, `queuePiece` — a payable call whose msg.value is the reserve). Only the first is
+  // rendered here; erc721 keeps today's behaviour of going straight to the collection page, and
+  // wiring its step is its own piece of work because the reserve is money on the call.
+  const postCreateStep = projectType?.key === 'erc1155' ? projectType.postCreate : undefined
+  const offersPostCreate = Boolean(postCreateStep)
+
   // Prefill the Creator field with the connected wallet so the common case (own collection) needs no
   // typing, and the on-chain `creator == msg.sender` check passes without thought.
   useEffect(() => {
@@ -265,13 +274,29 @@ export function WizardPage() {
     setValues((v) => (v.name === next.name ? v : { ...v, name: next.name }))
   }
 
+  // Set when the post-create step is finished with — by a confirmed edition or by skipping it. It
+  // exists so the redirect below has one condition rather than two, and so a creator who skips is
+  // not offered the step again by a re-render.
+  const [postCreateDone, setPostCreateDone] = useState(false)
+
   // Redirect to the new collection once the InstanceCreated event is mined. Slug form — the
   // just-deployed name is in hand (chain-scoped-slug-routes noesis-079 step 9).
+  //
+  // Held back while the post-create step is on screen: `postCreate` offers the creator the first
+  // edition against the instance that has just been deployed, and leaving for the collection page
+  // first is what made that step something a creator had to come back for.
   useEffect(() => {
-    if (submit.isSuccess && submit.instance && metadata.name.trim()) {
-      setLocation(`/${forkChainId}/${metadata.name.trim().toLowerCase()}`)
-    }
-  }, [submit.isSuccess, submit.instance, metadata.name, setLocation])
+    if (!submit.isSuccess || !submit.instance || !metadata.name.trim()) return
+    if (offersPostCreate && !postCreateDone) return
+    setLocation(`/${forkChainId}/${metadata.name.trim().toLowerCase()}`)
+  }, [
+    submit.isSuccess,
+    submit.instance,
+    metadata.name,
+    offersPostCreate,
+    postCreateDone,
+    setLocation,
+  ])
 
   // Reaching Review means the user is trying to finish, so surface field-level errors on every step
   // from here on. Otherwise the deploy button stays disabled while `deployBlockers` is non-empty, so a
@@ -844,6 +869,29 @@ export function WizardPage() {
           </div>
         )
     }
+  }
+
+  // The instance is deployed and its post-create step has not been answered yet: that step is the
+  // whole page. The stepper behind it is spent — every input on it has already been sent.
+  if (submit.isSuccess && submit.instance && postCreateStep && !postCreateDone) {
+    return (
+      <div className={styles.page}>
+        <nav className={styles.crumb}>
+          <Link href="/" className={styles.back}>
+            ← noesis
+          </Link>
+        </nav>
+        <div className={styles.shell}>
+          <PostCreateEditionStep
+            instance={submit.instance}
+            chainId={forkChainId}
+            title={postCreateStep.title}
+            fields={postCreateStep.fields}
+            onDone={() => setPostCreateDone(true)}
+          />
+        </div>
+      </div>
+    )
   }
 
   return (

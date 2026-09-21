@@ -11,7 +11,7 @@ import { console2 } from "forge-std/console2.sol";
 ///      mainnet-relevant size (EIP-170 = 24_576 bytes).
 ///
 ///      The FACTORIES are the subject, and were missing here. Each factory embeds its whole instance
-///      through `type(Instance).creationCode` — ERC1155Factory.sol:147, ERC721AuctionFactory.sol:104 —
+///      through `type(Instance).creationCode` — ERC1155Factory.sol:149, ERC721AuctionFactory.sol:104 —
 ///      so a byte added to an instance is a byte off the FACTORY's margin, not off the instance's.
 ///      Guarding only the instances read green while the deployable contract nearest the limit was
 ///      unwatched: on 2026-09-18 ERC1155Instance had 7,820B of apparent headroom and ERC1155Factory
@@ -23,6 +23,17 @@ import { console2 } from "forge-std/console2.sol";
 ///      is a ruling about how much room to keep in reserve, and no such ruling has been made for
 ///      these two families. Until one is, the sizes logged below are evidence and the EIP-170 limit
 ///      is the only line that blocks. Run with -vv to read them.
+///
+///      THE -vv IS THE CATCH, and it is why the numbers live somewhere else too. `foundry.toml` sets
+///      `verbosity = 2` under `[profile.fork]` ONLY, so the contracts gate and contracts-ci.yml both
+///      run this suite at the default verbosity, where `console2.log` prints nothing: the run that
+///      decides whether a change lands shows four green PASS lines and not one byte figure. A margin
+///      nobody is shown is a margin nobody defends, which is the whole disease restated one level up.
+///      `test/factories/eip170-embed-gate.sh` prints the same accounting unconditionally, adds the
+///      third factory with this shape (UniTitheHookFactory, embedding UniAlignmentV4Hook), proves the
+///      instance initcode really is one contiguous blob inside the factory runtime rather than
+///      assuming it, and holds the empty slot a headroom floor goes into once one is ruled. These
+///      assertions stay because they run inside the sharded `forge test` and block there.
 ///
 ///      ERC404BondingInstance is excluded: it carries its own gate, which holds both a ceiling and
 ///      the floors above.

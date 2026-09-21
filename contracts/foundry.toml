@@ -55,6 +55,10 @@ skip = [
     # the RULED behaviour and do run in the gate are BondingCurveFreeMintInvariant.t.sol
     # and FreeMintReserveDrain.t.sol.
     #
+    # So do NOT delete its line to let the gate keep it honest: nothing under src/ will
+    # ever turn it green while the ruling stands, and deleting it makes the gate
+    # permanently red.
+    #
     # If a line is ever added here for an open defect again: WHEN ITS FIX LANDS, DELETE IT
     # — the proof turning green is how the fix is shown to work, and a proof left skipped
     # is a fix nobody verified.
