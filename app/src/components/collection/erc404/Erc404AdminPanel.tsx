@@ -60,6 +60,7 @@ import { AdminSection, ActionRow } from '../../ui/AdminSection'
 import { Disclosure } from '../../ui/Disclosure'
 import { TxButton } from '../../ui/TxButton'
 import { useOwnerGate } from '../../ui/useOwnerGate'
+import { epochFromLocalInput } from '../../../lib/time/scheduleInput'
 import { useTxAction } from '../../ui/useTxAction'
 import { MetadataArtistPanel } from './MetadataArtistPanel'
 import { canDeployLiquidity, derivePhase } from './bondingPhase'
@@ -70,15 +71,6 @@ import styles from './Erc404AdminPanel.module.css'
 
 interface Erc404AdminPanelProps {
   instance: `0x${string}`
-}
-
-/** Parse a `datetime-local` value to unix seconds; undefined when empty/unparseable. */
-function toUnixSeconds(value: string): bigint | undefined {
-  const raw = value.trim()
-  if (raw === '') return undefined
-  const ms = Date.parse(raw)
-  if (Number.isNaN(ms)) return undefined
-  return BigInt(Math.floor(ms / 1000))
 }
 
 export function Erc404AdminPanel({ instance }: Erc404AdminPanelProps) {
@@ -230,7 +222,8 @@ function SetTimeRow({
     instance,
   })
 
-  const seconds = toUnixSeconds(value)
+  const picked = epochFromLocalInput(value)
+  const seconds = picked === null ? undefined : BigInt(picked)
   // The contract checks `TimeMustBeInFuture` against `block.timestamp`, NOT the browser clock. Those
   // differ — a mainnet-fork's chain time runs hours ahead of the wall clock, and even on live networks
   // the two drift — so validating against `Date.now()` lets a value pass the UI and revert on-chain.

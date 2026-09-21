@@ -17,12 +17,22 @@
 
 import { isAddress } from 'viem'
 
-/** Renderable input kinds. `group` nests `fields`; `list` repeats `item`. */
+/**
+ * Renderable input kinds. `group` nests `fields`; `list` repeats `item`.
+ *
+ * `datetime` and `duration` are the two shapes a schedule takes, and both hold UNIX SECONDS in the
+ * values bag exactly as `number` does — they differ only in the control the renderer offers, a
+ * calendar picker and an amount-plus-span pair. Keeping the bag in the contract's own unit is what
+ * lets the submit-builders, the validator and every consumer of this schema stay unchanged while a
+ * creator stops typing epoch integers.
+ */
 export type FieldKind =
   | 'text'
   | 'textarea'
   | 'number'
   | 'bigint'
+  | 'datetime'
+  | 'duration'
   | 'address'
   | 'bool'
   | 'select'
@@ -233,7 +243,9 @@ export function validateField(
       break
     }
     case 'number':
-    case 'bigint': {
+    case 'bigint':
+    case 'datetime':
+    case 'duration': {
       const n = Number(value)
       if (!Number.isFinite(n)) return rules?.message ?? `${field.label} must be a number`
       if (rules?.min !== undefined && n < rules.min)

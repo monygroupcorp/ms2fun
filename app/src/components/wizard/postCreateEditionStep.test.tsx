@@ -20,6 +20,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { PostCreateEditionStep } from './PostCreateEditionStep'
+import { localInputFromEpoch } from '../../lib/time/scheduleInput'
 import { getProjectType } from '../../lib/wizard/projectTypes'
 
 const INSTANCE = '0x1111111111111111111111111111111111111111' as const
@@ -81,7 +82,10 @@ test('the step is the declared one: its title and every visible field come from 
 
 test('the schedule is collected here — close time and per-wallet limit are both on the step', () => {
   renderStep()
-  expect(screen.getByLabelText(/close time/i)).toBeTruthy()
+  // Both schedule fields are calendars, not epoch boxes (noesis/drop-window-in-epoch-seconds).
+  for (const label of [/^opens/i, /^closes/i]) {
+    expect(screen.getByLabelText(label).getAttribute('type')).toBe('datetime-local')
+  }
   expect(screen.getByLabelText(/per-wallet limit/i)).toBeTruthy()
 })
 
@@ -97,13 +101,16 @@ test('skipping is an answer: the creator leaves for the collection page, and not
 test('a filled step sends addEdition carrying the close time and the per-wallet cap', () => {
   renderStep()
 
-  const closeAt = Math.floor(Date.now() / 1000) + 86_400
+  // Minute-aligned: the picker's own step is a minute, so this is the finest moment it can state.
+  const closeAt = Math.floor((Math.floor(Date.now() / 1000) + 86_400) / 60) * 60
   fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Genesis' } })
   fireEvent.change(screen.getByLabelText(/base price/i), { target: { value: '0.05' } })
   fireEvent.change(screen.getByLabelText(/edition metadata uri/i), {
     target: { value: 'ipfs://cid' },
   })
-  fireEvent.change(screen.getByLabelText(/close time/i), { target: { value: String(closeAt) } })
+  fireEvent.change(screen.getByLabelText(/^closes/i), {
+    target: { value: localInputFromEpoch(closeAt) },
+  })
   fireEvent.change(screen.getByLabelText(/per-wallet limit/i), { target: { value: '3' } })
 
   fireEvent.submit(screen.getByRole('button', { name: /add edition/i }))
@@ -128,8 +135,12 @@ test('a close time before the open is refused here, exactly as the collection pa
   fireEvent.change(screen.getByLabelText(/edition metadata uri/i), {
     target: { value: 'ipfs://cid' },
   })
-  fireEvent.change(screen.getByLabelText(/^open time/i), { target: { value: '2000' } })
-  fireEvent.change(screen.getByLabelText(/close time/i), { target: { value: '1000' } })
+  fireEvent.change(screen.getByLabelText(/^opens/i), {
+    target: { value: localInputFromEpoch(2_000_000_040) },
+  })
+  fireEvent.change(screen.getByLabelText(/^closes/i), {
+    target: { value: localInputFromEpoch(2_000_000_040 - 60) },
+  })
 
   fireEvent.submit(screen.getByRole('button', { name: /add edition/i }))
 

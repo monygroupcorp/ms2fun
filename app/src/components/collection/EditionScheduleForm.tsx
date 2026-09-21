@@ -15,6 +15,7 @@ import {
   useWriteErc1155InstanceSetEditionSchedule,
 } from '../../generated/contracts'
 import { useCollectionChainId } from './useCollectionChain'
+import { epochFromLocalInput, localInputFromEpoch } from '../../lib/time/scheduleInput'
 import { txErrorReason } from '../ui/useTxAction'
 import styles from './AddEditionForm.module.css'
 
@@ -127,18 +128,17 @@ export function EditionScheduleForm({ instance, editionId, onChanged }: EditionS
 
       <div className={styles.field}>
         <label className={styles.label} htmlFor={`esf-close-${editionId}`}>
-          Close time (unix seconds; 0 = never closes)
+          Closes
         </label>
         <input
           id={`esf-close-${editionId}`}
           className={styles.input}
-          type="number"
-          min="0"
-          step="1"
-          value={closeTime}
-          onChange={(e) => setCloseTime(e.target.value)}
+          type="datetime-local"
+          value={localInputFromEpoch(Number(closeTime))}
+          onChange={(e) => setCloseTime(String(epochFromLocalInput(e.target.value) ?? 0))}
           disabled={isBusy}
         />
+        <span className={styles.hint}>Clear it to run the edition open-ended.</span>
       </div>
 
       <div className={styles.field}>
