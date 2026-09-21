@@ -984,8 +984,15 @@ cd contracts && forge fmt --check && forge build && \
 - the real-v4 leg — **13 passed, 0 failed**, 3 suites
 
 The audit proofs are excluded from that set by design and run under their own config; see §3. Note
-what that exclusion does and does not buy: it keeps the gate honest about defects the gate did not
-cause, and it leaves those proofs unwatched. `UniVaultPoolKeyRotation.t.sol` was red against a fix
+what that exclusion bought and what it cost: it kept the gate honest about defects the gate did not
+cause, and it left those proofs unwatched. `UniVaultPoolKeyRotation.t.sol` was red against a fix
 merged on 2026-09-17 and stayed red until 2026-09-19, when running the set by hand was the first
-thing that looked at it. `ci-real-v4-audit-proofs-unrun` (PR #445) is the
-standing repair — a job that runs the real-v4 proofs — and it is open.
+thing that looked at it.
+
+The cost is since paid. `ci-real-v4-audit-proofs-unrun` (PR #445) merged the `real-settlement` job
+that runs the real-v4 proofs, and the set it runs is written in one place,
+`contracts/scripts/real-v4-gate.sh`. That script refuses to run unless every file in
+`foundry.toml`'s `skip=` list is either in the set or recorded beside it with the reason it is
+deliberately out — so a proof cannot be skipped and unwatched at the same time without something
+going red. `FreeMintCurveSolvency.t.sol` is the one file recorded as out, red by the H-1 ruling and
+for as long as it stands. The others, `UniVaultPoolKeyRotation.t.sol` included, run in CI.
