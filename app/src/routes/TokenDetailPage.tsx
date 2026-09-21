@@ -240,9 +240,10 @@ function FramedArt({ image, alt }: { image: string | undefined; alt: string }) {
 /**
  * The alignment honesty line. It claims the RATIO and neither the destination nor the source.
  *
- * It used to say "19% of every resale", which was wrong twice: no royalty standard is implemented
- * anywhere in `contracts/src` (`royaltyInfo`/ERC2981 appear in none of it), and a token page knows
- * its vault's NAME and not its `vaultType()`, so naming a source picks a family blind. See
+ * It used to say "19% of every resale", which was wrong twice: the tithe is levied on primary
+ * settlement and has never touched a resale — the EIP-2981 royalty the instances carry today is
+ * creator-set and paid to the CREATOR, not to a vault — and a token page knows its vault's NAME and
+ * not its `vaultType()`, so naming a source picks a family blind. See
  * `lib/vaults/alignmentWording`.
  */
 function AlignmentLine({ vaultName }: { vaultName?: string | undefined }) {

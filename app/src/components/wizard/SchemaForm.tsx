@@ -39,13 +39,16 @@ const UNIT_LABELS: Record<NonNullable<FieldSchema['unit']>, string> = {
   eth: 'ETH',
   gwei: 'gwei',
   bps: 'bps',
+  percent: '%',
   seconds: 'seconds',
   tokens: 'tokens',
   count: '',
 }
 
 /** Units whose input accepts a fractional (decimal) human value. */
-const DECIMAL_UNITS = new Set<FieldSchema['unit']>(['eth', 'gwei', 'tokens'])
+// `percent` is here because creators genuinely set fractional royalties — 2.5% is a common ask, and
+// a `numeric` input that silently refuses the decimal point reads as the field being broken.
+const DECIMAL_UNITS = new Set<FieldSchema['unit']>(['eth', 'gwei', 'tokens', 'percent'])
 
 // ── Internal rendering ────────────────────────────────────────────────────────
 

@@ -75,29 +75,32 @@ describe('the 19% surfaces draw their wording', () => {
 })
 
 /**
- * The resale claim, ratcheted across the WHOLE app rather than a list.
+ * The claim that must never come back: that the 19% is taken on resales.
  *
  * The five surfaces above were enumerated, and enumeration is why the claim survived: it was
- * deleted from `TokenDetailPage` for naming a royalty the contracts do not implement, and the same
- * sentence sat untouched in `lib/learn/concepts.ts` — the long-form explainer a creator reads
- * BEFORE deploying — because that file was not on the list. A creator arriving from Manifold or
- * objkt, where a creator-set royalty is table stakes, read "on every resale, 19% of fees route to
- * the community" and had no reason to doubt it.
+ * deleted from `TokenDetailPage` for naming a royalty the contracts did not implement, and the same
+ * sentence sat untouched in the wizard's alignment step and in `lib/learn/concepts.ts` — the two
+ * screens a creator actually reads BEFORE deploying — because neither file was on the list. A
+ * creator arriving from Manifold or objkt, where a creator-set royalty is table stakes, read "on
+ * mint and every resale, 19% of fees route to the community" and had no reason to doubt it.
  *
- * So this one is not a list. No file under `src/` may claim a resale leg outside a comment, for as
- * long as `royaltyInfo`/ERC-2981 appear nowhere in `contracts/src`. The day a royalty standard
- * lands, this test is what has to be rewritten to describe it — deliberately, by the change that
- * implements it, and not by a surface that assumed it.
+ * So this one is not a list: no file under `src/` may say it, ever.
+ *
+ * Note what this does NOT forbid. noesis now implements EIP-2981, so the app is expected to discuss
+ * royalties at length — `lib/learn/concepts.ts` has a whole page on them. A royalty is creator-set
+ * and creator-paid and has nothing to do with the alignment tithe, which is a contract constant
+ * levied on primary settlement. The forbidden thing is narrow and specific: attaching a per-resale
+ * levy to the 19%. Saying plainly that a resale pays the community nothing is the fix, not a
+ * relapse, so the pattern must keep matching the claim and not the word.
  */
-describe('no surface claims a resale leg the contracts do not implement', () => {
-  const RESALE_CLAIM =
-    /every\s+resale|on\s+(?:each|every)\s+(?:resale|secondary)|royalt(?:y|ies)\s+(?:of|route|pay)/i
+describe('no surface puts the 19% on a resale', () => {
+  const RESALE_TITHE_CLAIM = /every\s+resale|on\s+(?:each|every)\s+(?:resale|secondary)/i
 
   it.each(Object.keys(SOURCE_FILES).filter((p) => !p.endsWith('alignmentWordingSurfaces.test.ts')))(
     '%s',
     (path) => {
       const code = stripComments(SOURCE_FILES[path] ?? '')
-      expect(code).not.toMatch(RESALE_CLAIM)
+      expect(code).not.toMatch(RESALE_TITHE_CLAIM)
     },
   )
 })

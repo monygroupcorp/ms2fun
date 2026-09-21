@@ -5,6 +5,7 @@ import { Test, console } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { TitheSignals } from "../../helpers/TitheSignals.sol";
 import { ERC721AuctionFactory } from "../../../src/factories/erc721/ERC721AuctionFactory.sol";
+import { RoyaltyLib } from "../../../src/shared/libraries/RoyaltyLib.sol";
 import {
     ERC721AuctionInstance,
     DepositRequired,
@@ -71,8 +72,63 @@ contract ERC721AuctionFactoryTest is Test {
             lines: 1,
             baseDuration: BASE_DURATION,
             timeBuffer: TIME_BUFFER,
-            bidIncrement: BID_INCREMENT
+            bidIncrement: BID_INCREMENT,
+            royaltyReceiver: address(0),
+            royaltyBps: 0
         });
+    }
+
+    // ── EIP-2981 through the real create path ─────────────────────────────────
+
+    /// @dev The instance unit tests own the quoting maths; this owns the threading. A rate typed in
+    ///      the wizard has to survive CreateX, the constructor and `initializeRoyalty` and come back
+    ///      out of a deployed collection, or the field is decoration.
+    function test_CreateInstance_CarriesTheCreatorsRoyaltyRate() public {
+        ERC721AuctionFactory.CreateParams memory p = _params();
+        p.royaltyBps = 750;
+
+        vm.prank(artist);
+        address instance = factory.createInstance(_nextSalt(), p);
+
+        assertEq(ERC721AuctionInstance(payable(instance)).royaltyBps(), 750, "rate survived create");
+        assertTrue(ERC721AuctionInstance(payable(instance)).supportsInterface(0x2a55205a), "answers EIP-2981");
+
+        (address receiver, uint256 owed) = ERC721AuctionInstance(payable(instance)).royaltyInfo(1, 20 ether);
+        assertEq(receiver, artist, "quotes the creator");
+        assertEq(owed, 1.5 ether, "7.5% of 20 ether");
+    }
+
+    /// @dev Zero is the default and stays a valid choice, so a creator who wants no royalty deploys
+    ///      exactly what every pre-2981 noesis collection already reports.
+    function test_CreateInstance_DefaultsToAskingForNoRoyalty() public {
+        vm.prank(artist);
+        address instance = factory.createInstance(_nextSalt(), _params());
+
+        (, uint256 owed) = ERC721AuctionInstance(payable(instance)).royaltyInfo(1, 20 ether);
+        assertEq(ERC721AuctionInstance(payable(instance)).royaltyBps(), 0, "unset");
+        assertEq(owed, 0, "owes nothing");
+    }
+
+    /// @dev An over-cap rate takes the whole create down rather than being clamped or dropped. A
+    ///      creator must not deploy believing they asked for 50% and find they published something
+    ///      else — the cap is a refusal, not a silent correction.
+    function test_CreateInstance_RefusesAnOverCapRateAndDeploysNothing() public {
+        ERC721AuctionFactory.CreateParams memory p = _params();
+        p.royaltyBps = 5000;
+
+        bytes32 salt = _nextSalt();
+        vm.prank(artist);
+        vm.expectRevert();
+        factory.createInstance(salt, p);
+
+        // Nothing was deployed: the CREATE3 address that salt names is still free, so the same salt
+        // re-creates cleanly once the rate is inside the cap. A partial deploy would have consumed it.
+        p.royaltyBps = RoyaltyLib.MAX_ROYALTY_BPS;
+        vm.prank(artist);
+        address instance = factory.createInstance(salt, p);
+        assertEq(
+            ERC721AuctionInstance(payable(instance)).royaltyBps(), RoyaltyLib.MAX_ROYALTY_BPS, "the cap itself is legal"
+        );
     }
 
     function setUp() public {
@@ -486,7 +542,9 @@ contract ERC721AuctionFactoryTest is Test {
             lines: 1,
             baseDuration: BASE_DURATION,
             timeBuffer: TIME_BUFFER,
-            bidIncrement: BID_INCREMENT
+            bidIncrement: BID_INCREMENT,
+            royaltyReceiver: address(0),
+            royaltyBps: 0
         });
         vm.deal(artist, 100 ether);
         vm.prank(artist);
@@ -549,7 +607,9 @@ contract ERC721AuctionFactoryTest is Test {
             lines: 1,
             baseDuration: BASE_DURATION,
             timeBuffer: BASE_DURATION,
-            bidIncrement: BID_INCREMENT
+            bidIncrement: BID_INCREMENT,
+            royaltyReceiver: address(0),
+            royaltyBps: 0
         });
         vm.deal(artist, 100 ether);
         vm.prank(artist);
@@ -574,7 +634,9 @@ contract ERC721AuctionFactoryTest is Test {
             lines: 1,
             baseDuration: BASE_DURATION,
             timeBuffer: TIME_BUFFER,
-            bidIncrement: BID_INCREMENT
+            bidIncrement: BID_INCREMENT,
+            royaltyReceiver: address(0),
+            royaltyBps: 0
         });
         vm.deal(artist, 100 ether);
         vm.prank(artist);
@@ -627,7 +689,9 @@ contract ERC721AuctionFactoryTest is Test {
             lines: 1,
             baseDuration: BASE_DURATION,
             timeBuffer: TIME_BUFFER,
-            bidIncrement: BID_INCREMENT
+            bidIncrement: BID_INCREMENT,
+            royaltyReceiver: address(0),
+            royaltyBps: 0
         });
         vm.deal(artist, 100 ether);
         vm.prank(artist);
@@ -850,7 +914,9 @@ contract ERC721AuctionFactoryTest is Test {
                 lines: 3,
                 baseDuration: BASE_DURATION,
                 timeBuffer: TIME_BUFFER,
-                bidIncrement: BID_INCREMENT
+                bidIncrement: BID_INCREMENT,
+                royaltyReceiver: address(0),
+                royaltyBps: 0
             })
         );
         ERC721AuctionInstance inst = ERC721AuctionInstance(payable(instance));

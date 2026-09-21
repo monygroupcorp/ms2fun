@@ -18,6 +18,7 @@ import {
   erc721AuctionFactoryAbi,
 } from '../../generated/contracts'
 import { parseBps } from '../carve'
+import { royaltyBpsFromPercent } from './royalty'
 import type { ProjectTypeSchema } from './schema'
 import { hasMetadataConfig, type MetadataConfigValue } from './metadataConfig'
 
@@ -164,6 +165,13 @@ export function buildErc721Create(c: CreateContext): CreateCall {
       baseDuration: num(c.values.baseDuration), // uint40
       timeBuffer: num(c.values.timeBuffer), // uint40
       bidIncrement: human(c.values.bidIncrement), // uint256 — creator types ETH; scaled to wei here
+      // EIP-2981. `address(0)` receiver means the instance quotes its own `owner()`, so a creator
+      // who later rotates the contract's owner carries the royalty with them instead of quoting a
+      // dead address to every marketplace. An explicit receiver is a post-create change
+      // (`setRoyalty`); the wizard collects the rate only, which is the decision a creator is
+      // actually making here. ERC-1155 has no equivalent — see `projectTypes.ts`.
+      royaltyReceiver: ZERO_ADDRESS,
+      royaltyBps: royaltyBpsFromPercent(c.values.royaltyPercent),
     },
   ]
   return { type: 'erc721', factory: 'ERC721AuctionFactory', args, value: 0n }

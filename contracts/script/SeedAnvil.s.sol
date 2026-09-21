@@ -1141,7 +1141,9 @@ contract SeedAnvil is SeedAnvilShared {
             lines: 2,
             baseDuration: baseDuration,
             timeBuffer: 300,
-            bidIncrement: 0.01 ether
+            bidIncrement: 0.01 ether,
+            royaltyReceiver: address(0),
+            royaltyBps: 0
         });
         bytes32 salt = keccak256(abi.encode(block.timestamp, slug, "ERC721"));
         instance = d.erc721.createInstance(salt, params); // msg.value 0: no creation fee on anvil
@@ -1907,7 +1909,9 @@ contract SeedAnvil is SeedAnvilShared {
             lines: FIGMATA_LINES,
             baseDuration: FIGMATA_DURATION,
             timeBuffer: 300,
-            bidIncrement: 0.01 ether
+            bidIncrement: 0.01 ether,
+            royaltyReceiver: address(0),
+            royaltyBps: 0
         });
         address inst = d.erc721.createInstance(keccak256(abi.encode(block.timestamp, "pixelady-figmata")), params);
         _instances.push(inst);
@@ -2042,7 +2046,9 @@ contract SeedAnvil is SeedAnvilShared {
             lines: ARTIST_LINES,
             baseDuration: ARTIST_DURATION,
             timeBuffer: 300,
-            bidIncrement: 0.01 ether
+            bidIncrement: 0.01 ether,
+            royaltyReceiver: address(0),
+            royaltyBps: 0
         });
         inst = d.erc721.createInstance(keccak256(abi.encode(block.timestamp, slug, "artist")), params);
         _instances.push(inst);

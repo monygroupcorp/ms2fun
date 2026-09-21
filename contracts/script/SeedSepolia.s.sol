@@ -1201,7 +1201,9 @@ contract SeedSepolia is SeedSepoliaShared {
                     lines: 2,
                     baseDuration: uint40(_timedAuctionSeconds()),
                     timeBuffer: AUCTION_TIME_BUFFER,
-                    bidIncrement: AUCTION_BID_INCREMENT
+                    bidIncrement: AUCTION_BID_INCREMENT,
+                    royaltyReceiver: address(0),
+                    royaltyBps: 0
                 })
             );
         ERC721AuctionInstance t = ERC721AuctionInstance(payable(timed));
@@ -1235,7 +1237,9 @@ contract SeedSepolia is SeedSepoliaShared {
                     lines: 1,
                     baseDuration: uint40(_liveAuctionSeconds()),
                     timeBuffer: AUCTION_TIME_BUFFER,
-                    bidIncrement: AUCTION_BID_INCREMENT
+                    bidIncrement: AUCTION_BID_INCREMENT,
+                    royaltyReceiver: address(0),
+                    royaltyBps: 0
                 })
             );
         ERC721AuctionInstance l = ERC721AuctionInstance(payable(live));

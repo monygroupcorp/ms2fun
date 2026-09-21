@@ -57,8 +57,9 @@ export const ALIGNMENT_LAW_SECTION_SENTENCE =
  * carries `vault`/`vaultName` and no `vaultType()` — nothing on those surfaces can tell an LP vault
  * from an endowment one, and the vault's own page is the first that can. So they may state the
  * ratio and name the payee, and must not name a source: "19% of every fee" is the LP reading
- * asserted over an endowment collection, and "19% of every resale" claims a royalty the contracts
- * do not implement at all. "On every mint" is wrong on every family besides, because the bind lands
+ * asserted over an endowment collection, and "19% of every resale" puts the tithe on a resale, where
+ * it has never been levied — the EIP-2981 royalty the instances now carry is creator-set and paid to
+ * the CREATOR, and routes nothing to a vault. "On every mint" is wrong on every family besides, because the bind lands
  * at edition mint, auction close, or ERC404 graduation depending on the standard.
  */
 export function alignmentLawSentence(community?: string): string {

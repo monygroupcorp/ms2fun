@@ -7717,6 +7717,8 @@ export const erc721AuctionFactoryAbi = [
           { name: 'baseDuration', internalType: 'uint40', type: 'uint40' },
           { name: 'timeBuffer', internalType: 'uint40', type: 'uint40' },
           { name: 'bidIncrement', internalType: 'uint256', type: 'uint256' },
+          { name: 'royaltyReceiver', internalType: 'address', type: 'address' },
+          { name: 'royaltyBps', internalType: 'uint16', type: 'uint16' },
         ],
       },
     ],
@@ -8178,6 +8180,16 @@ export const erc721AuctionInstanceAbi = [
   },
   {
     type: 'function',
+    inputs: [
+      { name: 'receiver', internalType: 'address', type: 'address' },
+      { name: 'bps', internalType: 'uint16', type: 'uint16' },
+    ],
+    name: 'initializeRoyalty',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'instanceType',
     outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
@@ -8314,6 +8326,33 @@ export const erc721AuctionInstanceAbi = [
   },
   {
     type: 'function',
+    inputs: [],
+    name: 'royaltyBps',
+    outputs: [{ name: '', internalType: 'uint16', type: 'uint16' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'uint256', type: 'uint256' },
+      { name: 'salePrice', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'royaltyInfo',
+    outputs: [
+      { name: 'receiver', internalType: 'address', type: 'address' },
+      { name: 'royaltyAmount', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'royaltyReceiver',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [
       { name: 'from', internalType: 'address', type: 'address' },
       { name: 'to', internalType: 'address', type: 'address' },
@@ -8368,6 +8407,16 @@ export const erc721AuctionInstanceAbi = [
   },
   {
     type: 'function',
+    inputs: [
+      { name: 'receiver', internalType: 'address', type: 'address' },
+      { name: 'bps', internalType: 'uint16', type: 'uint16' },
+    ],
+    name: 'setRoyalty',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'tokenId', internalType: 'uint24', type: 'uint24' }],
     name: 'settleAuction',
     outputs: [],
@@ -8377,7 +8426,7 @@ export const erc721AuctionInstanceAbi = [
     type: 'function',
     inputs: [{ name: 'interfaceId', internalType: 'bytes4', type: 'bytes4' }],
     name: 'supportsInterface',
-    outputs: [{ name: 'result', internalType: 'bool', type: 'bool' }],
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
     stateMutability: 'view',
   },
   {
@@ -8679,6 +8728,20 @@ export const erc721AuctionInstanceAbi = [
     anonymous: false,
     inputs: [
       {
+        name: 'receiver',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'bps', internalType: 'uint16', type: 'uint16', indexed: false },
+    ],
+    name: 'RoyaltyUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
         name: 'newState',
         internalType: 'bytes32',
         type: 'bytes32',
@@ -8811,6 +8874,15 @@ export const erc721AuctionInstanceAbi = [
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
   { type: 'error', inputs: [], name: 'NotOwnerNorApproved' },
   { type: 'error', inputs: [], name: 'Reentrancy' },
+  { type: 'error', inputs: [], name: 'RoyaltyAlreadyInitialized' },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'bps', internalType: 'uint16', type: 'uint16' },
+      { name: 'maxBps', internalType: 'uint16', type: 'uint16' },
+    ],
+    name: 'RoyaltyTooHigh',
+  },
   {
     type: 'error',
     inputs: [
@@ -23776,6 +23848,33 @@ export const useReadErc721AuctionInstanceProtocolTreasury =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"royaltyBps"`
+ */
+export const useReadErc721AuctionInstanceRoyaltyBps =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'royaltyBps',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"royaltyInfo"`
+ */
+export const useReadErc721AuctionInstanceRoyaltyInfo =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'royaltyInfo',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"royaltyReceiver"`
+ */
+export const useReadErc721AuctionInstanceRoyaltyReceiver =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'royaltyReceiver',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"supportsInterface"`
  */
 export const useReadErc721AuctionInstanceSupportsInterface =
@@ -23899,6 +23998,15 @@ export const useWriteErc721AuctionInstanceFlushPendingVaultCut =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"initializeRoyalty"`
+ */
+export const useWriteErc721AuctionInstanceInitializeRoyalty =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'initializeRoyalty',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"migrateVault"`
  */
 export const useWriteErc721AuctionInstanceMigrateVault =
@@ -23986,6 +24094,15 @@ export const useWriteErc721AuctionInstanceSetContractUri =
   /*#__PURE__*/ createUseWriteContract({
     abi: erc721AuctionInstanceAbi,
     functionName: 'setContractURI',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"setRoyalty"`
+ */
+export const useWriteErc721AuctionInstanceSetRoyalty =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'setRoyalty',
   })
 
 /**
@@ -24085,6 +24202,15 @@ export const useSimulateErc721AuctionInstanceFlushPendingVaultCut =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"initializeRoyalty"`
+ */
+export const useSimulateErc721AuctionInstanceInitializeRoyalty =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'initializeRoyalty',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"migrateVault"`
  */
 export const useSimulateErc721AuctionInstanceMigrateVault =
@@ -24172,6 +24298,15 @@ export const useSimulateErc721AuctionInstanceSetContractUri =
   /*#__PURE__*/ createUseSimulateContract({
     abi: erc721AuctionInstanceAbi,
     functionName: 'setContractURI',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"setRoyalty"`
+ */
+export const useSimulateErc721AuctionInstanceSetRoyalty =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'setRoyalty',
   })
 
 /**
@@ -24322,6 +24457,15 @@ export const useWatchErc721AuctionInstancePieceQueuedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc721AuctionInstanceAbi,
     eventName: 'PieceQueued',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"RoyaltyUpdated"`
+ */
+export const useWatchErc721AuctionInstanceRoyaltyUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc721AuctionInstanceAbi,
+    eventName: 'RoyaltyUpdated',
   })
 
 /**

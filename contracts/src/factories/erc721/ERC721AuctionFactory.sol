@@ -39,6 +39,11 @@ contract ERC721AuctionFactory is Ownable, ReentrancyGuard, IFactory {
         uint40 baseDuration;
         uint40 timeBuffer;
         uint256 bidIncrement;
+        // EIP-2981 secondary royalty the collection asks marketplaces for. 0 = ask for none, which is
+        // what every collection deployed before this field existed reports. Paid to the creator, not
+        // to the alignment vault — the 19% is levied on the winning bid and takes nothing from a resale.
+        address royaltyReceiver; // address(0) = track the instance owner
+        uint16 royaltyBps; // at most RoyaltyLib.MAX_ROYALTY_BPS; validated by the instance
     }
 
     event InstanceCreated(address indexed instance, address indexed creator, string name, address indexed vault);
@@ -129,6 +134,11 @@ contract ERC721AuctionFactory is Ownable, ReentrancyGuard, IFactory {
         if (agentCreated) {
             ERC721AuctionInstance(payable(instance)).setAgentDelegationFromFactory();
         }
+        // Royalty is set here rather than in the constructor so the instance's deployed bytecode and
+        // its constructor ABI are unchanged by this field. The instance validates the rate against
+        // its own cap and reverts the whole create if it is out of range, so an over-cap rate can
+        // never be silently discarded into a deployed collection.
+        ERC721AuctionInstance(payable(instance)).initializeRoyalty(params.royaltyReceiver, params.royaltyBps);
     }
 
     // ── Admin ─────────────────────────────────────────────────────────────────

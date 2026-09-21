@@ -338,6 +338,55 @@ Nothing about deploying without art is second-class: the contract, the alignment
 `,
     related: ['onchain-image-cost'],
   },
+  'secondary-royalty': {
+    title: 'Secondary royalties',
+    summary:
+      'What you ask marketplaces to pay you when your work is resold — a request, not a rule, and separate from the 19%.',
+    body: `
+An **auction collection** can publish a **secondary royalty**: a rate, set by you, that says what
+you expect to be paid when a piece is resold. noesis implements this as **EIP-2981**, the interface
+every marketplace reads. You set it in the wizard, and you can change it afterwards from the creator
+admin panel. The other two standards do not carry one — see *Where it applies* below.
+
+**It is a request, not a rule.** EIP-2981 publishes a number; it cannot make anyone pay it. OpenSea
+made creator fees optional in August 2023 and enforces them only for transfer-restricting contracts
+(the ERC-721-C family), which noesis does not use. objkt's own documentation says royalties "can't
+be fully enforced on-chain" and that it honors them by choice. So a venue that respects the standard
+will pay you this, and one that does not will not — and publishing nothing at all is the one
+guaranteed way to be paid zero everywhere.
+
+**It is not the 19%.** These are two different systems with two different payees, and it is worth
+being precise about which is which:
+
+| | who sets it | who is paid | when |
+| --- | --- | --- | --- |
+| **Alignment** | nobody — a contract constant | the community you bound to | primary settlement: edition mint, auction close, graduation |
+| **Royalty** | you | you | a resale, if the venue honors it |
+
+The alignment tithe takes **nothing** from a resale. A royalty pays the community **nothing**. If
+you set 0, your collection asks for no royalty — which is a position, and the one every noesis
+collection deployed before this field existed still reports.
+
+**Where it applies.** **Auctions (ERC-721) carry it.** The other two standards do not, for two
+different reasons.
+
+**ERC-404** has no marketplace sale to take a royalty from. After graduation it trades as a coin in
+an AMM pool rather than as a listing, and its post-graduation value already flows through the
+Uniswap V4 alignment hook — to the community, not to you, and only on that venue.
+
+**Editions (ERC-1155)** cannot carry it yet, and this one is a limit rather than a decision. The
+contract that deploys edition collections carries a full copy of the edition contract inside itself,
+and the pair sits 561 bytes under Ethereum's 24,576-byte ceiling on deployable code. EIP-2981 needs
+more than that — even stripped to a single setting it needs 534 of those 561 bytes, which would
+leave the next change to editions with nowhere to go. Making room means changing how edition
+collections are deployed, which changes the addresses they deploy to, so it is its own piece of
+work. Until then an edition collection reports no royalty and marketplaces will quote none.
+
+**The cap is 10%.** Above that the deploy is refused rather than quietly corrected, because a rate
+no venue will quote is worse than no rate at all.
+`,
+    related: ['alignment-vault', 'token-standard'],
+  },
   support: {
     title: 'Reporting a problem',
     summary: 'Where to report a defect in the launchpad, or ask about something that looks wrong.',
@@ -359,7 +408,14 @@ export function getConcept(slug: string): LearnConcept | undefined {
 export const CONCEPT_GROUPS: { title: string; slugs: string[] }[] = [
   {
     title: 'Getting started',
-    slugs: ['token-standard', 'erc404', 'erc1155', 'erc721', 'alignment-vault'],
+    slugs: [
+      'token-standard',
+      'erc404',
+      'erc1155',
+      'erc721',
+      'alignment-vault',
+      'secondary-royalty',
+    ],
   },
   {
     title: 'ERC-404 mechanics',

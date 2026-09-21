@@ -92,7 +92,7 @@ export interface FieldSchema {
   fields?: FieldSchema[]
   validation?: FieldValidation
   visibleWhen?: VisibleWhen
-  unit?: 'wei' | 'eth' | 'gwei' | 'bps' | 'seconds' | 'tokens' | 'count'
+  unit?: 'wei' | 'eth' | 'gwei' | 'bps' | 'percent' | 'seconds' | 'tokens' | 'count'
 }
 
 /**

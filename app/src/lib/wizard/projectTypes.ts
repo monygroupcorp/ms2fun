@@ -7,6 +7,7 @@
  */
 
 import type { FieldSchema, ProjectTypeSchema } from './schema'
+import { MAX_ROYALTY_PERCENT } from './royalty'
 
 // ── Shared sub-schemas ────────────────────────────────────────────────────────
 
@@ -55,6 +56,21 @@ const erc1155FreeMintScope: FieldSchema = {
   ],
   learnMore: 'free-mint-reserve',
   help: 'Which mint paths the attached gating module applies to. Free-mint allocation for ERC1155 is set per edition when adding an edition (Creator admin → Add edition → "Free mint allocation"), not at create.',
+}
+
+const royaltyField: FieldSchema = {
+  key: 'royaltyPercent',
+  label: 'Secondary royalty',
+  kind: 'number',
+  unit: 'percent',
+  default: 0,
+  learnMore: 'secondary-royalty',
+  help:
+    'What you ask marketplaces to pay you on a resale, as a percent (e.g. 5). Paid to you, not to ' +
+    'your alignment vault — the 19% is taken when the collection settles, and takes nothing from a ' +
+    'resale. 0 asks for none. Marketplaces are free to ignore this: most EVM venues have made ' +
+    'royalties optional since 2023. You can change it later from the creator admin panel.',
+  validation: { min: 0, max: MAX_ROYALTY_PERCENT },
 }
 
 // ── ERC-404 ───────────────────────────────────────────────────────────────────
@@ -240,6 +256,10 @@ const erc1155: ProjectTypeSchema = {
       kind: 'text',
     },
     erc1155FreeMintScope,
+    // No royalty field. `ERC1155Instance` carries no EIP-2981 and cannot until `ERC1155Factory` is
+    // externalized — the factory embeds the instance's creation code and stands 561B under EIP-170,
+    // where even a stripped implementation costs 534B. Measured in
+    // `contracts/test/metadata/InstanceBytecodeSize.t.sol`, which holds the numbers and the lever.
   ],
   moduleSlots: [
     {
@@ -386,6 +406,7 @@ const erc721: ProjectTypeSchema = {
       help: 'Amount in ETH added to the current high bid for each raise (immutable, e.g. 0.001)',
       validation: { required: true },
     },
+    royaltyField,
   ],
   moduleSlots: [],
   postCreate: {

@@ -54,7 +54,9 @@ contract ERC721AgentDelegationTest is GlobalMessagingTestBase {
             lines: 1,
             baseDuration: 1 days,
             timeBuffer: 15 minutes,
-            bidIncrement: 0.01 ether
+            bidIncrement: 0.01 ether,
+            royaltyReceiver: address(0),
+            royaltyBps: 0
         });
     }
 

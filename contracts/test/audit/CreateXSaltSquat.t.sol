@@ -52,7 +52,9 @@ contract CreateXSaltSquatTest is Test {
             lines: 1,
             baseDuration: 1 days,
             timeBuffer: 10 minutes,
-            bidIncrement: 0.01 ether
+            bidIncrement: 0.01 ether,
+            royaltyReceiver: address(0),
+            royaltyBps: 0
         });
     }
 

@@ -41,6 +41,22 @@ contract InstanceBytecodeSizeTest is Test {
         assertLt(size, EIP170_LIMIT, "ERC721AuctionInstance runtime bytecode exceeds EIP-170");
     }
 
+    /// @dev This one is nearly out of room, and that is a live constraint on the ERC-1155 family
+    ///      rather than a number to note in passing. Measured 2026-09-21: the factory's runtime is
+    ///      24,015B, so 561B under the limit — and because the factory embeds the whole of
+    ///      `ERC1155Instance`'s creation code, a byte added to the instance is a byte added here.
+    ///
+    ///      EIP-2981 was implemented against that budget and did not fit. A full implementation (a
+    ///      configurable receiver, a change event, a create-time initializer beside an owner setter)
+    ///      cost 976B. Stripped to the bone — one setter, no event, the receiver hard-wired to
+    ///      `owner()` — it still cost 534B and left 27B. So the auction family carries EIP-2981 and
+    ///      the edition family does not, and the reason is this line rather than a design view about
+    ///      editions.
+    ///
+    ///      The lever is the one named on `_report`: get the instance initcode out of the factory,
+    ///      via an EIP-1167 clone off a master implementation or a separate deployer contract. Both
+    ///      move the CREATE3 deployer, so both change every future collection's address and the
+    ///      deploy scripts with it. That is its own piece of work.
     function test_ERC1155Factory_underEip170() public view {
         _report(
             "ERC1155Factory",
@@ -76,8 +92,12 @@ contract InstanceBytecodeSizeTest is Test {
     function _report(string memory name, uint256 factorySize, uint256 embeddedInitCode) private pure {
         console2.log(name);
         console2.log("  runtime bytes         ", factorySize);
-        console2.log("  EIP-170 headroom      ", EIP170_LIMIT - factorySize);
         console2.log("  embedded instance init", embeddedInitCode);
+        // Assert BEFORE the subtraction. `EIP170_LIMIT - factorySize` underflows the moment a
+        // factory goes over, and an arithmetic panic names neither the contract nor the limit — the
+        // one reading it has to guess. This test exists to say which factory ran out of room, so the
+        // named failure has to come first and the headroom log second.
         assertLt(factorySize, EIP170_LIMIT, "factory runtime bytecode exceeds EIP-170");
+        console2.log("  EIP-170 headroom      ", EIP170_LIMIT - factorySize);
     }
 }

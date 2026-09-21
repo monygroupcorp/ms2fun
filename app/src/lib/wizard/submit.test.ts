@@ -151,6 +151,22 @@ describe('buildErc721Create', () => {
     expect(at('0.05')).toBe(50000000000000000n) // 0.05 ETH
     expect(at('2.5')).toBe(2500000000000000000n) // 2.5 ETH
   })
+
+  // ── EIP-2981 ───────────────────────────────────────────────────────────────
+
+  it('carries the royalty the same way the edition factory does', () => {
+    const ctx = baseCtx({ values: { ...baseCtx().values, royaltyPercent: '7.5' } })
+    const call = buildErc721Create(ctx)
+    if (call.type !== 'erc721') throw new Error('unexpected type')
+    expect(call.args[1].royaltyBps).toBe(750)
+    expect(call.args[1].royaltyReceiver).toBe(ZERO_ADDRESS)
+  })
+
+  it('sends no royalty when the creator asks for none', () => {
+    const call = buildErc721Create(baseCtx())
+    if (call.type !== 'erc721') throw new Error('unexpected type')
+    expect(call.args[1].royaltyBps).toBe(0)
+  })
 })
 
 // ── ERC404 ───────────────────────────────────────────────────────────────────

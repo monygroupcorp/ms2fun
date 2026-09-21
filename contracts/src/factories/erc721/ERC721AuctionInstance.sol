@@ -12,6 +12,7 @@ import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
 import { IGlobalMessageRegistry } from "../../registry/interfaces/IGlobalMessageRegistry.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 import { RevenueSplitLib } from "../../shared/libraries/RevenueSplitLib.sol";
+import { RoyaltyLib } from "../../shared/libraries/RoyaltyLib.sol";
 import { IInstanceLifecycle, TYPE_ERC721, STATE_ACTIVE } from "../../interfaces/IInstanceLifecycle.sol";
 
 // ── ERC721AuctionInstance errors ──────────────────────────────────────────────
@@ -37,6 +38,7 @@ error NoFeesToClaim();
 error TokenDoesNotExist();
 error InvalidLine();
 error Unauthorized();
+error RoyaltyAlreadyInitialized();
 
 /**
  * @title ERC721AuctionInstance
@@ -105,6 +107,17 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
     address public factory;
     bool public agentDelegationEnabled;
 
+    // EIP-2981 secondary royalty. `royaltyReceiver == address(0)` resolves to `owner()` at read time
+    // rather than being written at create: a creator who rotates the contract's owner would otherwise
+    // keep quoting the old address to every marketplace forever, with no signal it had gone stale.
+    // An explicit receiver is honored as written, for collaboration splits and payment splitters.
+    //
+    // NOT the alignment tithe. This pays the CREATOR; the 19% is levied on the winning bid at
+    // `settleAuction` and takes nothing from a resale. See RoyaltyLib.
+    address public royaltyReceiver;
+    uint16 public royaltyBps;
+    bool private _royaltyInitialized;
+
     /// @dev Vault cuts that could not be sent (vault reverted). Retry via flushPendingVaultCut().
     uint256 public pendingVaultCut;
 
@@ -118,6 +131,9 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
     event AuctionSettled(uint24 indexed tokenId, address indexed winner, uint256 amount);
     event UnsoldReclaimed(uint24 indexed tokenId, uint256 creatorRefund, uint256 protocolCut);
     event AgentDelegationChanged(bool enabled);
+
+    /// @notice The collection's EIP-2981 quote changed. `receiver == address(0)` means it tracks `owner()`.
+    event RoyaltyUpdated(address indexed receiver, uint16 bps);
     event VaultContributionFailed(address indexed vault, uint256 amount);
     /// @dev Emitted when a previously stashed tithe is successfully re-sent to the vault by
     ///      `flushPendingVaultCut`. Pairs with `VaultContributionFailed` so a reader summing the two
@@ -210,6 +226,59 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
     function setAgentDelegationFromFactory() external {
         if (msg.sender != factory) revert Unauthorized();
         agentDelegationEnabled = true;
+    }
+
+    /// @notice Set the collection's create-time EIP-2981 royalty. Factory-only, once.
+    /// @dev Creator-supplied but arriving through the factory, so the rate is committed in the same
+    ///      transaction that deploys rather than left as a second step a creator discovers after the
+    ///      collection is already listable. `bps == 0` is the default and a valid choice; the owner
+    ///      can change both fields later via `setRoyalty`.
+    /// @param receiver Address to quote to marketplaces. `address(0)` tracks `owner()`.
+    /// @param bps Royalty rate in basis points, at most `RoyaltyLib.MAX_ROYALTY_BPS`.
+    function initializeRoyalty(address receiver, uint16 bps) external {
+        if (msg.sender != factory) revert Unauthorized();
+        if (_royaltyInitialized) revert RoyaltyAlreadyInitialized();
+        RoyaltyLib.validate(bps);
+        _royaltyInitialized = true;
+        royaltyReceiver = receiver;
+        royaltyBps = bps;
+        emit RoyaltyUpdated(receiver, bps);
+    }
+
+    /// @notice Change the EIP-2981 royalty this collection asks for.
+    /// @dev Owner-only and uncapped in time — a royalty is a request to third parties, not a contract
+    ///      constant, and creators do move payout addresses. Nothing here can reach into a sale that
+    ///      already happened, so there is no window to protect.
+    function setRoyalty(address receiver, uint16 bps) external onlyOwner {
+        RoyaltyLib.validate(bps);
+        royaltyReceiver = receiver;
+        royaltyBps = bps;
+        emit RoyaltyUpdated(receiver, bps);
+    }
+
+    /// @notice EIP-2981: what this collection asks a marketplace to pay the creator on a resale.
+    /// @dev Collection-wide — the rate is a property of the creator's terms, not of one piece — and
+    ///      the id is accepted and ignored, as the standard allows. An id that does not exist is not
+    ///      rejected: `royaltyInfo` is a pricing probe, and reverting on it makes a marketplace treat
+    ///      the whole collection as royalty-less rather than asking again.
+    /// @dev A quote is NOT a guarantee of payment. EIP-2981 carries no enforcement and most EVM
+    ///      marketplaces have made honoring it optional since 2023, so this is the rate a venue that
+    ///      chooses to pay will pay. The enforcement path is transfer-restricting standards
+    ///      (ERC-721-C and friends), which noesis does not implement.
+    function royaltyInfo(uint256, uint256 salePrice) external view returns (address receiver, uint256 royaltyAmount) {
+        uint16 bps = royaltyBps;
+        if (bps == 0) return (address(0), 0);
+        address r = royaltyReceiver;
+        return (r == address(0) ? owner() : r, RoyaltyLib.amount(salePrice, bps));
+    }
+
+    /// @notice ERC-165, extended with EIP-2981 on top of Solady's ERC-165/721/721-Metadata answers.
+    /// @dev EIP-2981 is answered unconditionally, including while `royaltyBps` is 0. A marketplace
+    ///      probes the interface once at index time and the rate on every listing; reporting `false`
+    ///      until a creator sets a rate would mean a collection that turns royalties on later is
+    ///      never re-probed and never quoted.
+    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
+        return interfaceId == RoyaltyLib.INTERFACE_ID_ERC2981 || super.supportsInterface(interfaceId);
     }
 
     /// @notice Toggle agent delegation for this instance
