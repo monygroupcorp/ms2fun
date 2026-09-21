@@ -11,17 +11,37 @@
 # a byte added to an instance is a byte off the FACTORY's EIP-170 margin and not off the instance's.
 # That is the whole disease: the instance's own headroom reads large and is not a budget. ERC1155
 # is the tight one, and its margin is spent from BOTH sides while each side's suite measures only
-# its own contract. Measured with `forge build --sizes`, factory runtime margin:
+# its own contract. Every merge to main that touched `src/factories/erc1155/` was rebuilt and sized
+# on 2026-09-21; ERC1155Factory runtime margin, and where each merge spent it:
 #
-#     1,044B   before PR #441    factory 23,532B = blob 18,763B + logic 4,769B
-#       624B   PR #441 merged    factory 23,952B = blob 19,183B + logic 4,769B
-#       561B   PR #431 merged    factory 24,015B = blob 19,183B + logic 4,832B
+#     merged      PR     factory    margin    blob      logic    this merge cost
+#     2026-08-04  #132   22,837B    1,739B    18,082B   4,755B   -
+#     2026-08-11  #174   23,506B    1,070B    18,751B   4,755B   +669B  all instance
+#     2026-08-15  #197   23,520B    1,056B    18,751B   4,769B    +14B  all factory
+#     2026-08-24  #295   23,584B      992B    18,815B   4,769B    +64B  all instance
+#     2026-09-05  #344   23,715B      861B    18,946B   4,769B   +131B  all instance
+#     2026-09-09  #365   23,715B      861B    18,946B   4,769B      0B
+#     2026-09-10  #376   23,622B      954B    18,853B   4,769B    -93B  all instance
+#     2026-09-11  #383   23,532B    1,044B    18,763B   4,769B    -90B  all instance
+#     2026-09-19  #441   23,952B      624B    19,183B   4,769B   +420B  all instance
+#     2026-09-19  #431   24,015B      561B    19,183B   4,832B    +63B  all factory
 #
-# #441 (open editions) added no factory logic at all: all 420B it cost the factory arrived through
-# the instance, while the suite that passed it measured the instance's 7,820B of apparent room. #431
-# (the CreateX salt-shape fix) added no instance bytes: its 63B is factory logic, and it is the first
-# cost from that side. Both landed green. 63B was priced on 2026-09-20 by reverse-applying #431's
-# ERC1155Factory.sol hunk and rebuilding, which returns the factory to exactly 23,952B / 624B.
+# Three things in that column that a single reading of today's number does not show.
+#
+# NO MERGE EVER SPENT FROM BOTH SIDES. Seven moved only the blob, two moved only the factory's own
+# logic, one moved neither. So every one of them was reviewed by a suite that measured the side it
+# happened to touch, and passed — #441 spent 420B through the instance while the instance's own
+# 7,820B of apparent room was what got checked, and #431 spent 63B of factory logic and added no
+# instance bytes at all. Neither was careless. There was nothing to read.
+#
+# THE MARGIN IS NOT A RATCHET. #376 and #383 gave back 183B between them. A diet on the instance is
+# a real alternative to the lever below, and it is cheaper than either.
+#
+# THE SPEND IS LUMPY, SO THE AVERAGE LIES. 1,178B went in 46 days, which averages 26B/day and would
+# put the remaining 561B some three weeks out. But two merges account for 1,089B of that 1,178B, and
+# the largest single one, #174's +669B, is ITSELF larger than the 561B left today. The question a
+# floor answers is not how many days remain. It is whether the next ordinary edition-side change is
+# allowed to be the size that ordinary edition-side changes have actually been.
 #
 # WHAT THIS ASSERTS, per factory:
 #   1. The factory's RUNTIME bytecode is under EIP-170 (24,576B). The factory is the deployable
@@ -39,11 +59,33 @@
 #   whose blob count drops to zero has TAKEN that lever and is not failing this gate — it is the
 #   outcome the gate exists to make reachable.
 #
-# THE LEVER, when a ceiling or a floor trips: get the instance initcode out of the factory. Either an
-# EIP-1167 clone off a master implementation, the way the ERC404 family already deploys, or a separate
-# deployer contract the factory calls. Both change deployed addresses and the deploy scripts, so
-# neither is a diff to land under time pressure — which is the reason to see the margin shrink here
-# rather than in a red build on the day it runs out.
+# THE LEVER, when a ceiling or a floor trips: get the instance initcode out of the factory. There are
+# two ways to do it and THEY ARE NOT INTERCHANGEABLE. Both free the factory; only one of them ends
+# the coupling. Measured on main at 3886044c on 2026-09-21:
+#
+#   A. EIP-1167 CLONE off a master implementation, the way the ERC404 family already deploys. The
+#      factory holds a ~45B proxy template instead of the 19,183B blob, and the instance becomes a
+#      normal deployed contract standing on its own EIP-170 budget — its 16,756B runtime and 7,820B
+#      of headroom stop being apparent and become real. After this there is no second contract whose
+#      size tracks the instance, so this gate has nothing left to watch on the ERC1155 row.
+#      What it costs: the instance's `constructor` becomes an `initialize`, and the three values that
+#      differ per instance or per cohort — `genesisVault`, plus `protocolTreasury` and `weth`, which
+#      `ERC1155Factory.setProtocolTreasury`/`setWeth` may retune between instances today — stop being
+#      `immutable` and become storage, so `withdraw` pays three cold SLOADs it does not pay now. The
+#      protocol-wide ones can stay `immutable` in the master and be read through the proxy, which is
+#      what `ERC404BondingInstance._ops` already does.
+#
+#   B. A SEPARATE DEPLOYER the factory calls. Built as a spike and sized: the smallest deployer that
+#      can hold the blob and make the CreateX call is 19,841B of runtime — 19,183B of blob and 658B
+#      of its own logic — leaving it 4,735B of headroom. The factory is freed, but the deployer now
+#      carries the coupling on exactly the terms the factory carried it, and with a smaller budget
+#      than the instance appears to have: 4,735B of deployer margin is about 4,135B of instance
+#      RUNTIME growth at the 1.145 initcode-to-runtime ratio measured here, against the 7,820B the
+#      instance reads today. So B buys room and keeps the disease; A ends it.
+#
+# Both change deployed addresses and the deploy scripts, so neither is a diff to land under time
+# pressure — which is the reason to see the margin shrink here rather than in a red build on the day
+# it runs out. A diet on the instance is the third option and the only one that changes no addresses.
 #
 # Run from the `contracts/` directory:  bash test/factories/eip170-embed-gate.sh
 set -euo pipefail
@@ -122,7 +164,8 @@ for row in "${PAIRS[@]}"; do
   if [ "$fsize" -ge "$LIMIT" ]; then
     echo "  FAIL: ${label} runtime ${fsize}B >= EIP-170 limit ${LIMIT}B — it cannot be deployed." >&2
     if [ "$count" -gt 0 ]; then
-      echo "        ${bsize}B of it is embedded ${embedded##*:} initcode. Take the lever above." >&2
+      echo "        ${bsize}B of it is embedded ${embedded##*:} initcode — see THE LEVER above, and" >&2
+      echo "        note that only the clone route ends the coupling rather than relocating it." >&2
     fi
     fail=1
     continue
@@ -136,9 +179,11 @@ for row in "${PAIRS[@]}"; do
     echo "  floor                 ${floor}B"
     if [ "$headroom" -lt "$floor" ]; then
       echo "  FAIL: ${label} headroom ${headroom}B < floor ${floor}B." >&2
-      echo "        Do NOT lower this floor to make a diff pass. Re-spec against the remaining budget," >&2
-      echo "        or take the lever: move the embedded initcode out of the factory (EIP-1167 clone" >&2
-      echo "        off a master implementation, or a separate deployer the factory calls)." >&2
+      echo "        Do NOT lower this floor to make a diff pass. In rising order of blast radius:" >&2
+      echo "        re-spec against the remaining budget; diet the instance (#376 and #383 gave back" >&2
+      echo "        183B and moved no addresses); or take the lever and move the initcode out. If you" >&2
+      echo "        take the lever, read THE LEVER above first — an EIP-1167 clone ends this coupling," >&2
+      echo "        a separate deployer only moves it to a contract with a smaller budget." >&2
       fail=1
     fi
   fi
