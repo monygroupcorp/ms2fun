@@ -36,6 +36,7 @@ import { GatingScope } from "../../../src/gating/IGatingModule.sol";
 import { MerkleGatingModule } from "../../../src/gating/MerkleGatingModule.sol";
 import { MerkleConfig } from "../../../src/gating/IMerkleGatingModule.sol";
 import { MerkleAllowlistHelper } from "../../gating/MerkleAllowlistHelper.sol";
+import { newERC1155InstanceClone } from "../../helpers/ERC1155InstanceClone.sol";
 
 contract MockRejectGatingModule {
     function canMint(address, uint256, uint256, uint256, bytes calldata)
@@ -163,8 +164,10 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         componentRegistry.initialize(registryOwner);
 
         // Deploy factory (no instanceTemplate param in new constructor)
+        // The factory clones THIS, so it must be a real implementation and not itself a clone.
+        address erc1155Impl_ = address(new ERC1155Instance());
         factory = new ERC1155Factory(
-            address(mockRegistry), address(globalRegistry), address(componentRegistry), address(0xBEEF)
+            address(mockRegistry), address(globalRegistry), address(componentRegistry), address(0xBEEF), erc1155Impl_
         );
 
         // Deploy and wire up the dynamic pricing module
@@ -1304,8 +1307,10 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
 
     function test_addEdition_limitedDynamic_revertsWithoutModule() public {
         // Deploy a fresh factory with no dynamic pricing module set
+        // The factory clones THIS, so it must be a real implementation and not itself a clone.
+        address erc1155Impl_ = address(new ERC1155Instance());
         ERC1155Factory bareFactory = new ERC1155Factory(
-            address(mockRegistry), address(globalRegistry), address(componentRegistry), address(0xBEEF)
+            address(mockRegistry), address(globalRegistry), address(componentRegistry), address(0xBEEF), erc1155Impl_
         );
         vm.deal(creator, 1 ether);
         vm.startPrank(creator);
@@ -1534,8 +1539,12 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
     // ── noesis-072 — constructor weth zero-check (mirrors setWeth guard) ────────
 
     function test_constructor_revertsOnZeroWeth() public {
+        // The factory clones THIS, so it must be a real implementation and not itself a clone.
+        address erc1155Impl_ = address(new ERC1155Instance());
         vm.expectRevert(ERC1155Factory.InvalidAddress.selector);
-        new ERC1155Factory(address(mockRegistry), address(globalRegistry), address(componentRegistry), address(0));
+        new ERC1155Factory(
+            address(mockRegistry), address(globalRegistry), address(componentRegistry), address(0), erc1155Impl_
+        );
     }
 
     // ── noesis-084 — ERC-7572 collection contractURI + optional symbol ─────────

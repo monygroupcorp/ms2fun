@@ -12,6 +12,7 @@ import { ComponentRegistry } from "../../../src/registry/ComponentRegistry.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 import { CREATEX } from "../../../src/shared/CreateXConstants.sol";
 import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
+import { newERC1155InstanceClone } from "../../helpers/ERC1155InstanceClone.sol";
 
 contract MockVaultERC1155Reserve {
     function supportsCapability(bytes32) external pure returns (bool) {
@@ -57,7 +58,11 @@ contract ERC1155FreeMintReserveTest is Test {
         componentRegistry = ComponentRegistry(proxy);
         componentRegistry.initialize(protocol);
 
-        factory = new ERC1155Factory(address(mockRegistry), mockGMR, address(componentRegistry), address(0xBEEF));
+        // The factory clones THIS, so it must be a real implementation and not itself a clone.
+        address erc1155Impl_ = address(new ERC1155Instance());
+        factory = new ERC1155Factory(
+            address(mockRegistry), mockGMR, address(componentRegistry), address(0xBEEF), erc1155Impl_
+        );
         vm.stopPrank();
     }
 

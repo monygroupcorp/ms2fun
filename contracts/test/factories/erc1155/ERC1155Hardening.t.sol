@@ -6,6 +6,7 @@ import { ERC1155Instance } from "../../../src/factories/erc1155/ERC1155Instance.
 import { InvalidAddress, GatingCheckFailed } from "../../../src/factories/erc1155/ERC1155Instance.sol";
 import { MockFamilyVault } from "../../mocks/MockFamilyVault.sol";
 import { IGatingModule, GatingScope } from "../../../src/gating/IGatingModule.sol";
+import { newERC1155InstanceClone } from "../../helpers/ERC1155InstanceClone.sol";
 
 /// @notice A gating module that always DENIES. Used to prove that under FREE_MINT_ONLY a paid mint is
 ///         open (the module is never consulted), while any other scope consults it and reverts.
@@ -100,7 +101,8 @@ contract ERC1155HardeningTest is Test {
         internal
         returns (ERC1155Instance inst)
     {
-        inst = new ERC1155Instance(
+        inst = newERC1155InstanceClone();
+        inst.initialize(
             "Hardening",
             creator,
             address(this), // factory
@@ -239,7 +241,8 @@ contract ERC1155HardeningTest is Test {
         EthRejectingCreator rejecter = new EthRejectingCreator();
         address treasury = address(0xFEE);
 
-        ERC1155Instance inst = new ERC1155Instance(
+        ERC1155Instance inst = newERC1155InstanceClone();
+        inst.initialize(
             "Hardening",
             address(rejecter),
             address(this), // factory

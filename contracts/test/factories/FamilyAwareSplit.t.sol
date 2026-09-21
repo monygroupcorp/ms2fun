@@ -6,6 +6,7 @@ import { ERC1155Instance } from "../../src/factories/erc1155/ERC1155Instance.sol
 import { ERC721AuctionInstance } from "../../src/factories/erc721/ERC721AuctionInstance.sol";
 import { RevenueSplitLib } from "../../src/shared/libraries/RevenueSplitLib.sol";
 import { MockFamilyVault } from "../mocks/MockFamilyVault.sol";
+import { newERC1155InstanceClone } from "../helpers/ERC1155InstanceClone.sol";
 
 contract MockGMRFam {
     function postForAction(address, address, bytes calldata) external { }
@@ -53,7 +54,8 @@ contract FamilyBlindSplitTest is Test {
 
     function _deploy1155(string memory vt) internal returns (ERC1155Instance inst, MockFamilyVault vault) {
         vault = new MockFamilyVault(vt);
-        inst = new ERC1155Instance(
+        inst = newERC1155InstanceClone();
+        inst.initialize(
             "Fam",
             CREATOR,
             address(this),

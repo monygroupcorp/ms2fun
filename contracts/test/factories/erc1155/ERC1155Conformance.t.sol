@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
 import { ERC1155Instance, LengthMismatch } from "../../../src/factories/erc1155/ERC1155Instance.sol";
+import { newERC1155InstanceClone } from "../../helpers/ERC1155InstanceClone.sol";
 
 // ── Reference interfaces ─────────────────────────────────────────────────────
 // Declared here so the tests DERIVE every interface id with `type(I).interfaceId` instead of trusting a
@@ -77,7 +78,8 @@ contract ERC1155ConformanceTest is Test {
 
     function setUp() public {
         prober = new Prober();
-        inst = new ERC1155Instance(
+        inst = newERC1155InstanceClone();
+        inst.initialize(
             "Conformance",
             creator,
             address(this), // factory

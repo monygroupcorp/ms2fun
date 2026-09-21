@@ -23,6 +23,7 @@ import { ICreateX, CREATEX } from "../../../src/shared/CreateXConstants.sol";
 import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
 import { FreeMintParams } from "../../../src/interfaces/IFactoryTypes.sol";
 import { GatingScope } from "../../../src/gating/IGatingModule.sol";
+import { newERC1155InstanceClone } from "../../helpers/ERC1155InstanceClone.sol";
 
 contract ERC1155AgentDelegationTest is GlobalMessagingTestBase {
     ERC1155Factory public factory;
@@ -102,8 +103,10 @@ contract ERC1155AgentDelegationTest is GlobalMessagingTestBase {
         componentRegistry = ComponentRegistry(compRegProxy);
         componentRegistry.initialize(owner);
 
+        // The factory clones THIS, so it must be a real implementation and not itself a clone.
+        address erc1155Impl_ = address(new ERC1155Instance());
         factory = new ERC1155Factory(
-            address(mockRegistry), address(globalRegistry), address(componentRegistry), address(0xBEEF)
+            address(mockRegistry), address(globalRegistry), address(componentRegistry), address(0xBEEF), erc1155Impl_
         );
 
         // Register agent globally (on mock registry)

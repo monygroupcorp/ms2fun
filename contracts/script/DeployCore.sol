@@ -36,6 +36,7 @@ import { MetadataResolverRouter } from "../src/metadata/MetadataResolverRouter.s
 import { MetadataOverlayModule } from "../src/metadata/MetadataOverlayModule.sol";
 import { TokenTierBandResolver } from "../src/metadata/TokenTierBandResolver.sol";
 import { ERC1155Factory } from "../src/factories/erc1155/ERC1155Factory.sol";
+import { ERC1155Instance } from "../src/factories/erc1155/ERC1155Instance.sol";
 import { DynamicPricingModule } from "../src/factories/erc1155/DynamicPricingModule.sol";
 import { ERC721AuctionFactory } from "../src/factories/erc721/ERC721AuctionFactory.sol";
 import { QueryAggregator } from "../src/query/QueryAggregator.sol";
@@ -536,8 +537,13 @@ contract DeployCore is Script {
 
         // ── Phase 7: ERC1155Factory + DynamicPricingModule ───────────────────
 
-        erc1155Factory =
-            new ERC1155Factory(masterRegistry, address(globalMessageRegistry), address(componentRegistry), cfg.weth);
+        // Every collection is an EIP-1167 clone of this one implementation, so it is deployed once
+        // here and fixed in the factory's constructor. It is locked on deploy (its own constructor
+        // sets the initialized flag), so nobody can claim the implementation itself.
+        address erc1155Impl = address(new ERC1155Instance());
+        erc1155Factory = new ERC1155Factory(
+            masterRegistry, address(globalMessageRegistry), address(componentRegistry), cfg.weth, erc1155Impl
+        );
         erc1155Factory.setProtocolTreasury(address(treasury));
 
         dynamicPricingModule = new DynamicPricingModule();
