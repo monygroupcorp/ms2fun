@@ -3,6 +3,15 @@
 import { useId } from 'react'
 import type { FieldSchema, FieldKind, SelectOption } from '@/lib/wizard/schema'
 import { isFieldVisible } from '@/lib/wizard/schema'
+import {
+  DEFAULT_DURATION_UNIT,
+  DURATION_UNITS,
+  durationFromSeconds,
+  epochFromLocalInput,
+  localInputFromEpoch,
+  secondsFromDuration,
+  type DurationUnit,
+} from '@/lib/time/scheduleInput'
 import { LearnLink } from './LearnLink'
 import styles from './SchemaForm.module.css'
 
@@ -350,6 +359,112 @@ function BpsSliderInput({
   )
 }
 
+// ── Schedule inputs ───────────────────────────────────────────────────────────
+
+interface ScheduleInputProps {
+  field: FieldSchema
+  inputId: string
+  /** Unix seconds, as the values bag holds them. */
+  value: string
+  onChange: (key: string, value: string) => void
+  hasError: boolean
+  describedBy?: string
+}
+
+/**
+ * A moment, picked off a calendar. The FIELD stays unix seconds — that is what the contract takes
+ * and what every submit-builder reads — and only the control is human; `0` and a blank picker are
+ * the same state, "no time set", on both sides.
+ */
+function DateTimeInput({
+  field,
+  inputId,
+  value,
+  onChange,
+  hasError,
+  describedBy,
+}: ScheduleInputProps) {
+  const seconds = Number(value)
+  const picked = Number.isFinite(seconds) ? localInputFromEpoch(seconds) : ''
+  return (
+    <input
+      id={inputId}
+      type="datetime-local"
+      aria-invalid={hasError ? true : undefined}
+      {...(describedBy !== undefined ? { 'aria-describedby': describedBy } : {})}
+      className={`${styles.input}${hasError ? ` ${styles.inputError}` : ''}`}
+      value={picked}
+      // A cleared picker is 0 rather than '': the field's own default is 0 and the contract reads it
+      // as "no time set", so clearing has to return the creator to exactly where they started.
+      onChange={(e) => onChange(field.key, String(epochFromLocalInput(e.target.value) ?? 0))}
+    />
+  )
+}
+
+/**
+ * A span, as an amount and the unit it is stated in. Same rule as above: the field holds seconds,
+ * and the unit select exists so nobody multiplies by 86400 in their head.
+ *
+ * The chosen unit is derived from the stored seconds rather than kept in its own state, so the
+ * control shows the coarsest exact reading of whatever is there — including a value that arrived
+ * from a default or a draft this component never rendered.
+ */
+function DurationInput({
+  field,
+  inputId,
+  value,
+  onChange,
+  hasError,
+  describedBy,
+}: ScheduleInputProps) {
+  const seconds = Number(value)
+  const { amount, unit } =
+    value.trim() !== '' && Number.isFinite(seconds)
+      ? durationFromSeconds(seconds)
+      : { amount: '', unit: DEFAULT_DURATION_UNIT }
+
+  const emit = (nextAmount: string, nextUnit: DurationUnit): void => {
+    if (nextAmount.trim() === '') {
+      onChange(field.key, '')
+      return
+    }
+    const secs = secondsFromDuration(nextAmount, nextUnit)
+    // A fraction or a stray character has no reading in seconds. Passing the raw text through keeps
+    // the creator's keystrokes on screen and lets `validateField` say what is wrong with them,
+    // rather than swallowing the input or writing a wrong number behind their back.
+    onChange(field.key, secs === null ? nextAmount : String(secs))
+  }
+
+  return (
+    <div className={styles.durationRow}>
+      <input
+        id={inputId}
+        type="number"
+        inputMode="numeric"
+        step={1}
+        min={0}
+        aria-invalid={hasError ? true : undefined}
+        {...(describedBy !== undefined ? { 'aria-describedby': describedBy } : {})}
+        className={`${styles.input} ${styles.durationAmount}${hasError ? ` ${styles.inputError}` : ''}`}
+        value={amount}
+        onChange={(e) => emit(e.target.value, unit)}
+      />
+      <select
+        aria-label={`${field.label} unit`}
+        className={`${styles.input} ${styles.select} ${styles.durationUnit}`}
+        value={unit}
+        onChange={(e) => emit(amount, e.target.value as DurationUnit)}
+      >
+        {DURATION_UNITS.map((u) => (
+          <option key={u.key} value={u.key}>
+            {u.key}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
 // ── Per-kind input elements ───────────────────────────────────────────────────
 
 /** Leaf kinds only — `group` and `list` are handled before reaching `InputForKind`. */
@@ -401,6 +516,30 @@ function InputForKind({
           value={value}
           rows={4}
           onChange={(e) => onChange(field.key, e.target.value)}
+        />
+      )
+
+    case 'datetime':
+      return (
+        <DateTimeInput
+          field={field}
+          inputId={inputId}
+          value={value}
+          onChange={onChange}
+          hasError={hasError}
+          {...(describedBy !== undefined ? { describedBy } : {})}
+        />
+      )
+
+    case 'duration':
+      return (
+        <DurationInput
+          field={field}
+          inputId={inputId}
+          value={value}
+          onChange={onChange}
+          hasError={hasError}
+          {...(describedBy !== undefined ? { describedBy } : {})}
         />
       )
 
