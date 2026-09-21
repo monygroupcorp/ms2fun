@@ -51,6 +51,21 @@ contract StubToken {
     }
 }
 
+/// @dev Minimal ERC-6909: the third shape `sweep` moves, and the one no case here reached.
+contract StubERC6909 {
+    mapping(address => mapping(uint256 => uint256)) public balanceOf;
+
+    function mint(address to, uint256 id, uint256 amount) external {
+        balanceOf[to][id] += amount;
+    }
+
+    function transfer(address receiver, uint256 id, uint256 amount) external returns (bool) {
+        balanceOf[msg.sender][id] -= amount;
+        balanceOf[receiver][id] += amount;
+        return true;
+    }
+}
+
 /// @dev A target worth trusting, so `execute` can be measured on an OPEN map rather than a closed one.
 contract StubTarget {
     uint256 public received;
@@ -91,6 +106,9 @@ contract ZRouterHatchAuthTest is Test {
 
     /// @dev What a donation, a rebase or a leg's dust leaves behind — the balance the hatches reach.
     uint256 internal constant RESTING = 5 ether;
+
+    /// @dev An arbitrary ERC-6909 id: which one it is never matters, only that the branch is reached.
+    uint256 internal constant TOKEN_ID = 7;
 
     function setUp() public {
         weth = new StubWETH();
@@ -183,6 +201,33 @@ contract ZRouterHatchAuthTest is Test {
         router.multicall{ value: 1 ether }(calls);
     }
 
+    /// `sweep` has three doors — ETH, ERC-20, ERC-6909 — and each takes its own `_requireOwnBalance`
+    /// call. The first two are held above; this is the third, which the guard would leave open if that
+    /// one call went missing while the other two stayed.
+    function test_sweepOfARestingErc6909BalanceIsRefused() public {
+        StubERC6909 multi = new StubERC6909();
+        multi.mint(address(router), TOKEN_ID, RESTING);
+
+        vm.prank(attacker);
+        vm.expectRevert(zRouter.Unauthorized.selector);
+        router.sweep(address(multi), TOKEN_ID, 0, attacker);
+
+        assertEq(multi.balanceOf(address(router), TOKEN_ID), RESTING, "the resting 6909 balance stayed put");
+        assertEq(multi.balanceOf(attacker, TOKEN_ID), 0, "and the caller got none of it");
+    }
+
+    /// And the owner's recovery path reaches that door too, so a 6909 sent here by mistake is no more
+    /// stranded than a stray ERC-20.
+    function test_theOwnerCanStillRecoverARestingErc6909Balance() public {
+        StubERC6909 multi = new StubERC6909();
+        multi.mint(address(router), TOKEN_ID, RESTING);
+
+        vm.prank(owner);
+        router.sweep(address(multi), TOKEN_ID, 0, owner);
+
+        assertEq(multi.balanceOf(owner, TOKEN_ID), RESTING, "the owner recovered it");
+    }
+
     // ── execute ──────────────────────────────────────────────────────────────────────────────────
 
     /// `execute` was gated on the trusted-target map alone, and `trust()` is called nowhere in this
@@ -250,6 +295,41 @@ contract ZRouterHatchAuthTest is Test {
         vm.startPrank(attacker);
         token.approve(address(router), type(uint256).max);
         router.snwap(address(token), 10 ether, attacker, address(0), 0, executor, "");
+        vm.stopPrank();
+
+        assertEq(token.balanceOf(executor), 10 ether, "the caller's own tokens reached the executor");
+    }
+
+    /// `snwapMulti` is `snwap` with an array of outputs, and it carries a verbatim copy of the same
+    /// zero-`amountIn` branch — a second door onto the hatch, which the report names in the same breath
+    /// as the first. Only the `snwap` door above was held: the guard could go missing from this copy and
+    /// every other case in this file would stay green.
+    function test_snwapMultiCannotForwardTheRoutersRestingToken() public {
+        token.mint(address(router), 1_000 ether);
+
+        address[] memory tokensOut = new address[](1);
+        uint256[] memory amountsOutMin = new uint256[](1);
+
+        vm.prank(attacker);
+        vm.expectRevert(zRouter.Unauthorized.selector);
+        router.snwapMulti(address(token), 0, attacker, tokensOut, amountsOutMin, attacker, "");
+
+        assertEq(token.balanceOf(address(router)), 1_000 ether, "the resting token stayed put");
+        assertEq(token.balanceOf(attacker), 0, "and the executor received nothing");
+    }
+
+    /// The same control the `snwap` pair carries: the pull-from-sender branch is untouched, so the guard
+    /// is not read as closing the multi-output form.
+    function test_snwapMultiStillPullsTheCallersOwnTokens() public {
+        token.mint(attacker, 10 ether);
+
+        address executor = address(uint160(0xE0E1));
+        address[] memory tokensOut = new address[](1);
+        uint256[] memory amountsOutMin = new uint256[](1);
+
+        vm.startPrank(attacker);
+        token.approve(address(router), type(uint256).max);
+        router.snwapMulti(address(token), 10 ether, attacker, tokensOut, amountsOutMin, executor, "");
         vm.stopPrank();
 
         assertEq(token.balanceOf(executor), 10 ether, "the caller's own tokens reached the executor");

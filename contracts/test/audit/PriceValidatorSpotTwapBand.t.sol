@@ -79,6 +79,32 @@ contract PriceValidatorSpotTwapBandTest is Test {
         );
     }
 
+    /// @dev The band guard's other branch. `_requireSpotWithinTwapBand` rejects the high tail — a sqrt
+    ///      gap wider than the reference itself, which is a price more than 4x it — before computing
+    ///      `sqrtDiff * (spot + ref) / ref`, and the comment beside that line claims the rejection is
+    ///      also what keeps the next line inside a uint256.
+    ///
+    ///      Nothing held that claim. Every other case in this file sits in the band's ordinary
+    ///      neighbourhood, where the exact comparison below reaches the same verdict unaided and the
+    ///      early reject is pure redundancy — deleting it leaves all eight of them green.
+    ///
+    ///      It stops being redundant where the reference is small and the spot is large, and the
+    ///      INVERTED ordering is what makes a small reference reachable: a TWAP pool that orders WETH
+    ///      second is carried across as `2**192 / twapSqrt`, so a high reference tick becomes a tiny
+    ///      `refSqrt`. Against a spot high in the range, `sqrtDiff * (spot + ref)` then exceeds what a
+    ///      full-width mulDiv can divide back down, and the call reverts with NO DATA.
+    ///
+    ///      That is the difference this case holds: with the early reject, a pushed pool is refused by
+    ///      name; without it, the same call dies in arithmetic, and a caller reading the revert can no
+    ///      longer tell a pushed pool from a broken validator.
+    function test_theHighTailIsRefusedByTheGuardAndNotByArithmetic() public {
+        UniswapVaultPriceValidator validator = _validator(WETH);
+        _reference(582_000);
+
+        vm.expectRevert(UniswapVaultPriceValidator.SpotTwapPriceDeviationTooHigh.selector);
+        _fullRangeAt(validator, TOKEN_BELOW_WETH, 819_000);
+    }
+
     /// THE FINDING. A spot price 22% off the TWAP, on the position shape the vaults actually open. Before
     /// the fix this returned 5e17 and every guard in the contract stayed silent.
     function test_aPushedSpotIsRefusedOnTheFullRange() public {
