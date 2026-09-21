@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { erc1155InstanceAbi } from '../../generated/contracts'
 import {
@@ -44,14 +44,20 @@ export function AddEditionForm({ instance, onAdded }: AddEditionFormProps) {
     error: waitErrorObj,
   } = useWaitForTransactionReceipt({ hash })
 
-  // On success: clear form + notify caller once
-  const [notified, setNotified] = useState(false)
-  if (isSuccess && !notified) {
-    setNotified(true)
+  // On success: clear form + notify caller once.
+  //
+  // In an effect, not in the render body: `onAdded` is the collection page's
+  // `queryClient.invalidateQueries()`, so calling it here would start refetches and update other
+  // components while this one renders — the case React names in "Cannot update a component while
+  // rendering a different component". The ref keeps the one-shot from needing a render of its own.
+  const hasNotified = useRef(false)
+  useEffect(() => {
+    if (!isSuccess || hasNotified.current) return
+    hasNotified.current = true
     setForm(emptyEditionDraft())
     setClientError(null)
     onAdded?.()
-  }
+  }, [isSuccess, onAdded])
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -80,7 +86,7 @@ export function AddEditionForm({ instance, onAdded }: AddEditionFormProps) {
     }
 
     resetWrite()
-    setNotified(false)
+    hasNotified.current = false
 
     writeContract({
       address: instance,
