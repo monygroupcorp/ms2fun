@@ -40,8 +40,9 @@ import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
  *         nothing left to recover from. What the guard must NOT do is narrow the legitimate call, and
  *         that half is pinned here too: a vault with no position is still freely wireable.
  *
- * RUN: FOUNDRY_CONFIG=foundry.audit.toml forge test --match-path test/audit/UniVaultPoolKeyRotation.t.sol
- *      (v4-core's real PoolManager pins `pragma solidity 0.8.26`; the default profile is pinned 0.8.28.)
+ * RUN: ./scripts/real-v4-gate.sh, which runs this proof and refuses if it ever stops reaching it.
+ *      (v4-core's real PoolManager pins `pragma solidity 0.8.26`; the default profile is pinned 0.8.28,
+ *      so this file is in foundry.toml's `skip=` list and the gate is the only thing that executes it.)
  */
 contract UniVaultPoolKeyRotationTest is Test {
     PoolManager internal manager;
