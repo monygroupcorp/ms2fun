@@ -183,11 +183,11 @@ jobs:
   # default profile cannot compile it. So a proof left out of the path below is a proof nothing
   # ever runs again, which is what this step's single-path version had quietly become — the audit
   # proof for the hook's unbound pool key sat green and unrun from the day it was written.
-  # The path is the whole skip list bar one:
-  #   * test/audit/UniVaultPoolKeyRotation.t.sol — STALE, deliberately still out. It is the PoC
-  #     for the missing `setV4PoolKey` liquidity lock, and the fix added the `PoolKeyLocked()`
-  #     revert the PoC now hits, so it fails asserting a defect that is gone. Rewrite it against
-  #     the fix (as HookSecondPoolNotBound was rewritten) and add it here.
+  # The path is now the whole skip list bar `test/audit/FreeMintCurveSolvency.t.sol`, which is
+  # skipped for a different reason (it fails by design against a ruled-as-designed mechanism; see
+  # `foundry.toml` and §3 of contracts/audits/2026-09-17-pre-testnet.md) and compiles under the
+  # default profile anyway. Anything added to that skip list for a PRAGMA reason belongs here the
+  # same day, or it is unrun.
   # The job id stays `real-settlement` though the step now runs more than RealSettlement: it is a
   # required check, and renaming it silently drops that requirement from branch protection.
   real-settlement:
@@ -208,4 +208,4 @@ jobs:
       - name: Real-v4 regressions
         run: |
           FOUNDRY_CONFIG=foundry.v4.toml forge test --match-path \
-            "test/{hooks/UniAlignmentV4Hook_RealSettlement,audit/HookSecondPoolNotBound,audit/HookQueuedFeesMigratedVault}.t.sol"
+            "test/{hooks/UniAlignmentV4Hook_RealSettlement,audit/HookSecondPoolNotBound,audit/HookQueuedFeesMigratedVault,audit/UniVaultPoolKeyRotation}.t.sol"
