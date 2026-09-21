@@ -48,6 +48,14 @@
 #      contract, so its runtime is the EIP-170 subject; a build that passes this line still deploys.
 #   2. A headroom FLOOR, once one is typed below. None is typed today — see the FLOORS block.
 #
+# WHAT IT ASSERTS ABOUT ITSELF:
+#   That the PAIRS table below is complete. Those rows are typed, and a typed table is the same
+#   blindness this gate exists to catch one level up: ERC1155Factory ran six weeks with no gate and
+#   UniTitheHookFactory had no size guard of ANY kind, not because either was hard to measure but
+#   because nobody was looking for them. So the script reads `type(<X>).creationCode` out of `src/`
+#   itself and fails on any embedding no row measures. A fourth factory that embeds an instance is
+#   then a red build naming itself, rather than one more contract whose margin nobody watches.
+#
 # WHAT IT REPORTS AND DOES NOT ASSERT:
 #   The embedded blob. The script searches the factory runtime for the instance's creation bytecode
 #   as a contiguous substring and counts the occurrences, which is what makes
@@ -136,8 +144,53 @@ occurrences() {
   ' "$1" "$2"
 }
 
+# Every `type(<X>).creationCode` written in `src/`, as `<file>|<X>`. A doc comment that merely names
+# one is not an embedding and compiles no blob — HookAddressMiner's `@param` line says
+# `type(UniAlignmentV4Hook).creationCode` and embeds nothing — so lines that open a comment are
+# dropped before the match is taken.
+embedders() {
+  { grep -rEn 'type\([A-Za-z_][A-Za-z0-9_]*\)\.creationCode' src --include='*.sol' || true; } \
+    | awk -F: '
+        {
+          body = $0
+          sub(/^[^:]*:[0-9]+:/, "", body)
+          stripped = body
+          sub(/^[[:space:]]+/, "", stripped)
+          if (stripped ~ /^(\*|\/\/|\/\*)/) next
+          while (match(body, /type\([A-Za-z_][A-Za-z0-9_]*\)\.creationCode/)) {
+            m = substr(body, RSTART, RLENGTH)
+            gsub(/^type\(|\)\.creationCode$/, "", m)
+            print $1 "|" m
+            body = substr(body, RSTART + RLENGTH)
+          }
+        }' \
+    | sort -u
+}
+
 floorsTyped=0
 fail=0
+
+# ── CENSUS ────────────────────────────────────────────────────────────────────────────────────────
+# The table checks itself against the source before it measures anything.
+while IFS='|' read -r srcFile embedded_name; do
+  [ -n "$srcFile" ] || continue
+  covered=0
+  for row in "${PAIRS[@]}"; do
+    IFS='|' read -r _rowLabel rowFactory rowEmbedded <<<"$row"
+    if [ "${rowFactory%%:*}" = "$srcFile" ] && [ "${rowEmbedded##*:}" = "$embedded_name" ]; then
+      covered=1
+      break
+    fi
+  done
+  if [ "$covered" -eq 0 ]; then
+    echo "FAIL: ${srcFile} embeds type(${embedded_name}).creationCode and no row in PAIRS measures it." >&2
+    echo "      Its EIP-170 margin is being spent by ${embedded_name} and nothing is watching, which" >&2
+    echo "      is the state ERC1155Factory was in for six weeks. Add the row rather than the exception:" >&2
+    echo "        \"<label>|${srcFile}:<factory contract>|<path>:${embedded_name}\"" >&2
+    fail=1
+  fi
+done < <(embedders)
+
 
 for row in "${PAIRS[@]}"; do
   IFS='|' read -r label factory embedded <<<"$row"

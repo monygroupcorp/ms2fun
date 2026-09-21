@@ -118,7 +118,9 @@ jobs:
       # (ERC1155Factory, ERC721AuctionFactory, UniTitheHookFactory). Those factories — not the
       # instances they deploy — are the contracts nearest EIP-170, because the embedded blob is
       # counted in the factory's runtime. Prints each margin and the blob that accounts for it, so
-      # the room runs out on this log before it runs out in a build.
+      # the room runs out on this log before it runs out in a build. It also reads
+      # type(<X>).creationCode out of src/ and fails on any embedding its table does not measure, so
+      # a fourth factory of this shape cannot go unwatched the way the first three did.
       - name: EIP-170 embedded-initcode gate
         run: bash test/factories/eip170-embed-gate.sh
 
