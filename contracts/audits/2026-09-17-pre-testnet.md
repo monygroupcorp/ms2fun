@@ -850,7 +850,7 @@ Measured on the current tree. "in the gate" means the file is in the default set
 | `AuctionTimeBufferLock.t.sol` | M-5 | yes | 4 pass |
 | `CreateXSaltSquat.t.sol` | L-1 | yes | 6 pass |
 | `CurveExactOutRoundingBuffer.t.sol` | L-5 | yes | 3 pass |
-| `CypherVaultTokenResidue.t.sol` | L-12 | yes — on L-12's branch | 5 pass |
+| `CypherVaultTokenResidue.t.sol` | L-12 | yes | 5 pass |
 | `FreeMintCurveSolvency.t.sol` | H-1 | **no — ruled** | 1 pass, **3 fail by design** |
 | `GraduationLpResidue.t.sol` | M-1 | yes | 15 pass (v4 9, ZAMM 3, Cypher 3) |
 | `HookQueuedFeesMigratedVault.t.sol` | M-4 | no — pragma | 3 pass |
@@ -1071,10 +1071,11 @@ PR — open, or merged by him since — or a named question for his ruling.
 
 **As of 2026-09-20 every PR this section names has been merged by him.** Checked with `gh pr view`
 against each number below: #423, #424, #426, #427, #428, #429, #430, #431, #432, #434, #435, #436 and
-#445 are all `MERGED`, and the one High is ruled. One PR has been opened against this disposition
-since: #461, for L-12, which was filed on 2026-09-21 by re-reading L-10 as a shape — see the Lows
-table. What is otherwise left open is clause 5 of this audit's own goal — rth's go/no-go on
-`testnet-deploy` clause 1 — and the items §"What this audit does not cover" names as out of scope.
+#445 are all `MERGED`, and the one High is ruled. One PR was opened against this disposition
+since, #461 for L-12 — filed on 2026-09-21 by re-reading L-10 as a shape — and it merged the same
+day, so the sentence above holds for it too; see the Lows table. What is otherwise left open is
+clause 5 of this audit's own goal — rth's go/no-go on `testnet-deploy` clause 1 — and the items
+§"What this audit does not cover" names as out of scope.
 
 All five Mediums now carry fixes. Two of them were written with the audit, because each is a single
 guard with a sibling in this same tree that already has it — a consistency repair rather than a new
@@ -1165,7 +1166,7 @@ still as this report left them: no branch, and the file:line above is the whole 
 | L-9 | `zRouter`'s value-moving hatches are unauthenticated | **fixed — branch `audit-low-zrouter-hatch-auth`, PR #432.** Authenticated rather than closed, so the router keeps being a router: `sweep`, `snwap`/`snwapMulti`'s zero-`amountIn` branch and `revealName` may move what THIS transaction credited to the router, and the owner may move anything — which is what keeps a balance no credit describes recoverable rather than stranded. `execute` takes `onlyOwner` beside its trusted-target map, because it is an arbitrary call and no balance credit describes it; as deployed it is inert, so what that closes is what one future `trust()` call would otherwise open to every caller at once. **This fix was not complete, and that is recorded rather than quietly repaired:** the four swap legs that end in an exact-out refund read the router's whole resting balance and handed it to `msg.sender`, which made the `sweep` guard walkable by buying the cheapest fill one could construct. Fixed on `main` (`b530f871`), proof `ZRouterRefundBoundedToOwnChange.t.sol` — see §3. |
 | L-10 | the LP vaults never re-credit the token-side residual | **fixed — branch `audit-l10-l11-residue-and-parity`, PR #436.** Both token→ETH legs now read the vault's own alignment-token balance rather than only the amount the collect returned, so the residue is sold and split 80/19/1 like any other yield. Reading the raw balance is safe because neither vault holds alignment token in flight at either call site: the Uni sweep runs in `_collectAndAccrueNow`, before `_doSwapAndLP` inside `convertAndAddLiquidity` and outside it on the claim paths; the ZAMM sweep runs in `_removeFeeLP`, before `_swapAndAddLiquidity` inside `convertAndAddLiquidity` and outside it on `harvest`. ZAMM's early return on zero fee growth is removed for the same reason — it gated the whole leg on fee LP existing, which is what let the residue survive every harvest that found no fees. One harness repair went with it: the testable Uni vault's mock LP never moved the token side, so it left the entire acquired amount behind — a balance no real pool leaves — and any reader of it saw a residue production never produces. |
 | L-11 | a renounced launch opens its pool off curve parity | **fixed — branch `audit-l10-l11-residue-and-parity`, PR #436.** `LiquidityDeployerModule`'s zero-creator guard is correct and is untouched. What was missing is that `ERC404BondingOps.deployLiquidity` did not know about it: it sized `tokensForPool` at the curve's marginal price for a smaller ETH leg than the module then used, so the pool opened above the price the last curve buyer paid and `GraduationEthDiverted` reported a carve nobody received. The instance now takes the module's own rule and the two agree on the pool's ETH. One narrow case is named rather than left to be rediscovered: when the parity clamp fires the coin side is already at its maximum, and for a renounced launch the module's guard sends the leftover ETH into the pool, so that case is still fractionally above parity. This fix does not reach it and does not make it worse — the coin side is identical on both branches there. |
-| L-12 | the Cypher vault never re-credits the token-side residual either | **fixed — branch `audit-l12-cypher-token-residue`, PR #461, open.** L-10's repair in the third vault of the family: `_harvestAccruedFees` reads `IERC20(alignmentToken).balanceOf(address(this))` instead of the fee collect's return, so the amount an LP add declined is sold and split 80/19/1 with everything else. Reading the raw balance is safe for the reason it is safe in the two siblings — the vault holds no alignment token in flight at either call site, since this leg runs from `harvest` and as `receiveContribution`'s first effect and never inside `convertAndAddLiquidity`. No removal path is added: the residue is sold into the vault's own fee split, and that split pays ETH. Measured on that branch at a 20% under-absorption on a 10 ETH tithe — unfixed, 1.0e18 stranded after one convert and 2.1e18 after two with the harvest realising none of it; fixed, the harvest realises 1.0e18 onto the rail and two converts leave only the latest one's 1.1e18. Gate on the branch: `forge fmt --check` clean, `forge build` exit 0, EIP-170 diet gate PASS, `FOUNDRY_PROFILE=ci forge test` **2682 passed, 0 failed, 30 skipped** of 2712 across 249 suites (against `main`'s 2677 / 2707 / 248 — the difference is this branch's five tests), real-v4 leg 21 passed 0 failed. |
+| L-12 | the Cypher vault never re-credits the token-side residual either | **fixed — branch `audit-l12-cypher-token-residue`, PR #461, merged.** L-10's repair in the third vault of the family: `_harvestAccruedFees` reads `IERC20(alignmentToken).balanceOf(address(this))` instead of the fee collect's return, so the amount an LP add declined is sold and split 80/19/1 with everything else. Reading the raw balance is safe for the reason it is safe in the two siblings — the vault holds no alignment token in flight at either call site, since this leg runs from `harvest` and as `receiveContribution`'s first effect and never inside `convertAndAddLiquidity`. No removal path is added: the residue is sold into the vault's own fee split, and that split pays ETH. Measured on that branch at a 20% under-absorption on a 10 ETH tithe — unfixed, 1.0e18 stranded after one convert and 2.1e18 after two with the harvest realising none of it; fixed, the harvest realises 1.0e18 onto the rail and two converts leave only the latest one's 1.1e18. Gate on the branch: `forge fmt --check` clean, `forge build` exit 0, EIP-170 diet gate PASS, `FOUNDRY_PROFILE=ci forge test` **2682 passed, 0 failed, 30 skipped** of 2712 across 249 suites (against `main`'s 2677 / 2707 / 248 — the difference is this branch's five tests), real-v4 leg 21 passed 0 failed. Those were the branch's numbers; since the merge the suite runs in the default set on `main`, where it is the 5 pass the proofs table records. |
 
 Each carries a proof that measures the defect against this report's revision rather than asserting
 it: `CreateXSaltSquat.t.sol` (L-1), `AccessControlCluster.t.sol` (L-2, L-3, L-4),
@@ -1185,12 +1186,12 @@ of them can pass vacuously.
 not found by a new hunt lane. It was found by taking §3's own instruction to read a finding as a
 SHAPE and applying it to L-10 — "the LP vaults never re-credit the token-side residual", a finding
 whose two sites became a two-site fix, in a family of three vaults §1.3 maps on consecutive lines.
-The third had the defect. So the row set owes one merge, `audit-l12-cypher-token-residue` (PR #461),
-and the method owes something larger: L-9 and L-10 have now each been under-fixed in exactly the same
-way, by a fix that was as wide as the finding's list of sites rather than as wide as its shape. Two
-instances is a pattern, and the remaining Mediums should be re-read against it before testnet —
-M-1's "no path to recover what a venue did not consume" and M-3's "an owner setter with no
-already-deployed lock" are both stated as a list of venues.
+The third had the defect. That merged on 2026-09-21 as #461, so all twelve rows are on `main` and
+the row set owes nothing further. The method owes something larger: L-9 and L-10 have now each
+been under-fixed in exactly the same way, by a fix that was as wide as the finding's list of sites
+rather than as wide as its shape. Two instances is a pattern, and the remaining Mediums should be
+re-read against it before testnet — M-1's "no path to recover what a venue did not consume" and
+M-3's "an owner setter with no already-deployed lock" are both stated as a list of venues.
 
 ### What this audit does not cover
 
