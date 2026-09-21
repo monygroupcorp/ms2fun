@@ -55,16 +55,15 @@ RUN=(
     test/hooks/UniAlignmentV4Hook_RealSettlement.t.sol
     test/audit/HookSecondPoolNotBound.t.sol
     test/audit/HookQueuedFeesMigratedVault.t.sol
+    test/audit/UniVaultPoolKeyRotation.t.sol
 )
 
 # Skipped AND deliberately not run, each with the reason it is out. A file belongs here only
 # while the reason holds; when it stops holding, the file moves up into RUN.
 OUT_FILES=(
-    test/audit/UniVaultPoolKeyRotation.t.sol
     test/audit/FreeMintCurveSolvency.t.sol
 )
 OUT_WHY=(
-    "STALE. The PoC for the missing setV4PoolKey liquidity lock. The fix added the PoolKeyLocked() revert the PoC now hits, so it fails asserting a defect that is gone. Rewrite it against the fix (as HookSecondPoolNotBound was rewritten) and move it into RUN."
     "RED BY RULING. H-1 is as designed (2026-09-17), so this proof asserts a solvency property the protocol does not offer and stays red for as long as that ruling stands. Kept as the record of what the mechanism costs: see audits/2026-09-17-pre-testnet.md sections 2 and 4."
 )
 
