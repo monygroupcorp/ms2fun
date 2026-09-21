@@ -12,10 +12,17 @@
 #      `foundry.v4.toml`, the only way to compile them is a standalone config whose own
 #      `[profile.default]` sets `auto_detect_solc = true`.
 #
-#   2. THEY FAIL ON PURPOSE. The rest assert the property the code SHOULD hold for a defect that
-#      is still OPEN. A red test in the default set would make the contracts gate report a
-#      failure the gate did not cause, and a gate that is red for a known reason stops being
-#      read. So the proofs are excluded there and run by name here.
+#   2. IT FAILS ON PURPOSE. One proof — FreeMintCurveSolvency.t.sol, H-1 — asserts a solvency
+#      property the code does not hold. A red test in the default set would make the contracts
+#      gate report a failure the gate did not cause, and a gate that is red for a known reason
+#      stops being read. So it is excluded there and run by name here.
+#
+#      H-1 was RULED on 2026-09-17: the free-mint tranche is a design decision, accepted as
+#      designed and not a defect. So this proof is not a defect ticket waiting on a fix — it is
+#      the record of a mechanism the protocol sells, and no src/ change will turn it green. The
+#      proofs that measure the ruled behaviour and run inside the gate are
+#      test/invariant/BondingCurveFreeMintInvariant.t.sol and
+#      test/factories/erc404/FreeMintReserveDrain.t.sol.
 #
 # WHERE THIS IS RUN BY HAND (the repo's rule is that a profile with no selector is not a gate,
 # so this is its selector). The whole set:
@@ -37,6 +44,9 @@
 #   * Reason 1 (pragma-bound to 0.8.26): it CANNOT join the default set — the version check
 #     rejects it however green it is. Move it into RUN in `scripts/real-v4-gate.sh` instead,
 #     which is the only thing that executes these files.
+#
+# Every proof this audit wrote for a defect has now made one of those two moves except H-1's,
+# which is ruled rather than open and must stay skipped — see above, and do not delete its line.
 #
 # Doing neither is the failure this arrangement is most prone to, because leaving the line in
 # `skip` is a complete and self-consistent act and nothing asks what will run the file. That is

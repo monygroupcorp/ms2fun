@@ -96,6 +96,44 @@ contract UniTitheHookFactoryFrontRunTest is Test {
         assertEq(UniAlignmentV4Hook(payable(other)).hookFeeBips(), HOOK_FEE_BIPS + 1, "fresh hook parameterized");
     }
 
+    /// @dev The sentence the L-6 fix rests on: "a hook for a different pool is a different hook at a
+    ///      different address". `test_parameter_change_deploys_a_fresh_hook` above already shows that a
+    ///      changed parameter re-derives the address — but it varies `hookFeeBips`, which was a
+    ///      constructor argument before the fix as well, so it says nothing about the POOL.
+    ///
+    ///      These two are the ones that carry the bind. If either fell out of the init-code hash the
+    ///      factory mines, two pools would share one hook address, the first `deployHook` would be
+    ///      adopted for the second pool, and `_requireBoundPool` would refuse the graduation its own
+    ///      pool was opening — the bind turned from a guard into a brick. Before the fix neither
+    ///      argument existed, so this case could not be written at all.
+    function test_a_different_pool_mines_a_different_hook() public {
+        address forThisPool =
+            factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING);
+
+        address otherToken = address(0xC022);
+        address forAnotherToken =
+            factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE, otherToken, POOL_TICK_SPACING);
+        assertTrue(forAnotherToken != forThisPool, "a second launch's coin must mine its own hook");
+        assertEq(UniAlignmentV4Hook(payable(forAnotherToken)).poolToken(), otherToken, "and be bound to that coin");
+
+        address forAnotherSpacing =
+            factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING * 2);
+        assertTrue(forAnotherSpacing != forThisPool, "so must a pool on the same coin at another spacing");
+        assertEq(
+            UniAlignmentV4Hook(payable(forAnotherSpacing)).poolTickSpacing(),
+            POOL_TICK_SPACING * 2,
+            "and be bound to that spacing"
+        );
+
+        // The pool the first hook was minted for still resolves to that first hook, so the distinctness
+        // above is not the factory simply never adopting anything.
+        assertEq(
+            factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING),
+            forThisPool,
+            "the original pool's hook is still adopted"
+        );
+    }
+
     /// @dev The deploy lands exactly on the independently derived CREATE2 address. This is the property
     ///      that made the removed `hook != predicted` runtime branch unreachable, and it is what would
     ///      break if the init-code-hash helper and the constructor arguments ever diverged.

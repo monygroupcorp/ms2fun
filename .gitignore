@@ -115,3 +115,22 @@ contracts/lib
 # this repository carries deployed addresses and its own MIT interfaces, never vendored third-party
 # artifacts. Everything under it is re-fetchable by re-running the fetch tool.
 app/scripts/sepolia-algebra/artifacts/
+
+# Local build and run tooling keeps its own state under projects/ — gate run records and the like.
+# That state describes the machine it was written on: the absolute path of the checkout, the account
+# that ran it, the core count, the load averages. This repository is public, and between 2026-09-14
+# and 2026-09-19 thirty-three such records were published carrying exactly that.
+#
+# tools/check-no-local-paths.mjs also refuses anything tracked under this path, but that check runs
+# in CI — which is to say AFTER the push that has already published it. This rule is the half that
+# runs before: `git add -A` cannot stage what is not tracked. Keep both; they catch it at different
+# moments, and only this one catches it in time.
+#
+# Anchored, because a slash-less `projects/` matches a directory of that name at EVERY depth, and
+# this tree has one that is product content: public/metadata/projects/, the collection metadata the
+# app serves. Unanchored, the rule hid all eight of those tracked files and would have swallowed the
+# ninth — `git add` says nothing when it skips an ignored path, so a new collection's metadata would
+# simply never have landed. The leak this guards against is at the top level and nowhere else, and
+# the leading slash is what says so. tools/check-no-local-paths.mjs matches the same prefix and pins
+# it in --self-test.
+/projects/
