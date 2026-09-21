@@ -179,16 +179,14 @@ jobs:
   # v4-core's real PoolManager. They use an in-memory real PoolManager (not a fork), so they
   # need no RPC. Their own compile under their own config, so they do not wait on the build job.
   #
-  # Every test here is in `foundry.toml`'s `skip=` list and therefore runs in NO other job: the
-  # default profile cannot compile it. So a proof left out of the path below is a proof nothing
-  # ever runs again, which is what this step's single-path version had quietly become — the audit
-  # proof for the hook's unbound pool key sat green and unrun from the day it was written.
-  # The path is the whole skip list bar one:
-  #   * test/audit/UniVaultPoolKeyRotation.t.sol — STALE, deliberately still out. It is the PoC
-  #     for the missing `setV4PoolKey` liquidity lock, and the fix added the `PoolKeyLocked()`
-  #     revert the PoC now hits, so it fails asserting a defect that is gone. Rewrite it against
-  #     the fix (as HookSecondPoolNotBound was rewritten) and add it here.
-  # The job id stays `real-settlement` though the step now runs more than RealSettlement: it is a
+  # The set of files is NOT written here. It lives in contracts/scripts/real-v4-gate.sh, which
+  # is also what a developer runs before pushing, because the two copies of the list had drifted
+  # — one file locally where this step ran three — and a test these two miss runs in no job at
+  # all (each is in `foundry.toml`'s `skip=` list, so the default profile cannot compile it).
+  # One script is the fix for that class of drift: there is no second copy to keep in step.
+  # It also refuses to run unless every skipped file is accounted for and unless the path it
+  # builds actually reaches them; its header has the two reasons both of those need asserting.
+  # The job id stays `real-settlement` though the script runs more than RealSettlement: it is a
   # required check, and renaming it silently drops that requirement from branch protection.
   real-settlement:
     runs-on: ubuntu-latest
@@ -206,6 +204,4 @@ jobs:
         run: ./scripts/install-libs.sh all
 
       - name: Real-v4 regressions
-        run: |
-          FOUNDRY_CONFIG=foundry.v4.toml forge test --match-path \
-            "test/{hooks/UniAlignmentV4Hook_RealSettlement,audit/HookSecondPoolNotBound,audit/HookQueuedFeesMigratedVault}.t.sol"
+        run: ./scripts/real-v4-gate.sh
