@@ -1,7 +1,12 @@
 import { useState } from 'react'
-import { parseEther } from 'viem'
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { erc1155InstanceAbi } from '../../generated/contracts'
+import {
+  editionDraftToAddEditionArgs,
+  emptyEditionDraft,
+  validateEditionDraft,
+  type EditionDraft,
+} from './erc1155/editionDraft'
 import { useCollectionChainId } from './useCollectionChain'
 import styles from './AddEditionForm.module.css'
 
@@ -16,79 +21,11 @@ const PRICING_MODEL_LABELS: Record<number, string> = {
   2: 'Limited dynamic',
 }
 
-function emptyForm() {
-  return {
-    pieceTitle: '',
-    basePrice: '',
-    supply: '',
-    metadataURI: '',
-    pricingModel: 0 as 0 | 1 | 2,
-    priceIncreaseRate: '',
-    openTime: '0',
-    freeMintAllocation: '',
-    closeTime: '0',
-    maxPerWallet: '0',
-  }
-}
-
-type FormState = ReturnType<typeof emptyForm>
-
-function validate(form: FormState): string | null {
-  if (form.pieceTitle.trim() === '') return 'Piece title is required'
-  const price = parseFloat(form.basePrice)
-  if (!form.basePrice || isNaN(price) || price <= 0) return 'Base price must be greater than 0'
-  if (form.pricingModel === 0) {
-    const sup = form.supply.trim()
-    if (sup !== '' && sup !== '0')
-      return 'Unlimited pricing requires supply = 0 (leave blank or enter 0)'
-  }
-  if (form.pricingModel === 1 || form.pricingModel === 2) {
-    const sup = parseInt(form.supply, 10)
-    if (!form.supply || isNaN(sup) || sup <= 0) return 'Limited editions require supply > 0'
-  }
-  if (form.pricingModel === 2) {
-    const rate = parseInt(form.priceIncreaseRate, 10)
-    if (!form.priceIncreaseRate || isNaN(rate) || rate <= 0)
-      return 'Dynamic pricing requires price increase rate > 0 basis points'
-  }
-  // Mirrors `_validateSchedule` in ERC1155Instance: a close time has to fall after the edition
-  // opens, so the form refuses the window the contract would revert on rather than spending a
-  // transaction to find out. `0` is "never closes" on both sides.
-  const closeRaw = form.closeTime.trim()
-  if (closeRaw !== '' && closeRaw !== '0') {
-    const close = Number(closeRaw)
-    if (!Number.isInteger(close) || close < 0) return 'Close time must be a whole number of seconds'
-    const open = Number(form.openTime.trim() || '0')
-    const opensAt = open === 0 ? Math.floor(Date.now() / 1000) : open
-    if (close <= opensAt)
-      return open === 0
-        ? 'Close time must be in the future'
-        : 'Close time must be after the open time'
-  }
-  const capRaw = form.maxPerWallet.trim()
-  if (capRaw !== '') {
-    const cap = Number(capRaw)
-    if (!Number.isInteger(cap) || cap < 0) return 'Per-wallet limit must be a whole number ≥ 0'
-  }
-  const allocRaw = form.freeMintAllocation.trim()
-  if (allocRaw !== '') {
-    const alloc = parseInt(allocRaw, 10)
-    if (isNaN(alloc) || alloc < 0 || String(alloc) !== allocRaw)
-      return 'Free-mint allocation must be a whole number ≥ 0'
-    // Reserve-from-supply cap (noesis-135): for a limited edition the free allocation is drawn from
-    // supply, so it cannot exceed it. Unlimited editions (supply 0) accept any allocation.
-    if (form.pricingModel !== 0) {
-      const sup = parseInt(form.supply, 10)
-      if (!isNaN(sup) && sup > 0 && alloc > sup)
-        return 'Free-mint allocation cannot exceed the edition supply'
-    }
-  }
-  return null
-}
+type FormState = EditionDraft
 
 export function AddEditionForm({ instance, onAdded }: AddEditionFormProps) {
   const chainId = useCollectionChainId()
-  const [form, setForm] = useState<FormState>(emptyForm)
+  const [form, setForm] = useState<FormState>(emptyEditionDraft)
   const [clientError, setClientError] = useState<string | null>(null)
 
   const {
@@ -111,7 +48,7 @@ export function AddEditionForm({ instance, onAdded }: AddEditionFormProps) {
   const [notified, setNotified] = useState(false)
   if (isSuccess && !notified) {
     setNotified(true)
-    setForm(emptyForm())
+    setForm(emptyEditionDraft())
     setClientError(null)
     onAdded?.()
   }
@@ -136,18 +73,11 @@ export function AddEditionForm({ instance, onAdded }: AddEditionFormProps) {
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
 
-    const error = validate(form)
+    const error = validateEditionDraft(form)
     if (error) {
       setClientError(error)
       return
     }
-
-    const supply = form.pricingModel === 0 ? BigInt(0) : BigInt(form.supply)
-    const rate = form.pricingModel === 2 ? BigInt(form.priceIncreaseRate) : BigInt(0)
-    const openTime = BigInt(form.openTime.trim() || '0')
-    const freeMintAllocation = BigInt(form.freeMintAllocation.trim() || '0')
-    const closeTime = BigInt(form.closeTime.trim() || '0')
-    const maxPerWallet = BigInt(form.maxPerWallet.trim() || '0')
 
     resetWrite()
     setNotified(false)
@@ -156,18 +86,7 @@ export function AddEditionForm({ instance, onAdded }: AddEditionFormProps) {
       address: instance,
       abi: erc1155InstanceAbi,
       functionName: 'addEdition',
-      args: [
-        form.pieceTitle.trim(),
-        parseEther(form.basePrice),
-        supply,
-        form.metadataURI.trim(),
-        form.pricingModel,
-        rate,
-        openTime,
-        freeMintAllocation,
-        closeTime,
-        maxPerWallet,
-      ],
+      args: editionDraftToAddEditionArgs(form),
       chainId: chainId,
     })
   }
