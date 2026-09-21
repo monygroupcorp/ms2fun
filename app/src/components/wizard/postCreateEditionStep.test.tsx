@@ -12,16 +12,25 @@
  *     second form,
  *   - skipping is a real answer and lands the creator on the collection page,
  *   - the transaction it sends is `addEdition` with the schedule the creator typed, built by the
- *     same `editionDraft.ts` the collection page's `AddEditionForm` builds its call with.
+ *     same `editionDraft.ts` the collection page's `AddEditionForm` builds its call with,
+ *   - the creator leaves on the CONFIRMED receipt and not on the click, since a collection page
+ *     reached before the edition is mined does not have it.
  */
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { useState } from 'react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { PostCreateEditionStep } from './PostCreateEditionStep'
 import { getProjectType } from '../../lib/wizard/projectTypes'
 
 const INSTANCE = '0x1111111111111111111111111111111111111111' as const
 
-const writeContract = vi.fn()
+/** Hoisted so the module mock below can read them; `receipt` is what each case drives. */
+const { writeContract, receipt } = vi.hoisted(() => ({
+  writeContract: vi.fn(),
+  receipt: { isLoading: false, isSuccess: false, isError: false, error: null as Error | null },
+}))
+
+const IDLE_RECEIPT = { isLoading: false, isSuccess: false, isError: false, error: null }
 
 vi.mock('wagmi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('wagmi')>()),
@@ -33,17 +42,13 @@ vi.mock('wagmi', async (importOriginal) => ({
     error: null,
     reset: () => {},
   }),
-  useWaitForTransactionReceipt: () => ({
-    isLoading: false,
-    isSuccess: false,
-    isError: false,
-    error: null,
-  }),
+  useWaitForTransactionReceipt: () => ({ ...receipt }),
 }))
 
 afterEach(() => {
   cleanup()
   writeContract.mockReset()
+  Object.assign(receipt, IDLE_RECEIPT)
 })
 
 /** The step as the wizard mounts it: the erc1155 project type's own declaration, nothing local. */
@@ -130,4 +135,50 @@ test('a close time before the open is refused here, exactly as the collection pa
 
   expect(screen.getByRole('alert').textContent).toMatch(/close time must be after the open time/i)
   expect(writeContract).not.toHaveBeenCalled()
+})
+
+test('a confirmed receipt — not the click — is what takes the creator to the collection page', () => {
+  // Mounted under a parent that answers `onDone` with its own `setState`, because that is how
+  // `WizardPage` wires it and because the failure this guards is invisible to a `vi.fn()`: sending
+  // the parent's update from the step's render body drew React's "Cannot update a component while
+  // rendering a different component", which no assertion about the callback would have caught.
+  const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const onDone = vi.fn()
+  const postCreate = getProjectType('erc1155')?.postCreate
+  if (!postCreate) throw new Error('erc1155 declares no postCreate step')
+
+  function Parent() {
+    const [done, setDone] = useState(false)
+    if (done) return <div>collection page</div>
+    return (
+      <PostCreateEditionStep
+        instance={INSTANCE}
+        chainId={1337}
+        title={postCreate!.title}
+        fields={postCreate!.fields}
+        onDone={() => {
+          onDone()
+          setDone(true)
+        }}
+      />
+    )
+  }
+
+  // Sent and still in the mempool: the step holds the creator, and says so.
+  receipt.isLoading = true
+  const { rerender } = render(<Parent />)
+  expect(onDone).not.toHaveBeenCalled()
+  expect(screen.getByText(/confirming transaction/i)).toBeTruthy()
+
+  // Mined.
+  Object.assign(receipt, IDLE_RECEIPT, { isSuccess: true })
+  rerender(<Parent />)
+
+  expect(onDone).toHaveBeenCalledTimes(1)
+  expect(screen.getByText('collection page')).toBeTruthy()
+  const renderPhaseUpdates = consoleError.mock.calls.filter((call) =>
+    String(call[0]).includes('while rendering a different component'),
+  )
+  expect(renderPhaseUpdates).toEqual([])
+  consoleError.mockRestore()
 })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useWaitForTransactionReceipt, useWriteContract } from 'wagmi'
 import { erc1155InstanceAbi } from '../../generated/contracts'
 import {
@@ -73,11 +73,17 @@ export function PostCreateEditionStep({
 
   // The redirect is the confirmed receipt's, not the click's: leaving on the click would drop the
   // creator onto a collection page whose edition has not been mined and is therefore not there.
-  const [left, setLeft] = useState(false)
-  if (isSuccess && !left) {
-    setLeft(true)
+  //
+  // In an effect rather than in the render body, because `onDone` sets state on the wizard that owns
+  // this step, and updating another component while this one renders is the case React names in
+  // "Cannot update a component while rendering a different component". The ref, not a state flag,
+  // for the same reason: it keeps the one-shot from needing a render to take effect.
+  const hasLeft = useRef(false)
+  useEffect(() => {
+    if (!isSuccess || hasLeft.current) return
+    hasLeft.current = true
     onDone()
-  }
+  }, [isSuccess, onDone])
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
