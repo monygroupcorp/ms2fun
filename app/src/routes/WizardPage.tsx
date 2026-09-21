@@ -715,10 +715,11 @@ export function WizardPage() {
             <div className={styles.decision}>
               <h2 className={styles.question}>How should this align?</h2>
               <p className={styles.lede}>
-                Every launch routes <b>19% of its fees</b> to the community, through an alignment
-                vault, on mint and every resale — at a ratio nobody can change. Pick the{' '}
-                <b>community</b> you&rsquo;re aligning to, then its <b>vault</b>. This is what makes
-                it not a grift.
+                Every launch routes <b>19% of what it settles</b> to the community, through an
+                alignment vault, at a ratio nobody can change. Settlement is your edition mint, your
+                auction close, or your curve&rsquo;s graduation — the primary sale, not the
+                secondary market. Pick the <b>community</b> you&rsquo;re aligning to, then its{' '}
+                <b>vault</b>. This is what makes it not a grift.
               </p>
               <AlignmentTargetPicker
                 vaults={vaults.data}

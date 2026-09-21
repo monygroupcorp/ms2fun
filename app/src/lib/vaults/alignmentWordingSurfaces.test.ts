@@ -73,3 +73,31 @@ describe('the 19% surfaces draw their wording', () => {
     expect(code).not.toMatch(/Fee split/i)
   })
 })
+
+/**
+ * The resale claim, ratcheted across the WHOLE app rather than a list.
+ *
+ * The five surfaces above were enumerated, and enumeration is why the claim survived: it was
+ * deleted from `TokenDetailPage` for naming a royalty the contracts do not implement, and the same
+ * sentence sat untouched in `lib/learn/concepts.ts` — the long-form explainer a creator reads
+ * BEFORE deploying — because that file was not on the list. A creator arriving from Manifold or
+ * objkt, where a creator-set royalty is table stakes, read "on every resale, 19% of fees route to
+ * the community" and had no reason to doubt it.
+ *
+ * So this one is not a list. No file under `src/` may claim a resale leg outside a comment, for as
+ * long as `royaltyInfo`/ERC-2981 appear nowhere in `contracts/src`. The day a royalty standard
+ * lands, this test is what has to be rewritten to describe it — deliberately, by the change that
+ * implements it, and not by a surface that assumed it.
+ */
+describe('no surface claims a resale leg the contracts do not implement', () => {
+  const RESALE_CLAIM =
+    /every\s+resale|on\s+(?:each|every)\s+(?:resale|secondary)|royalt(?:y|ies)\s+(?:of|route|pay)/i
+
+  it.each(Object.keys(SOURCE_FILES).filter((p) => !p.endsWith('alignmentWordingSurfaces.test.ts')))(
+    '%s',
+    (path) => {
+      const code = stripComments(SOURCE_FILES[path] ?? '')
+      expect(code).not.toMatch(RESALE_CLAIM)
+    },
+  )
+})

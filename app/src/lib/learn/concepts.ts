@@ -94,9 +94,11 @@ Every standard routes the same **fixed alignment share** to a vault and settles 
   'alignment-vault': {
     title: 'Alignment vaults',
     summary:
-      "19% of every collection's fees route to a vault aligned with an established community, the thing that makes it not a grift.",
+      'Every collection is bound to a community and pays it 19% when it settles, the thing that makes it not a grift.',
     body: `
-Every launch here is **bound to an alignment vault**. On mint and on every resale, **19% of fees route to the community** through that vault, which holds or LPs the target community's token.
+Every launch here is **bound to an alignment vault**. Each time a collection *settles*, **19% routes to the community** through that vault, which holds or LPs the target community's token.
+
+Settlement is the moment the collection takes money, and which moment that is depends on the standard: an **edition mint** for ERC-1155, an **auction close** for ERC-721, **graduation** for ERC-404. There is no resale leg — noesis implements no royalty standard, so a piece changing hands on a marketplace pays the community nothing. What keeps paying after the primary depends on the vault you picked, and runs in the other direction: bind to an **LP vault** and your collection becomes a *benefactor* of it, claiming a pro-rata share of that vault's ongoing LP yield through \`claimAllFees\` for as long as the pool trades. Bind to an **endowment vault** and there is no pull-claim at all — \`claimFees\` reverts by design, and the primary settlement is the whole of it. Either way the number tracks the *community's* pool, never your own secondary market.
 
 This is the core idea of the launchpad: a derivative collection that **materially supports** the community it draws from, instead of extracting from it. You pick the community you're aligning to, then one of its vaults.
 
