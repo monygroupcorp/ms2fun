@@ -30,5 +30,11 @@ jobs:
         with:
           node-version: 22
 
+      # A green tree scan means nothing if the rule doing the scanning has stopped matching. This
+      # pins both rules to named cases first — every leak shape the run records carried, and every
+      # shape that must stay quiet — so the step below is a result and not just an exit code.
+      - name: The guard still catches what it claims to catch
+        run: node tools/check-no-local-paths.mjs --self-test
+
       - name: No tracked file describes the machine it was written on
         run: node tools/check-no-local-paths.mjs
