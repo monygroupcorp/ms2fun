@@ -112,6 +112,20 @@
 #      `immutable` and become storage, so `withdraw` pays three cold SLOADs it does not pay now. The
 #      protocol-wide ones can stay `immutable` in the master and be read through the proxy, which is
 #      what `ERC404BondingInstance._ops` already does.
+#      THAT PRICE IS NOT AN ESTIMATE — this repo has paid it, in the same vault family three of the
+#      CREATION rows below belong to. `CypherAlignmentVaultFactory` deploys `CypherAlignmentVault`
+#      as a CREATE3 clone off an implementation address fixed in its constructor and embeds none of
+#      it. Measured 2026-09-21 beside the sibling whose vault is almost the same size:
+#
+#          ZAMMAlignmentVaultFactory   17,893B creation   carrying a 14,039B vault as a blob
+#          CypherAlignmentVaultFactory  3,131B creation   deploying a 13,681B vault as a clone
+#
+#      A 358B difference in the vault, a 14,762B difference in the factory. And the cost landed
+#      exactly where this entry says it would: `CypherAlignmentVault` has an `initialize` guarded by
+#      a storage `_initialized` flag in place of a constructor, while the protocol-wide values stay
+#      `immutable` on the factory and are handed in — "set once at `initialize` from the deploying
+#      factory's immutable and never moves" (CypherAlignmentVault.sol:120). The vault's 13,655B of
+#      runtime is its own EIP-170 budget, with 10,921B free that nothing else can spend.
 #
 #   B. A SEPARATE DEPLOYER the factory calls. Built as a spike and sized: the smallest deployer that
 #      can hold the blob and make the CreateX call is 19,841B of runtime — 19,183B of blob and 658B
