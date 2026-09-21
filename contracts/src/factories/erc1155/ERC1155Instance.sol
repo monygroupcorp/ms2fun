@@ -24,7 +24,11 @@ error Unauthorized();
 error AmountMustBePositive();
 error EditionNotFound();
 error EditionNotOpen();
+error EditionClosed();
 error EditionSoldOut();
+error ExceedsWalletLimit();
+error InvalidCloseTime();
+error EditionAlreadyMinted();
 error ExceedsSupply();
 error ExceedsMaxCost();
 error InsufficientPayment();
@@ -135,6 +139,24 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     bool private _freeMintInitialized;
     bool public agentDelegationEnabled;
 
+    // Edition schedule (noesis/open-edition-cannot-close). A drop that cannot be closed is not the
+    // timed edition the field runs, so an edition carries a close time and a per-wallet ceiling
+    // beside the `openTime` it already had. Both live here rather than in `Edition` on purpose:
+    // `QueryAggregator.IERC1155EditionReader` declares its own copy of that struct and decodes
+    // `getEdition` against it for every instance it reads, including the ones already deployed, so
+    // a field added to the struct would break those reads. Per-edition side mappings are also how
+    // the free-mint allocation above is already carried.
+    /// @notice Unix timestamp at which an edition stops minting. 0 = never closes.
+    /// @dev Exclusive: minting reverts AT this timestamp, mirroring `openTime`, which opens at its own.
+    mapping(uint256 => uint256) public editionCloseTime;
+    /// @notice Most tokens of an edition one wallet may take, across the paid and free paths
+    ///         together. 0 = no ceiling.
+    mapping(uint256 => uint256) public editionMaxPerWallet;
+    /// @notice Tokens of an edition a wallet has MINTED, paid and free together.
+    /// @dev Not `balanceOf`: a balance falls when a token is transferred away, and a ceiling read off
+    ///      a balance would let one wallet take the whole edition by emptying itself between mints.
+    mapping(uint256 => mapping(address => uint256)) public editionMintedBy;
+
     uint256 public nextEditionId;
     uint256 public totalProceeds; // Total ETH collected from mints
     uint256 public totalWithdrawn; // Total ETH passed to withdraw() (prevents double-withdrawal and force-feed attacks)
@@ -183,6 +205,9 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     event FreeMintClaimed(address indexed user, uint256 indexed editionId);
     /// @dev Emitted when an edition's free-mint allocation is set (at creation) or later adjusted.
     event FreeMintAllocationSet(uint256 indexed editionId, uint256 allocation);
+    /// @dev Emitted when an edition's close time or per-wallet ceiling is set, at creation or on a
+    ///      later reschedule. Always carries both, so one event is the whole schedule.
+    event EditionScheduleSet(uint256 indexed editionId, uint256 closeTime, uint256 maxPerWallet);
     event ContractURIUpdated();
 
     // ┌─────────────────────────┐
@@ -291,6 +316,16 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         // there is no gating module or the scope is PAID_ONLY, so openTime is the only fair-launch
         // guard on this path. Mirrors the paid mint() gate.
         if (edition.openTime != 0 && block.timestamp < edition.openTime) revert EditionNotOpen();
+        // A closed edition takes no claim either. The free allocation is part of the same drop, so it
+        // ends when the drop ends; leaving it open would make "the edition is over" false on the one
+        // path a bot is most likely to be watching.
+        uint256 closeTime = editionCloseTime[editionId];
+        if (closeTime != 0 && block.timestamp >= closeTime) revert EditionClosed();
+        // The per-wallet ceiling spans both paths, so a free claim spends one against it.
+        uint256 maxPerWallet = editionMaxPerWallet[editionId];
+        if (maxPerWallet != 0 && editionMintedBy[editionId][msg.sender] + 1 > maxPerWallet) {
+            revert ExceedsWalletLimit();
+        }
         if (edition.supply > 0) {
             if (edition.minted >= edition.supply) revert EditionSoldOut();
         }
@@ -304,6 +339,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         freeMintClaimed[editionId][msg.sender] = true;
         freeMintsClaimed[editionId]++;
         edition.minted++;
+        editionMintedBy[editionId][msg.sender]++;
         balanceOf[msg.sender][editionId]++;
 
         emit FreeMintClaimed(msg.sender, editionId);
@@ -314,8 +350,28 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     // │   Edition Management    │
     // └─────────────────────────┘
 
+    /// @dev The owner-or-delegated-agent branch every edition-management entry point shares.
+    ///      Extracted so a new entry point cannot drift from the four that were already here.
+    function _requireOwnerOrAgent() private view {
+        if (msg.sender == owner()) return; // Owner always allowed
+        // Direct agent call when delegation is on (non-custodial config)
+        if (agentDelegationEnabled && masterRegistry.isAgent(msg.sender)) return;
+        revert Unauthorized();
+    }
+
+    /// @dev A close time has to fall after the edition opens, so an edition can never be created or
+    ///      rescheduled into a window that was already over — a drop nobody can mint from, which
+    ///      reads on the collection page as a sold-out piece rather than as a mistake.
+    ///      `openTime == 0` means "open now", so the comparison is against the current block there.
+    ///      `closeTime == 0` is "never closes" and is always allowed.
+    function _validateSchedule(uint256 openTime, uint256 closeTime) private view {
+        if (closeTime == 0) return;
+        uint256 opensAt = openTime == 0 ? block.timestamp : openTime;
+        if (closeTime <= opensAt) revert InvalidCloseTime();
+    }
+
     /**
-     * @notice Add a new edition
+     * @notice Add a new edition, with the schedule it runs to.
      * @param pieceTitle Title of the piece
      * @param basePrice Base price (for fixed) or starting price (for dynamic)
      * @param supply Supply limit (0 = unlimited)
@@ -327,6 +383,13 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
      *        (noesis-135 sub-decision 1): for a limited edition (supply > 0) it must be <= supply, so
      *        free claims come OUT of the edition's supply and never inflate it; an unlimited edition
      *        (supply == 0) accepts any allocation.
+     * @param closeTime Unix timestamp at which minting stops; 0 = never closes. Must fall after the
+     *        edition opens. With `openTime` this is the timed drop the rest of the field runs.
+     * @param maxPerWallet Most tokens one wallet may mint of this edition, paid and free together;
+     *        0 = no ceiling.
+     * @dev The schedule is set in the transaction that creates the edition, so there is no window in
+     *      which the edition is live and unbounded. It stays correctable until the first mint, via
+     *      `setEditionSchedule`.
      */
     function addEdition(
         string memory pieceTitle,
@@ -336,15 +399,11 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         PricingModel pricingModel,
         uint256 priceIncreaseRate,
         uint256 openTime,
-        uint256 freeMintAlloc
+        uint256 freeMintAlloc,
+        uint256 closeTime,
+        uint256 maxPerWallet
     ) external {
-        if (msg.sender == owner()) {
-            // Owner always allowed
-        } else if (agentDelegationEnabled && masterRegistry.isAgent(msg.sender)) {
-            // Direct agent call when delegation is on
-        } else {
-            revert Unauthorized();
-        }
+        _requireOwnerOrAgent();
         if (bytes(pieceTitle).length == 0) revert InvalidTitle();
         if (basePrice == 0) revert InvalidPrice();
 
@@ -361,6 +420,8 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
 
         // Reserve-from-supply cap: free allocation is drawn from a limited edition's supply.
         if (supply > 0 && freeMintAlloc > supply) revert FreeMintExceedsSupply();
+
+        _validateSchedule(openTime, closeTime);
 
         if (nextEditionId > type(uint32).max) revert EditionLimitReached();
 
@@ -382,8 +443,41 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
             emit FreeMintAllocationSet(editionId, freeMintAlloc);
         }
 
+        // Written only when there is a schedule to write, so an open-ended edition costs no extra
+        // storage and emits no event claiming a schedule it does not have.
+        if (closeTime > 0 || maxPerWallet > 0) {
+            editionCloseTime[editionId] = closeTime;
+            editionMaxPerWallet[editionId] = maxPerWallet;
+            emit EditionScheduleSet(editionId, closeTime, maxPerWallet);
+        }
+
         emit URI(metadataURI, editionId);
         emit EditionAdded(editionId, pieceTitle, basePrice, supply, pricingModel);
+    }
+
+    /**
+     * @notice Set or clear an edition's close time and per-wallet ceiling, before it has sold.
+     * @dev Editable until the first mint and not after: a collector who has already paid chose a drop
+     *      with a stated end and a stated ceiling, and moving either afterwards would change the deal
+     *      under them. That is the bound the rest of the field holds to (objkt's open-edition listing
+     *      is editable until the first sale). The free-mint allocation deliberately does NOT carry
+     *      this bound (`setEditionFreeMintAllocation`, rth 2026-08-04); a giveaway the creator can
+     *      still widen is not a promise about what a buyer paid for.
+     * @param editionId The edition to reschedule. Must exist and have no mints.
+     * @param closeTime Unix timestamp at which minting stops; 0 = never closes.
+     * @param maxPerWallet Most tokens one wallet may mint of this edition; 0 = no ceiling.
+     */
+    function setEditionSchedule(uint256 editionId, uint256 closeTime, uint256 maxPerWallet) external {
+        _requireOwnerOrAgent();
+        Edition storage edition = editions[editionId];
+        if (edition.id == 0) revert EditionNotFound();
+        if (edition.minted > 0) revert EditionAlreadyMinted();
+
+        _validateSchedule(edition.openTime, closeTime);
+
+        editionCloseTime[editionId] = closeTime;
+        editionMaxPerWallet[editionId] = maxPerWallet;
+        emit EditionScheduleSet(editionId, closeTime, maxPerWallet);
     }
 
     /**
@@ -397,13 +491,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
      * @param allocation The new free-mint allocation.
      */
     function setEditionFreeMintAllocation(uint256 editionId, uint256 allocation) external {
-        if (msg.sender == owner()) {
-            // Owner always allowed
-        } else if (agentDelegationEnabled && masterRegistry.isAgent(msg.sender)) {
-            // Direct agent call when delegation is on
-        } else {
-            revert Unauthorized();
-        }
+        _requireOwnerOrAgent();
         Edition storage edition = editions[editionId];
         if (edition.id == 0) revert EditionNotFound();
         if (edition.supply > 0 && allocation > edition.supply) revert FreeMintExceedsSupply();
@@ -418,13 +506,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
      * @param metadataURI New metadata URI
      */
     function updateEditionMetadata(uint256 editionId, string memory metadataURI) external {
-        if (msg.sender == owner()) {
-            // Owner always allowed
-        } else if (agentDelegationEnabled && masterRegistry.isAgent(msg.sender)) {
-            // Direct agent call when delegation is on (non-custodial config)
-        } else {
-            revert Unauthorized();
-        }
+        _requireOwnerOrAgent();
         if (editions[editionId].id == 0) revert EditionNotFound();
 
         editions[editionId].metadataURI = metadataURI;
@@ -509,6 +591,18 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         if (edition.openTime != 0) {
             if (block.timestamp < edition.openTime) revert EditionNotOpen();
         }
+        // ... and the close time on the other side of it. Checked before the gating module is
+        // consulted so a closed edition costs a caller nothing and no module sees a mint that cannot
+        // happen (`onMint` is a state-changing call on the gating module).
+        uint256 closeTime = editionCloseTime[editionId];
+        if (closeTime != 0 && block.timestamp >= closeTime) revert EditionClosed();
+
+        // Per-wallet ceiling, counted off tokens this wallet MINTED rather than what it still holds,
+        // and spanning the free path too — see `editionMintedBy`.
+        uint256 maxPerWallet = editionMaxPerWallet[editionId];
+        if (maxPerWallet != 0 && editionMintedBy[editionId][msg.sender] + amount > maxPerWallet) {
+            revert ExceedsWalletLimit();
+        }
 
         // Gating check — forwards authoritative editionId + edition openTime; gatingData carries the
         // raw module payload (no password-shaped wrap, so a bytes32[] merkle proof fits).
@@ -543,6 +637,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
 
         // Update edition state
         edition.minted += amount;
+        editionMintedBy[editionId][msg.sender] += amount;
         balanceOf[msg.sender][editionId] += amount;
         totalProceeds += totalCost;
 
@@ -841,13 +936,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
 
     /// @notice Set project-level style URI (creator only)
     function setStyle(string memory newStyleUri) external {
-        if (msg.sender == owner()) {
-            // Owner always allowed
-        } else if (agentDelegationEnabled && masterRegistry.isAgent(msg.sender)) {
-            // Direct agent call when delegation is on (non-custodial config)
-        } else {
-            revert Unauthorized();
-        }
+        _requireOwnerOrAgent();
         styleUri = newStyleUri;
     }
 

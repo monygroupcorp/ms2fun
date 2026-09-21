@@ -10,6 +10,7 @@ import { MintPanel } from './erc1155/MintPanel'
 import { useEditions, type EditionView } from './useEditions'
 import { useCollectionChainId, useCollectionSlug } from './useCollectionChain'
 import { fetchJson, isResolvableUri, jsonOrNull } from '../../lib/metadata'
+import { isClosed, timeRemaining } from './erc1155/editionSchedule'
 import { formatPrice, formatPriceTitle } from '../../lib/format'
 import { IpfsImage } from '../ui/IpfsImage'
 import styles from './EditionList.module.css'
@@ -83,6 +84,12 @@ function EditionCard({ edition, instance, refetch }: EditionCardProps) {
   const title = edition.pieceTitle || `edition #${edition.id}`
   const image = useEditionArt(edition.metadataURI)
   const editionHref = `/${chainId}/${slug}/edition/${edition.id}`
+  // Coarse by design (see editionSchedule.ts): the exact moment rides the title attribute, so the
+  // card does not re-render once a second for every edition on the page.
+  const closed = isClosed(edition)
+  const remaining = timeRemaining(edition)
+  const closesAtLabel =
+    edition.closeTime > 0n ? new Date(Number(edition.closeTime) * 1000).toLocaleString() : null
 
   return (
     <>
@@ -120,10 +127,31 @@ function EditionCard({ edition, instance, refetch }: EditionCardProps) {
           <span className={styles.statLabel}>supply</span>
           <span className={styles.statValue}>{supplyLabel}</span>
         </div>
+        {/* Only for an edition that actually closes: an open-ended one has nothing to count down,
+            and a "no end date" stat would be noise on every card that has always looked this way. */}
+        {edition.closeTime > 0n && (
+          <div className={styles.stat}>
+            <span className={styles.statLabel}>{closed ? 'closed' : 'ends'}</span>
+            <span className={styles.statValue} title={closesAtLabel ?? undefined}>
+              {closed ? 'over' : (remaining ?? '—')}
+            </span>
+          </div>
+        )}
+        {edition.maxPerWallet > 0n && (
+          <div className={styles.stat}>
+            <span className={styles.statLabel}>per wallet</span>
+            <span className={styles.statValue}>{edition.maxPerWallet.toString()}</span>
+          </div>
+        )}
       </div>
       {/* Free-mint is per edition (noesis-135) — each edition renders its own claim panel, which
           shows nothing unless this edition has a free allocation the connected wallet can still claim. */}
-      <FreeMintClaimPanel instance={instance} editionId={edition.id} openTime={edition.openTime} />
+      <FreeMintClaimPanel
+        instance={instance}
+        editionId={edition.id}
+        openTime={edition.openTime}
+        closeTime={edition.closeTime}
+      />
       <MintPanel instance={instance} edition={edition} refetch={refetch} />
     </>
   )

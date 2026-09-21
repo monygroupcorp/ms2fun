@@ -683,17 +683,21 @@ real finding and a future reader will re-derive it:
 
 ## 3. Proofs of concept
 
-Thirteen proofs sit under `contracts/test/audit/`. They are **not** in the default test set, for two
-independent reasons recorded in `foundry.toml`'s `skip` list and in `foundry.audit.toml`:
+Seventeen proofs sit under `contracts/test/audit/`, four of them written by the fixes rather than by
+the hunt. (An eighteenth file in that directory, `SlitherSuppressionCensus.t.sol`, is not one of them
+— it pins the static-analyser suppression census and predates this audit.) Most are now in the
+default test set. What is still outside it is outside for one of two independent reasons, recorded in
+`foundry.toml`'s `skip` list and in `foundry.audit.toml`:
 
 1. Three drive v4-core's real `PoolManager`, whose pragma is exactly `0.8.26`, and the default
    profile is deterministically pinned to `0.8.28` for deploy-determinism (noesis-120). This is the
    same constraint that already put `UniAlignmentV4Hook_RealSettlement.t.sol` behind
-   `foundry.v4.toml`.
-2. The proofs for open defects **fail on purpose** — they assert the property the code should hold.
-   A red test in the default set would make the contracts gate report a failure the gate did not
-   cause, and a gate that is red for a known reason stops being read. As each fix lands its proof
-   leaves this group and joins the default set; `UniVaultShareAccounting.t.sol` already has.
+   `foundry.v4.toml`. These three are green, and are excluded by compiler version alone.
+2. One proof **fails on purpose**: `FreeMintCurveSolvency.t.sol`. That is no longer the
+   defect-is-still-open reason this group was created for — H-1 is ruled as designed (§2, §4), so
+   the proof asserts a solvency property the protocol does not offer and will stay red for as long
+   as the ruling stands. Every other proof for a defect has had its fix land, and each left this
+   group and joined the default set as that happened.
 
 Run the whole set:
 
@@ -701,27 +705,41 @@ Run the whole set:
 cd contracts && FOUNDRY_CONFIG=foundry.audit.toml forge test --match-path "test/audit/*"
 ```
 
+State below is as measured on this branch, which is `main` plus this report. The three proofs whose
+fixes are still on an open PR run here against the unfixed source, and so record the defect here and
+assert its closure on their own branch; the column says which.
+
 | proof | reproduces | state |
 |---|---|---|
-| `FreeMintCurveSolvency.t.sol` | H-1 | **3 fail**, 1 control passes |
-| `GraduationLpResidue.t.sol` | M-1 | **5 fail** (v4 ×2, ZAMM ×2, Cypher ×1), 3 pass |
-| `UniVaultShareAccounting.t.sol` | M-2 (and strikes C, D) | 4 pass (rewritten around the fix; now in the default set) |
-| `UniVaultPoolKeyRotation.t.sol` | M-3 | **1 fail**, 1 recovery test passes |
+| `FreeMintCurveSolvency.t.sol` | H-1 | **3 fail**, 1 control passes — red by ruling, not by defect |
+| `GraduationLpResidue.t.sol` | M-1 | 15 pass across three suites (v4 9, ZAMM 3, Cypher 3) — rewritten onto the fix by #434 |
+| `UniVaultShareAccounting.t.sol` | M-2, L-10 (and strikes C, D) | 5 pass — rewritten around the fix by #427, extended by #436 |
+| `UniVaultPoolKeyRotation.t.sol` | M-3 | 2 pass — the rotation is refused, and an unwired vault is still wireable |
 | `HookQueuedFeesMigratedVault.t.sol` | M-4 | 3 pass (the trap, its exit, and the halted tithe) |
 | `AuctionTimeBufferLock.t.sol` | M-5 | 4 pass (assert the merged guard, and the bounded lock) |
-| `CreateXSaltSquat.t.sol` | L-1 | 7 pass (squat, recovery, wrong preview) |
-| `AccessControlCluster.t.sol` | L-2, L-3, L-4 | passes |
-| `CurveExactOutRoundingBuffer.t.sol` | L-5 | 2 pass (isolates the missing wei) |
-| `HookSecondPoolNotBound.t.sol` | L-6 | passes (shows it drains nothing) — rewritten by the fix, see below |
+| `CreateXSaltSquat.t.sol` | L-1 | 7 pass here (squat, recovery, wrong preview); rewritten to assert the fix on #431 |
+| `AccessControlCluster.t.sol` | L-2, L-3, L-4 | 10 pass here; L-4's arm asserts the new setter on #435 |
+| `CurveExactOutRoundingBuffer.t.sol` | L-5 | 2 pass here (isolates the missing wei); asserts the restored buffer on #435 |
+| `HookSecondPoolNotBound.t.sol` | L-6 | 3 pass — rewritten by the fix; the rogue pool's first swap now reverts |
 | `PriceValidatorFullRangeInertGuards.t.sol` | L-7 | 3 pass (inert, and where it *does* bind) |
+| `PriceValidatorSpotTwapBand.t.sol` | L-7 | 8 pass — written by the fix, for the guard that survives the position's shape |
+| `ReferenceTwapWindowFloor.t.sol` | L-8 | 5 pass — written by the fix, on the resolved window |
+| `ZRouterHatchAuth.t.sol` | L-9 | 13 pass — written by the fix, one arm per hatch |
+| `RenouncedLaunchPoolParity.t.sol` | L-11 | 2 pass — written by the fix |
 | `OverlayFakeInstance.t.sol` | Info (overlay) | 3 pass (attack works, value conserved) |
-| `QueueSpamAndSquatDisproof.t.sol` | the strikes | passes — evidence for what was struck |
+| `QueueSpamAndSquatDisproof.t.sol` | the strikes | 3 pass — evidence for what was struck |
 
 **When a fix lands, delete that proof's line from `skip` in `foundry.toml`** so it joins the default
-set and the gate keeps it honest. A proof left skipped is a fix nobody verified.
+set and the gate keeps it honest. A proof left skipped is a fix nobody verified — and that is not a
+slogan: `UniVaultPoolKeyRotation.t.sol` sat skipped for the *pragma* reason, outside every job the
+repo runs, and went red the day M-3's guard merged without anyone seeing it. It was still asserting
+the brick the guard makes unbuildable. Skipping for a compiler version is not skipping for free.
 
-Whole-set result on this branch: **36 passed, 12 failed** across 16 suites. The twelve failures
-are the twelve reproductions; nothing else in the set is red. The recorded output is below.
+Whole-set result on this branch: **90 passed, 3 failed** across 20 suites (93 tests, 17 proof files
+plus the suppression census; `GraduationLpResidue.t.sol` carries three suites). The three failures
+are H-1's, and nothing else in the set is red. The recorded output is below — where a fix has landed
+the record is kept in both states, because what the proof asserted before the fix is the evidence
+that it does not pass vacuously now.
 
 ```
 Ran 4 tests for test/audit/FreeMintCurveSolvency.t.sol:FreeMintCurveSolvencyTest
@@ -736,7 +754,7 @@ Ran 4 tests for test/audit/FreeMintCurveSolvency.t.sol:FreeMintCurveSolvencyTest
 [FAIL: paid coin outstanding exceeds totalBondingSupply: the tail cannot be sold at all:
        4000000000000000000000000 > 3000000000000000000000000] test_residualPaidCoinIsUnsellable()
 
-test/audit/GraduationLpResidue.t.sol
+test/audit/GraduationLpResidue.t.sol   (as first recorded, before the fix)
 [FAIL: graduation must not leave ETH in the deployer module: 394079011861582438 != 0]
   ETH for pool: 20.0   stranded in module: 0.394079011861582438   = 197 bps of LP ETH
 [FAIL: ZAMM's ETH refund must not be stranded: 198019801980198020 != 0]   = 99 bps
@@ -744,6 +762,23 @@ test/audit/GraduationLpResidue.t.sol
 [PASS] test_v4_freshPool_leavesNoMeaningfulResidue()   fresh-pool residue: 243 wei
 [PASS] test_v4_tolerance_isTwoPercentOnPrice()
 [PASS] test_v4_strandedEth_hasNoExit()
+
+test/audit/GraduationLpResidue.t.sol   (as it stands, on `main`)
+[PASS] test_v4_preInitWithinTolerance_returnsUnconsumedEthToTheRail()
+[PASS] test_v4_preInitWithinTolerance_returnsUnconsumedCoinToTheInstance()
+[PASS] test_v4_venueTakingUnder99Percent_revertsRatherThanStranding()
+[PASS] test_v4_venueChargingMoreThanTheLeg_reverts()
+[PASS] test_v4_initPriceBand_isOnePercentOnPrice()      <- was 2% on price at a constant labelled 1%
+[PASS] test_v4_initPriceBand_acceptsJustInside()
+[PASS] test_v4_freshPool_leavesNoResidue()
+[PASS] test_v4_stillHasNoRemovalPath()                  <- re-checked after a front-run graduation
+[PASS] test_v4_sweepUnconsumedCoin_sendsItToTheInstance()
+[PASS] test_zamm_preSeedWithinTolerance_returnsRefundedEthToTheRail()
+[PASS] test_zamm_preSeedWithinTolerance_returnsUnpulledCoinToTheInstance()
+[PASS] test_zamm_sweepUnconsumedCoin_sendsItToTheInstance()
+[PASS] test_cypher_venueAbsorbsLessThanSent_returnsBothSides()
+[PASS] test_cypher_initPriceBand_isOnePercentOnPrice()
+[PASS] test_cypher_sweepUnconsumedCoin_sendsItToTheInstance()
 
 test/audit/UniVaultShareAccounting.t.sol   (as first recorded, before the fix)
 [FAIL: UniAlignmentVault:495 - carried residual has no owner: 0 != 2500000000000000001]
@@ -762,11 +797,25 @@ test/audit/UniVaultShareAccounting.t.sol   (as it stands, on `uni-vault-conversi
   mallory FAIR (400/batchEth)    : 190000000000000000009
   mallory ACTUAL                 : 189999999999999999815    <- was 191187500000000000118
 
-test/audit/UniVaultPoolKeyRotation.t.sol
+test/audit/UniVaultPoolKeyRotation.t.sol   (as first recorded, before the fix)
 [FAIL: convertAndAddLiquidity bricked by unguarded setV4PoolKey (:940-944)]
   claimFees / claimFeesAsDelegate / convertAndAddLiquidity all revert 0xaefeb924
   totalEthLocked stranded: 20.0 ETH        totalShares: 10e18
 [PASS] test_B_rotatingBackRestoresTheVault()
+
+test/audit/UniVaultPoolKeyRotation.t.sol   (as it stands, on `main`)
+[PASS] test_B_rotatingPoolKeyWithLivePositionIsRefused()
+  totalLPUnits after convert #1 : 5000000000000000000
+  totalLPUnits after convert #2 : 10000000000000000000
+  setV4PoolKey(keyB) reverts PoolKeyLocked(); the stored key is still keyA
+  claimFees reverted with        : 0x846d8c5c   <- NoFeesToClaim, the vault's own
+  claimFeesAsDelegate reverted   : 0x846d8c5c   <- never 0xaefeb924
+[PASS] test_B_wiringAVaultWithNoPositionIsUntouched()
+
+  The recovery test is gone with the brick it recovered from: the rotation cannot land, so there
+  is nothing to rotate back. What replaced it is the other half of the guard — a vault holding no
+  position is still wireable and re-wireable, which is the only way an unwired vault reaches a
+  pool at all.
 
 test/audit/HookQueuedFeesMigratedVault.t.sol   (as first recorded, before the fix)
 [FAIL: swap-tax ETH queued against a migrated vault has no exit]
@@ -855,9 +904,9 @@ surfaces that misdescribed it corrected on #430.
 | # | finding | disposition |
 |---|---|---|
 | M-1 | graduation modules cannot return unconsumed LP capital (v4 197 bps) | **fixed — branch `graduation-lp-residue`, PR #434.** All three venue modules now measure what their venue actually took — v4's settled delta, ZAMM's returned amounts, Cypher's `mint` return, all three of which were being discarded — and route the unconsumed ETH onto the 80/19/1 rail as a third diverted leg, reported apart from the caller's clamp residue because only the module can see it. Coin the venue declined goes back to the instance, which burns it under its own event topic: after graduation no path can move instance-held coin, so any other home is the same overhang at a different address. The init-price band is measured on PRICE on both v4 and Cypher, so the constant labelled 100 bps means it; and v4, which has no min-amount parameter to pass, asserts the siblings' 99% floor on the settled delta instead — with the ceiling they get for free from being pulled rather than pushed, both of them before the settle rather than after it. No removal entry point is added — the `RemovalProbe` still finds none, re-checked after a front-run graduation. The one backstop is `sweepUnconsumedCoin`, coin-only, permissionless and with no destination to choose, so it is not the owner sweep this row warned against and cannot touch the `pendingVaultCut` balance. Four fixtures had the strand written into them: the shared mock pool manager settled nothing by default, so suites read the module's retained balance as the pool's. |
-| M-2 | Uni vault conversion residue is unowned and mints shares for the wrong benefactor | **fixed — branch `uni-vault-conversion-residue`.** Ports `ZAMMAlignmentVault.sol:398-439` exactly: each benefactor's pro-rata share of the residual is carried back as their own `pendingETH`, they are re-registered as conversion participants, and the round-down remainder is settled on a `dustTaker` so `sum(pendingETH) == totalPendingETH` holds to the wei. The orphan the dust block used to hand a later batch's largest contributor no longer exists. The invariant suite is repaired on both counts — a reference pool so conversions actually run, and a settable absorption shortfall the fuzzer drives — and `afterInvariant` now asserts that coverage rather than assuming it. `invariant_noDilutionInversion` was restated: its cross-batch form is not a property of this vault. |
-| M-3 | `setV4PoolKey` bricks every fee path on a live vault | **fixed — branch `uni-vault-poolkey-lock`, PR #423.** Ports the `PoolKeyLocked()` guard the ZAMM sibling has carried since it was written, against this vault's own `totalLPUnits`. Wiring an unwired vault is untouched; both halves are pinned by tests. |
-| M-4 | a migrated vault traps the hook's queued fees forever | **fixed — branch `hook-queued-fees-exit`.** Both named shapes, arranged so neither adds a way to take the money. The hook now holds the master registry and answers to `deactivateVault`, the same lever `flushPendingVaultCut` already reads: `haltTithe()` is permissionless and stops the tax the moment the registry drops the vault, so nothing further is charged for a destination that no longer exists. `rescueQueuedFees(address)` is the owner's, but its destination must be a vault the registry currently curates and the credit goes to the hook's own immutable `benefactor` — so the owner chooses which curated vault, never whether to take it. Both refuse while the vault is still registered. |
+| M-2 | Uni vault conversion residue is unowned and mints shares for the wrong benefactor | **fixed — branch `uni-vault-conversion-residue`, PR #427.** Ports `ZAMMAlignmentVault.sol:398-439` exactly: each benefactor's pro-rata share of the residual is carried back as their own `pendingETH`, they are re-registered as conversion participants, and the round-down remainder is settled on a `dustTaker` so `sum(pendingETH) == totalPendingETH` holds to the wei. The orphan the dust block used to hand a later batch's largest contributor no longer exists. The invariant suite is repaired on both counts — a reference pool so conversions actually run, and a settable absorption shortfall the fuzzer drives — and `afterInvariant` now asserts that coverage rather than assuming it. `invariant_noDilutionInversion` was restated: its cross-batch form is not a property of this vault. |
+| M-3 | `setV4PoolKey` bricks every fee path on a live vault | **fixed — branch `uni-vault-poolkey-lock`, PR #423.** Ports the `PoolKeyLocked()` guard the ZAMM sibling has carried since it was written, against this vault's own `totalLPUnits`. Wiring an unwired vault is untouched; both halves are pinned by tests. This audit's own proof was **not** among them until now, and that is worth recording: `UniVaultPoolKeyRotation.t.sol` is skipped from the default set for the *pragma* reason rather than the fails-on-purpose one, so it ran in no job at all, and it went red the day the guard merged — still building the brick the guard makes unbuildable. It is rewritten onto the fix here: the rotation is refused, the stored key is unmoved, `convertAndAddLiquidity` still mints and both claim paths still reach the vault's own `NoFeesToClaim` rather than v4-core's empty-position selector. |
+| M-4 | a migrated vault traps the hook's queued fees forever | **fixed — branch `hook-queued-fees-exit`, PR #426.** Both named shapes, arranged so neither adds a way to take the money. The hook now holds the master registry and answers to `deactivateVault`, the same lever `flushPendingVaultCut` already reads: `haltTithe()` is permissionless and stops the tax the moment the registry drops the vault, so nothing further is charged for a destination that no longer exists. `rescueQueuedFees(address)` is the owner's, but its destination must be a vault the registry currently curates and the credit goes to the hook's own immutable `benefactor` — so the owner chooses which curated vault, never whether to take it. Both refuse while the vault is still registered. |
 | M-5 | unbounded anti-snipe buffer locks a bidder's ETH | **fixed — branch `auction-timebuffer-bound`, PR #424.** `timeBuffer <= baseDuration` in the constructor, inclusive, so nothing legal is narrowed; every auction in the tree and both seed scripts already sit far under it. A `max` on the wizard field is still owed. |
 
 ### Lows and Infos
@@ -866,22 +915,38 @@ Each is stated above with its file:line and, where the fix is a one-liner, the l
 doing soonest, because they are cheap and each closes a promise the code itself makes: **L-4** (a
 docstring promising a setter no address can call), **L-8** (a `MIN_TWAP_WINDOW` floor), **L-2**
 (override `renounceRoles`), and the `AlignmentRegistryV1` comment under INFO that sends a monitor to
-watch the wrong event.
+watch the wrong event. Three of those four are fixed below; the `AlignmentRegistryV1` comment is the
+one still open.
 
-Four of them now carry branches. Every other Low and every Info is still as this report left it: no
-branch, and the file:line above is the whole of what exists.
+Every Low now carries a branch and a PR, and the table below names both for each. The Infos are
+still as this report left them: no branch, and the file:line above is the whole of what exists.
 
 | # | finding | disposition |
 |---|---|---|
+| L-1 | CREATE3 addresses can be squatted, and the ERC404 factory previews the wrong one | **fixed — branch `audit-l1-create3-preview`, PR #431, open.** All seven CREATE3 factories stop hashing the caller *into* the salt — which is what dropped every one of them onto CreateX's unguarded `keccak256(abi.encode(salt))` path — and hand CreateX the shape it actually binds: `bytes20(address(this)) \|\| 0x00 \|\| bytes11(keccak256(creator, salt))`, through a shared `CreateXSalt` library. The creator still fills the entropy, so per-creator address separation is unchanged, and the address is now reachable by the factory alone. `0x00` rather than `0x01` in the 21st byte leaves `block.chainid` out of the hash, so a deterministic deploy stays deterministic across chains. The adjacent real bug goes with it: preview and deploy now derive the salt through the same call, so they cannot drift again. Note for whoever deploys next — this moves the address every factory resolves for a given `(creator, salt)`. Nothing in the tree pins a CREATE3 address, but a redeploy will not land where a previous one did. |
+| L-2 | `renounceRoles` can destroy `PROTOCOL_ROLE` with no way back | **fixed — branch `audit-l2-l3-renounce-policy`, PR #428.** The override the factory was missing, beside the two it already carried: `grantRoles` and `revokeRoles` were both hardened against exactly this and solady's `renounceRoles` was inherited unmodified. The mask case goes with it — the role cannot be smuggled out inside a bigger one. The role is not frozen, only undestroyable; `transferProtocolRole` still hands it on. |
+| L-3 | the four vault factories sit outside the project's own no-renounce policy | **fixed — branch `audit-l2-l3-renounce-policy`, PR #428.** The no-renounce half of `SafeOwnableUUPS` moves into a new `SafeOwnable` base; `SafeOwnableUUPS` extends it and keeps its own two-step-transfer half, and the four vault factories adopt it, so the nine UUPS contracts and the four factories now refuse for the same reason with the same error. Single-step `transferOwnership` is deliberately kept on the factories: `script/MigrateOwnership.s.sol` hands them to the governance Timelock with it, and a Timelock cannot broadcast solady's handover request leg without a governance proposal per contract. A test pins that the migration still works. |
+| L-4 | a documented treasury setter that no address can call | **fixed — branch `audit-l4-l5-treasury-and-curve`, PR #435, open.** `ZAMMAlignmentVaultFactory` gains `setVaultProtocolTreasury`, owner-gated beside the three passthroughs it already carries for this exact reason, so the lever the vault's docstring promises is reachable by the address the docstring implies. The destination is the protocol's own 1% treasury; a community's alignment sink is read live from the registry on every send and still has no setter anywhere in the tree. `CypherAlignmentVault.sol:119` carried the ZAMM sibling's sentence for a setter Cypher does not have at all — Cypher and Uni write the sink once at `initialize`, and Cypher's comment now says what Uni's already said. Whether Cypher and Uni should gain a setter is a separate question, left unruled and pinned as it stands. |
+| L-5 | the zRouter fork dropped Curve exact-out's `+1` rounding buffer | **fixed — branch `audit-l4-l5-treasury-and-curve`, PR #435, open.** Restored at each of the eight sites upstream carries it — including the `st == 4` inverse-of-`add_liquidity` line this report's list of seven omitted. Low for the reason stated above and no more: no live path reaches it. The proof pins that the buffer is a rounding repair and not a fee — a caller's `amountLimit` one wei below the quote still reverts `Slippage()`. |
 | L-6 | the alignment hook does not bind its pool key | **fixed — branch `audit-lows-hook-validator-router`, PR #429.** The graduation pool becomes part of the hook's identity: `deployHook` takes the pool's `currency1` and tick spacing, both become hook immutables inside the init-code hash the factory mines, and the swap hooks refuse every other key. A hook for a different pool is therefore a different hook at a different address, so no rogue pool can bind first and an early `deployHook` caller can pre-empt nothing. `HookSecondPoolNotBound.t.sol` is rewritten against the fix: the rogue pool can still be initialized — `beforeInitialize` is not one of this hook's permission bits and adding it would move the address the hook must be mined to — but its first swap reverts and nothing leaves the PoolManager. |
 | L-7 | the price validator's proportion guards are inert for the positions the vaults use | **fixed — branch `audit-lows-hook-validator-router`, PR #429.** The proportion guards are left exactly as they are: this report is right that they are correct and that they bind for bounded ranges. Added beside them is the guard that survives the position's shape — the caller's spot must sit within `maxPriceDeviationBps` of the V3 TWAP, measured on price and with the numeraire carried across first. `maxPriceDeviationBps` was a constructor argument the contract never read; it is read now, and its degenerate values are refused at deploy. Note for whoever reviews: this is a hard revert with no escape, the posture `CypherAlignmentVault._validateExistingPool` already takes, so a venue that has genuinely drifted past the band cannot convert until it re-converges. |
 | L-8 | no minimum TWAP window | **fixed — branch `audit-lows-hook-validator-router`, PR #429.** `MIN_TWAP_WINDOW` is 300 seconds, checked on the RESOLVED window so the `0` shorthand is measured against the same floor as an explicit value. The default is 1800 and the shortest window pinned anywhere in this tree is 600, so nothing legal narrows. |
 | L-9 | `zRouter`'s value-moving hatches are unauthenticated | **fixed — branch `audit-low-zrouter-hatch-auth`, PR #432.** Authenticated rather than closed, so the router keeps being a router: `sweep`, `snwap`/`snwapMulti`'s zero-`amountIn` branch and `revealName` may move what THIS transaction credited to the router, and the owner may move anything — which is what keeps a balance no credit describes recoverable rather than stranded. `execute` takes `onlyOwner` beside its trusted-target map, because it is an arbitrary call and no balance credit describes it; as deployed it is inert, so what that closes is what one future `trust()` call would otherwise open to every caller at once. |
+| L-10 | the LP vaults never re-credit the token-side residual | **fixed — branch `audit-l10-l11-residue-and-parity`, PR #436.** Both token→ETH legs now read the vault's own alignment-token balance rather than only the amount the collect returned, so the residue is sold and split 80/19/1 like any other yield. Reading the raw balance is safe because neither vault holds alignment token in flight at either call site: the Uni sweep runs in `_collectAndAccrueNow`, before `_doSwapAndLP` inside `convertAndAddLiquidity` and outside it on the claim paths; the ZAMM sweep runs in `_removeFeeLP`, before `_swapAndAddLiquidity` inside `convertAndAddLiquidity` and outside it on `harvest`. ZAMM's early return on zero fee growth is removed for the same reason — it gated the whole leg on fee LP existing, which is what let the residue survive every harvest that found no fees. One harness repair went with it: the testable Uni vault's mock LP never moved the token side, so it left the entire acquired amount behind — a balance no real pool leaves — and any reader of it saw a residue production never produces. |
+| L-11 | a renounced launch opens its pool off curve parity | **fixed — branch `audit-l10-l11-residue-and-parity`, PR #436.** `LiquidityDeployerModule`'s zero-creator guard is correct and is untouched. What was missing is that `ERC404BondingOps.deployLiquidity` did not know about it: it sized `tokensForPool` at the curve's marginal price for a smaller ETH leg than the module then used, so the pool opened above the price the last curve buyer paid and `GraduationEthDiverted` reported a carve nobody received. The instance now takes the module's own rule and the two agree on the pool's ETH. One narrow case is named rather than left to be rediscovered: when the parity clamp fires the coin side is already at its maximum, and for a renounced launch the module's guard sends the leftover ETH into the pool, so that case is still fractionally above parity. This fix does not reach it and does not make it worse — the coin side is identical on both branches there. |
 
-Each of the four carries a proof that measures the defect against this report's revision rather than
-asserting it: `HookSecondPoolNotBound.t.sol`, `PriceValidatorSpotTwapBand.t.sol`,
-`ReferenceTwapWindowFloor.t.sol`, `ZRouterHatchAuth.t.sol`. Both branches are green on the full
-contracts gate.
+Each carries a proof that measures the defect against this report's revision rather than asserting
+it: `CreateXSaltSquat.t.sol` (L-1), `AccessControlCluster.t.sol` (L-2, L-3, L-4),
+`CurveExactOutRoundingBuffer.t.sol` (L-5), `HookSecondPoolNotBound.t.sol` (L-6),
+`PriceValidatorSpotTwapBand.t.sol` (L-7), `ReferenceTwapWindowFloor.t.sol` (L-8),
+`ZRouterHatchAuth.t.sol` (L-9), `UniVaultShareAccounting.t.sol` (L-10) and
+`RenouncedLaunchPoolParity.t.sol` (L-11). Five of them are this audit's own reproductions, rewritten
+by the fix from recording the defect to asserting it closed; the other four were written by the fixes
+themselves. Either way each PR names the assertions that are red without its source change, so none
+of them can pass vacuously.
+
+Nine of the eleven are merged. `audit-l1-create3-preview` (L-1) and `audit-l4-l5-treasury-and-curve`
+(L-4, L-5) are open and are the whole of what this row set still owes.
 
 ### What this audit does not cover
 
@@ -908,12 +973,19 @@ Run on this branch at the merge with `main`:
 
 ```
 cd contracts && forge fmt --check && forge build && \
-  bash test/factories/erc404/eip170-diet-gate.sh && FOUNDRY_PROFILE=ci forge test
+  bash test/factories/erc404/eip170-diet-gate.sh && FOUNDRY_PROFILE=ci forge test && \
+  FOUNDRY_CONFIG=foundry.v4.toml forge test --match-path test/hooks/UniAlignmentV4Hook_RealSettlement.t.sol
 ```
 
 - `forge fmt --check` — clean
 - `forge build` — exit 0
-- EIP-170 diet gate — PASS (`ERC404BondingOps` 23,715B, headroom 861B against a 500B floor)
-- `FOUNDRY_PROFILE=ci forge test` — **2549 passed, 0 failed, 29 skipped**, 233 suites
+- EIP-170 diet gate — PASS (`ERC404BondingOps` 23,655B, headroom 921B against a 500B floor)
+- `FOUNDRY_PROFILE=ci forge test` — **2644 passed, 0 failed, 30 skipped**, 246 suites
+- the real-v4 leg — **13 passed, 0 failed**, 3 suites
 
-The audit proofs are excluded from that set by design and run under their own config; see §3.
+The audit proofs are excluded from that set by design and run under their own config; see §3. Note
+what that exclusion does and does not buy: it keeps the gate honest about defects the gate did not
+cause, and it leaves those proofs unwatched. `UniVaultPoolKeyRotation.t.sol` was red against a fix
+merged on 2026-09-17 and stayed red until 2026-09-19, when running the set by hand was the first
+thing that looked at it. `ci-real-v4-audit-proofs-unrun` (PR #445) is the
+standing repair — a job that runs the real-v4 proofs — and it is open.

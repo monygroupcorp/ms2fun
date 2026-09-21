@@ -2905,6 +2905,12 @@ export const cypherLiquidityDeployerModuleAbi = [
         indexed: false,
       },
       {
+        name: 'ethReturned',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
         name: 'coinReturned',
         internalType: 'uint256',
         type: 'uint256',
@@ -3961,6 +3967,8 @@ export const erc1155InstanceAbi = [
       { name: 'priceIncreaseRate', internalType: 'uint256', type: 'uint256' },
       { name: 'openTime', internalType: 'uint256', type: 'uint256' },
       { name: 'freeMintAlloc', internalType: 'uint256', type: 'uint256' },
+      { name: 'closeTime', internalType: 'uint256', type: 'uint256' },
+      { name: 'maxPerWallet', internalType: 'uint256', type: 'uint256' },
     ],
     name: 'addEdition',
     outputs: [],
@@ -4072,6 +4080,30 @@ export const erc1155InstanceAbi = [
         type: 'address',
       },
     ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    name: 'editionCloseTime',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    name: 'editionMaxPerWallet',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'uint256', type: 'uint256' },
+      { name: '', internalType: 'address', type: 'address' },
+    ],
+    name: 'editionMintedBy',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
   {
@@ -4408,6 +4440,17 @@ export const erc1155InstanceAbi = [
   },
   {
     type: 'function',
+    inputs: [
+      { name: 'editionId', internalType: 'uint256', type: 'uint256' },
+      { name: 'closeTime', internalType: 'uint256', type: 'uint256' },
+      { name: 'maxPerWallet', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'setEditionSchedule',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'newStyleUri', internalType: 'string', type: 'string' }],
     name: 'setStyle',
     outputs: [],
@@ -4585,6 +4628,31 @@ export const erc1155InstanceAbi = [
       },
     ],
     name: 'EditionMetadataUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'editionId',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: true,
+      },
+      {
+        name: 'closeTime',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'maxPerWallet',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'EditionScheduleSet',
   },
   {
     type: 'event',
@@ -4884,12 +4952,15 @@ export const erc1155InstanceAbi = [
   { type: 'error', inputs: [], name: 'AmountMustBePositive' },
   { type: 'error', inputs: [], name: 'DynamicPricingRequiresIncreaseRate' },
   { type: 'error', inputs: [], name: 'ERC1155RejectedTokens' },
+  { type: 'error', inputs: [], name: 'EditionAlreadyMinted' },
+  { type: 'error', inputs: [], name: 'EditionClosed' },
   { type: 'error', inputs: [], name: 'EditionLimitReached' },
   { type: 'error', inputs: [], name: 'EditionNotFound' },
   { type: 'error', inputs: [], name: 'EditionNotOpen' },
   { type: 'error', inputs: [], name: 'EditionSoldOut' },
   { type: 'error', inputs: [], name: 'ExceedsMaxCost' },
   { type: 'error', inputs: [], name: 'ExceedsSupply' },
+  { type: 'error', inputs: [], name: 'ExceedsWalletLimit' },
   { type: 'error', inputs: [], name: 'FreeMintAlreadyClaimed' },
   { type: 'error', inputs: [], name: 'FreeMintDisabled' },
   { type: 'error', inputs: [], name: 'FreeMintExceedsSupply' },
@@ -4898,6 +4969,7 @@ export const erc1155InstanceAbi = [
   { type: 'error', inputs: [], name: 'InsufficientBalance' },
   { type: 'error', inputs: [], name: 'InsufficientPayment' },
   { type: 'error', inputs: [], name: 'InvalidAddress' },
+  { type: 'error', inputs: [], name: 'InvalidCloseTime' },
   { type: 'error', inputs: [], name: 'InvalidName' },
   { type: 'error', inputs: [], name: 'InvalidPrice' },
   { type: 'error', inputs: [], name: 'InvalidTitle' },
@@ -9785,6 +9857,20 @@ export const ierc1155EditionReaderAbi = [
   {
     type: 'function',
     inputs: [{ name: 'editionId', internalType: 'uint256', type: 'uint256' }],
+    name: 'editionCloseTime',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'editionId', internalType: 'uint256', type: 'uint256' }],
+    name: 'editionMaxPerWallet',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'editionId', internalType: 'uint256', type: 'uint256' }],
     name: 'getCurrentPrice',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
@@ -10746,6 +10832,12 @@ export const liquidityDeployerModuleAbi = [
       },
       {
         name: 'ethTithed',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'ethReturned',
         internalType: 'uint256',
         type: 'uint256',
         indexed: false,
@@ -13408,6 +13500,8 @@ export const queryAggregatorAbi = [
             type: 'uint256',
           },
           { name: 'openTime', internalType: 'uint256', type: 'uint256' },
+          { name: 'closeTime', internalType: 'uint256', type: 'uint256' },
+          { name: 'maxPerWallet', internalType: 'uint256', type: 'uint256' },
         ],
       },
     ],
@@ -13650,6 +13744,26 @@ export const queryAggregatorAbi = [
         ],
       },
     ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'editionId', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'readEditionCloseTime',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'editionId', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'readEditionMaxPerWallet',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
   {
@@ -14763,6 +14877,12 @@ export const zammLiquidityDeployerModuleAbi = [
       },
       {
         name: 'ethTithed',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'ethReturned',
         internalType: 'uint256',
         type: 'uint256',
         indexed: false,
@@ -19520,6 +19640,33 @@ export const useReadErc1155InstanceDynamicPricingModule =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"editionCloseTime"`
+ */
+export const useReadErc1155InstanceEditionCloseTime =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'editionCloseTime',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"editionMaxPerWallet"`
+ */
+export const useReadErc1155InstanceEditionMaxPerWallet =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'editionMaxPerWallet',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"editionMintedBy"`
+ */
+export const useReadErc1155InstanceEditionMintedBy =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'editionMintedBy',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"editions"`
  */
 export const useReadErc1155InstanceEditions =
@@ -19959,6 +20106,15 @@ export const useWriteErc1155InstanceSetEditionFreeMintAllocation =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"setEditionSchedule"`
+ */
+export const useWriteErc1155InstanceSetEditionSchedule =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'setEditionSchedule',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"setStyle"`
  */
 export const useWriteErc1155InstanceSetStyle =
@@ -20163,6 +20319,15 @@ export const useSimulateErc1155InstanceSetEditionFreeMintAllocation =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"setEditionSchedule"`
+ */
+export const useSimulateErc1155InstanceSetEditionSchedule =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'setEditionSchedule',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"setStyle"`
  */
 export const useSimulateErc1155InstanceSetStyle =
@@ -20247,6 +20412,15 @@ export const useWatchErc1155InstanceEditionMetadataUpdatedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc1155InstanceAbi,
     eventName: 'EditionMetadataUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"EditionScheduleSet"`
+ */
+export const useWatchErc1155InstanceEditionScheduleSetEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155InstanceAbi,
+    eventName: 'EditionScheduleSet',
   })
 
 /**
@@ -25318,6 +25492,24 @@ export const useReadIerc1155EditionReader = /*#__PURE__*/ createUseReadContract(
 )
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc1155EditionReaderAbi}__ and `functionName` set to `"editionCloseTime"`
+ */
+export const useReadIerc1155EditionReaderEditionCloseTime =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc1155EditionReaderAbi,
+    functionName: 'editionCloseTime',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc1155EditionReaderAbi}__ and `functionName` set to `"editionMaxPerWallet"`
+ */
+export const useReadIerc1155EditionReaderEditionMaxPerWallet =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc1155EditionReaderAbi,
+    functionName: 'editionMaxPerWallet',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc1155EditionReaderAbi}__ and `functionName` set to `"getCurrentPrice"`
  */
 export const useReadIerc1155EditionReaderGetCurrentPrice =
@@ -29054,6 +29246,24 @@ export const useReadQueryAggregatorReadEdition =
   /*#__PURE__*/ createUseReadContract({
     abi: queryAggregatorAbi,
     functionName: 'readEdition',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readEditionCloseTime"`
+ */
+export const useReadQueryAggregatorReadEditionCloseTime =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readEditionCloseTime',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readEditionMaxPerWallet"`
+ */
+export const useReadQueryAggregatorReadEditionMaxPerWallet =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readEditionMaxPerWallet',
   })
 
 /**

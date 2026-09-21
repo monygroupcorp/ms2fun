@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import { IZAMM, ZAMMAlignmentVault } from "./ZAMMAlignmentVault.sol";
 import { IVaultPriceValidator } from "../../interfaces/IVaultPriceValidator.sol";
 import { IAlignmentRegistry } from "../../master/interfaces/IAlignmentRegistry.sol";
-import { ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
+import { CreateXSalt, ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
 import { SafeOwnable } from "../../shared/SafeOwnable.sol";
 
 /// @title ZAMMAlignmentVaultFactory
@@ -68,9 +68,11 @@ contract ZAMMAlignmentVaultFactory is SafeOwnable {
         bytes memory proxyCreationCode = abi.encodePacked(
             hex"3d602d80600a3d3981f3363d3d373d3d3d363d73", vaultImplementation, hex"5af43d82803e903d91602b57fd5bf3"
         );
-        // Bind salt to msg.sender to prevent front-running the deterministic CREATE3 address.
-        bytes32 senderBoundSalt = keccak256(abi.encodePacked(msg.sender, salt));
-        vault = ICreateX(CREATEX).deployCreate3(senderBoundSalt, proxyCreationCode);
+        // CreateX reads its front-run guard off the SHAPE of this salt: first 20 bytes the caller,
+        // 21st byte 0x00, and the guard becomes keccak256(msg.sender, salt), which no third party can
+        // reproduce. See CreateXSalt.
+        bytes32 create3Salt = CreateXSalt.permissioned(address(this), msg.sender, salt);
+        vault = ICreateX(CREATEX).deployCreate3(create3Salt, proxyCreationCode);
         ZAMMAlignmentVault(payable(vault))
             .initialize(
                 zamm,
@@ -112,6 +114,18 @@ contract ZAMMAlignmentVaultFactory is SafeOwnable {
         ZAMMAlignmentVault(payable(vault)).setPriceValidator(validator);
     }
 
+    /// @notice Re-point the 1% protocol-cut destination on a vault deployed by this factory.
+    /// @dev The vault's `setProtocolTreasury` is onlyOwner and the factory is the owner, so without
+    ///      this passthrough no address could call it — while the vault's own docstring promised that
+    ///      "only `setProtocolTreasury` moves the destination". onlyOwner, like every other
+    ///      passthrough here: the destination is the protocol's own treasury, never a community's
+    ///      sink, which is read live from the alignment registry and has no setter anywhere.
+    /// @param vault Address of the vault (must have been deployed by this factory)
+    /// @param treasury The protocol treasury to set on the vault
+    function setVaultProtocolTreasury(address vault, address treasury) external onlyOwner {
+        ZAMMAlignmentVault(payable(vault)).setProtocolTreasury(treasury);
+    }
+
     /// @notice Set the maximum allowed price deviation on a vault deployed by this factory.
     /// @dev onlyOwner passthrough — the factory owns the vault. Mirrors setVaultPoolKey.
     /// @param vault Address of the vault (must have been deployed by this factory)
@@ -122,8 +136,7 @@ contract ZAMMAlignmentVaultFactory is SafeOwnable {
 
     /// @notice Preview the deterministic address for a given salt
     function computeVaultAddress(address creator, bytes32 salt) external view returns (address) {
-        bytes32 senderBoundSalt = keccak256(abi.encodePacked(creator, salt));
-        bytes32 guardedSalt = keccak256(abi.encode(senderBoundSalt)); // CreateX RandomBytes guard path
-        return ICreateX(CREATEX).computeCreate3Address(guardedSalt, CREATEX);
+        bytes32 create3Salt = CreateXSalt.permissioned(address(this), creator, salt);
+        return ICreateX(CREATEX).computeCreate3Address(CreateXSalt.guarded(address(this), create3Salt), CREATEX);
     }
 }

@@ -165,19 +165,20 @@ contract RenouncedLaunchPoolParityTest is Test {
         revert("no GraduationEthDiverted");
     }
 
-    /// @dev `GraduationResidueReturned(instance, ethTithed, coinReturned)` — the LP capital the venue
-    ///      declined. `ethTithed` is the ETH leg ONLY on the owned path: the renounced branch returns
-    ///      that ETH to the instance rather than tithing it and reports 0 here by design, so a renounced
-    ///      launch's returned ETH is read off the instance's balance instead.
-    function _residueTithed(Vm.Log[] memory logs) internal view returns (uint256 ethTithed) {
-        bytes32 sig = keccak256("GraduationResidueReturned(address,uint256,uint256)");
+    /// @dev `GraduationResidueReturned(instance, ethTithed, ethReturned, coinReturned)` — the LP capital
+    ///      the venue declined, under the two destinations it can have. With a creator it rides the
+    ///      80/19/1 rail and lands in `ethTithed`; with none it is force-transferred to the instance and
+    ///      lands in `ethReturned`. Exactly one of the two is non-zero, and a reconciler adds only the
+    ///      first, so a renounced launch's returned LP capital is readable without reading a balance.
+    function _residue(Vm.Log[] memory logs) internal view returns (uint256 ethTithed, uint256 ethReturned) {
+        bytes32 sig = keccak256("GraduationResidueReturned(address,uint256,uint256,uint256)");
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].emitter == address(deployer) && logs[i].topics[0] == sig) {
-                (ethTithed,) = abi.decode(logs[i].data, (uint256, uint256));
-                return ethTithed;
+                (ethTithed, ethReturned,) = abi.decode(logs[i].data, (uint256, uint256, uint256));
+                return (ethTithed, ethReturned);
             }
         }
-        return 0;
+        return (0, 0);
     }
 
     /// @dev What the module actually put in the pool: the ETH it forwarded to the venue.
@@ -224,6 +225,13 @@ contract RenouncedLaunchPoolParityTest is Test {
         // A renounced launch has nobody to tithe to, so the declined ETH goes back to the instance —
         // every wei of the gap, and no more.
         assertEq(address(instance).balance, sized - delivered, "the declined ETH came back to the instance");
+        // And it says so. Where that ETH went used to be reported in no event at all: the tithed field
+        // is correctly 0 on this branch because nothing was tithed, and the returned leg had no field,
+        // so reconciling a renounced graduation's LP capital meant reading a balance and trusting that
+        // nothing else had paid the instance. This is the same figure off the log.
+        (uint256 ethTithed, uint256 ethReturned) = _residue(logs);
+        assertEq(ethTithed, 0, "a renounced launch tithes none of the declined ETH");
+        assertEq(ethReturned, sized - delivered, "the event names the declined ETH it sent to the instance");
         assertLe(sized - delivered, VENUE_FIT_RESIDUE_WEI, "the venue declined more than a liquidity fit explains");
     }
 
@@ -248,7 +256,9 @@ contract RenouncedLaunchPoolParityTest is Test {
         assertEq(address(deployer).balance, 0, "the module strands none of the ETH the venue declined");
         // With a creator in place the declined ETH rides the 80/19/1 rail and the event names it, so the
         // sized leg is accounted for to the wei: what the pool took plus what was tithed.
-        assertEq(delivered + _residueTithed(logs), sized, "the pool's ETH and the tithed residue are the sized leg");
+        (uint256 ethTithed, uint256 ethReturned) = _residue(logs);
+        assertEq(delivered + ethTithed, sized, "the pool's ETH and the tithed residue are the sized leg");
+        assertEq(ethReturned, 0, "an owned launch returns none of it to the instance");
         assertLe(sized - delivered, VENUE_FIT_RESIDUE_WEI, "the venue declined more than a liquidity fit explains");
         assertGt(carveEth, 0, "the scenario must actually produce a carve");
     }
