@@ -222,6 +222,11 @@ contract zRouter {
         (address pool, bool zeroForOne) = _v3PoolFor(tokenIn, tokenOut, swapFee);
         uint160 sqrtPriceLimitX96 = zeroForOne ? MIN_SQRT_RATIO_PLUS_ONE : MAX_SQRT_RATIO_MINUS_ONE;
 
+        // The refund at the end of this leg is measured against what was here first (audit L-9, second
+        // pass); see {_restingEth}. Drawn before the callback settles, because the callback pays the
+        // pool out of the router's ETH balance and would otherwise be inside its own baseline.
+        uint256 restingEth = _restingEth();
+
         unchecked {
             if (!exactOut && swapAmount == 0) {
                 swapAmount = ethIn ? msg.value : balanceOf(tokenIn);
@@ -247,9 +252,10 @@ contract zRouter {
             amountIn = dIn >= 0 ? uint256(dIn) : uint256(-dIn);
             amountOut = dOut <= 0 ? uint256(-dOut) : uint256(dOut);
 
-            // Handle ETH input refund (separate from output tracking)
+            // Handle ETH input refund (separate from output tracking). Only this leg's own change:
+            // `address(this).balance` here was the whole resting balance, handed to whoever called.
             if (ethIn) {
-                if ((swapAmount = address(this).balance) != 0 && to != address(this)) {
+                if ((swapAmount = _changeOver(restingEth, address(0))) != 0 && to != address(this)) {
                     _safeTransferETH(msg.sender, swapAmount);
                 }
             }
@@ -321,10 +327,23 @@ contract zRouter {
             swapAmount = tokenIn == address(0) ? msg.value : balanceOf(tokenIn);
             if (swapAmount == 0) revert BadSwap();
         }
+        // The refund is made inside the callback, where `msg.sender` is the PoolManager and `msg.value`
+        // is zero, so the baseline has to be taken here and carried across (audit L-9, second pass).
         (amountIn, amountOut) = abi.decode(
             IV4PoolManager(V4_POOL_MANAGER)
                 .unlock(
-                    abi.encode(msg.sender, to, exactOut, swapFee, tickSpace, tokenIn, tokenOut, swapAmount, amountLimit)
+                    abi.encode(
+                        msg.sender,
+                        to,
+                        exactOut,
+                        swapFee,
+                        tickSpace,
+                        tokenIn,
+                        tokenOut,
+                        swapAmount,
+                        amountLimit,
+                        _restingEth()
+                    )
                 ),
             (uint256, uint256)
         );
@@ -348,8 +367,11 @@ contract zRouter {
             address tokenIn,
             address tokenOut,
             uint256 swapAmount,
-            uint256 amountLimit
-        ) = abi.decode(callbackData, (address, address, bool, uint24, int24, address, address, uint256, uint256));
+            uint256 amountLimit,
+            uint256 restingEth
+        ) = abi.decode(
+            callbackData, (address, address, bool, uint24, int24, address, address, uint256, uint256, uint256)
+        );
 
         bool zeroForOne = tokenIn < tokenOut;
         bool ethIn = tokenIn == address(0);
@@ -395,7 +417,9 @@ contract zRouter {
             result = abi.encode(amountIn, amountOut);
 
             if (ethIn) {
-                uint256 ethRefund = address(this).balance;
+                // This leg's change, not the router's resting balance: the read here was
+                // `address(this).balance`, and `payer` is whoever called `swapV4`.
+                uint256 ethRefund = _changeOver(restingEth, address(0));
                 if (ethRefund != 0 && to != address(this)) {
                     _safeTransferETH(payer, ethRefund);
                 }
@@ -490,15 +514,22 @@ contract zRouter {
         (amountIn, amountOut) = exactOut ? (swapResult, swapAmount) : (swapAmount, swapResult);
 
         if (exactOut && to != address(this)) {
+            // The leg's own change, from the leg's own arithmetic (audit L-9, second pass): an exact-out
+            // hop takes `amountLimit` in and the venue consumes `amountIn`, so `amountLimit - amountIn`
+            // is what is owed back, whichever way the input arrived — `msg.value`, a `transferFrom`, or
+            // a credit staged earlier in a multicall. Each read here used to be the router's WHOLE
+            // balance, which is the hatch `sweep` was closed for, reached through a swap instead: an
+            // attacker refused by `sweep` bought a one-wei fill and was handed the resting balance as
+            // "change". Arithmetic cannot reach past what the hop took in; a balance read can.
             uint256 refund;
+            unchecked {
+                refund = amountLimit > amountIn ? amountLimit - amountIn : 0;
+            }
             if (ethIn) {
-                refund = address(this).balance;
                 if (refund != 0) _safeTransferETH(msg.sender, refund);
             } else if (idIn == 0) {
-                refund = balanceOf(tokenIn);
                 if (refund != 0) safeTransfer(tokenIn, msg.sender, refund);
             } else {
-                refund = IERC6909(tokenIn).balanceOf(address(this), idIn);
                 if (refund != 0) IERC6909(tokenIn).transfer(msg.sender, idIn, refund);
             }
         } else {
@@ -529,6 +560,11 @@ contract zRouter {
             }
         }
         bool ethIn = _isETH(inputToken);
+        // Baselines for the leftover-input refund at the bottom (audit L-9, second pass): what was
+        // already here before this leg pulled or wrapped anything. Both sides are needed on the ETH
+        // path, because the pre-fund below wraps the input and the route can hand dust back as either.
+        uint256 restingEth = _restingEth();
+        uint256 restingIn = ethIn ? balanceOf(WETH) : balanceOf(inputToken);
 
         // ---- compute working amount ----
         uint256 amount = swapAmount;
@@ -542,42 +578,47 @@ contract zRouter {
                     uint256 st = p[2];
                     uint256 pt = p[3];
 
+                    // Every Curve quote below rounds DOWN, so the input it names buys one wei less
+                    // than the leg asked for and the forward pass then reverts Slippage(). The `+ 1`
+                    // is the rounding buffer that makes an exact-out route executable; upstream
+                    // carries it on each of these eight lines and this fork had dropped all of them.
                     if (st == 8) {
                         // ETH<->WETH is 1:1
                     } else if (st == 1) {
                         if (pt == 10) {
                             int128 pi = int128(int256(p[0]));
                             int128 pj = int128(int256(p[1]));
-                            amount = IStableNgPool(pool).get_dx(pi, pj, amount);
+                            amount = IStableNgPool(pool).get_dx(pi, pj, amount) + 1;
                         } else {
-                            amount = ICryptoNgPool(pool).get_dx(p[0], p[1], amount);
+                            amount = ICryptoNgPool(pool).get_dx(p[0], p[1], amount) + 1;
                         }
                     } else if (st == 2) {
                         int128 pi = int128(int256(p[0]));
                         int128 pj = int128(int256(p[1]));
                         if (pi > 0 && pj > 0) {
-                            amount = IStableNgPool(basePools[i]).get_dx(pi - 1, pj - 1, amount);
+                            amount = IStableNgPool(basePools[i]).get_dx(pi - 1, pj - 1, amount) + 1;
                         } else {
-                            amount = IStableNgMetaPool(pool).get_dx_underlying(pi, pj, amount);
+                            amount = IStableNgMetaPool(pool).get_dx_underlying(pi, pj, amount) + 1;
                         }
                     } else if (st == 4) {
                         // inverse of add_liquidity (approx):
-                        amount = (pt == 10)
-                            ? IStableNgPool(pool).calc_withdraw_one_coin(amount, int128(int256(p[0])))
-                            : ICryptoNgPool(pool).calc_withdraw_one_coin(amount, p[0]);
+                        amount =
+                            ((pt == 10)
+                                        ? IStableNgPool(pool).calc_withdraw_one_coin(amount, int128(int256(p[0])))
+                                        : ICryptoNgPool(pool).calc_withdraw_one_coin(amount, p[0])) + 1;
                     } else if (st == 6) {
                         if (pt == 10) {
                             uint256[8] memory a;
                             a[p[1]] = amount;
-                            amount = IStableNgPool(pool).calc_token_amount(a, false);
+                            amount = IStableNgPool(pool).calc_token_amount(a, false) + 1;
                         } else if (pt == 20) {
                             uint256[2] memory a2;
                             a2[p[1]] = amount;
-                            amount = ITwoCryptoNgPool(pool).calc_token_amount(a2, false);
+                            amount = ITwoCryptoNgPool(pool).calc_token_amount(a2, false) + 1;
                         } else if (pt == 30) {
                             uint256[3] memory a3;
                             a3[p[1]] = amount;
-                            amount = ITriCryptoNgPool(pool).calc_token_amount(a3, false);
+                            amount = ITriCryptoNgPool(pool).calc_token_amount(a3, false) + 1;
                         } else {
                             revert BadSwap();
                         }
@@ -736,20 +777,22 @@ contract zRouter {
 
         // ---- leftover input refund (exactOut only, not chaining) ----
         if (exactOut && to != address(this)) {
+            // Each read below was the router's WHOLE balance and is now this leg's change over the
+            // baseline taken at the top — the resting balance is not the caller's to be given back.
             if (ethIn) {
                 // refund any ETH dust first:
-                uint256 e = address(this).balance;
+                uint256 e = _changeOver(restingEth, address(0));
                 if (e != 0) _safeTransferETH(msg.sender, e);
 
                 // refund any *WETH* dust created by positive slippage:
-                uint256 w = balanceOf(WETH);
+                uint256 w = _changeOver(restingIn, WETH);
                 if (w != 0) {
                     unwrapETH(WETH, w);
                     _safeTransferETH(msg.sender, w);
                 }
             } else {
                 // non-ETH inputs already use `firstToken`:
-                uint256 refund = balanceOf(firstToken);
+                uint256 refund = _changeOver(restingIn, firstToken);
                 if (refund != 0) safeTransfer(firstToken, msg.sender, refund);
             }
         }
@@ -840,6 +883,9 @@ contract zRouter {
     // ** MULTISWAP HELPER
 
     function multicall(bytes[] calldata data) public payable returns (bytes[] memory results) {
+        // Ahead of the loop: the sub-calls are `delegatecall`s that each see the original `msg.value`,
+        // so the resting-ETH line has to be drawn while the balance still holds all of it (audit L-9).
+        _restingEth();
         results = new bytes[](data.length);
         for (uint256 i; i != data.length; ++i) {
             (bool ok, bytes memory result) = address(this).delegatecall(data[i]);
@@ -874,6 +920,59 @@ contract zRouter {
             else IERC6909(token).transferFrom(msg.sender, address(this), id, amount);
         }
         depositFor(token, id, amount, address(this)); // transient storage tracker
+    }
+
+    /// @dev Transient slot holding this transaction's resting-ETH baseline, stored offset by one so a
+    ///      genuine baseline of zero is still distinguishable from "nothing recorded yet".
+    ///      `keccak256("zRouter.restingEth.v1") - 1`, so it cannot land on slot 0 (the reentrancy flag)
+    ///      nor on a `_useTransientBalance` slot, which are hashes of a three-word credit key.
+    uint256 private constant _RESTING_ETH_SLOT = 0xfb9ac048ee8062dc38eb2edfbb186eddeabb869d768997f90835358990c1e2c8;
+
+    /// @dev The ETH that was already sitting here before this TRANSACTION put anything in — the line a
+    ///      leg's refund is measured against (audit L-9, second pass).
+    ///
+    ///      Recorded once and reused, because `multicall` reaches the legs by `delegatecall` and every
+    ///      sub-call therefore sees the ORIGINAL `msg.value`. Recomputing `balance - msg.value` per leg
+    ///      would subtract the same wei once per hop: it reads a chained multicall's own staged ETH as
+    ///      resting on one leg and, once an earlier hop has spent below `msg.value`, underflows on the
+    ///      next. Recorded once, it is what it claims to be — a property of the transaction, not of the
+    ///      call. Transient storage clears at the end of the transaction, which is exactly its lifetime.
+    ///
+    ///      Every entry point that can spend ETH records it before spending, `multicall` ahead of its
+    ///      loop, so the first writer always sees a balance that still holds the whole of `msg.value`.
+    ///      The clamp is belt-and-braces for any future caller that does not.
+    function _restingEth() internal returns (uint256 resting) {
+        assembly ("memory-safe") {
+            resting := tload(_RESTING_ETH_SLOT)
+        }
+        if (resting != 0) {
+            unchecked {
+                return resting - 1;
+            }
+        }
+        uint256 bal = address(this).balance;
+        unchecked {
+            resting = bal > msg.value ? bal - msg.value : 0;
+        }
+        assembly ("memory-safe") {
+            tstore(_RESTING_ETH_SLOT, add(resting, 1))
+        }
+    }
+
+    /// @dev What a leg has left over: the balance now, less the baseline taken before the leg took
+    ///      anything. Clamped at zero because a leg that spent part of the resting balance (a wrap draws
+    ///      on the router's whole ETH balance, not on `msg.value` alone) lands below its own baseline,
+    ///      and that is a debt to the router, never change owed to the caller.
+    ///
+    ///      Paired with {_restingEth}, this is the second half of the L-9 guard. `_requireOwnBalance`
+    ///      stops a caller MOVING a balance that is not theirs; these stop a leg HANDING one back as
+    ///      change. Both say the same thing — the router's resting balance belongs to nobody who asks —
+    ///      and a leg that refunded `address(this).balance` said the opposite.
+    function _changeOver(uint256 resting, address token) internal view returns (uint256) {
+        uint256 held = token == address(0) ? address(this).balance : balanceOf(token);
+        unchecked {
+            return held > resting ? held - resting : 0;
+        }
     }
 
     /// @dev The authentication the value-moving hatches share (audit L-9): a caller may move the

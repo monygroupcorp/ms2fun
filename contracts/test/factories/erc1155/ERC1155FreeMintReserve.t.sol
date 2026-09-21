@@ -82,14 +82,16 @@ contract ERC1155FreeMintReserveTest is Test {
     function _addLimited(ERC1155Instance inst, uint256 supply, uint256 freeAlloc) internal returns (uint256 editionId) {
         vm.prank(creator);
         inst.addEdition(
-            "Piece", PRICE, supply, "ipfs://edition", ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0, freeAlloc
+            "Piece", PRICE, supply, "ipfs://edition", ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0, freeAlloc, 0, 0
         );
         return inst.nextEditionId() - 1;
     }
 
     function _addUnlimited(ERC1155Instance inst, uint256 freeAlloc) internal returns (uint256 editionId) {
         vm.prank(creator);
-        inst.addEdition("OpenPiece", PRICE, 0, "ipfs://open", ERC1155Instance.PricingModel.UNLIMITED, 0, 0, freeAlloc);
+        inst.addEdition(
+            "OpenPiece", PRICE, 0, "ipfs://open", ERC1155Instance.PricingModel.UNLIMITED, 0, 0, freeAlloc, 0, 0
+        );
         return inst.nextEditionId() - 1;
     }
 

@@ -51,8 +51,8 @@
 # Remappings mirror foundry.toml so the shared source graph resolves identically.
 [profile.default]
 src = "src"
-out = "out-audit"
-cache_path = "cache-audit"
+out = "forge-cache/out-audit"
+cache_path = "forge-cache/cache-audit"
 libs = ["lib"]
 auto_detect_solc = true
 optimizer = true

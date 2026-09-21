@@ -21,6 +21,7 @@ import { useCollectionChainId } from '../useCollectionChain'
 import { txErrorReason } from '../../ui/useTxAction'
 import { encodeMerkleGatingData, isFreeMintGated } from './gatingMint'
 import { useMerkleAllowlistProof } from './useMerkleAllowlist'
+import { isClosed } from './editionSchedule'
 import styles from './Erc1155Actions.module.css'
 
 interface FreeMintClaimPanelProps {
@@ -31,9 +32,16 @@ interface FreeMintClaimPanelProps {
   /** Unix timestamp; 0 = open immediately. Gates this edition's free-claim path exactly like the
    *  paid mint path (ERC1155Instance.sol claimFreeMint also reverts EditionNotOpen()). */
   openTime: bigint
+  /** Unix seconds; 0 = never closes. A closed edition reverts EditionClosed() on this path too. */
+  closeTime: bigint
 }
 
-export function FreeMintClaimPanel({ instance, editionId, openTime }: FreeMintClaimPanelProps) {
+export function FreeMintClaimPanel({
+  instance,
+  editionId,
+  openTime,
+  closeTime,
+}: FreeMintClaimPanelProps) {
   const chainId = useCollectionChainId()
   const { address, isConnected } = useAccount()
 
@@ -86,10 +94,15 @@ export function FreeMintClaimPanel({ instance, editionId, openTime }: FreeMintCl
   const exhausted = allocationOpen && claimedCount !== undefined && claimedCount >= allocation
   const opensAt = openTime > 0n ? new Date(Number(openTime) * 1000) : null
   const notYetOpen = opensAt !== null && Date.now() < opensAt.getTime()
+  // The far side of the same window: `claimFreeMint` reverts EditionClosed() at the close time, so a
+  // closed edition offers no claim. The panel hides rather than showing a button that cannot work —
+  // the free allocation is part of the drop, and the drop is over.
+  const closed = isClosed({ closeTime, maxPerWallet: 0n })
   // Base eligibility (ignoring the merkle proof) — controls whether the panel renders at all, so a
   // gated pool with an unclaimed allocation still shows (with a not-allowlisted state) rather than
   // vanishing. `canSubmit` additionally requires a resolved proof when gated.
-  const baseEligible = isConnected && allocationOpen && !exhausted && hasClaimed === false
+  const baseEligible =
+    isConnected && allocationOpen && !exhausted && hasClaimed === false && !closed
   const canSubmit = baseEligible && (!gated || allowlist.status === 'eligible') && !notYetOpen
 
   function handleClaim(): void {

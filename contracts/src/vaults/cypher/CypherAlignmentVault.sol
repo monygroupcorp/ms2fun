@@ -116,7 +116,10 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
     // ── Economics — the 80/19/1 alignment law (hard immutable, noesis-051) ──
     /// @notice Protocol treasury cut of LP yield: 1%. Compile-time constant — there is deliberately
-    ///         NO owner setter (the ratio is locked; only `setProtocolTreasury` moves the destination).
+    ///         NO owner setter. The ratio is locked, and so is the destination: `protocolTreasury`
+    ///         is set once at `initialize` from the deploying factory's immutable and never moves.
+    ///         (This vault carries no `setProtocolTreasury`; the sentence that said it did was copied
+    ///         from the ZAMM sibling, which has one.)
     uint256 public constant PROTOCOL_CUT_BPS = 100;
     /// @notice Per-target alignment sink cut of LP yield: 19%. Compile-time constant.
     uint256 public constant TARGET_CUT_BPS = 1900;

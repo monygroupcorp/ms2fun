@@ -30,13 +30,16 @@ import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
  *         position was open left the real position orphaned under the old poolId and aimed every
  *         later call at a position that was never opened. The zero-`liquidityDelta` fee poke
  *         `_claimVaultFees` makes is refused on an empty position by v4-core
- *         (`Position.CannotUpdateEmptyPosition`), so `claimFees`, `claimFeesAsDelegate` and
- *         `convertAndAddLiquidity` all reverted together with the benefactors' 80% leg inside. One
- *         owner setter call, no event saying what broke. The recorded failing output is in
+ *         (`lib/v4-core/src/libraries/Position.sol:83-85`, `CannotUpdateEmptyPosition`), so
+ *         `claimFees`, `claimFeesAsDelegate` and `convertAndAddLiquidity` all reverted together with
+ *         the benefactors' 80% leg inside. One owner setter call, no event saying what broke. It was
+ *         Medium rather than High because it was owner-only and reversible: rotating the key back
+ *         restored every path. The recorded failing output is in
  *         `contracts/audits/2026-09-17-pre-testnet.md` §3.
  *
  *         AS IT STANDS, PR #423 added the guard the ZAMM sibling has carried since it was written:
- *         `setV4PoolKey` reverts `PoolKeyLocked()` while `totalLPUnits != 0`. These tests assert
+ *         `setV4PoolKey` reverts `PoolKeyLocked()` while `totalLPUnits != 0`
+ *         (`UniAlignmentVault.sol:1009`, against `ZAMMAlignmentVault.sol:325-326`). These tests assert
  *         that closed rather than recording it open, and they do it against v4-core's REAL
  *         `PoolManager`, which is what this file is for — `test/vaults/UniAlignmentVault.t.sol`
  *         pins both halves of the guard against a mock, and cannot show that the fee poke lands on
@@ -62,6 +65,7 @@ import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
  */
 contract UniVaultPoolKeyRotationTest is Test {
     PoolManager internal manager;
+    UniAlignmentVault internal impl;
     UniAlignmentVault internal vault;
     MockEXECToken internal token;
     MockZRouter internal router;
@@ -75,6 +79,7 @@ contract UniVaultPoolKeyRotationTest is Test {
     address internal alice = address(0xA11CE);
     address internal bob = address(0xB0B);
     address internal carol = address(0xCA401);
+    address internal delegate = address(0xDE1E6);
 
     address internal constant WETH_ = address(0x1111111111111111111111111111111111111111);
     address internal constant TREASURY = address(0xFEE);
@@ -118,9 +123,19 @@ contract UniVaultPoolKeyRotationTest is Test {
         manager.initialize(keyA, SQRT_PRICE_1_1);
         manager.initialize(keyB, SQRT_PRICE_1_1);
 
-        UniAlignmentVault impl = new UniAlignmentVault();
-        vault = UniAlignmentVault(payable(LibClone.clone(address(impl))));
-        vault.initialize(
+        impl = new UniAlignmentVault();
+        vault = _newVault();
+        vm.prank(owner);
+        vault.setV4PoolKey(keyA);
+
+        vm.deal(alice, 1_000 ether);
+        vm.deal(bob, 1_000 ether);
+        vm.deal(carol, 1_000 ether);
+    }
+
+    function _newVault() internal returns (UniAlignmentVault v) {
+        v = UniAlignmentVault(payable(LibClone.clone(address(impl))));
+        v.initialize(
             owner,
             WETH_,
             address(manager),
@@ -133,12 +148,6 @@ contract UniVaultPoolKeyRotationTest is Test {
             TARGET_ID,
             TREASURY
         );
-        vm.prank(owner);
-        vault.setV4PoolKey(keyA);
-
-        vm.deal(alice, 1_000 ether);
-        vm.deal(bob, 1_000 ether);
-        vm.deal(carol, 1_000 ether);
     }
 
     function _contribute(address who, uint256 amt) internal {
@@ -186,14 +195,18 @@ contract UniVaultPoolKeyRotationTest is Test {
         console2.log("totalLPUnits after convert #2 :", vault.totalLPUnits());
 
         // The two claim paths refuse here for their OWN reason — no v4 swap has run, so there are no
-        // fees to claim, and bob is nobody's delegate. What matters is the reason: neither may carry
+        // fees to claim. Both are called by a caller the access check LETS THROUGH, so each one
+        // reaches the poke before it refuses; a caller who is turned away at the door would prove
+        // nothing about the poke. What matters is the reason each gives back: neither may carry
         // v4-core's empty-position selector, which is what the defect produced.
         vm.prank(alice);
         (bool claimOk, bytes memory claimErr) = address(vault).call(abi.encodeWithSignature("claimFees()"));
 
+        vm.prank(alice);
+        vault.delegateBenefactor(delegate);
         address[] memory who = new address[](1);
         who[0] = alice;
-        vm.prank(bob);
+        vm.prank(delegate);
         (bool delegateOk, bytes memory delegateErr) =
             address(vault).call(abi.encodeWithSignature("claimFeesAsDelegate(address[])", who));
 
@@ -209,7 +222,16 @@ contract UniVaultPoolKeyRotationTest is Test {
             "claimFeesAsDelegate still pokes an orphaned position"
         );
         assertEq(bytes4(claimErr), UniAlignmentVault.NoFeesToClaim.selector, "claimFees for an unexpected reason");
-        assertEq(bytes4(delegateErr), UniAlignmentVault.NotDelegate.selector, "delegate claim for an unexpected reason");
+        assertEq(
+            bytes4(delegateErr), UniAlignmentVault.NoFeesToClaim.selector, "delegate claim for an unexpected reason"
+        );
+
+        // And the door itself is still shut to everyone else, so the two assertions above cannot be
+        // read as the access check having been loosened to reach the poke.
+        vm.prank(bob);
+        (, bytes memory strangerErr) =
+            address(vault).call(abi.encodeWithSignature("claimFeesAsDelegate(address[])", who));
+        assertEq(bytes4(strangerErr), UniAlignmentVault.NotDelegate.selector, "a stranger reached the delegate path");
     }
 
     /// @notice (3) The lock closes only the case that orphans a position. Wiring a vault that holds
@@ -220,6 +242,17 @@ contract UniVaultPoolKeyRotationTest is Test {
     ///         pokes perfectly well; it was always the empty position.
     function test_B_wiringAVaultThatHoldsNoPositionIsStillOpen() public {
         assertEq(vault.totalLPUnits(), 0, "precondition: no position yet");
+
+        // An unwired vault may be wired and re-wired as often as the owner likes, because until a
+        // position exists there is none to orphan. That is the only way a vault reaches a pool at
+        // all, so the guard narrowing it would be a worse defect than the one it closes.
+        UniAlignmentVault fresh = _newVault();
+        vm.prank(owner);
+        fresh.setV4PoolKey(keyA);
+        vm.prank(owner);
+        fresh.setV4PoolKey(keyB);
+        (,, uint24 freshFee,,) = fresh.v4PoolKey();
+        assertEq(freshFee, keyB.fee, "an unwired vault refused a rotation");
 
         vm.prank(owner);
         vault.setV4PoolKey(keyB);

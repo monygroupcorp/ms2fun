@@ -7,6 +7,8 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { EditionList } from '../EditionList'
 import { AddEditionForm } from '../AddEditionForm'
+import { EditionScheduleForm } from '../EditionScheduleForm'
+import { useEditions } from '../useEditions'
 import { CreatorAdminPanel } from '../erc1155/CreatorAdminPanel'
 import { Disclosure } from '../../ui/Disclosure'
 import { useOwnerGate } from '../../ui/useOwnerGate'
@@ -15,6 +17,30 @@ import styles from './TypeSection.module.css'
 export interface Erc1155SurfaceProps {
   instance: `0x${string}`
   creator: `0x${string}`
+}
+
+/**
+ * Correcting a schedule, one form per edition. `setEditionSchedule` is bounded to an edition with no
+ * mints, so most of these render as a line saying the edition has sold rather than as a form — which
+ * is the honest state, and cheaper to read than a form that fails at the wallet.
+ */
+function EditionSchedules({ instance }: { instance: `0x${string}` }) {
+  const queryClient = useQueryClient()
+  const { data } = useEditions(instance)
+  if (data.length === 0) return null
+  return (
+    <div data-testid="erc1155-edition-schedules">
+      <h4>EDITION SCHEDULES</h4>
+      {data.map((edition) => (
+        <EditionScheduleForm
+          key={edition.id.toString()}
+          instance={instance}
+          editionId={edition.id}
+          onChanged={() => void queryClient.invalidateQueries()}
+        />
+      ))}
+    </div>
+  )
 }
 
 /** No standalone shell action — minting happens per-edition in the gallery below. */
@@ -42,6 +68,7 @@ export function Erc1155Admin({ instance }: Erc1155SurfaceProps) {
       {/* The editions gallery now lives in a separate page region, so refresh its reads by
           invalidating the query cache on add rather than remounting a shared subtree. */}
       <AddEditionForm instance={instance} onAdded={() => void queryClient.invalidateQueries()} />
+      <EditionSchedules instance={instance} />
       <CreatorAdminPanel instance={instance} />
     </Disclosure>
   )

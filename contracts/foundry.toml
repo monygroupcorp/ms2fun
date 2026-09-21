@@ -42,27 +42,26 @@ skip = [
     "test/audit/HookQueuedFeesMigratedVault.t.sol",
     "test/audit/HookSecondPoolNotBound.t.sol",
     "test/audit/UniVaultPoolKeyRotation.t.sol",
-    # DIFFERENT reason. The proof below is the 2026-09-17 pre-testnet audit's reproduction
-    # of H-1 — a free-mint tranche is redeemable against a reserve only paid buyers funded
-    # (see contracts/audits/2026-09-17-pre-testnet.md). It asserts a solvency property the
-    # code does not hold, so it FAILS on purpose, and a failing test in the default set
-    # would make the contracts gate red for something the gate did not cause. It is
-    # excluded here and run by path instead; the audit report carries the command and the
-    # recorded output.
+    # DIFFERENT reason, and it is now the only file left under it. This group held the
+    # 2026-09-17 pre-testnet audit's reproductions of defects that were still OPEN: they
+    # assert the property the code SHOULD hold, so they FAIL on purpose, and a failing
+    # test in the default set would make the contracts gate red for a defect the gate did
+    # not cause. Every one of those fixes has since landed and its proof has left this
+    # group. The one below is NOT waiting for a fix and must not be read as an open
+    # defect: H-1 is ruled as designed (rth, 2026-09-17), so this proof asserts a solvency
+    # property the protocol does not offer and stays red for as long as the ruling stands.
+    # It is kept, and kept out of the gate, as the record of what the mechanism costs —
+    # see §2 and §4 of contracts/audits/2026-09-17-pre-testnet.md. The proofs that measure
+    # the RULED behaviour and do run in the gate are BondingCurveFreeMintInvariant.t.sol
+    # and FreeMintReserveDrain.t.sol.
     #
-    # IT IS NOT WAITING FOR A FIX, and that is what makes it different from every other
-    # proof that has sat in this list. The free-mint tranche was ruled a design decision on
-    # 2026-09-17 — accepted as designed, not a defect — so nothing under src/ will ever turn
-    # this proof green. Do NOT delete its line to let the gate keep it honest: that makes
-    # the gate permanently red. It stays here as the record of a mechanism the protocol
-    # sells deliberately. What measures that mechanism INSIDE the default set, and is where
-    # a regression in it would actually surface, is
-    # test/invariant/BondingCurveFreeMintInvariant.t.sol and
-    # test/factories/erc404/FreeMintReserveDrain.t.sol.
+    # So do NOT delete its line to let the gate keep it honest: nothing under src/ will
+    # ever turn it green while the ruling stands, and deleting it makes the gate
+    # permanently red.
     #
-    # The rule still holds for anything added below it: WHEN A FIX LANDS, DELETE ITS LINE —
-    # the proof turning green is how the fix is shown to work, and a proof left skipped
-    # awaiting a fix is a fix nobody verified.
+    # If a line is ever added here for an open defect again: WHEN ITS FIX LANDS, DELETE IT
+    # — the proof turning green is how the fix is shown to work, and a proof left skipped
+    # is a fix nobody verified.
     "test/audit/FreeMintCurveSolvency.t.sol",
 ]
 remappings = [
