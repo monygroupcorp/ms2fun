@@ -58,10 +58,12 @@ import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
  *              failing to divide the stale ticks. v4's `checkTicks` never checks spacing; it was
  *              always the empty position.
  *
- * RUN: FOUNDRY_CONFIG=foundry.audit.toml forge test --match-path test/audit/UniVaultPoolKeyRotation.t.sol
+ * RUN: ./scripts/real-v4-gate.sh, which runs this proof and refuses if it ever stops reaching it.
+ *      Alone: FOUNDRY_CONFIG=foundry.audit.toml forge test --match-path test/audit/UniVaultPoolKeyRotation.t.sol
  *      (v4-core's real PoolManager pins `pragma solidity 0.8.26`; the default profile is pinned to
  *      0.8.28 for deploy-determinism, so this file is outside the default set for what it IMPORTS,
- *      not for what it asserts. It is green, and must stay green.)
+ *      not for what it asserts, and the gate is the only thing that executes it. It is green, and
+ *      must stay green.)
  */
 contract UniVaultPoolKeyRotationTest is Test {
     PoolManager internal manager;

@@ -11,9 +11,11 @@
 #
 # This standalone config's own `[profile.default]` sets `auto_detect_solc = true`, so forge
 # independently selects 0.8.26 for the RealSettlement test + its v4-core/forge-std graph.
-# Invoke it explicitly (it never participates in the default build/deploy):
+# It never participates in the default build/deploy, and it is not invoked by hand: the set of
+# files that run under it is written down in exactly one place, and invoking it directly is how
+# that set was last left behind. Run the gate instead, from contracts/:
 #
-#   FOUNDRY_CONFIG=foundry.v4.toml forge test --match-path test/hooks/UniAlignmentV4Hook_RealSettlement.t.sol
+#   ./scripts/real-v4-gate.sh
 #
 # WHY ITS OWN `out`/`cache_path` (not the default `out`/`cache`): under this config the shared
 # source graph is compiled by a DIFFERENT solc, and forge keeps both results by disambiguating the

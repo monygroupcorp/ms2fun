@@ -1291,3 +1291,18 @@ Inside that run the seventeen suites under `test/audit/` contribute 88 tests, al
 sixteen and 81, because `ZRouterRefundBoundedToOwnChange.t.sol` joined the set with L-9's second pass
 and the tree grew tests elsewhere. The four files the default set does not compile are measured
 separately in §3; three of them are now in the `real-settlement` CI job and the fourth is H-1's.
+
+Note what that exclusion bought and what it cost while it lasted: it kept the gate honest about
+defects the gate did not cause, and it left those proofs unwatched. `UniVaultPoolKeyRotation.t.sol`
+was red against a fix merged on 2026-09-17 and stayed red until 2026-09-19, when running the set by
+hand was the first thing that looked at it.
+
+That cost is since paid twice over. `ci-real-v4-audit-proofs-unrun` (PR #445) added the
+`real-settlement` job that runs the real-v4 proofs, and the set it runs is now written in exactly one
+place, `contracts/scripts/real-v4-gate.sh`, which both that job and a developer call. The script
+refuses to run unless every file in `foundry.toml`'s `skip=` list is either in its run set or
+recorded beside it with the reason it is deliberately out, and it asks forge which files its path
+actually reaches before running them — because a `--match-path` that matches nothing exits 0. So a
+proof can no longer be skipped and unwatched at the same time without something going red.
+`FreeMintCurveSolvency.t.sol` is the one file recorded as out, red by the H-1 ruling and for as long
+as it stands.
