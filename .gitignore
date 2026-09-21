@@ -125,4 +125,12 @@ app/scripts/sepolia-algebra/artifacts/
 # in CI — which is to say AFTER the push that has already published it. This rule is the half that
 # runs before: `git add -A` cannot stage what is not tracked. Keep both; they catch it at different
 # moments, and only this one catches it in time.
-projects/
+#
+# Anchored, because a slash-less `projects/` matches a directory of that name at EVERY depth, and
+# this tree has one that is product content: public/metadata/projects/, the collection metadata the
+# app serves. Unanchored, the rule hid all eight of those tracked files and would have swallowed the
+# ninth — `git add` says nothing when it skips an ignored path, so a new collection's metadata would
+# simply never have landed. The leak this guards against is at the top level and nowhere else, and
+# the leading slash is what says so. tools/check-no-local-paths.mjs matches the same prefix and pins
+# it in --self-test.
+/projects/

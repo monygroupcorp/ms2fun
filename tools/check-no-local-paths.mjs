@@ -49,7 +49,10 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Paths under these prefixes are local tooling state and are never tracked here.
+// Paths under these prefixes are local tooling state and are never tracked here. Matched as a
+// prefix of the repo-relative path, so it is the TOP-LEVEL projects/ and not a directory of that
+// name at any depth — public/metadata/projects/ is collection metadata the app serves, and it is
+// tracked on purpose. The .gitignore rule is anchored `/projects/` to say the same thing there.
 const UNTRACKED_PREFIXES = ['projects/'];
 
 // An absolute path rooted in a user's home. Three things narrow it, and each earns its keep.
@@ -148,6 +151,7 @@ const SELF_TEST_PATHS = [
   ['a run record under projects/', 'projects/noesis/gate-runs/2026-09-19-x.json', true],
   ['the directory itself', 'projects/anything', true],
   ['a source file that merely starts with the letters', 'projectsummary.md', false],
+  ['a projects/ directory below the top level, which is product content', 'public/metadata/projects/common-rare.json', false],
   ['ordinary source', 'app/src/lib/merkle.ts', false],
 ];
 
