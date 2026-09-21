@@ -74,8 +74,8 @@
 #   3. The blob is where the row says it is. A row marked CREATION whose blob turns up in the RUNTIME
 #      means a `new X(...)` moved out of a constructor and into a function, which silently moves that
 #      contract onto the EIP-170 clock; that is a hard failure naming the row, not a quiet reclassify.
-#   4. A headroom FLOOR against the row's own budget, once one is typed below. None is typed today —
-#      see the FLOORS block.
+#   4. A headroom FLOOR against either budget, once one is typed below. None is typed today — see
+#      the FLOORS block.
 #
 # WHAT IT ASSERTS ABOUT ITSELF:
 #   That the PAIRS table below is complete. Those rows are typed, and a typed table is the same
@@ -140,10 +140,28 @@ EIP3860=49152
 #
 # NO FLOOR HAS BEEN RULED FOR ANY ROW BELOW. Leave a value empty and this gate checks the ceilings
 # only, and says so on every run so the absence stays visible rather than reading as a gate that
-# passed. To arm one, put the ruled number here and nothing else changes. A floor is measured
-# against the row's OWN budget: EIP-170 headroom for a RUNTIME row, EIP-3860 headroom for a
-# CREATION row.
-declare -A FLOOR=(
+# passed. To arm one, put the ruled number in the table for the budget it is about; nothing else
+# changes.
+#
+# THERE ARE TWO TABLES BECAUSE A ROW'S BLOB BUDGET IS NOT ALWAYS ITS SCARCE ONE, and a floor armed
+# against the roomy budget reads as a guard and cannot trip — the same vacuity this gate refuses
+# elsewhere by making an unreadable artifact a hard failure rather than a 0B that passes every
+# comparison. The ceilings above are already asserted on BOTH budgets for every row; floors are
+# typed the same way. zRouter is the live proof: its blob sits in its creation code, where it has
+# 26,519B free, while its RUNTIME is 21,069B with 3,507B left — the tightest contract in this table
+# after ERC1155Factory. A single floor bound to the blob's budget could not have said anything
+# about the 3,507B, and a 4,000B floor typed for it passed.
+declare -A FLOOR_RUNTIME=(   # headroom to keep under EIP-170, per embedder
+  [ERC1155Factory]=""
+  [ERC721AuctionFactory]=""
+  [UniTitheHookFactory]=""
+  [ERC404Factory]=""
+  [AlignmentEndowmentVaultFactory]=""
+  [ZAMMAlignmentVaultFactory]=""
+  [UniAlignmentVaultFactory]=""
+  [zRouter]=""
+)
+declare -A FLOOR_CREATION=(  # headroom to keep under EIP-3860, per embedder
   [ERC1155Factory]=""
   [ERC721AuctionFactory]=""
   [UniTitheHookFactory]=""
@@ -232,6 +250,31 @@ embedders() {
 floorsTyped=0
 fail=0
 
+# One floor, against one budget, for one row. Called once per budget so a row may carry either or
+# both. `count` is how many blob copies that budget holds, and it decides which remedy is named:
+# the lever frees a budget only where the blob actually sits.
+assert_floor() {
+  local label="$1" budget="$2" floor="$3" room="$4" count="$5" embeddedName="$6"
+  [ -n "$floor" ] || return 0
+  floorsTyped=$((floorsTyped + 1))
+  echo "  floor                 ${floor}B  (against the ${budget} budget, ${room}B free)"
+  [ "$room" -lt "$floor" ] || return 0
+  echo "  FAIL: ${label} ${budget} headroom ${room}B < floor ${floor}B." >&2
+  echo "        Do NOT lower this floor to make a diff pass. In rising order of blast radius:" >&2
+  echo "        re-spec against the remaining budget;" >&2
+  if [ "$count" -gt 0 ]; then
+    echo "        diet ${embeddedName}, whose initcode is what fills this budget (#376 and #383" >&2
+    echo "        gave back 183B on ERC1155Instance and moved no addresses); or take the lever and" >&2
+    echo "        move that initcode out. Read THE LEVER above first — an EIP-1167 clone ends this" >&2
+    echo "        coupling, a separate deployer only relocates it to a contract with a smaller" >&2
+    echo "        budget, which is what the DN404 mirror move already did once here." >&2
+  else
+    echo "        or diet ${label} itself. ${embeddedName}'s initcode is NOT in this budget, so the" >&2
+    echo "        lever above frees nothing here — these bytes are ${label}'s own code." >&2
+  fi
+  fail=1
+}
+
 # ── CENSUS ────────────────────────────────────────────────────────────────────────────────────────
 # The table checks itself against the source before it measures anything.
 while IFS='|' read -r srcFile embedded_name; do
@@ -276,7 +319,6 @@ for row in "${PAIRS[@]}"; do
   echo "  creation              ${csize}B  (EIP-3860 limit ${EIP3860}B, headroom ${cRoom}B)"
 
   if [ "$budget" = "RUNTIME" ]; then
-    room=$rRoom
     count=$inRuntime
     logic=$((rsize - bsize * count))
     if [ "$count" -gt 0 ]; then
@@ -287,7 +329,6 @@ for row in "${PAIRS[@]}"; do
       echo "                        the lever has been taken here, or the embedding moved; ${rsize}B is all logic"
     fi
   else
-    room=$cRoom
     count=$inCreation
     logic=$((csize - bsize * count))
     if [ "$inRuntime" -gt 0 ]; then
@@ -322,23 +363,13 @@ for row in "${PAIRS[@]}"; do
     continue
   fi
 
-  floor="${FLOOR[$label]}"
-  if [ -z "$floor" ]; then
-    echo "  floor                 NONE TYPED — ceiling only, ${room}B is unreserved"
-  else
-    floorsTyped=$((floorsTyped + 1))
-    echo "  floor                 ${floor}B  (against the ${budget} budget)"
-    if [ "$room" -lt "$floor" ]; then
-      echo "  FAIL: ${label} ${budget} headroom ${room}B < floor ${floor}B." >&2
-      echo "        Do NOT lower this floor to make a diff pass. In rising order of blast radius:" >&2
-      echo "        re-spec against the remaining budget; diet the embedded contract (#376 and #383" >&2
-      echo "        gave back 183B and moved no addresses); or take the lever and move the initcode" >&2
-      echo "        out. If you take the lever, read THE LEVER above first — an EIP-1167 clone ends" >&2
-      echo "        this coupling, a separate deployer only moves it to a contract with a smaller" >&2
-      echo "        budget, which is what the DN404 mirror move already did once here." >&2
-      fail=1
-    fi
+  floorR="${FLOOR_RUNTIME[$label]}"
+  floorC="${FLOOR_CREATION[$label]}"
+  if [ -z "$floorR" ] && [ -z "$floorC" ]; then
+    echo "  floor                 NONE TYPED — ceilings only, ${rRoom}B runtime and ${cRoom}B creation are unreserved"
   fi
+  assert_floor "$label" RUNTIME "$floorR" "$rRoom" "$inRuntime" "${embedded##*:}"
+  assert_floor "$label" CREATION "$floorC" "$cRoom" "$inCreation" "${embedded##*:}"
 done
 
 if [ "$fail" -ne 0 ]; then
