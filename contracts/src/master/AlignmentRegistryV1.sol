@@ -358,13 +358,33 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
      * @dev    The owner curates a target's payout exactly once, zero to nonzero; every later call reverts
      *         `CommunityPayoutAlreadySet`. The payout is the community's money, and once pinned no function
      *         on this registry or on any vault reading it will move it for anyone but the address holding
-     *         it — so a stolen owner key finds no call that redirects a curated community's yield.
+     *         it. That is a statement about THIS contract and the vaults' read of it, and it is worth
+     *         exactly what the two carve-outs below leave of it — do not read it as "a stolen owner key
+     *         finds no call that redirects a curated community's yield", because one of them is such a
+     *         call and it is not on this contract.
      *
      *         What that claim does NOT cover, stated plainly because a reader will otherwise take it too
-     *         far: this registry is UUPS and `_authorizeUpgrade` is `onlyOwner`, so the owner can replace
-     *         the implementation and write itself any capability it likes, this one included. That is the
-     *         protocol's root of trust, not a hole in this function — it reaches every rule in the system
-     *         equally, it is visible on-chain as an upgrade, and narrowing it is a governance change
+     *         far. TWO calls reach past this function, and each leaves its own topic on its own address:
+     *
+     *         (i) This registry is UUPS and `_authorizeUpgrade` is `onlyOwner`, so the owner can replace
+     *         the implementation and write itself any capability it likes, this one included. On-chain
+     *         that is `Upgraded` on THIS address.
+     *
+     *         (ii) `MasterRegistryV1.setAlignmentRegistry` is a bare `onlyOwner` address write, and
+     *         `AlignmentEndowmentVault._targetSink()` resolves `masterRegistry.alignmentRegistry()` LIVE
+     *         at send time — so one call re-points payout, ambassador and curation for every endowment
+     *         clone at once, without touching this contract at all. On-chain that is
+     *         `AlignmentRegistrySet` on `MasterRegistryV1`: a different event, on a different address.
+     *
+     *         Watch BOTH. A monitor built on "the redirect is visible as an upgrade" watches only (i)
+     *         and misses (ii) entirely, which is the whole reason (ii) is written out here. The three
+     *         liquidity vault families are not reached by it — they pin their own `alignmentRegistry` at
+     *         `initialize`, and no setter for it exists anywhere in this tree — so (ii) is an endowment
+     *         concern and (i) is everyone's.
+     *
+     *         Neither is a hole in this function. Both registries are `SafeOwnableUUPS` handed to the
+     *         SAME timelock (`script/MigrateOwnership.s.sol`), so (ii) is the principal (i) already
+     *         concedes: no new capability, no lower bar. Narrowing either is a governance change
      *         (timelock / multisig on the owner), not something a payout guard can do.
      *
      *         There is deliberately no owner-side correction path. An owner lever that exists to fix a
