@@ -114,6 +114,20 @@ jobs:
       - name: EIP-170 + storage-layout gate
         run: bash test/factories/erc404/eip170-diet-gate.sh
 
+      # The same ceiling, for every contract that embeds another contract's creation code — in
+      # either syntax, since `new X(...)` compiles to the same blob as type(X).creationCode. Four
+      # such embeddings sit in a function body and are therefore in the embedder's RUNTIME, against
+      # EIP-170: ERC1155Factory, ERC721AuctionFactory, UniTitheHookFactory, and ERC404Factory, which
+      # holds DN404Mirror. Those embedders — not the contracts they deploy — are the ones nearest
+      # the limit, because the blob is counted in their runtime. Four more sit in a constructor and
+      # are in the embedder's CREATION code only, against EIP-3860's initcode cap. The gate prints
+      # every margin and the blob that accounts for it, so the room runs out on this log before it
+      # runs out in a build; it reads both syntaxes out of src/ and fails on any embedding its table
+      # does not measure; and it verifies which budget each blob actually lands in, so a `new X(...)`
+      # moving out of a constructor cannot put a contract on the EIP-170 clock in silence.
+      - name: EIP-170 embedded-initcode gate
+        run: bash test/factories/eip170-embed-gate.sh
+
       # Every test file is in exactly one shard, or nothing below runs.
       - name: Shard coverage
         run: ./scripts/test-shards-cover.sh
