@@ -112,3 +112,48 @@ export function readPngDimensions(bytes: Uint8Array): { width: number; height: n
   if (String.fromCharCode(...bytes.slice(12, 16)) !== 'IHDR') return null
   return { width: view.getUint32(16), height: view.getUint32(20) }
 }
+
+/**
+ * A6 — the deep-link fallback, read for the thing that actually decides whether a shared drop link
+ * cards at all: the STATUS CODE the host answers a deep link with.
+ *
+ * Every URL a creator shares is a deep link (`/:chainId/:slug`, `…/edition/:id`, `…/token/:id`);
+ * none of those paths exist as files in `dist/`. Two conventions in the emitted build address
+ * that, and only one of them produces a card:
+ *
+ *   * `_redirects` (`/* /index.html 200`) is a REWRITE. The host answers the deep link with the
+ *     app shell under a 200, the scraper reads the card, and the card renders. It is a
+ *     Netlify/Cloudflare Pages convention.
+ *   * `404.html` is a FALLBACK BODY under a 404 status. A browser recovers from it, because it
+ *     runs the JS. A scraper does not: a 4xx aborts card generation before any tag is read, and
+ *     Twitterbot runs no JS, so the tags in that document are never used.
+ *
+ * GitHub Pages — the host `CNAME` names and `.github/workflows/deploy.yml` publishes to — supports
+ * only the second. Verified live 2026-09-21: `https://ms2.fun/1/somecollection` answers
+ * `HTTP/2 404` with `server: GitHub.com`, serving a body that carries ten card tags that no
+ * scraper will read. So the emitted `_redirects` is a statement of INTENT about the host, and this
+ * function is what keeps that intent legible: the rule has to name a 200, because a rewrite to
+ * anything else is the 404.html story again with extra steps.
+ *
+ * What this cannot see is which host the bytes land on. That is deployment config, not build
+ * output, and it is the substance of the per-drop-card shape decision rather than a guard's call.
+ */
+export type FallbackFinding = { reason: 'missing' | 'empty' | 'no-200-rewrite'; detail: string }
+
+/** Matches a catch-all rewrite to the app shell under a 200 — the only rule that cards. */
+const SHELL_REWRITE_200 = /^\s*\/\*\s+\/index\.html\s+200\s*$/
+
+export function findFallbackFaults(redirects: string | null): FallbackFinding[] {
+  if (redirects === null) return [{ reason: 'missing', detail: '_redirects was not emitted' }]
+  const lines = redirects.split('\n').filter((line) => line.trim() !== '')
+  if (lines.length === 0) return [{ reason: 'empty', detail: '_redirects is empty' }]
+  if (lines.some((line) => SHELL_REWRITE_200.test(line))) return []
+  return [
+    {
+      reason: 'no-200-rewrite',
+      detail:
+        '_redirects declares no `/* /index.html 200` rule, so a host that reads it still answers ' +
+        'a shared drop link with a status no scraper cards',
+    },
+  ]
+}

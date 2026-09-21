@@ -4,6 +4,7 @@ import {
   distPathOf,
   extractMetaTags,
   findCardTagFaults,
+  findFallbackFaults,
   findOriginSplit,
   isAbsoluteUrl,
   originOf,
@@ -161,5 +162,35 @@ describe('readPngDimensions', () => {
     const bytes = pngHeader(512, 512)
     bytes.set([0x49, 0x44, 0x41, 0x54], 12)
     expect(readPngDimensions(bytes)).toBeNull()
+  })
+})
+
+describe('findFallbackFaults', () => {
+  it('passes the catch-all rewrite the app actually ships', () => {
+    expect(findFallbackFaults('/* /index.html 200\n')).toEqual([])
+  })
+
+  it('names a missing file rather than passing it', () => {
+    expect(findFallbackFaults(null)).toEqual([
+      { reason: 'missing', detail: '_redirects was not emitted' },
+    ])
+  })
+
+  it('names a file that is only whitespace', () => {
+    expect(findFallbackFaults('  \n\n')[0]?.reason).toBe('empty')
+  })
+
+  it('refuses a rewrite that does not name a 200', () => {
+    // 302 is the shape that looks right and cards nothing: the scraper follows it to /index.html,
+    // whose og:url then disagrees with the link that was shared.
+    expect(findFallbackFaults('/* /index.html 302')[0]?.reason).toBe('no-200-rewrite')
+  })
+
+  it('refuses a rule that is not the catch-all', () => {
+    expect(findFallbackFaults('/collections/* /index.html 200')[0]?.reason).toBe('no-200-rewrite')
+  })
+
+  it('accepts the rule beside comments and other rules', () => {
+    expect(findFallbackFaults('# spa fallback\n/old /new 301\n/* /index.html 200\n')).toEqual([])
   })
 })

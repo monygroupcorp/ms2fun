@@ -18,6 +18,7 @@ import {
   distPathOf,
   extractMetaTags,
   findCardTagFaults,
+  findFallbackFaults,
   findOriginSplit,
   isAbsoluteUrl,
   readPngDimensions,
@@ -103,7 +104,10 @@ if (resolvedImage !== null) {
   }
 }
 
-// A6 — the SPA fallback shipped, and it is the same document a scraper would read.
+// A6 — the deep-link fallback shipped in both of its forms: the 404.html body (which a browser
+// recovers from and a scraper does not — a 4xx aborts card generation) and the `_redirects`
+// rewrite that asks a host to answer the same deep link with a 200 instead. See
+// `findFallbackFaults` for why only the second one produces a card.
 const fallback = read('404.html')
 if (fallback === null) {
   failures.push('404.html was not emitted — deep links card the host’s own 404 page')
@@ -112,11 +116,8 @@ if (fallback === null) {
     '404.html is not byte-identical to index.html, so a deep link cards a different document',
   )
 }
-const redirects = read('_redirects')
-if (redirects === null) {
-  failures.push('_redirects was not emitted')
-} else if (redirects.trim() === '') {
-  failures.push('_redirects is empty')
+for (const fault of findFallbackFaults(read('_redirects'))) {
+  failures.push(fault.detail)
 }
 
 if (failures.length > 0) {
@@ -133,5 +134,5 @@ const shape =
     : `${dimensions.width}x${dimensions.height}`
 console.log(
   `share-card guard: OK — ${REQUIRED_CARD_TAGS.length} card tags, image ${resolvedImage} (${shape}), ` +
-    'one origin, 404.html identical to index.html, _redirects present',
+    'one origin, 404.html identical to index.html, _redirects rewrites deep links to 200',
 )
