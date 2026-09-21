@@ -1,0 +1,40 @@
+name: publication-guard
+
+# This repository is public, and a push to it is permanent publication. The files that leak are the
+# ones no human writes: build receipts and run records, serialised by a tool that knows the absolute
+# path of the checkout it ran in and the name of the account that ran it. Between 2026-09-14 and
+# 2026-09-19, 33 such records landed under `projects/` carrying exactly that. Deleting them is one
+# commit; deleting them from the published history is not.
+#
+# So the guard runs on EVERY push and pull request, with no path filter. A path filter would be the
+# same mistake in a smaller form: the next writer to leak will not be a path anybody thought to list.
+#
+# What this job is NOT: a gate that holds the content back. Actions run after the push, so a red run
+# here means the bytes are already on the remote. `projects/` is gitignored so the common case never
+# gets staged; this job is the backstop that makes a leak loud rather than silent, and it is the
+# reason a second one gets noticed on the day instead of five days later.
+#
+# Read-only, no network, no key. It checks what a tracked file SAYS about the machine — it does not
+# check for secrets, which is a different problem with different tools.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tree:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # A green tree scan means nothing if the rule doing the scanning has stopped matching. This
+      # pins both rules to named cases first — every leak shape the run records carried, and every
+      # shape that must stay quiet — so the step below is a result and not just an exit code.
+      - name: The guard still catches what it claims to catch
+        run: node tools/check-no-local-paths.mjs --self-test
+
+      - name: No tracked file describes the machine it was written on
+        run: node tools/check-no-local-paths.mjs
