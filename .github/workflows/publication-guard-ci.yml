@@ -1,0 +1,29 @@
+name: publication-guard
+
+# This repository is public, and a push to it is permanent publication. The files that leak are the
+# ones no human writes: build receipts and run records, serialised by a tool that knows the absolute
+# path of the checkout it ran in and the name of the account that ran it. Between 2026-09-14 and
+# 2026-09-19, 33 such records landed under `projects/` carrying exactly that. Deleting them is one
+# commit; deleting them from the published history is not.
+#
+# So the guard runs on EVERY push and pull request, with no path filter. A path filter would be the
+# same mistake in a smaller form: the next writer to leak will not be a path anybody thought to list.
+#
+# Read-only, no network, no key. It checks what a tracked file SAYS about the machine — it does not
+# check for secrets, which is a different problem with different tools.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tree:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: No tracked file describes the machine it was written on
+        run: node tools/check-no-local-paths.mjs
