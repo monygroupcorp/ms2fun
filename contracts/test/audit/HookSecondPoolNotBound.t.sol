@@ -226,6 +226,68 @@ contract HookSecondPoolNotBoundTest is Test {
         assertEq(vault.totalReceived(), vaultBefore, "an off-spacing pool on the same pair is refused too");
     }
 
+    /// @dev The fourth field of the bind, and the one no case here reached: `currency0`. A key can name
+    ///      the launch's own coin as `currency1`, the dynamic-fee flag, this hook and its tick spacing,
+    ///      and still not be an ETH pool — v4 only asks that `currency0 < currency1`, so any token that
+    ///      sorts below the launch's coin can take the ETH slot.
+    ///
+    ///      The hook reads `currency0` as ETH everywhere: `beforeSwap` taxes it on an exact-input buy and
+    ///      hands it to `_collectAndForward`, which `take`s it to the hook and forwards it to the vault
+    ///      AS ETH. Against a token that forward cannot succeed — the hook has no ETH to send — so the
+    ///      take lands in the hook and its amount is added to `queuedFees`, a number denominated in ETH.
+    ///
+    ///      That is worse than the second pool this file opens with. `flushQueuedFees` pays `queuedFees`
+    ///      out of the hook's ETH balance, so an attacker who books ERC-20 wei into it makes the flush
+    ///      ask for ETH that was never collected, and the real pool's genuinely queued fees have no exit
+    ///      left. One rogue pool and a one-wei swap are the whole cost.
+    ///
+    ///      With the `currency0` check in place the swap reverts, nothing is taken, and `queuedFees` is
+    ///      untouched. With that one line removed this case is the only one in the tree that notices.
+    function test_aPoolWhoseCurrency0IsNotEthIsRefused() public {
+        // A token at an address below the launch's coin, so it is admissible as `currency0`.
+        TestToken sub = TestToken(address(0x0BAD));
+        vm.etch(address(sub), address(new TestToken()).code);
+        assertTrue(address(sub) < address(realToken), "the stand-in has to sort into the currency0 slot");
+
+        PoolKey memory tokenPaired = PoolKey({
+            currency0: Currency.wrap(address(sub)),
+            currency1: Currency.wrap(address(realToken)),
+            fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
+            tickSpacing: POOL_TICK_SPACING,
+            hooks: IHooks(address(hook))
+        });
+
+        vm.startPrank(attacker);
+        sub.mint(attacker, 1_000_000 ether);
+        realToken.mint(attacker, 1_000_000 ether);
+        sub.approve(address(modifyLiquidityRouter), type(uint256).max);
+        realToken.approve(address(modifyLiquidityRouter), type(uint256).max);
+        sub.approve(address(swapRouter), type(uint256).max);
+
+        manager.initialize(tokenPaired, SQRT_PRICE_1_1);
+        modifyLiquidityRouter.modifyLiquidity(
+            tokenPaired,
+            IPoolManager.ModifyLiquidityParams({ tickLower: -6000, tickUpper: 6000, liquidityDelta: 100e18, salt: 0 }),
+            ZERO_BYTES
+        );
+
+        uint256 queuedBefore = hook.queuedFees();
+
+        vm.expectRevert();
+        swapRouter.swap(
+            tokenPaired,
+            IPoolManager.SwapParams({
+                zeroForOne: true, amountSpecified: -int256(10 ether), sqrtPriceLimitX96: MIN_PRICE_LIMIT
+            }),
+            _settings(),
+            ZERO_BYTES
+        );
+        vm.stopPrank();
+
+        assertEq(hook.queuedFees(), queuedBefore, "no ERC-20 wei was booked into an ETH-denominated queue");
+        assertEq(sub.balanceOf(address(hook)), 0, "and none of it was taken to the hook");
+    }
+
     function _id(PoolKey memory k) internal pure returns (PoolId) {
         return k.toId();
     }
