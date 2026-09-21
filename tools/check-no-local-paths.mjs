@@ -13,8 +13,14 @@
 //
 // It has happened here. Between 2026-09-14 and 2026-09-19, 33 JSON run records were committed under
 // projects/, each carrying an absolute home-directory path and a local account name. Deleting them
-// is one commit; deleting them from the published history is not. So this runs on every push and
-// refuses the commit that would start it again, rather than trusting each writer to redact itself.
+// is one commit; deleting them from the published history is not. So rather than trust each writer
+// to redact itself, two rules below are enforced mechanically on every push and pull request.
+//
+// Be clear about what this can and cannot do. A GitHub workflow runs AFTER the push it checks, so a
+// red run here means the content already reached the remote; it reports a leak, it does not prevent
+// one. `projects/` is in .gitignore for that reason, and THAT is the half that stops it in time.
+// This check is the backstop for the case the ignore rule misses — a `git add -f`, a path nobody
+// thought to ignore, a home path in a file that belongs in the tree.
 //
 // Two rules, both from that incident:
 //
