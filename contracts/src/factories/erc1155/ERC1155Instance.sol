@@ -107,14 +107,22 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     address public factory;
     IAlignmentVault public vault;
     /// @notice The genesis vault (the one bound at construction — what buyers pay in against). Pinned
-    ///         immutably so the revenue-split family used at settlement can never diverge from what
-    ///         buyers paid into, even if `vault` is later migrated (audit finding #2, defense-in-depth).
-    address public immutable genesisVault;
+    ///         at initialization so the revenue-split family used at settlement can never diverge
+    ///         from what buyers paid into, even if `vault` is later migrated (audit finding #2,
+    ///         defense-in-depth).
+    /// @dev SET ONCE AND NEVER AGAIN. These four were `immutable` until this contract became the
+    ///      implementation behind EIP-1167 clones, and an immutable lives in the runtime code every
+    ///      clone SHARES — so a per-collection value cannot be one. What made them safe was never
+    ///      the keyword: it was that nothing can write them after the one write. That still holds —
+    ///      `initialize` is the only writer and `_initialized` lets it run once — and it is what the
+    ///      audit finding asked for. `slither-disable` markers are kept off them deliberately:
+    ///      slither's `immutable-states` suggestion is exactly the change this comment refuses.
+    address public genesisVault;
     // slither-disable-next-line immutable-states
     IMasterRegistry public masterRegistry;
-    IGlobalMessageRegistry public immutable globalMessageRegistry;
-    address public immutable protocolTreasury;
-    address public immutable weth;
+    IGlobalMessageRegistry public globalMessageRegistry;
+    address public protocolTreasury;
+    address public weth;
 
     // Customization
     string public styleUri;
