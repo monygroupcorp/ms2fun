@@ -1549,6 +1549,14 @@ export const alignmentRegistryV1Abi = [
   { type: 'error', inputs: [], name: 'ReferencePoolNotCanonical' },
   { type: 'error', inputs: [], name: 'ReferencePoolTokenMismatch' },
   { type: 'error', inputs: [], name: 'ReferencePoolUnusable' },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'window', internalType: 'uint32', type: 'uint32' },
+      { name: 'minimum', internalType: 'uint32', type: 'uint32' },
+    ],
+    name: 'ReferenceTwapWindowTooShort',
+  },
   { type: 'error', inputs: [], name: 'RenounceDisabled' },
   { type: 'error', inputs: [], name: 'TargetNotFound' },
   { type: 'error', inputs: [], name: 'TokenNotInTarget' },
@@ -2792,6 +2800,13 @@ export const cypherLiquidityDeployerModuleAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'sweepUnconsumedCoin',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
     name: 'transferOwnership',
     outputs: [],
@@ -2872,6 +2887,37 @@ export const cypherLiquidityDeployerModuleAbi = [
       },
     ],
     name: 'GraduationFeePaid',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'ethTithed',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'ethReturned',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'coinReturned',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'GraduationResidueReturned',
   },
   {
     type: 'event',
@@ -3017,6 +3063,25 @@ export const cypherLiquidityDeployerModuleAbi = [
     anonymous: false,
     inputs: [
       {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'UnconsumedCoinSwept',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
         name: 'vault',
         internalType: 'address',
         type: 'address',
@@ -3093,6 +3158,7 @@ export const cypherLiquidityDeployerModuleAbi = [
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
   { type: 'error', inputs: [], name: 'NoPendingVaultCut' },
+  { type: 'error', inputs: [], name: 'NoUnconsumedCoin' },
   { type: 'error', inputs: [], name: 'PoolPriceMismatch' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
   { type: 'error', inputs: [], name: 'UnauthorizedCaller' },
@@ -3901,6 +3967,8 @@ export const erc1155InstanceAbi = [
       { name: 'priceIncreaseRate', internalType: 'uint256', type: 'uint256' },
       { name: 'openTime', internalType: 'uint256', type: 'uint256' },
       { name: 'freeMintAlloc', internalType: 'uint256', type: 'uint256' },
+      { name: 'closeTime', internalType: 'uint256', type: 'uint256' },
+      { name: 'maxPerWallet', internalType: 'uint256', type: 'uint256' },
     ],
     name: 'addEdition',
     outputs: [],
@@ -4012,6 +4080,30 @@ export const erc1155InstanceAbi = [
         type: 'address',
       },
     ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    name: 'editionCloseTime',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    name: 'editionMaxPerWallet',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'uint256', type: 'uint256' },
+      { name: '', internalType: 'address', type: 'address' },
+    ],
+    name: 'editionMintedBy',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
   {
@@ -4348,6 +4440,17 @@ export const erc1155InstanceAbi = [
   },
   {
     type: 'function',
+    inputs: [
+      { name: 'editionId', internalType: 'uint256', type: 'uint256' },
+      { name: 'closeTime', internalType: 'uint256', type: 'uint256' },
+      { name: 'maxPerWallet', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'setEditionSchedule',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'newStyleUri', internalType: 'string', type: 'string' }],
     name: 'setStyle',
     outputs: [],
@@ -4525,6 +4628,31 @@ export const erc1155InstanceAbi = [
       },
     ],
     name: 'EditionMetadataUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'editionId',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: true,
+      },
+      {
+        name: 'closeTime',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'maxPerWallet',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'EditionScheduleSet',
   },
   {
     type: 'event',
@@ -4824,12 +4952,15 @@ export const erc1155InstanceAbi = [
   { type: 'error', inputs: [], name: 'AmountMustBePositive' },
   { type: 'error', inputs: [], name: 'DynamicPricingRequiresIncreaseRate' },
   { type: 'error', inputs: [], name: 'ERC1155RejectedTokens' },
+  { type: 'error', inputs: [], name: 'EditionAlreadyMinted' },
+  { type: 'error', inputs: [], name: 'EditionClosed' },
   { type: 'error', inputs: [], name: 'EditionLimitReached' },
   { type: 'error', inputs: [], name: 'EditionNotFound' },
   { type: 'error', inputs: [], name: 'EditionNotOpen' },
   { type: 'error', inputs: [], name: 'EditionSoldOut' },
   { type: 'error', inputs: [], name: 'ExceedsMaxCost' },
   { type: 'error', inputs: [], name: 'ExceedsSupply' },
+  { type: 'error', inputs: [], name: 'ExceedsWalletLimit' },
   { type: 'error', inputs: [], name: 'FreeMintAlreadyClaimed' },
   { type: 'error', inputs: [], name: 'FreeMintDisabled' },
   { type: 'error', inputs: [], name: 'FreeMintExceedsSupply' },
@@ -4838,6 +4969,7 @@ export const erc1155InstanceAbi = [
   { type: 'error', inputs: [], name: 'InsufficientBalance' },
   { type: 'error', inputs: [], name: 'InsufficientPayment' },
   { type: 'error', inputs: [], name: 'InvalidAddress' },
+  { type: 'error', inputs: [], name: 'InvalidCloseTime' },
   { type: 'error', inputs: [], name: 'InvalidName' },
   { type: 'error', inputs: [], name: 'InvalidPrice' },
   { type: 'error', inputs: [], name: 'InvalidTitle' },
@@ -5872,6 +6004,19 @@ export const erc404BondingInstanceAbi = [
       },
     ],
     name: 'GraduationEthDiverted',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'burned',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'GraduationResidueBurned',
   },
   {
     type: 'event',
@@ -9712,6 +9857,20 @@ export const ierc1155EditionReaderAbi = [
   {
     type: 'function',
     inputs: [{ name: 'editionId', internalType: 'uint256', type: 'uint256' }],
+    name: 'editionCloseTime',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'editionId', internalType: 'uint256', type: 'uint256' }],
+    name: 'editionMaxPerWallet',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'editionId', internalType: 'uint256', type: 'uint256' }],
     name: 'getCurrentPrice',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
@@ -10368,6 +10527,13 @@ export const liquidityDeployerModuleAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'MIN_LP_CONSUMED_BPS',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'alignmentHookFactory',
     outputs: [{ name: '', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
@@ -10530,6 +10696,13 @@ export const liquidityDeployerModuleAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'sweepUnconsumedCoin',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'tickSpacing',
     outputs: [{ name: '', internalType: 'int24', type: 'int24' }],
@@ -10646,6 +10819,37 @@ export const liquidityDeployerModuleAbi = [
       },
     ],
     name: 'GraduationFeePaid',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'ethTithed',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'ethReturned',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'coinReturned',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'GraduationResidueReturned',
   },
   {
     type: 'event',
@@ -10800,6 +11004,25 @@ export const liquidityDeployerModuleAbi = [
     anonymous: false,
     inputs: [
       {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'UnconsumedCoinSwept',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
         name: 'vault',
         internalType: 'address',
         type: 'address',
@@ -10873,12 +11096,15 @@ export const liquidityDeployerModuleAbi = [
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'ETHMismatch' },
   { type: 'error', inputs: [], name: 'HookFeeTooHigh' },
+  { type: 'error', inputs: [], name: 'InsufficientLiquidityConsumed' },
+  { type: 'error', inputs: [], name: 'LiquidityConsumedExceedsLeg' },
   { type: 'error', inputs: [], name: 'LpFeeRateTooHigh' },
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
   { type: 'error', inputs: [], name: 'NoETHForPool' },
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
   { type: 'error', inputs: [], name: 'NoPendingVaultCut' },
   { type: 'error', inputs: [], name: 'NoTokensForPool' },
+  { type: 'error', inputs: [], name: 'NoUnconsumedCoin' },
   { type: 'error', inputs: [], name: 'NotPoolManager' },
   { type: 'error', inputs: [], name: 'PoolPriceMismatch' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
@@ -13274,6 +13500,8 @@ export const queryAggregatorAbi = [
             type: 'uint256',
           },
           { name: 'openTime', internalType: 'uint256', type: 'uint256' },
+          { name: 'closeTime', internalType: 'uint256', type: 'uint256' },
+          { name: 'maxPerWallet', internalType: 'uint256', type: 'uint256' },
         ],
       },
     ],
@@ -13516,6 +13744,26 @@ export const queryAggregatorAbi = [
         ],
       },
     ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'editionId', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'readEditionCloseTime',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'editionId', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'readEditionMaxPerWallet',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
   {
@@ -14529,6 +14777,13 @@ export const zammLiquidityDeployerModuleAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'sweepUnconsumedCoin',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
     name: 'transferOwnership',
     outputs: [],
@@ -14609,6 +14864,37 @@ export const zammLiquidityDeployerModuleAbi = [
       },
     ],
     name: 'GraduationFeePaid',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'ethTithed',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'ethReturned',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'coinReturned',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'GraduationResidueReturned',
   },
   {
     type: 'event',
@@ -14743,6 +15029,25 @@ export const zammLiquidityDeployerModuleAbi = [
     anonymous: false,
     inputs: [
       {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'UnconsumedCoinSwept',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
         name: 'vault',
         internalType: 'address',
         type: 'address',
@@ -14820,6 +15125,7 @@ export const zammLiquidityDeployerModuleAbi = [
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
   { type: 'error', inputs: [], name: 'NoPendingVaultCut' },
   { type: 'error', inputs: [], name: 'NoTokensForPool' },
+  { type: 'error', inputs: [], name: 'NoUnconsumedCoin' },
   { type: 'error', inputs: [], name: 'PoolPriceMismatch' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
   { type: 'error', inputs: [], name: 'UnauthorizedCaller' },
@@ -18231,6 +18537,15 @@ export const useWriteCypherLiquidityDeployerModuleSetMetadataUri =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"sweepUnconsumedCoin"`
+ */
+export const useWriteCypherLiquidityDeployerModuleSweepUnconsumedCoin =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'sweepUnconsumedCoin',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"transferOwnership"`
  */
 export const useWriteCypherLiquidityDeployerModuleTransferOwnership =
@@ -18311,6 +18626,15 @@ export const useSimulateCypherLiquidityDeployerModuleSetMetadataUri =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"sweepUnconsumedCoin"`
+ */
+export const useSimulateCypherLiquidityDeployerModuleSweepUnconsumedCoin =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'sweepUnconsumedCoin',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"transferOwnership"`
  */
 export const useSimulateCypherLiquidityDeployerModuleTransferOwnership =
@@ -18352,6 +18676,15 @@ export const useWatchCypherLiquidityDeployerModuleGraduationFeePaidEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: cypherLiquidityDeployerModuleAbi,
     eventName: 'GraduationFeePaid',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"GraduationResidueReturned"`
+ */
+export const useWatchCypherLiquidityDeployerModuleGraduationResidueReturnedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: cypherLiquidityDeployerModuleAbi,
+    eventName: 'GraduationResidueReturned',
   })
 
 /**
@@ -18415,6 +18748,15 @@ export const useWatchCypherLiquidityDeployerModulePendingVaultCutReturnedToCreat
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: cypherLiquidityDeployerModuleAbi,
     eventName: 'PendingVaultCutReturnedToCreator',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"UnconsumedCoinSwept"`
+ */
+export const useWatchCypherLiquidityDeployerModuleUnconsumedCoinSweptEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: cypherLiquidityDeployerModuleAbi,
+    eventName: 'UnconsumedCoinSwept',
   })
 
 /**
@@ -19298,6 +19640,33 @@ export const useReadErc1155InstanceDynamicPricingModule =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"editionCloseTime"`
+ */
+export const useReadErc1155InstanceEditionCloseTime =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'editionCloseTime',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"editionMaxPerWallet"`
+ */
+export const useReadErc1155InstanceEditionMaxPerWallet =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'editionMaxPerWallet',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"editionMintedBy"`
+ */
+export const useReadErc1155InstanceEditionMintedBy =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'editionMintedBy',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"editions"`
  */
 export const useReadErc1155InstanceEditions =
@@ -19737,6 +20106,15 @@ export const useWriteErc1155InstanceSetEditionFreeMintAllocation =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"setEditionSchedule"`
+ */
+export const useWriteErc1155InstanceSetEditionSchedule =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'setEditionSchedule',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"setStyle"`
  */
 export const useWriteErc1155InstanceSetStyle =
@@ -19941,6 +20319,15 @@ export const useSimulateErc1155InstanceSetEditionFreeMintAllocation =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"setEditionSchedule"`
+ */
+export const useSimulateErc1155InstanceSetEditionSchedule =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'setEditionSchedule',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"setStyle"`
  */
 export const useSimulateErc1155InstanceSetStyle =
@@ -20025,6 +20412,15 @@ export const useWatchErc1155InstanceEditionMetadataUpdatedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc1155InstanceAbi,
     eventName: 'EditionMetadataUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"EditionScheduleSet"`
+ */
+export const useWatchErc1155InstanceEditionScheduleSetEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155InstanceAbi,
+    eventName: 'EditionScheduleSet',
   })
 
 /**
@@ -21490,6 +21886,15 @@ export const useWatchErc404BondingInstanceGraduationEthDivertedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc404BondingInstanceAbi,
     eventName: 'GraduationEthDiverted',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"GraduationResidueBurned"`
+ */
+export const useWatchErc404BondingInstanceGraduationResidueBurnedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'GraduationResidueBurned',
   })
 
 /**
@@ -25087,6 +25492,24 @@ export const useReadIerc1155EditionReader = /*#__PURE__*/ createUseReadContract(
 )
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc1155EditionReaderAbi}__ and `functionName` set to `"editionCloseTime"`
+ */
+export const useReadIerc1155EditionReaderEditionCloseTime =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc1155EditionReaderAbi,
+    functionName: 'editionCloseTime',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc1155EditionReaderAbi}__ and `functionName` set to `"editionMaxPerWallet"`
+ */
+export const useReadIerc1155EditionReaderEditionMaxPerWallet =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc1155EditionReaderAbi,
+    functionName: 'editionMaxPerWallet',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc1155EditionReaderAbi}__ and `functionName` set to `"getCurrentPrice"`
  */
 export const useReadIerc1155EditionReaderGetCurrentPrice =
@@ -25798,6 +26221,15 @@ export const useReadLiquidityDeployerModuleMaxInitPriceDeviationBps =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"MIN_LP_CONSUMED_BPS"`
+ */
+export const useReadLiquidityDeployerModuleMinLpConsumedBps =
+  /*#__PURE__*/ createUseReadContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'MIN_LP_CONSUMED_BPS',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"alignmentHookFactory"`
  */
 export const useReadLiquidityDeployerModuleAlignmentHookFactory =
@@ -26002,6 +26434,15 @@ export const useWriteLiquidityDeployerModuleSetMetadataUri =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"sweepUnconsumedCoin"`
+ */
+export const useWriteLiquidityDeployerModuleSweepUnconsumedCoin =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'sweepUnconsumedCoin',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"transferOwnership"`
  */
 export const useWriteLiquidityDeployerModuleTransferOwnership =
@@ -26116,6 +26557,15 @@ export const useSimulateLiquidityDeployerModuleSetMetadataUri =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"sweepUnconsumedCoin"`
+ */
+export const useSimulateLiquidityDeployerModuleSweepUnconsumedCoin =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'sweepUnconsumedCoin',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"transferOwnership"`
  */
 export const useSimulateLiquidityDeployerModuleTransferOwnership =
@@ -26173,6 +26623,15 @@ export const useWatchLiquidityDeployerModuleGraduationFeePaidEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: liquidityDeployerModuleAbi,
     eventName: 'GraduationFeePaid',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"GraduationResidueReturned"`
+ */
+export const useWatchLiquidityDeployerModuleGraduationResidueReturnedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'GraduationResidueReturned',
   })
 
 /**
@@ -26254,6 +26713,15 @@ export const useWatchLiquidityDeployerModulePendingVaultCutReturnedToCreatorEven
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: liquidityDeployerModuleAbi,
     eventName: 'PendingVaultCutReturnedToCreator',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"UnconsumedCoinSwept"`
+ */
+export const useWatchLiquidityDeployerModuleUnconsumedCoinSweptEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'UnconsumedCoinSwept',
   })
 
 /**
@@ -28781,6 +29249,24 @@ export const useReadQueryAggregatorReadEdition =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readEditionCloseTime"`
+ */
+export const useReadQueryAggregatorReadEditionCloseTime =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readEditionCloseTime',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readEditionMaxPerWallet"`
+ */
+export const useReadQueryAggregatorReadEditionMaxPerWallet =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'readEditionMaxPerWallet',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"readEditionPrice"`
  */
 export const useReadQueryAggregatorReadEditionPrice =
@@ -29858,6 +30344,15 @@ export const useWriteZammLiquidityDeployerModuleSetMetadataUri =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"sweepUnconsumedCoin"`
+ */
+export const useWriteZammLiquidityDeployerModuleSweepUnconsumedCoin =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'sweepUnconsumedCoin',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"transferOwnership"`
  */
 export const useWriteZammLiquidityDeployerModuleTransferOwnership =
@@ -29938,6 +30433,15 @@ export const useSimulateZammLiquidityDeployerModuleSetMetadataUri =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"sweepUnconsumedCoin"`
+ */
+export const useSimulateZammLiquidityDeployerModuleSweepUnconsumedCoin =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'sweepUnconsumedCoin',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"transferOwnership"`
  */
 export const useSimulateZammLiquidityDeployerModuleTransferOwnership =
@@ -29979,6 +30483,15 @@ export const useWatchZammLiquidityDeployerModuleGraduationFeePaidEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: zammLiquidityDeployerModuleAbi,
     eventName: 'GraduationFeePaid',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `eventName` set to `"GraduationResidueReturned"`
+ */
+export const useWatchZammLiquidityDeployerModuleGraduationResidueReturnedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: zammLiquidityDeployerModuleAbi,
+    eventName: 'GraduationResidueReturned',
   })
 
 /**
@@ -30042,6 +30555,15 @@ export const useWatchZammLiquidityDeployerModulePendingVaultCutReturnedToCreator
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: zammLiquidityDeployerModuleAbi,
     eventName: 'PendingVaultCutReturnedToCreator',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `eventName` set to `"UnconsumedCoinSwept"`
+ */
+export const useWatchZammLiquidityDeployerModuleUnconsumedCoinSweptEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: zammLiquidityDeployerModuleAbi,
+    eventName: 'UnconsumedCoinSwept',
   })
 
 /**

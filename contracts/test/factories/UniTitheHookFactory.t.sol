@@ -36,6 +36,12 @@ contract UniTitheHookFactoryTest is Test {
     uint256 internal constant HOOK_FEE_BIPS = 100; // 1%
     uint24 internal constant LP_FEE_RATE = 3000; // 0.3%
 
+    /// @dev The pool the deployed hook is bound to (audit L-6). `POOL_TOKEN` is the pool's `currency1`
+    ///      and `POOL_TICK_SPACING` its spacing; both are constructor arguments, so they are part of the
+    ///      hook's init-code hash and therefore of the address it is mined to.
+    address internal constant POOL_TOKEN = address(0xC011);
+    int24 internal constant POOL_TICK_SPACING = 60;
+
     function setUp() public {
         factory = new UniTitheHookFactory(DUMMY_PM, WETH, HOOK_OWNER, REGISTRY);
     }
@@ -51,7 +57,8 @@ contract UniTitheHookFactoryTest is Test {
     }
 
     function test_deployHook_returns_permission_bit_valid_hook_with_immutables() public {
-        address hookAddr = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE);
+        address hookAddr =
+            factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING);
 
         // Address carries EXACTLY the 0xCC permission bits (and no forbidden hook bits).
         assertTrue(
@@ -67,6 +74,8 @@ contract UniTitheHookFactoryTest is Test {
         assertEq(hook.benefactor(), BENEFACTOR, "benefactor from deployHook arg");
         assertEq(hook.hookFeeBips(), HOOK_FEE_BIPS, "hookFeeBips from deployHook arg");
         assertEq(hook.lpFeeRate(), LP_FEE_RATE, "lpFeeRate from deployHook arg");
+        assertEq(hook.poolToken(), POOL_TOKEN, "poolToken from deployHook arg");
+        assertEq(hook.poolTickSpacing(), POOL_TICK_SPACING, "poolTickSpacing from deployHook arg");
 
         // The returned type satisfies the alignment-hook marker interface.
         IAlignmentHook marker = IAlignmentHook(hookAddr);
@@ -75,9 +84,10 @@ contract UniTitheHookFactoryTest is Test {
     }
 
     function test_deployHook_produces_distinct_hooks_per_call() public {
-        address a = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE);
+        address a = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING);
         // Different benefactor => different init code => different mined address (no CREATE2 collision).
-        address b = factory.deployHook(VAULT, address(0x1234), HOOK_FEE_BIPS, LP_FEE_RATE);
+        address b =
+            factory.deployHook(VAULT, address(0x1234), HOOK_FEE_BIPS, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING);
         assertTrue(a != b, "distinct init code must yield distinct hook addresses");
         assertTrue(HookAddressMiner.isValidUniAlignmentHookAddress(b), "second hook also 0xCC-valid");
         assertEq(UniAlignmentV4Hook(payable(b)).benefactor(), address(0x1234), "second hook benefactor");

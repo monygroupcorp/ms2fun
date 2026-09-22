@@ -114,6 +114,20 @@ jobs:
       - name: EIP-170 + storage-layout gate
         run: bash test/factories/erc404/eip170-diet-gate.sh
 
+      # The same ceiling, for every contract that embeds another contract's creation code — in
+      # either syntax, since `new X(...)` compiles to the same blob as type(X).creationCode. Four
+      # such embeddings sit in a function body and are therefore in the embedder's RUNTIME, against
+      # EIP-170: ERC1155Factory, ERC721AuctionFactory, UniTitheHookFactory, and ERC404Factory, which
+      # holds DN404Mirror. Those embedders — not the contracts they deploy — are the ones nearest
+      # the limit, because the blob is counted in their runtime. Four more sit in a constructor and
+      # are in the embedder's CREATION code only, against EIP-3860's initcode cap. The gate prints
+      # every margin and the blob that accounts for it, so the room runs out on this log before it
+      # runs out in a build; it reads both syntaxes out of src/ and fails on any embedding its table
+      # does not measure; and it verifies which budget each blob actually lands in, so a `new X(...)`
+      # moving out of a constructor cannot put a contract on the EIP-170 clock in silence.
+      - name: EIP-170 embedded-initcode gate
+        run: bash test/factories/eip170-embed-gate.sh
+
       # Every test file is in exactly one shard, or nothing below runs.
       - name: Shard coverage
         run: ./scripts/test-shards-cover.sh
@@ -175,10 +189,26 @@ jobs:
           [ -n "$NO_MATCH" ] && args+=(--no-match-path "$NO_MATCH")
           FOUNDRY_PROFILE=ci forge test "${args[@]}"
 
-  # Audit-#1 guard: the real-v4 RealSettlement regression. foundry.v4.toml enables
-  # auto_detect_solc so forge selects 0.8.26 for v4-core's real PoolManager. It uses
-  # an in-memory real PoolManager (not a fork), so it needs no RPC. Its own compile under
-  # its own config, so it does not wait on the build job.
+  # The real-v4 guards. foundry.v4.toml enables auto_detect_solc so forge selects 0.8.26 for
+  # v4-core's real PoolManager. They use an in-memory real PoolManager (not a fork), so they
+  # need no RPC. Their own compile under their own config, so they do not wait on the build job.
+  #
+  # Every test here is in `foundry.toml`'s `skip=` list and therefore runs in NO other job: the
+  # default profile cannot compile it. So a proof left out of the set is a proof nothing ever runs
+  # again, which is what this step's single-path version had quietly become — the audit proof for
+  # the hook's unbound pool key sat green and unrun from the day it was written.
+  #
+  # The set is NOT written here. It lives in contracts/scripts/real-v4-gate.sh, which is also what
+  # a developer runs before pushing, because the two copies of the list had drifted — one file
+  # locally where this step ran three — and there is no second copy to keep in step any more.
+  # What used to be the standing instruction in this comment, that a file added to `skip=` for a
+  # pragma reason belongs in the path the same day, is now an assertion the script refuses to run
+  # without: every skipped file must be named there, in its RUN set or in its OUT table with the
+  # reason it stays out (`test/audit/FreeMintCurveSolvency.t.sol` is the one entry in that table,
+  # red by ruling). It also asks forge which files the path actually reaches, because a
+  # `--match-path` that matches nothing exits 0.
+  # The job id stays `real-settlement` though the script runs more than RealSettlement: it is a
+  # required check, and renaming it silently drops that requirement from branch protection.
   real-settlement:
     runs-on: ubuntu-latest
 
@@ -194,5 +224,5 @@ jobs:
       - name: Install contracts/lib deps
         run: ./scripts/install-libs.sh all
 
-      - name: RealSettlement regression (real v4)
-        run: FOUNDRY_CONFIG=foundry.v4.toml forge test --match-path test/hooks/UniAlignmentV4Hook_RealSettlement.t.sol
+      - name: Real-v4 regressions
+        run: ./scripts/real-v4-gate.sh

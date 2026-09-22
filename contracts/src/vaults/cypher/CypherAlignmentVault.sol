@@ -116,7 +116,10 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
     // ── Economics — the 80/19/1 alignment law (hard immutable, noesis-051) ──
     /// @notice Protocol treasury cut of LP yield: 1%. Compile-time constant — there is deliberately
-    ///         NO owner setter (the ratio is locked; only `setProtocolTreasury` moves the destination).
+    ///         NO owner setter. The ratio is locked, and so is the destination: `protocolTreasury`
+    ///         is set once at `initialize` from the deploying factory's immutable and never moves.
+    ///         (This vault carries no `setProtocolTreasury`; the sentence that said it did was copied
+    ///         from the ZAMM sibling, which has one.)
     uint256 public constant PROTOCOL_CUT_BPS = 100;
     /// @notice Per-target alignment sink cut of LP yield: 19%. Compile-time constant.
     uint256 public constant TARGET_CUT_BPS = 1900;
@@ -464,8 +467,8 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     ///      first effect — before `_addContribution` grows the weight — mirroring
     ///      `AlignmentEndowmentVault`'s crystallize-first ordering so an arriving benefactor cannot
     ///      dilute incumbents' already-earned fees. The external `harvest` keeps the zero-contribution
-    ///      and no-position guards; this body carries none and self-returns when the collect yields no
-    ///      fee. The target→WETH leg is still floored to the canonical reference, so a zero
+    ///      and no-position guards; this body carries none and self-returns when there is neither fee
+    ///      nor residue to realise. The target→WETH leg is still floored to the canonical reference, so a zero
     ///      `minAmountOut` from the contribution path cannot widen slippage.
     // slither-disable-next-line incorrect-equality,reentrancy-benign,timestamp
     function _harvestAccruedFees(uint256 minAmountOut) internal returns (uint256 feesETH) {
@@ -478,7 +481,16 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
             })
         );
 
-        uint256 alignmentFees = tokenIsZero ? amount0 : amount1;
+        // Sell the vault's WHOLE alignment-token balance, not just what this collect returned.
+        // `convertAndAddLiquidity` buys `targetReceived` and offers all of it to the position manager,
+        // which pulls only what its ratio needs; the difference stays here. The ETH side of that same
+        // rounding is unwrapped and re-credited through `totalPendingETH` (:294, :349-351), but the
+        // token side had no reader at all, so it accreted on every convert with no path out. Reading
+        // the balance is safe because the vault holds no alignment token in flight at either call site:
+        // this leg runs from `harvest` and as `receiveContribution`'s first effect, never inside
+        // `convertAndAddLiquidity`. So the balance here is exactly fee token plus residue, and both
+        // belong to the same 80/19/1 split.
+        uint256 alignmentFees = IERC20(alignmentToken).balanceOf(address(this));
         uint256 wethFees = tokenIsZero ? amount1 : amount0;
 
         // slither-disable-next-line uninitialized-local

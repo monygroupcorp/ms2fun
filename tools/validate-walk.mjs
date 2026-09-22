@@ -226,6 +226,76 @@ if (manifest.report?.secondaryRoute) {
   }
 }
 
+// An invite is read by somebody who has a wallet, a browser, and no checkout. Most of it is
+// rendered — the links, the ids, the chain line — but these fields are printed into it verbatim,
+// and prose written while looking at this file reaches for this file's own vocabulary. That is how
+// the opening paragraph of every invite came to point a stranger at `outOfWalk` and at a path under
+// `tools/`, and how the blocking rule came to tell them to look for `blocking:true` when what the
+// packet actually prints beside a step is `[blocking]`. Each one sends a tester to look at
+// something they cannot open, or for a marker that is not on their screen. The renderer already
+// refuses to ask them to run our tooling; this refuses the same thing one sentence earlier, and it
+// refuses the class rather than the three strings that were there when it was written.
+const invitedProse = (() => {
+  const out = [
+    ['title', manifest.title],
+    ['purpose', manifest.purpose],
+    ['blockingRule', manifest.blockingRule],
+    ['report.destination', manifest.report?.destination],
+    ['report.secondary', manifest.report?.secondary],
+  ];
+  for (const [role, what] of Object.entries(manifest.roles ?? {})) out.push([`roles.${role}`, what]);
+  for (const [role, needs] of Object.entries(manifest.prerequisites ?? {})) {
+    (needs ?? []).forEach((need, i) => out.push([`prerequisites.${role}[${i}]`, need]));
+  }
+  for (const act of manifest.acts ?? []) {
+    if (act.note) out.push([`act ${act.id} note`, act.note]);
+    for (const step of act.steps ?? []) {
+      for (const key of ['title', 'given', 'do', 'expect']) out.push([`${step.id} ${key}`, step[key]]);
+    }
+  }
+  (manifest.report?.include ?? []).forEach((field, i) => out.push([`report.include[${i}]`, field]));
+  return out.filter(([, text]) => typeof text === 'string');
+})();
+
+// A path with a source extension. A route is not one — `/board` and `/exec404` have to keep
+// rendering, and they are the addresses a tester is actually sent to.
+const REPO_PATH = /\b[\w.-]+\/[\w./-]*\.(?:mjs|cjs|js|ts|tsx|json|md|ya?ml|sh|toml)\b/;
+// This file's own field names, taken from this file rather than typed, so a field added later is
+// covered the day it is added. Two spellings give a field away: a camelCase name is one nowhere
+// else in the walk's English, and `name:value` is a line of JSON whatever the name is.
+const fieldNames = (node, into = new Set()) => {
+  if (Array.isArray(node)) for (const item of node) fieldNames(item, into);
+  else if (node && typeof node === 'object') {
+    for (const [key, value] of Object.entries(node)) {
+      into.add(key);
+      fieldNames(value, into);
+    }
+  }
+  return into;
+};
+const FIELDS = [...fieldNames(manifest)].map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, (c) => `\\${c}`));
+const CAMEL = FIELDS.filter((k) => /[a-z][A-Z]/.test(k));
+// A pattern built from an empty list is `()`, which matches every string there is — the day the
+// last camelCase field is renamed away this would otherwise become a gate that refuses everything.
+const NEVER = /(?!)/;
+const CAMEL_FIELD = CAMEL.length ? new RegExp(`\\b(${CAMEL.join('|')})\\b`) : NEVER;
+const FIELD_LITERAL = FIELDS.length ? new RegExp(`\\b(?:${FIELDS.join('|')}):\\S+`) : NEVER;
+
+for (const [where, text] of invitedProse) {
+  const path = text.match(REPO_PATH);
+  if (path) {
+    fail(`${where} names '${path[0]}', a file in this repo — an invite prints this line verbatim to somebody who has a wallet and a browser and no checkout, so say the claim, not where it is checked`);
+  }
+  const camel = text.match(CAMEL_FIELD);
+  if (camel) {
+    fail(`${where} names the field '${camel[1]}' — an invite prints this line verbatim, and a tester reads the rendered packet and never this file`);
+  }
+  const literal = text.match(FIELD_LITERAL);
+  if (literal) {
+    fail(`${where} reads '${literal[0]}' as a line of this file — say what the packet puts on the tester's screen instead`);
+  }
+}
+
 const excused = new Map();
 for (const entry of manifest.outOfWalk ?? []) {
   if (!surface.writes.has(entry.call)) fail(`outOfWalk names ${entry.call}, which the app does not send — delete the line`);
@@ -564,6 +634,11 @@ if (process.argv.includes('--selftest')) {
       check(text.includes(field), `--invite ${role} carries the report field '${field.trim()}'`);
     }
     check(!/\bnode tools\//.test(text), `--invite ${role} asks the tester to run nothing`);
+    // The same claim as the gate's, made against what actually came out rather than against the
+    // fields that went in — a renderer can leak a path the manifest never held, and the line that
+    // used to stand here only caught the one spelling 'node tools/'.
+    check(!REPO_PATH.test(text), `--invite ${role} names no file of this repo`);
+    check(!CAMEL_FIELD.test(text), `--invite ${role} names no field of the manifest it was rendered from`);
     // The return path is a link like any other. It is the last one a tester follows and the first
     // one nobody notices is broken, because it is only reached by somebody who already has a defect.
     if (manifest.report.secondaryRoute) {

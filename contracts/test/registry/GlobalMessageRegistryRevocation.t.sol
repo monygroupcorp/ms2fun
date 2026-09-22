@@ -172,7 +172,7 @@ contract GlobalMessageRegistryRevocationTest is Test {
         );
 
         vm.prank(creator);
-        inst.addEdition("Piece", MINT_PRICE, 0, "ipfs://piece", ERC1155Instance.PricingModel.UNLIMITED, 0, 0, 0);
+        inst.addEdition("Piece", MINT_PRICE, 0, "ipfs://piece", ERC1155Instance.PricingModel.UNLIMITED, 0, 0, 0, 0, 0);
     }
 
     function _deployAuction() internal returns (ERC721AuctionInstance inst) {

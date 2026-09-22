@@ -1,14 +1,14 @@
 {
   "version": 1,
   "title": "The noesis testnet walk",
-  "purpose": "Two testers who follow this walk exercise the same protocol. Every write the app can send is either a numbered step here or is listed under outOfWalk with the reason it cannot be reached on a testnet — tools/validate-walk.mjs proves that, against the app source, on every run.",
+  "purpose": "Two testers who follow this walk exercise the same protocol. Every write the app can send is either a numbered step here or is one this walk names as unreachable on a testnet, with the reason why — and that claim is checked against the app's own source on every change, so the walk cannot quietly stop describing the app.",
   "roles": {
     "operator": "holds the protocol owner key. On a fresh testnet this is whoever ran the deploy; the act-O steps are the only ones that need it.",
     "creator": "launches a collection. Needs testnet ETH, an image, and nothing else — no allowlist and no prior standing.",
     "collector": "buys, mints, bids, stakes. Needs testnet ETH only. This is the role most testers should walk first.",
     "artist": "holds the overlay-module role on a collection whose art is published in waves. Reached on a collection whose overlay module was wired at launch in C-1."
   },
-  "blockingRule": "A step marked blocking:true is one whose failure stops a launch — money moves wrongly, or a person cannot complete a thing the app offered them. A failure on any step is filed as a noesis row either way; blocking says whether the row is allowed to stay open when the launch button is pressed.",
+  "blockingRule": "A step marked [blocking] is one whose failure stops a launch — money moves wrongly, or a person cannot complete a thing the app offered them. A failure on any step is filed as a row either way; blocking says whether the row is allowed to stay open when the launch button is pressed.",
   "prerequisites": {
     "operator": [
       "the wallet that owns the protocol on the chain you are walking — the address that ran the deploy",
@@ -327,16 +327,17 @@
         },
         {
           "id": "C-8",
-          "title": "add an edition, give it a free allocation, then correct it",
+          "title": "add an edition, schedule it, give it a free allocation, then correct it",
           "route": "/:chainId/:slug",
           "calls": [
             "erc1155InstanceAbi.addEdition",
+            "erc1155InstanceAbi.setEditionSchedule",
             "erc1155InstanceAbi.setEditionFreeMintAllocation",
             "erc1155InstanceAbi.updateEditionMetadata"
           ],
           "given": "your ERC-1155 collection from C-2",
-          "do": "add a second edition, set a free allocation on it, then edit its metadata",
-          "expect": "the new edition is listed and mintable at its own /:chainId/:slug/edition/:id, and the free allocation is what B-8 draws from",
+          "do": "add a second edition with a close time about ten minutes out and a per-wallet limit of 1, correct that close time to about three minutes out before anyone mints it, set a free allocation on it, then edit its metadata",
+          "expect": "the new edition is listed and mintable at its own /:chainId/:slug/edition/:id, its card counts down to the corrected close time, one wallet can take only the single token the limit allows, and once the close time passes the mint button is refused rather than failing at the wallet. The free allocation is what B-8 draws from. After the first mint the schedule form reports the edition has sold instead of offering inputs",
           "blocking": true
         },
         {
@@ -865,6 +866,10 @@
     {
       "site": "app/src/components/collection/erc404/useStrandedTithe.ts:91",
       "why": "the abi is picked at runtime from the venue the collection graduated to — one of three liquidity deployer modules — so the scan cannot pair it. The write is flushPendingVaultCut on whichever module holds the stranded cut; it is walked as C-18 on the auction family, and the ERC-404 row beside it sends the same call against the module instead of the instance."
+    },
+    {
+      "site": "app/src/lib/useEthUsd.ts:76",
+      "why": "the abi is viem's own multicall3Abi, not a project artifact, so the scan has nothing to pair it against. It is a read and not a write — getCurrentBlockTimestamp is how the ETH/USD round's age is measured against the chain's own clock in the same batch that fetches the round — so there is no tester action behind it. A failed or stale read renders the ETH figure alone, which is the degraded state a walker sees rather than a step they perform."
     }
   ]
 }

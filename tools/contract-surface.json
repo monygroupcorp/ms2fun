@@ -589,6 +589,10 @@
       "why": "The module leg, entered from the instance. See LiquidityDeployerModule.deployLiquidity."
     },
     {
+      "match": "*.sweepUnconsumedCoin",
+      "why": "The coin backstop behind each deployer module's in-transaction residue return (audit M-1, 2026-09-17). Permissionless, and with no destination to choose: for ERC404 the instance IS its own token, so an instance's coin can only ever go to that instance. There is nothing for a UI to offer and nobody to offer it to -- a graduation that needs it has already gone wrong, and anyone can push the coin home from a block explorer. Deliberately not wired."
+    },
+    {
       "match": "*.resolve",
       "why": "A metadata resolver's read, reached through the instance's tokenURI. The app renders tokenURI, so the resolver chain is walked without ever being addressed."
     },
@@ -755,6 +759,10 @@
     {
       "match": "*.setProtocolTreasury",
       "why": "Deploy-time wiring. Re-pointing where every protocol fee lands is the single change least suited to a web form."
+    },
+    {
+      "match": "*.setVaultProtocolTreasury",
+      "why": "Deploy-time wiring, applied by the factory to the vaults it stamps. See setProtocolTreasury."
     },
     {
       "match": "*.setWeth",

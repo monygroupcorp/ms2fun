@@ -49,6 +49,9 @@ contract UniAlignmentV4HookTest is Test {
     uint256 constant DEFAULT_HOOK_FEE_BIPS = 100; // 1%
     uint24 constant DEFAULT_LP_FEE_RATE = 3000; // 0.3%
 
+    /// @dev The tick spacing of the pool the hook is bound to (audit L-6) — `_ethTokenPoolKey`'s.
+    int24 constant POOL_TICK_SPACING = 60;
+
     // Events (must match production)
     event LpFeeRateUpdated(uint24 newRate);
 
@@ -80,7 +83,9 @@ contract UniAlignmentV4HookTest is Test {
             benefactor,
             hookFeeBips,
             DEFAULT_LP_FEE_RATE,
-            DUMMY_REGISTRY
+            DUMMY_REGISTRY,
+            mockToken,
+            POOL_TICK_SPACING
         );
     }
 
@@ -90,7 +95,7 @@ contract UniAlignmentV4HookTest is Test {
             currency0: Currency.wrap(address(0)), // Native ETH — always currency0
             currency1: Currency.wrap(mockToken),
             fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
-            tickSpacing: 60,
+            tickSpacing: POOL_TICK_SPACING,
             hooks: IHooks(address(hook))
         });
     }

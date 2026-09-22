@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import { Test } from "forge-std/Test.sol";
+import { SafeOwnable } from "../../src/shared/SafeOwnable.sol";
 import { SafeOwnableUUPS } from "../../src/shared/SafeOwnableUUPS.sol";
 import { MockSafeOwnableUUPS } from "../mocks/MockSafeOwnableUUPS.sol";
 
@@ -29,7 +30,8 @@ contract SafeOwnableUUPSTest is Test {
 
     function test_renounceOwnership_revertsWithRenounceDisabled() public {
         vm.prank(owner);
-        vm.expectRevert(SafeOwnableUUPS.RenounceDisabled.selector);
+        // The no-renounce half of the policy is SafeOwnable's, shared with the vault factories.
+        vm.expectRevert(SafeOwnable.RenounceDisabled.selector);
         target.renounceOwnership();
     }
 

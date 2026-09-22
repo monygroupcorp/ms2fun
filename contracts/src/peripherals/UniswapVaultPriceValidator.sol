@@ -44,6 +44,13 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     using StateLibrary for IPoolManager;
 
     error SwapProportionDeviationTooHigh();
+    /// @notice The caller's spot price is further from the V3 TWAP than `maxPriceDeviationBps` allows.
+    /// @dev The guard that binds on the shape the vaults actually use. Both shipping vaults open
+    ///      FULL-RANGE positions, and a full-range position is 50/50 by value at every price — so the
+    ///      proportion the two guards below are computed on is a constant, and neither of them can ever
+    ///      see the manipulation they were written for (audit L-7). This one is measured on PRICE, which
+    ///      moves whatever the position's shape is.
+    error SpotTwapPriceDeviationTooHigh();
     /// @notice The pinned canonical pool could not produce a usable TWAP. Thrown by
     ///         {quoteEthForTokensVia} INSTEAD OF returning 0 — this is the anti-fail-open guarantee.
     error ReferenceTwapUnavailable();
@@ -89,6 +96,13 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         uint256 _maxPriceDeviationBps,
         uint32 _twapSecondsAgo
     ) {
+        // `maxPriceDeviationBps` is the band of the spot-vs-TWAP price guard, so its two degenerate
+        // values are both unusable and both are refused at deploy rather than at the first conversion.
+        // Zero admits no deviation at all and would revert every conversion against a live pool; above
+        // 100% the band is wider than the early `sqrtDiff > refSqrt` reject can express, so the number
+        // would no longer describe what is enforced. Neither is narrowing: the shipped configs are 500
+        // (mainnet) and 1000 (sepolia, anvil).
+        if (_maxPriceDeviationBps == 0 || _maxPriceDeviationBps > 10_000) revert PriceValidatorMisconfigured();
         weth = _weth;
         v3Factory = _v3Factory;
         poolManager = _poolManager;
@@ -253,9 +267,10 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
 
     /// @dev Venue-agnostic swap-proportion core shared by {calculateSwapProportion} (V4 spot) and
     ///      {calculateSwapProportionFromSqrtPrice} (caller-supplied spot). Computes the proportion at
-    ///      `sqrtPriceX96`, cross-checks it against a V3 TWAP proportion, and applies the absolute
-    ///      [35%,65%] clamp. A zero / out-of-range spot degrades to the balanced 50:50 entry (5e17),
-    ///      identical to the pre-refactor V4 behavior.
+    ///      `sqrtPriceX96`, requires that price to sit within `maxPriceDeviationBps` of the V3 TWAP,
+    ///      cross-checks the proportion against a V3 TWAP proportion, and applies the absolute [35%,65%]
+    ///      clamp. A zero / out-of-range spot degrades to the balanced 50:50 entry (5e17), identical to
+    ///      the pre-refactor V4 behavior.
     function _swapProportionFromSqrtPrice(
         address token,
         int24 tickLower,
@@ -294,6 +309,14 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         bool twapValid = false;
         uint256 twapProportion = 0;
         if (twapSqrtPrice != 0) {
+            // PRICE guard first, and deliberately not conditioned on `twapValid` (audit L-7). The two
+            // guards below are computed on the PROPORTION, and both shipping vaults open full-range
+            // positions whose proportion is 5e17 at every price — so on the live path neither of them can
+            // observe a manipulated spot at all. A price this far from the TWAP is a pushed pool whatever
+            // the position's shape is, and `twapValid` going false is itself one of the ways a wrong price
+            // shows up, so gating on it would switch the guard off in part of the case it is for.
+            _requireSpotWithinTwapBand(sqrtPriceX96, twapSqrtPrice, twapEthIsCurrency0 == ethIsCurrency0);
+
             // A flag is half of an ordering; the range is the other half. `tickLower`/`tickUpper` are
             // stated in the CALLER's pool, so when the TWAP pool orders the pair the other way round the
             // range has to be carried across with the price or the two halves describe different
@@ -313,6 +336,10 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     }
 
     /// @dev Applies the two independent swap-proportion guards and returns the guarded proportion.
+    ///      Both are computed on the PROPORTION and are therefore blind on a full-range position, whose
+    ///      proportion is 5e17 at every price; `_requireSpotWithinTwapBand` has already run on the PRICE
+    ///      by the time control reaches here, and it is the guard that binds on the shipping path. These
+    ///      two remain the guards for the bounded ranges this shared validator must also serve.
     ///      (1) Spot-vs-TWAP deviation check — catches price manipulation between the manipulable V4
     ///          spot price and the V3 TWAP. Kept, but it is COMMON-MODE BLIND to absolute error:
     ///          both operands come from the same computation, so a systematic bias cancels and can
@@ -336,6 +363,49 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         if (spotProportion < 35e16) spotProportion = 35e16;
         if (spotProportion > 65e16) spotProportion = 65e16;
         return spotProportion;
+    }
+
+    /// @dev Requires the caller's spot price to sit within `maxPriceDeviationBps` of the V3 TWAP.
+    ///
+    ///      This is the guard that survives the vaults' position shape. `_applyProportionGuards` works on
+    ///      the swap PROPORTION, which for a full-range position is 5e17 at every price by construction —
+    ///      a theorem the proportion maths states at the bottom of this file — so on the shipping path its
+    ///      deviation check sees two identical operands and its clamp sees a number already inside the
+    ///      band. Measuring the same divergence on price instead makes it visible for every shape, the
+    ///      full-range one included, and leaves the proportion guards doing what they were written for on
+    ///      the bounded ranges this shared validator must also serve.
+    ///
+    ///      `sameOrdering` carries the numeraire across, the way the proportion path already does for the
+    ///      range. A V4 native-ETH pool always has ETH as currency0; the V3 pool the TWAP came out of
+    ///      orders the pair by address, so its WETH leg can be currency1, and comparing the two prices
+    ///      as-is would compare a price against its own reciprocal. The reciprocal of a Q64.96 sqrt price
+    ///      is `2**192 / s`, exact to within one ulp of a 96-bit fraction — nine orders of magnitude below
+    ///      the tightest band this contract can be configured with, so the mapping cannot move a decision.
+    ///
+    ///      The deviation is measured on PRICE, matching the scale `maxPriceDeviationBps` carries at every
+    ///      other reader in this tree (`CypherAlignmentVault._validateExistingPool`, `_floorTokenOut`).
+    ///      Comparing sqrt deltas directly would spend a price-space bound in sqrt space and admit a band
+    ///      roughly twice as wide as its label.
+    function _requireSpotWithinTwapBand(uint160 spotSqrtPriceX96, uint160 twapSqrtPriceX96, bool sameOrdering)
+        private
+        view
+    {
+        uint256 spotSqrt = spotSqrtPriceX96;
+        // 2**192 / s is the same price read in the other numeraire: s = sqrt(P) * 2**96, so the reciprocal
+        // price's sqrt is 2**96 / sqrt(P) = 2**192 / s. Done in tick space instead it would round to a
+        // whole tick, and a tick is a basis point of price — the very unit of the band being enforced.
+        uint256 refSqrt = sameOrdering ? uint256(twapSqrtPriceX96) : (uint256(1) << 192) / uint256(twapSqrtPriceX96);
+
+        uint256 sqrtDiff = spotSqrt > refSqrt ? spotSqrt - refSqrt : refSqrt - spotSqrt;
+        // Only reachable above the reference, where a sqrt gap wider than the reference itself is a price
+        // more than 4x it — past any admissible band, since the knob is capped at 10000 bps. Below it the
+        // gap can never reach the reference, so the exact comparison below takes that side alone.
+        // Rejecting the high tail here also keeps the next line inside a uint256.
+        if (sqrtDiff > refSqrt) revert SpotTwapPriceDeviationTooHigh();
+        // |P_s - P_r| / P_r == |s_s - s_r| * (s_s + s_r) / s_r^2. Divided by the reference in one
+        // full-width step so the s^2 term never has to fit in a word; what remains is <= 3 * s_r.
+        uint256 scaledPriceDiff = FullMath.mulDiv(sqrtDiff, spotSqrt + refSqrt, refSqrt);
+        if (scaledPriceDiff * 10_000 > refSqrt * maxPriceDeviationBps) revert SpotTwapPriceDeviationTooHigh();
     }
 
     /// @dev Computes the fraction of pending ETH to swap INTO the alignment token for a zap-in to the

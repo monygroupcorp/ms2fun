@@ -15,7 +15,9 @@ import { IAlignmentVault } from "../../../interfaces/IAlignmentVault.sol";
  *      deploy. Environment/governance parameters a hook needs beyond the per-graduation set
  *      (PoolManager, WETH, the hook owner) are held as factory immutables, set when the factory is
  *      deployed and registered (117b / DeployCore) — so `deployHook`'s surface is exactly the
- *      per-graduation data.
+ *      per-graduation data. That data includes the pool the hook will serve (`poolToken`,
+ *      `poolTickSpacing`): a hook binds its whole `PoolKey`, so the pool is part of the hook's identity
+ *      and therefore of the address it is mined to, not something set on it afterwards.
  */
 interface IAlignmentHookFactory {
     /**
@@ -28,11 +30,19 @@ interface IAlignmentHookFactory {
      * @param benefactor The fixed identity credited for the pool's fee contributions.
      * @param hookFeeBips The hook fee in basis points (taken on the ETH side of swaps).
      * @param lpFeeRate The initial dynamic LP fee rate the hook overrides pools with.
+     * @param poolToken The alignment token the graduation pool is paired against native ETH, i.e. the
+     *        pool's `currency1`. The hook binds it and serves no other pool (audit L-6).
+     * @param poolTickSpacing The graduation pool's tick spacing, bound for the same reason.
      * @return hook The deployed hook address (carries the required permission bits).
      */
-    function deployHook(IAlignmentVault vault, address benefactor, uint256 hookFeeBips, uint24 lpFeeRate)
-        external
-        returns (address hook);
+    function deployHook(
+        IAlignmentVault vault,
+        address benefactor,
+        uint256 hookFeeBips,
+        uint24 lpFeeRate,
+        address poolToken,
+        int24 poolTickSpacing
+    ) external returns (address hook);
 
     /**
      * @notice The Uniswap v4 permission-bit mask this hook type's addresses must satisfy.

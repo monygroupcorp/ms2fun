@@ -1,7 +1,12 @@
-import { useState } from 'react'
-import { parseEther } from 'viem'
+import { useEffect, useRef, useState } from 'react'
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { erc1155InstanceAbi } from '../../generated/contracts'
+import {
+  editionDraftToAddEditionArgs,
+  emptyEditionDraft,
+  validateEditionDraft,
+  type EditionDraft,
+} from './erc1155/editionDraft'
 import { useCollectionChainId } from './useCollectionChain'
 import styles from './AddEditionForm.module.css'
 
@@ -16,58 +21,11 @@ const PRICING_MODEL_LABELS: Record<number, string> = {
   2: 'Limited dynamic',
 }
 
-function emptyForm() {
-  return {
-    pieceTitle: '',
-    basePrice: '',
-    supply: '',
-    metadataURI: '',
-    pricingModel: 0 as 0 | 1 | 2,
-    priceIncreaseRate: '',
-    openTime: '0',
-    freeMintAllocation: '',
-  }
-}
-
-type FormState = ReturnType<typeof emptyForm>
-
-function validate(form: FormState): string | null {
-  if (form.pieceTitle.trim() === '') return 'Piece title is required'
-  const price = parseFloat(form.basePrice)
-  if (!form.basePrice || isNaN(price) || price <= 0) return 'Base price must be greater than 0'
-  if (form.pricingModel === 0) {
-    const sup = form.supply.trim()
-    if (sup !== '' && sup !== '0')
-      return 'Unlimited pricing requires supply = 0 (leave blank or enter 0)'
-  }
-  if (form.pricingModel === 1 || form.pricingModel === 2) {
-    const sup = parseInt(form.supply, 10)
-    if (!form.supply || isNaN(sup) || sup <= 0) return 'Limited editions require supply > 0'
-  }
-  if (form.pricingModel === 2) {
-    const rate = parseInt(form.priceIncreaseRate, 10)
-    if (!form.priceIncreaseRate || isNaN(rate) || rate <= 0)
-      return 'Dynamic pricing requires price increase rate > 0 basis points'
-  }
-  const allocRaw = form.freeMintAllocation.trim()
-  if (allocRaw !== '') {
-    const alloc = parseInt(allocRaw, 10)
-    if (isNaN(alloc) || alloc < 0 || String(alloc) !== allocRaw)
-      return 'Free-mint allocation must be a whole number ≥ 0'
-    // Reserve-from-supply cap (noesis-135): for a limited edition the free allocation is drawn from
-    // supply, so it cannot exceed it. Unlimited editions (supply 0) accept any allocation.
-    if (form.pricingModel !== 0) {
-      const sup = parseInt(form.supply, 10)
-      if (!isNaN(sup) && sup > 0 && alloc > sup)
-        return 'Free-mint allocation cannot exceed the edition supply'
-    }
-  }
-  return null
-}
+type FormState = EditionDraft
 
 export function AddEditionForm({ instance, onAdded }: AddEditionFormProps) {
   const chainId = useCollectionChainId()
-  const [form, setForm] = useState<FormState>(emptyForm)
+  const [form, setForm] = useState<FormState>(emptyEditionDraft)
   const [clientError, setClientError] = useState<string | null>(null)
 
   const {
@@ -86,14 +44,20 @@ export function AddEditionForm({ instance, onAdded }: AddEditionFormProps) {
     error: waitErrorObj,
   } = useWaitForTransactionReceipt({ hash })
 
-  // On success: clear form + notify caller once
-  const [notified, setNotified] = useState(false)
-  if (isSuccess && !notified) {
-    setNotified(true)
-    setForm(emptyForm())
+  // On success: clear form + notify caller once.
+  //
+  // In an effect, not in the render body: `onAdded` is the collection page's
+  // `queryClient.invalidateQueries()`, so calling it here would start refetches and update other
+  // components while this one renders — the case React names in "Cannot update a component while
+  // rendering a different component". The ref keeps the one-shot from needing a render of its own.
+  const hasNotified = useRef(false)
+  useEffect(() => {
+    if (!isSuccess || hasNotified.current) return
+    hasNotified.current = true
+    setForm(emptyEditionDraft())
     setClientError(null)
     onAdded?.()
-  }
+  }, [isSuccess, onAdded])
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -115,34 +79,20 @@ export function AddEditionForm({ instance, onAdded }: AddEditionFormProps) {
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
 
-    const error = validate(form)
+    const error = validateEditionDraft(form)
     if (error) {
       setClientError(error)
       return
     }
 
-    const supply = form.pricingModel === 0 ? BigInt(0) : BigInt(form.supply)
-    const rate = form.pricingModel === 2 ? BigInt(form.priceIncreaseRate) : BigInt(0)
-    const openTime = BigInt(form.openTime.trim() || '0')
-    const freeMintAllocation = BigInt(form.freeMintAllocation.trim() || '0')
-
     resetWrite()
-    setNotified(false)
+    hasNotified.current = false
 
     writeContract({
       address: instance,
       abi: erc1155InstanceAbi,
       functionName: 'addEdition',
-      args: [
-        form.pieceTitle.trim(),
-        parseEther(form.basePrice),
-        supply,
-        form.metadataURI.trim(),
-        form.pricingModel,
-        rate,
-        openTime,
-        freeMintAllocation,
-      ],
+      args: editionDraftToAddEditionArgs(form),
       chainId: chainId,
     })
   }
@@ -279,6 +229,51 @@ export function AddEditionForm({ instance, onAdded }: AddEditionFormProps) {
           placeholder="0"
           disabled={isBusy}
         />
+      </div>
+
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="aef-closetime">
+          Close time (unix seconds; 0 = never closes)
+        </label>
+        <input
+          id="aef-closetime"
+          className={styles.input}
+          type="number"
+          min="0"
+          step="1"
+          value={form.closeTime}
+          onChange={(e) => set('closeTime', e.target.value)}
+          placeholder="0"
+          disabled={isBusy}
+        />
+        <span className={styles.hint}>
+          When minting stops. Mints revert at this timestamp, so it is the first second the edition
+          is over. Leave at 0 to run the edition open-ended. This and the per-wallet limit stay
+          editable until the first mint and are fixed after it — a collector who has paid chose the
+          drop as it was stated.
+        </span>
+      </div>
+
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="aef-maxperwallet">
+          Per-wallet limit (count; 0 = no limit)
+        </label>
+        <input
+          id="aef-maxperwallet"
+          className={styles.input}
+          type="number"
+          min="0"
+          step="1"
+          value={form.maxPerWallet}
+          onChange={(e) => set('maxPerWallet', e.target.value)}
+          placeholder="0"
+          disabled={isBusy}
+        />
+        <span className={styles.hint}>
+          The most tokens of this edition one wallet may mint, counted across paid mints and free
+          claims together. Counted off what a wallet has minted, not what it still holds, so sending
+          tokens away does not reopen the allowance.
+        </span>
       </div>
 
       <div className={styles.field}>

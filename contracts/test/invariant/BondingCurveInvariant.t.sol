@@ -11,6 +11,7 @@ import { ERC404BondingStorage } from "../../src/factories/erc404/ERC404BondingSt
 import { BondingCurveMath } from "../../src/factories/erc404/libraries/BondingCurveMath.sol";
 import { CurveParamsComputer } from "../../src/factories/erc404/CurveParamsComputer.sol";
 import { ILiquidityDeployerModule } from "../../src/interfaces/ILiquidityDeployerModule.sol";
+import { GatingScope } from "../../src/gating/IGatingModule.sol";
 import { BondingCurveHandler } from "./handlers/BondingCurveHandler.sol";
 
 contract MockLiqDeployer is ILiquidityDeployerModule {
@@ -35,6 +36,16 @@ contract MockLiqDeployer is ILiquidityDeployerModule {
  *
  *      The four original curve invariants below are UNCHANGED. They now hold under fuzzer-driven
  *      interleavings of buy / sell / mintUp / mintDown / band-burn / escrow-claim.
+ *
+ *      A FREE-MINT ALLOCATION IS NOW ON. It used to be configured to 0 and named a coin bucket, which
+ *      meant `claimFreeMint` reverted on every call and free coin had never met either the curve or the
+ *      ladder inside a sequence — the allocation was not being protected against, it was going
+ *      unevaluated. Both of its buckets were already inside the conservation walk (unclaimed coin in
+ *      `balanceOf(instance)`, claimed coin in an actor's balance), so turning it on costs the exact
+ *      identity nothing. The allocation here is small and deliberately so: what this fixture adds is
+ *      free coin COEXISTING with the tier surface, and it is what surfaced the sell leg's missing
+ *      `totalBondingSupply` clamp (`BondingCurveHandler.sell`). The allocation's own effect on the
+ *      reserve, at the size and shape the spec quotes, is `BondingCurveFreeMintInvariant.t.sol`.
  */
 contract BondingCurveInvariantTest is StdInvariant, Test {
     ERC404BondingInstance public instance;
@@ -68,6 +79,15 @@ contract BondingCurveInvariantTest is StdInvariant, Test {
     uint256 constant ID_LIMIT = MAX_SUPPLY / UNIT;
     uint256 constant LIQUIDITY_RESERVE_BPS = 1000;
     uint256 constant BONDING_FEE_BPS = 100; // 1%
+
+    /// @dev Free-mint allocation, in NFTs. Non-zero DELIBERATELY: every claim in this file used to be
+    ///      evaluated on an instance where `claimFreeMint` reverted, so free coin had never met the
+    ///      tier surface or the curve inside a sequence. One fewer than `actors.length`, so a run both
+    ///      spends the allocation and reaches `FreeMintExhausted` with a wallet that is otherwise
+    ///      eligible. Small on purpose — the drain a large allocation causes is
+    ///      `BondingCurveFreeMintInvariant.t.sol`'s subject, at the spec's operating point; what this
+    ///      fixture adds is free coin COEXISTING with a sealed ladder.
+    uint256 constant FREE_MINT_ALLOCATION = 3;
 
     // The ladder: 10-to-1, bands strictly ABOVE ID_LIMIT, each sized `S / w` exactly (the §3 sizing
     // invariant the seal enforces — a wrong `idEnd` is rejected, so these constants are load-bearing).
@@ -133,6 +153,12 @@ contract BondingCurveInvariantTest is StdInvariant, Test {
         instance.initializeProtocol(pp);
         instance.initializeMetadata("Test Token", "TEST", "", "", "");
 
+        // The allocation. `initializeFreeMint` is FACTORY-ONLY and this fixture's `factory` is whoever
+        // called `initialize` — i.e. `owner`, because that call sits inside this prank. The scope is
+        // economically inert: no gating module is wired, so `claimFreeMint`'s gating branch is never
+        // entered whatever the scope says.
+        instance.initializeFreeMint(FREE_MINT_ALLOCATION, GatingScope.BOTH);
+
         // Seal the Token Tiers ladder. `initTierBands` is FACTORY-ONLY, and this fixture's `factory` is
         // whoever called `initialize` (`ERC404BondingInstance.initialize` sets `factory = msg.sender`) —
         // i.e. `owner`, because that call sits inside this prank. It is also a trampoline into Ops, so
@@ -166,13 +192,23 @@ contract BondingCurveInvariantTest is StdInvariant, Test {
         // turn an exact identity into a silent inequality:
         //   * staking is NEVER wired here (`initializeStaking` is not called), so `stake`/`unstake` — the
         //     only other paths that move coin INTO the instance — revert `StakingModuleNotSet`;
-        //   * `freeMintAllocation` is 0 (`initializeFreeMint` is not called), so `claimFreeMint` reverts;
+        //   * `freeMintAllocation` is NON-ZERO, and both buckets it creates are already inside the
+        //     list the identity walks: coin nobody has claimed yet sits in `balanceOf(instance)` (hence
+        //     in `instanceUnescrowed`), and coin a wallet has claimed sits in that actor's balance
+        //     (hence in `coinBalanceOf`). So the allocation costs the identity nothing, and the older
+        //     shape of this block — which configured the allocation to 0 and named it a bucket — was
+        //     leaving free coin unevaluated against every claim in this file rather than protecting
+        //     anything. It is on here so free coin meets the SEALED LADDER: it can fund a `mintUp`, be
+        //     caught by a band burn, and be sold back down the curve mid-sequence. The allocation's own
+        //     effect on the reserve, at the size and shape the spec quotes, is
+        //     `BondingCurveFreeMintInvariant.t.sol`;
         //   * graduation is owner-only and the handler cannot reach it, so the liquidity deployer is
         //     never handed the `liquidityReserve` (it is summed anyway, so a future change cannot make
         //     the identity silently wrong).
         assertEq(address(instance.stakingModule()), address(0), "staking wired: a coin bucket is unaccounted for");
         assertFalse(instance.stakingActive(), "staking active: a coin bucket is unaccounted for");
-        assertEq(instance.freeMintAllocation(), 0, "free mint allocated: a coin bucket is unaccounted for");
+        assertEq(instance.freeMintAllocation(), FREE_MINT_ALLOCATION, "setUp is vacuous: the allocation never landed");
+        assertEq(instance.freeMintsClaimed(), 0, "setUp must not claim: the run has to spend the allocation itself");
         assertFalse(instance.graduated(), "graduated before the campaign started");
 
         actors.push(address(0xA11CE));
@@ -379,6 +415,25 @@ contract BondingCurveInvariantTest is StdInvariant, Test {
         assertEq(sum, instance.totalSupply(), "ERC20 supply escaped the fixture's known buckets");
     }
 
+    /// @notice The allocation is never oversubscribed, and an eligible wallet can always claim.
+    /// @dev The handler reads every precondition live before calling, so its failure counter holds no
+    ///      legitimate rejection; it is counted rather than asserted in-call because the runner discards
+    ///      reverting handler calls (`fail_on_revert = false`), which would swallow the assertion.
+    /// @dev BREAKING IT MEANS: either more free coin left the instance than the creator allocated —
+    ///      supply the cap arithmetic already spent — or a wallet the tranche was promised to cannot
+    ///      take it.
+    function invariant_freeMintAllocationIsHonoured() public view {
+        assertLe(instance.freeMintsClaimed(), instance.freeMintAllocation(), "more free mints claimed than allocated");
+        assertEq(
+            instance.freeMintsClaimed(),
+            handler.ghost_freeClaimCount(),
+            "claim counter disagrees with the landed claims"
+        );
+        assertEq(
+            handler.ghost_claimFreeFailures(), 0, "an eligible wallet could not claim, or claimed past the allocation"
+        );
+    }
+
     // ┌──────────────────────────────────────────────────────────────────────────────────────────┐
     // │  End of run: non-vacuity + the identities that are too expensive per call                │
     // └──────────────────────────────────────────────────────────────────────────────────────────┘
@@ -409,6 +464,9 @@ contract BondingCurveInvariantTest is StdInvariant, Test {
         if (handler.ghost_calls() >= NONVACUITY_MIN_CALLS) {
             assertGt(handler.ghost_buyCount(), seedBuyCount, "vacuous run: the run itself never bought the curve");
             assertGt(handler.ghost_tierOpCount(), 0, "vacuous run: the fuzzer never landed a single tier op");
+            // Same reasoning one step further: an allocation nobody claims is the fixture this file used
+            // to be, and it would pass every invariant below without free coin ever existing.
+            assertGt(handler.ghost_freeClaimCount(), 0, "vacuous run: the allocation was never claimed");
         }
         _assertCoinConservedExactly();
         _assertReservedIdSpaceIntact();
@@ -421,8 +479,10 @@ contract BondingCurveInvariantTest is StdInvariant, Test {
     ///                 + module-held balance  ==  totalSupply
     ///
     ///         with `instanceUnescrowed = balanceOf(instance) - totalTierEscrow - totalPendingEscrowRelease`.
-    /// @dev EXACT, not an inequality: `setUp` asserts that staking is not wired, no free-mint allocation
-    ///      exists and the instance has not graduated, so there is no other bucket coin can sit in. The
+    /// @dev EXACT, not an inequality: `setUp` asserts that staking is not wired and that the instance
+    ///      has not graduated, so there is no bucket outside this walk. The free-mint allocation does
+    ///      not add one — unclaimed coin is in `balanceOf(instance)` and claimed coin is in an actor's
+    ///      balance, both already summed — which is why the identity stays exact with it on. The
     ///      liquidity deployer and the handler are summed/asserted anyway so a future change cannot turn
     ///      the identity silently wrong.
     /// @dev BREAKING IT MEANS: escrow was created or destroyed rather than moved.

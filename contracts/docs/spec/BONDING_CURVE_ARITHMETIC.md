@@ -231,10 +231,82 @@ the late buyer does. Averaging, damping or per-buyer caps would flatten it and, 
 break parity.
 
 **Free-mint interaction.** Free-mint allocations are transferred without incrementing
-`totalBondingSupply`, so a free-mint holder can sell against a reserve they never funded. Steepening
-amplifies that drain by roughly `G`×: a 10% free-mint allocation drains ~62% of the reserve at
-`G = 7.2` against ~12.5% under the earlier flat shape. The allocation is the creator's choice; the
-number is stated here so it is known when it is chosen.
+`totalBondingSupply` (`ERC404BondingOps.claimFreeMint`), and `sellBonding` debits the reserve for the
+integral at the seller's supply whatever the seller's coin cost them. So a claimant sells at the top
+of the curve against a reserve they never funded. The allocation is removed from the curve's span at
+create (`ERC404Factory`: full supply, less the LP reserve, less the allocation), so the tranche is
+not supply the curve was ever going to sell: what moves is ETH, not oversold coin, and both solvency
+claims of §2 hold exactly with an allocation on
+(`test/invariant/BondingCurveFreeMintInvariant.t.sol`). That solvency is not free, and what it costs
+is at the end of this section — the transfer is sized first because the size is what a creator sets.
+
+Steepening amplifies the transfer, because the allocation is a fraction of **supply** while the
+reserve it can take is a fraction of the **raise**, and the top of a steep span holds far more of the
+raise than of the supply. With `φ` the allocation's share of the span and `ε = poleWad - 1e18` the
+pole gap of §6, the fraction of the raise a full dump removes is
+
+```
+drain(φ) = ln((ε + φ) / ε) / ln((1 + ε) / ε)
+```
+
+**Sizing, at the reserve every shipped preset carries** (1000 bps, `G = 7.20`):
+
+| allocation (of full supply) | `φ` (share of span) | drain (share of raise) | vs flat |
+|---|---|---|---|
+| 5%  | 5.88%  | **26.85%** | 4.57× |
+| 10% | 12.50% | **42.54%** | 3.40× |
+| 25% | 38.46% | **71.91%** | 1.87× |
+
+`φ` exceeds the allocation because the span is supply less the LP reserve **and less the allocation
+itself**, so the allocation both shrinks what the curve sells and enlarges what can be dumped into
+it. All three shipped rungs carry `liquidityReserveBps: 1000` (`script/LaunchPresets.sol`), and the
+reserve is the only preset field the shape depends on — `targetETH` scales `kCoeff` and `unitPerNFT`
+scales the id space, neither of which moves the distribution — so this table is the ladder's, not one
+rung's.
+
+**Shape sensitivity**, a 10% allocation at the endpoints of the admissible reserve band:
+
+| LP reserve | `G` | `φ` | drain | vs flat |
+|---|---|---|---|---|
+| 600 bps  | 12.53 | 11.90% | **49.13%** | 4.13× |
+| 1000 bps | 7.20  | 12.50% | **42.54%** | 3.40× |
+| 3550 bps | 1.45  | 18.34% | **24.43%** | 1.33× |
+
+A flat shape holds the raise uniformly across the span, so it would give up exactly `φ`; the last
+column is the amplification over that. **The amplification is not `G`.** `G` is the ratio of the
+curve's last price to its average — what an infinitesimal slice at the very endpoint would see. A
+finite slice reaches down the curve into cheaper supply and averages well below the endpoint, so
+quoting `G` here overstates the drain by better than a factor of two. The drain is largest where the
+LP reserve is smallest, because a smaller reserve buys a steeper curve.
+
+**Timing.** Sold early the dump takes a larger share of a smaller reserve: claimants selling the
+moment the curve has sold as much as they hold take **every wei** in it, which at the shipped reserve
+is 4.02% of the raise. Worst case in ETH is the full curve; worst case as a fraction is the empty
+one, and it is small money — neither alone is the figure.
+
+**What the reserve's solvency costs, and who pays it.** `calculateRefund` reverts
+`AmountExceedsSupply` above `totalBondingSupply`, so the reserve can never be sold below zero — and
+that refusal is exactly how solvency is preserved. It is also where the loss lands. The identity is
+exact and holds at every instant:
+
+```
+Sum(holder balances)  ==  totalBondingSupply + freeMintsClaimed · unit
+```
+
+because a buy raises the counter by its amount, a claim raises it by nothing, and a sell lowers it by
+its amount. So of the coin in circulation only `totalBondingSupply` can ever be sold back: once the
+tranche is dumped the counter is short by exactly the claimed allocation, and that much coin **cannot
+be sold at any price**. The shortfall is not shared pro rata — it falls in reverse exit order, on
+whoever is still holding when the counter runs out, and that can be a paid buyer. Solvency and
+universal exit are different promises and the curve keeps only the first.
+
+Every number and identity above is measured or asserted, not derived by hand:
+
+    forge test --match-contract 'FreeMintReserveDrain|BondingCurveFreeMintInvariant'
+
+The allocation is the creator's choice; the numbers are stated here so they are known when it is
+chosen, and `app/src/lib/learn/concepts.ts` states the same cost — including the unsellable tail — on
+the surface the creator actually reads.
 
 ---
 
@@ -349,6 +421,21 @@ poolOpenPrice = 80 ETH / 10^27 base units  ==  the curve's final price
 - `test/libraries/BondingCurveMath.t.sol` — the closed forms across the whole band, the pole domain
   guard, sell-side symmetry at both boundaries and the first and last unit, and the price
   distribution.
+- `test/factories/erc404/FreeMintReserveDrain.t.sol` — every free-mint figure in §7, measured from the
+  library rather than reasoned about: the drain and its amplification at the shipping preset, both
+  endpoints of the admissible reserve band (with monotonicity between them, so the endpoints are a
+  bound and not two samples), and the early-sale case together with the `AmountExceedsSupply` floor
+  under it.
+- `test/invariant/BondingCurveFreeMintInvariant.t.sol` — the allocation's own fixture: production
+  curve params at `G = 7.2`, an allocation of 10% of supply, twelve wallets chasing ten claims, and
+  fuzzer-interleaved paid buys, paid sells, free claims and sales of free coin. `reserve == balance`
+  and `reserve == F(totalBondingSupply)` both hold exactly, with zero tolerance, as does the
+  circulation identity above. Each run is gated on having actually claimed, sold free coin, and hit
+  `FreeMintExhausted` — an allocation nobody claims tests nothing.
+- `test/invariant/BondingCurveInvariant.t.sol` — the stateful multi-actor curve-and-tiers suite. It
+  carries a small allocation as well, so free coin meets the sealed tier ladder: it can fund a
+  `mintUp`, be caught by a band burn, and be sold back down the curve mid-sequence. It previously
+  configured the allocation to 0, which left free coin unevaluated against every claim in that file.
 
 Direction-only assertions (`assertGt` on a rising price) are deliberately absent from both: they pass
 on a one-wei rise, which is what allowed a flat curve to read green.
@@ -360,5 +447,9 @@ on a one-wei rise, which is what allowed a flat curve to read green.
 - `app/src/components/collection/erc404/curveSampler.ts` re-implements the price curve in TypeScript
   for the chart. Nothing pins that implementation to the Solidity one; a divergence means the chart a
   buyer sees is not the price they pay. A cross-implementation gate is not in this document's scope.
-- A steep curve amplifies the free-mint reserve drain (§7). Locking free-mint tokens from
-  `sellBonding` until graduation, or counting them into `totalBondingSupply`, is tracked separately.
+The free-mint reserve drain (§7) is **not** on this list. Locking free-mint tokens from `sellBonding`
+until graduation, or counting them into `totalBondingSupply`, was considered and declined: the
+tranche is a design decision (ruling, rth, 2026-09-17), and what the decision owes is disclosure
+rather than a mechanism change. The three surfaces that owe it are §7's figure, the app's learn copy,
+and a fixture that actually evaluates the curve with an allocation on — all three named in §7 and
+§13.
