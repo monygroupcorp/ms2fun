@@ -15591,6 +15591,13 @@ export const zRouterAbi = [
   },
   {
     type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [
       { name: 'token', internalType: 'address', type: 'address' },
       { name: 'value', internalType: 'uint256', type: 'uint256' },
@@ -31108,6 +31115,14 @@ export const useReadZRouterOnErc721Received =
     abi: zRouterAbi,
     functionName: 'onERC721Received',
   })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadZRouterOwner = /*#__PURE__*/ createUseReadContract({
+  abi: zRouterAbi,
+  functionName: 'owner',
+})
 
 /**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"safeExecutor"`

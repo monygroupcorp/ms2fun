@@ -203,5 +203,65 @@ contract MigrateOwnership is Script {
             Ownable(plainOwnable[i]).transferOwnership(timelock);
             console.log("Ownable transferred ->", plainOwnable[i]);
         }
+
+        // D5 — read the handover back. Every line above is a write whose failure mode is silence:
+        // a `completeOwnershipHandover` that was never paired with a Phase-1 request, an env var
+        // pointing at the wrong address, a contract added to `DeployCore` and never added to the
+        // lists here. None of those revert on their own, and a deploy that skipped the handover
+        // entirely is otherwise indistinguishable from one that completed it. This runs inside the
+        // same broadcast, so a partial migration fails during simulation rather than landing.
+        _verify(timelock);
+    }
+
+    /// @notice Assert the handover actually landed. Callable on its own against an already-migrated
+    ///         deployment — `forge script MigrateOwnership --sig "verify()"` — so a runbook can tick
+    ///         it as a step, and so the claim "ownership was handed over" is a thing somebody read
+    ///         back rather than a thing somebody remembers doing.
+    /// @dev    View and unbroadcast: it asserts, it never writes.
+    function verify() external view {
+        address timelock = vm.envAddress("TIMELOCK_ADDRESS");
+        require(timelock != address(0), "MigrateOwnership: TIMELOCK_ADDRESS unset");
+        _verify(timelock);
+    }
+
+    /// @dev The assertions themselves. Ordered to match `_migrate`, and every message names the
+    ///      contract that failed so a partial migration says which step to re-run.
+    function _verify(address timelock) internal view {
+        // A governance owner is a contract — a Timelock or a Safe. An EOA here is the exact
+        // mistake this entry exists to catch: it satisfies every `owner() == timelock` check
+        // below while leaving the protocol under one key.
+        require(timelock.code.length != 0, "MigrateOwnership: TIMELOCK_ADDRESS is an EOA, not a contract");
+
+        address[] memory safeOwnable = _safeOwnableContracts();
+        for (uint256 i; i < safeOwnable.length; i++) {
+            require(
+                Ownable(safeOwnable[i]).owner() == timelock,
+                "MigrateOwnership: SafeOwnableUUPS owner is not the timelock"
+            );
+        }
+
+        address[] memory plainOwnable = _plainOwnableContracts();
+        for (uint256 i; i < plainOwnable.length; i++) {
+            require(Ownable(plainOwnable[i]).owner() == timelock, "MigrateOwnership: Ownable owner is not the timelock");
+        }
+
+        // D3 read-back — the emergency revoker is the no-delay kill switch. Left on the deployer
+        // EOA it is the one capability the handover was supposed to move and the one nothing else
+        // would reveal, because every `owner()` above would still read correctly.
+        require(
+            MasterRegistryV1(vm.envAddress("MASTER_REGISTRY")).emergencyRevoker() == timelock,
+            "MigrateOwnership: emergencyRevoker is not the timelock"
+        );
+
+        // D4 read-back — PROTOCOL_ROLE is not ownership and `transferOwnership` does not move it,
+        // so it is the other capability a naive handover leaves behind. `transferProtocolRole`
+        // removes it from the caller as it grants, so asserting the timelock holds it is enough.
+        ERC404Factory factory = ERC404Factory(vm.envAddress("ERC404_FACTORY"));
+        require(
+            factory.hasAnyRole(timelock, factory.PROTOCOL_ROLE()),
+            "MigrateOwnership: timelock does not hold PROTOCOL_ROLE on ERC404Factory"
+        );
+
+        console.log("ownership verified: every migrated contract, the revoker and PROTOCOL_ROLE are held by", timelock);
     }
 }

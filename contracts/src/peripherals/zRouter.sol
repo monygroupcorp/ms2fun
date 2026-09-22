@@ -1139,6 +1139,17 @@ contract zRouter {
 
     address _owner;
 
+    /// @notice The address that passes `onlyOwner` — the sweep capability and the trusted-target map.
+    /// @dev    Upstream keeps this private, and a router whose owner cannot be read is a router whose
+    ///         ownership handover cannot be verified: `transferOwnership` emits `OwnershipTransferred`
+    ///         and then the current holder is knowable only by replaying every log ever emitted, or by
+    ///         reading storage by slot index. This deployment is migrated to a Timelock along with the
+    ///         rest of the protocol, and that migration is asserted by reading each contract's owner
+    ///         back, so the getter is what makes this contract checkable at all.
+    function owner() public view returns (address) {
+        return _owner;
+    }
+
     modifier onlyOwner() {
         require(msg.sender == _owner, Unauthorized());
         _;

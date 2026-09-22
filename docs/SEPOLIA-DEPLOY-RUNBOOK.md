@@ -385,6 +385,39 @@ git diff --exit-code app/src/generated/contracts.ts    # must be clean
 This is the same sequence `app-ci.yml`'s drift gate runs; running it here is confirming the gate's
 answer against the tree actually being deployed, on the day.
 
+### 5.5 Hand ownership to the Timelock
+
+**This step is the rehearsal.** Everything above it this network has done before; this it has not.
+`MigrateOwnership.s.sol` has existed and been tested since noesis-093 and **no deploy path has ever
+called it**, so without this section the first two-phase ownership handover this protocol performs
+would be the one on mainnet, with real money behind it and no dry run. That is the whole reason
+Sepolia is run as a dress rehearsal rather than a smoke test.
+
+Deploy the Timelock first — it is the address that will own everything, and it must be a contract:
+
+```
+cd contracts
+forge script script/DeployTimelock.s.sol --rpc-url <sepolia-rpc> --broadcast
+export TIMELOCK_ADDRESS=<the address it printed>
+```
+
+The handover is **two-phase and non-atomic**, and the roles are the reverse of a naive transfer: for
+the `SafeOwnableUUPS` contracts the NEW owner requests and the CURRENT owner completes.
+
+```
+# Phase 1 — from the Timelock. Print the batch it must execute:
+forge script script/MigrateOwnership.s.sol --sig "printRequestBatch()" --rpc-url <sepolia-rpc>
+# Execute that batch as the Timelock. Each request is valid for 48h.
+
+# Phase 2 — from the deployer. Completes the handovers, moves PROTOCOL_ROLE,
+# re-points the emergency revoker, and asserts the result before it lands.
+forge script script/MigrateOwnership.s.sol --rpc-url <sepolia-rpc> --broadcast
+```
+
+Phase 2 ends by reading the handover back and reverting if any part of it did not land, so a partial
+migration fails in simulation rather than leaving the protocol half-moved. Tick §6.6 anyway: that
+assertion ran against the simulated state, and §6.6 runs against the chain.
+
 ---
 
 ## 6. Verify
@@ -454,6 +487,27 @@ deploy wrote — so §6.1 and this agree by construction rather than by two peop
 The §5.3 commit changes committed config, so the full suite runs against it. It must be green before
 the site is built from it. `contracts-ci.yml` carries the EIP-170 gate; `app-ci.yml` carries the
 bindings drift gate and the walk validator.
+
+### 6.6 Ownership actually moved
+
+The one check on this page whose absence is invisible: a deployment that never ran §5.5 and one that
+completed it look identical from outside. Every registry answers, every factory creates, every
+surface works — and one EOA still holds all of it.
+
+```
+cd contracts
+TIMELOCK_ADDRESS=<timelock> forge script script/MigrateOwnership.s.sol --sig "verify()" \
+  --rpc-url <sepolia-rpc>
+```
+
+Read-only. It asserts that every `SafeOwnableUUPS` and every plain-`Ownable` contract in the
+migration set reads `owner() == TIMELOCK_ADDRESS`; that `MasterRegistryV1.emergencyRevoker()` is the
+Timelock, because the no-delay kill switch is the one capability every `owner()` check would miss;
+that the Timelock holds `PROTOCOL_ROLE` on `ERC404Factory`, which `transferOwnership` does not move;
+and that `TIMELOCK_ADDRESS` has code at all, since an EOA there satisfies every other assertion while
+leaving the protocol under one key.
+
+A non-zero exit names the contract that failed, so a partial migration says which step to re-run.
 
 ### 6.5 The walk, live
 

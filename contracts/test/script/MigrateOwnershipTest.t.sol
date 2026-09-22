@@ -28,6 +28,12 @@ contract MigrateOwnershipHarness is MigrateOwnership {
     function migrate(address timelock) external {
         _migrate(timelock);
     }
+
+    /// @dev The read-back on its own, so a test can ask what `verify()` would say about a
+    ///      deployment WITHOUT first migrating it.
+    function verifyAs(address timelock) external view {
+        _verify(timelock);
+    }
 }
 
 /// @notice Proves noesis-093 + noesis-192: the two-step handover lands ownership on the timelock for
@@ -114,6 +120,11 @@ contract MigrateOwnershipTest is Test {
 
         deployer = address(s);
         timelock = makeAddr("timelock");
+        // A governance owner is a contract — a Timelock or a Safe — and `_verify` refuses an EOA
+        // there, because an EOA satisfies every `owner() == timelock` assertion in this file while
+        // leaving the protocol under one key. `makeAddr` alone produces a codeless address, so the
+        // fixture gives it code; `vm.prank(timelock)` below is unaffected either way.
+        vm.etch(timelock, hex"00");
         _cacheAddresses();
         _setScriptEnv();
     }
@@ -217,9 +228,15 @@ contract MigrateOwnershipTest is Test {
     ///      INTO the harness, not the calls the harness makes. `_migrate` reads only env vars, so the
     ///      DeployCore storage it lands on top of is never touched.
     function _migrate() internal {
+        _etchHarness();
+        MigrateOwnershipHarness(deployer).migrate(timelock);
+    }
+
+    /// @dev The etch on its own, for a test that wants the script's body without running the
+    ///      migration first.
+    function _etchHarness() internal {
         MigrateOwnershipHarness impl = new MigrateOwnershipHarness();
         vm.etch(deployer, address(impl).code);
-        MigrateOwnershipHarness(deployer).migrate(timelock);
     }
 
     // ── Pre-migration sanity: every SafeOwnableUUPS contract starts owned by the deployer ─────────
@@ -443,6 +460,37 @@ contract MigrateOwnershipTest is Test {
         cfg.zrouterTickSpacing = 60;
         cfg.alignmentTargets = targets;
         cfg.jsonOutputPath = "";
+    }
+
+    // ── D5: the handover is read back, so skipping it cannot resemble completing it ───────────────
+
+    /// @notice The live trap of PRE-MAINNET-CHECKLIST entry 4, pinned: before the migration runs,
+    ///         every contract is still deployer-owned, and that state must be LOUD. Without the
+    ///         read-back a deploy that never called this script and one that completed it are
+    ///         indistinguishable — nothing fails, nothing warns, and the deploy looks clean either
+    ///         way. This asserts the opposite: asked about an unmigrated deployment, `verify`
+    ///         refuses rather than returning.
+    function test_verify_refusesAnUnmigratedDeployment() public {
+        _etchHarness();
+        vm.expectRevert(bytes("MigrateOwnership: SafeOwnableUUPS owner is not the timelock"));
+        MigrateOwnershipHarness(deployer).verifyAs(timelock);
+    }
+
+    /// @notice And once the migration has actually run, the same call returns.
+    function test_verify_acceptsAMigratedDeployment() public {
+        _requestHandovers();
+        _migrate();
+        MigrateOwnershipHarness(deployer).verifyAs(timelock);
+    }
+
+    /// @notice An EOA passes every `owner() == timelock` assertion while leaving the protocol under
+    ///         one key, which is the failure the checklist names by name. Refused on its own terms,
+    ///         before any of the per-contract checks can pass it.
+    function test_verify_refusesAnEoaAsTheGovernanceOwner() public {
+        _etchHarness();
+        address eoa = makeAddr("not-a-timelock");
+        vm.expectRevert(bytes("MigrateOwnership: TIMELOCK_ADDRESS is an EOA, not a contract"));
+        MigrateOwnershipHarness(deployer).verifyAs(eoa);
     }
 }
 
