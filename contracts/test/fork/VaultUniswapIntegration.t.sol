@@ -186,6 +186,34 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         );
     }
 
+    /// @notice The largest amount a fee claim may fall short of its exact entitlement, in wei.
+    /// @dev `simulateFeeAccrual` adds `floor(amount * 1e18 / totalShares)` to `accFeesPerShare`, and a
+    ///      claim reads back `floor(shares * accFeesPerShare / 1e18)`. Both floor, and the source says
+    ///      which way on purpose -- "round down: favors vault" at `UniAlignmentVault.sol`'s accumulator.
+    ///      For a sole holder, write `q = floor(F * 1e18 / S)` and `r = F * 1e18 - q * S` with `r < S`;
+    ///      the claim is then `F - ceil(r / 1e18)`, so the shortfall is at most `ceil((S - 1) / 1e18)`.
+    ///      One wei while `totalShares <= 1e18`, which every launch is: the suite's own positions issue
+    ///      shares on the order of 1e14. Expressed as a formula rather than a literal so a future change
+    ///      that inflates the share scale widens the bound instead of quietly breaking the test.
+    function _claimFloorBound() internal view returns (uint256) {
+        return 1 + vault.totalShares() / 1e18;
+    }
+
+    /// @notice Assert a fee claim is exact-or-floored, never over.
+    /// @dev The direction is the safety property and is asserted separately from the magnitude: a claim
+    ///      ABOVE entitlement means the vault promised fees it does not hold, and the last claimer pays
+    ///      for it. A claim below by a bounded amount leaves the remainder in the vault, claimable by
+    ///      nobody and owed to nobody. So `assertLe` is the one that would catch a defect; the lower
+    ///      bound only keeps the test from passing on a claim that collapsed to zero.
+    function _assertClaimFloors(uint256 actual, uint256 expected, string memory what) internal view {
+        assertLe(actual, expected, string.concat(what, ": claimed MORE than the entitlement -- a leak, not rounding"));
+        assertGe(
+            actual + _claimFloorBound(),
+            expected,
+            string.concat(what, ": claim fell further short than the accumulator's floor allows")
+        );
+    }
+
     /// @notice Assert share percentage matches expected (with AMM tolerance)
     function _assertSharePercentage(
         address benefactor,
@@ -570,7 +598,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         vm.prank(alice);
         uint256 claimed = vault.claimFees();
 
-        assertEq(claimed, 2 ether, "Alice should claim all fees");
+        _assertClaimFloors(claimed, 2 ether, "sole contributor claiming all fees");
         // On fork, actual received = claimed - gas cost
         assertGe(alice.balance, aliceBalanceBefore, "Alice balance should increase");
         assertApproxEqAbs(
@@ -628,7 +656,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // Alice claims
         vm.prank(alice);
         uint256 firstClaim = vault.claimFees();
-        assertEq(firstClaim, 1 ether, "First claim should be 1 ETH");
+        _assertClaimFloors(firstClaim, 1 ether, "first claim");
 
         // Second fee deposit
         vm.deal(owner, 2 ether);
@@ -638,7 +666,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // Alice claims again (should only get delta)
         vm.prank(alice);
         uint256 secondClaim = vault.claimFees();
-        assertEq(secondClaim, 2 ether, "Second claim should be delta (2 ETH)");
+        _assertClaimFloors(secondClaim, 2 ether, "second claim (delta)");
 
         // Third fee deposit
         vm.deal(owner, 3 ether);
@@ -648,7 +676,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // Alice claims third time
         vm.prank(alice);
         uint256 thirdClaim = vault.claimFees();
-        assertEq(thirdClaim, 3 ether, "Third claim should be delta (3 ETH)");
+        _assertClaimFloors(thirdClaim, 3 ether, "third claim (delta)");
 
         emit log_string("[PASS] Multi-claim delta calculation works correctly");
     }
@@ -790,31 +818,35 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
 
         // Calculate claimable (total, not delta)
         uint256 claimable = vault.calculateClaimableAmount(alice);
-        assertEq(claimable, 5 ether, "Alice should be able to claim all fees");
+        _assertClaimFloors(claimable, 5 ether, "calculateClaimableAmount on 100% of shares");
 
         // Claim some
         vm.prank(alice);
         vault.claimFees();
 
-        // Note: calculateClaimableAmount returns TOTAL (not delta)
-        // So it still shows 5 ETH even after claiming
-        assertEq(vault.calculateClaimableAmount(alice), 5 ether, "Total still 5 ETH");
-
-        // But getUnclaimedFees (delta) should be 0
-        assertEq(vault.getUnclaimedFees(alice), 0, "No new fees yet (delta)");
+        // `calculateClaimableAmount` no longer returns the lifetime gross. It nets out the reward-debt
+        // watermark, the same as `getUnclaimedFees` and the `claimFees` write path -- the source says why
+        // it was changed: "returning the lifetime-gross value here inflated integrator portfolios by
+        // every past claim". The two functions are now the same figure, so assert that they agree rather
+        // than that they differ, which is what this test was written to show.
+        assertEq(vault.calculateClaimableAmount(alice), 0, "nothing further is claimable right after a claim");
+        assertEq(vault.getUnclaimedFees(alice), 0, "and the delta agrees");
 
         // Add more fees
         vm.deal(owner, 3 ether);
         vm.prank(owner);
         vault.simulateFeeAccrual{ value: 3 ether }(3 ether);
 
-        // Total claimable now 8 ETH
-        assertEq(vault.calculateClaimableAmount(alice), 8 ether, "Total now 8 ETH");
+        // Both now read the new accrual and nothing older.
+        _assertClaimFloors(vault.calculateClaimableAmount(alice), 3 ether, "claimable after a second accrual");
+        _assertClaimFloors(vault.getUnclaimedFees(alice), 3 ether, "delta after a second accrual");
+        assertEq(
+            vault.calculateClaimableAmount(alice),
+            vault.getUnclaimedFees(alice),
+            "the two claim readers must not disagree"
+        );
 
-        // Unclaimed (delta) should be 3 ETH
-        assertEq(vault.getUnclaimedFees(alice), 3 ether, "Delta is 3 ETH");
-
-        emit log_string("[PASS] calculateClaimableAmount shows total, getUnclaimedFees shows delta");
+        emit log_string("[PASS] both claim readers net out the watermark and agree");
     }
 
     function test_getUnclaimedFees() public {
