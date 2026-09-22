@@ -151,6 +151,7 @@ export function projectConfig(
       AaveEndowmentVaultFactory: required(f, 'AAVE'),
       ComponentRegistry: required(c, 'ComponentRegistry'),
       ProfileRegistry: required(c, 'ProfileRegistry'),
+      CurationRegistry: required(c, 'CurationRegistry'),
       AlignmentTargetRequestRegistry: required(c, 'AlignmentTargetRequestRegistry'),
       MetadataResolverRouter: required(c, 'MetadataResolverRouter'),
       MetadataOverlayModule: required(c, 'MetadataOverlayModule'),

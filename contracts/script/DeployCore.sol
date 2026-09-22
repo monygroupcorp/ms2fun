@@ -11,6 +11,7 @@ import { AlignmentTargetRequestRegistry } from "../src/master/AlignmentTargetReq
 import { GlobalMessageRegistry } from "../src/registry/GlobalMessageRegistry.sol";
 import { ComponentRegistry } from "../src/registry/ComponentRegistry.sol";
 import { ProfileRegistry } from "../src/registry/ProfileRegistry.sol";
+import { CurationRegistry } from "../src/registry/CurationRegistry.sol";
 import { ProtocolTreasuryV1 } from "../src/treasury/ProtocolTreasuryV1.sol";
 import { UniAlignmentVault } from "../src/vaults/uni/UniAlignmentVault.sol";
 import { UniAlignmentVaultFactory } from "../src/vaults/uni/UniAlignmentVaultFactory.sol";
@@ -188,6 +189,7 @@ contract DeployCore is Script {
     ComponentRegistry public componentRegistry;
     ComponentRegistry public componentRegistryImpl;
     ProfileRegistry public profileRegistry;
+    CurationRegistry public curationRegistry;
 
     // Infrastructure
     address public safe;
@@ -343,6 +345,11 @@ contract DeployCore is Script {
 
         // Ownerless, non-upgradeable account profile registry (ADR-0004) — no proxy, no init.
         profileRegistry = new ProfileRegistry();
+
+        // Ownerless, non-upgradeable curation registry — same shape, and for the same reason: a
+        // curation is published by anyone, for nothing, so there is no owner to gate it and no fee
+        // to raise later.
+        curationRegistry = new CurationRegistry();
 
         // Alignment-target request intake (docs/phases/alignment-target-requests.md) — standalone,
         // Ownable, escrows a refundable deposit while Pending. Owner = deployer (handed to ADMIN via
@@ -760,6 +767,7 @@ contract DeployCore is Script {
         vm.serializeAddress(c, "AlignmentRegistry", address(alignmentRegistry));
         vm.serializeAddress(c, "ComponentRegistry", address(componentRegistry));
         vm.serializeAddress(c, "ProfileRegistry", address(profileRegistry));
+        vm.serializeAddress(c, "CurationRegistry", address(curationRegistry));
         vm.serializeAddress(c, "AlignmentTargetRequestRegistry", address(targetRequestRegistry));
         vm.serializeAddress(c, "QueryAggregator", address(queryAggregator));
         vm.serializeAddress(c, "zRouter", address(zrouter));

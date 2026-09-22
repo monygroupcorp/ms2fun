@@ -5,6 +5,8 @@ import { useReadQueryAggregatorGetHomePageData } from '../generated/contracts'
 import { forkAddresses, forkChainId } from '../lib/addresses'
 import { CollectionCard, type HomePageCard } from '../components/CollectionCard'
 import { ActivityPreview } from '../components/home/ActivityPreview'
+import { CurationCard } from '../components/curation/CurationCard'
+import { curationsAvailable, useLatestCurations } from '../components/curation/useCurations'
 import { StateBlock } from '../components/ui/StateBlock'
 import { orderFeatured } from '../lib/featuredOrder'
 import { activeNetworkName, activeNetworkStatus } from '../lib/network'
@@ -20,6 +22,10 @@ import styles from './HomePage.module.css'
  *  - a featured grid (fast path: `getHomePageData`) with EXEC404 / CULT EXECUTIVES pinned first,
  *    remaining featured cards ordered by on-chain `featuredRank` (higher rank = higher placement,
  *    because rank is what the slot paid),
+ *  - a curated wall below it, which is the same page reached by a route that costs nothing: its
+ *    rows are whatever anyone most recently assembled, ordered by the chain's `updatedAt` and by
+ *    nothing purchasable. The two walls sit on one page on purpose — "paid placement, labelled"
+ *    means something only when the reader can see what unpaid placement looks like,
  *  - a stats bar (featured count from the fast path; total collections from the full-registry scan,
  *    which fills in when ready — the page never blocks on it),
  *  - a read-only recent-activity preview (shares the board's global feed cache).
@@ -108,6 +114,45 @@ function HeroLanding() {
   )
 }
 
+/**
+ * The curated wall — the home page's unpaid half.
+ *
+ * It is deliberately a SECOND section rather than rows mixed into the featured grid: mixing them
+ * would make "paid placement, labelled" a label on individual cards, which nobody reads, instead of
+ * a property of a whole wall, which is visible at a glance. Six rows, because this is a taste of
+ * the surface and /curations is the surface.
+ *
+ * Renders nothing at all when there are no curations yet, or when this build's chain carries no
+ * curation registry. An empty wall under a confident heading advertises that nobody is using it.
+ */
+function CuratedWall() {
+  const { data: curations, isPending, isError } = useLatestCurations(6)
+
+  if (!curationsAvailable) return null
+  if (isPending || isError) return null
+  if (curations === undefined || curations.length === 0) return null
+
+  return (
+    <section className={styles.curated} data-testid="home-curated">
+      <div className={styles.featuredHeader}>
+        <h2 className={styles.sectionTitle}>Curated</h2>
+        <span className={styles.freeLabel}>· assembled by collectors, nobody paid to be here</span>
+      </div>
+      <div className={styles.curatedGrid}>
+        {curations.map((row) => (
+          <CurationCard key={row.id.toString()} id={row.id} curation={row.curation} />
+        ))}
+        <Link href="/curations" className={styles.browseTile} data-testid="curations-link">
+          <span className={styles.browseTileLabel}>All curations</span>
+          <span className={styles.browseTileArrow} aria-hidden>
+            →
+          </span>
+        </Link>
+      </div>
+    </section>
+  )
+}
+
 export function HomePage() {
   const { address: connected } = useAccount()
   const { data, isPending, isError } = useReadQueryAggregatorGetHomePageData({
@@ -138,78 +183,82 @@ export function HomePage() {
     <div className={styles.page}>
       {/* No bespoke hero, no stats bar — the work, not a banner, carries the page. */}
       <div className={styles.body}>
-        <section className={styles.featured}>
-          <div className={styles.featuredHeader}>
-            <h2 className={styles.sectionTitle}>Featured</h2>
-            <span className={styles.paidLabel}>
-              · paid placement, labelled — not an endorsement
-            </span>
-          </div>
-
-          {isPending && (
-            <StateBlock variant="loading" boxed>
-              hanging the work…
-            </StateBlock>
-          )}
-          {isError && (
-            <StateBlock variant="error" boxed>
-              discovery unreachable — no response from the network.
-            </StateBlock>
-          )}
-
-          {!isPending && !isError && (
-            <div className={styles.featuredGrid}>
-              {/* EXEC404 / CULT EXECUTIVES — the genesis collection, always pinned first.
-                  Its full trading + holder surface is the EXEC404 page. */}
-              <Link href="/exec404" className="noesis-card" data-testid="exec404-link">
-                <div className={`art ${styles.execArt}`}>
-                  <img
-                    src="/exec-executives.png"
-                    alt="CULT EXECUTIVES"
-                    className={styles.execImg}
-                    loading="lazy"
-                  />
-                  <span className="st">Genesis</span>
-                </div>
-                <div className="lab">
-                  <div className={styles.execLabMain}>
-                    <span className="nm">CULT EXECUTIVES</span>
-                    <span className="by">EXEC · the origin collection</span>
-                  </div>
-                  <span className="px">Uniswap ↗</span>
-                </div>
-              </Link>
-
-              {featuredCards !== null && featuredCards.length === 0 && (
-                <StateBlock
-                  variant="empty"
-                  boxed
-                  testId="collections-empty"
-                  className={styles.gridSpan}
-                >
-                  no collections are featured yet.
-                </StateBlock>
-              )}
-
-              {featuredCards !== null &&
-                featuredCards.map((c, i) => (
-                  <CollectionCard key={c.instance} card={c} variant={i === 0 ? 'lead' : 'card'} />
-                ))}
-
-              {/* Browse-all closes the row inline (was a disruptive standalone header link). */}
-              <Link
-                href="/collections"
-                className={styles.browseTile}
-                data-testid="collections-link"
-              >
-                <span className={styles.browseTileLabel}>Browse all collections</span>
-                <span className={styles.browseTileArrow} aria-hidden>
-                  →
-                </span>
-              </Link>
+        <div className={styles.walls}>
+          <section className={styles.featured}>
+            <div className={styles.featuredHeader}>
+              <h2 className={styles.sectionTitle}>Featured</h2>
+              <span className={styles.paidLabel}>
+                · paid placement, labelled — not an endorsement
+              </span>
             </div>
-          )}
-        </section>
+
+            {isPending && (
+              <StateBlock variant="loading" boxed>
+                hanging the work…
+              </StateBlock>
+            )}
+            {isError && (
+              <StateBlock variant="error" boxed>
+                discovery unreachable — no response from the network.
+              </StateBlock>
+            )}
+
+            {!isPending && !isError && (
+              <div className={styles.featuredGrid}>
+                {/* EXEC404 / CULT EXECUTIVES — the genesis collection, always pinned first.
+                  Its full trading + holder surface is the EXEC404 page. */}
+                <Link href="/exec404" className="noesis-card" data-testid="exec404-link">
+                  <div className={`art ${styles.execArt}`}>
+                    <img
+                      src="/exec-executives.png"
+                      alt="CULT EXECUTIVES"
+                      className={styles.execImg}
+                      loading="lazy"
+                    />
+                    <span className="st">Genesis</span>
+                  </div>
+                  <div className="lab">
+                    <div className={styles.execLabMain}>
+                      <span className="nm">CULT EXECUTIVES</span>
+                      <span className="by">EXEC · the origin collection</span>
+                    </div>
+                    <span className="px">Uniswap ↗</span>
+                  </div>
+                </Link>
+
+                {featuredCards !== null && featuredCards.length === 0 && (
+                  <StateBlock
+                    variant="empty"
+                    boxed
+                    testId="collections-empty"
+                    className={styles.gridSpan}
+                  >
+                    no collections are featured yet.
+                  </StateBlock>
+                )}
+
+                {featuredCards !== null &&
+                  featuredCards.map((c, i) => (
+                    <CollectionCard key={c.instance} card={c} variant={i === 0 ? 'lead' : 'card'} />
+                  ))}
+
+                {/* Browse-all closes the row inline (was a disruptive standalone header link). */}
+                <Link
+                  href="/collections"
+                  className={styles.browseTile}
+                  data-testid="collections-link"
+                >
+                  <span className={styles.browseTileLabel}>Browse all collections</span>
+                  <span className={styles.browseTileArrow} aria-hidden>
+                    →
+                  </span>
+                </Link>
+              </div>
+            )}
+          </section>
+
+          <CuratedWall />
+        </div>
 
         <aside className={styles.rail}>
           <ActivityPreview />

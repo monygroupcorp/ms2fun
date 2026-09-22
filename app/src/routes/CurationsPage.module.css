@@ -1,0 +1,81 @@
+.page {
+  composes: page from '../styles/layout.module.css';
+}
+
+.head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--gap-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-5);
+}
+
+.title {
+  font-family: var(--brand-font-display);
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-tight);
+  margin: var(--space-1) 0 var(--space-2);
+}
+
+.lede {
+  margin: 0;
+  max-width: 46ch;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-relaxed);
+  color: var(--color-text-muted);
+}
+
+.headActions {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  flex-shrink: 0;
+}
+
+.connectHint {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}
+
+/* The composer opens in place rather than on its own route: publishing is one signature, and
+   sending a first-time curator through a page transition to reach it makes it feel like a launch. */
+.composer {
+  border: 1px solid var(--border-secondary);
+  padding: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.composerTitle {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-3);
+}
+
+/* Same two-up-with-a-lead geometry as the featured grid, so the two walls read as siblings. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-auto-rows: 13rem;
+  gap: var(--gap-md);
+}
+
+.grid :global(.noesis-card.lead) {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+@media (max-width: 560px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .grid :global(.noesis-card.lead) {
+    grid-column: span 1;
+  }
+}

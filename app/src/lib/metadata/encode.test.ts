@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildCollectionJson,
+  buildCurationJson,
   buildProfileJson,
   collectionToDataUri,
+  curationToDataUri,
   profileToDataUri,
   toJsonDataUri,
 } from './encode'
-import { parseCollection, parseProfile } from './schemas'
-import type { CollectionMetadata, ProfileMetadata } from './schemas'
+import { parseCollection, parseCuration, parseProfile } from './schemas'
+import type { CollectionMetadata, CurationMetadata, ProfileMetadata } from './schemas'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -274,5 +276,68 @@ describe('collectionToDataUri', () => {
     expect(parsed.image).toBe(c.image)
     expect(parsed.category).toBe(c.category)
     expect(parsed.links).toEqual(c.links)
+  })
+})
+
+// ── curations ────────────────────────────────────────────────────────────────
+
+describe('buildCurationJson', () => {
+  const A = '0x111111111111111111111111111111111111aaaa'
+  const B = '0x222222222222222222222222222222222222bbbb'
+
+  const full: CurationMetadata = {
+    schemaVersion: 1,
+    name: 'Blues',
+    description: 'Everything that stopped me.',
+    image: 'ipfs://QmCover',
+    items: [
+      { instance: A, tokenId: '7', note: 'the one' },
+      { instance: B, tokenId: '', note: '' },
+    ],
+  }
+
+  it('writes the keys in the documented order', () => {
+    expect(Object.keys(JSON.parse(buildCurationJson(full)))).toEqual([
+      'schemaVersion',
+      'name',
+      'description',
+      'image',
+      'items',
+    ])
+  })
+
+  it("omits a pick's empty tokenId and note rather than writing them", () => {
+    const written = JSON.parse(buildCurationJson(full)) as { items: unknown[] }
+    expect(written.items[1]).toEqual({ instance: B })
+    expect(written.items[0]).toEqual({ instance: A, tokenId: '7', note: 'the one' })
+  })
+
+  it('lowercases every instance it writes', () => {
+    const json = buildCurationJson({
+      ...full,
+      items: [{ instance: '0x111111111111111111111111111111111111AAAA', tokenId: '', note: '' }],
+    })
+    expect(json).toContain(A)
+    expect(json).not.toContain('AAAA')
+  })
+
+  /** A named-but-empty curation is a real state and has to survive the round trip saying so. */
+  it('keeps an empty items array where every other empty field is dropped', () => {
+    const written = JSON.parse(
+      buildCurationJson({ schemaVersion: 1, name: 'Soon', description: '', image: '', items: [] }),
+    )
+    expect(written).toEqual({ schemaVersion: 1, name: 'Soon', items: [] })
+  })
+
+  it('round-trips through parseCuration unchanged', () => {
+    const parsed = parseCuration(JSON.parse(buildCurationJson(full)))
+    expect(parsed).toEqual(full)
+  })
+
+  it('round-trips through its data: URI', () => {
+    const uri = curationToDataUri(full)
+    expect(uri.startsWith('data:application/json,')).toBe(true)
+    const json = decodeURIComponent(uri.slice('data:application/json,'.length))
+    expect(parseCuration(JSON.parse(json))).toEqual(full)
   })
 })

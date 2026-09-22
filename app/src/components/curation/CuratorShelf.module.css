@@ -1,0 +1,9 @@
+/* Contact-sheet geometry, matching the profile's Made tab so a plate's two galleries read as one
+   shelf seen twice. No lead card: a curator's own sets are not ranked against each other. */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  grid-auto-rows: 13rem;
+  gap: var(--gap-md);
+}

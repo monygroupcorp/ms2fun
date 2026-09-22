@@ -1,13 +1,13 @@
 /**
  * Encoding helpers for the backend-free metadata model (ADR-0004): build canonical JSON strings
- * from ProfileMetadata / CollectionMetadata and wrap them in inline `data:` URIs that can be
- * written on-chain as pointers. Pure TS (no React/wagmi) so NOEMA can reuse it.
+ * from ProfileMetadata / CollectionMetadata / CurationMetadata and wrap them in inline `data:`
+ * URIs that can be written on-chain as pointers. Pure TS (no React/wagmi) so NOEMA can reuse it.
  *
  * Key contract: empty-string / empty-array / empty-object fields are omitted to minimise on-chain
  * payload size; `schemaVersion` is always kept.
  */
 
-import type { CollectionMetadata, ProfileLink, ProfileMetadata } from './schemas'
+import type { CollectionMetadata, CurationMetadata, ProfileLink, ProfileMetadata } from './schemas'
 
 // ── key-order helpers ─────────────────────────────────────────────────────────
 
@@ -99,4 +99,38 @@ export function profileToDataUri(p: ProfileMetadata): string {
 /** Build a `data:` URI for a collection — the value that goes on-chain as `metadataURI`. */
 export function collectionToDataUri(c: CollectionMetadata): string {
   return toJsonDataUri(buildCollectionJson(c))
+}
+
+/**
+ * Canonical JSON string for a CurationMetadata value — the document behind `curationURI`.
+ *
+ * Key order: schemaVersion, name, description, image, items. Empty fields are omitted, so a
+ * curation with no cover and no notes writes four keys and the picks. Each pick is written with
+ * only the keys it uses: `tokenId` and `note` are dropped when empty, which is the common case
+ * (a set of collections, unannotated) and is where most of the payload would otherwise go.
+ *
+ * `items` is NOT omitted when empty: a curation with no picks is a real, publishable state — the
+ * curator named the set before filling it — and `{"items":[]}` says that where a missing key would
+ * read as "this JSON predates items".
+ */
+export function buildCurationJson(c: CurationMetadata): string {
+  const raw: Record<string, unknown> = {
+    schemaVersion: c.schemaVersion,
+    name: c.name,
+    description: c.description,
+    image: c.image,
+    items: c.items.map((i) => ({
+      instance: i.instance.toLowerCase(),
+      ...(i.tokenId !== '' ? { tokenId: i.tokenId } : {}),
+      ...(i.note !== '' ? { note: i.note } : {}),
+    })),
+  }
+  const out = omitEmpty(raw)
+  out.items = raw.items
+  return JSON.stringify(out)
+}
+
+/** Build a `data:` URI for a curation — the value that goes on-chain as the curation pointer. */
+export function curationToDataUri(c: CurationMetadata): string {
+  return toJsonDataUri(buildCurationJson(c))
 }
