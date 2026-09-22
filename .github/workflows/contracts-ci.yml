@@ -194,15 +194,20 @@ jobs:
   # need no RPC. Their own compile under their own config, so they do not wait on the build job.
   #
   # Every test here is in `foundry.toml`'s `skip=` list and therefore runs in NO other job: the
-  # default profile cannot compile it. So a proof left out of the path below is a proof nothing
-  # ever runs again, which is what this step's single-path version had quietly become — the audit
-  # proof for the hook's unbound pool key sat green and unrun from the day it was written.
-  # The path is now the whole skip list bar `test/audit/FreeMintCurveSolvency.t.sol`, which is
-  # skipped for a different reason (it fails by design against a ruled-as-designed mechanism; see
-  # `foundry.toml` and §3 of contracts/audits/2026-09-17-pre-testnet.md) and compiles under the
-  # default profile anyway. Anything added to that skip list for a PRAGMA reason belongs here the
-  # same day, or it is unrun.
-  # The job id stays `real-settlement` though the step now runs more than RealSettlement: it is a
+  # default profile cannot compile it. So a proof left out of the set is a proof nothing ever runs
+  # again, which is what this step's single-path version had quietly become — the audit proof for
+  # the hook's unbound pool key sat green and unrun from the day it was written.
+  #
+  # The set is NOT written here. It lives in contracts/scripts/real-v4-gate.sh, which is also what
+  # a developer runs before pushing, because the two copies of the list had drifted — one file
+  # locally where this step ran three — and there is no second copy to keep in step any more.
+  # What used to be the standing instruction in this comment, that a file added to `skip=` for a
+  # pragma reason belongs in the path the same day, is now an assertion the script refuses to run
+  # without: every skipped file must be named there, in its RUN set or in its OUT table with the
+  # reason it stays out (`test/audit/FreeMintCurveSolvency.t.sol` is the one entry in that table,
+  # red by ruling). It also asks forge which files the path actually reaches, because a
+  # `--match-path` that matches nothing exits 0.
+  # The job id stays `real-settlement` though the script runs more than RealSettlement: it is a
   # required check, and renaming it silently drops that requirement from branch protection.
   real-settlement:
     runs-on: ubuntu-latest
@@ -220,6 +225,4 @@ jobs:
         run: ./scripts/install-libs.sh all
 
       - name: Real-v4 regressions
-        run: |
-          FOUNDRY_CONFIG=foundry.v4.toml forge test --match-path \
-            "test/{hooks/UniAlignmentV4Hook_RealSettlement,audit/HookSecondPoolNotBound,audit/HookQueuedFeesMigratedVault,audit/UniVaultPoolKeyRotation}.t.sol"
+        run: ./scripts/real-v4-gate.sh

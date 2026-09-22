@@ -1193,6 +1193,35 @@ rather than as wide as its shape. Two instances is a pattern, and the remaining 
 re-read against it before testnet — M-1's "no path to recover what a venue did not consume" and
 M-3's "an owner setter with no already-deployed lock" are both stated as a list of venues.
 
+**Two things about this row set were only visible after the merges of 2026-09-20,** and neither is
+readable from the rows above, so they are recorded here:
+
+**The L-11 proof merged green on its branch and red on main.** `RenouncedLaunchPoolParity.t.sol`
+passes at `b9905cbe`, the tip of `audit-l10-l11-residue-and-parity`, and both of its tests fail from
+`c9ea5ffd` — the merge that brought it in — and at every commit after it, on a merge git had no
+conflict to report. The two branches were each green alone: #436 was cut from a commit that did not
+carry #434, and #434 made the shared mock charge for the liquidity it mints. So on main a venue takes
+what it charges for, `LiquidityDeployerModule._returnResidue` moves the remainder out, and
+`delivered == sized` is false by 2 wei. The fix was right and the assertion was stale, which is the
+worse of the two ways for a proof to go red: for a day the tree carried a merged fix whose own proof
+denied it. Repaired on #447 (`contracts-gate-red-on-main`), which admits the venue's integer-liquidity
+residue, accounts for the declined leg exactly and bounds how much of the sized leg a venue may
+decline at all — so the proof now asserts what L-11 actually promises instead of a wei-exact equality
+the venue was never going to satisfy. It also asserts that nothing is stranded: the module holds no
+ETH and no coin afterwards, and the instance holds exactly the gap, which is where a renounced
+launch's residue is sent.
+
+**The returned ETH leg was reported in no event.** `_returnResidue` force-transfers the unconsumed
+ETH to the instance when `p.creator == address(0)`, then emitted `GraduationResidueReturned` with
+`ethTithed` hard-coded to `0` on exactly that branch. That field is the tithed leg and this ETH was
+returned rather than tithed, so it was correct in name and reported nothing; `coinReturned` carried
+the coin side and the ETH side of the same residue appeared nowhere, leaving anyone reconciling where
+a graduation's LP capital went to read it off a balance and trust that nothing else had paid the
+instance. Nothing was lost, only unreported. Fixed on #450: all three venue modules emit
+`GraduationResidueReturned(instance, ethTithed, ethReturned, coinReturned)`, exactly one of the two
+ETH fields is non-zero for a given graduation, and a report summing the ETH a graduation diverted adds
+`ethTithed` and must not add `ethReturned`, which was never levied on anyone.
+
 ### What this audit does not cover
 
 Stated plainly so the gap is not mistaken for a clean bill:
@@ -1263,3 +1292,18 @@ Inside that run the seventeen suites under `test/audit/` contribute 88 tests, al
 sixteen and 81, because `ZRouterRefundBoundedToOwnChange.t.sol` joined the set with L-9's second pass
 and the tree grew tests elsewhere. The four files the default set does not compile are measured
 separately in §3; three of them are now in the `real-settlement` CI job and the fourth is H-1's.
+
+Note what that exclusion bought and what it cost while it lasted: it kept the gate honest about
+defects the gate did not cause, and it left those proofs unwatched. `UniVaultPoolKeyRotation.t.sol`
+was red against a fix merged on 2026-09-17 and stayed red until 2026-09-19, when running the set by
+hand was the first thing that looked at it.
+
+That cost is since paid twice over. `ci-real-v4-audit-proofs-unrun` (PR #445) added the
+`real-settlement` job that runs the real-v4 proofs, and the set it runs is now written in exactly one
+place, `contracts/scripts/real-v4-gate.sh`, which both that job and a developer call. The script
+refuses to run unless every file in `foundry.toml`'s `skip=` list is either in its run set or
+recorded beside it with the reason it is deliberately out, and it asks forge which files its path
+actually reaches before running them — because a `--match-path` that matches nothing exits 0. So a
+proof can no longer be skipped and unwatched at the same time without something going red.
+`FreeMintCurveSolvency.t.sol` is the one file recorded as out, red by the H-1 ruling and for as long
+as it stands.
