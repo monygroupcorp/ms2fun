@@ -197,6 +197,24 @@
   font-family: var(--font-mono);
 }
 
+/* ── Duration (amount + unit) ────────────────────────────────── */
+
+.durationRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.durationAmount {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.durationUnit {
+  flex: 0 0 auto;
+  width: auto;
+}
+
 /* ── Checkbox ───────────────────────────────────────────────── */
 
 .checkboxLabel {

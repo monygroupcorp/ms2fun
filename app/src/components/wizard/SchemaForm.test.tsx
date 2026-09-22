@@ -255,3 +255,103 @@ test('help text is rendered and wired via aria-describedby', () => {
   const helpEl = document.getElementById(describedById!)
   expect(helpEl?.textContent).toBe('Tell us about yourself')
 })
+
+// ── Schedule kinds (noesis/drop-window-in-epoch-seconds) ─────────────────────
+//
+// `datetime` and `duration` exist so a creator states a moment or a span instead of an epoch
+// integer. The VALUES BAG stays in unix seconds throughout — that is what makes the submit-builders
+// and `validateField` indifferent to the change — so every case here reads what the control shows
+// and asserts what the bag receives.
+
+const datetimeField: FieldSchema = { key: 'closeTime', label: 'Closes', kind: 'datetime' }
+const durationField: FieldSchema = { key: 'baseDuration', label: 'Base duration', kind: 'duration' }
+
+/** A local wall-clock moment and its unix seconds, computed the way the browser would. */
+const MOMENT = {
+  local: '2026-09-22T18:30',
+  epoch: Math.floor(new Date(2026, 8, 22, 18, 30).getTime() / 1000),
+}
+
+test('datetime field renders a calendar picker, not a number box', () => {
+  render(<SchemaForm fields={[datetimeField]} values={{}} onChange={vi.fn()} />)
+  expect(screen.getByLabelText('Closes')).toHaveAttribute('type', 'datetime-local')
+  expect(screen.queryByRole('spinbutton')).toBeNull()
+})
+
+test('datetime field shows the stored seconds as a moment', () => {
+  render(
+    <SchemaForm
+      fields={[datetimeField]}
+      values={{ closeTime: String(MOMENT.epoch) }}
+      onChange={vi.fn()}
+    />,
+  )
+  expect(screen.getByLabelText('Closes')).toHaveValue(MOMENT.local)
+})
+
+test('datetime field renders 0 as an empty picker — 0 is "no time set", never 1970', () => {
+  render(<SchemaForm fields={[datetimeField]} values={{ closeTime: '0' }} onChange={vi.fn()} />)
+  expect(screen.getByLabelText('Closes')).toHaveValue('')
+})
+
+test('a picked moment reaches the values bag as unix seconds', () => {
+  const onChange = vi.fn()
+  render(<SchemaForm fields={[datetimeField]} values={{ closeTime: '0' }} onChange={onChange} />)
+  fireEvent.change(screen.getByLabelText('Closes'), { target: { value: MOMENT.local } })
+  expect(onChange).toHaveBeenCalledWith('closeTime', String(MOMENT.epoch))
+})
+
+test('clearing the picker returns the field to 0, which is where it started', () => {
+  const onChange = vi.fn()
+  render(
+    <SchemaForm
+      fields={[datetimeField]}
+      values={{ closeTime: String(MOMENT.epoch) }}
+      onChange={onChange}
+    />,
+  )
+  fireEvent.change(screen.getByLabelText('Closes'), { target: { value: '' } })
+  expect(onChange).toHaveBeenCalledWith('closeTime', '0')
+})
+
+test('duration field renders an amount and the span it is stated in', () => {
+  render(<SchemaForm fields={[durationField]} values={{}} onChange={vi.fn()} />)
+  expect(screen.getByLabelText('Base duration')).toHaveAttribute('type', 'number')
+  expect(screen.getByLabelText('Base duration unit')).toBeInTheDocument()
+})
+
+test('duration field opens on the coarsest span that divides the stored seconds', () => {
+  render(
+    <SchemaForm fields={[durationField]} values={{ baseDuration: '86400' }} onChange={vi.fn()} />,
+  )
+  expect(screen.getByLabelText('Base duration')).toHaveValue(1)
+  expect(screen.getByLabelText('Base duration unit')).toHaveValue('days')
+})
+
+test('an amount is multiplied by its span before it reaches the bag', () => {
+  const onChange = vi.fn()
+  render(
+    <SchemaForm fields={[durationField]} values={{ baseDuration: '3600' }} onChange={onChange} />,
+  )
+  // The stored 3600 reads as "1 hours", so typing 24 against that span means a day.
+  fireEvent.change(screen.getByLabelText('Base duration'), { target: { value: '24' } })
+  expect(onChange).toHaveBeenCalledWith('baseDuration', '86400')
+})
+
+test('changing the span restates the same amount — 1 hour becomes 1 day', () => {
+  const onChange = vi.fn()
+  render(
+    <SchemaForm fields={[durationField]} values={{ baseDuration: '3600' }} onChange={onChange} />,
+  )
+  fireEvent.change(screen.getByLabelText('Base duration unit'), { target: { value: 'days' } })
+  expect(onChange).toHaveBeenCalledWith('baseDuration', '86400')
+})
+
+test('an emptied duration empties the field, so a required rule still bites', () => {
+  const onChange = vi.fn()
+  render(
+    <SchemaForm fields={[durationField]} values={{ baseDuration: '3600' }} onChange={onChange} />,
+  )
+  fireEvent.change(screen.getByLabelText('Base duration'), { target: { value: '' } })
+  expect(onChange).toHaveBeenCalledWith('baseDuration', '')
+})

@@ -8,6 +8,7 @@ import {
   type EditionDraft,
 } from './erc1155/editionDraft'
 import { useCollectionChainId } from './useCollectionChain'
+import { epochFromLocalInput, localInputFromEpoch } from '../../lib/time/scheduleInput'
 import styles from './AddEditionForm.module.css'
 
 export interface AddEditionFormProps {
@@ -216,39 +217,37 @@ export function AddEditionForm({ instance, onAdded }: AddEditionFormProps) {
 
       <div className={styles.field}>
         <label className={styles.label} htmlFor="aef-opentime">
-          Open time (unix seconds; 0 = open immediately)
+          Opens
         </label>
         <input
           id="aef-opentime"
           className={styles.input}
-          type="number"
-          min="0"
-          step="1"
-          value={form.openTime}
-          onChange={(e) => set('openTime', e.target.value)}
-          placeholder="0"
+          type="datetime-local"
+          value={localInputFromEpoch(Number(form.openTime))}
+          onChange={(e) => set('openTime', String(epochFromLocalInput(e.target.value) ?? 0))}
           disabled={isBusy}
         />
+        <span className={styles.hint}>
+          Leave blank to open the moment the edition is created. Both times here are shown in your
+          own timezone and stored on chain as the moment itself.
+        </span>
       </div>
 
       <div className={styles.field}>
         <label className={styles.label} htmlFor="aef-closetime">
-          Close time (unix seconds; 0 = never closes)
+          Closes
         </label>
         <input
           id="aef-closetime"
           className={styles.input}
-          type="number"
-          min="0"
-          step="1"
-          value={form.closeTime}
-          onChange={(e) => set('closeTime', e.target.value)}
-          placeholder="0"
+          type="datetime-local"
+          value={localInputFromEpoch(Number(form.closeTime))}
+          onChange={(e) => set('closeTime', String(epochFromLocalInput(e.target.value) ?? 0))}
           disabled={isBusy}
         />
         <span className={styles.hint}>
-          When minting stops. Mints revert at this timestamp, so it is the first second the edition
-          is over. Leave at 0 to run the edition open-ended. This and the per-wallet limit stay
+          When minting stops. Mints revert AT this moment, so it is the first second the edition is
+          over. Leave blank to run the edition open-ended. This and the per-wallet limit stay
           editable until the first mint and are fixed after it — a collector who has paid chose the
           drop as it was stated.
         </span>

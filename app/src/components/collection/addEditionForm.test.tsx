@@ -11,6 +11,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { AddEditionForm } from './AddEditionForm'
+import { localInputFromEpoch } from '../../lib/time/scheduleInput'
 
 const INSTANCE = '0x2222222222222222222222222222222222222222' as const
 
@@ -86,4 +87,51 @@ test('a confirmed receipt clears the form and notifies the page once, outside of
   )
   expect(renderPhaseUpdates).toEqual([])
   consoleError.mockRestore()
+})
+
+// ── The schedule is stated, not computed (noesis/drop-window-in-epoch-seconds) ──
+
+test('the schedule fields are calendars, and what they send is unix seconds', () => {
+  // Minute-aligned: a `datetime-local` picker steps by the minute, so this is the finest moment a
+  // creator can state on either surface.
+  const opensAt = Math.floor((Math.floor(Date.now() / 1000) + 3_600) / 60) * 60
+  const closesAt = opensAt + 86_400
+
+  render(<AddEditionForm instance={INSTANCE} />)
+
+  const opens = screen.getByLabelText(/^opens/i) as HTMLInputElement
+  const closes = screen.getByLabelText(/^closes/i) as HTMLInputElement
+  expect(opens.getAttribute('type')).toBe('datetime-local')
+  expect(closes.getAttribute('type')).toBe('datetime-local')
+  // Nothing typed yet is an empty picker, and an empty picker is the open-ended edition.
+  expect(opens.value).toBe('')
+  expect(closes.value).toBe('')
+
+  fireEvent.change(screen.getByLabelText(/piece title/i), { target: { value: 'Genesis' } })
+  fireEvent.change(screen.getByLabelText(/base price/i), { target: { value: '0.05' } })
+  fireEvent.change(screen.getByLabelText(/metadata uri/i), { target: { value: 'ipfs://cid' } })
+  fireEvent.change(opens, { target: { value: localInputFromEpoch(opensAt) } })
+  fireEvent.change(closes, { target: { value: localInputFromEpoch(closesAt) } })
+  fireEvent.submit(screen.getByRole('button', { name: /add edition/i }))
+
+  const call = writeContract.mock.calls[0]?.[0]
+  if (!call) throw new Error('writeContract was called with nothing')
+  // `addEdition(pieceTitle, basePrice, supply, metadataURI, pricingModel, rate, openTime,
+  //  freeMintAllocation, closeTime, maxPerWallet)`.
+  expect(call.args[6]).toBe(BigInt(opensAt))
+  expect(call.args[8]).toBe(BigInt(closesAt))
+})
+
+test('a creator who fills in no schedule still gets an open-ended edition', () => {
+  render(<AddEditionForm instance={INSTANCE} />)
+
+  fireEvent.change(screen.getByLabelText(/piece title/i), { target: { value: 'Genesis' } })
+  fireEvent.change(screen.getByLabelText(/base price/i), { target: { value: '0.05' } })
+  fireEvent.change(screen.getByLabelText(/metadata uri/i), { target: { value: 'ipfs://cid' } })
+  fireEvent.submit(screen.getByRole('button', { name: /add edition/i }))
+
+  const call = writeContract.mock.calls[0]?.[0]
+  if (!call) throw new Error('writeContract was called with nothing')
+  expect(call.args[6]).toBe(0n)
+  expect(call.args[8]).toBe(0n)
 })
