@@ -5,8 +5,8 @@ import { AlignmentEndowmentVault } from "./AlignmentEndowmentVault.sol";
 import { IAlignmentRegistry } from "../../master/interfaces/IAlignmentRegistry.sol";
 import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
 import { IFactory } from "../../interfaces/IFactory.sol";
-import { ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
-import { Ownable } from "solady/auth/Ownable.sol";
+import { CreateXSalt, ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
+import { SafeOwnable } from "../../shared/SafeOwnable.sol";
 
 /// @title AlignmentEndowmentVaultFactory
 /// @notice Deploys AlignmentEndowmentVault clones via CREATE3 (EIP-1167 minimal proxy).
@@ -24,7 +24,7 @@ import { Ownable } from "solady/auth/Ownable.sol";
 ///         factory must be an active `IFactory` in the MasterRegistry (see MasterRegistryV1.registerVault):
 ///         it implements `IFactory` with `protocol() == owner()` and empty feature sets (a vault factory
 ///         contributes no wizard component-steps).
-contract AlignmentEndowmentVaultFactory is Ownable, IFactory {
+contract AlignmentEndowmentVaultFactory is SafeOwnable, IFactory {
     /// @notice Factory-hardcoded metadataURI for every self-registered vault — NOT caller-supplied, so
     ///         it cannot be weaponised for roster phishing. Matches the deploy seed's literal.
     string constant METADATA_URI = "https://ms2.fun";
@@ -130,9 +130,11 @@ contract AlignmentEndowmentVaultFactory is Ownable, IFactory {
         bytes memory proxyCreationCode = abi.encodePacked(
             hex"3d602d80600a3d3981f3363d3d373d3d3d363d73", vaultImplementation, hex"5af43d82803e903d91602b57fd5bf3"
         );
-        // Bind salt to msg.sender to prevent front-running the deterministic CREATE3 address.
-        bytes32 senderBoundSalt = keccak256(abi.encodePacked(msg.sender, salt));
-        vault = ICreateX(CREATEX).deployCreate3(senderBoundSalt, proxyCreationCode);
+        // CreateX reads its front-run guard off the SHAPE of this salt: first 20 bytes the caller,
+        // 21st byte 0x00, and the guard becomes keccak256(msg.sender, salt), which no third party can
+        // reproduce. See CreateXSalt.
+        bytes32 create3Salt = CreateXSalt.permissioned(address(this), msg.sender, salt);
+        vault = ICreateX(CREATEX).deployCreate3(create3Salt, proxyCreationCode);
 
         // No payout is passed: the vault resolves its target sink from `alignmentRegistry` on every send,
         // so there is no deploy-time copy to seed and no window in which a stale one could be paid.
@@ -156,8 +158,7 @@ contract AlignmentEndowmentVaultFactory is Ownable, IFactory {
 
     /// @notice Preview the deterministic address for a given salt
     function computeVaultAddress(address creator, bytes32 salt) external view returns (address) {
-        bytes32 senderBoundSalt = keccak256(abi.encodePacked(creator, salt));
-        bytes32 guardedSalt = keccak256(abi.encode(senderBoundSalt)); // CreateX RandomBytes guard path
-        return ICreateX(CREATEX).computeCreate3Address(guardedSalt, CREATEX);
+        bytes32 create3Salt = CreateXSalt.permissioned(address(this), creator, salt);
+        return ICreateX(CREATEX).computeCreate3Address(CreateXSalt.guarded(address(this), create3Salt), CREATEX);
     }
 }

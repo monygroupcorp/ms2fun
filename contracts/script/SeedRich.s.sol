@@ -123,6 +123,8 @@ contract SeedRich is Script {
             ERC1155Instance.PricingModel.LIMITED_DYNAMIC,
             500,
             0,
+            0,
+            0,
             0
         );
         r.addEdition(
@@ -131,6 +133,8 @@ contract SeedRich is Script {
             3,
             _pieceMeta("Scarce", _svg("SC")),
             ERC1155Instance.PricingModel.LIMITED_FIXED,
+            0,
+            0,
             0,
             0,
             0
@@ -143,6 +147,8 @@ contract SeedRich is Script {
             ERC1155Instance.PricingModel.LIMITED_FIXED,
             0,
             block.timestamp + 7 days,
+            0,
+            0,
             0
         );
         d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.015 ether);
@@ -177,6 +183,8 @@ contract SeedRich is Script {
                 50,
                 _pieceMeta("Members Pass", _svg("MP")),
                 ERC1155Instance.PricingModel.LIMITED_FIXED,
+                0,
+                0,
                 0,
                 0,
                 0

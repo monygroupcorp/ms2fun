@@ -11,6 +11,8 @@ import { LiquidityDeployerModule } from "../../../src/factories/erc404/Liquidity
 import { CurveParamsComputer } from "../../../src/factories/erc404/CurveParamsComputer.sol";
 import { BondingCurveMath } from "../../../src/factories/erc404/libraries/BondingCurveMath.sol";
 
+import { RevenueSplitLib } from "../../../src/shared/libraries/RevenueSplitLib.sol";
+
 import { MockV4PoolManager } from "./ERC404GraduationSkipNFT.t.sol";
 import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
 import { MockVault } from "../../mocks/MockVault.sol";
@@ -73,13 +75,15 @@ contract GraduationCarveExcessReportingTest is Test {
     ERC404BondingInstance internal instance;
     LiquidityDeployerModule internal deployer;
     MockVault internal vault;
+    /// @dev A field, not a local: the venue now holds the pool leg, so the assertions read its balance.
+    MockV4PoolManager internal pool;
 
     // ── Rig ───────────────────────────────────────────────────────────────────────────────────────
 
     function _rig(uint16 declaredMaxAllowanceBps) internal {
         MockMasterRegistry registry = new MockMasterRegistry();
         vault = new MockVault();
-        MockV4PoolManager pool = new MockV4PoolManager();
+        pool = new MockV4PoolManager();
         deployer = new LiquidityDeployerModule(address(pool), address(0xBEEF), 3000, 60, address(registry));
 
         CurveParamsComputer curveComputer = new CurveParamsComputer(address(this));
@@ -190,6 +194,19 @@ contract GraduationCarveExcessReportingTest is Test {
         }
     }
 
+    /// @dev `GraduationResidueReturned(instance, ethTithed, ethReturned, coinReturned)` — the module's
+    ///      third rail leg, the LP capital the venue itself declined. `ethTithed` is the leg that rode
+    ///      the rail, which is the only one that is revenue; `ethReturned` is the same money on the
+    ///      renounced path, where it goes back to the instance instead. Zero when absent.
+    function _residueTithed(Vm.Log[] memory logs) internal view returns (uint256 ethTithed) {
+        bytes32 sig = keccak256("GraduationResidueReturned(address,uint256,uint256,uint256)");
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == address(deployer) && logs[i].topics[0] == sig) {
+                (ethTithed,,) = abi.decode(logs[i].data, (uint256, uint256, uint256));
+            }
+        }
+    }
+
     // ── 1. The money did not move ─────────────────────────────────────────────────────────────────
 
     /// @notice Every downstream figure is bit-identical to what the merged-field implementation paid on
@@ -209,16 +226,41 @@ contract GraduationCarveExcessReportingTest is Test {
         assertEq(carveEth, EXPECT_CARVE, "carve leg drifted");
         assertEq(excessEth, EXPECT_EXCESS, "excess leg drifted");
 
-        assertEq(treasury.balance, EXPECT_PROTOCOL_FEE, "protocolFee moved");
-        assertEq(address(vault).balance, EXPECT_VAULT_CUT, "vaultCut moved");
-        assertEq(owner.balance, EXPECT_CREATOR_CUT, "creatorCut moved");
-        // The mock venue settles nothing, so the pool leg stays on the module.
-        assertEq(address(deployer).balance, EXPECT_ETH_FOR_POOL, "ethForPool moved");
+        // THE LITERALS STILL BITE, against the two legs the merged field carried. They were measured
+        // on a scenario where the venue took the whole LP leg, and if the module's split input stops
+        // being the SUM of these two legs every one of them moves.
+        RevenueSplitLib.GraduationSplit memory merged =
+            RevenueSplitLib.splitGraduation(EXPECT_RAISE, carveEth + excessEth, 0);
+        assertEq(merged.protocolCut, EXPECT_PROTOCOL_FEE, "protocolFee moved");
+        assertEq(merged.vaultCut, EXPECT_VAULT_CUT, "vaultCut moved");
+        assertEq(merged.creatorCut, EXPECT_CREATOR_CUT, "creatorCut moved");
+        assertEq(merged.ethForPool, EXPECT_ETH_FOR_POOL, "ethForPool moved");
+
+        // WHAT WAS ACTUALLY PAID is that same split with a THIRD leg folded in: the LP capital the
+        // venue declined (audit M-1). A real pool charges marginally less than it is offered, because
+        // `getLiquidityForAmounts` floors the liquidity it fits to both legs, and that difference used
+        // to stay on the module forever. It rides the rail now, which moves each payout leg by the
+        // dust the venue left — so the paid figures are asserted against the split that includes it,
+        // and the dust is asserted to BE dust.
+        uint256 residue = _residueTithed(logs);
+        assertLt(residue, 1000, "the venue declined more than rounding dust at the graduation price");
+        RevenueSplitLib.GraduationSplit memory paid =
+            RevenueSplitLib.splitGraduation(EXPECT_RAISE, carveEth + excessEth + residue, 0);
+        assertEq(treasury.balance, paid.protocolCut, "protocol leg is not the split's");
+        assertEq(address(vault).balance, paid.vaultCut, "vault leg is not the split's");
+        assertEq(owner.balance, paid.creatorCut, "creator leg is not the split's");
+        assertEq(address(pool).balance, paid.ethForPool, "the pool did not take the pool leg");
+        assertEq(address(deployer).balance, 0, "ETH stranded on the deployer module");
 
         assertEq(
             EXPECT_PROTOCOL_FEE + EXPECT_VAULT_CUT + EXPECT_CREATOR_CUT + EXPECT_ETH_FOR_POOL,
             EXPECT_RAISE,
             "the pinned distribution does not sum to the raise"
+        );
+        assertEq(
+            treasury.balance + address(vault).balance + owner.balance + address(pool).balance,
+            EXPECT_RAISE,
+            "the paid distribution does not sum to the raise"
         );
         assertEq(address(instance).balance, 0, "ETH stranded on the instance");
     }
@@ -271,7 +313,8 @@ contract GraduationCarveExcessReportingTest is Test {
     function test_fullSaleLeavesNoResidueAndReportsCarveOnly() public {
         _rig(10_000);
         _buyPercent(100);
-        uint256 carve = instance.reserve() / CARVE_DIVISOR;
+        uint256 raise = instance.reserve();
+        uint256 carve = raise / CARVE_DIVISOR;
         Vm.Log[] memory logs = _graduateAtFullAllowance(CARVE_DIVISOR);
 
         (, uint256 excessEth, uint256 carveEth) = _divertEvent(logs);
@@ -285,7 +328,12 @@ contract GraduationCarveExcessReportingTest is Test {
         assertTrue(carveSeen, "the module never reported the creator carve");
         assertEq(requested, carve, "requested is not the creator's carve");
         assertEq(paid, carve, "paid is not the creator's carve");
-        // The creator's leg absorbs the carve's rounding dust (protocol and vault both floor).
-        assertEq(owner.balance, carve - carve / 100 - (carve * 19) / 100, "creator did not receive the carve's 80% leg");
+        // The creator's leg absorbs the carve's rounding dust (protocol and vault both floor). The
+        // venue's own declined dust rides the same rail, so it is in the split's input too — "no
+        // residue" here is the CLAMP's residue, which is what the caller's two legs are about.
+        uint256 residue = _residueTithed(logs);
+        assertLt(residue, 1000, "the venue declined more than rounding dust at the graduation price");
+        RevenueSplitLib.GraduationSplit memory g = RevenueSplitLib.splitGraduation(raise, carve + residue, 0);
+        assertEq(owner.balance, g.creatorCut, "creator did not receive the carve's 80% leg");
     }
 }

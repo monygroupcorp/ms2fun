@@ -129,7 +129,7 @@ Before the curve opens, nothing can be minted or claimed — including free mint
   'free-mint-reserve': {
     title: 'Free-mint allocation',
     summary:
-      'Hand out a slice of supply at zero cost — claimable once the mint opens, never before. How it interacts with paid supply differs by token type.',
+      'Hand out a slice of supply at zero cost — claimable once the mint opens, never before. What it costs you, and how it interacts with paid supply, differs by token type.',
     body: `
 A free-mint allocation sets aside part of your supply to be claimed at **zero ETH cost**. Set the allocation to **0 to disable** it.
 
@@ -139,11 +139,21 @@ A free-mint allocation sets aside part of your supply to be claimed at **zero ET
 
 **How the allocation is protected differs by token type:**
 
-- **ERC-404** — the allocation is genuinely **held back**. The buyable ceiling on the curve is *max supply − liquidity reserve − free-mint allocation*, so paid buyers cannot eat into the free allocation.
+- **ERC-404** — the allocation is genuinely **held back**. The buyable ceiling on the curve is \`max supply − liquidity reserve − free-mint allocation\`, so paid buyers cannot eat into the free allocation.
 - **ERC-1155 (per edition)** — the allocation is a **cap, not a hold-back**. Free claims and paid mints draw from the **same shared supply**, first-come: if paid buyers take an edition to its supply limit first, remaining free claims will revert as sold out.
 - **ERC-1155 Limited dynamic pricing** — each free claim advances the price curve exactly like a paid mint. Free claims **raise the price** later paid buyers pay.
 
-Use it for a community round, contributors, or a giveaway — but on ERC-1155 editions, size it with the shared-supply and price-curve effects in mind.
+**On ERC-404, holding the supply back is not the same as holding the ETH back.** A claimed free mint is an ordinary position: the holder can sell it straight back down the curve. Claiming pays nothing in and does not advance the curve, but selling refunds at the curve's live price — so a claimant exits against ETH that paid buyers put in.
+
+That costs far more than the headline percentage, because the curve is steep on purpose: late buyers pay much more than early ones, so the top of the curve holds most of the money. On the current presets, if every claimant sells near the top:
+
+- Allocate **5%** of supply — free claims can take **~27% of the raise**.
+- Allocate **10%** of supply — free claims can take **~43% of the raise**.
+- Allocate **25%** of supply — free claims can take **~72% of the raise**.
+
+**And the curve cannot buy back more than it sold.** A free claim adds coin without advancing the curve's supply counter, so from the moment it is claimed there is more coin in circulation than the curve can redeem — by exactly the amount claimed. The curve refuses those sells rather than paying out ETH it does not have, which is what keeps it solvent, but it means the last holders in the queue **cannot sell at any price**, and those can be paid buyers. Exit is first-come: whoever sells earliest gets the curve's price, and the shortfall lands on whoever is still holding when the counter runs out.
+
+Use it for a community round, contributors, or a giveaway — sized against that cost, not against the percentage. What you give away in ETH is several times what you give away in supply, it comes out of the raise your collection graduates with, and it can leave paid buyers unable to exit. **Set the allocation to 0 unless you specifically want that trade.** On ERC-1155 editions the shared-supply and price-curve effects above apply instead.
 `,
     related: ['gating-overview', 'bonding-curve-graduation'],
   },

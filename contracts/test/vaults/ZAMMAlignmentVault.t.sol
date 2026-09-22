@@ -1041,6 +1041,69 @@ contract ZAMMAlignmentVaultTest is Test {
         vault.convertAndAddLiquidity(0, 0, 0); // no new contribution needed
         assertGt(vault.principalETH(), principalBefore, "re-credited ETH must reach the pool");
     }
+
+    // ── L-10: the TOKEN side of the same rounding ─────────────────────────────
+
+    /// @dev A pool ratio where the ETH leg binds leaves unconsumed alignment TOKEN in the vault:
+    ///      `_swapAndAddLiquidity` buys `tokenBought` and ZAMM takes only `tokenUsed`. The ETH half of
+    ///      that rounding has been re-credited since noesis-034 (the two tests above); the token half
+    ///      had no reader at all, so it accreted monotonically with no path out. It is now sold on the
+    ///      next harvest and split 80/19/1 like any other yield.
+    function _convertLeavingTokenResidue() internal returns (uint256 residue) {
+        _receiveFromAlice(1 ether);
+        // reserve1/reserve0 well under 1 makes `amount1Optimal` the smaller side, so ZAMM pulls only a
+        // fraction of the token the vault bought and the rest stays here.
+        _setupPool(10 ether, 1e18);
+        vault.convertAndAddLiquidity(0, 0, 0);
+        residue = alignmentToken.balanceOf(address(vault));
+    }
+
+    function test_harvest_sellsTheTokenSideResidual() public {
+        uint256 residue = _convertLeavingTokenResidue();
+        assertGt(residue, 0, "no token residual produced - setup wrong");
+
+        vm.roll(block.number + 1);
+        vault.harvest(0);
+
+        // Before the fix `_removeFeeLP` sold only what the fee-LP removal returned, so this balance
+        // was still the whole residue after a harvest.
+        assertEq(alignmentToken.balanceOf(address(vault)), 0, "the residue is gone from the vault");
+    }
+
+    /// @dev The exact accounting, with the LP leg taken out of the picture: reserves set below the
+    ///      deposit baseline mean no fee growth and no fee LP to burn, so everything the harvest
+    ///      collects is the residue. The mock router is 1:1, so the ETH is the residue itself.
+    function test_harvest_withNoFeeGrowth_stillSellsTheResidual() public {
+        uint256 residue = _convertLeavingTokenResidue();
+        assertGt(residue, 0, "no token residual produced - setup wrong");
+
+        // A pool worth less than the deposit baseline: invFees == 0, feeLP == 0. Before the fix this
+        // returned early and the residue survived every such harvest.
+        mockZamm.setPool(vault.poolId(), 1, 1, 1e30);
+
+        vm.roll(block.number + 1);
+        uint256 collected = vault.harvest(0);
+
+        assertEq(alignmentToken.balanceOf(address(vault)), 0, "swept with no fee LP to burn");
+        assertEq(collected, residue, "the whole residue, and only the residue");
+        assertEq(vault.accumulatedProtocolFees(), residue / 100, "1% of the swept residue");
+        assertEq(vault.accumulatedTargetFees(), residue * 19 / 100, "19% of the swept residue");
+    }
+
+    /// @dev And a harvest with nothing at all to do stays a no-op: no fee growth and no residue
+    ///      collects nothing and accrues nothing, so removing the early return costs no behaviour.
+    function test_harvest_withNothingToSweep_isANoOp() public {
+        _receiveFromAlice(1 ether);
+        _setupPool(10 ether, 10_000e18); // token side binds: no token residue, only ETH
+        vault.convertAndAddLiquidity(0, 0, 0);
+        assertEq(alignmentToken.balanceOf(address(vault)), 0, "precondition: nothing to sweep");
+
+        mockZamm.setPool(vault.poolId(), 1, 1, 1e30); // and nothing to harvest either
+        vm.roll(block.number + 1);
+        assertEq(vault.harvest(0), 0, "nothing collected");
+        assertEq(vault.accumulatedProtocolFees(), 0, "and nothing accrued");
+        assertEq(vault.accumulatedTargetFees(), 0, "nor to the target sink");
+    }
 }
 
 /// @notice A benefactor/delegate that is a smart wallet rejecting plain ETH (reverting receive()).

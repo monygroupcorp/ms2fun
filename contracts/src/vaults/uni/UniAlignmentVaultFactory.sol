@@ -5,14 +5,14 @@ import { UniAlignmentVault } from "./UniAlignmentVault.sol";
 import { IVaultPriceValidator } from "../../interfaces/IVaultPriceValidator.sol";
 import { IAlignmentRegistry } from "../../master/interfaces/IAlignmentRegistry.sol";
 import { PoolKey } from "v4-core/types/PoolKey.sol";
-import { ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
-import { Ownable } from "solady/auth/Ownable.sol";
+import { CreateXSalt, ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
+import { SafeOwnable } from "../../shared/SafeOwnable.sol";
 
 /// @title UniAlignmentVaultFactory
 /// @notice Deploys UniAlignmentVault clones; zRouter config is shared across all vaults.
 ///         The factory is the owner of every vault it deploys, so pool key configuration
 ///         must go through setVaultPoolKey (onlyOwner) rather than calling the vault directly.
-contract UniAlignmentVaultFactory is Ownable {
+contract UniAlignmentVaultFactory is SafeOwnable {
     address public immutable vaultImplementation;
     IVaultPriceValidator public immutable defaultPriceValidator;
     IAlignmentRegistry public immutable alignmentRegistry;
@@ -116,9 +116,11 @@ contract UniAlignmentVaultFactory is Ownable {
         bytes memory proxyCreationCode = abi.encodePacked(
             hex"3d602d80600a3d3981f3363d3d373d3d3d363d73", vaultImplementation, hex"5af43d82803e903d91602b57fd5bf3"
         );
-        // Bind salt to msg.sender to prevent front-running the deterministic CREATE3 address.
-        bytes32 senderBoundSalt = keccak256(abi.encodePacked(msg.sender, salt));
-        vault = ICreateX(CREATEX).deployCreate3(senderBoundSalt, proxyCreationCode);
+        // CreateX reads its front-run guard off the SHAPE of this salt: first 20 bytes the caller,
+        // 21st byte 0x00, and the guard becomes keccak256(msg.sender, salt), which no third party can
+        // reproduce. See CreateXSalt.
+        bytes32 create3Salt = CreateXSalt.permissioned(address(this), msg.sender, salt);
+        vault = ICreateX(CREATEX).deployCreate3(create3Salt, proxyCreationCode);
 
         UniAlignmentVault(payable(vault))
             .initialize(
@@ -144,8 +146,7 @@ contract UniAlignmentVaultFactory is Ownable {
 
     /// @notice Preview the deterministic address for a given salt
     function computeVaultAddress(address creator, bytes32 salt) external view returns (address) {
-        bytes32 senderBoundSalt = keccak256(abi.encodePacked(creator, salt));
-        bytes32 guardedSalt = keccak256(abi.encode(senderBoundSalt)); // CreateX RandomBytes guard path
-        return ICreateX(CREATEX).computeCreate3Address(guardedSalt, CREATEX);
+        bytes32 create3Salt = CreateXSalt.permissioned(address(this), creator, salt);
+        return ICreateX(CREATEX).computeCreate3Address(CreateXSalt.guarded(address(this), create3Salt), CREATEX);
     }
 }

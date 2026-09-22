@@ -1,0 +1,10 @@
+/* Secondary to the ETH figure it sits beside: the crypto amount is what is signed, the dollar
+   amount is what it means. Tabular figures so a column of them does not jitter as prices move. */
+.fiat {
+  margin-left: var(--space-1);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

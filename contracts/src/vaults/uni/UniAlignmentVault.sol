@@ -640,8 +640,16 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     ///      mint is exactly what dilutes incumbents. `_claimVaultFees` self-returns zero when no fees are
     ///      owed, so a convert with nothing to crystallize accrues nothing.
     function _collectAndAccrueNow() internal {
-        (uint256 ethCollected, uint256 tokenCollected) = _claimVaultFees();
-        uint256 ethFromTokens = _convertVaultFeesToEth(tokenCollected);
+        (uint256 ethCollected,) = _claimVaultFees();
+        // Convert the vault's WHOLE alignment-token balance, not just what this collect returned.
+        // `_doSwapAndLP` acquires `targetTokenReceived` and offers it to the position, which consumes
+        // only what the binding leg needs; the difference stays in the vault. The ETH side of that
+        // same rounding is re-credited through `ethUnabsorbed`, but the token side had no reader at
+        // all, so it accreted monotonically with no path out. The vault holds no alignment token in
+        // flight at either call site — this runs before `_doSwapAndLP` inside `convertAndAddLiquidity`
+        // and outside it on the claim paths — so the balance here is exactly fees plus residue, and
+        // both belong to the same 80/19/1 split.
+        uint256 ethFromTokens = _convertVaultFeesToEth(SafeTransferLib.balanceOf(alignmentToken, address(this)));
 
         uint256 totalCollected = ethCollected + ethFromTokens;
         if (totalCollected > 0) {

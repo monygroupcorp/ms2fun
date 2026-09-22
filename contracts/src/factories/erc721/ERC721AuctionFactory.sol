@@ -8,7 +8,7 @@ import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
 import { ERC721AuctionInstance } from "./ERC721AuctionInstance.sol";
 import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
 import { IFactory } from "../../interfaces/IFactory.sol";
-import { ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
+import { CreateXSalt, ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
 
 /**
  * @title ERC721AuctionFactory
@@ -121,9 +121,11 @@ contract ERC721AuctionFactory is Ownable, ReentrancyGuard, IFactory {
                 })
             )
         );
-        // Bind salt to msg.sender to prevent front-running the deterministic CREATE3 address.
-        bytes32 senderBoundSalt = keccak256(abi.encodePacked(msg.sender, salt));
-        instance = ICreateX(CREATEX).deployCreate3(senderBoundSalt, initCode);
+        // CreateX reads its front-run guard off the SHAPE of this salt: first 20 bytes the caller,
+        // 21st byte 0x00, and the guard becomes keccak256(msg.sender, salt), which no third party can
+        // reproduce. See CreateXSalt.
+        bytes32 create3Salt = CreateXSalt.permissioned(address(this), msg.sender, salt);
+        instance = ICreateX(CREATEX).deployCreate3(create3Salt, initCode);
         if (agentCreated) {
             ERC721AuctionInstance(payable(instance)).setAgentDelegationFromFactory();
         }
@@ -161,8 +163,7 @@ contract ERC721AuctionFactory is Ownable, ReentrancyGuard, IFactory {
 
     /// @notice Preview the deterministic address for a given salt.
     function computeInstanceAddress(address creator, bytes32 salt) external view returns (address) {
-        bytes32 senderBoundSalt = keccak256(abi.encodePacked(creator, salt));
-        bytes32 guardedSalt = keccak256(abi.encode(senderBoundSalt)); // CreateX RandomBytes guard path
-        return ICreateX(CREATEX).computeCreate3Address(guardedSalt, CREATEX);
+        bytes32 create3Salt = CreateXSalt.permissioned(address(this), creator, salt);
+        return ICreateX(CREATEX).computeCreate3Address(CreateXSalt.guarded(address(this), create3Salt), CREATEX);
     }
 }
