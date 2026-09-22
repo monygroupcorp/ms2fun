@@ -226,6 +226,122 @@ contract HookSecondPoolNotBoundTest is Test {
         assertEq(vault.totalReceived(), vaultBefore, "an off-spacing pool on the same pair is refused too");
     }
 
+    /// @dev The launch's own coin, this hook, the right tick spacing — and a STATIC fee where the bound
+    ///      key carries the dynamic-fee flag. v4 keys on the whole struct, so this is a DIFFERENT pool,
+    ///      and binding `currency1` and `tickSpacing` alone would have left it open.
+    ///
+    ///      The fee field is the one of the four whose absence is not merely a second pool. `beforeSwap`
+    ///      returns `lpFeeRate | OVERRIDE_FEE_FLAG`, and `Hooks.beforeSwap` parses that override only
+    ///      `if (key.fee.isDynamicFee())` — on a static-fee key it is silently dropped and the pool
+    ///      charges `key.fee` instead. So an unbound fee field admits a pool the hook goes on taxing and
+    ///      tithing to the launch's fixed benefactor while `lpFeeRate`, the owner's only lever over it,
+    ///      reaches nothing. The bind is what makes the override's one precondition an invariant.
+    ///
+    ///      Measured with the fee check alone removed and the other three left in place: the swap below
+    ///      goes through and tithes 0.1 ETH of its 10 ETH to `benefactorInstance`, on a pool charging its
+    ///      own `key.fee`. This test is the only one in this file that turns red on that mutation.
+    function test_sameTokenStaticFee_cannotSwap() public {
+        PoolKey memory staticFee = PoolKey({
+            currency0: CurrencyLibrary.ADDRESS_ZERO,
+            currency1: Currency.wrap(address(realToken)),
+            // A real static fee, not `DYNAMIC_FEE_FLAG`. A hook with permission bits may serve either,
+            // so v4's own address/fee validation is not what stops this.
+            fee: LP_FEE_RATE,
+            tickSpacing: POOL_TICK_SPACING,
+            hooks: IHooks(address(hook))
+        });
+
+        vm.deal(attacker, 1_000 ether);
+        vm.startPrank(attacker);
+        realToken.mint(attacker, 1_000_000 ether);
+        realToken.approve(address(modifyLiquidityRouter), type(uint256).max);
+        manager.initialize(staticFee, SQRT_PRICE_1_1);
+        modifyLiquidityRouter.modifyLiquidity{ value: 100 ether }(
+            staticFee,
+            IPoolManager.ModifyLiquidityParams({ tickLower: -6000, tickUpper: 6000, liquidityDelta: 10e18, salt: 0 }),
+            ZERO_BYTES
+        );
+
+        uint256 vaultBefore = vault.totalReceived();
+        uint256 pmBefore = address(manager).balance;
+
+        vm.expectRevert();
+        swapRouter.swap{ value: 10 ether }(
+            staticFee,
+            IPoolManager.SwapParams({
+                zeroForOne: true, amountSpecified: -int256(10 ether), sqrtPriceLimitX96: MIN_PRICE_LIMIT
+            }),
+            _settings(),
+            ZERO_BYTES
+        );
+        vm.stopPrank();
+
+        assertEq(vault.totalReceived(), vaultBefore, "a static-fee pool on the same pair is refused too");
+        assertEq(address(manager).balance, pmBefore, "nothing was taken off the PoolManager");
+    }
+
+    /// @dev The fourth field of the bind, and the one no case here reached: `currency0`. A key can name
+    ///      the launch's own coin as `currency1`, the dynamic-fee flag, this hook and its tick spacing,
+    ///      and still not be an ETH pool — v4 only asks that `currency0 < currency1`, so any token that
+    ///      sorts below the launch's coin can take the ETH slot.
+    ///
+    ///      The hook reads `currency0` as ETH everywhere: `beforeSwap` taxes it on an exact-input buy and
+    ///      hands it to `_collectAndForward`, which `take`s it to the hook and forwards it to the vault
+    ///      AS ETH. Against a token that forward cannot succeed — the hook has no ETH to send — so the
+    ///      take lands in the hook and its amount is added to `queuedFees`, a number denominated in ETH.
+    ///
+    ///      That is worse than the second pool this file opens with. `flushQueuedFees` pays `queuedFees`
+    ///      out of the hook's ETH balance, so an attacker who books ERC-20 wei into it makes the flush
+    ///      ask for ETH that was never collected, and the real pool's genuinely queued fees have no exit
+    ///      left. One rogue pool and a one-wei swap are the whole cost.
+    ///
+    ///      With the `currency0` check in place the swap reverts, nothing is taken, and `queuedFees` is
+    ///      untouched. With that one line removed this case is the only one in the tree that notices.
+    function test_aPoolWhoseCurrency0IsNotEthIsRefused() public {
+        // A token at an address below the launch's coin, so it is admissible as `currency0`.
+        TestToken sub = TestToken(address(0x0BAD));
+        vm.etch(address(sub), address(new TestToken()).code);
+        assertTrue(address(sub) < address(realToken), "the stand-in has to sort into the currency0 slot");
+
+        PoolKey memory tokenPaired = PoolKey({
+            currency0: Currency.wrap(address(sub)),
+            currency1: Currency.wrap(address(realToken)),
+            fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
+            tickSpacing: POOL_TICK_SPACING,
+            hooks: IHooks(address(hook))
+        });
+
+        vm.startPrank(attacker);
+        sub.mint(attacker, 1_000_000 ether);
+        realToken.mint(attacker, 1_000_000 ether);
+        sub.approve(address(modifyLiquidityRouter), type(uint256).max);
+        realToken.approve(address(modifyLiquidityRouter), type(uint256).max);
+        sub.approve(address(swapRouter), type(uint256).max);
+
+        manager.initialize(tokenPaired, SQRT_PRICE_1_1);
+        modifyLiquidityRouter.modifyLiquidity(
+            tokenPaired,
+            IPoolManager.ModifyLiquidityParams({ tickLower: -6000, tickUpper: 6000, liquidityDelta: 100e18, salt: 0 }),
+            ZERO_BYTES
+        );
+
+        uint256 queuedBefore = hook.queuedFees();
+
+        vm.expectRevert();
+        swapRouter.swap(
+            tokenPaired,
+            IPoolManager.SwapParams({
+                zeroForOne: true, amountSpecified: -int256(10 ether), sqrtPriceLimitX96: MIN_PRICE_LIMIT
+            }),
+            _settings(),
+            ZERO_BYTES
+        );
+        vm.stopPrank();
+
+        assertEq(hook.queuedFees(), queuedBefore, "no ERC-20 wei was booked into an ETH-denominated queue");
+        assertEq(sub.balanceOf(address(hook)), 0, "and none of it was taken to the hook");
+    }
+
     function _id(PoolKey memory k) internal pure returns (PoolId) {
         return k.toId();
     }

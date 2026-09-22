@@ -22,26 +22,48 @@ import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
 
 /**
  * @title UniVaultPoolKeyRotationTest
- * @notice M-3 of the 2026-09-17 pre-testnet audit, asserted against the fix rather than the defect.
+ * @notice The 2026-09-17 pre-testnet audit's proof for M-3, rewritten by the fix it drove.
  *
- *         AS FOUND: `UniAlignmentVault.setV4PoolKey` had no "liquidity already deployed" lock and did
- *         not reset `lastTickLower/lastTickUpper` or `totalLPUnits`. Rotating the key while a position
- *         was live pointed `_claimVaultFees` at (newPoolId, oldTicks) — a position with zero liquidity
- *         — and v4-core's `Position.update` refuses a zero-`liquidityDelta` poke on an empty position
- *         (lib/v4-core/src/libraries/Position.sol:83-85, `CannotUpdateEmptyPosition`). `claimFees`,
- *         `claimFeesAsDelegate` and `convertAndAddLiquidity` all reverted with that one selector, so a
- *         single owner call stranded the benefactors' 80% leg. It was Medium rather than High because
- *         it was owner-only and reversible: rotating the key back restored every path.
+ *         AS FOUND, `UniAlignmentVault.setV4PoolKey` had no "liquidity already deployed" lock. The
+ *         position is identified by (poolId, tickLower, tickUpper) but only the ticks are stored —
+ *         `unlockCallback` reads `v4PoolKey` LIVE for the poolId — so re-pointing the key while a
+ *         position was open left the real position orphaned under the old poolId and aimed every
+ *         later call at a position that was never opened. The zero-`liquidityDelta` fee poke
+ *         `_claimVaultFees` makes is refused on an empty position by v4-core
+ *         (`lib/v4-core/src/libraries/Position.sol:83-85`, `CannotUpdateEmptyPosition`), so
+ *         `claimFees`, `claimFeesAsDelegate` and `convertAndAddLiquidity` all reverted together with
+ *         the benefactors' 80% leg inside. One owner setter call, no event saying what broke. It was
+ *         Medium rather than High because it was owner-only and reversible: rotating the key back
+ *         restored every path. The recorded failing output is in
+ *         `contracts/audits/2026-09-17-pre-testnet.md` §3.
  *
- *         AS FIXED (`uni-vault-poolkey-lock`, PR #423): `setV4PoolKey` now carries the guard the ZAMM
- *         sibling has had since it was written — `if (totalLPUnits != 0) revert PoolKeyLocked()`
- *         (UniAlignmentVault.sol:1009, against ZAMMAlignmentVault.sol:325-326). The rotation that
- *         built the brick is refused at the setter, so the brick has no way to exist and there is
- *         nothing left to recover from. What the guard must NOT do is narrow the legitimate call, and
- *         that half is pinned here too: a vault with no position is still freely wireable.
+ *         AS IT STANDS, PR #423 added the guard the ZAMM sibling has carried since it was written:
+ *         `setV4PoolKey` reverts `PoolKeyLocked()` while `totalLPUnits != 0`
+ *         (`UniAlignmentVault.sol:1009`, against `ZAMMAlignmentVault.sol:325-326`). These tests assert
+ *         that closed rather than recording it open, and they do it against v4-core's REAL
+ *         `PoolManager`, which is what this file is for — `test/vaults/UniAlignmentVault.t.sol`
+ *         pins both halves of the guard against a mock, and cannot show that the fee poke lands on
+ *         a real v4 position.
  *
- * RUN: FOUNDRY_CONFIG=foundry.audit.toml forge test --match-path test/audit/UniVaultPoolKeyRotation.t.sol
- *      (v4-core's real PoolManager pins `pragma solidity 0.8.26`; the default profile is pinned 0.8.28.)
+ *         What is asserted here, and why each one earns its place:
+ *           1. the rotation is refused once a REAL v4 position is live, and the stored key does not
+ *              move — a revert alone would not prove the second half;
+ *           2. after a refused rotation the fee poke still lands: `convertAndAddLiquidity`, which
+ *              crystallizes fees before minting, succeeds against the real PoolManager, and no path
+ *              can be made to answer `CannotUpdateEmptyPosition` — the selector the finding
+ *              measured is now unreachable, not merely unhit;
+ *           3. wiring a vault that holds no position is still open, on a key whose tick spacing
+ *              differs from the original. That is the whole reason the setter exists, and it also
+ *              disproves the theory the hunt raised and discarded — that the brick was tick spacing
+ *              failing to divide the stale ticks. v4's `checkTicks` never checks spacing; it was
+ *              always the empty position.
+ *
+ * RUN: ./scripts/real-v4-gate.sh, which runs this proof and refuses if it ever stops reaching it.
+ *      Alone: FOUNDRY_CONFIG=foundry.audit.toml forge test --match-path test/audit/UniVaultPoolKeyRotation.t.sol
+ *      (v4-core's real PoolManager pins `pragma solidity 0.8.26`; the default profile is pinned to
+ *      0.8.28 for deploy-determinism, so this file is outside the default set for what it IMPORTS,
+ *      not for what it asserts, and the gate is the only thing that executes it. It is green, and
+ *      must stay green.)
  */
 contract UniVaultPoolKeyRotationTest is Test {
     PoolManager internal manager;
@@ -135,39 +157,50 @@ contract UniVaultPoolKeyRotationTest is Test {
         vault.receiveContribution{ value: amt }(Currency.wrap(address(0)), amt, who);
     }
 
-    /// @notice The rotation that built the brick is refused, and every path it used to kill is alive.
-    function test_B_rotatingPoolKeyWithLivePositionIsRefused() public {
-        // ── 1. Deploy a real v4 position through the production path. ──
+    /// @notice (1) The rotation is refused once a real v4 position is live — and the stored key does
+    ///         not move. Before #423 this setter call succeeded and returned no signal at all.
+    function test_B_rotationIsRefusedOnceARealV4PositionIsLive() public {
         _contribute(alice, 10 ether);
         vault.convertAndAddLiquidity(1);
-        assertGt(vault.totalLPUnits(), 0, "no position deployed");
+        assertGt(vault.totalLPUnits(), 0, "precondition: a real v4 position must be open");
         console2.log("totalLPUnits after convert #1 :", vault.totalLPUnits());
 
-        // ── 2. A second convert pokes the live position for fees before minting, so the poke path
-        //       this finding was about is exercised before anything is rotated. ──
-        _contribute(bob, 10 ether);
-        vault.convertAndAddLiquidity(1);
-        console2.log("totalLPUnits after convert #2 :", vault.totalLPUnits());
-
-        // ── 3. THE FIX. The owner call that used to brick the vault no longer lands. ──
         vm.prank(owner);
         vm.expectRevert(UniAlignmentVault.PoolKeyLocked.selector);
         vault.setV4PoolKey(keyB);
 
-        // The key the position was minted against is still the key the vault holds, and the ticks
-        // `_claimVaultFees` pokes are still that pool's — which is the whole of what went wrong.
-        (,, uint24 fee, int24 tickSpacing,) = vault.v4PoolKey();
-        assertEq(fee, keyA.fee, "pool key rotated anyway");
-        assertEq(tickSpacing, keyA.tickSpacing, "tick spacing rotated anyway");
+        // The revert is only half of it: the key the vault will read on its next poke must still be
+        // the one the position was opened under.
+        (,, uint24 feeAfter, int24 spacingAfter,) = vault.v4PoolKey();
+        assertEq(feeAfter, keyA.fee, "stored fee tier moved despite the refusal");
+        assertEq(spacingAfter, keyA.tickSpacing, "stored tick spacing moved despite the refusal");
+    }
 
-        // ── 4. Every path the brick killed still reaches its own logic. `convertAndAddLiquidity`
-        //       succeeds outright; the two claim paths revert with the VAULT's own no-fees error and
-        //       never with v4-core's empty-position selector, which is the brick's signature. ──
-        _contribute(carol, 10 ether);
-        uint256 lpBefore = vault.totalLPUnits();
+    /// @notice (2) After a refused rotation the fee poke still lands on a real position. This is the
+    ///         finding's own three-path assertion, inverted: what it measured was all three paths
+    ///         answering `Position.CannotUpdateEmptyPosition` together. That selector is now
+    ///         unreachable rather than merely unhit — `convertAndAddLiquidity` crystallizes fees
+    ///         before minting, so its success is the poke landing.
+    function test_B_theFeePokeStillLandsAfterARefusedRotation() public {
+        _contribute(alice, 10 ether);
         vault.convertAndAddLiquidity(1);
-        assertGt(vault.totalLPUnits(), lpBefore, "convertAndAddLiquidity still bricked");
+        uint256 lpBefore = vault.totalLPUnits();
 
+        vm.prank(owner);
+        vm.expectRevert(UniAlignmentVault.PoolKeyLocked.selector);
+        vault.setV4PoolKey(keyB);
+
+        // The path that bricked first, because it pokes before it mints.
+        _contribute(bob, 10 ether);
+        vault.convertAndAddLiquidity(1);
+        assertGt(vault.totalLPUnits(), lpBefore, "the poke did not land: no liquidity was added");
+        console2.log("totalLPUnits after convert #2 :", vault.totalLPUnits());
+
+        // The two claim paths refuse here for their OWN reason — no v4 swap has run, so there are no
+        // fees to claim. Both are called by a caller the access check LETS THROUGH, so each one
+        // reaches the poke before it refuses; a caller who is turned away at the door would prove
+        // nothing about the poke. What matters is the reason each gives back: neither may carry
+        // v4-core's empty-position selector, which is what the defect produced.
         vm.prank(alice);
         (bool claimOk, bytes memory claimErr) = address(vault).call(abi.encodeWithSignature("claimFees()"));
 
@@ -179,32 +212,71 @@ contract UniVaultPoolKeyRotationTest is Test {
         (bool delegateOk, bytes memory delegateErr) =
             address(vault).call(abi.encodeWithSignature("claimFeesAsDelegate(address[])", who));
 
-        console2.log("claimFees reverted with        :", vm.toString(claimErr));
-        console2.log("claimFeesAsDelegate reverted   :", vm.toString(delegateErr));
+        console2.log("claimFees revert data          :", vm.toString(claimErr));
+        console2.log("claimFeesAsDelegate revert data:", vm.toString(delegateErr));
 
-        assertFalse(claimOk, "no fees have accrued, so claimFees is expected to refuse");
-        assertFalse(delegateOk, "no fees have accrued, so claimFeesAsDelegate is expected to refuse");
-        assertEq(bytes4(claimErr), UniAlignmentVault.NoFeesToClaim.selector, "claimFees");
-        assertEq(bytes4(delegateErr), UniAlignmentVault.NoFeesToClaim.selector, "claimFeesAsDelegate");
-        assertTrue(bytes4(claimErr) != Position.CannotUpdateEmptyPosition.selector, "claimFees bricked");
-        assertTrue(bytes4(delegateErr) != Position.CannotUpdateEmptyPosition.selector, "claimFeesAsDelegate bricked");
+        assertTrue(
+            claimOk || bytes4(claimErr) != Position.CannotUpdateEmptyPosition.selector,
+            "claimFees still pokes an orphaned position"
+        );
+        assertTrue(
+            delegateOk || bytes4(delegateErr) != Position.CannotUpdateEmptyPosition.selector,
+            "claimFeesAsDelegate still pokes an orphaned position"
+        );
+        assertEq(bytes4(claimErr), UniAlignmentVault.NoFeesToClaim.selector, "claimFees for an unexpected reason");
+        assertEq(
+            bytes4(delegateErr), UniAlignmentVault.NoFeesToClaim.selector, "delegate claim for an unexpected reason"
+        );
+
+        // And the door itself is still shut to everyone else, so the two assertions above cannot be
+        // read as the access check having been loosened to reach the poke.
+        vm.prank(bob);
+        (, bytes memory strangerErr) =
+            address(vault).call(abi.encodeWithSignature("claimFeesAsDelegate(address[])", who));
+        assertEq(bytes4(strangerErr), UniAlignmentVault.NotDelegate.selector, "a stranger reached the delegate path");
     }
 
-    /// @notice The other half of the guard: it locks a LIVE position's key, not the setter. A vault
-    ///         that holds no position is still freely wireable and re-wireable, which is the only way
-    ///         an unwired vault ever reaches a pool at all.
-    function test_B_wiringAVaultWithNoPositionIsUntouched() public {
-        UniAlignmentVault fresh = _newVault();
-        assertEq(fresh.totalLPUnits(), 0, "fresh vault holds a position");
+    /// @notice (3) The lock closes only the case that orphans a position. Wiring a vault that holds
+    ///         none is the whole reason the setter exists and stays open — shown here on a key whose
+    ///         tick spacing (200) differs from the original (60), which also disposes of the theory
+    ///         the hunt raised and discarded: that the brick was tick spacing failing to divide the
+    ///         stale ticks. v4's `checkTicks` never checks spacing. A position opened under keyB
+    ///         pokes perfectly well; it was always the empty position.
+    function test_B_wiringAVaultThatHoldsNoPositionIsStillOpen() public {
+        assertEq(vault.totalLPUnits(), 0, "precondition: no position yet");
 
+        // An unwired vault may be wired and re-wired as often as the owner likes, because until a
+        // position exists there is none to orphan. That is the only way a vault reaches a pool at
+        // all, so the guard narrowing it would be a worse defect than the one it closes.
+        UniAlignmentVault fresh = _newVault();
         vm.prank(owner);
         fresh.setV4PoolKey(keyA);
         vm.prank(owner);
-        fresh.setV4PoolKey(keyB); // rotated again, still before any liquidity
+        fresh.setV4PoolKey(keyB);
+        (,, uint24 freshFee,,) = fresh.v4PoolKey();
+        assertEq(freshFee, keyB.fee, "an unwired vault refused a rotation");
 
-        (,, uint24 fee, int24 tickSpacing,) = fresh.v4PoolKey();
-        assertEq(fee, keyB.fee, "unwired vault refused a rotation");
-        assertEq(tickSpacing, keyB.tickSpacing, "unwired vault refused a rotation");
-        console2.log("unwired vault wired and re-wired, fee tier :", fee);
+        vm.prank(owner);
+        vault.setV4PoolKey(keyB);
+
+        (,, uint24 feeAfter, int24 spacingAfter,) = vault.v4PoolKey();
+        assertEq(feeAfter, keyB.fee, "the rewire did not take");
+        assertEq(spacingAfter, keyB.tickSpacing, "the rewire did not take");
+
+        _contribute(alice, 10 ether);
+        vault.convertAndAddLiquidity(1);
+        uint256 lpOnB = vault.totalLPUnits();
+        assertGt(lpOnB, 0, "no position opened on the rewired key");
+
+        // And the poke lands on it, at a tick spacing of 200.
+        _contribute(bob, 10 ether);
+        vault.convertAndAddLiquidity(1);
+        assertGt(vault.totalLPUnits(), lpOnB, "the poke did not land on the rewired key");
+        console2.log("totalLPUnits on keyB (spacing 200):", vault.totalLPUnits());
+
+        // Now that it holds one, keyB is locked in its turn.
+        vm.prank(owner);
+        vm.expectRevert(UniAlignmentVault.PoolKeyLocked.selector);
+        vault.setV4PoolKey(keyA);
     }
 }
