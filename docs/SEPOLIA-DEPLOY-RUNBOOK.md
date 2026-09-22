@@ -393,13 +393,37 @@ called it**, so without this section the first two-phase ownership handover this
 would be the one on mainnet, with real money behind it and no dry run. That is the whole reason
 Sepolia is run as a dress rehearsal rather than a smoke test.
 
-Deploy the Timelock first — it is the address that will own everything, and it must be a contract:
+**Both steps below are REQUIRED and neither is same-day.** They are written out because
+`SAFE_ADDRESS` appears in exactly one line of one script and in no document — there was nowhere to
+tick it before this section existed.
+
+**5.5.1 — a Safe.** The Timelock's admin, proposer and canceller is a Safe, and `DeployTimelock`
+will not run without one. Create it on Sepolia (`app.safe.global`, Sepolia network) and keep the
+address. This is NOT `cfg.safe` in `DeployCore` — that field is read by nothing (see §9) and wiring
+a real Safe into it installs no governance at all.
+
+**5.5.2 — the Timelock.** `SAFE_ADDRESS` is the Safe from 5.5.1; the deployer key is the same one
+§5.1 broadcast with.
 
 ```
 cd contracts
+export PRIVATE_KEY=<deployer>
+export SAFE_ADDRESS=<the Safe from 5.5.1>
+export TIMELOCK_MIN_DELAY=3600        # testnet only; unset is the 24h mainnet default
 forge script script/DeployTimelock.s.sol --rpc-url <sepolia-rpc> --broadcast
 export TIMELOCK_ADDRESS=<the address it printed>
 ```
+
+`TIMELOCK_MIN_DELAY` is the one place this runbook deliberately differs from what mainnet will do,
+and the reason is that the delay buys nothing here: it is the window in which a proposal that should
+not land can be seen and cancelled, and nothing on Sepolia is worth cancelling. Left unset it is the
+24h mainnet value, so a mainnet deploy that forgets the variable gets the safe number rather than
+whatever the last testnet run used. **On mainnet, do not set it.**
+
+Mind the clock either way. Phase 1 below is executed BY the Timelock, so it is proposed through the
+Safe and waits out the delay — 24h on mainnet, whatever you set here on Sepolia. And
+`requestOwnershipHandover()` is valid for **48h**, so once the requests land, phase 2 must run inside
+that window or they expire and phase 1 is done again.
 
 The handover is **two-phase and non-atomic**, and the roles are the reverse of a naive transfer: for
 the `SafeOwnableUUPS` contracts the NEW owner requests and the CURRENT owner completes.
@@ -592,3 +616,11 @@ Stated plainly, because everything else in this runbook is retryable and these a
 - **Announcement and tester recruitment.** Downstream of §6.5.
 - **Mainnet.** `script/DeployMainnet.s.sol` is a different script with a different config, a
   canonical quoter to point at, and no showcase seed.
+- **`cfg.safe`, which is not governance and is not a step here.** Named because the field invites
+  exactly one mistake. `DeployCore.sol` assigns `cfg.safe`, or a `MockSafe` when it is unset, into a
+  public `safe` variable that nothing in `src/` or `script/` ever reads; the only consumer in the
+  repo is a test asserting the variable is non-zero. `DeploySepolia` leaves it unset and
+  `DeployMainnet` carries `// TODO: real Safe address`, so an operator who wires a real Safe there
+  will have installed nothing and have no error to tell them. Governance is `TIMELOCK_ADDRESS` plus
+  the §5.5 handover, and the Safe belongs in `SAFE_ADDRESS` at 5.5.2. The disposition of the dead
+  field is open (noesis/testnet-deploy clause 49) and does not block this deploy.
