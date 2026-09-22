@@ -45,6 +45,12 @@ abstract contract ForkTestBase is Test {
     address internal WETH_USDT_V3_005;
     address internal WETH_USDT_V3_03;
 
+    // ========== zRouter ==========
+    /// @dev The canonical mainnet zRouter, the same address `MainnetAddresses.ZROUTER` pins. A vault's
+    ///      `initialize` rejects a zero router (`UniAlignmentVault.sol:259`), so a fork test that leaves
+    ///      it unset does not exercise a degraded swap path — it reverts in `setUp` and runs nothing.
+    address internal ZROUTER;
+
     // ========== Uniswap V4 ==========
     address internal UNISWAP_V4_POOL_MANAGER;
     address internal UNISWAP_V4_POSITION_MANAGER;
@@ -96,6 +102,8 @@ abstract contract ForkTestBase is Test {
 
         WETH_USDT_V3_005 = vm.envOr("WETH_USDT_V3_005", address(0x11b815efB8f581194ae79006d24E0d814B7697F6));
         WETH_USDT_V3_03 = vm.envOr("WETH_USDT_V3_03", address(0x4e68Ccd3E89f51C3074ca5072bbAC773960dFa36));
+
+        ZROUTER = vm.envOr("ZROUTER", address(0x000000000000FB114709235f1ccBFfb925F600e4));
 
         // V4 (Ethereum Mainnet deployments)
         UNISWAP_V4_POOL_MANAGER =
