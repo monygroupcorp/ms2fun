@@ -110,6 +110,62 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         require(success, "Contribution failed");
     }
 
+    /// @notice Assert the post-conversion residual is accounted for to the wei, and to the right people.
+    /// @dev A convert against a live pool never absorbs the whole ETH leg. The vault swaps half the batch
+    ///      for the alignment token and pairs the two sides, so the swap's own cost -- fee plus the price
+    ///      it moves -- leaves the ETH side over-supplied, and `modifyLiquidity` pulls only what the
+    ///      position needs. Against the mainnet ETH/USDC v4 pool this suite opens into, that residual
+    ///      measured 0.173% of a 5 ETH batch, 0.171% of 10 ETH and 0.162% of 30 ETH: a swap cost, not
+    ///      dust, and not a constant to assert against. The mock these tests were written for reported
+    ///      the whole ETH leg as deposited, making the residual structurally zero -- the same blind spot
+    ///      `UniVaultInvariant.afterInvariant` pins for the invariant suite.
+    ///
+    ///      So "the dragnet clears" is not the vault's promise and never was. The promise is that no wei
+    ///      goes missing and none of it changes hands: `_distributeSharesAndCleanup` carries each
+    ///      benefactor their own pro-rata slice and hands the sub-wei remainder to the last eligible one,
+    ///      so the ETH stays theirs and buys them shares in the batch that finally deploys it.
+    ///
+    ///      The per-benefactor half of this is the half that bites. Asserting only that
+    ///      `sum(pendingETH) == totalPendingETH` passes even with the carry-forward removed, because the
+    ///      remainder settlement then hands one contributor the whole batch's residual and the sum still
+    ///      balances -- which is audit M-2 exactly. Checked by reverting the carry to zero and watching
+    ///      the pro-rata bounds below fail while the aggregate ones stayed green.
+    function _assertResidualFullyOwned(
+        address[] memory benefactors,
+        uint256[] memory contributions,
+        uint256 contributedTotal
+    ) internal view {
+        uint256 residual = vault.totalPendingETH();
+        assertGt(residual, 0, "a live pool always leaves a residual: this assertion would be vacuous at zero");
+
+        uint256 sumPending;
+        for (uint256 i = 0; i < benefactors.length; i++) {
+            sumPending += vault.pendingETH(benefactors[i]);
+        }
+        assertEq(sumPending, residual, "residual is not owned: sum(pendingETH) != totalPendingETH");
+
+        // Backed by ETH the vault actually holds, not by an accounting entry.
+        assertEq(address(vault).balance, residual, "residual is not backed by the vault's ETH balance");
+
+        // Nothing evaporated between the contribution and the position.
+        assertEq(
+            vault.totalEthLocked() + residual, contributedTotal, "ETH went missing: deployed + residual != contributed"
+        );
+
+        // And it is owned by the RIGHT people. Aggregate ownership alone is too weak to catch audit M-2:
+        // the post-loop remainder settlement hands the leftover to the last eligible benefactor, so a
+        // carry-forward that credited nobody pro-rata would still keep `sum(pendingETH)` exact while
+        // parking one batch's whole residual on one contributor. Each carry is
+        // `floor(contribution * residual / contributedTotal)`, and the round-down remainder is under one
+        // wei per benefactor, so that floor plus `benefactors.length` is a tight upper bound.
+        for (uint256 i = 0; i < benefactors.length; i++) {
+            uint256 proRata = (contributions[i] * residual) / contributedTotal;
+            uint256 owned = vault.pendingETH(benefactors[i]);
+            assertGe(owned, proRata, "benefactor carries less residual than their contribution earned");
+            assertLe(owned, proRata + benefactors.length, "benefactor carries residual that is not theirs");
+        }
+    }
+
     /// @notice Assert share percentage matches expected (with AMM tolerance)
     function _assertSharePercentage(
         address benefactor,
@@ -264,14 +320,18 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         assertGt(aliceShares, 0, "Alice should have shares");
         assertEq(aliceShares, totalShares, "Alice should have 100% of shares");
 
-        // Verify dragnet cleared
-        assertEq(vault.totalPendingETH(), 0, "Pending should clear");
-        assertEq(vault.pendingETH(alice), 0, "Alice pending should clear");
+        // The residual a real pool leaves is alice's, and all of it.
+        address[] memory benefactors = new address[](1);
+        benefactors[0] = alice;
+        uint256[] memory contributions = new uint256[](1);
+        contributions[0] = 5 ether;
+        _assertResidualFullyOwned(benefactors, contributions, 5 ether);
+        assertEq(vault.pendingETH(alice), vault.totalPendingETH(), "sole contributor owns the whole residual");
 
         // Caller reimbursement was removed: running a conversion never pays the caller.
         // (alice.balance only moves by gas spent.)
 
-        emit log_string("[PASS] Single contributor receives all shares and dragnet clears");
+        emit log_string("[PASS] Single contributor receives all shares; the AMM residual stays theirs");
     }
 
     function test_convertAndAddLiquidity_twoEqualContributors_AMMAware() public {
@@ -296,8 +356,14 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         uint256 ratio = (aliceShares * 1e18) / bobShares;
         assertApproxEqRel(ratio, 1e18, 0.01e18, "Shares should be ~equal");
 
-        // Dragnet should clear
-        assertEq(vault.totalPendingETH(), 0, "Dragnet not cleared");
+        // The residual is split between them and fully owned.
+        address[] memory benefactors = new address[](2);
+        benefactors[0] = alice;
+        benefactors[1] = bob;
+        uint256[] memory contributions = new uint256[](2);
+        contributions[0] = 5 ether;
+        contributions[1] = 5 ether;
+        _assertResidualFullyOwned(benefactors, contributions, 10 ether);
 
         emit log_string("[PASS] Equal contributors get equal shares (within AMM tolerance)");
     }
@@ -363,8 +429,14 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
             _assertSharePercentage(contributors[i], expectedBps, 100); // ±1%
         }
 
-        // Verify dragnet cleared
-        assertEq(vault.totalPendingETH(), 0, "Dragnet should clear");
+        // The residual is spread across all ten and fully owned.
+        address[] memory benefactors = new address[](10);
+        uint256[] memory contributions = new uint256[](10);
+        for (uint256 i = 0; i < 10; i++) {
+            benefactors[i] = contributors[i];
+            contributions[i] = amounts[i];
+        }
+        _assertResidualFullyOwned(benefactors, contributions, totalContributed);
 
         emit log_string("[PASS] 10 contributors all receive proportional shares");
     }
@@ -574,15 +646,22 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         _contribute(alice, 5 ether);
         vault.convertAndAddLiquidity(1);
 
-        // Verify dragnet cleared
-        assertEq(vault.pendingETH(alice), 0, "Should clear after conversion");
+        // A real pool leaves alice a residual rather than clearing her to zero, and it is hers.
+        address[] memory benefactors = new address[](1);
+        benefactors[0] = alice;
+        uint256[] memory contributions = new uint256[](1);
+        contributions[0] = 5 ether;
+        _assertResidualFullyOwned(benefactors, contributions, 5 ether);
+        uint256 carried = vault.pendingETH(alice);
+        assertGt(carried, 0, "a real pool leaves a residual to carry");
 
-        // Dragnet cycle 2 - new accumulation starts
+        // Dragnet cycle 2 - the new contribution accumulates ON TOP of what cycle 1 carried, which is
+        // what makes the carried ETH reachable: it rides along with the next batch that converts.
         _contribute(alice, 3 ether);
-        assertEq(vault.pendingETH(alice), 3 ether, "Should track new dragnet");
-        assertEq(vault.totalPendingETH(), 3 ether, "Global should update");
+        assertEq(vault.pendingETH(alice), 3 ether + carried, "new dragnet carries cycle 1's residual");
+        assertEq(vault.totalPendingETH(), 3 ether + carried, "Global should update");
 
-        emit log_string("[PASS] New contributions start fresh dragnet cycle");
+        emit log_string("[PASS] A new contribution accumulates on top of the carried residual");
     }
 
     function test_verySmallContribution_weiLevel() public {
