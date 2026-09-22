@@ -166,6 +166,26 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         }
     }
 
+    /// @notice Assert a carried-forward contributor's gain in a later round is pro rata within that round.
+    /// @dev The batch that round converts is `carried + otherContribution`, and
+    ///      `_distributeSharesAndCleanup` issues shares in proportion to each benefactor's slice of it.
+    ///      So `gain / otherShares` must equal `carried / otherContribution`. Cross-multiplied to stay in
+    ///      integers. This is what separates "alice's residual bought her shares" from "alice's shares
+    ///      moved for some other reason": a mis-attribution would land the gain on the wrong benefactor
+    ///      or in the wrong size, and either one breaks the ratio rather than nudging it.
+    function _assertRoundGainIsProRata(uint256 gain, uint256 carried, uint256 otherShares, uint256 otherContribution)
+        internal
+        pure
+    {
+        assertGt(gain, 0, "a carried residual must buy shares in the round that converts it");
+        assertApproxEqRel(
+            gain * otherContribution,
+            otherShares * carried,
+            0.0001e18, // 0.01%: the issuance floors, it does not drift
+            "carried residual did not buy shares in proportion to what it was"
+        );
+    }
+
     /// @notice Assert share percentage matches expected (with AMM tolerance)
     function _assertSharePercentage(
         address benefactor,
@@ -458,20 +478,31 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         _contribute(alice, 5 ether);
         vault.convertAndAddLiquidity(1);
         uint256 aliceSharesRound1 = vault.benefactorShares(alice);
+        // Round 1 leaves alice the AMM residual (see `_assertResidualFullyOwned`), so she is still a
+        // participant going into round 2 and that ETH is hers to convert.
+        uint256 aliceCarry = vault.pendingETH(alice);
+        assertGt(aliceCarry, 0, "round 1 must leave a carry, or round 2 proves nothing");
 
         // Round 2: Bob contributes 5 ETH
         _contribute(bob, 5 ether);
         vault.convertAndAddLiquidity(1);
 
-        // Alice should still have her Round 1 shares
-        assertEq(vault.benefactorShares(alice), aliceSharesRound1, "Alice shares should not decrease");
+        // Alice's round-1 shares are never taken from her.
+        uint256 aliceSharesRound2 = vault.benefactorShares(alice);
+        assertGe(aliceSharesRound2, aliceSharesRound1, "Alice shares must never decrease");
 
         // Bob now has shares
         uint256 bobShares = vault.benefactorShares(bob);
         assertGt(bobShares, 0, "Bob should have shares");
 
-        // Total shares = Alice + Bob
-        assertEq(vault.totalShares(), aliceSharesRound1 + bobShares, "Total should be sum");
+        // Alice GAINS in round 2, and exactly in proportion to what she brought to it. Round 2's batch
+        // is her carry plus bob's 5 ETH, and `_distributeSharesAndCleanup` issues shares pro rata within
+        // the batch, so alice's gain stands to bob's shares as her carry stands to his contribution.
+        // Asserting she is unchanged is the mock's world, where the residual was structurally zero.
+        _assertRoundGainIsProRata(aliceSharesRound2 - aliceSharesRound1, aliceCarry, bobShares, 5 ether);
+
+        // Total shares = Alice + Bob, alice read AFTER round 2.
+        assertEq(vault.totalShares(), aliceSharesRound2 + bobShares, "Total should be sum");
 
         emit log_string("[PASS] Shares accumulate across multiple conversions");
     }
@@ -481,6 +512,8 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         _contribute(alice, 10 ether);
         vault.convertAndAddLiquidity(1);
         uint256 aliceShares = vault.benefactorShares(alice);
+        uint256 aliceCarry = vault.pendingETH(alice);
+        assertGt(aliceCarry, 0, "round 1 must leave a carry, or round 2 proves nothing");
 
         // Round 2: Bob contributes 10 ETH (same amount as Alice)
         _contribute(bob, 10 ether);
@@ -492,10 +525,15 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // (price movement from round 1's swap, different sqrtPriceX96, etc.)
         // Key invariants: both have shares, total shares grew after round 2.
 
+        // Alice must be re-read after round 2: her round-1 residual rode along with bob's batch and
+        // bought her more shares, so the round-1 figure is stale by exactly that gain.
+        uint256 aliceSharesAfter = vault.benefactorShares(alice);
         uint256 totalShares = vault.totalShares();
         assertGt(aliceShares, 0, "Alice should have shares from round 1");
         assertGt(bobShares, 0, "Bob should have shares from round 2");
-        assertEq(aliceShares + bobShares, totalShares, "Total shares should equal sum");
+        assertGe(aliceSharesAfter, aliceShares, "Alice shares must never decrease");
+        _assertRoundGainIsProRata(aliceSharesAfter - aliceShares, aliceCarry, bobShares, 10 ether);
+        assertEq(aliceSharesAfter + bobShares, totalShares, "Total shares should equal sum");
 
         emit log_string("[PASS] Shares accumulate across multiple conversion rounds");
     }

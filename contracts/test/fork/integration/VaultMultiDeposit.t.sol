@@ -226,6 +226,10 @@ contract VaultMultiDepositTest is ForkTestBase {
 
         uint256 aliceShares = vault.benefactorShares(alice);
         uint256 totalSharesAfterCycle1 = vault.totalShares();
+        // Cycle 1 against a live pool leaves alice the unabsorbed ETH, carried as her own pending
+        // balance. She is therefore a contributor to cycle 2 whether or not she sends anything new.
+        uint256 aliceCarry = vault.pendingETH(alice);
+        assertGt(aliceCarry, 0, "cycle 1 must leave a carry, or cycle 2 proves nothing");
 
         emit log_named_uint("Cycle 1 - Alice shares", aliceShares);
         emit log_named_uint("Cycle 1 - Total shares", totalSharesAfterCycle1);
@@ -241,15 +245,25 @@ contract VaultMultiDepositTest is ForkTestBase {
         uint256 bobShares = vault.benefactorShares(bob);
         uint256 totalSharesFinal = vault.totalShares();
 
-        emit log_named_uint("Cycle 2 - Alice shares (unchanged)", aliceSharesAfter);
+        emit log_named_uint("Cycle 2 - Alice shares (plus her carry's slice)", aliceSharesAfter);
         emit log_named_uint("Cycle 2 - Bob shares (new)", bobShares);
         emit log_named_uint("Cycle 2 - Total shares", totalSharesFinal);
 
-        // Alice's shares should not change (she didn't contribute in Cycle 2)
-        assertEq(aliceSharesAfter, aliceShares, "Alice shares should remain constant");
+        // Alice's shares must never be taken from her, and she DOES contribute in cycle 2: her carried
+        // residual is converted alongside bob's deposit and buys her shares pro rata within that batch.
+        // "Remains constant" was the mock's behaviour, where the residual was structurally zero.
+        assertGe(aliceSharesAfter, aliceShares, "Alice shares must never decrease");
+        uint256 aliceGain = aliceSharesAfter - aliceShares;
+        assertGt(aliceGain, 0, "alice's carried residual must buy her shares in cycle 2");
+        assertApproxEqRel(
+            aliceGain * 10 ether,
+            bobShares * aliceCarry,
+            0.0001e18, // 0.01%: the issuance floors, it does not drift
+            "alice's gain is not her carry's pro-rata slice of cycle 2"
+        );
 
         // Calculate share percentages
-        uint256 alicePercent = (aliceShares * 10000) / totalSharesFinal; // in bps
+        uint256 alicePercent = (aliceSharesAfter * 10000) / totalSharesFinal; // in bps
         uint256 bobPercent = (bobShares * 10000) / totalSharesFinal;
 
         emit log_named_uint("Alice %", alicePercent);
@@ -261,8 +275,8 @@ contract VaultMultiDepositTest is ForkTestBase {
         assertGt(alicePercent, 0, "Alice should have shares");
         assertGt(bobPercent, 0, "Bob should have shares");
 
-        // Total shares should be sum
-        assertEq(totalSharesFinal, aliceShares + bobShares, "Total = Alice + Bob");
+        // Total shares should be sum, alice read AFTER cycle 2.
+        assertEq(totalSharesFinal, aliceSharesAfter + bobShares, "Total = Alice + Bob");
 
         emit log_string("");
         emit log_string("[PASS] Share distribution verified across conversion rounds");
