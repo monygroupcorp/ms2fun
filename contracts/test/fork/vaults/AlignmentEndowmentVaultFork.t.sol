@@ -202,12 +202,25 @@ contract AlignmentEndowmentVaultForkTest is Test {
 
     /// @notice The corpus is the whole principal from the block it lands, and an ambassador's withdrawal
     ///         redeems it out of the real Aave position. What is debited is what actually left.
+    /// @notice One wei: the most a single real ERC-4626 conversion can round away, and it always rounds
+    ///         DOWN, toward the vault. Aave's static aToken is an ERC-4626 wrapper, so every deposit,
+    ///         redeem and `convertToAssets` on the path floors once. The mock these suites were written
+    ///         against returned round numbers and hid it. A bound is only safe in the direction the
+    ///         rounding goes, so every use below asserts that direction separately from this magnitude.
+    uint256 internal constant ERC4626_FLOOR_WEI = 1;
+
     function test_withdraw_throughRealAave() public {
         uint256 amount = 1 ether;
 
         vm.deal(address(this), amount);
         vault.receiveContribution{ value: amount }(Currency.wrap(address(0)), amount, address(benefactor));
-        assertEq(vault.deployableCorpus(), amount, "the whole deposit is deployable at once");
+        // `deployableCorpus` is `min(stataValue, totalPrincipal)`, and a real ERC-4626 deposit floors, so
+        // one wei after the deposit the position reads a wei under the basis and the min picks the
+        // position. That direction is the safe one and is the point of the min: the figure bounds what an
+        // ambassador may take out, so under-reading can only authorise less than the vault holds.
+        // Over-reading would authorise more, which is what ERC4626_FLOOR_WEI's upper assert pins.
+        assertLe(vault.deployableCorpus(), amount, "deployable MORE than was deposited");
+        assertGe(vault.deployableCorpus() + ERC4626_FLOOR_WEI, amount, "the whole deposit is deployable at once");
 
         address sink = makeAddr("deploy_sink");
         vm.etch(sink, "");
@@ -217,11 +230,29 @@ contract AlignmentEndowmentVaultForkTest is Test {
         vault.execute(sink, half, "");
 
         assertEq(sink.balance, half, "the redeemed ETH reached the sink");
-        assertEq(vault.totalPrincipal(), amount - half, "basis debited by what left");
-        assertEq(vault.principalOf(address(benefactor)), amount - half, "and the donor's share fell with it");
+        // The sink is paid exactly, and the basis absorbs the redeem's floor: one conversion stands
+        // between the position and the ETH that left. Under-debiting the basis would be the unsafe
+        // direction -- it would leave the vault believing it holds principal it has already paid out --
+        // so that is asserted on its own, ahead of the magnitude.
+        assertLe(vault.totalPrincipal(), amount - half, "basis debited by LESS than what left");
+        assertGe(vault.totalPrincipal() + ERC4626_FLOOR_WEI, amount - half, "basis debited by what left");
+        // `principalOf` floors once more on top, reading a share of the basis back.
+        assertLe(
+            vault.principalOf(address(benefactor)),
+            vault.totalPrincipal(),
+            "the donor is credited more basis than the vault holds"
+        );
+        assertGe(
+            vault.principalOf(address(benefactor)) + 2 * ERC4626_FLOOR_WEI,
+            amount - half,
+            "and the donor's share fell with it"
+        );
 
+        // Two floors stand between the deposit and this read: the ERC-4626 deposit that minted the
+        // vault's stata shares, and the `convertToAssets` that values them back. Hence 2 * the per-
+        // conversion floor, named rather than the bare `+ 2` that stood here with no bound stated.
         uint256 positionAfter = _stataConvertToAssets(_stataBalanceOf(address(vault)));
-        assertGe(positionAfter + 2, amount - half, "the rest is still in the Aave position");
+        assertGe(positionAfter + 2 * ERC4626_FLOOR_WEI, amount - half, "the rest is still in the Aave position");
     }
 
     // ────────────────────────────────────────────────────────────────────────
@@ -246,8 +277,22 @@ contract AlignmentEndowmentVaultForkTest is Test {
         vm.prank(ambassador);
         vault.execute(sink, 1 ether, ""); // half the pool leaves
 
-        assertEq(vault.principalOf(address(benefactor)), 0.5 ether, "A halved");
-        assertEq(vault.principalOf(address(benefactorB)), 0.5 ether, "B halved with it");
+        // "Halved" is a claim about the SPLIT, so assert it against the live basis rather than against a
+        // round number the vault never holds. Two 1 ETH deposits do not mint exactly equal principal
+        // shares -- each one's ERC-4626 deposit floors on its own -- and `principalOf` floors again when
+        // it reads a share back, so neither benefactor lands on exactly 0.5 ether and they can sit a wei
+        // apart from each other. What must hold is that the debit fell on both alike and that the vault
+        // never credits out more basis than it carries.
+        uint256 principalA = vault.principalOf(address(benefactor));
+        uint256 principalB = vault.principalOf(address(benefactorB));
+        uint256 basis = vault.totalPrincipal();
+        assertApproxEqAbs(principalA, basis / 2, ERC4626_FLOOR_WEI, "A halved");
+        assertApproxEqAbs(principalB, basis / 2, ERC4626_FLOOR_WEI, "B halved with it");
+        assertApproxEqAbs(principalA, principalB, ERC4626_FLOOR_WEI, "and the debit fell on both alike");
+        // The sum may fall under the basis by one floor per benefactor and must NEVER exceed it: crediting
+        // out more basis than the vault carries is the failure this bound exists to catch.
+        assertLe(principalA + principalB, basis, "benefactors are credited more basis than the vault holds");
+        assertGe(principalA + principalB + 2 * ERC4626_FLOOR_WEI, basis, "basis went missing beyond the floors");
 
         uint256 pendingABefore = vault.pendingYieldOf(address(benefactor));
         uint256 pendingBBefore = vault.pendingYieldOf(address(benefactorB));
