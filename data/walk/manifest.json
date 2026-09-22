@@ -786,6 +786,43 @@
           "do": "on the same vault, paste the delegating benefactor's address into claim for benefactors who delegated to you and press claim for them. Then repeat with the address that never delegated, and once with the box empty",
           "expect": "the whole sum arrives in the delegate's own wallet, which is what being a delegate means here, and the benefactor's balance does not move. The empty box leaves the button disabled asking for an address rather than sending nothing. The address that never delegated reverts, and the panel reports a failed claim — a success state on a transaction that reverted is the finding. The app builds no list of who delegated to whom because the vault publishes no such index, so the addresses being typed rather than offered is correct",
           "blocking": true
+        },
+        {
+          "id": "B-24",
+          "title": "publish a curation without having deployed anything",
+          "route": "/curations",
+          "calls": [
+            "curationRegistryAbi.createCuration"
+          ],
+          "given": "connected as an address that has launched no collection and holds only testnet ETH for gas",
+          "do": "open CURATIONS from the nav, name a set, put a few works in it, and publish it",
+          "expect": "the set is published without paying anything beyond gas — there is no fee field and no approval step — and it appears in the public list with a page of its own at /curation/<id>",
+          "blocking": true
+        },
+        {
+          "id": "B-25",
+          "title": "edit a set you published, and take it off view",
+          "route": "/curation/:id",
+          "calls": [
+            "curationRegistryAbi.setCurationURI",
+            "curationRegistryAbi.setRetired"
+          ],
+          "given": "the curation published in B-24, connected as the address that published it",
+          "do": "edit the set — change its name or its works — save, then press Take off view, then Put back on view",
+          "expect": "the edit shows on the page; off view the header reads 'off view' and the set drops out of the public list in B-24 while staying on your own shelf; putting it back restores it to the list. Retiring hides, it does not delete",
+          "blocking": true
+        },
+        {
+          "id": "B-26",
+          "title": "hand a collaborator edit rights on your set, and take them back",
+          "route": "/curation/:id",
+          "calls": [
+            "curationRegistryAbi.setCollaborator"
+          ],
+          "given": "the curation from B-24 and a second testnet address that did not publish it",
+          "do": "add the second address as a collaborator, edit the set from that address, then revoke it from the first",
+          "expect": "the collaborator can edit while allowed and cannot once revoked; the curator cannot add or revoke itself — the app refuses with 'you are the curator' rather than sending the call",
+          "blocking": false
         }
       ]
     },
