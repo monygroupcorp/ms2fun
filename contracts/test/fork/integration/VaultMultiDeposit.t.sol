@@ -70,7 +70,7 @@ contract VaultMultiDepositTest is ForkTestBase {
             WETH,
             UNISWAP_V4_POOL_MANAGER,
             alignmentToken,
-            address(0), // TODO: replace with deployed zRouter address
+            ZROUTER,
             3000,
             60,
             IVaultPriceValidator(address(priceValidator)),
