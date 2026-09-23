@@ -3,7 +3,7 @@
 > **⚠️ Partial fossil reference — read the direction note.** This doc predates the current
 > lean, onchain-only direction. Two things it gets wrong as *current* state:
 > - **The Uniswap-LP alignment vaults are NOT retired.** As of 2026-07-01 the design is **two vault
->   families, creator's choice** — a **Liquidity family** (`UniswapV4LP` / `ZAMMLP` / `CypherLP`, all
+>   families, creator's choice** — a **Liquidity family** (`UniswapV4LP` / `ZAMMLP`, both
 >   first-class, running the 1/19/80 graduation split) alongside a **Yield family**
 >   (`AlignmentEndowmentVault`, the Aave endowment, running principal-deposit + tithe-out). Neither
 >   replaces the other. See [ADR-0008](../docs/decisions/0008-two-vault-families.md) +
@@ -33,7 +33,7 @@ src/
 ├── dao/                # GrandCentral (Mol*** DAO) + StipendConductor
 ├── master/             # MasterRegistryV1 (UUPS), FeaturedQueueManager
 ├── factories/          # ERC404, ERC1155, ERC721 factories and instances
-├── vaults/             # UniAlignmentVault (V4), ZAMMAlignmentVault, CypherAlignmentVault
+├── vaults/             # UniAlignmentVault (V4), ZAMMAlignmentVault
 ├── registry/           # VaultRegistry, GlobalMessageRegistry
 ├── treasury/           # ProtocolTreasuryV1
 ├── interfaces/         # IAlignmentVault, IFactory, IFactoryInstance
@@ -89,9 +89,9 @@ registry.registerVault(address(vault), "Remilia Vault", "ipfs://...", targetId);
 
 ### Vault System
 
-**Alignment Vaults** (`UniAlignmentVault`, `ZAMMAlignmentVault`, `CypherAlignmentVault`) — share-based fee distribution with O(1) claims:
+**Alignment Vaults** (`UniAlignmentVault`, `ZAMMAlignmentVault`) — share-based fee distribution with O(1) claims:
 - Collects ETH from project instances (hook taxes, tithes, direct contributions)
-- Converts to alignment token and deposits full-range LP (V4, ZAMM, or Algebra V2 depending on vault type)
+- Converts to alignment token and deposits full-range LP (V4 or ZAMM depending on vault type)
 - Issues shares proportional to contributions
 - LP fees distributed to benefactors via delta-based claims
 

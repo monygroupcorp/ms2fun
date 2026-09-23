@@ -239,3 +239,11 @@ fork tests skip without an RPC.
 ## Open questions
 O1–O5 above. O1/O2/O3 are the load-bearing ones — they gate whether an LP vault is *safe to select*,
 not just *visible*. Resolve O5 (sequencing) with Mony before starting T2.
+
+---
+
+**Wind-down, 2026-09-23.** The Cypher venue is removed from the protocol before the Sepolia testnet
+launch — out as an LP venue and as an alignment target, removed rather than disabled. The HUMAN GATE
+above therefore stands for **ZAMM only**; its Cypher half, including the Algebra `_mint` question, is
+void because there is no Cypher graduation left to exercise. Everything else on this page is the
+completed record of the task as it shipped and is left as written.

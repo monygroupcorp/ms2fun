@@ -20,9 +20,9 @@ Two facts from the contracts bound the whole catalog. Both were read, not assume
 
 **An alignment target is an ERC20 with live ETH liquidity — never an NFT collection.**
 `IAlignmentRegistry.AlignmentAsset` is `{token, symbol, info, metadataURI}`, and a target is only
-usable once the owner has set BOTH an `AcquireRoute` (venue ∈ `UNI_V4` | `ZAMM` | `ALGEBRA`) and a
-`ReferencePool` (a Uniswap V3 or Algebra pool paired with the injected WETH, whose own on-chain TWAP
-is the anti-sandwich floor authority). Every vault family swaps ETH → that ERC20. So a derivative
+usable once the owner has set BOTH an `AcquireRoute` (venue ∈ `UNI_V4` | `ZAMM`) and a
+`ReferencePool` (a Uniswap V3 pool paired with the injected WETH, whose own on-chain TWAP is the
+anti-sandwich floor authority). Every vault family swaps ETH → that ERC20. So a derivative
 enters the program only if its parent has a token with a real ETH pool.
 
 Note the gap that costs a row: **Uniswap V3 is a valid *reference* pool but NOT a valid *acquire*
@@ -32,7 +32,7 @@ venue.** A target whose only real depth is V3 can be priced but not bought.
 
 | path | protocol | vault → alignment target | creator / LP |
 |---|---|---|---|
-| mint, liquidity-family vault (`UniswapV4LP`/`ZAMMLP`/`CypherLP`) | 1% | **19%** | 80% |
+| mint, liquidity-family vault (`UniswapV4LP`/`ZAMMLP`) | 1% | **19%** | 80% |
 | mint, yield-family vault (`AaveEndowment`) | 1% | **80%** — permanent principal, never refundable | 19% |
 | ERC404 graduation | 1% | **19%** | 80% to LP |
 

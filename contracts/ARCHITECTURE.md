@@ -3,7 +3,7 @@
 **Last Updated:** 2026-07-07
 
 > **⚠️ Direction note.** As of 2026-07-01 the direction is **two vault families, creator's
-> choice**: a first-class **Liquidity family** (`UniswapV4LP` / `ZAMMLP` / `CypherLP`, 1/19/80
+> choice**: a first-class **Liquidity family** (`UniswapV4LP` / `ZAMMLP`, 1/19/80
 > graduation split) alongside a **Yield family** (`AlignmentEndowmentVault`, Aave endowment,
 > principal-deposit + tithe-out). Neither replaces the other. See
 > [ADR-0008](../docs/decisions/0008-two-vault-families.md) +
@@ -111,7 +111,7 @@ The protocol organises into five layers by trust level, risk surface, and who co
 │  MasterRegistryV1    ·  ComponentRegistry   ·  VaultRegistry        │
 │  GlobalMessageRegistry · FrontendRegistry  ·  QueryAggregator       │
 │                                                                     │
-│  UniAlignmentVault   ·  ZAMMAlignmentVault  ·  CypherAlignmentVault │
+│  UniAlignmentVault   ·  ZAMMAlignmentVault                          │
 │                                                                     │
 │  Who: Timelock-approved; vaults submitted by devs, Timelock-registered│
 │  Controls: all registration enforcement, activity feed, TVL custody │
@@ -231,7 +231,6 @@ Vaults are the economic engine of the protocol. They collect fees from all proje
 |-------|----------|-----|--------|
 | **UniAlignmentVault** | `src/vaults/uni/` | Uniswap V4 | Primary |
 | **ZAMMAlignmentVault** | `src/vaults/zamm/` | ZAMM | Alternative |
-| **CypherAlignmentVault** | `src/vaults/cypher/` | Algebra V2 | Cypher chain |
 
 ### UniAlignmentVault (`src/vaults/uni/`)
 
@@ -262,10 +261,6 @@ benefactors get the rest (99%)
 ### ZAMMAlignmentVault (`src/vaults/zamm/`)
 
 ZAMM-based LP vault. Simplified dragnet conversion — same benefactor share accounting model as UniAlignmentVault, but targets ZAMM pools instead of Uniswap V4. Deployed via `ZAMMAlignmentVaultFactory`.
-
-### CypherAlignmentVault (`src/vaults/cypher/`)
-
-Algebra V2 LP vault for the Cypher chain. Same benefactor share model; targets Algebra V2 pools. Deployed via `CypherAlignmentVaultFactory`, which is used by `ERC404CypherFactory`.
 
 ### Benefactor Delegation
 
@@ -771,12 +766,9 @@ src/
 │   ├── uni/
 │   │   ├── UniAlignmentVault.sol           # Uniswap V4 full-range LP vault
 │   │   └── UniAlignmentVaultFactory.sol    # Factory for Uni V4 vaults
-│   ├── zamm/
-│   │   ├── ZAMMAlignmentVault.sol          # ZAMM LP vault
-│   │   └── ZAMMAlignmentVaultFactory.sol   # Factory for ZAMM vaults
-│   └── cypher/
-│       ├── CypherAlignmentVault.sol        # Algebra V2 LP vault (Cypher chain)
-│       └── CypherAlignmentVaultFactory.sol # Factory for Cypher vaults
+│   └── zamm/
+│       ├── ZAMMAlignmentVault.sol          # ZAMM LP vault
+│       └── ZAMMAlignmentVaultFactory.sol   # Factory for ZAMM vaults
 │
 ├── registry/
 │   ├── FrontendRegistry.sol                # ENS controller for frontend versioning (UUPS)
@@ -843,7 +835,7 @@ All integer division in this codebase rounds **down** (Solidity default floor di
 
 ### MasterChef / RewardPerToken Accumulators
 
-Used in: ZAMMAlignmentVault, CypherAlignmentVault, ERC404StakingModule
+Used in: ZAMMAlignmentVault, ERC404StakingModule
 
 | Expression | Favors | Rationale |
 |---|---|---|

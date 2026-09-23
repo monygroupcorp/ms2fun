@@ -10,7 +10,6 @@ this runbook links to it rather than restating it:
 | ------------------ | ------------------------------------------ |
 | fork rehearsal     | `app/scripts/dev-chain/SEPOLIA-CHANNEL.md` |
 | the showcase seed  | `app/scripts/sepolia-seed/README.md`       |
-| the Cypher rail    | `app/scripts/sepolia-algebra/RUNBOOK.md`   |
 | publishing the app | `app/scripts/ipfs-dist/RUNBOOK.md`         |
 
 ---
@@ -67,19 +66,8 @@ both are deliberate: neither pre-existing Sepolia zRouter is this repo's router 
 `swapVZ`, the other binds the mainnet V4 PoolManager), and Sepolia has no canonical quoter at all.
 The reasoning is written out at the `cfg.zrouter` and `cfg.zQuoter` comments in the deploy script.
 
-Three addresses are **supplied by environment**, because they do not exist until the Cypher rail has
-been stood up and they differ between a rehearsal and the live chain:
-
-```
-SEPOLIA_CYPHER_POSITION_MANAGER
-SEPOLIA_CYPHER_ROUTER
-SEPOLIA_CYPHER_ALGEBRA_FACTORY
-```
-
-All three unset is a valid shape — `DeployCore` reads it as "this network has no Cypher rail" and
-leaves the family unwired, rather than reusing mainnet Algebra addresses. **For this deployment they
-are set**, from the standup in `app/scripts/sepolia-algebra/`; a Sepolia showcase without the Cypher
-venue is a fourth of the alignment story missing.
+No address is supplied by environment. Every address this deployment needs is either a constant in
+`DeploySepolia` or produced by the run itself.
 
 ### 1.2 The launch-preset ladder
 
@@ -236,13 +224,13 @@ Everything here is read-only. None of it sends a transaction.
 **This step is mandatory and it happens before any broadcast.** Not a smoke test — the full
 pipeline, fully seeded, walked in a browser.
 
-The rehearsal runs the same three tools in the same order the live broadcast will, none of them
-written for the fork: the Algebra standup, `DeploySepolia`, and both phases of the showcase seed.
+The rehearsal runs the same two tools in the same order the live broadcast will, neither of them
+written for the fork: `DeploySepolia`, and both phases of the showcase seed.
 
 ```
 cd app
 pnpm chain:fork:sepolia      # anvil, :8546, forked chain id 11155111, --auto-impersonate
-pnpm chain:deploy:sepolia    # Algebra standup -> DeploySepolia -> seed phase 1 -> phase 2
+pnpm chain:deploy:sepolia    # DeploySepolia -> seed phase 1 -> seed phase 2
 pnpm chain:check:sepolia     # asserts the fork holds what the seed claims
 ```
 
@@ -285,14 +273,8 @@ before the broadcast, not after — after, a fix that touches a deployed contrac
 
 ### 5.1 Broadcast
 
-Stand the Cypher rail up first (`app/scripts/sepolia-algebra/RUNBOOK.md`), keep its three periphery
-addresses, and pass them in the environment.
-
 ```
 cd contracts
-SEPOLIA_CYPHER_POSITION_MANAGER=<addr> \
-SEPOLIA_CYPHER_ROUTER=<addr> \
-SEPOLIA_CYPHER_ALGEBRA_FACTORY=<addr> \
 forge script script/DeploySepolia.s.sol \
   --rpc-url <sepolia-rpc> \
   --account <keystore> \
@@ -314,8 +296,8 @@ The run writes two files:
 
 - `contracts/deployments/sepolia.json` — the full deployment record (registries, factories, vaults,
   the deployed quoter under `contracts.zQuoter`).
-- `contracts/deployments/sepolia-venues.json` — the ZAMM and Cypher vault factories plus the venue
-  addresses, which the seed needs and the core record does not carry.
+- `contracts/deployments/sepolia-venues.json` — the ZAMM vault factory plus the venue addresses,
+  which the seed needs and the core record does not carry.
 
 The one thing worth watching in the log: `DeployCore` prints a **WARNING** if `cfg.zQuoter` is zero.
 On this network it must not — `DeploySepolia` mints a `SepoliaRouteQuoter` and passes it in. That
@@ -470,10 +452,9 @@ not this one.
 Two parts, and the first passing does not imply the second.
 
 ```
-# a. wired: non-zero on every vault factory that takes one (Uni, ZAMM, Cypher)
-cast call <UniAlignmentVaultFactory>    "zQuoter()(address)" --rpc-url <sepolia-rpc>
-cast call <ZAMMAlignmentVaultFactory>   "zQuoter()(address)" --rpc-url <sepolia-rpc>
-cast call <CypherAlignmentVaultFactory> "zQuoter()(address)" --rpc-url <sepolia-rpc>
+# a. wired: non-zero on every vault factory that takes one (Uni, ZAMM)
+cast call <UniAlignmentVaultFactory>  "zQuoter()(address)" --rpc-url <sepolia-rpc>
+cast call <ZAMMAlignmentVaultFactory> "zQuoter()(address)" --rpc-url <sepolia-rpc>
 
 # b. truthful: the seed registered a route for each roster token
 cast call <SepoliaRouteQuoter> "routeOf(address,address)(uint8,uint256,bool)" <vault> <token> \
@@ -485,14 +466,13 @@ legitimate zero — `UNI_V2` is source `0`, and a ZAMM pool may genuinely run `f
 `set == false` is the only reading of "no route here", and it routes that vault to its own fixed leg.
 
 **A zero on a factory is not a configuration to fix; it is a redeploy.** The field is `immutable` on
-all three factories, so every vault they deploy afterwards is born without a quoter. Nor can the
-vaults already standing be repointed: the Uni and ZAMM vaults do carry an `onlyOwner setZQuoter`, but
-their **owner is the factory**, and no factory exposes a passthrough to it — and the Cypher vault
-takes its quoter in the constructor and has no setter at all. This is the reason §5.1 says to stop on
-the `cfg.zQuoter == 0` warning rather than seed on top of it.
+both factories, so every vault they deploy afterwards is born without a quoter. Nor can the vaults
+already standing be repointed: the Uni and ZAMM vaults do carry an `onlyOwner setZQuoter`, but their
+**owner is the factory**, and no factory exposes a passthrough to it. This is the reason §5.1 says to
+stop on the `cfg.zQuoter == 0` warning rather than seed on top of it.
 
 The Uni and Aave factories are in the deployment record under `factories.UNI` and `factories.AAVE`;
-the ZAMM and Cypher factories are in `sepolia-venues.json`.
+the ZAMM factory is in `sepolia-venues.json`.
 
 ### 6.3 The whole configuration
 
@@ -610,8 +590,6 @@ Stated plainly, because everything else in this runbook is retryable and these a
 
 ## 9. Out of scope here
 
-- **Standing up the Cypher rail.** `app/scripts/sepolia-algebra/RUNBOOK.md` is its runbook; this one
-  consumes its three output addresses.
 - **The security review.** Its scope is a separate sign-off and is not a step in this sequence.
 - **Announcement and tester recruitment.** Downstream of §6.5.
 - **Mainnet.** `script/DeployMainnet.s.sol` is a different script with a different config, a
