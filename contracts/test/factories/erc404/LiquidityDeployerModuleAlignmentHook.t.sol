@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
 import { LiquidityDeployerModule } from "../../../src/factories/erc404/LiquidityDeployerModule.sol";
+import { UniAlignmentV4Hook } from "../../../src/factories/erc404/hooks/UniAlignmentV4Hook.sol";
 import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
 import { LPFeeLibrary } from "v4-core/libraries/LPFeeLibrary.sol";
@@ -96,14 +97,62 @@ contract LiquidityDeployerModuleAlignmentHookTest is Test {
         assertEq(module.lpFeeRate(), 3000, "lpFeeRate set");
     }
 
-    function test_setLpFeeRate_acceptsMax() public {
-        module.setLpFeeRate(LPFeeLibrary.MAX_LP_FEE);
-        assertEq(module.lpFeeRate(), LPFeeLibrary.MAX_LP_FEE, "MAX_LP_FEE is the accepted ceiling");
+    function test_setLpFeeRate_acceptsTheCeiling() public {
+        module.setLpFeeRate(module.MAX_LP_FEE_RATE());
+        assertEq(module.lpFeeRate(), 10_000, "the 1% ceiling is the accepted maximum");
     }
 
-    function test_setLpFeeRate_revertsAboveMax() public {
+    function test_setLpFeeRate_revertsAboveTheCeiling() public {
+        uint24 justOver = module.MAX_LP_FEE_RATE() + 1;
         vm.expectRevert(LiquidityDeployerModule.LpFeeRateTooHigh.selector);
-        module.setLpFeeRate(LPFeeLibrary.MAX_LP_FEE + 1);
+        module.setLpFeeRate(justOver);
+    }
+
+    /// @notice v4's own bound is a 100% LP fee, and this setter no longer reaches it. A rate that high
+    ///         would mint a graduation pool priced shut on its first block.
+    function test_setLpFeeRate_revertsAtTheV4Maximum() public {
+        vm.expectRevert(LiquidityDeployerModule.LpFeeRateTooHigh.selector);
+        module.setLpFeeRate(LPFeeLibrary.MAX_LP_FEE);
+    }
+
+    /// @notice The module's ceiling has to be a rate the hook will actually accept at construction. The
+    ///         module restates the hook's number rather than importing it, so that it stays able to
+    ///         select another hook type through `IAlignmentHookFactory` — and that restatement is only
+    ///         safe if something fails when the two drift apart. What would otherwise go unnoticed is
+    ///         not cosmetic: the hook's CONSTRUCTOR refuses an initial rate above its own ceiling, so a
+    ///         module ceiling above the hook's would let governance store a rate that reverts
+    ///         `deployHook` and with it every graduation, from a setter whose whole design is inert.
+    ///
+    /// @dev Proven by actually building the hook at the module's maximum rather than by comparing two
+    ///      literals, so the assertion is "this deploys" and not "these match".
+    function test_moduleCeilingIsARateTheHookWillDeployAt() public {
+        // 0xCC = beforeSwap|afterSwap|beforeSwapReturnDelta|afterSwapReturnDelta, the permission bits the
+        // hook's constructor validates against its own address.
+        address hookAddr = address((uint160(0x4242) << 14) | uint160(0x00CC));
+        deployCodeTo(
+            "UniAlignmentV4Hook.sol:UniAlignmentV4Hook",
+            abi.encode(
+                makeAddr("poolManager"), // the ctor only null-checks it, no call is made
+                makeAddr("vault"),
+                makeAddr("weth"),
+                address(this), // owner
+                makeAddr("benefactor"),
+                uint256(100), // hookFeeBips — the separate, immutable ETH-leg tithe
+                module.MAX_LP_FEE_RATE(), // the rate under test
+                address(registry),
+                makeAddr("poolToken"),
+                int24(60) // poolTickSpacing
+            ),
+            hookAddr
+        );
+
+        UniAlignmentV4Hook hook = UniAlignmentV4Hook(payable(hookAddr));
+        assertEq(hook.lpFeeRate(), module.MAX_LP_FEE_RATE(), "the module's maximum is a deployable initial rate");
+        assertEq(
+            hook.MAX_CONFIGURABLE_LP_FEE(),
+            module.MAX_LP_FEE_RATE(),
+            "module ceiling and deployed-hook ceiling must not drift"
+        );
     }
 
     function test_setLpFeeRate_onlyOwner() public {

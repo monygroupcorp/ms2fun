@@ -49,11 +49,13 @@ contract HookMineScanStartTest is Test {
     address internal constant POOL_TOKEN = address(0xC011);
     int24 internal constant POOL_TICK_SPACING = 60;
 
-    /// @dev `deployedHook` is the factory's first (and only) storage variable: immutables and constants
-    ///      occupy no slots, so the mapping's base slot is 0. `_clearAdoption` asserts the slot really
-    ///      holds the entry before wiping it, so a future storage layout change fails here loudly rather
-    ///      than turning the tests below into no-ops.
-    uint256 internal constant DEPLOYED_HOOK_SLOT = 0;
+    /// @dev The factory's second storage variable: immutables and constants occupy no slots, and Solady
+    ///      `Ownable` keeps the owner in a fixed high slot of its own rather than in the sequential
+    ///      layout, so slot 0 is `hookOwner` and the mapping's base slot is 1. `_clearAdoption` asserts
+    ///      the slot really holds the entry before wiping it, so a future storage layout change fails
+    ///      here loudly rather than turning the tests below into no-ops — as it did when `hookOwner`
+    ///      stopped being an immutable and took slot 0.
+    uint256 internal constant DEPLOYED_HOOK_SLOT = 1;
 
     uint160 internal constant REQUIRED = HookAddressMiner.ULTRA_ALIGNMENT_HOOK_FLAGS;
     uint160 internal constant FORBIDDEN = HookAddressMiner.ULTRA_ALIGNMENT_FORBIDDEN_FLAGS;

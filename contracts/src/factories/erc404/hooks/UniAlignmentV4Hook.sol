@@ -38,7 +38,8 @@ import { IAlignmentHook } from "./IAlignmentHook.sol";
  *      swapper's proceeds, and on a larger name has turned the sale into a net ETH outflow for the seller.
  *      See `afterSwap` for why a refund is not available instead.
  *      Hook fee (hookFeeBips) is immutable — set once at deploy, no governance risk.
- *      LP fee (lpFeeRate) is owner-adjustable via setLpFeeRate().
+ *      LP fee (lpFeeRate) is owner-adjustable via setLpFeeRate(), and is capped by the contract itself
+ *      at {MAX_CONFIGURABLE_LP_FEE} rather than at v4's 100% ceiling, so no key can price the pool shut.
  */
 contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
     using Hooks for IHooks;
@@ -47,6 +48,7 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
 
     error InvalidAddress();
     error HookFeeTooHigh();
+    /// @notice The constructor's `_initialLpFeeRate` is above {MAX_CONFIGURABLE_LP_FEE}.
     error LpFeeTooHigh();
     error PoolCurrency0MustBeNativeETH();
     /// @notice The `PoolKey` this hook was called for is not the pool it was deployed to serve.
@@ -55,6 +57,7 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
     ///      this launch's hook and have its swaps taxed and credited here (audit L-6).
     error PoolNotBound();
     error InvalidTickSpacing();
+    /// @notice `setLpFeeRate` was given a rate above {MAX_CONFIGURABLE_LP_FEE}.
     error RateTooHigh();
     error NoQueuedFees();
     error VaultStillRegistered();
@@ -64,6 +67,49 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
     ///         charged against that name is worth more than `hookFeeBips` of the ETH that moved.
     /// @dev Reachable only on the two shapes where ETH is the SPECIFIED currency; see `afterSwap`.
     error NamedEthLegNotFilled();
+
+    /// @notice The highest LP fee this hook will ever charge, in v4 fee units (hundredths of a basis
+    ///         point, so 1_000_000 = 100%). 10_000 = 1%.
+    ///
+    /// @dev WHY A CEILING AT ALL. `beforeSwap` returns `lpFeeRate | OVERRIDE_FEE_FLAG`, so whoever holds
+    ///      `setLpFeeRate` decides what the NEXT swap in this pool costs. v4's own bound is
+    ///      `LPFeeLibrary.MAX_LP_FEE` = 100%, which is not a fee — it is a pool nobody can trade. The
+    ///      ceiling belongs in the code so that "this pool stays tradeable" is a property of the contract
+    ///      rather than a promise about who holds the key.
+    ///
+    ///      WHY 10_000, from this repository rather than from taste:
+    ///        * The pool this hook serves trades at 3000 (0.3%). That is `zrouterFee` in every network
+    ///          config, it is the static pool fee the graduation module is constructed with, and the
+    ///          deploy sets the hook's own initial `lpFeeRate` to the same 3000 so that switching the
+    ///          tithe on changes what the pool TAKES and not what it CHARGES.
+    ///        * 10_000 is the top of Uniswap's standard fee ladder (100 / 500 / 3000 / 10_000, in these
+    ///          same units). A ceiling there leaves the entire ladder open as a retune — 3.33x the rate
+    ///          the pool ships with — and refuses everything above it, where a number stops being a fee
+    ///          tier and starts being a toll.
+    ///        * It bounds the total a swapper can be charged here. `hookFeeBips` is the SEPARATE and
+    ///          immutable tithe on the ETH leg (100 bips = 1% on the testnet config); it is quoted in
+    ///          bips out of 10_000 while this is quoted out of 1_000_000, so the two are different
+    ///          numbers taken at different points and must not be conflated. With both at their maximum
+    ///          a swap costs roughly 2%: a fee, not a fence.
+    ///        * No headroom is owed to a volatility response, because there is none to make room for.
+    ///          `lpFeeRate` is a stored value moved only by an owner call, not a per-swap computation.
+    ///
+    ///      A CONSTANT, NOT A CONSTRUCTOR BOUND. The hook factory mines each hook's address from an
+    ///      init-code hash over the creation code and every constructor argument. A per-hook bound would
+    ///      be one more argument threaded through the factory interface and its callers, and — the reason
+    ///      that matters — it would hand the ceiling back to whoever calls the factory, which is the
+    ///      failure this closes. As a constant the number is identical on every hook the factory will
+    ///      ever produce and is readable from the source without decoding a deployment's arguments.
+    ///
+    ///      NOT AN EMERGENCY STOP, DELIBERATELY. A punitive fee is a trading halt in all but name, and
+    ///      this protocol does not hold one: `MasterRegistryV1.revokeInstance` says so in terms — a
+    ///      revocation "is not a trading halt, and this contract has no mechanism that is". The emergency
+    ///      this hook does have is a vault that can no longer accept, and that has its own purpose-built
+    ///      levers: `haltTithe` / `resumeTithe` stop and restart the tithe (permissionless, gated on the
+    ///      registry, so they follow `deactivateVault` rather than anyone's opinion), and
+    ///      `rescueQueuedFees` moves what queued up to another curated vault. Those are the levers, not
+    ///      this one.
+    uint24 public constant MAX_CONFIGURABLE_LP_FEE = 10_000;
 
     IPoolManager public immutable poolManager;
     IAlignmentVault public immutable vault;
@@ -148,7 +194,11 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
         // bound to it could never serve any pool at all.
         if (_poolTickSpacing <= 0 || _poolTickSpacing > 32767) revert InvalidTickSpacing();
         if (_hookFeeBips > 10000) revert HookFeeTooHigh();
-        if (_initialLpFeeRate > LPFeeLibrary.MAX_LP_FEE) revert LpFeeTooHigh();
+        // The same ceiling `setLpFeeRate` enforces, applied at birth. Capping only the setter would leave
+        // the lever intact one step upstream: the rate a hook is CONSTRUCTED with is chosen by whoever
+        // configures the graduation module, so an uncapped constructor could mint a pool that is
+        // untradeable from its first block and never charged anyone a legitimate fee at all.
+        if (_initialLpFeeRate > MAX_CONFIGURABLE_LP_FEE) revert LpFeeTooHigh();
 
         _initializeOwner(_owner);
         poolManager = _poolManager;
@@ -475,11 +525,14 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
     }
 
     /**
-     * @notice Set LP fee rate (owner only)
-     * @param _rate New LP fee rate (max LPFeeLibrary.MAX_LP_FEE = 1000000 = 100%)
+     * @notice Set the dynamic LP fee this hook overrides its pool with (owner only)
+     * @dev Bounded by {MAX_CONFIGURABLE_LP_FEE}, not by v4's `LPFeeLibrary.MAX_LP_FEE` — see that
+     *      constant for the number, the evidence behind it, and why the owner is not trusted with the
+     *      range above it even though the owner is the protocol's own governance.
+     * @param _rate New LP fee rate in v4 fee units; at most MAX_CONFIGURABLE_LP_FEE (10_000 = 1%)
      */
     function setLpFeeRate(uint24 _rate) external onlyOwner {
-        if (_rate > LPFeeLibrary.MAX_LP_FEE) revert RateTooHigh();
+        if (_rate > MAX_CONFIGURABLE_LP_FEE) revert RateTooHigh();
         lpFeeRate = _rate;
         emit LpFeeRateUpdated(_rate);
     }
