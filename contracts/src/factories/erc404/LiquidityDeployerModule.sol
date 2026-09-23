@@ -112,9 +112,17 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
     ///         `alignmentHookFactory` is `address(0)`.
     uint24 public lpFeeRate;
 
+    /// @notice Ceiling on {lpFeeRate}, in v4 fee units (hundredths of a basis point): 10_000 = 1%.
+    /// @dev The number and the reasoning behind it live on `UniAlignmentV4Hook.MAX_CONFIGURABLE_LP_FEE`,
+    ///      which is where it is enforced on the deployed hook. It is restated here rather than imported
+    ///      so this module keeps no compile-time dependency on one concrete hook type — it selects hook
+    ///      types through `IAlignmentHookFactory` and must stay able to select another. The two are
+    ///      pinned to each other by test.
+    uint24 public constant MAX_LP_FEE_RATE = 10_000;
+
     /// @dev hookFeeBips exceeds 100% (mirrors UniAlignmentV4Hook's own ctor guard).
     error HookFeeTooHigh();
-    /// @dev lpFeeRate exceeds LPFeeLibrary.MAX_LP_FEE (the v4 dynamic-fee ceiling).
+    /// @dev lpFeeRate exceeds {MAX_LP_FEE_RATE}, the ceiling the deployed hook enforces on itself.
     error LpFeeRateTooHigh();
 
     /// @notice The alignment-hook TYPE factory selected for graduation pools changed (address(0) = OFF).
@@ -769,10 +777,14 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
         emit HookFeeBipsUpdated(bips);
     }
 
-    /// @notice Set the initial dynamic LP-fee rate forwarded to newly-deployed graduation hooks. Bounded by
-    ///         the v4 dynamic-fee ceiling `LPFeeLibrary.MAX_LP_FEE`.
+    /// @notice Set the initial dynamic LP-fee rate forwarded to newly-deployed graduation hooks.
+    /// @dev Bounded by {MAX_LP_FEE_RATE}, the same ceiling `UniAlignmentV4Hook` enforces on itself, and
+    ///      NOT by the v4 dynamic-fee ceiling `LPFeeLibrary.MAX_LP_FEE`. The hook's constructor refuses a
+    ///      higher initial rate, so without this guard a rate above the ceiling would not merely be
+    ///      ambitious — it would revert `deployHook`, and with it every graduation, from a setter whose
+    ///      whole design is to be inert until the hook switch is thrown.
     function setLpFeeRate(uint24 rate) external onlyOwner {
-        if (rate > LPFeeLibrary.MAX_LP_FEE) revert LpFeeRateTooHigh();
+        if (rate > MAX_LP_FEE_RATE) revert LpFeeRateTooHigh();
         lpFeeRate = rate;
         emit LpFeeRateUpdated(rate);
     }

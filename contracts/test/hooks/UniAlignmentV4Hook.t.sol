@@ -75,6 +75,15 @@ contract UniAlignmentV4HookTest is Test {
     }
 
     function _ctorArgs(address benefactor, uint256 hookFeeBips) internal view returns (bytes memory) {
+        return _ctorArgs(benefactor, hookFeeBips, DEFAULT_LP_FEE_RATE);
+    }
+
+    /// @dev Same args with the initial LP fee chosen, for the constructor-ceiling cases.
+    function _ctorArgs(address benefactor, uint256 hookFeeBips, uint24 initialLpFeeRate)
+        internal
+        view
+        returns (bytes memory)
+    {
         return abi.encode(
             IPoolManager(poolManagerPlaceholder),
             IAlignmentVault(payable(address(mockVault))),
@@ -82,7 +91,7 @@ contract UniAlignmentV4HookTest is Test {
             owner,
             benefactor,
             hookFeeBips,
-            DEFAULT_LP_FEE_RATE,
+            initialLpFeeRate,
             DUMMY_REGISTRY,
             mockToken,
             POOL_TICK_SPACING
@@ -169,8 +178,8 @@ contract UniAlignmentV4HookTest is Test {
         hook.setLpFeeRate(3000);
         assertEq(hook.lpFeeRate(), 3000, "Should allow 3000 (0.3%)");
 
-        hook.setLpFeeRate(uint24(LPFeeLibrary.MAX_LP_FEE));
-        assertEq(hook.lpFeeRate(), uint24(LPFeeLibrary.MAX_LP_FEE), "Should allow max fee");
+        hook.setLpFeeRate(10_000);
+        assertEq(hook.lpFeeRate(), 10_000, "Should allow the protocol ceiling");
 
         vm.stopPrank();
     }
@@ -181,10 +190,87 @@ contract UniAlignmentV4HookTest is Test {
         hook.setLpFeeRate(5000);
     }
 
-    function test_setLpFeeRate_rejectsAboveMax() public {
+    // ========== The LP-fee ceiling ==========
+    //
+    // `beforeSwap` returns `lpFeeRate | OVERRIDE_FEE_FLAG`, so the owner of this function sets what the
+    // next swap in the pool costs. v4's own bound is 100%, which is a pool nobody can trade — so a key
+    // holding `setLpFeeRate` could halt trading at will, reversibly, and this protocol holds no trading
+    // halt anywhere else by design. These cases pin the ceiling as a property of the contract.
+
+    /// @dev The number itself, and its relationship to the two other rates in play. A change to it
+    ///      should have to come through here.
+    function test_maxConfigurableLpFee_isTheTopStandardTier() public view {
+        assertEq(hook.MAX_CONFIGURABLE_LP_FEE(), 10_000, "ceiling is 1%, the top standard Uniswap tier");
+        assertGt(hook.MAX_CONFIGURABLE_LP_FEE(), DEFAULT_LP_FEE_RATE, "the shipped 0.3% rate still has room to move up");
+        assertLt(
+            uint256(hook.MAX_CONFIGURABLE_LP_FEE()),
+            uint256(LPFeeLibrary.MAX_LP_FEE),
+            "and the ceiling is the protocol's, well under v4's 100%"
+        );
+    }
+
+    /// @dev The boundary, both sides of it.
+    function test_setLpFeeRate_acceptsTheCeiling() public {
+        uint24 ceiling = hook.MAX_CONFIGURABLE_LP_FEE();
+        vm.prank(owner);
+        hook.setLpFeeRate(ceiling);
+        assertEq(hook.lpFeeRate(), 10_000, "the ceiling itself is a settable rate");
+    }
+
+    function test_setLpFeeRate_rejectsOneAboveTheCeiling() public {
+        uint24 justOver = hook.MAX_CONFIGURABLE_LP_FEE() + 1;
         vm.prank(owner);
         vm.expectRevert(UniAlignmentV4Hook.RateTooHigh.selector);
-        hook.setLpFeeRate(uint24(LPFeeLibrary.MAX_LP_FEE + 1));
+        hook.setLpFeeRate(justOver);
+    }
+
+    /// @notice The finding this ceiling closes: v4's own maximum is a 100% fee, and the owner can no
+    ///         longer reach it. Pricing the pool shut is not a lever anyone holds here.
+    function test_setLpFeeRate_rejectsTheV4MaximumOutright() public {
+        vm.prank(owner);
+        vm.expectRevert(UniAlignmentV4Hook.RateTooHigh.selector);
+        hook.setLpFeeRate(uint24(LPFeeLibrary.MAX_LP_FEE));
+    }
+
+    /// @notice A legitimate retune, unaffected: the shipped 0.3% up to the 1% tier and back down again.
+    function test_setLpFeeRate_legitimateRetuneStillWorks() public {
+        assertEq(hook.lpFeeRate(), DEFAULT_LP_FEE_RATE, "starts on the 0.3% tier the deploy sets");
+
+        vm.startPrank(owner);
+        hook.setLpFeeRate(10_000);
+        assertEq(hook.lpFeeRate(), 10_000, "up to the 1% tier");
+        hook.setLpFeeRate(500);
+        assertEq(hook.lpFeeRate(), 500, "and back down the ladder");
+        vm.stopPrank();
+    }
+
+    /// @dev The ceiling holds at birth too. Capping only the setter would leave the same lever one step
+    ///      upstream, in whatever value the graduation module hands `deployHook`.
+    function test_constructor_acceptsTheCeilingAsInitialRate() public {
+        deployCodeTo(
+            "UniAlignmentV4Hook.sol:UniAlignmentV4Hook",
+            _ctorArgs(projectInstance, DEFAULT_HOOK_FEE_BIPS, 10_000),
+            _hookAddr(0x4244)
+        );
+        assertEq(UniAlignmentV4Hook(payable(_hookAddr(0x4244))).lpFeeRate(), 10_000, "born at the ceiling is allowed");
+    }
+
+    function test_constructor_rejectsInitialRateAboveTheCeiling() public {
+        vm.expectRevert(UniAlignmentV4Hook.LpFeeTooHigh.selector);
+        deployCodeTo(
+            "UniAlignmentV4Hook.sol:UniAlignmentV4Hook",
+            _ctorArgs(projectInstance, DEFAULT_HOOK_FEE_BIPS, 10_001),
+            _hookAddr(0x4245)
+        );
+    }
+
+    function test_constructor_rejectsTheV4MaximumAsInitialRate() public {
+        vm.expectRevert(UniAlignmentV4Hook.LpFeeTooHigh.selector);
+        deployCodeTo(
+            "UniAlignmentV4Hook.sol:UniAlignmentV4Hook",
+            _ctorArgs(projectInstance, DEFAULT_HOOK_FEE_BIPS, uint24(LPFeeLibrary.MAX_LP_FEE)),
+            _hookAddr(0x4246)
+        );
     }
 
     function test_setLpFeeRate_emitsEvent() public {
