@@ -110,12 +110,6 @@ contracts/lib
 # before a stop/restart is allowed to kill the process holding :8545.
 /.anvil.pid
 
-# Third-party bytecode, ABIs and deployment records pulled from a block explorer by
-# app/scripts/sepolia-algebra (see its RUNBOOK.md). The tools are committed; their output is not —
-# this repository carries deployed addresses and its own MIT interfaces, never vendored third-party
-# artifacts. Everything under it is re-fetchable by re-running the fetch tool.
-app/scripts/sepolia-algebra/artifacts/
-
 # Local build and run tooling keeps its own state under projects/ — gate run records and the like.
 # That state describes the machine it was written on: the absolute path of the checkout, the account
 # that ran it, the core count, the load averages. This repository is public, and between 2026-09-14
