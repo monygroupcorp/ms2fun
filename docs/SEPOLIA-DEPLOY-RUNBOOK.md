@@ -472,7 +472,8 @@ forge script script/EnableAlignmentTithe.s.sol --sig "printEnableBatch()" --rpc-
 It resolves the hook factory from the component registry rather than taking an address on trust, and
 refuses to print anything unless the rate under the switch is non-zero and the factory binds the same
 PoolManager and WETH as the module. A governance proposal is an expensive place to find out the rate
-was zero.
+was zero. Each of those refusals is pinned by `contracts/test/script/EnableAlignmentTitheTest.t.sol`,
+which drives the script's own resolution and read-back against a deployed fixture.
 
 Propose that call through the Safe, wait out `TIMELOCK_MIN_DELAY`, execute it, then read it back:
 
@@ -495,8 +496,6 @@ graduated.**
 **Turning it back off** is the same call with `address(0)`, and it is not a rollback: pools that
 graduated while it was on keep their hooks and keep tithing. It stops the next graduation from
 minting one.
-
----
 
 ---
 
@@ -587,6 +586,12 @@ leaving the protocol under one key.
 
 A non-zero exit names the contract that failed, so a partial migration says which step to re-run.
 
+### 6.5 The walk, live
+
+The same numbered walk from §4, followed against the public testnet, in a browser, with a wallet.
+This is the acceptance test for the deployment as a whole, and it is the last step before anyone
+outside is pointed at it.
+
 ### 6.7 The tithe actually moves
 
 §5.6 turned a switch on; this is where somebody watches money cross. Nothing above it does: the
@@ -662,12 +667,6 @@ real network. The mechanism behind it is pinned by
 `contracts/test/hooks/UniAlignmentV4Hook_RealSettlement.t.sol` (all four swap shapes, the queue and
 the flush) and the deployed configuration by
 `contracts/test/script/SepoliaAlignmentTithe.t.sol`; this step is the one that runs on the chain.
-
-### 6.5 The walk, live
-
-The same numbered walk from §4, followed against the public testnet, in a browser, with a wallet.
-This is the acceptance test for the deployment as a whole, and it is the last step before anyone
-outside is pointed at it.
 
 ---
 
