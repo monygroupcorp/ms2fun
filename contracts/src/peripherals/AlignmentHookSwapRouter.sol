@@ -48,6 +48,23 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
  *      the pool. `IPoolManager.swap` returns the caller's total delta with those hook deltas
  *      already folded in, so this contract settles what the delta says and nothing else. Settling
  *      the requested amount instead would leave the unlock unbalanced and revert the trade.
+ *
+ *      THE PRICE LIMIT IS NOT THE CALLER'S TO CHOOSE, and anything that builds its own `SwapParams`
+ *      against one of these pools has to know why. Every swap this router sends names the extreme
+ *      sentinel for its direction — `TickMath.MIN_SQRT_PRICE + 1` when `zeroForOne`,
+ *      `TickMath.MAX_SQRT_PRICE - 1` otherwise — so that nothing but exhausted liquidity can stop
+ *      it short. That is the pool's requirement, not this contract's preference. On the two shapes
+ *      the hook charges in `beforeSwap` — an exact-input ETH buy and an exact-output ETH sell — the
+ *      tithe is priced on the ETH the caller NAMED, because V4 fixes a hook's credit on the
+ *      specified currency before the swap runs. A binding `sqrtPriceLimitX96`, or one order split
+ *      across several pools, would therefore leave the caller paying a fee priced on ETH the pool
+ *      never moved, and no later callback can hand that ETH back. The hook refuses the trade
+ *      instead: it reverts `NamedEthLegNotFilled` RATHER THAN FILLING IN PART. That is a deliberate
+ *      difference from an unhooked V4 pool, where the very same swap comes back part-filled and the
+ *      caller keeps whatever did not trade. To cap price impact here, use `amountLimit`: it is
+ *      denominated in a currency the caller can reason about and is checked against the tithed
+ *      result. The two shapes charged in `afterSwap` are priced on the realised delta and part-fill
+ *      as usual, as does any swap the hook takes no fee on.
  */
 contract AlignmentHookSwapRouter is IUnlockCallback {
     using CurrencySettler for Currency;

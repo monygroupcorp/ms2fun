@@ -7,7 +7,10 @@ import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
 import { PoolManager } from "v4-core/PoolManager.sol";
 import { Currency, CurrencyLibrary } from "v4-core/types/Currency.sol";
 import { PoolKey } from "v4-core/types/PoolKey.sol";
+import { BalanceDelta } from "v4-core/types/BalanceDelta.sol";
 import { LPFeeLibrary } from "v4-core/libraries/LPFeeLibrary.sol";
+import { Hooks } from "v4-core/libraries/Hooks.sol";
+import { CustomRevert } from "v4-core/libraries/CustomRevert.sol";
 import { TickMath } from "v4-core/libraries/TickMath.sol";
 import { PoolSwapTest } from "../../lib/v4-core/src/test/PoolSwapTest.sol";
 import { PoolModifyLiquidityTest } from "../../lib/v4-core/src/test/PoolModifyLiquidityTest.sol";
@@ -32,16 +35,17 @@ import { AlignmentHookSwapRouter } from "../../src/peripherals/AlignmentHookSwap
  *         validateHookPermissions passes), initializes a native-ETH(currency0)/ERC20(currency1) pool
  *         wired to the hook, adds liquidity, and runs all four swap shapes through PoolManager.
  *
- * WHAT THIS PROVES (noesis-116, Option B fix): the ETH alignment tithe now settles on EVERY real swap
- * shape. The hook splits the ETH-side take by which side ETH is on:
- *   - beforeSwap taxes the ETH INPUT when ETH is the specified currency (shape 1, exact-input ETH buy),
- *     returning the fee as a BeforeSwapDelta on the specified currency so it settles against take(ETH);
- *   - afterSwap taxes the ETH OUTPUT when ETH is the unspecified currency (shape 2 exact-output buy,
- *     shape 3 exact-input sell), returning the fee on the unspecified currency.
- *   - shape 4 (exact-output token->ETH sell, ETH specified output) is untaxed BY DESIGN — never a
- *     frontend path — and must cleanly NOT revert.
- * All four shapes settle (no CurrencyNotSettled). Shapes 1/2/3 deliver the ETH fee to the vault; shape 4
- * delivers nothing. Shape 1 is taxed exactly once (no double-tax).
+ * WHAT THIS PROVES: the ETH alignment tithe settles on EVERY real swap shape. The hook splits the
+ * ETH-side take by which side of v4's specified/unspecified divide ETH falls on, because that is what
+ * decides which callback may return a delta on it:
+ *   - beforeSwap taxes ETH when ETH is the SPECIFIED currency — shape 1 (exact-input ETH buy) and
+ *     shape 4 (exact-output token->ETH sell) — returning the fee as a BeforeSwapDelta on the specified
+ *     currency so it settles against take(ETH);
+ *   - afterSwap taxes ETH when ETH is the UNSPECIFIED currency — shape 2 (exact-output ETH buy) and
+ *     shape 3 (exact-input token sell) — returning the fee on the unspecified currency.
+ * All four shapes settle (no CurrencyNotSettled) and all four deliver the ETH fee to the vault. Shapes 1
+ * and 4 are each taxed exactly once (no double-tax), and shape 4 still hands the swapper exactly the ETH
+ * it asked for — the tithe widens the token the swap costs, not the exact output it promised.
  *
  * Permission bits: beforeSwap|beforeSwapReturnDelta|afterSwap|afterSwapReturnDelta = 0xCC.
  */
@@ -183,21 +187,32 @@ contract UniAlignmentV4Hook_RealSettlement is Test {
         assertGt(vault.totalReceived() - beforeBal, 0, "shape3 must deliver ETH fee to vault");
     }
 
-    // ---- Shape 4: exact-output token->ETH sell — ETH is SPECIFIED output. Untaxed BY DESIGN. ----
-    // Was the second reverting shape; now it must cleanly settle WITHOUT taxing (never a frontend path).
-    function test_exactOutput_tokenSell_settles_untaxed() public {
+    // ---- Shape 4: exact-output token->ETH sell — ETH is SPECIFIED output. Taxed in beforeSwap. ----
+    // The one shape that used to pay nothing. ETH is specified here, so an afterSwap return delta would
+    // land on the token and could not settle a take(ETH); beforeSwap is the callback that acts on the
+    // specified currency, and a positive specified delta on an exact OUTPUT widens the swap rather than
+    // narrowing it — so the pool produces output + fee, the hook keeps the fee, and the swapper still
+    // receives exactly the output they named.
+    function test_exactOutput_tokenSell_settles_and_taxes_once() public {
         uint256 beforeBal = vault.totalReceived();
+        uint256 tokenBefore = token.balanceOf(address(this));
         IPoolManager.SwapParams memory p = IPoolManager.SwapParams({
             zeroForOne: false,
             amountSpecified: 0.5 ether, // exact output: receive 0.5 ETH
             sqrtPriceLimitX96: MAX_PRICE_LIMIT
         });
-        // No revert (previously reverted CurrencyNotSettled).
-        swapRouter.swap(poolKey, p, _settings(), ZERO_BYTES);
+        BalanceDelta delta = swapRouter.swap(poolKey, p, _settings(), ZERO_BYTES);
 
-        // Untaxed by design: nothing reaches the vault, nothing is queued.
-        assertEq(vault.totalReceived() - beforeBal, 0, "shape4 is untaxed by design");
-        assertEq(hook.queuedFees(), 0, "shape4 queues nothing");
+        // Fee is exactly 1% of the 0.5 ETH named, delivered ONCE (0.005, not 0.01 — beforeSwap only).
+        uint256 expectedFee = (0.5 ether * HOOK_FEE_BIPS) / 10000; // 0.005 ETH
+        assertEq(vault.totalReceived() - beforeBal, expectedFee, "shape4 fee must be exactly 1% of ETH out, once");
+        assertEq(hook.queuedFees(), 0, "no fees should be queued (vault accepts)");
+
+        // The exact-output guarantee survives the tithe: the swapper's ETH credit is the full 0.5 ETH
+        // they named, not 0.5 minus the fee. The tithe is paid in the token the swap consumed instead.
+        assertEq(delta.amount0(), int128(0.5 ether), "shape4 must still deliver exactly the ETH specified");
+        assertLt(delta.amount1(), int128(0), "shape4 must charge the swapper token for it");
+        assertLt(token.balanceOf(address(this)), tokenBefore, "shape4 swapper pays token");
     }
 
     // ---- Queue fallback: a reverting vault must NOT brick the swap — the ETH fee is queued instead. ----
@@ -371,6 +386,21 @@ contract UniAlignmentV4Hook_RealSettlement is Test {
         internal
         returns (UniAlignmentV4Hook h, PoolKey memory k)
     {
+        (h, k) = _deployHookedPoolWithoutLiquidity(seed, vaultAddr);
+
+        vm.deal(address(this), 10_000 ether);
+        IPoolManager.ModifyLiquidityParams memory lp =
+            IPoolManager.ModifyLiquidityParams({ tickLower: -6000, tickUpper: 6000, liquidityDelta: 100e18, salt: 0 });
+        modifyLiquidityRouter.modifyLiquidity{ value: 500 ether }(k, lp, ZERO_BYTES);
+    }
+
+    /// @dev The same hook and pool, initialized but with NO liquidity in it. A pool in this state can
+    ///      fill nothing, which is the only way to part-fill a wei-scale leg here: against the wide-range
+    ///      100e18 the helper above seeds, even 99 wei of exact output is a FULL fill.
+    function _deployHookedPoolWithoutLiquidity(uint160 seed, address vaultAddr)
+        internal
+        returns (UniAlignmentV4Hook h, PoolKey memory k)
+    {
         address addr = address((seed << 14) | uint160(0x00CC));
         deployCodeTo(
             "UniAlignmentV4Hook.sol:UniAlignmentV4Hook",
@@ -398,11 +428,149 @@ contract UniAlignmentV4Hook_RealSettlement is Test {
             hooks: IHooks(addr)
         });
         manager.initialize(k, SQRT_PRICE_1_1);
+    }
+
+    /// @dev A hook revert reaches the caller wrapped: `Hooks.callHook` catches it and re-reverts as
+    ///      ERC-7751 `WrappedError(hook, callback, reason, HookCallFailed)`. Asserting the whole wrapper
+    ///      rather than `vm.expectRevert()` keeps these tests from passing on some OTHER revert — a
+    ///      transfer that failed for want of ETH under the singleton would satisfy a bare expectRevert
+    ///      and prove nothing about the tithe.
+    function _expectHookRevert(address h, bytes4 callback, bytes4 reason) internal {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CustomRevert.WrappedError.selector,
+                h,
+                callback,
+                abi.encodeWithSelector(reason),
+                abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+            )
+        );
+    }
+
+    // ==== A NAME IS NOT A FILL: the two beforeSwap-taxed shapes must move the leg they were taxed on ====
+    //
+    // `beforeSwap` prices the tithe on `|amountSpecified|` — the ETH the swapper NAMES — because v4 fixes
+    // a hook's credit on the SPECIFIED currency before the swap runs. `Pool.swap` then stops at
+    // `sqrtPriceLimitX96` and returns only what it moved, so a name larger than the pool can fill leaves
+    // a fee priced on ETH that never moved. The three cases below are the measured ones; each comment
+    // carries the number this fixture produced while the tithe was charged on the name alone.
+
+    /// @dev Shape 4, part-filled. 400 ETH named out of a pool holding 25.917066770240321653 ETH in range:
+    ///      the swap moved all of it, the vault took 4 ETH (1% of the NAME), and the seller was credited
+    ///      21.917066770240321653 ETH — an 18.25% tithe on their proceeds for a 1% fee.
+    function test_exactOutput_tokenSell_partFill_revertsRatherThanTitheTheName() public {
+        vm.deal(address(this), 10_000 ether);
+        _expectHookRevert(address(hook), IHooks.afterSwap.selector, UniAlignmentV4Hook.NamedEthLegNotFilled.selector);
+        swapRouter.swap(
+            poolKey,
+            IPoolManager.SwapParams({
+                zeroForOne: false, amountSpecified: 400 ether, sqrtPriceLimitX96: MAX_PRICE_LIMIT
+            }),
+            _settings(),
+            ZERO_BYTES
+        );
+        assertEq(vault.totalReceived(), 0, "a leg the pool cannot fill must tithe nothing");
+    }
+
+    /// @dev Shape 4, part-filled against a singleton holding OTHER pools' ETH — which is every live
+    ///      deployment, and the reason the `take` succeeds at all. 5000 ETH named: the vault took 50 ETH,
+    ///      nearly twice the pool's whole in-range reserve, and the SELLER PAID 35.089123490018570836
+    ///      token AND 24.082933229759678347 ETH to receive no ETH at all. An exact-output sell became a
+    ///      net ETH outflow for the seller. The `vm.deal` is load-bearing: without other pools' ETH under
+    ///      the singleton this fails on the transfer instead, and would prove nothing about the tithe.
+    function test_exactOutput_tokenSell_cannotBecomeANetEthOutflowForTheSeller() public {
+        vm.deal(address(manager), address(manager).balance + 10_000 ether);
+        vm.deal(address(this), 10_000 ether);
+        uint256 ethBefore = address(this).balance;
+        uint256 tokenBefore = token.balanceOf(address(this));
+
+        _expectHookRevert(address(hook), IHooks.afterSwap.selector, UniAlignmentV4Hook.NamedEthLegNotFilled.selector);
+        swapRouter.swap{ value: 1000 ether }(
+            poolKey,
+            IPoolManager.SwapParams({
+                zeroForOne: false, amountSpecified: 5000 ether, sqrtPriceLimitX96: MAX_PRICE_LIMIT
+            }),
+            _settings(),
+            ZERO_BYTES
+        );
+
+        assertEq(address(this).balance, ethBefore, "the seller parts with no ETH");
+        assertEq(token.balanceOf(address(this)), tokenBefore, "and with no token");
+        assertEq(vault.totalReceived(), 0, "and the vault takes nothing from a sale that did not happen");
+    }
+
+    /// @dev Shape 1, part-filled. 400 ETH named in: the pool absorbed 35.089123490018570836 ETH, the
+    ///      buyer parted with 39.089123490018570836 ETH in all, and 4 of that was the tithe — 10.23%
+    ///      for a 1% fee. The overcharge is self-limiting in ABSOLUTE terms (it can never exceed the
+    ///      input the buyer committed) but not in RATE: as the realised spend falls toward zero the fee
+    ///      stays 1% of the name, so the effective rate is bounded only by 100% of what was spent.
+    function test_exactInput_ethBuy_partFill_revertsRatherThanTitheTheName() public {
+        vm.deal(address(this), 10_000 ether);
+        _expectHookRevert(address(hook), IHooks.afterSwap.selector, UniAlignmentV4Hook.NamedEthLegNotFilled.selector);
+        swapRouter.swap{ value: 500 ether }(
+            poolKey,
+            IPoolManager.SwapParams({
+                zeroForOne: true, amountSpecified: -400 ether, sqrtPriceLimitX96: MIN_PRICE_LIMIT
+            }),
+            _settings(),
+            ZERO_BYTES
+        );
+        assertEq(vault.totalReceived(), 0, "a leg the pool cannot fill must tithe nothing");
+    }
+
+    /// @dev The check answers to the CHARGE, not to the shape. A halted tithe takes nothing, so there is
+    ///      nothing to hold to a fill and the part-filled swap runs exactly as v4 would have run it
+    ///      untaxed — the same swap that reverts above. Without this the halt would have stopped the
+    ///      hook charging and started it refusing trades, which is not what halting is for (audit M-4).
+    function test_partFill_isLetThroughUntaxedWhileTitheIsHalted() public {
+        registry.setVaultRegistered(address(vault), false);
+        hook.haltTithe();
+        assertTrue(hook.titheHalted(), "precondition: the tithe is halted");
 
         vm.deal(address(this), 10_000 ether);
-        IPoolManager.ModifyLiquidityParams memory lp =
-            IPoolManager.ModifyLiquidityParams({ tickLower: -6000, tickUpper: 6000, liquidityDelta: 100e18, salt: 0 });
-        modifyLiquidityRouter.modifyLiquidity{ value: 500 ether }(k, lp, ZERO_BYTES);
+        BalanceDelta d = swapRouter.swap(
+            poolKey,
+            IPoolManager.SwapParams({
+                zeroForOne: false, amountSpecified: 400 ether, sqrtPriceLimitX96: MAX_PRICE_LIMIT
+            }),
+            _settings(),
+            ZERO_BYTES
+        );
+
+        assertGt(d.amount0(), int128(0), "the part fill still pays the seller its ETH");
+        // And it really is a PART fill — 400 ETH named, 25.917066770240321653 moved — so what is let
+        // through is the same swap the first case above reverts, not some full fill in disguise.
+        assertLt(d.amount0(), int128(400 ether), "precondition: the pool cannot fill the whole named leg");
+        assertEq(vault.totalReceived(), 0, "and a halted hook takes nothing from it");
+        assertEq(hook.queuedFees(), 0, "and queues nothing either");
+    }
+
+    /// @dev A fee that rounds to zero is no charge, so it is held to no fill: even the most extreme part
+    ///      fill still settles. Guards the `feeAmount == 0` exit rather than leaving it to inference.
+    ///
+    ///      The pool is deliberately DRY, because a small name is not a part fill. Against the wide-range
+    ///      100e18 every other pool in this file seeds, 99 wei of exact output comes back filled to the
+    ///      wei (`amount0 == 99`) and the fill check is never reached — a fixture that seeds liquidity
+    ///      here asserts nothing, whatever its name says. With no liquidity the pool moves nothing, so 0
+    ///      of the 99 wei named is filled and the leg is short by all of it.
+    function test_partFill_isLetThroughWhenTheFeeRoundsToZero() public {
+        // 99 wei * 100 bips / 10000 == 0.
+        (UniAlignmentV4Hook h, PoolKey memory k) = _deployHookedPoolWithoutLiquidity(0x5959, address(vault));
+        assertEq((99 * HOOK_FEE_BIPS) / 10000, 0, "precondition: this fee rounds to zero");
+        uint256 beforeBal = vault.totalReceived();
+
+        // Shape 4 — ETH is the specified currency, so this is the beforeSwap/afterSwap pair the fill
+        // check sits in. It must NOT revert: nothing was charged, so nothing can have been over-charged.
+        BalanceDelta d = swapRouter.swap(
+            k,
+            IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: 99, sqrtPriceLimitX96: MAX_PRICE_LIMIT }),
+            _settings(),
+            ZERO_BYTES
+        );
+
+        assertEq(d.amount0(), int128(0), "precondition: the dry pool fills none of the 99 wei named");
+        assertEq(vault.totalReceived() - beforeBal, 0, "a zero fee tithes nothing");
+        assertEq(h.queuedFees(), 0, "a zero fee queues nothing");
     }
 
     receive() external payable { }
@@ -594,8 +762,8 @@ contract UniTitheHookFactory_RealSettlement is Test {
  *           (a) ENABLED: with `setAlignmentHookFactory(uniTitheFactory)` set, a graduation stands up a
  *               pool whose `hooks` is a valid factory-deployed tithe hook AND whose `fee` is
  *               `DYNAMIC_FEE_FLAG` (proven by the pool being initialized at exactly that PoolKey's id),
- *               and every one of the 4 swap shapes routes the ETH-leg tithe to the vault (shape 4 untaxed
- *               by design). Reuses the RealSettlement swap-shape proof through a real graduation.
+ *               and every one of the 4 swap shapes routes the ETH-leg tithe to the vault. Reuses the
+ *               RealSettlement swap-shape proof through a real graduation.
  *
  *           (b) DEFAULT (OFF): with `alignmentHookFactory == address(0)` (untouched), the graduation pool
  *               is `hooks: address(0)` + the static `poolFee` — byte-identical to the pre-117b untaxed
@@ -701,10 +869,12 @@ contract LiquidityDeployerModuleGraduation_RealSettlement is Test {
         swapRouter.swap(hookedKey, _sp(false, -1e18, MAX_PRICE_LIMIT), _settings(), ZERO_BYTES);
         assertGt(vault.totalReceived() - b3, 0, "shape3 tithes ETH to vault");
 
-        // shape 4: exact-output token->ETH sell — ETH specified output, untaxed BY DESIGN, must not revert.
+        // shape 4: exact-output token->ETH sell — ETH specified output, taxed exactly 1% in beforeSwap,
+        // once, and the swapper still receives exactly the 0.5 ETH it named.
         uint256 b4 = vault.totalReceived();
-        swapRouter.swap(hookedKey, _sp(false, 0.5 ether, MAX_PRICE_LIMIT), _settings(), ZERO_BYTES);
-        assertEq(vault.totalReceived() - b4, 0, "shape4 is untaxed by design");
+        BalanceDelta d4 = swapRouter.swap(hookedKey, _sp(false, 0.5 ether, MAX_PRICE_LIMIT), _settings(), ZERO_BYTES);
+        assertEq(vault.totalReceived() - b4, (0.5 ether * HOOK_FEE_BIPS) / 10000, "shape4 tithes 1% of ETH output once");
+        assertEq(d4.amount0(), int128(0.5 ether), "shape4 still delivers exactly the ETH specified");
     }
 
     // ── (b) DEFAULT OFF: untaxed static pool, byte-identical to today ────────
