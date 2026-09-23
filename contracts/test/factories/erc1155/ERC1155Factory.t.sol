@@ -1547,6 +1547,18 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         );
     }
 
+    // ── constructor implementation zero-check (the clone target has no setter) ──
+
+    function test_constructor_revertsOnZeroImplementation() public {
+        // Every collection is a clone that delegatecalls this address, so a zero here leaves the
+        // factory minting collections with no code behind them and the ETH paid to them stranded.
+        // There is no setter for it by design, so the constructor is the only place it can be caught.
+        vm.expectRevert(ERC1155Factory.InvalidAddress.selector);
+        new ERC1155Factory(
+            address(mockRegistry), address(globalRegistry), address(componentRegistry), address(0xBEEF), address(0)
+        );
+    }
+
     // ── noesis-084 — ERC-7572 collection contractURI + optional symbol ─────────
 
     function _createWithSymbol(string memory sym) internal returns (ERC1155Instance) {
