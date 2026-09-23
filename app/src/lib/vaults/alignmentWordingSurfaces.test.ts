@@ -75,13 +75,10 @@ describe('the 19% surfaces draw their wording', () => {
 })
 
 /**
- * The second ratchet: the two CREATOR-FACING surfaces that state the claim in full prose — the
- * `/learn` concept registry and the launch wizard.
+ * The struck-out readings, banned EVERYWHERE rather than on a list of files.
  *
- * These two may spell `19%`: the learn body quotes the whole 1/19/80 law, and the wizard's bind
- * diagram is the number rendered large. What they may NOT do is re-assert the reading the ruling
- * struck out. Both used to say the share was taken "on mint and on every resale", from "fees", on
- * "every launch":
+ * The creator-facing claim used to be spelled out on two surfaces, and both said the share was
+ * taken "on mint and on every resale", from "fees", on "every launch":
  *
  *   concepts.ts     "On mint and on every resale, 19% of fees route to the community"
  *   WizardPage.tsx  "Every launch routes 19% of its fees … on mint and every resale"
@@ -92,30 +89,69 @@ describe('the 19% surfaces draw their wording', () => {
  * share of a resale at all: `royaltyInfo`/ERC-2981 are implemented nowhere, so a resale claim on
  * an edition or an auction had nothing behind it, and on ERC404 the after-market share is the
  * graduated pool's own swap hook rather than anything a marketplace is asked to honour.
+ *
+ * A ban that names its files by hand only holds the files it was written against, and prose moves.
+ * When the wizard's copy was lifted into `lib/vaults/alignmentWording.ts` the sentences kept their
+ * meaning and lost their guard: the same struck-out claim, retyped in the new home, would have gone
+ * in green. So the ban is derived — every shipped source under `src/` is scanned, and the list of
+ * what may not be said is the list that is maintained. Tests are excluded because these very
+ * patterns are written out here as pattern literals.
  */
-const CLAIM_SURFACES = ['/src/lib/learn/concepts.ts', '/src/routes/WizardPage.tsx'] as const
+const TEST_FILE = /\.test\.tsx?$|(^|\/)__tests__\//
+
+/** Every shipped source the claim could move into — derived, so moving prose cannot escape it. */
+const SHIPPED_SOURCES = Object.keys(SOURCE_FILES)
+  .filter((path) => !TEST_FILE.test(path))
+  .sort()
+
+/** The readings the ruling struck out. None of them is true of any family, on any surface. */
+const STRUCK_READINGS = [
+  ['takes a share of every resale', /every resale/i],
+  ['takes a percentage of a resale', /\d+% of (every |each |the )?resale/i],
+  ['splits the moment across mint and something else', /on mint and/i],
+  ['calls the base a fee', /\d+% of (every |each |the )?(collection'?s? )?fees?/i],
+  ['has a launch route a share of its fees', /routes? .{0,20}\d+% of its fees/i],
+] as const
+
+describe('no shipped source re-asserts a struck-out reading', () => {
+  it('has sources to scan', () => {
+    // Guards the glob itself: an empty set would pass every ban below without reading anything.
+    expect(SHIPPED_SOURCES.length).toBeGreaterThan(50)
+    expect(SHIPPED_SOURCES).toContain('/src/lib/vaults/alignmentWording.ts')
+  })
+
+  it.each(STRUCK_READINGS)('no file %s', (_reading, pattern) => {
+    const offenders = SHIPPED_SOURCES.filter((path) =>
+      pattern.test(stripComments(SOURCE_FILES[path] ?? '')),
+    )
+    expect(offenders, `struck-out reading ${String(pattern)} is back`).toEqual([])
+  })
+})
+
+/**
+ * The surfaces that state the claim in full prose, and their POSITIVE obligations — the ones a
+ * derived ban cannot express: the `/learn` concept registry, the launch wizard, and the wording
+ * module the other two draw from.
+ *
+ * These three may spell `19%`: the learn body quotes the whole 1/19/80 law, the wizard's bind
+ * diagram is the number rendered large, and the wording module is where the number lives. What
+ * they owe in exchange is the royalty no, said out loud, at the place a creator is deciding.
+ */
+const CLAIM_SURFACES = [
+  '/src/lib/vaults/alignmentWording.ts',
+  '/src/lib/learn/concepts.ts',
+  '/src/routes/WizardPage.tsx',
+] as const
 
 describe('the per-standard alignment claim', () => {
   it.each(CLAIM_SURFACES)('%s exists on disk', (path) => {
     expect(SOURCE_FILES[path], `missing on disk: ${path}`).toBeDefined()
   })
 
-  it.each(CLAIM_SURFACES)('%s takes no share of a resale', (path) => {
-    const code = stripComments(SOURCE_FILES[path] ?? '')
-    expect(code).not.toMatch(/every resale/i)
-    expect(code).not.toMatch(/\d+% of (every |each |the )?resale/i)
-    expect(code).not.toMatch(/on mint and/i)
-  })
-
-  it.each(CLAIM_SURFACES)('%s does not call the base a fee', (path) => {
-    const code = stripComments(SOURCE_FILES[path] ?? '')
-    expect(code).not.toMatch(/\d+% of (every |each |the )?(collection'?s? )?fees?/i)
-    expect(code).not.toMatch(/routes? .{0,20}\d+% of its fees/i)
-  })
-
   it.each(CLAIM_SURFACES)('%s says the royalty no out loud', (path) => {
     const src = SOURCE_FILES[path] ?? ''
-    // The learn body writes it; the wizard draws `NO_ROYALTY_SENTENCE` from `alignmentWording`.
+    // The wording module writes it; the learn body quotes it; the wizard draws
+    // `NO_ROYALTY_SENTENCE` from `alignmentWording`.
     expect(src).toMatch(/NO_ROYALTY_SENTENCE|no secondary royalty|no royalty field/i)
   })
 })
