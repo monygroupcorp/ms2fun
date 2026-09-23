@@ -31,10 +31,10 @@ import { IHooks } from "v4-core/interfaces/IHooks.sol";
  *   AFTER_REMOVE_LIQUIDITY_RETURNS_DELTA_FLAG = 1 << 0
  *
  * For UniAlignmentV4Hook, we need:
- *   - BEFORE_SWAP_FLAG = 0x80 (1 << 7) — dynamic LP fee override + ETH-input fee take
- *   - AFTER_SWAP_FLAG = 0x40 (1 << 6)
- *   - BEFORE_SWAP_RETURNS_DELTA_FLAG = 0x08 (1 << 3) — ETH-input fee settles on the specified currency
- *   - AFTER_SWAP_RETURNS_DELTA_FLAG = 0x04 (1 << 2)
+ *   - BEFORE_SWAP_FLAG = 0x80 (1 << 7) — dynamic LP fee override + the ETH-specified fee take
+ *   - AFTER_SWAP_FLAG = 0x40 (1 << 6) — the ETH-unspecified fee take
+ *   - BEFORE_SWAP_RETURNS_DELTA_FLAG = 0x08 (1 << 3) — that fee settles on the SPECIFIED currency
+ *   - AFTER_SWAP_RETURNS_DELTA_FLAG = 0x04 (1 << 2) — that fee settles on the UNSPECIFIED currency
  *   - Combined: 0xCC
  *   - All other flags must be 0
  */

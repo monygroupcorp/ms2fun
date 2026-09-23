@@ -20,9 +20,11 @@ import { IAlignmentHook } from "./IAlignmentHook.sol";
  * @title UniAlignmentV4Hook
  * @notice Uniswap v4 hook that collects alignment fees on swaps and sends them to the vault
  * @dev Fees are sent directly to vault with project instance tracking for contribution metrics.
- *      Uses beforeSwap for the dynamic LP fee override + the ETH-input fee (exact-input ETH buys), and
- *      afterSwap for the ETH-output fee (ETH-unspecified shapes), so the ETH tithe settles on every swap
- *      shape. The fee is always taken in ETH; exact-output ETH-out sells are untaxed by design.
+ *      The fee is always taken in ETH, on all four swap shapes, and which callback can take it is decided
+ *      by v4: a beforeSwap return delta acts on the SPECIFIED currency and an afterSwap return delta on
+ *      the UNSPECIFIED one. So beforeSwap carries the dynamic LP fee override plus the tithe on the two
+ *      ETH-specified shapes (exact-input ETH buy, exact-output ETH-out sell), and afterSwap carries the
+ *      tithe on the two ETH-unspecified shapes (exact-output ETH buy, exact-input token sell).
  *      Hook fee (hookFeeBips) is immutable — set once at deploy, no governance risk.
  *      LP fee (lpFeeRate) is owner-adjustable via setLpFeeRate().
  */
@@ -201,17 +203,32 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
     }
 
     /**
-     * @notice Dynamic LP fee override + ETH-input alignment fee collection
+     * @notice Dynamic LP fee override + alignment fee collection on the ETH-SPECIFIED swap shapes
      * @dev Two jobs, on every swap:
      *      1. Return the owner-configurable `lpFeeRate` as the dynamic LP-fee override.
-     *      2. Tax the ETH side HERE — and only here — when ETH (currency0) is the SPECIFIED input,
-     *         i.e. an exact-input ETH->token buy (`zeroForOne && amountSpecified < 0`, shape 1). This is
-     *         the swap shape whose afterSwap return-delta would land on the token (the unspecified
-     *         currency) and fail to settle against a `take(currency0)`. We instead take the fee up front
-     *         on the specified ETH input and return it as a positive BeforeSwapDelta on the SPECIFIED
-     *         currency, which v4 credits back to the hook on currency0 — cancelling the take so the swap
-     *         settles, and shrinking the amount swapped into the pool by `feeAmount`. All other shapes are
-     *         a no-op here (afterSwap taxes the ETH-unspecified shapes 2/3; shape 4 is untaxed by design).
+     *      2. Tax the ETH side HERE — and only here — when ETH (currency0) is the SPECIFIED currency.
+     *         In v4 that is exactly `(amountSpecified < 0) == zeroForOne`: the exact-input ETH->token buy
+     *         (shape 1) and the exact-output token->ETH sell (shape 4). An `afterSwap` return delta is
+     *         applied to the UNSPECIFIED currency (`Hooks.afterSwap` adds it to `hookDeltaUnspecified`),
+     *         so for these two shapes it would land on the token and fail to settle against a
+     *         `take(currency0)`. `beforeSwap` is the callback that can act on the SPECIFIED currency, so
+     *         the fee is taken up front in ETH and returned as a positive BeforeSwapDelta on the
+     *         specified side, which v4 credits back to the hook on currency0 — cancelling the take's debt
+     *         so the swap settles.
+     *
+     *         The base is `|amountSpecified|` — the ETH leg the swapper named — at the same `hookFeeBips`
+     *         the ETH-unspecified shapes pay, and the sign of the adjustment falls out of v4's own
+     *         `amountToSwap += hookDeltaSpecified`, so one branch serves both shapes:
+     *           * shape 1 (`amountSpecified < 0`): the swapped-in amount SHRINKS by `feeAmount`. The
+     *             swapper pays exactly the ETH they specified and receives proportionally fewer tokens.
+     *           * shape 4 (`amountSpecified > 0`): the swapped-out amount GROWS by `feeAmount`. The
+     *             swapper receives exactly the ETH they specified — the exact-output guarantee is intact
+     *             — and pays the extra tokens the larger output costs. This is the mirror of shape 2,
+     *             where the exact-output buyer likewise pays the tithe on top of what the pool required.
+     *
+     *         Neither adjustment can flip the swap's exact-input/exact-output type, so v4's
+     *         `HookDeltaExceedsSwapAmount` guard cannot trip: a positive specified delta moves an
+     *         exact-input amount toward zero from below and an exact-output amount further above it.
      */
     // slither-disable-next-line reentrancy-events
     function beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata params, bytes calldata)
@@ -224,18 +241,21 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
 
         uint24 feeOverride = lpFeeRate | LPFeeLibrary.OVERRIDE_FEE_FLAG;
 
-        // Shape 1 only: exact-input ETH buy — ETH (currency0) is the specified input.
+        // ETH (currency0) is the specified currency exactly when (amountSpecified < 0) == zeroForOne —
+        // shapes 1 and 4. The complementary shapes 2 and 3 are taxed in afterSwap, so this is a no-op for
+        // them and there is no double-tax either way.
         // `titheHalted` skips the tax entirely rather than taking it and queueing it: once the vault is
         // off the registry there is nothing for a take to settle into, so charging the swapper would be
         // taking their ETH for a destination that no longer exists (audit M-4).
-        if (!titheHalted && params.zeroForOne && params.amountSpecified < 0) {
-            uint256 ethIn = uint256(-params.amountSpecified); // exact-input magnitude
-            uint256 feeAmount = (ethIn * hookFeeBips) / 10000; // round down: favors swapper
+        if (!titheHalted && (params.amountSpecified < 0) == params.zeroForOne) {
+            uint256 ethSpecified =
+                params.amountSpecified < 0 ? uint256(-params.amountSpecified) : uint256(params.amountSpecified);
+            uint256 feeAmount = (ethSpecified * hookFeeBips) / 10000; // round down: favors swapper
             if (feeAmount > 0) {
                 _collectAndForward(key.currency0, feeAmount);
-                // Positive specified delta: v4 reduces the swapped-in amount by feeAmount and credits the
-                // hook feeAmount on the specified currency (currency0 = ETH), cancelling the take's debt so
-                // the swap settles. Fee arrives as ETH; no double-tax (afterSwap skips this shape).
+                // Positive specified delta: v4 moves the swapped amount by feeAmount (in by less on an
+                // exact input, out by more on an exact output) and credits the hook feeAmount on the
+                // specified currency (currency0 = ETH), cancelling the take's debt so the swap settles.
                 return (IHooks.beforeSwap.selector, toBeforeSwapDelta(feeAmount.toInt128(), int128(0)), feeOverride);
             }
         }
@@ -248,9 +268,8 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
      * @dev Fires ONLY for the two shapes where ETH (currency0) is unspecified — exact-output ETH buy
      *      (shape 2) and exact-input token->ETH sell (shape 3) — so the afterSwap return-delta (which v4
      *      applies to the unspecified currency) lands on ETH and settles against `take(currency0)`.
-     *      When ETH is the SPECIFIED currency (shape 1 exact-in ETH buy, already taxed in beforeSwap;
-     *      shape 4 exact-out ETH-out sell, untaxed by design) this is a clean NO-OP — takes nothing and
-     *      returns 0 — so the swap settles and there is no double-tax.
+     *      When ETH is the SPECIFIED currency (shapes 1 and 4, both already taxed in beforeSwap) this is
+     *      a clean NO-OP — takes nothing and returns 0 — so the swap settles and there is no double-tax.
      */
     // slither-disable-next-line reentrancy-events
     function afterSwap(
@@ -263,7 +282,8 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
         _requireBoundPool(key);
 
         // ETH (currency0) is the specified currency exactly when (amountSpecified < 0) == zeroForOne.
-        // For those shapes (1 and 4) afterSwap must cleanly skip — no take, no revert.
+        // For those shapes (1 and 4) beforeSwap has already taken the tithe on the specified side, so
+        // afterSwap must cleanly skip — no take, no revert, no double-tax.
         bool ethIsSpecified = (params.amountSpecified < 0) == params.zeroForOne;
         if (ethIsSpecified || titheHalted) {
             return (IHooks.afterSwap.selector, int128(0));

@@ -7,6 +7,7 @@ import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
 import { PoolManager } from "v4-core/PoolManager.sol";
 import { Currency, CurrencyLibrary } from "v4-core/types/Currency.sol";
 import { PoolKey } from "v4-core/types/PoolKey.sol";
+import { BalanceDelta } from "v4-core/types/BalanceDelta.sol";
 import { LPFeeLibrary } from "v4-core/libraries/LPFeeLibrary.sol";
 import { TickMath } from "v4-core/libraries/TickMath.sol";
 import { PoolSwapTest } from "../../lib/v4-core/src/test/PoolSwapTest.sol";
@@ -32,16 +33,17 @@ import { AlignmentHookSwapRouter } from "../../src/peripherals/AlignmentHookSwap
  *         validateHookPermissions passes), initializes a native-ETH(currency0)/ERC20(currency1) pool
  *         wired to the hook, adds liquidity, and runs all four swap shapes through PoolManager.
  *
- * WHAT THIS PROVES (noesis-116, Option B fix): the ETH alignment tithe now settles on EVERY real swap
- * shape. The hook splits the ETH-side take by which side ETH is on:
- *   - beforeSwap taxes the ETH INPUT when ETH is the specified currency (shape 1, exact-input ETH buy),
- *     returning the fee as a BeforeSwapDelta on the specified currency so it settles against take(ETH);
- *   - afterSwap taxes the ETH OUTPUT when ETH is the unspecified currency (shape 2 exact-output buy,
- *     shape 3 exact-input sell), returning the fee on the unspecified currency.
- *   - shape 4 (exact-output token->ETH sell, ETH specified output) is untaxed BY DESIGN — never a
- *     frontend path — and must cleanly NOT revert.
- * All four shapes settle (no CurrencyNotSettled). Shapes 1/2/3 deliver the ETH fee to the vault; shape 4
- * delivers nothing. Shape 1 is taxed exactly once (no double-tax).
+ * WHAT THIS PROVES: the ETH alignment tithe settles on EVERY real swap shape. The hook splits the
+ * ETH-side take by which side of v4's specified/unspecified divide ETH falls on, because that is what
+ * decides which callback may return a delta on it:
+ *   - beforeSwap taxes ETH when ETH is the SPECIFIED currency — shape 1 (exact-input ETH buy) and
+ *     shape 4 (exact-output token->ETH sell) — returning the fee as a BeforeSwapDelta on the specified
+ *     currency so it settles against take(ETH);
+ *   - afterSwap taxes ETH when ETH is the UNSPECIFIED currency — shape 2 (exact-output ETH buy) and
+ *     shape 3 (exact-input token sell) — returning the fee on the unspecified currency.
+ * All four shapes settle (no CurrencyNotSettled) and all four deliver the ETH fee to the vault. Shapes 1
+ * and 4 are each taxed exactly once (no double-tax), and shape 4 still hands the swapper exactly the ETH
+ * it asked for — the tithe widens the token the swap costs, not the exact output it promised.
  *
  * Permission bits: beforeSwap|beforeSwapReturnDelta|afterSwap|afterSwapReturnDelta = 0xCC.
  */
@@ -183,21 +185,32 @@ contract UniAlignmentV4Hook_RealSettlement is Test {
         assertGt(vault.totalReceived() - beforeBal, 0, "shape3 must deliver ETH fee to vault");
     }
 
-    // ---- Shape 4: exact-output token->ETH sell — ETH is SPECIFIED output. Untaxed BY DESIGN. ----
-    // Was the second reverting shape; now it must cleanly settle WITHOUT taxing (never a frontend path).
-    function test_exactOutput_tokenSell_settles_untaxed() public {
+    // ---- Shape 4: exact-output token->ETH sell — ETH is SPECIFIED output. Taxed in beforeSwap. ----
+    // The one shape that used to pay nothing. ETH is specified here, so an afterSwap return delta would
+    // land on the token and could not settle a take(ETH); beforeSwap is the callback that acts on the
+    // specified currency, and a positive specified delta on an exact OUTPUT widens the swap rather than
+    // narrowing it — so the pool produces output + fee, the hook keeps the fee, and the swapper still
+    // receives exactly the output they named.
+    function test_exactOutput_tokenSell_settles_and_taxes_once() public {
         uint256 beforeBal = vault.totalReceived();
+        uint256 tokenBefore = token.balanceOf(address(this));
         IPoolManager.SwapParams memory p = IPoolManager.SwapParams({
             zeroForOne: false,
             amountSpecified: 0.5 ether, // exact output: receive 0.5 ETH
             sqrtPriceLimitX96: MAX_PRICE_LIMIT
         });
-        // No revert (previously reverted CurrencyNotSettled).
-        swapRouter.swap(poolKey, p, _settings(), ZERO_BYTES);
+        BalanceDelta delta = swapRouter.swap(poolKey, p, _settings(), ZERO_BYTES);
 
-        // Untaxed by design: nothing reaches the vault, nothing is queued.
-        assertEq(vault.totalReceived() - beforeBal, 0, "shape4 is untaxed by design");
-        assertEq(hook.queuedFees(), 0, "shape4 queues nothing");
+        // Fee is exactly 1% of the 0.5 ETH named, delivered ONCE (0.005, not 0.01 — beforeSwap only).
+        uint256 expectedFee = (0.5 ether * HOOK_FEE_BIPS) / 10000; // 0.005 ETH
+        assertEq(vault.totalReceived() - beforeBal, expectedFee, "shape4 fee must be exactly 1% of ETH out, once");
+        assertEq(hook.queuedFees(), 0, "no fees should be queued (vault accepts)");
+
+        // The exact-output guarantee survives the tithe: the swapper's ETH credit is the full 0.5 ETH
+        // they named, not 0.5 minus the fee. The tithe is paid in the token the swap consumed instead.
+        assertEq(delta.amount0(), int128(0.5 ether), "shape4 must still deliver exactly the ETH specified");
+        assertLt(delta.amount1(), int128(0), "shape4 must charge the swapper token for it");
+        assertLt(token.balanceOf(address(this)), tokenBefore, "shape4 swapper pays token");
     }
 
     // ---- Queue fallback: a reverting vault must NOT brick the swap — the ETH fee is queued instead. ----
@@ -594,8 +607,8 @@ contract UniTitheHookFactory_RealSettlement is Test {
  *           (a) ENABLED: with `setAlignmentHookFactory(uniTitheFactory)` set, a graduation stands up a
  *               pool whose `hooks` is a valid factory-deployed tithe hook AND whose `fee` is
  *               `DYNAMIC_FEE_FLAG` (proven by the pool being initialized at exactly that PoolKey's id),
- *               and every one of the 4 swap shapes routes the ETH-leg tithe to the vault (shape 4 untaxed
- *               by design). Reuses the RealSettlement swap-shape proof through a real graduation.
+ *               and every one of the 4 swap shapes routes the ETH-leg tithe to the vault. Reuses the
+ *               RealSettlement swap-shape proof through a real graduation.
  *
  *           (b) DEFAULT (OFF): with `alignmentHookFactory == address(0)` (untouched), the graduation pool
  *               is `hooks: address(0)` + the static `poolFee` — byte-identical to the pre-117b untaxed
@@ -701,10 +714,12 @@ contract LiquidityDeployerModuleGraduation_RealSettlement is Test {
         swapRouter.swap(hookedKey, _sp(false, -1e18, MAX_PRICE_LIMIT), _settings(), ZERO_BYTES);
         assertGt(vault.totalReceived() - b3, 0, "shape3 tithes ETH to vault");
 
-        // shape 4: exact-output token->ETH sell — ETH specified output, untaxed BY DESIGN, must not revert.
+        // shape 4: exact-output token->ETH sell — ETH specified output, taxed exactly 1% in beforeSwap,
+        // once, and the swapper still receives exactly the 0.5 ETH it named.
         uint256 b4 = vault.totalReceived();
-        swapRouter.swap(hookedKey, _sp(false, 0.5 ether, MAX_PRICE_LIMIT), _settings(), ZERO_BYTES);
-        assertEq(vault.totalReceived() - b4, 0, "shape4 is untaxed by design");
+        BalanceDelta d4 = swapRouter.swap(hookedKey, _sp(false, 0.5 ether, MAX_PRICE_LIMIT), _settings(), ZERO_BYTES);
+        assertEq(vault.totalReceived() - b4, (0.5 ether * HOOK_FEE_BIPS) / 10000, "shape4 tithes 1% of ETH output once");
+        assertEq(d4.amount0(), int128(0.5 ether), "shape4 still delivers exactly the ETH specified");
     }
 
     // ── (b) DEFAULT OFF: untaxed static pool, byte-identical to today ────────
