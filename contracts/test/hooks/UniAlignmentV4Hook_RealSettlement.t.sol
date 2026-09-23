@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import { Test, console2 } from "forge-std/Test.sol";
+import { Test, console2, stdError } from "forge-std/Test.sol";
 import { IHooks } from "v4-core/interfaces/IHooks.sol";
 import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
 import { PoolManager } from "v4-core/PoolManager.sol";
@@ -979,9 +979,11 @@ contract GraduatedHookedPoolIsTradeable_RealSettlement is Test {
         router.swap{ value: 1 ether }(key, true, false, 1 ether, quoted * 2, trader, block.timestamp);
     }
 
-    /// @notice A refund is this trade's change, not a sweep of the router's balance. The periphery's
-    ///         `receive()` is open — the manager pays a sell's ETH leg through it — so ETH left here
-    ///         by anyone must not be collectable by whoever trades next.
+    /// @notice A refund is this trade's change, not a sweep of the router's balance. The periphery
+    ///         has no `receive()` and the manager pays a sell's ETH leg straight to the recipient, so
+    ///         nothing it does strands ETH — but `selfdestruct` and a block reward reach any address
+    ///         whether it accepts payment or not, and ETH that arrives that way must not be
+    ///         collectable by whoever trades next.
     function test_refundIsBoundedToTheCallersOwnChange() public {
         _graduate(100 ether, 1_000_000 ether);
         PoolKey memory key = _hookedKey(module.graduationHook(address(this)));
@@ -998,6 +1000,43 @@ contract GraduatedHookedPoolIsTradeable_RealSettlement is Test {
             traderEthBefore - trader.balance, amountIn, "the trader paid its input and got back only its own change"
         );
         assertEq(address(router).balance, 5 ether, "the stranger's ETH is untouched");
+    }
+
+    /// @notice The other half of that bound, and the half a refactor could quietly undo: a trade that
+    ///         would have to DRAW on stranded ETH to settle does not merely refund nothing, it reverts
+    ///         the whole transaction. The aggregator clamps the equivalent figure at zero, so a reader
+    ///         arriving from that code may read the router's subtraction as an oversight and "fix" it
+    ///         into a clamp — which would let a caller settle a trade out of someone else's money and
+    ///         keep the goods. This pins the divergence as the deliberate thing it is.
+    function test_drawingOnStrandedEthRevertsTheWholeTrade() public {
+        _graduate(100 ether, 1_000_000 ether);
+        PoolKey memory key = _hookedKey(module.graduationHook(address(this)));
+        _fundTrader();
+
+        // A stranger's ETH, far more than the buy below needs.
+        vm.deal(address(router), 5 ether);
+
+        // An exact-OUTPUT buy that sends no ETH of its own. The ETH leg settles out of the router's
+        // balance, which is entirely the stranger's, so the change computation underflows.
+        vm.prank(trader);
+        vm.expectRevert(stdError.arithmeticError);
+        router.swap(key, true, true, 1e18, 0, trader, block.timestamp);
+
+        assertEq(address(router).balance, 5 ether, "the stranger's ETH survived the attempt");
+        assertEq(token.balanceOf(trader), 1_000_000 ether, "no token was delivered on the reverted trade");
+    }
+
+    /// @notice `amount` is unsigned at this surface and V4's `amountSpecified` is signed. A value that
+    ///         would wrap the cast negative is refused by name, rather than silently becoming the
+    ///         opposite trade — an exact-output request turning into an exact-input one.
+    function test_amountThatWouldWrapTheSignedCastIsRefused() public {
+        _graduate(100 ether, 1_000_000 ether);
+        PoolKey memory key = _hookedKey(module.graduationHook(address(this)));
+        _fundTrader();
+
+        vm.prank(trader);
+        vm.expectRevert(AlignmentHookSwapRouter.AmountTooLarge.selector);
+        router.swap{ value: 1 ether }(key, true, true, uint256(type(int256).max) + 1, 0, trader, block.timestamp);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

@@ -73,6 +73,8 @@ contract AlignmentHookSwapRouter is IUnlockCallback {
     error Slippage();
     /// @dev `amount` was zero — a swap of nothing is a caller mistake, not a no-op worth gas.
     error ZeroAmount();
+    /// @dev `amount` does not fit V4's signed `amountSpecified`, so the cast would flip its sign.
+    error AmountTooLarge();
     /// @dev The key is not the ETH/token shape the alignment hook binds to.
     error PoolNotNativeEth();
     /// @dev The key names no hook. Those pools belong to the aggregator, not here.
@@ -122,20 +124,34 @@ contract AlignmentHookSwapRouter is IUnlockCallback {
         if (amount == 0) revert ZeroAmount();
 
         // What was already sitting here before this call, so the refund below can be bounded to THIS
-        // trade's own change. `receive()` is open and the manager pays the ETH leg of a sell out
-        // through it, so a bare `address(this).balance` refund would hand a trader any ETH a
-        // previous caller or a stranger had left behind. Same reasoning, and the same fix, as the
-        // aggregator's `_restingEth` (audit L-9): a refund is change, not a sweep.
+        // trade's own change. Nothing this router does leaves ETH here: the manager pays a sell's
+        // ETH leg STRAIGHT to `to` (`take` transfers to the recipient, never via this contract), and
+        // with no `receive()` an ordinary send here reverts. ETH can still ARRIVE unbidden, though —
+        // `selfdestruct` and a block reward reach an address whether it accepts payment or not — so a
+        // bare `address(this).balance` refund would hand whoever trades next whatever had collected
+        // that way. Same reasoning, and the same fix, as the aggregator's `_restingEth` (audit L-9):
+        // a refund is change, not a sweep.
         uint256 resting = address(this).balance - msg.value;
         // The hook refuses any key whose currency0 is not native ETH or whose currency1 is not the
         // token it was mined for, so a key failing the first half here would revert deeper in with
         // a hook error. Checking it up front keeps the failure legible and costs one comparison.
         if (!key.currency0.isAddressZero()) revert PoolNotNativeEth();
+        // Only the ZERO hook is refused, deliberately, rather than a whitelist of alignment hooks:
+        // `payer` is hardcoded to `msg.sender`, this router holds no balance and no standing
+        // approval of anyone else's, and a non-zero `amountLimit` bounds both directions. Naming a
+        // hostile hook here can therefore spend only the caller's own funds, within the bound the
+        // caller set — the same exposure as naming a hostile pool on any router. A whitelist would
+        // buy nothing and would need a registry this periphery deliberately does not carry.
         if (address(key.hooks) == address(0)) revert PoolHasNoHook();
 
         // `amountSpecified` is V4's sign convention, not this router's: negative is an exact input,
         // positive an exact output. `amount` is unsigned at this surface so callers never have to
-        // carry the convention, and `exactOut` says which it is.
+        // carry the convention, and `exactOut` says which it is. The range check is not ceremony: an
+        // unchecked cast of an `amount` at or above 2**255 wraps NEGATIVE, which silently turns an
+        // exact-output request into an exact-input one — a different trade from the one asked for.
+        // V4's own SafeCast would reject the result further in, but only after the meaning had
+        // already changed, and with an error naming neither this argument nor this contract.
+        if (amount > uint256(type(int256).max)) revert AmountTooLarge();
         int256 amountSpecified = exactOut ? int256(amount) : -int256(amount);
 
         assembly ("memory-safe") {
@@ -164,6 +180,14 @@ contract AlignmentHookSwapRouter is IUnlockCallback {
         // Whatever ETH the caller sent beyond what the swap owed. On a token sell this is the whole
         // of `msg.value` (which should be zero), and on an exact-output buy it is the overpayment
         // the caller could not size in advance because the hook's cut is priced inside the swap.
+        //
+        // This subtraction is DELIBERATELY left to revert on underflow, and it is the one place this
+        // router is STRICTER than the aggregator: `zRouter._changeOver` clamps the same figure at
+        // zero, which lets a trade that drew on resting ETH succeed and simply pay its caller
+        // nothing back. Here, a swap that settled more ETH than `msg.value` can only have taken the
+        // difference from ETH that was already sitting here — which is somebody else's — so the
+        // whole transaction is unwound instead. Do not "fix" this into a clamp: the revert IS the
+        // bound, and `test_drawingOnStrandedEthRevertsTheWholeTrade` pins it.
         uint256 change = address(this).balance - resting;
         if (change != 0) SafeTransferLib.safeTransferETH(msg.sender, change);
     }
@@ -220,7 +244,4 @@ contract AlignmentHookSwapRouter is IUnlockCallback {
             currency.take(poolManager, to, got, false);
         }
     }
-
-    /// @dev Accepts the ETH leg of a sell, which the manager sends here before it is forwarded on.
-    receive() external payable { }
 }

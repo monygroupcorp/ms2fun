@@ -861,7 +861,6 @@ export const alignmentHookSwapRouterAbi = [
     ],
     stateMutability: 'nonpayable',
   },
-  { type: 'receive', stateMutability: 'payable' },
   {
     type: 'function',
     inputs: [],
@@ -907,6 +906,7 @@ export const alignmentHookSwapRouterAbi = [
     outputs: [{ name: '', internalType: 'bytes', type: 'bytes' }],
     stateMutability: 'nonpayable',
   },
+  { type: 'error', inputs: [], name: 'AmountTooLarge' },
   { type: 'error', inputs: [], name: 'Expired' },
   { type: 'error', inputs: [], name: 'NotPoolManager' },
   { type: 'error', inputs: [], name: 'NotSwapping' },
