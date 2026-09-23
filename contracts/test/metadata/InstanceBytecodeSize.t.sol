@@ -10,13 +10,18 @@ import { console2 } from "forge-std/console2.sol";
 ///      we deployed and measured on-chain. Reading the compiled deployed bytecode measures the real
 ///      mainnet-relevant size (EIP-170 = 24_576 bytes).
 ///
-///      The FACTORIES are the subject, and were missing here. Each factory embeds its whole instance
-///      through `type(Instance).creationCode` — ERC1155Factory.sol:149, ERC721AuctionFactory.sol:104 —
-///      so a byte added to an instance is a byte off the FACTORY's margin, not off the instance's.
+///      The FACTORIES are the subject, and were missing here. ERC721AuctionFactory embeds its whole
+///      instance through `type(ERC721AuctionInstance).creationCode` (ERC721AuctionFactory.sol:104),
+///      so a byte added to that instance is a byte off the FACTORY's margin, not off the instance's.
 ///      Guarding only the instances read green while the deployable contract nearest the limit was
 ///      unwatched: on 2026-09-18 ERC1155Instance had 7,820B of apparent headroom and ERC1155Factory
 ///      had 624B. Sizing a change against the instance's room lands the factory over the limit, and
 ///      the first signal would be a red build with nothing naming the cause.
+///
+///      ERC1155 NO LONGER HAS THAT SHAPE. Collections are EIP-1167 clones of one implementation and
+///      the factory embeds nothing, so ERC1155Instance's headroom is its own budget and the
+///      factory's is not the scarce one any more. The two rows are logged separately for that
+///      reason; do not read the ERC1155 pair the way the ERC721 pair still has to be read.
 ///
 ///      There is no headroom FLOOR here — only the ceiling. The ERC404 family has two floors (a
 ///      2,000B instance floor and a 500B Ops floor, test/factories/erc404/eip170-diet-gate.sh); each
@@ -40,9 +45,12 @@ import { console2 } from "forge-std/console2.sol";
 contract InstanceBytecodeSizeTest is Test {
     uint256 internal constant EIP170_LIMIT = 24_576;
 
+    /// @dev Its headroom is REAL, unlike ERC721AuctionInstance's below: nothing embeds this contract,
+    ///      so nothing else spends these bytes. `test/factories/eip170-embed-gate.sh` carries it as a
+    ///      graduate row, which is where a headroom floor for it would be typed.
     function test_ERC1155Instance_underEip170() public view {
         uint256 size = vm.getDeployedCode("ERC1155Instance.sol:ERC1155Instance").length;
-        _logInstance("ERC1155Instance", size);
+        _logStandalone("ERC1155Instance", size);
         assertLt(size, EIP170_LIMIT, "ERC1155Instance runtime bytecode exceeds EIP-170");
     }
 
@@ -52,12 +60,13 @@ contract InstanceBytecodeSizeTest is Test {
         assertLt(size, EIP170_LIMIT, "ERC721AuctionInstance runtime bytecode exceeds EIP-170");
     }
 
+    /// @dev Reported without an embedded-initcode line because there is none to report: the factory
+    ///      deploys a 45-byte EIP-1167 proxy. `_report` would have printed the instance's creation
+    ///      size beside it as if the factory still carried it, which was true until it was not.
     function test_ERC1155Factory_underEip170() public view {
-        _report(
-            "ERC1155Factory",
-            vm.getDeployedCode("ERC1155Factory.sol:ERC1155Factory").length,
-            vm.getCode("ERC1155Instance.sol:ERC1155Instance").length
-        );
+        uint256 size = vm.getDeployedCode("ERC1155Factory.sol:ERC1155Factory").length;
+        _logStandalone("ERC1155Factory", size);
+        assertLt(size, EIP170_LIMIT, "ERC1155Factory runtime bytecode exceeds EIP-170");
     }
 
     function test_ERC721AuctionFactory_underEip170() public view {
@@ -66,6 +75,14 @@ contract InstanceBytecodeSizeTest is Test {
             vm.getDeployedCode("ERC721AuctionFactory.sol:ERC721AuctionFactory").length,
             vm.getCode("ERC721AuctionInstance.sol:ERC721AuctionInstance").length
         );
+    }
+
+    /// @dev A contract nothing embeds. Its headroom is a budget, so it is logged without the word
+    ///      APPARENT and without a blob line that would be zero.
+    function _logStandalone(string memory name, uint256 size) private pure {
+        console2.log(name);
+        console2.log("  runtime bytes         ", size);
+        console2.log("  EIP-170 headroom      ", EIP170_LIMIT - size);
     }
 
     /// @dev An instance is deployed by its factory, so it has its own EIP-170 ceiling and this is a
