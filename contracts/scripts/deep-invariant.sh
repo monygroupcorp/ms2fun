@@ -24,6 +24,23 @@
 #   FOUNDRY_THREADS   passed through to forge. Set it when sharing the machine; forge otherwise
 #                     takes every core, and these runs hold them for hours.
 #
+# ONE RED HERE IS NOT AN INVARIANT VIOLATION, AND TELLING THEM APART MATTERS. Observed
+# 2026-09-23: UniVaultInvariant reported
+#
+#   [FAIL: failed to set up invariant testing environment: EVM error; database error:
+#    missing bytecode for code hash 0x...] invariant_noPhantomETH() (runs: 0, calls: 0)
+#
+# while the other four invariants in the same contract, off the same setUp, each completed
+# 10,000 runs / 5,000,000 calls. Re-run alone at the same depth it passed: 10,000 runs,
+# 5,000,000 calls, 618 reverts. Nothing was wrong with the contract — the campaigns share one
+# in-memory backend and raced it. The tell is `runs: 0, calls: 0`: the property never executed,
+# so there is no counterexample and the fuzzer found nothing. A real violation names the
+# assertion and prints the call sequence that reached it.
+#
+# There is deliberately no retry here. A retry would also paper over a real intermittent
+# violation, which is the one result this whole profile exists to catch. Re-run the suite by hand,
+# and if it passes alone, say that is what happened rather than calling the first run a pass.
+#
 # THE SUITE LIST IS NOT WRITTEN DOWN. It is asked of forge: every test file that declares at least
 # one `invariant_` function. A hand-kept list drifts, and the way it drifts is silent — a new
 # invariant suite that no entry reaches never runs at this depth and nothing goes red to say so.

@@ -62,9 +62,42 @@ a scheduled nightly or weekly run, which is new CI infrastructure and was not bu
 10,000 runs / 5M calls / zero reverts. **That is one suite, and this document quotes no pass/fail
 number for the profile as a whole, because none has been observed.** Nobody else should either.
 
-**Discharges when.** The profile runs on a schedule and a *complete* pass/fail has been observed.
+**Update 2026-09-23 — the complete run happened, and it is green. The prohibition above is
+lifted: there is now a number, and this is it.** Every suite ran to completion on forge
+1.5.1-stable, 32-core host, `FOUNDRY_THREADS` capped at 12 because the machine was shared:
 
-**If that run comes back red, it does not belong on this checklist.** An invariant violation on
+> **54 invariant properties across 10 suites. 54 passed, 0 failed, 0 skipped.** Each property at
+> 10,000 runs × 500 depth = 5,000,000 calls; 270,000,000 calls in total. 12.96 CPU-hours, summed
+> per-suite wall time 8,030s, clock 1h26m. The heaviest suite, `BondingCurveInvariant` — the one
+> the 2026-08-12 attempt never reached the end of — finished in 2,655.82s wall / 7.37 CPU-hours
+> with 11 invariants and 0 reverts.
+
+Reproduce it with `contracts/scripts/deep-invariant.sh`, which is also what CI now runs.
+
+Two things the run found that are worth carrying forward, neither of them a contract defect:
+
+- `UniVaultInvariant.invariant_noPhantomETH` first reported `failed to set up invariant testing
+  environment: EVM error; database error: missing bytecode for code hash 0x…` at `runs: 0,
+  calls: 0`, while the other four invariants in the same contract each completed 5,000,000 calls.
+  Re-run alone at the same depth it passed: 10,000 runs, 5,000,000 calls, 618 reverts, 618.41s.
+  That is the fuzzing backend racing itself, not a violation — `runs: 0` means the property never
+  executed and so found nothing. `scripts/deep-invariant.sh` documents the tell, because a reader
+  who mistakes it for a violation will chase a defect that is not there, and a reader who assumes
+  every red is that flake will wave a real one through.
+- `ZAMMVaultInvariant` passes, but roughly 808,000 of each property's 5,000,000 calls revert
+  (~16%). `fail_on_revert = false`, so those calls are discarded and the depth they were supposed
+  to buy is not bought. The suite is green and this is not a defect; it is a handler that could
+  explore more state for the same money.
+
+**Still open, and this is why the entry is not struck.** The scheduled job
+(`.github/workflows/contracts-deep-invariant.yml`) has not yet run once on a schedule. Entry 1 of
+this document sets the standard and it applies here: a workflow that looks correct is not a
+workflow that ran.
+
+**Discharges when.** The scheduled job has completed at least one run, *observed* — not merged,
+run. The complete pass/fail half of this condition is met as of 2026-09-23.
+
+**If a future run comes back red, it does not belong on this checklist.** An invariant violation on
 money-path contracts wants its own item and an escalation, not a line in a deferral list.
 
 ---
