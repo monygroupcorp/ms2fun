@@ -12,6 +12,10 @@ import { SafeOwnableUUPS } from "../../src/shared/SafeOwnableUUPS.sol";
 import { ERC404Factory } from "../../src/factories/erc404/ERC404Factory.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
 import { zRouter } from "../../src/peripherals/zRouter.sol";
+import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
+import { IAlignmentVault } from "../../src/interfaces/IAlignmentVault.sol";
+import { UniTitheHookFactory } from "../../src/factories/erc404/hooks/UniTitheHookFactory.sol";
+import { UniAlignmentV4Hook } from "../../src/factories/erc404/hooks/UniAlignmentV4Hook.sol";
 
 /// @dev Test-only subclass exposing MigrateOwnership's env-driven categorization and its migration
 ///      body so both can be exercised as the real script code.
@@ -88,6 +92,7 @@ contract MigrateOwnershipTest is Test {
     address internal metadataResolverRouter;
     address internal metadataOverlayModule;
     address internal tokenTierBandResolver;
+    address internal uniTitheHookFactory;
 
     // UUPS implementation accounts — see `_isStatedExclusion`.
     address internal masterRegistryImpl;
@@ -152,6 +157,7 @@ contract MigrateOwnershipTest is Test {
         metadataResolverRouter = address(s.metadataResolverRouter());
         metadataOverlayModule = address(s.metadataOverlayModule());
         tokenTierBandResolver = address(s.tokenTierBandResolver());
+        uniTitheHookFactory = s.uniTitheHookFactory();
 
         masterRegistryImpl = address(s.masterRegistryImpl());
         treasuryImpl = address(s.treasuryImpl());
@@ -193,6 +199,9 @@ contract MigrateOwnershipTest is Test {
         // This config self-deploys the router (`cfg.zrouter == address(0)`), so it is deployer-owned
         // and migrates. A network reusing the canonical external singleton leaves ZROUTER unset.
         vm.setEnv("ZROUTER", vm.toString(zrouter));
+        // This config sets both `v4PoolManager` and `weth`, so DeployCore builds the Uni-V4 swap-tithe
+        // hook factory. A network with no Uni rail has none and leaves the variable unset.
+        vm.setEnv("UNI_TITHE_HOOK_FACTORY", vm.toString(uniTitheHookFactory));
     }
 
     // ── the SafeOwnableUUPS (two-step) set covered by the test config ─────────────────────────────
@@ -394,9 +403,9 @@ contract MigrateOwnershipTest is Test {
         assertEq(safe[6], masterRegistry, "master is the last two-step element");
 
         address[] memory plain = h.plainOwnable();
-        // 15 required + the uni vault factory + the self-deployed zRouter (the aave/zamm factories
-        // are not deployed in this config).
-        assertEq(plain.length, 17, "plain len");
+        // 15 required + the uni vault factory + the self-deployed zRouter + the Uni-V4 swap-tithe
+        // hook factory (the aave/zamm factories are not deployed in this config).
+        assertEq(plain.length, 18, "plain len");
         assertEq(plain[0], targetRequestRegistry, "plain[0]");
         assertEq(plain[1], launchManager, "plain[1]");
         assertEq(plain[2], curveParamsComputer, "plain[2]");
@@ -414,6 +423,97 @@ contract MigrateOwnershipTest is Test {
         assertEq(plain[14], tokenTierBandResolver, "plain[14]");
         assertEq(plain[15], uniVaultFactory, "plain[15] uni");
         assertEq(plain[16], zrouter, "plain[16] zrouter");
+        assertEq(plain[17], uniTitheHookFactory, "plain[17] uni tithe hook factory");
+    }
+
+    // ── The tithe hook factory: ownership AND the owner it stamps into the hooks it makes ─────────
+    //
+    // `UniTitheHookFactory` is the one contract in the deploy whose job is to write an owner into
+    // ANOTHER contract. Every `UniAlignmentV4Hook` it deploys is constructed with the factory's
+    // `hookOwner`, and that address holds `setLpFeeRate` and `rescueQueuedFees` on that hook for the
+    // hook's whole life — the hook's own owner is fixed at ITS construction and the factory cannot
+    // reach back to it afterwards. So the handover has to move two things here, not one: the factory,
+    // and the value the factory stamps.
+
+    /// @dev The starting state the handover has to change. `DeployCore` stands the factory up owned by
+    ///      the deployer and stamping the deployer, which is correct only until the handover runs.
+    function test_titheHookFactory_startsOwnedByAndStampingTheDeployer() public view {
+        UniTitheHookFactory factory = UniTitheHookFactory(uniTitheHookFactory);
+        assertEq(factory.owner(), deployer, "the factory starts deployer-owned");
+        assertEq(factory.hookOwner(), deployer, "and stamps the deployer into the hooks it makes");
+    }
+
+    /// @dev Both halves, after the migration. The `hookOwner` half is the one no `owner()` assertion
+    ///      in this file would catch: a factory handed to the Timelock while still stamping the
+    ///      deployer reads as migrated and keeps minting EOA-owned hooks at every graduation.
+    function test_titheHookFactory_bothHalvesMoveToTheTimelock() public {
+        _requestHandovers();
+        _migrate();
+
+        UniTitheHookFactory factory = UniTitheHookFactory(uniTitheHookFactory);
+        assertEq(factory.owner(), timelock, "the factory itself is the Timelock's");
+        assertEq(factory.hookOwner(), timelock, "and so is the owner it stamps into future hooks");
+
+        vm.prank(deployer);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        factory.setHookOwner(deployer);
+    }
+
+    /// @notice The clause this whole item exists for. After Phase 2, a hook the factory deploys is
+    ///         owned by the Timelock: the deployer key cannot reach `setLpFeeRate` or
+    ///         `rescueQueuedFees` on it, and the Timelock can. Driven through the REAL `deployHook`
+    ///         (real salt mine, real CREATE2, real hook constructor) rather than a hand-placed hook,
+    ///         so what is asserted is the address the migrated factory actually stamps.
+    ///
+    /// @dev SCOPE, stated rather than elided: this holds for hooks deployed AFTER the migration.
+    ///      `hookOwner` is read at `deployHook` time and written into the hook's constructor, so a
+    ///      hook that already exists keeps the owner it was built with — moving that one would take
+    ///      a Solady handover on the hook itself, walked by whoever owns it. At this filing no hook
+    ///      has been deployed on any live network, so every hook is a future hook.
+    function test_afterTheHandoverOnlyTheTimelockOwnsADeployedHook() public {
+        _requestHandovers();
+        _migrate();
+
+        UniTitheHookFactory factory = UniTitheHookFactory(uniTitheHookFactory);
+        address hookAddr = factory.deployHook(
+            IAlignmentVault(payable(makeAddr("vault"))), makeAddr("benefactor"), 100, 3000, makeAddr("poolToken"), 60
+        );
+        UniAlignmentV4Hook hook = UniAlignmentV4Hook(payable(hookAddr));
+
+        assertEq(hook.owner(), timelock, "the deployed hook is owned by the Timelock, not the deployer");
+
+        // The deployer key is off the hook's governed surface, both functions.
+        vm.prank(deployer);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        hook.setLpFeeRate(10_000);
+
+        vm.prank(deployer);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        hook.rescueQueuedFees(makeAddr("elsewhere"));
+
+        // And the Timelock is on it. `setLpFeeRate` lands outright; `rescueQueuedFees` gets past the
+        // ownership gate and stops on its own preconditions (nothing queued), which is the proof
+        // wanted here — authorization, not a rescue.
+        vm.prank(timelock);
+        hook.setLpFeeRate(10_000);
+        assertEq(hook.lpFeeRate(), 10_000, "the governed call lands from the new owner");
+
+        vm.prank(timelock);
+        vm.expectRevert(UniAlignmentV4Hook.NoQueuedFees.selector);
+        hook.rescueQueuedFees(makeAddr("elsewhere"));
+    }
+
+    /// @notice And the read-back refuses a migration that moved the factory but not the stamp — the
+    ///         half-done state that every `owner()` check in this file would call clean.
+    function test_verify_refusesAFactoryThatStillStampsTheDeployer() public {
+        _requestHandovers();
+        _migrate();
+
+        vm.prank(timelock);
+        UniTitheHookFactory(uniTitheHookFactory).setHookOwner(deployer);
+
+        vm.expectRevert(bytes("MigrateOwnership: UniTitheHookFactory hookOwner is not the timelock"));
+        MigrateOwnershipHarness(deployer).verifyAs(timelock);
     }
 
     // ── config ───────────────────────────────────────────────────────────────────────────────────

@@ -599,9 +599,16 @@ contract DeployCore is Script {
 
             // Register alignment-hook TYPE #1 — the Uni-V4 swap-tithe hook (117a's UniTitheHookFactory) —
             // under the ALIGNMENT_HOOK component tag so a future governed op can point the module's
-            // alignmentHookFactory at it. Registered, NOT selected (module stays OFF). PoolManager/WETH/owner/
+            // alignmentHookFactory at it. Registered, NOT selected (module stays OFF). PoolManager/WETH/
             // masterRegistry are the factory's immutables; the per-graduation fee data comes from the module at
             // deployHook time. Mirrors the moduleUniV4Deployer approveComponent registration.
+            //
+            // `deployer` is the factory's OWNER and its initial `hookOwner` — the address stamped into every
+            // hook it deploys — because the governance Timelock does not exist yet at this point in the
+            // sequence: `DeployTimelock.s.sol` is a separate, later script, and DeployCore has no Timelock
+            // address to be given. Both are moved to the Timelock by `MigrateOwnership` (D2 and D6), which is
+            // why `hookOwner` is settable state and not an immutable: an immutable here would leave the
+            // deployer key on `setLpFeeRate` and `rescueQueuedFees` of every hook ever produced.
             UniTitheHookFactory titheFactory =
                 new UniTitheHookFactory(IPoolManager(cfg.v4PoolManager), cfg.weth, deployer, masterRegistry);
             uniTitheHookFactory = address(titheFactory);

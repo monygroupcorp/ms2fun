@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import { Ownable } from "solady/auth/Ownable.sol";
 import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
 import { IAlignmentVault } from "../../../interfaces/IAlignmentVault.sol";
 import { IAlignmentHookFactory } from "./IAlignmentHookFactory.sol";
@@ -19,9 +20,18 @@ import { IMasterRegistry } from "../../../master/interfaces/IMasterRegistry.sol"
  *      CREATE3 derives the address from a keccak-of-proxy indirection that does not fit that formula, so
  *      it cannot produce a permission-bit-constrained address. Hence raw CREATE2 with the mined salt.
  *
- *      PoolManager, WETH and the hook owner are factory immutables (set at factory deploy by 117b /
+ *      PoolManager, WETH and the master registry are factory immutables (set at factory deploy by 117b /
  *      DeployCore); `deployHook` supplies only the per-graduation data (vault, benefactor, fees). The
  *      hook constructor's `validateHookPermissions()` is the on-chain guard against a bad address.
+ *
+ *      THE HOOK OWNER IS NOT AN IMMUTABLE, and this factory is `Ownable`. Each deployed hook's owner
+ *      holds `setLpFeeRate` and `rescueQueuedFees` on that hook for the hook's whole life, and the
+ *      hook's own owner is fixed at ITS construction. If the value this factory stamps in were an
+ *      immutable set to the deploying EOA, every hook this factory ever produced would be owned by
+ *      that key past the governance handover, with no path that could move it. So `hookOwner` is
+ *      owner-settable state and the factory itself migrates to the Timelock with everything else
+ *      (`script/MigrateOwnership.s.sol`), which moves both the factory and — via `setHookOwner` —
+ *      the owner of the hooks it goes on to deploy.
  *
  *      The mined ADDRESS is not fixed across attempts: the scan starts at a block-derived offset so that
  *      a mine which does not fit in one block is retryable in the next rather than repeating itself. What
@@ -30,20 +40,26 @@ import { IMasterRegistry } from "../../../master/interfaces/IMasterRegistry.sol"
  *
  *      RE-AUDIT BEFORE DEPLOY: this contract deploys a fee-taking v4 hook via CREATE2 + on-chain mine.
  */
-contract UniTitheHookFactory is IAlignmentHookFactory {
+contract UniTitheHookFactory is IAlignmentHookFactory, Ownable {
     /// @notice Uniswap v4 PoolManager the deployed hooks bind to (immutable, factory config).
     IPoolManager public immutable poolManager;
 
     /// @notice WETH address passed to each deployed hook (immutable, factory config).
     address public immutable weth;
 
-    /// @notice Governance owner set on each deployed hook (can adjust its LP fee rate).
-    address public immutable hookOwner;
-
     /// @notice Master registry passed to each deployed hook (immutable, factory config).
     /// @dev The hook reads it to learn that its immutable `vault` has been retired with
     ///      `deactivateVault`, which is what lets it stop taxing and release its queued fees.
     address public immutable masterRegistry;
+
+    /// @notice Governance owner stamped into each hook this factory deploys from here on.
+    /// @dev Owner-settable, not immutable — see the contract note. It is also part of each hook's
+    ///      init-code hash, so changing it changes the IDENTITY of the hooks this factory produces:
+    ///      a hook mined under the old value is a different hook at a different address, and the old
+    ///      one stays adoptable under its own `deployedHook` key. Hooks already deployed are
+    ///      untouched: each hook's owner was written at ITS construction and moves only through that
+    ///      hook's own Solady ownership handover.
+    address public hookOwner;
 
     /// @notice Required permission bits (0xCC = beforeSwap|afterSwap|beforeSwapReturnDelta|afterSwapReturnDelta).
     uint160 public constant REQUIRED_FLAGS = HookAddressMiner.ULTRA_ALIGNMENT_HOOK_FLAGS;
@@ -61,6 +77,9 @@ contract UniTitheHookFactory is IAlignmentHookFactory {
     mapping(bytes32 initCodeHash => address hook) public deployedHook;
 
     error InvalidAddress();
+
+    /// @notice Emitted when the owner re-points the governance owner future hooks are deployed with.
+    event HookOwnerUpdated(address indexed previousHookOwner, address indexed newHookOwner);
 
     /// @notice Emitted for every hook this factory deploys.
     event AlignmentHookDeployed(
@@ -83,6 +102,23 @@ contract UniTitheHookFactory is IAlignmentHookFactory {
         weth = _weth;
         hookOwner = _hookOwner;
         masterRegistry = _masterRegistry;
+        // Same idiom as every other plain-Ownable factory and module in the tree (Solady `Ownable`,
+        // single-step `transferOwnership`), so `MigrateOwnership` carries this factory in the same
+        // loop as the rest rather than needing a shape of its own.
+        _initializeOwner(msg.sender);
+        emit HookOwnerUpdated(address(0), _hookOwner);
+    }
+
+    /// @notice Re-point the governance owner stamped into hooks deployed from here on.
+    /// @dev The reason this factory is `Ownable` at all. A hook's owner holds `setLpFeeRate` and
+    ///      `rescueQueuedFees` on it permanently, so the address stamped in has to be movable from
+    ///      the deploying key to governance. Applies to FUTURE hooks only — a hook already deployed
+    ///      keeps the owner it was constructed with.
+    /// @param newHookOwner The address to stamp into subsequently deployed hooks.
+    function setHookOwner(address newHookOwner) external onlyOwner {
+        if (newHookOwner == address(0)) revert InvalidAddress();
+        emit HookOwnerUpdated(hookOwner, newHookOwner);
+        hookOwner = newHookOwner;
     }
 
     /// @inheritdoc IAlignmentHookFactory

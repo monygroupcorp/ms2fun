@@ -5,6 +5,7 @@ import { Script, console } from "forge-std/Script.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
 import { MasterRegistryV1 } from "../src/master/MasterRegistryV1.sol";
 import { ERC404Factory } from "../src/factories/erc404/ERC404Factory.sol";
+import { UniTitheHookFactory } from "../src/factories/erc404/hooks/UniTitheHookFactory.sol";
 
 /// @title MigrateOwnership
 /// @notice Hands every deployer-owned protocol contract to the governance Timelock/Safe and
@@ -23,6 +24,13 @@ import { ERC404Factory } from "../src/factories/erc404/ERC404Factory.sol";
 ///            1. the NEW owner (the Timelock) calls `requestOwnershipHandover()` — NO argument; the
 ///               caller registers ITSELF as the pending owner (valid 48h);
 ///            2. the CURRENT owner (the deployer) calls `completeOwnershipHandover(timelock)`.
+///
+///      HOOK OWNER IS NOT OWNERSHIP EITHER. `UniTitheHookFactory` stamps an owner into every
+///      `UniAlignmentV4Hook` it deploys, and that owner holds `setLpFeeRate` and `rescueQueuedFees` on
+///      the hook for the hook's whole life. The stamped value is the factory's `hookOwner`, which
+///      `transferOwnership` does not move any more than it moves PROTOCOL_ROLE; it moves only via
+///      `setHookOwner`, which `run()` calls (D6). Transferring the factory alone would hand governance
+///      a factory that still stamps the deployer EOA onto every future hook.
 ///
 ///      PROTOCOL_ROLE IS NOT OWNERSHIP. `ERC404Factory` gates its fee / treasury / carve-bracket
 ///      parameters on `PROTOCOL_ROLE`, which the constructor grants to the deployer alongside
@@ -88,7 +96,7 @@ contract MigrateOwnership is Script {
     ///      metadata-only component stub. Both flavors are plain `Ownable` and deployer-owned, so the
     ///      same single-step transfer covers either.
     function _plainOwnableContracts() internal view returns (address[] memory list) {
-        address[] memory tmp = new address[](21);
+        address[] memory tmp = new address[](22);
         uint256 n;
 
         // ── Required — created by DeployCore on every network ──
@@ -119,10 +127,15 @@ contract MigrateOwnership is Script {
         // (mainnet) does not own it, and the transfer would revert `Unauthorized()` — leave ZROUTER
         // unset there.
         address zrouter = vm.envOr("ZROUTER", address(0));
+        // The Uni-V4 swap-tithe hook factory. OPTIONAL because `DeployCore` only builds it where the
+        // Uni rail is configured (`cfg.v4PoolManager` and `cfg.weth` both set) — unlike
+        // MODULE_UNIV4_DEPLOYER, which always exists in one flavor or the other, there is no stub here.
+        address uniTitheHookFactory = vm.envOr("UNI_TITHE_HOOK_FACTORY", address(0));
         if (uniVaultFactory != address(0)) tmp[n++] = uniVaultFactory;
         if (aaveVaultFactory != address(0)) tmp[n++] = aaveVaultFactory;
         if (zammVaultFactory != address(0)) tmp[n++] = zammVaultFactory;
         if (zrouter != address(0)) tmp[n++] = zrouter;
+        if (uniTitheHookFactory != address(0)) tmp[n++] = uniTitheHookFactory;
 
         list = new address[](n);
         for (uint256 i; i < n; i++) {
@@ -182,6 +195,16 @@ contract MigrateOwnership is Script {
         // Done while the deployer still holds the role.
         ERC404Factory(vm.envAddress("ERC404_FACTORY")).transferProtocolRole(timelock);
         console.log("ERC404Factory PROTOCOL_ROLE transferred to timelock");
+
+        // D6 — the hook owner stamped into future graduation hooks. Not ownership: `setHookOwner` is
+        // the only thing that moves it, and it must run while the deployer still owns the factory, so
+        // it goes ahead of the single-step transfer below. Optional for the same reason the list entry
+        // is: a network with no Uni rail has no tithe hook factory to re-point.
+        address titheHookFactory = vm.envOr("UNI_TITHE_HOOK_FACTORY", address(0));
+        if (titheHookFactory != address(0)) {
+            UniTitheHookFactory(titheHookFactory).setHookOwner(timelock);
+            console.log("UniTitheHookFactory hookOwner re-pointed to timelock");
+        }
 
         // D1 — complete the two-step handover for each SafeOwnableUUPS contract. Reverts
         // NoHandoverRequest() if the Timelock has not run Phase 1 (requestOwnershipHandover) yet.
@@ -254,6 +277,18 @@ contract MigrateOwnership is Script {
             factory.hasAnyRole(timelock, factory.PROTOCOL_ROLE()),
             "MigrateOwnership: timelock does not hold PROTOCOL_ROLE on ERC404Factory"
         );
+
+        // D6 read-back — `hookOwner` is the third capability `transferOwnership` leaves behind. Left
+        // on the deployer EOA it does not show up in any `owner()` above, and the cost is not paid at
+        // the handover but at every graduation after it: each hook stamped with the old value keeps
+        // that key on its `setLpFeeRate` and `rescueQueuedFees` permanently.
+        address titheHookFactory = vm.envOr("UNI_TITHE_HOOK_FACTORY", address(0));
+        if (titheHookFactory != address(0)) {
+            require(
+                UniTitheHookFactory(titheHookFactory).hookOwner() == timelock,
+                "MigrateOwnership: UniTitheHookFactory hookOwner is not the timelock"
+            );
+        }
 
         console.log("ownership verified: every migrated contract, the revoker and PROTOCOL_ROLE are held by", timelock);
     }
