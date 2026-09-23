@@ -1,5 +1,5 @@
 /**
- * The three liquidity vault families' protocol-cut surface, as one hand-written ABI slice.
+ * Both liquidity vault families' protocol-cut surface, as one hand-written ABI slice.
  *
  * UniAlignmentVault and ZAMMAlignmentVault both declare this counter and this push
  * identically. They have no generated bindings (the wizard never creates one directly; the liquidity

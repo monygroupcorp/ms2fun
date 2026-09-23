@@ -89,7 +89,7 @@ export function BenefactorPosition({ vault, isEndowment }: BenefactorPositionPro
   const args = [connected ?? ZERO_ADDRESS] as const
   const at = { address: vault, abi: benefactorPositionAbi, chainId: forkChainId } as const
 
-  // allowFailure: a vault outside the three liquidity families does not answer these reads, and the
+  // allowFailure: a vault outside the liquidity families does not answer these reads, and the
   // section simply does not render — the same tolerance VaultDeliveries applies per family.
   const { data, refetch } = useReadContracts({
     allowFailure: true,
@@ -120,7 +120,7 @@ export function BenefactorPosition({ vault, isEndowment }: BenefactorPositionPro
 
   if (isEndowment) return null
   if (!connected) return null
-  // Every read failed: not one of the three liquidity families, so there is no position to state.
+  // Every read failed: not one of the liquidity families, so there is no position to state.
   if (contribution === undefined && shares === undefined && claimable === undefined) return null
 
   const hasPosition = (contribution ?? 0n) > 0n || (shares ?? 0n) > 0n

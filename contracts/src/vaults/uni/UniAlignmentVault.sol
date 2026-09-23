@@ -389,7 +389,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         uint256 ethToAdd = totalPendingETH;
 
         // The oracle floor (Via-quote + minOut, enforced below via `_floorTokenOut`) is the uniform
-        // anti-fail-open guard across all three vault families; the legacy `validatePrice` cross-check
+        // anti-fail-open guard across every vault family; the legacy `validatePrice` cross-check
         // (Uni-only, fail-open on no reference pool) was removed in favor of it (noesis-063).
         uint256 proportionToSwap = priceValidator.calculateSwapProportion(
             alignmentToken, lastTickLower, lastTickUpper, poolManager, bytes32(PoolId.unwrap(v4PoolKey.toId()))

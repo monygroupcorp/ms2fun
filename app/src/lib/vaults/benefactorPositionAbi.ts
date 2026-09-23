@@ -1,8 +1,8 @@
 /**
- * The three liquidity vault families' per-benefactor surface, as one hand-written ABI slice.
+ * Both liquidity vault families' per-benefactor surface, as one hand-written ABI slice.
  *
  * UniAlignmentVault and ZAMMAlignmentVault both implement `IAlignmentVault`,
- * so they declare these reads and these writes identically. None of the three has a generated
+ * so they declare these reads and these writes identically. Neither has a generated
  * binding — the wizard never creates a vault directly, the liquidity module deploys one at
  * graduation and the app finds it through the registry — so a slice is how the app addresses them,
  * and `contract-surface.json`'s `aliases` records which contracts it speaks to.

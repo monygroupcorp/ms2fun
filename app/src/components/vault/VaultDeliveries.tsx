@@ -31,7 +31,7 @@ export function VaultDeliveries({
   vault: `0x${string}`
   isEndowment: boolean
 }) {
-  // allowFailure: a vault that is not one of the three liquidity families does not answer this read,
+  // allowFailure: a vault that is not one of the liquidity families does not answer this read,
   // and the section simply does not render — the same tolerance useVaultsSummary applies per family.
   const { data, refetch } = useReadContracts({
     allowFailure: true,
