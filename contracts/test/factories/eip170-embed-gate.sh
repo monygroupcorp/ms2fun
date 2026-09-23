@@ -91,9 +91,10 @@
 #   3. The blob is where the row says it is. A row marked CREATION whose blob turns up in the RUNTIME
 #      means a `new X(...)` moved out of a constructor and into a function, which silently moves that
 #      contract onto the EIP-170 clock; that is a hard failure naming the row, not a quiet reclassify.
-#   4. A headroom FLOOR against either budget, once one is typed below. None is typed today — see
-#      the FLOORS block. A floor that is typed but cannot be compared, or typed under a label no
-#      row carries, is a hard failure: the table would read armed and reserve nothing.
+#   4. A headroom FLOOR against either budget, for the rows that carry one. Two do, both on the
+#      ERC1155 pair — see the FLOORS block. A floor that is typed but cannot be compared, or typed
+#      under a label no row carries, is a hard failure: the table would read armed and reserve
+#      nothing.
 #   5. The same two ceilings for a GRADUATE — a contract that embeds nothing but holds the budget
 #      its family spends, which is what an embedded instance becomes the day the lever is taken.
 #
@@ -180,8 +181,19 @@ EIP3860=49152
 # seat's to invent. The ERC404 family has two, both his: a 2,000B instance floor (2026-08-06) and a
 # 500B ERC404BondingOps floor (2026-08-12), enforced in test/factories/erc404/eip170-diet-gate.sh.
 #
-# NO FLOOR HAS BEEN RULED FOR ANY ROW BELOW. Leave a value empty and this gate checks the ceilings
-# only, and says so on every run so the absence stays visible rather than reading as a gate that
+# TWO FLOORS ARE RULED, both on the ERC1155 pair and both against the EIP-170 runtime budget:
+#
+#   ERC1155Instance   2,000B — the same number ERC404Instance carries, so one figure means one thing
+#                              across the tree. Against the 6,275B the clone left real, that allows
+#                              about 4,275B of edition-side growth before the alarm fires, which is
+#                              wider than any single merge this family has ever spent.
+#   ERC1155Factory   15,000B — the clone gave the factory 19,580B of runtime it has no blob to put
+#                              in. Reserving 15,000B keeps most of what the lever won rather than
+#                              letting it be spent back unnoticed, and still leaves 4,580B for
+#                              factory logic, more than the 4,996B the whole factory occupies today.
+#
+# The other seven rows are empty. Leave a value empty and this gate checks the ceilings only, and
+# says so on that row every run so the absence stays visible rather than reading as a gate that
 # passed. To arm one, put the ruled number in the table for the budget it is about; nothing else
 # changes.
 #
@@ -204,8 +216,8 @@ EIP3860=49152
 # single floor bound to the blob's budget could not have said anything about the 3,507B, and a
 # 4,000B floor typed for it passed.
 declare -A FLOOR_RUNTIME=(   # headroom to keep under EIP-170, per row
-  [ERC1155Factory]=""
-  [ERC1155Instance]=""
+  [ERC1155Factory]="15000"
+  [ERC1155Instance]="2000"
   [ERC721AuctionFactory]=""
   [UniTitheHookFactory]=""
   [ERC404Factory]=""
