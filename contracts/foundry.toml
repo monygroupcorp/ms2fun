@@ -89,11 +89,23 @@ remappings = [
 # `fuzz_runs`/`invariant_runs` keys — the flat form is silently ignored (forge emits an
 # unknown-key warning).
 #
-# TWO profiles, and each one is selected by something that actually runs:
+# THREE profiles, and each one says here what selects it. `ci` and `deep` are the run-count
+# tables immediately below; `fork` is at the bottom of this file.
 #
 #   `ci`   — selected by contracts-ci.yml's `Run tests` step (`FOUNDRY_PROFILE=ci forge test`).
 #            Elevated fuzz depth; invariant runs left at the default so the per-push job stays
 #            inside a per-push budget.
+#   `fork` — NOT selected by any workflow, and cannot be: every suite it confines needs a live
+#            RPC endpoint, which no job here holds. Run by hand, against mainnet:
+#              FOUNDRY_PROFILE=fork forge test --fork-url "$MAINNET_RPC_URL"
+#            What the profile adds over the default is the `match_path` confinement to
+#            `test/fork/**` and `verbosity = 2`; the suites themselves are NOT excluded from the
+#            default profile, and each gates on its own RPC variable and skips when it is unset,
+#            which is why they show as skips in the per-push run rather than as failures. So a
+#            fork suite that stops COMPILING is caught per push; a fork suite that stops PASSING
+#            is caught only by the hand run above. Note that `scripts/test-fork.sh` runs the same
+#            files against a local anvil WITHOUT selecting this profile — it gets
+#            `[profile.default]` — so the two are not interchangeable.
 #   `deep` — NOT selected by any workflow. Elevated invariant depth, run by hand:
 #              FOUNDRY_PROFILE=deep forge test
 #            Measured 2026-08-12 on the pinned forge 1.5.1-stable, 32 cores: the whole-tree run
@@ -104,7 +116,10 @@ remappings = [
 #            on the same host for comparison.
 #
 # A profile with no selector is not a gate. If a new profile is added here, wire it or say
-# where it is run by hand.
+# where it is run by hand — and add it to the inventory above, which is the part that was
+# skipped last time: `fork` sat in this file unlisted and unmentioned, and so nobody noticed
+# that its gas limit had stopped two of its suites from reaching a single assertion. Two lines
+# in the list above are the cheapest thing that would have caught it.
 #
 # `deep` having no selector is a deliberate, tracked deferral, not an oversight: it is entry 2
 # of `docs/PRE-MAINNET-CHECKLIST.md`, which must be read before any mainnet deploy. It
@@ -142,17 +157,22 @@ evm_version = "cancun"
 # block: the test contract's own deployment and the whole test body are charged against this
 # one number. The deploy-rehearsal fork suites construct the deploy script in-process
 # (`new DeployCore()`, `new DeployMainnetHarness()`), which embeds each script's entire
-# creation code in the test contract's own runtime code — the mainnet endowment rehearsal's
-# test contract is ~837 KB, and EIP-170's 24 KB cap does not apply to a forge test contract,
-# so nothing refuses it. Code deposit is 200 gas/byte, so DEPLOYING THAT TEST CONTRACT costs
-# ~168M gas before a single line of it runs, and a full-protocol rehearsal then spends ~240M
-# more. Under a 30M limit the suite died as `EvmError: OutOfGas` on `constructor()` at
-# `gas: 0` — no file, no line, no assertion, and no test body ever reached.
+# creation code in the test contract's own runtime code — HUNDREDS OF KILOBYTES of it, since
+# EIP-170's 24 KB cap does not apply to a forge test contract and so nothing refuses it. Code
+# deposit is 200 gas/byte, so DEPLOYING THAT TEST CONTRACT costs several times a whole block's
+# worth of gas before a single line of it runs, and the rehearsal then spends more still
+# deploying the protocol for real. Under a 30M limit the suite died as `EvmError: OutOfGas` on
+# `constructor()` at `gas: 0` — no file, no line, no assertion, and no test body ever reached.
 #
-# The script is what grew: `DeployCore` has taken on the endowment family, the best-route
-# quoter, the curation surface and the preset ladder since this profile was written, and each
-# family it deploys adds to the creation code a test embeds by naming it. 30M was never sized
-# against that; it was copied from what a chain will accept in one block.
+# Deliberately no figure quoted for that: it is a number that rots, and it only ever rots
+# upward. Measure it when you need it — `forge build`, then the `deployedBytecode` length in
+# `out/AaveEndowmentMainnetFork.t.sol/AaveEndowmentMainnetForkTest.json`, times 200 gas. For
+# scale at the time of writing it read 773,940 bytes, ~154.8M gas — five times a mainnet block.
+#
+# The script is what grows: `DeployCore` has taken on the endowment family, the best-route
+# quoter, the curation surface and the preset ladder since this profile was written, and every
+# further family it deploys adds to the creation code a test embeds by naming it. 30M was never
+# sized against that; it was copied from what a chain will accept in one block.
 #
 # So do NOT reintroduce a block-sized limit here. If a fork test must assert that some
 # operation fits in a real block, measure it with `gasleft()` and assert the measurement —

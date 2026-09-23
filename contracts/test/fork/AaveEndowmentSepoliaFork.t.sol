@@ -7,10 +7,15 @@ import { DeployCore } from "../../script/DeployCore.sol";
 import { IStataToken } from "../../src/vaults/aave/AlignmentEndowmentVault.sol";
 import { IAlignmentVault } from "../../src/interfaces/IAlignmentVault.sol";
 import { Currency } from "v4-core/types/Currency.sol";
+import { ERC4626_FLOOR_WEI } from "./helpers/Erc4626Rounding.sol";
 
-/// @dev Exposes the Sepolia network config so the rehearsal deploys the real thing rather than a
-///      hand-copied approximation of it. The vanity CREATE3 salts are replaced by the caller (they
-///      are already consumed on live Sepolia and would collide on a fork of latest).
+/// @dev Exposes the Sepolia network config so the rehearsal deploys against the real ADDRESSES rather
+///      than a hand-copied approximation of them — which is the whole point of the file, since what it
+///      asserts is which WETH the live stataToken is backed by.
+///
+///      Two things the caller replaces, and neither is one of those addresses: the vanity CREATE3 salts
+///      (already consumed on live Sepolia, so a fork of latest would collide on the first proxy) and the
+///      alignment-target roster, which this network now leaves deliberately empty — see `_config`.
 contract DeploySepoliaHarness is DeploySepolia {
     function sepoliaConfig() external pure returns (NetworkConfig memory) {
         return _sepoliaConfig();
@@ -95,7 +100,24 @@ contract AaveEndowmentSepoliaForkTest is Test {
         );
 
         assertGt(stata.balanceOf(vault), 0, "contribution reached the stataToken");
-        assertGe(stata.maxWithdraw(vault), amount - 1, "position is worth the contribution");
+        // TWO real ERC-4626 conversions stand between the ETH that went in and this read, and the bound
+        // is one term per conversion. `_deposit` wraps the ETH 1:1 into WETH, which cannot round; then
+        // `stataToken.deposit` floors the shares it mints against the live liquidity index, and
+        // `maxWithdraw` floors again valuing those shares back through `convertToAssets`. A single-floor
+        // bound stood here and it is not enough: the second floor lands whenever BOTH divisions come out
+        // uneven. Measured on the live token at 0.01 ETH, sampling 149 mainnet blocks spread over five
+        // months: the round trip lost 1 wei at 140 of them and 2 wei at 9, and never 3. So a one-floor
+        // bound is green about fifteen runs in sixteen -- which is how it shipped, and how it then failed
+        // on the first run of a reviewer who thought to run it more than once.
+        //
+        // The direction is asserted on its own because it is the direction that carries the safety. A
+        // position reading ABOVE the contribution would be value the vault never received -- an
+        // over-credit the next withdrawal cannot honour -- while a shortfall of a few wei is the floors
+        // landing where they are designed to land, in the vault's favour, and is owed to nobody. So the
+        // upper assert is the one that would catch a defect; the lower one only refuses a position that
+        // collapsed.
+        assertLe(stata.maxWithdraw(vault), amount, "the position reads MORE than was contributed");
+        assertGe(stata.maxWithdraw(vault) + 2 * ERC4626_FLOOR_WEI, amount, "position is worth the contribution");
     }
 
     // ── Vacuity: canonical WETH for the endowment family fails at deploy ─────

@@ -8,6 +8,7 @@ import { MainnetAddresses } from "../../script/MainnetAddresses.sol";
 import { IStataToken } from "../../src/vaults/aave/AlignmentEndowmentVault.sol";
 import { IAlignmentVault } from "../../src/interfaces/IAlignmentVault.sol";
 import { Currency } from "v4-core/types/Currency.sol";
+import { ERC4626_FLOOR_WEI } from "./helpers/Erc4626Rounding.sol";
 
 /// @dev Exposes the mainnet network config so the rehearsal deploys the real thing rather than a
 ///      hand-copied approximation of it. The salts are replaced by the caller: the shipped set is
@@ -105,7 +106,24 @@ contract AaveEndowmentMainnetForkTest is Test {
         );
 
         assertGt(stata.balanceOf(vault), 0, "contribution reached the stataToken");
-        assertGe(stata.maxWithdraw(vault), amount - 1, "position is worth the contribution");
+        // TWO real ERC-4626 conversions stand between the ETH that went in and this read, and the bound
+        // is one term per conversion. `_deposit` wraps the ETH 1:1 into WETH, which cannot round; then
+        // `stataToken.deposit` floors the shares it mints against the live liquidity index, and
+        // `maxWithdraw` floors again valuing those shares back through `convertToAssets`. A single-floor
+        // bound stood here and it is not enough: the second floor lands whenever BOTH divisions come out
+        // uneven. Measured on the live token at 0.01 ETH, sampling 149 mainnet blocks spread over five
+        // months: the round trip lost 1 wei at 140 of them and 2 wei at 9, and never 3. So a one-floor
+        // bound is green about fifteen runs in sixteen -- which is how it shipped, and how it then failed
+        // on the first run of a reviewer who thought to run it more than once.
+        //
+        // The direction is asserted on its own because it is the direction that carries the safety. A
+        // position reading ABOVE the contribution would be value the vault never received -- an
+        // over-credit the next withdrawal cannot honour -- while a shortfall of a few wei is the floors
+        // landing where they are designed to land, in the vault's favour, and is owed to nobody. So the
+        // upper assert is the one that would catch a defect; the lower one only refuses a position that
+        // collapsed.
+        assertLe(stata.maxWithdraw(vault), amount, "the position reads MORE than was contributed");
+        assertGe(stata.maxWithdraw(vault) + 2 * ERC4626_FLOOR_WEI, amount, "position is worth the contribution");
     }
 
     // ── Vacuity: the family really is gated on that one field ────────────────
