@@ -97,7 +97,6 @@ async function main(): Promise<void> {
   const moduleKeys = [
     'ModuleUniV4Deployer',
     'ModuleZAMMDeployer',
-    'ModuleCypherDeployer',
     'MetadataOverlayModule',
   ] as const
   const moduleEntries = moduleKeys.map((key) => [key, deployment.contracts[key]] as const)

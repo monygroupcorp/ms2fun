@@ -481,10 +481,6 @@ async function main(): Promise<void> {
       zRouter: required(c, 'zRouter'),
       ModuleUniV4Deployer: required(c, 'ModuleUniV4Deployer'),
       ModuleZAMMDeployer: required(c, 'ModuleZAMMDeployer'),
-      ModuleCypherDeployer: required(c, 'ModuleCypherDeployer'),
-      // The Cypher venue's own periphery swap router (noesis-349). External singleton, emitted by the
-      // deploy script from its per-network config so the app never hardcodes a chain-specific address.
-      CypherSwapRouter: required(c, 'CypherSwapRouter'),
     },
   }
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`)

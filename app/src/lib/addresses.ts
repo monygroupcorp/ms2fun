@@ -29,8 +29,8 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as const
 /**
  * A deploy bridge's output for ONE chain (`app/scripts/dev-chain/`). Every deployment file has the
  * same shape whatever chain wrote it: the chain it describes, the block its contracts landed at, and
- * a name -> address map. Names the deployment does not carry (a network with no Cypher/Algebra
- * deployment, say) resolve to the zero address rather than to another chain's value.
+ * a name -> address map. Names the deployment does not carry resolve to the zero address rather
+ * than to another chain's value.
  */
 export interface Deployment {
   chainId: number
@@ -69,23 +69,13 @@ export interface Addresses {
   MetadataOverlayModule: `0x${string}`
   TokenTierBandResolver: `0x${string}`
   /**
-   * Graduated-swap (B19): zRouter drives embedded post-graduation swaps, and the three LP deployer
+   * Graduated-swap (B19): zRouter drives embedded post-graduation swaps, and the LP deployer
    * module singletons let the UI detect which venue an instance graduated to (match against
    * instance.liquidityDeployer()) and read that venue's pool params.
    */
   zRouter: `0x${string}`
   ModuleUniV4Deployer: `0x${string}`
   ModuleZAMMDeployer: `0x${string}`
-  ModuleCypherDeployer: `0x${string}`
-  /**
-   * The Cypher (Algebra Integral) periphery swap router — the venue's own router, which the embedded
-   * post-graduation swap signs against (noesis-349). It is an EXTERNAL singleton, not one of ours, so
-   * it rides the per-chain deploy config rather than a hardcoded constant: on a mainnet fork it is
-   * the live mainnet router, and on any other network it is whatever that network's Algebra
-   * deployment published. A network with no Algebra deployment carries the zero address here, and the
-   * panel says so instead of trading.
-   */
-  CypherSwapRouter: `0x${string}`
 }
 
 /** Every key of {@link Addresses}, in the order the deploy bridges write them. */
@@ -111,8 +101,6 @@ export const ADDRESS_KEYS = [
   'zRouter',
   'ModuleUniV4Deployer',
   'ModuleZAMMDeployer',
-  'ModuleCypherDeployer',
-  'CypherSwapRouter',
 ] as const satisfies readonly (keyof Addresses)[]
 
 /**
