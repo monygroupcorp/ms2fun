@@ -53,7 +53,7 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     /// @notice The pinned canonical pool could not produce a usable TWAP. Thrown by
     ///         {quoteEthForTokensVia} INSTEAD OF returning 0 — this is the anti-fail-open guarantee.
     error ReferenceTwapUnavailable();
-    /// @notice `kind` passed to {quoteEthForTokensVia} is not a supported pool family (only 0 and 1 are).
+    /// @notice `kind` passed to {quoteEthForTokensVia} is not a supported pool family (only 0 is).
     error UnsupportedPoolKind(uint8 kind);
     /// @notice `v3Factory` is codeless — a misconfigured validator, never a legitimate per-token
     ///         state. Thrown by {_getTwapSqrtPriceX96} INSTEAD OF returning 0, so a wrong/absent
