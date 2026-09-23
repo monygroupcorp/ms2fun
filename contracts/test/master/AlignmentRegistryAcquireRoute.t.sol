@@ -67,26 +67,65 @@ contract AlignmentRegistryAcquireRouteTest is Test {
         assertEq(got.feeOrHook, 100);
     }
 
+    /// @dev `setAcquireRoute` with the venue as a RAW word, so an ordinal the enum cannot hold can be
+    ///      put on the wire at all — a typed call could not express one.
+    function _rawSetRoute(uint256 targetId, uint8 venueOrdinal, uint256 feeOrHook)
+        internal
+        view
+        returns (bytes memory)
+    {
+        return abi.encodeWithSignature(
+            "setAcquireRoute(uint256,address,(uint8,uint24,int24,uint256))",
+            targetId,
+            cultToken,
+            venueOrdinal,
+            uint24(0),
+            int24(0),
+            feeOrHook
+        );
+    }
+
     /// @dev The venue enum is NONE | UNI_V4 | ZAMM since CYPHER wound down and ALGEBRA was removed.
-    ///      A word past the last member is refused in the ABI decode, before `setAcquireRoute` runs —
-    ///      so a stale caller still naming the old ALGEBRA ordinal (3) cannot curate a target onto a
-    ///      venue this protocol no longer has.
+    ///      A word past the last member is refused in the calldata DECODE, before `setAcquireRoute`
+    ///      runs — so a stale caller still naming the old ALGEBRA ordinal (3) cannot curate a target
+    ///      onto a venue this protocol no longer has.
+    ///
+    ///      A bare "it reverted" would not say that. ANY revert satisfies it, `InvalidRoute` included
+    ///      — and `InvalidRoute` would mean the ordinal DID decode and the function body ran, which is
+    ///      the opposite of the claim. It would also stay green if the hand-written signature drifted
+    ///      from the real selector and the call hit no function at all. So all three legs are asserted
+    ///      through the SAME encoding: the retired ordinal comes back with EMPTY returndata, which is
+    ///      how solc's calldata validation refuses an out-of-range enum (a bare `revert(0, 0)`, not a
+    ///      custom error and not a panic); a decodable-but-rejected route comes back with
+    ///      `InvalidRoute`, which is what empty is being distinguished from; and a well-formed live
+    ///      route goes through and stores, which is what proves the signature names a real function.
     function test_SetAcquireRoute_RetiredAlgebraOrdinalIsUndecodable() public {
         uint256 targetId = _registerTarget();
+
         vm.prank(daoOwner);
-        (bool ok,) = address(registry)
-            .call(
-                abi.encodeWithSignature(
-                    "setAcquireRoute(uint256,address,(uint8,uint24,int24,uint256))",
-                    targetId,
-                    cultToken,
-                    uint8(3),
-                    0,
-                    0,
-                    0
-                )
-            );
+        (bool ok, bytes memory ret) = address(registry).call(_rawSetRoute(targetId, 3, 0));
         assertFalse(ok, "the retired ALGEBRA ordinal must not decode into a route");
+        assertEq(ret.length, 0, "refused by the calldata decoder, not by the function body");
+
+        // The same call shape, a decodable venue, a route the body rejects: a named error, not empty.
+        vm.prank(daoOwner);
+        (bool bad, bytes memory badRet) = address(registry).call(_rawSetRoute(targetId, 2, 0));
+        assertFalse(bad, "a ZAMM route with no feeOrHook is rejected");
+        assertEq(
+            bytes4(badRet),
+            AlignmentRegistryV1.InvalidRoute.selector,
+            "the body's own refusal is a named error, which is what the empty returndata above is not"
+        );
+
+        // The positive control: same call shape, a live venue, a well-formed route.
+        vm.prank(daoOwner);
+        (bool live,) = address(registry).call(_rawSetRoute(targetId, uint8(IAlignmentRegistry.Venue.ZAMM), 100));
+        assertTrue(live, "the same encoding with a live ordinal must reach setAcquireRoute");
+        assertEq(
+            uint256(registry.getAcquireRoute(targetId, cultToken).venue),
+            uint256(IAlignmentRegistry.Venue.ZAMM),
+            "the control stored a route, so the signature above names the real function"
+        );
     }
 
     function test_SetAcquireRoute_Update() public {
