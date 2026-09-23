@@ -420,6 +420,26 @@ forge script script/MigrateOwnership.s.sol --sig "printRequestBatch()" --rpc-url
 forge script script/MigrateOwnership.s.sol --rpc-url <sepolia-rpc> --broadcast
 ```
 
+**Both phases read the addresses to migrate from the environment, and the source for every one of
+them is `contracts/deployments/sepolia.json` from §5.1.** Most are required outright and a missing
+one stops the run. Three are network-dependent and are the ones to check by hand on this network,
+because on a network that does not have them, unset is correct:
+
+| variable | where it is in the record | on Sepolia |
+| --- | --- | --- |
+| `ZROUTER` | `contracts.zRouter` | **set** — Sepolia self-deploys the router, so the deployer owns it. Mainnet reuses the canonical singleton and leaves this unset. |
+| `UNI_VAULT_FACTORY` | `factories.UNI` | **set** — this network deploys Uni alignment vaults. |
+| `UNI_TITHE_HOOK_FACTORY` | `contracts.UniTitheHookFactory` | **set** — Sepolia configures the Uni rail, so `DeployCore` built the tithe hook factory. |
+
+`UNI_TITHE_HOOK_FACTORY` is worth the extra line. The factory writes an owner into every graduation
+hook it deploys, and that address holds `setLpFeeRate` and `rescueQueuedFees` on that hook for the
+hook's whole life — a hook's owner is fixed at its own construction and the factory cannot reach back
+to it. Phase 2 moves the factory AND re-points the stamp (`setHookOwner`), so a run that cannot name
+the factory hands governance a contract that keeps minting deployer-owned hooks at every graduation.
+The script refuses to run rather than skip it: where `MODULE_UNIV4_DEPLOYER` is the real
+liquidity-deployer module — which is to say wherever the Uni rail exists — an unset
+`UNI_TITHE_HOOK_FACTORY` fails the migration instead of quietly completing without it.
+
 Phase 2 ends by reading the handover back and reverting if any part of it did not land, so a partial
 migration fails in simulation rather than leaving the protocol half-moved. Tick §6.6 anyway: that
 assertion ran against the simulated state, and §6.6 runs against the chain.
@@ -508,8 +528,12 @@ Read-only. It asserts that every `SafeOwnableUUPS` and every plain-`Ownable` con
 migration set reads `owner() == TIMELOCK_ADDRESS`; that `MasterRegistryV1.emergencyRevoker()` is the
 Timelock, because the no-delay kill switch is the one capability every `owner()` check would miss;
 that the Timelock holds `PROTOCOL_ROLE` on `ERC404Factory`, which `transferOwnership` does not move;
-and that `TIMELOCK_ADDRESS` has code at all, since an EOA there satisfies every other assertion while
-leaving the protocol under one key.
+that `UniTitheHookFactory.hookOwner()` is the Timelock, which `transferOwnership` does not move either
+and which nothing else on this page would reveal; and that `TIMELOCK_ADDRESS` has code at all, since an
+EOA there satisfies every other assertion while leaving the protocol under one key.
+
+Export the same environment §5.5 used — this reads the addresses from it, and on this network that
+includes `UNI_TITHE_HOOK_FACTORY`. Leaving it out does not pass the check; it refuses.
 
 A non-zero exit names the contract that failed, so a partial migration says which step to re-run.
 

@@ -84,13 +84,56 @@ contract MigrateOwnership is Script {
         list[n++] = vm.envAddress("MASTER_REGISTRY"); // completed last (see run()) — revoker re-point first
     }
 
+    /// @dev Every network-dependent address the script reads, in one place. An absent variable reads
+    ///      as `address(0)`, which each caller then interprets — "this network does not have one" for
+    ///      the optional entries, and a failed run for `UNI_TITHE_HOOK_FACTORY` where the deployment
+    ///      says one must exist.
+    /// @dev `virtual` so `MigrateOwnershipHarness` can drive the absent-variable case. Forge runs the
+    ///      test cases of a suite in parallel and never rolls a `vm.setEnv` back, so a test that blanked
+    ///      a variable in its own body would blank it for whatever else happened to be running; the
+    ///      override reads one name as unset for one harness instead. The body here is the behaviour
+    ///      every real run gets — nothing overrides it off a test.
+    function _optionalAddress(string memory name) internal view virtual returns (address) {
+        return vm.envOr(name, address(0));
+    }
+
+    /// @dev Is the Uni rail configured on this network? `DeployCore` builds the tithe hook factory
+    ///      under exactly one condition — `cfg.v4PoolManager` and `cfg.weth` both set — and that same
+    ///      condition decides, in the same `if`, whether `MODULE_UNIV4_DEPLOYER` is the real
+    ///      `LiquidityDeployerModule` or the metadata-only component stub. So the answer is already in
+    ///      the migration's own required inputs and needs no new flag: the real module carries a
+    ///      `v4PoolManager()` immutable and the stub carries no such function at all.
+    function _uniRailConfigured() internal view returns (bool) {
+        (bool ok, bytes memory ret) = vm.envAddress("MODULE_UNIV4_DEPLOYER").staticcall{ gas: 100_000 }(
+            abi.encodeWithSignature("v4PoolManager()")
+        );
+        return ok && ret.length == 32 && abi.decode(ret, (address)) != address(0);
+    }
+
+    /// @dev The Uni-V4 swap-tithe hook factory. Conditionally required, which is the only reading that
+    ///      is safe: a network with no Uni rail has no factory to migrate, and on a network that HAS one
+    ///      an unset variable is not "nothing to do" — it silently drops the factory from the transfer
+    ///      list, skips `setHookOwner`, skips the read-back, and lets the run print `ownership verified`
+    ///      over a handover that left the deployer EOA stamped into every future graduation hook.
+    function _uniTitheHookFactory() internal view returns (address factory) {
+        factory = _optionalAddress("UNI_TITHE_HOOK_FACTORY");
+        require(
+            factory != address(0) || !_uniRailConfigured(),
+            "MigrateOwnership: UNI_TITHE_HOOK_FACTORY unset on a network with the Uni rail configured"
+        );
+    }
+
     /// @dev Plain Solady Ownable contracts — single-step transferOwnership by the deployer.
-    ///      Two tiers:
+    ///      Three tiers:
     ///        - REQUIRED (`envAddress`): contracts `DeployCore` creates on every network. A missing
     ///          env var fails the run loudly rather than silently leaving the contract behind.
-    ///        - OPTIONAL (`envOr(..., address(0))`): contracts a given network may not deploy — the
-    ///          vault factories. Skipped when absent, so a partial deploy does not turn into a
-    ///          reverting migration.
+    ///        - OPTIONAL (`_optionalAddress`): contracts a given network may not deploy — the
+    ///          vault factories and the self-deployed router. Skipped when absent, so a partial deploy
+    ///          does not turn into a reverting migration.
+    ///        - CONDITIONALLY REQUIRED (`_uniTitheHookFactory`): absent on some networks, mandatory on
+    ///          the rest, with the network itself deciding which. An unset variable is only "nothing to
+    ///          migrate" where the deployment genuinely has no such contract; everywhere else it is a
+    ///          contract dropped from the handover, and the run must fail rather than report success.
     ///      NOTE: MODULE_UNIV4_DEPLOYER / MODULE_ZAMM_DEPLOYER are required rather than optional —
     ///      `DeployCore` always sets both, either to the real liquidity-deployer module or to a
     ///      metadata-only component stub. Both flavors are plain `Ownable` and deployer-owned, so the
@@ -117,20 +160,22 @@ contract MigrateOwnership is Script {
         tmp[n++] = vm.envAddress("TOKEN_TIER_BAND_RESOLVER");
 
         // ── Optional — network-dependent ──
-        address uniVaultFactory = vm.envOr("UNI_VAULT_FACTORY", address(0)); // D2
-        address aaveVaultFactory = vm.envOr("AAVE_VAULT_FACTORY", address(0)); // D2
-        address zammVaultFactory = vm.envOr("ZAMM_VAULT_FACTORY", address(0)); // D2
+        address uniVaultFactory = _optionalAddress("UNI_VAULT_FACTORY"); // D2
+        address aaveVaultFactory = _optionalAddress("AAVE_VAULT_FACTORY"); // D2
+        address zammVaultFactory = _optionalAddress("ZAMM_VAULT_FACTORY"); // D2
         // zRouter takes its owner as a constructor argument and exposes the same single-step
         // `transferOwnership(address)`, so it migrates like any other plain-Ownable contract. OPTIONAL
         // on purpose: only a network that SELF-DEPLOYS the router (`cfg.zrouter == address(0)` — Sepolia
         // and Anvil) leaves it deployer-owned. A network that reuses the canonical external singleton
         // (mainnet) does not own it, and the transfer would revert `Unauthorized()` — leave ZROUTER
         // unset there.
-        address zrouter = vm.envOr("ZROUTER", address(0));
-        // The Uni-V4 swap-tithe hook factory. OPTIONAL because `DeployCore` only builds it where the
-        // Uni rail is configured (`cfg.v4PoolManager` and `cfg.weth` both set) — unlike
-        // MODULE_UNIV4_DEPLOYER, which always exists in one flavor or the other, there is no stub here.
-        address uniTitheHookFactory = vm.envOr("UNI_TITHE_HOOK_FACTORY", address(0));
+        address zrouter = _optionalAddress("ZROUTER");
+        // The Uni-V4 swap-tithe hook factory. CONDITIONALLY REQUIRED rather than optional: `DeployCore`
+        // only builds it where the Uni rail is configured — unlike MODULE_UNIV4_DEPLOYER, which always
+        // exists in one flavor or the other, there is no stub here — so it is absent on some networks
+        // and mandatory on the rest. `_uniTitheHookFactory` fails the run where the rail says it must
+        // exist; `deployments/<net>.json` carries it under `contracts.UniTitheHookFactory`.
+        address uniTitheHookFactory = _uniTitheHookFactory();
         if (uniVaultFactory != address(0)) tmp[n++] = uniVaultFactory;
         if (aaveVaultFactory != address(0)) tmp[n++] = aaveVaultFactory;
         if (zammVaultFactory != address(0)) tmp[n++] = zammVaultFactory;
@@ -198,9 +243,10 @@ contract MigrateOwnership is Script {
 
         // D6 — the hook owner stamped into future graduation hooks. Not ownership: `setHookOwner` is
         // the only thing that moves it, and it must run while the deployer still owns the factory, so
-        // it goes ahead of the single-step transfer below. Optional for the same reason the list entry
-        // is: a network with no Uni rail has no tithe hook factory to re-point.
-        address titheHookFactory = vm.envOr("UNI_TITHE_HOOK_FACTORY", address(0));
+        // it goes ahead of the single-step transfer below. Conditional for the same reason the list
+        // entry is: a network with no Uni rail has no tithe hook factory to re-point, and a network
+        // that has one cannot be allowed to skip this by leaving the variable unset.
+        address titheHookFactory = _uniTitheHookFactory();
         if (titheHookFactory != address(0)) {
             UniTitheHookFactory(titheHookFactory).setHookOwner(timelock);
             console.log("UniTitheHookFactory hookOwner re-pointed to timelock");
@@ -282,7 +328,7 @@ contract MigrateOwnership is Script {
         // on the deployer EOA it does not show up in any `owner()` above, and the cost is not paid at
         // the handover but at every graduation after it: each hook stamped with the old value keeps
         // that key on its `setLpFeeRate` and `rescueQueuedFees` permanently.
-        address titheHookFactory = vm.envOr("UNI_TITHE_HOOK_FACTORY", address(0));
+        address titheHookFactory = _uniTitheHookFactory();
         if (titheHookFactory != address(0)) {
             require(
                 UniTitheHookFactory(titheHookFactory).hookOwner() == timelock,

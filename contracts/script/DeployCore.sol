@@ -742,6 +742,13 @@ contract DeployCore is Script {
         vm.serializeAddress(c, "ModuleMerkleGating", address(moduleMerkleGating));
         vm.serializeAddress(c, "ModuleUniV4Deployer", address(moduleUniV4Deployer));
         vm.serializeAddress(c, "AlignmentHookSwapRouter", alignmentHookSwapRouter);
+        // The Uni-V4 swap-tithe hook factory. Exported because the handover needs it BY ADDRESS and
+        // nothing else publishes one: `MigrateOwnership` reads it as `UNI_TITHE_HOOK_FACTORY` to move
+        // both the factory and — via `setHookOwner` — the owner stamped into every hook it goes on to
+        // deploy, and a migration run that cannot name it leaves a deployer key on `setLpFeeRate` and
+        // `rescueQueuedFees` of every future graduation hook. address(0) on a network with no Uni rail,
+        // the same legitimate zero `AlignmentHookSwapRouter` carries and for the same reason.
+        vm.serializeAddress(c, "UniTitheHookFactory", uniTitheHookFactory);
         vm.serializeAddress(c, "ModuleZAMMDeployer", address(moduleZAMMDeployer));
         vm.serializeAddress(c, "ERC404StakingModule", address(erc404StakingModule));
         vm.serializeAddress(c, "MetadataResolverRouter", address(metadataResolverRouter));

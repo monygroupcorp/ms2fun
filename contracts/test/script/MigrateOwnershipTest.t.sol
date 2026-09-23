@@ -16,6 +16,7 @@ import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
 import { IAlignmentVault } from "../../src/interfaces/IAlignmentVault.sol";
 import { UniTitheHookFactory } from "../../src/factories/erc404/hooks/UniTitheHookFactory.sol";
 import { UniAlignmentV4Hook } from "../../src/factories/erc404/hooks/UniAlignmentV4Hook.sol";
+import { MockComponentModule } from "../mocks/MockComponentModule.sol";
 
 /// @dev Test-only subclass exposing MigrateOwnership's env-driven categorization and its migration
 ///      body so both can be exercised as the real script code.
@@ -37,6 +38,20 @@ contract MigrateOwnershipHarness is MigrateOwnership {
     ///      deployment WITHOUT first migrating it.
     function verifyAs(address timelock) external view {
         _verify(timelock);
+    }
+}
+
+/// @dev The same harness with one variable read as ABSENT — the exact value `vm.envOr(name,
+///      address(0))` yields for a variable nobody exported. It overrides the read rather than calling
+///      `vm.setEnv`, because `setEnv` writes the PROCESS environment: forge runs the test cases of a
+///      suite in parallel and rolls back EVM state between them but never an env var, so a test that
+///      blanked `UNI_TITHE_HOOK_FACTORY` in its own body would blank it for every test running
+///      alongside it. Everything under test — the guard, the transfer list, `_migrate`, `_verify` — is
+///      the script's own code, reached the way a real run reaches it.
+contract MigrateOwnershipHarnessNoTitheFactoryEnv is MigrateOwnershipHarness {
+    function _optionalAddress(string memory name) internal view override returns (address) {
+        if (keccak256(bytes(name)) == keccak256(bytes("UNI_TITHE_HOOK_FACTORY"))) return address(0);
+        return super._optionalAddress(name);
     }
 }
 
@@ -514,6 +529,74 @@ contract MigrateOwnershipTest is Test {
 
         vm.expectRevert(bytes("MigrateOwnership: UniTitheHookFactory hookOwner is not the timelock"));
         MigrateOwnershipHarness(deployer).verifyAs(timelock);
+    }
+
+    // ── UNI_TITHE_HOOK_FACTORY is conditionally required, not silently optional ───────────────────
+    //
+    // The variable was read `envOr(..., address(0))` in all three places — the transfer list, the D6
+    // `setHookOwner` call and the D5 read-back — so a run with it unset did not fail. It dropped the
+    // factory from the handover, skipped the stamp, skipped the assertion that would have caught
+    // either, and printed `ownership verified` over a deployment whose deployer EOA still held
+    // `setLpFeeRate` and `rescueQueuedFees` on every hook it would ever produce. There is no state on
+    // chain that distinguishes that run from a complete one, which is what makes an unset variable a
+    // worse failure here than a wrong one.
+
+    string constant UNSET_TITHE_FACTORY =
+        "MigrateOwnership: UNI_TITHE_HOOK_FACTORY unset on a network with the Uni rail configured";
+
+    /// @dev `_etchHarness`, with `UNI_TITHE_HOOK_FACTORY` read as absent. See the harness subclass.
+    function _etchHarnessWithoutTitheFactoryEnv() internal {
+        MigrateOwnershipHarnessNoTitheFactoryEnv impl = new MigrateOwnershipHarnessNoTitheFactoryEnv();
+        vm.etch(deployer, address(impl).code);
+    }
+
+    /// @notice The migration refuses to run at all. This config sets `v4PoolManager` and `weth`, so
+    ///         `DeployCore` built the factory and this deployment has one to migrate.
+    function test_migrate_refusesWhenTheTitheHookFactoryIsUnsetOnAUniRailNetwork() public {
+        _requestHandovers();
+        _etchHarnessWithoutTitheFactoryEnv();
+
+        vm.expectRevert(bytes(UNSET_TITHE_FACTORY));
+        MigrateOwnershipHarness(deployer).migrate(timelock);
+    }
+
+    /// @notice And the standalone read-back — the runbook's §6.6 ownership check, run against the
+    ///         chain after the fact — refuses too. This is the line that used to print `ownership
+    ///         verified` over a migration that never touched the factory: every contract it knew
+    ///         about really had moved, and the one it was not told about was the one left behind.
+    function test_verify_refusesWhenTheTitheHookFactoryIsUnsetOnAUniRailNetwork() public {
+        _requestHandovers();
+        _migrate();
+        _etchHarnessWithoutTitheFactoryEnv();
+
+        vm.expectRevert(bytes(UNSET_TITHE_FACTORY));
+        MigrateOwnershipHarness(deployer).verifyAs(timelock);
+    }
+
+    /// @notice The factory is also dropped from the transfer list, which is the half of the old
+    ///         behaviour that left the factory itself deployer-owned rather than merely mis-stamped.
+    function test_plainOwnableList_refusesWhenTheTitheHookFactoryIsUnsetOnAUniRailNetwork() public {
+        _etchHarnessWithoutTitheFactoryEnv();
+
+        vm.expectRevert(bytes(UNSET_TITHE_FACTORY));
+        MigrateOwnershipHarness(deployer).plainOwnable();
+    }
+
+    /// @dev Guard on the guard ([[vacuity-check]]): the requirement is CONDITIONAL, and a check that
+    ///      simply always demanded the variable would pass all three tests above while breaking every
+    ///      network that legitimately has no tithe hook factory. The condition is read off
+    ///      MODULE_UNIV4_DEPLOYER, which `DeployCore` fills from the same `if` that builds the
+    ///      factory: the real `LiquidityDeployerModule` where the Uni rail is configured, the
+    ///      metadata-only stub where it is not. Put the stub's code at that address — the shape a
+    ///      no-Uni-rail deployment actually has — and the absent variable is legal again.
+    function test_titheHookFactoryIsOptionalWhereThereIsNoUniRail() public {
+        _etchHarnessWithoutTitheFactoryEnv();
+        vm.etch(moduleUniV4Deployer, address(new MockComponentModule(deployer, "stub")).code);
+
+        address[] memory plain = MigrateOwnershipHarness(deployer).plainOwnable();
+        for (uint256 i; i < plain.length; i++) {
+            assertTrue(plain[i] != uniTitheHookFactory, "a network with no Uni rail migrates no tithe hook factory");
+        }
     }
 
     // ── config ───────────────────────────────────────────────────────────────────────────────────
