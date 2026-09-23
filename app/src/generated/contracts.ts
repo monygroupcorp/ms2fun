@@ -10243,6 +10243,13 @@ export const liquidityDeployerModuleAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'MAX_LP_FEE_RATE',
+    outputs: [{ name: '', internalType: 'uint24', type: 'uint24' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'MIN_LP_CONSUMED_BPS',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
@@ -25778,6 +25785,15 @@ export const useReadLiquidityDeployerModuleMaxInitPriceDeviationBps =
   /*#__PURE__*/ createUseReadContract({
     abi: liquidityDeployerModuleAbi,
     functionName: 'MAX_INIT_PRICE_DEVIATION_BPS',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"MAX_LP_FEE_RATE"`
+ */
+export const useReadLiquidityDeployerModuleMaxLpFeeRate =
+  /*#__PURE__*/ createUseReadContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'MAX_LP_FEE_RATE',
   })
 
 /**

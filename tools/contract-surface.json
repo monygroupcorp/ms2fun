@@ -829,6 +829,10 @@
       "why": "Moves the PROTOCOL_ROLE key. Same class as an ownership transfer, and kept out of the app for the same reason."
     },
     {
+      "match": "*.setHookOwner",
+      "why": "Moves the owner stamped into every graduation hook the factory goes on to deploy. Same class as transferProtocolRole: a key the governance handover moves (script/MigrateOwnership.s.sol), not a button in a web build."
+    },
+    {
       "match": "*Factory.deployVault",
       "why": "onlyOwner: vaults are stamped by the protocol when a target is curated, in the same operator run that curates it. A creator reaches a vault by aligning to a target, never by deploying one."
     },
