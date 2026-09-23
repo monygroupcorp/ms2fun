@@ -29,6 +29,7 @@ import {
 ///             strands in the position, never over-redeemed to the recipient);
 ///           - a RedeemShortfall is a liquidity gap, never a solvency haircut (the socialized value conserves);
 ///           - the 80/19/1 harvest accumulator never credits more than Σ harvested;
+///           - a deposit hands back principal the position stranded, and never mints yield beyond it;
 ///           - Σ per-benefactor live principal never exceeds the basis the position actually holds.
 contract EndowmentImpairmentInvariantTest is StdInvariant, Test {
     AlignmentEndowmentVault public vault;
@@ -124,12 +125,39 @@ contract EndowmentImpairmentInvariantTest is StdInvariant, Test {
     // ── The flat harvest accumulator conserves ────────────────────────────────
     // Each harvest split the realized yield exactly 80/19/1, and the running accumulator never distributed
     // more yield than was ever injected.
+    //
+    // "Injected" is on a REALIZED basis, not the raw `simulateYield` total: principal a withdrawal debited
+    // from the basis but left behind in the position is genuine distributable yield with no injection behind
+    // it, and the handler books it at the call that surfaces it. `EndowmentVaultHandler`'s `_yieldPoolValue`
+    // and `_strandedInPosition` name the two shapes that produce one, and
+    // `EndowmentStrandedPrincipalRegression` pins the second deterministically.
+    //
+    // "Distributed" is likewise every leg the vault has paid, not only the ones `harvest()` paid. The vault's
+    // `_deposit`, `execute`, `migratePosition` and `releaseCorpusToCommunity` all open with the same
+    // `_crystallizeYield` body, so each of them can pay all three legs before it touches principal, and the
+    // handler books the leg deltas of the three it drives (`EndowmentVaultHandler._legsPaid`, which carries
+    // the whole call-site set and why the release is absent). That widens what this bound covers — a
+    // distribution made on the way into an execute or a migration is now inside it — and it is what keeps
+    // `sumYieldInjected - sumHarvestDistributed` an exact figure for what the vault still owes, which is the
+    // quantity the deposit-side strand booking subtracts against.
     function invariant_harvestFlatSplitConserves() public view {
         assertFalse(handler.ghost_harvestSplitViolation(), "endowment: harvest split mismatch");
         assertLe(
             handler.sumHarvestDistributed(),
             handler.sumYieldInjected(),
             "endowment: harvest distributed more yield than was injected"
+        );
+    }
+
+    // ── A deposit hands back a strand; it never mints one ─────────────────────
+    // Booking a strand into the injected ghost would be a hole if a deposit could raise the yield pool by an
+    // arbitrary amount, so the MAGNITUDE is bounded separately from the direction above: what appears across
+    // a deposit may not exceed the assets the ERC-4626 was already holding unpriced. A pool that outruns that
+    // strand is a deposit minting yield out of the share arithmetic — the defect, rather than the rounding.
+    function invariant_depositRecoversAStrandButNeverMintsOne() public view {
+        assertFalse(
+            handler.ghost_depositMintedYield(),
+            "endowment: a deposit raised the yield pool beyond the strand it inherited"
         );
     }
 
