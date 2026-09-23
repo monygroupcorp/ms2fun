@@ -4,8 +4,9 @@
  * Drives the REAL stepped launch wizard with an injected, auto-signing anvil wallet to prove the
  * alignment step renders the two-level picker grouped off on-chain `vaultType()`:
  *   - Level 1: the two economic families — Yield (Aave endowment) and Liquidity (LP).
- *   - Level 2: the venues under the chosen family — Liquidity ⇒ Uniswap V4 / ZAMM / Cypher (all
- *     deployed + liquidity-ready on the fork), Yield ⇒ Aave.
+ *   - Level 2: the venues under the chosen family — Liquidity ⇒ Uniswap V4 / ZAMM (both deployed
+ *     + liquidity-ready on the fork), Yield ⇒ Aave. The retired Cypher venue is asserted ABSENT, so
+ *     a picker that starts offering it again fails here rather than at create time.
  * Then it creates an ERC-1155 collection aligned to the Liquidity → Uniswap V4 venue and asserts on
  * -chain (via viem) that the bound vault is actually a `UniswapV4LP` vault — i.e. picking a family
  * produced a working create tx bound to the venue the creator chose.
@@ -87,11 +88,12 @@ test('vault flavors: alignment step is a family → venue picker; Liquidity → 
   await expect(yieldFamily).toBeVisible()
   await expect(lpFamily).toBeVisible()
 
-  // Level 2 under Liquidity: all three LP venues are deployed + liquidity-ready on the fork.
+  // Level 2 under Liquidity: both LP venues are deployed + liquidity-ready on the fork, and the
+  // retired one is offered by neither family.
   await lpFamily.click()
   await expect(page.getByRole('button', { name: /^Uniswap V4/ })).toBeVisible()
   await expect(page.getByRole('button', { name: /^ZAMM/ })).toBeVisible()
-  await expect(page.getByRole('button', { name: /^Cypher/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Cypher/ })).toHaveCount(0)
 
   // Switching to Yield swaps the venue set to the endowment (Aave) and drops the LP venues.
   await yieldFamily.click()
