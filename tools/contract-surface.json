@@ -119,6 +119,10 @@
       "artifact": "UniTitheHookFactory.sol"
     },
     {
+      "name": "AlignmentHookSwapRouter",
+      "artifact": "AlignmentHookSwapRouter.sol"
+    },
+    {
       "$comment": "Deployed once each, and the only way a creator gets a vault."
     },
     {

@@ -180,7 +180,28 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
 
     mapping(address => PendingCut) public pendingVaultCut;
 
+    /// @notice The alignment hook this module minted for a graduated instance, or `address(0)` where
+    ///         that graduation took the default untaxed path.
+    /// @dev A hooked pool's `PoolKey` names the hook, so anything that wants to TRADE that pool —
+    ///      the app's swap panel above all — has to learn the address from somewhere. It was
+    ///      previously a local in `_setupPoolAndUnlock`, discarded once the key was built, leaving
+    ///      the hook recoverable only by recomputing the factory's init-code hash from all nine of
+    ///      its constructor arguments, or by scraping `AlignmentHookDeployed` logs. Both are ways of
+    ///      asking this contract a question it can simply answer, and a log scrape in particular is
+    ///      not something a wallet can do cheaply at page load. Recording it also makes the two pool
+    ///      shapes distinguishable without inspecting the pool: zero is the static-fee hookless key,
+    ///      non-zero the dynamic-fee hooked one.
+    ///
+    ///      Reading zero is NOT the same as the question being unanswerable. This getter exists only
+    ///      on the Uni-V4 deployer; the ZAMM module declares nothing of the sort, so a caller that
+    ///      asks the wrong module gets a revert rather than a zero and must hold the two apart.
+    mapping(address instance => address hook) public graduationHook;
+
     event LiquidityDeployed(address indexed pool, uint256 amountToken, uint256 amountETH);
+    /// @notice A graduation minted an alignment hook, and this instance's pool key carries it.
+    /// @dev Emitted on the hooked path only; the untaxed default emits nothing, so the presence of
+    ///      this topic reads as "this instance graduated into a dynamic-fee pool".
+    event GraduationHookBound(address indexed instance, address indexed hook);
     event GraduationFeePaid(address indexed treasury, uint256 amount);
     event GraduationVaultContribution(address indexed vault, uint256 amount);
     /// @notice The creator's own carve. `requested` is `p.carveEth` — what the creator asked for, on the
@@ -390,6 +411,12 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
                 .deployHook(IAlignmentVault(payable(p.vault)), p.instance, hookFeeBips, lpFeeRate, p.token, tickSpacing);
             hooks = IHooks(hookAddr);
             fee = LPFeeLibrary.DYNAMIC_FEE_FLAG;
+            // Recorded so the pool this graduation creates can be NAMED afterwards. The key's other
+            // four members are already public (the two currencies, this module's `tickSpacing`, and
+            // a fee that is `DYNAMIC_FEE_FLAG` exactly when this is non-zero); the hook was the one
+            // member nothing could recover, and without it the pool cannot be traded.
+            graduationHook[p.instance] = hookAddr;
+            emit GraduationHookBound(p.instance, hookAddr);
         }
 
         setup.poolKey =

@@ -76,6 +76,15 @@ export interface Addresses {
   zRouter: `0x${string}`
   ModuleUniV4Deployer: `0x${string}`
   ModuleZAMMDeployer: `0x${string}`
+  /**
+   * The hooked-pool swap periphery. Once the alignment-hook switch is thrown, a graduation pool's
+   * key carries the minted hook and a dynamic fee, and `zRouter` above cannot name it: its V4 entry
+   * point takes a fee tier and a tick spacing and builds the key with no hook at all. This router
+   * is deployed from this repo's own source on every network for exactly that reason, so the trade
+   * a testnet rehearses is the trade mainnet runs. Zero on a network with no Uniswap V4 deployment,
+   * and the panel reads that the way it reads any missing router: it says so instead of trading.
+   */
+  AlignmentHookSwapRouter: `0x${string}`
 }
 
 /** Every key of {@link Addresses}, in the order the deploy bridges write them. */
@@ -101,6 +110,7 @@ export const ADDRESS_KEYS = [
   'zRouter',
   'ModuleUniV4Deployer',
   'ModuleZAMMDeployer',
+  'AlignmentHookSwapRouter',
 ] as const satisfies readonly (keyof Addresses)[]
 
 /**

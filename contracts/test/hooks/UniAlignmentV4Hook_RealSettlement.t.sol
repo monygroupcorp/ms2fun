@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import { Test, console2 } from "forge-std/Test.sol";
+import { Test, console2, stdError } from "forge-std/Test.sol";
 import { IHooks } from "v4-core/interfaces/IHooks.sol";
 import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
 import { PoolManager } from "v4-core/PoolManager.sol";
@@ -22,6 +22,7 @@ import { ILiquidityDeployerModule } from "../../src/interfaces/ILiquidityDeploye
 import { MockMasterRegistry } from "../mocks/MockMasterRegistry.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
+import { AlignmentHookSwapRouter } from "../../src/peripherals/AlignmentHookSwapRouter.sol";
 
 /**
  * @title UniAlignmentV4Hook_RealSettlement
@@ -786,6 +787,291 @@ contract LiquidityDeployerModuleGraduation_RealSettlement is Test {
 
     function _settings() internal pure returns (PoolSwapTest.TestSettings memory) {
         return PoolSwapTest.TestSettings({ takeClaims: false, settleUsingBurn: false });
+    }
+
+    receive() external payable { }
+}
+
+/**
+ * @title GraduatedHookedPoolIsTradeable_RealSettlement
+ * @notice Proves a collection that graduates into a HOOKED pool can actually be traded, through the
+ *         periphery the app routes at — `AlignmentHookSwapRouter` — against a real in-memory v4-core
+ *         PoolManager, and that every taxed trade credits the alignment vault.
+ *
+ * @dev WHY A SECOND SWAP PROOF EXISTS ALONGSIDE THE ONE ABOVE.
+ *      `LiquidityDeployerModuleGraduation_RealSettlement` already drives the four swap shapes across a
+ *      graduated hooked pool, and it proves the MECHANISM: the hook tithes, the pool settles. It drives
+ *      them through `PoolSwapTest`, which is v4-core's test harness — no deployment of it exists on any
+ *      real network. So it says nothing about whether a user can trade the pool, and a swap path can be
+ *      entirely broken while it stays green. That is exactly the state this file was in: the aggregator
+ *      the app calls builds its V4 key with `hooks: address(0)` and has no argument that could carry a
+ *      hook, so every one of these pools was untradeable from the app while the mechanism tests passed.
+ *
+ *      This contract therefore re-runs the shapes that matter through the CONTRACT THAT SHIPS. It is a
+ *      deliberate near-duplicate of the proof above, and the duplication is the point: if the two ever
+ *      disagree, the difference is the periphery, which is the thing under test.
+ *
+ *      Fee-tier independence is asserted too. A caller that knows only the module's static `poolFee`
+ *      names a pool that was never initialized, so the test pins that the honest-looking wrong key
+ *      fails rather than silently trading something else.
+ */
+contract GraduatedHookedPoolIsTradeable_RealSettlement is Test {
+    /// @dev Stands in for the graduating ERC404 instance; the module handshakes this at graduation.
+    function markGraduationSkipNFT(address) external { }
+
+    using StateLibrary for IPoolManager;
+    using PoolIdLibrary for PoolKey;
+
+    PoolManager internal manager;
+    AlignmentHookSwapRouter internal router;
+
+    UniTitheHookFactory internal factory;
+    LiquidityDeployerModule internal module;
+    MockMasterRegistry internal registry;
+    MockVault internal vault;
+    TestToken internal token;
+
+    Currency internal ethCurrency;
+    Currency internal tokenCurrency;
+
+    address internal constant WETH = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    address internal owner = address(0xB055);
+    /// @dev The trader, kept distinct from this contract (which is the graduating instance and the LP
+    ///      recipient) so "the vault was credited" cannot be confused with "the caller got change back".
+    address internal trader = address(0x7EAD);
+
+    uint256 internal constant HOOK_FEE_BIPS = 100; // 1%
+    uint24 internal constant LP_FEE_RATE = 3000;
+    uint24 internal constant POOL_FEE = 3000; // the static fee of the UNTAXED default path
+    int24 internal constant TICK_SPACING = 60;
+
+    function setUp() public {
+        manager = new PoolManager(address(this));
+        router = new AlignmentHookSwapRouter(address(manager));
+
+        token = new TestToken();
+        tokenCurrency = Currency.wrap(address(token));
+        ethCurrency = CurrencyLibrary.ADDRESS_ZERO;
+
+        vault = new MockVault();
+        registry = new MockMasterRegistry();
+        factory = new UniTitheHookFactory(IPoolManager(address(manager)), WETH, owner, address(registry));
+        module = new LiquidityDeployerModule(address(manager), WETH, POOL_FEE, TICK_SPACING, address(registry));
+
+        // The hook switch thrown, which is the configuration this whole contract is about.
+        module.setAlignmentHookFactory(address(factory));
+        module.setHookFeeBips(HOOK_FEE_BIPS);
+        module.setLpFeeRate(LP_FEE_RATE);
+    }
+
+    /// @notice The end-to-end claim: graduate with the hook on, then buy and sell through the shipped
+    ///         router. Both trades must settle, and both must credit the vault.
+    function test_graduatedHookedPool_tradesThroughRouter_andCreditsVault() public {
+        _graduate(100 ether, 1_000_000 ether);
+
+        // The app cannot build the key without this, so the read is part of the path under test.
+        address hookAddr = module.graduationHook(address(this));
+        assertTrue(hookAddr != address(0), "module records the hook it minted");
+
+        PoolKey memory key = _hookedKey(hookAddr);
+        (uint160 sqrtPrice,,,) = StateLibrary.getSlot0(IPoolManager(address(manager)), key.toId());
+        assertTrue(sqrtPrice != 0, "the graduation pool is the key the module recorded");
+
+        _fundTrader();
+
+        // ── BUY: exact-input ETH -> token ────────────────────────────────────
+        uint256 vaultBefore = vault.totalReceived();
+        uint256 traderTokensBefore = token.balanceOf(trader);
+        uint256 traderEthBefore = trader.balance;
+
+        vm.prank(trader);
+        (uint256 amountIn, uint256 amountOut) =
+            router.swap{ value: 1 ether }(key, true, false, 1 ether, 0, trader, block.timestamp);
+
+        assertEq(amountIn, 1 ether, "exact-input buy spends exactly what was asked");
+        assertGt(amountOut, 0, "the buy settled and delivered token");
+        assertEq(token.balanceOf(trader) - traderTokensBefore, amountOut, "token reached the trader");
+        assertEq(traderEthBefore - trader.balance, 1 ether, "no ETH stranded in the router");
+        assertEq(
+            vault.totalReceived() - vaultBefore,
+            (1 ether * HOOK_FEE_BIPS) / 10_000,
+            "the buy tithed exactly 1% of the ETH input to the vault"
+        );
+
+        // ── SELL: exact-input token -> ETH ───────────────────────────────────
+        vaultBefore = vault.totalReceived();
+        traderEthBefore = trader.balance;
+
+        vm.startPrank(trader);
+        token.approve(address(router), type(uint256).max);
+        (uint256 sellIn, uint256 sellOut) = router.swap(key, false, false, 1e18, 0, trader, block.timestamp);
+        vm.stopPrank();
+
+        assertEq(sellIn, 1e18, "exact-input sell spends exactly what was asked");
+        assertGt(sellOut, 0, "the sell settled and delivered ETH");
+        assertEq(trader.balance - traderEthBefore, sellOut, "ETH reached the trader");
+        assertGt(vault.totalReceived() - vaultBefore, 0, "the sell tithed ETH to the vault");
+
+        // Nothing accumulates in the periphery between trades.
+        assertEq(address(router).balance, 0, "router holds no ETH after trading");
+        assertEq(token.balanceOf(address(router)), 0, "router holds no token after trading");
+    }
+
+    /// @notice An exact-OUTPUT buy is the shape whose input the caller cannot size in advance, because
+    ///         the hook's cut is priced inside the swap. The router must settle the delta it is handed
+    ///         rather than the amount requested, and hand the overpayment back.
+    function test_exactOutputBuy_settlesHookDelta_andRefundsChange() public {
+        _graduate(100 ether, 1_000_000 ether);
+        PoolKey memory key = _hookedKey(module.graduationHook(address(this)));
+        _fundTrader();
+
+        uint256 vaultBefore = vault.totalReceived();
+        uint256 traderEthBefore = trader.balance;
+
+        vm.prank(trader);
+        (uint256 amountIn, uint256 amountOut) =
+            router.swap{ value: 50 ether }(key, true, true, 1e18, 0, trader, block.timestamp);
+
+        assertEq(amountOut, 1e18, "exact-output buy delivers exactly what was asked");
+        assertGt(amountIn, 0, "the buy settled");
+        assertEq(traderEthBefore - trader.balance, amountIn, "the trader paid the delta and got the rest back");
+        assertGt(vault.totalReceived() - vaultBefore, 0, "the exact-output buy tithed ETH to the vault");
+        assertEq(address(router).balance, 0, "no change stranded in the router");
+    }
+
+    /// @notice The defect this work exists to close, pinned as a test: a caller that names the pool by
+    ///         the module's static fee tier and no hook — which is what the app did, and all the
+    ///         aggregator's V4 entry point can express — is naming an uninitialized pool.
+    function test_hooklessKey_namesAPoolThatDoesNotExist() public {
+        _graduate(100 ether, 1_000_000 ether);
+        _fundTrader();
+
+        PoolKey memory hooklessKey = PoolKey({
+            currency0: ethCurrency,
+            currency1: tokenCurrency,
+            fee: POOL_FEE,
+            tickSpacing: TICK_SPACING,
+            hooks: IHooks(address(0))
+        });
+        (uint160 sqrtPrice,,,) = StateLibrary.getSlot0(IPoolManager(address(manager)), hooklessKey.toId());
+        assertEq(sqrtPrice, 0, "the hookless static-fee pool was never initialized");
+
+        // The router refuses it up front rather than reverting deep inside the manager.
+        vm.prank(trader);
+        vm.expectRevert(AlignmentHookSwapRouter.PoolHasNoHook.selector);
+        router.swap{ value: 1 ether }(hooklessKey, true, false, 1 ether, 0, trader, block.timestamp);
+    }
+
+    /// @notice The slippage bound is enforced on the amount the trade ACTUALLY yields, hook cut
+    ///         included — a bound computed against an untithed quote must fail rather than pass.
+    function test_slippageBoundIsEnforcedAgainstTheTithedResult() public {
+        _graduate(100 ether, 1_000_000 ether);
+        PoolKey memory key = _hookedKey(module.graduationHook(address(this)));
+        _fundTrader();
+
+        // Quote the trade with the bound disabled, exactly as the app's simulation does.
+        vm.prank(trader);
+        (, uint256 quoted) = router.swap{ value: 1 ether }(key, true, false, 1 ether, 0, trader, block.timestamp);
+
+        // Demanding more than the pool just paid, at the same size, must revert rather than fill.
+        vm.prank(trader);
+        vm.expectRevert(AlignmentHookSwapRouter.Slippage.selector);
+        router.swap{ value: 1 ether }(key, true, false, 1 ether, quoted * 2, trader, block.timestamp);
+    }
+
+    /// @notice A refund is this trade's change, not a sweep of the router's balance. The periphery
+    ///         has no `receive()` and the manager pays a sell's ETH leg straight to the recipient, so
+    ///         nothing it does strands ETH — but `selfdestruct` and a block reward reach any address
+    ///         whether it accepts payment or not, and ETH that arrives that way must not be
+    ///         collectable by whoever trades next.
+    function test_refundIsBoundedToTheCallersOwnChange() public {
+        _graduate(100 ether, 1_000_000 ether);
+        PoolKey memory key = _hookedKey(module.graduationHook(address(this)));
+        _fundTrader();
+
+        // A stranger's ETH, sitting in the router before the trade.
+        vm.deal(address(router), 5 ether);
+
+        uint256 traderEthBefore = trader.balance;
+        vm.prank(trader);
+        (uint256 amountIn,) = router.swap{ value: 1 ether }(key, true, false, 1 ether, 0, trader, block.timestamp);
+
+        assertEq(
+            traderEthBefore - trader.balance, amountIn, "the trader paid its input and got back only its own change"
+        );
+        assertEq(address(router).balance, 5 ether, "the stranger's ETH is untouched");
+    }
+
+    /// @notice The other half of that bound, and the half a refactor could quietly undo: a trade that
+    ///         would have to DRAW on stranded ETH to settle does not merely refund nothing, it reverts
+    ///         the whole transaction. The aggregator clamps the equivalent figure at zero, so a reader
+    ///         arriving from that code may read the router's subtraction as an oversight and "fix" it
+    ///         into a clamp — which would let a caller settle a trade out of someone else's money and
+    ///         keep the goods. This pins the divergence as the deliberate thing it is.
+    function test_drawingOnStrandedEthRevertsTheWholeTrade() public {
+        _graduate(100 ether, 1_000_000 ether);
+        PoolKey memory key = _hookedKey(module.graduationHook(address(this)));
+        _fundTrader();
+
+        // A stranger's ETH, far more than the buy below needs.
+        vm.deal(address(router), 5 ether);
+
+        // An exact-OUTPUT buy that sends no ETH of its own. The ETH leg settles out of the router's
+        // balance, which is entirely the stranger's, so the change computation underflows.
+        vm.prank(trader);
+        vm.expectRevert(stdError.arithmeticError);
+        router.swap(key, true, true, 1e18, 0, trader, block.timestamp);
+
+        assertEq(address(router).balance, 5 ether, "the stranger's ETH survived the attempt");
+        assertEq(token.balanceOf(trader), 1_000_000 ether, "no token was delivered on the reverted trade");
+    }
+
+    /// @notice `amount` is unsigned at this surface and V4's `amountSpecified` is signed. A value that
+    ///         would wrap the cast negative is refused by name, rather than silently becoming the
+    ///         opposite trade — an exact-output request turning into an exact-input one.
+    function test_amountThatWouldWrapTheSignedCastIsRefused() public {
+        _graduate(100 ether, 1_000_000 ether);
+        PoolKey memory key = _hookedKey(module.graduationHook(address(this)));
+        _fundTrader();
+
+        vm.prank(trader);
+        vm.expectRevert(AlignmentHookSwapRouter.AmountTooLarge.selector);
+        router.swap{ value: 1 ether }(key, true, true, uint256(type(int256).max) + 1, 0, trader, block.timestamp);
+    }
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    function _graduate(uint256 ethReserve, uint256 tokenReserve) internal {
+        token.mint(address(module), tokenReserve);
+        vm.deal(address(this), ethReserve);
+        module.deployLiquidity{ value: ethReserve }(
+            ILiquidityDeployerModule.DeployParams({
+                ethReserve: ethReserve,
+                tokenReserve: tokenReserve,
+                protocolTreasury: address(0),
+                vault: address(vault),
+                token: address(token),
+                instance: address(this),
+                creator: address(0),
+                carveEth: 0,
+                excessEth: 0
+            })
+        );
+    }
+
+    function _hookedKey(address hookAddr) internal view returns (PoolKey memory) {
+        return PoolKey({
+            currency0: ethCurrency,
+            currency1: tokenCurrency,
+            fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
+            tickSpacing: TICK_SPACING,
+            hooks: IHooks(hookAddr)
+        });
+    }
+
+    function _fundTrader() internal {
+        vm.deal(trader, 1_000 ether);
+        token.mint(trader, 1_000_000 ether);
     }
 
     receive() external payable { }

@@ -542,6 +542,16 @@ Build from the commit that carries the §5.3 address record. Both targets stamp 
 footer, so the running site names the build a bug report was found on. Record the CID next to the
 commit.
 
+**The app and `LiquidityDeployerModule` ship together, and the direction that breaks is the app
+going first.** The module is a plain non-upgradeable `Ownable` singleton, so any change to its
+storage — `graduationHook`, which records the alignment hook a graduation minted, is one — is a new
+module address and a fresh broadcast, not a patch to the live one. The app resolves a graduated
+Uni-V4 collection's pool key by calling the module the instance names, so a bundle that expects a
+getter the deployed module does not declare reads the revert as "cannot say" and renders **every**
+graduated Uni-V4 collection as an unresolved venue. The site is up, the collections load, and only
+their trade panel is gone — which is why this is worth a line here rather than being left to show
+up in §6.5. Publish the bundle only after the module it reads from is the one in the §5.3 record.
+
 ### 7.2 Pin — **Pinata**
 
 The pin host is **Pinata**, and rth holds the account. This supersedes the self-pinning note in

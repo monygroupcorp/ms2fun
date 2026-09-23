@@ -850,6 +850,73 @@ export const alignmentEndowmentVaultAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// AlignmentHookSwapRouter
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const alignmentHookSwapRouterAbi = [
+  {
+    type: 'constructor',
+    inputs: [
+      { name: '_poolManager', internalType: 'address', type: 'address' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'poolManager',
+    outputs: [
+      { name: '', internalType: 'contract IPoolManager', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      {
+        name: 'key',
+        internalType: 'struct PoolKey',
+        type: 'tuple',
+        components: [
+          { name: 'currency0', internalType: 'Currency', type: 'address' },
+          { name: 'currency1', internalType: 'Currency', type: 'address' },
+          { name: 'fee', internalType: 'uint24', type: 'uint24' },
+          { name: 'tickSpacing', internalType: 'int24', type: 'int24' },
+          { name: 'hooks', internalType: 'contract IHooks', type: 'address' },
+        ],
+      },
+      { name: 'zeroForOne', internalType: 'bool', type: 'bool' },
+      { name: 'exactOut', internalType: 'bool', type: 'bool' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+      { name: 'amountLimit', internalType: 'uint256', type: 'uint256' },
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'deadline', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'swap',
+    outputs: [
+      { name: 'amountIn', internalType: 'uint256', type: 'uint256' },
+      { name: 'amountOut', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'rawData', internalType: 'bytes', type: 'bytes' }],
+    name: 'unlockCallback',
+    outputs: [{ name: '', internalType: 'bytes', type: 'bytes' }],
+    stateMutability: 'nonpayable',
+  },
+  { type: 'error', inputs: [], name: 'AmountTooLarge' },
+  { type: 'error', inputs: [], name: 'Expired' },
+  { type: 'error', inputs: [], name: 'NotPoolManager' },
+  { type: 'error', inputs: [], name: 'NotSwapping' },
+  { type: 'error', inputs: [], name: 'PoolHasNoHook' },
+  { type: 'error', inputs: [], name: 'PoolNotNativeEth' },
+  { type: 'error', inputs: [], name: 'Slippage' },
+  { type: 'error', inputs: [], name: 'ZeroAmount' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // AlignmentRegistryV1
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -10240,6 +10307,13 @@ export const liquidityDeployerModuleAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'graduationHook',
+    outputs: [{ name: 'hook', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'hookFeeBips',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
@@ -10468,6 +10542,20 @@ export const liquidityDeployerModuleAbi = [
       },
     ],
     name: 'GraduationFeePaid',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'hook', internalType: 'address', type: 'address', indexed: true },
+    ],
+    name: 'GraduationHookBound',
   },
   {
     type: 'event',
@@ -16203,6 +16291,69 @@ export const useWatchAlignmentEndowmentVaultYieldDistributedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: alignmentEndowmentVaultAbi,
     eventName: 'YieldDistributed',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentHookSwapRouterAbi}__
+ */
+export const useReadAlignmentHookSwapRouter =
+  /*#__PURE__*/ createUseReadContract({ abi: alignmentHookSwapRouterAbi })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentHookSwapRouterAbi}__ and `functionName` set to `"poolManager"`
+ */
+export const useReadAlignmentHookSwapRouterPoolManager =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentHookSwapRouterAbi,
+    functionName: 'poolManager',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentHookSwapRouterAbi}__
+ */
+export const useWriteAlignmentHookSwapRouter =
+  /*#__PURE__*/ createUseWriteContract({ abi: alignmentHookSwapRouterAbi })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentHookSwapRouterAbi}__ and `functionName` set to `"swap"`
+ */
+export const useWriteAlignmentHookSwapRouterSwap =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentHookSwapRouterAbi,
+    functionName: 'swap',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentHookSwapRouterAbi}__ and `functionName` set to `"unlockCallback"`
+ */
+export const useWriteAlignmentHookSwapRouterUnlockCallback =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentHookSwapRouterAbi,
+    functionName: 'unlockCallback',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentHookSwapRouterAbi}__
+ */
+export const useSimulateAlignmentHookSwapRouter =
+  /*#__PURE__*/ createUseSimulateContract({ abi: alignmentHookSwapRouterAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentHookSwapRouterAbi}__ and `functionName` set to `"swap"`
+ */
+export const useSimulateAlignmentHookSwapRouterSwap =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentHookSwapRouterAbi,
+    functionName: 'swap',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentHookSwapRouterAbi}__ and `functionName` set to `"unlockCallback"`
+ */
+export const useSimulateAlignmentHookSwapRouterUnlockCallback =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentHookSwapRouterAbi,
+    functionName: 'unlockCallback',
   })
 
 /**
@@ -25648,6 +25799,15 @@ export const useReadLiquidityDeployerModuleAlignmentHookFactory =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"graduationHook"`
+ */
+export const useReadLiquidityDeployerModuleGraduationHook =
+  /*#__PURE__*/ createUseReadContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'graduationHook',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"hookFeeBips"`
  */
 export const useReadLiquidityDeployerModuleHookFeeBips =
@@ -26032,6 +26192,15 @@ export const useWatchLiquidityDeployerModuleGraduationFeePaidEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: liquidityDeployerModuleAbi,
     eventName: 'GraduationFeePaid',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"GraduationHookBound"`
+ */
+export const useWatchLiquidityDeployerModuleGraduationHookBoundEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'GraduationHookBound',
   })
 
 /**

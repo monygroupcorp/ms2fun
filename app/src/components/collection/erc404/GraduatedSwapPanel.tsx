@@ -1,14 +1,18 @@
 /**
  * Embedded post-graduation swap (B19 · noesis-349). Once an ERC-404 curve graduates, its token
- * trades on the venue it deployed liquidity to — and it trades IN-SITE on every one of them. One
- * router covers both venues: zRouter, which handles Uni-V4 (`swapV4`) and ZAMM (`swapVZ`) natively.
+ * trades on the venue it deployed liquidity to — and it trades IN-SITE on every one of them. Two
+ * routers cover it:
+ *  - zRouter, which handles Uni-V4 (`swapV4`) and ZAMM (`swapVZ`) natively;
+ *  - `AlignmentHookSwapRouter`, for a Uni-V4 graduation whose pool key carries an alignment hook.
+ *    zRouter's V4 entry point has no hook argument at all, so it can only build a hookless key —
+ *    which names a pool that was never initialized, and a trade against it cannot settle.
  * There is no link-out fallback anywhere in this surface. A venue the app cannot resolve renders as
  * an unresolved venue (see `BondingSurface`), never as a redirect to somebody else's exchange.
  *
  * Shape mirrors the bonding `SwapPanel`: direction toggle · amount · live quote · slippage · action.
  * Differences that come from trading a real pool instead of the curve:
  *  - the input is the *spent* asset (buy → ETH, sell → tokens), DEX-style;
- *  - there's no view-quoter on the router, so the quote is an `eth_call` SIMULATION of the very
+ *  - there's no view-quoter on either router, so the quote is an `eth_call` SIMULATION of the very
  *    swap that will be signed, with the min-out set to 0; slippage is then applied to the returned
  *    amountOut as the on-chain min-out floor;
  *  - token→ETH sells pull via `transferFrom`, so they're approve-then-swap (buys need no approval),
@@ -16,7 +20,8 @@
  *    allowance too.
  *
  * Native ETH: zRouter takes ETH as the sentinel `address(0)` and wraps/unwraps internally, so a buy
- * rides the ETH as `msg.value` and a sell settles straight back in native ETH.
+ * rides the ETH as `msg.value` and a sell settles straight back in native ETH. A hooked pool's key
+ * names native ETH as `currency0` under the same sentinel, so the hooked path settles identically.
  */
 import { useEffect, useRef, useState } from 'react'
 import { formatUnits, maxUint256, parseUnits, zeroAddress } from 'viem'
@@ -26,8 +31,10 @@ import {
   useReadErc404BondingInstanceAllowance,
   useReadErc404BondingInstanceBalanceOf,
   useReadErc404BondingInstanceSymbol,
+  useSimulateAlignmentHookSwapRouterSwap,
   useSimulateZRouterSwapV4,
   useSimulateZRouterSwapVz,
+  useWriteAlignmentHookSwapRouterSwap,
   useWriteErc404BondingInstanceApprove,
   useWriteZRouterSwapV4,
   useWriteZRouterSwapVz,
@@ -80,9 +87,17 @@ export function GraduatedSwapPanel({
   const [amountStr, setAmountStr] = useState('')
   const [slippagePct, setSlippagePct] = useState('1')
 
-  // Both venues sign against zRouter — also the address a sell must approve.
+  // A Uni-V4 pool whose key names an alignment hook is NOT reachable through the aggregator: its V4
+  // entry point builds the key with no hook, so it names an uninitialized pool and the trade cannot
+  // settle. Those graduations route through the hooked-pool periphery instead. The split is per
+  // INSTANCE, not per network — both pool shapes coexist on the same chain, either side of the
+  // governed moment the hook switch was thrown.
+  const isHookedUni = venue.kind === 'uniV4' && venue.hook !== undefined
   const zRouter = addresses.zRouter
-  const routerReady = Boolean(zRouter) && zRouter !== zeroAddress
+  const hookedRouter = addresses.AlignmentHookSwapRouter
+  // Whichever router this venue signs against — also the address a sell must approve.
+  const router = isHookedUni ? hookedRouter : zRouter
+  const routerReady = Boolean(router) && router !== zeroAddress
   const isBuy = direction === 'buy'
 
   const symbolRead = useReadErc404BondingInstanceSymbol({ address: instance, chainId: chainId })
@@ -109,7 +124,7 @@ export function GraduatedSwapPanel({
   const allowanceRead = useReadErc404BondingInstanceAllowance({
     address: instance,
     chainId: chainId,
-    args: address && routerReady ? [address, zRouter] : undefined,
+    args: address && routerReady ? [address, router] : undefined,
     query: { enabled: Boolean(address) && routerReady },
   })
   const allowance = allowanceRead.data ?? 0n
@@ -132,6 +147,32 @@ export function GraduatedSwapPanel({
   const quoteReady = isConnected && amountIn !== undefined && (isBuy || !needsApproval)
   const buyValue = isBuy && amountIn !== undefined ? amountIn : undefined
 
+  // The pool's FULL key, which is the whole reason this path exists. `venue.poolFee` already carries
+  // the dynamic-fee flag when the pool is hooked, so the key is assembled from the venue as read and
+  // nothing here re-derives a fee tier.
+  const hookedKey =
+    venue.kind === 'uniV4' && venue.hook !== undefined
+      ? ({
+          currency0: zeroAddress,
+          currency1: instance,
+          fee: venue.poolFee,
+          tickSpacing: venue.tickSpacing,
+          hooks: venue.hook,
+        } as const)
+      : undefined
+
+  const hookedSim = useSimulateAlignmentHookSwapRouterSwap({
+    ...(hookedRouter ? { address: hookedRouter } : {}),
+    chainId: chainId,
+    account: address,
+    value: buyValue,
+    args:
+      hookedKey && amountIn !== undefined
+        ? [hookedKey, isBuy, false, amountIn, 0n, address ?? zeroAddress, QUOTE_DEADLINE]
+        : undefined,
+    query: { enabled: quoteReady && isHookedUni && routerReady },
+  })
+
   const v4Sim = useSimulateZRouterSwapV4({
     address: zRouter,
     chainId: chainId,
@@ -151,7 +192,7 @@ export function GraduatedSwapPanel({
             QUOTE_DEADLINE,
           ]
         : undefined,
-    query: { enabled: quoteReady && venue.kind === 'uniV4' },
+    query: { enabled: quoteReady && venue.kind === 'uniV4' && !isHookedUni },
   })
   const vzSim = useSimulateZRouterSwapVz({
     address: zRouter,
@@ -179,7 +220,14 @@ export function GraduatedSwapPanel({
   let quoteOut: bigint | undefined
   let quoteIsFetching = false
   let quoteRawError: unknown
-  if (venue.kind === 'uniV4') {
+  if (isHookedUni) {
+    // Same (amountIn, amountOut) shape as the aggregator's legs, so index 1 is again what the user
+    // receives — and on a hooked pool that figure is already net of the hook's tithe, because the
+    // hook takes its cut inside the swap the simulation runs.
+    quoteOut = hookedSim.data?.result?.[1]
+    quoteIsFetching = hookedSim.isFetching
+    quoteRawError = hookedSim.error
+  } else if (venue.kind === 'uniV4') {
     // swapV4/swapVZ both return (amountIn, amountOut) — index 1 is what the user receives.
     quoteOut = v4Sim.data?.result?.[1]
     quoteIsFetching = v4Sim.isFetching
@@ -193,10 +241,19 @@ export function GraduatedSwapPanel({
 
   const approve = useWriteErc404BondingInstanceApprove()
   const v4Swap = useWriteZRouterSwapV4()
+  const hookedSwap = useWriteAlignmentHookSwapRouterSwap()
   const vzSwap = useWriteZRouterSwapVz()
-  const swapData = venue.kind === 'uniV4' ? v4Swap.data : vzSwap.data
-  const swapIsPending = venue.kind === 'uniV4' ? v4Swap.isPending : vzSwap.isPending
-  const swapRawError = venue.kind === 'uniV4' ? v4Swap.error : vzSwap.error
+  // Three writers are mounted because a hook cannot be called conditionally, but only ONE of them
+  // ever signs, and every read of writer state has to be a read of that same one. Selecting it once
+  // here is what makes that true by construction. Picking `data`, `isPending`, `error` and `reset`
+  // through four separate ternaries let them disagree, and they did: reset went to the aggregator's
+  // writer on a hooked venue while `data` was read from the hooked one, so the submitted hash was
+  // never cleared, the confirmed-swap screen re-rendered itself, and "trade again" was a dead button
+  // until the page was reloaded.
+  const swapWriter = isHookedUni ? hookedSwap : venue.kind === 'uniV4' ? v4Swap : vzSwap
+  const swapData = swapWriter.data
+  const swapIsPending = swapWriter.isPending
+  const swapRawError = swapWriter.error
 
   const { isLoading: isApproving, isSuccess: approveConfirmed } = useWaitForTransactionReceipt({
     hash: approve.data,
@@ -227,12 +284,20 @@ export function GraduatedSwapPanel({
 
   function handleApprove(): void {
     if (!routerReady) return
-    approve.writeContract({ address: instance, chainId: chainId, args: [zRouter, maxUint256] })
+    approve.writeContract({ address: instance, chainId: chainId, args: [router, maxUint256] })
   }
 
   function handleSwap(): void {
     if (amountIn === undefined || minOut === undefined) return
-    if (venue.kind === 'uniV4') {
+    if (hookedKey) {
+      if (!routerReady) return
+      hookedSwap.writeContract({
+        address: hookedRouter,
+        chainId: chainId,
+        args: [hookedKey, isBuy, false, amountIn, minOut, address ?? zeroAddress, deadline()],
+        value: buyValue,
+      })
+    } else if (venue.kind === 'uniV4') {
       v4Swap.writeContract({
         address: zRouter,
         chainId: chainId,
@@ -271,8 +336,8 @@ export function GraduatedSwapPanel({
   }
 
   function handleReset(): void {
-    if (venue.kind === 'uniV4') v4Swap.reset()
-    else vzSwap.reset()
+    // The writer that actually signed — which on a hooked Uni-V4 venue is not the aggregator's.
+    swapWriter.reset()
     setAmountStr('')
     void balanceRead.refetch()
     void allowanceRead.refetch()
