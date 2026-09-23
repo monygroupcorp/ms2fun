@@ -87,10 +87,6 @@
       "artifact": "ZAMMLiquidityDeployerModule.sol"
     },
     {
-      "name": "CypherLiquidityDeployerModule",
-      "artifact": "CypherLiquidityDeployerModule.sol"
-    },
-    {
       "name": "MerkleGatingModule",
       "artifact": "MerkleGatingModule.sol"
     },
@@ -138,10 +134,6 @@
       "artifact": "ZAMMAlignmentVaultFactory.sol"
     },
     {
-      "name": "CypherAlignmentVaultFactory",
-      "artifact": "CypherAlignmentVaultFactory.sol"
-    },
-    {
       "$comment": "One per creation. These carry most of the surface a buyer or creator ever touches."
     },
     {
@@ -171,10 +163,6 @@
     {
       "name": "ZAMMAlignmentVault",
       "artifact": "ZAMMAlignmentVault.sol"
-    },
-    {
-      "name": "CypherAlignmentVault",
-      "artifact": "CypherAlignmentVault.sol"
     }
   ],
   "interfaces": {
@@ -305,36 +293,31 @@
     }
   },
   "aliases": {
-    "$comment": "Hand-written ABI slices in app/src, and the deployed contracts each one addresses. A slice is a real UI path -- useVaultsSummary declares a three-fragment vault ABI because the full one trips TS2589 -- but nothing in the file says which contract it speaks to, so it is said here. One entry is not a slice but another contract's GENERATED binding: the four alignment vaults all implement IAlignmentVault, and useVaultOverview reads the shared selectors (vaultType, accumulatedFees, totalShares) off ANY vault through the endowment family's hooks rather than generating three more bindings for identical selectors. The call is real and the address is the LP vault's, so the credit belongs to the LP vault.",
+    "$comment": "Hand-written ABI slices in app/src, and the deployed contracts each one addresses. A slice is a real UI path -- useVaultsSummary declares a three-fragment vault ABI because the full one trips TS2589 -- but nothing in the file says which contract it speaks to, so it is said here. One entry is not a slice but another contract's GENERATED binding: the three alignment vaults all implement IAlignmentVault, and useVaultOverview reads the shared selectors (vaultType, accumulatedFees, totalShares) off ANY vault through the endowment family's hooks rather than generating two more bindings for identical selectors. The call is real and the address is the LP vault's, so the credit belongs to the LP vault.",
     "vaultSummaryAbi": [
       "AlignmentEndowmentVault",
       "UniAlignmentVault",
-      "ZAMMAlignmentVault",
-      "CypherAlignmentVault"
+      "ZAMMAlignmentVault"
     ],
     "vaultTypeAbi": [
       "AlignmentEndowmentVault",
       "UniAlignmentVault",
-      "ZAMMAlignmentVault",
-      "CypherAlignmentVault"
+      "ZAMMAlignmentVault"
     ],
     "alignmentTargetIdAbi": [
       "AlignmentEndowmentVault",
       "UniAlignmentVault",
-      "ZAMMAlignmentVault",
-      "CypherAlignmentVault"
+      "ZAMMAlignmentVault"
     ],
     "contributionReceivedAbi": [
       "AlignmentEndowmentVault",
       "UniAlignmentVault",
-      "ZAMMAlignmentVault",
-      "CypherAlignmentVault"
+      "ZAMMAlignmentVault"
     ],
     "vaultCutRedirectedAbi": [
       "AlignmentEndowmentVault",
       "UniAlignmentVault",
-      "ZAMMAlignmentVault",
-      "CypherAlignmentVault"
+      "ZAMMAlignmentVault"
     ],
     "vaultContributionFailedInstanceAbi": [
       "ERC404BondingInstance",
@@ -343,8 +326,7 @@
     ],
     "vaultContributionFailedModuleAbi": [
       "LiquidityDeployerModule",
-      "ZAMMLiquidityDeployerModule",
-      "CypherLiquidityDeployerModule"
+      "ZAMMLiquidityDeployerModule"
     ],
     "ownerAbi": [
       "*"
@@ -358,8 +340,7 @@
       "DynamicPricingModule",
       "ERC404StakingModule",
       "LiquidityDeployerModule",
-      "ZAMMLiquidityDeployerModule",
-      "CypherLiquidityDeployerModule"
+      "ZAMMLiquidityDeployerModule"
     ],
     "REGISTRY_NAME_ABI": [
       "ComponentRegistry"
@@ -370,8 +351,7 @@
     "VAULT_INFO_ABI": [
       "AlignmentEndowmentVault",
       "UniAlignmentVault",
-      "ZAMMAlignmentVault",
-      "CypherAlignmentVault"
+      "ZAMMAlignmentVault"
     ],
     "STYLE_ABI": [
       "ERC404BondingInstance",
@@ -381,8 +361,7 @@
     "alignmentEndowmentVaultAbi": {
       "contracts": [
         "UniAlignmentVault",
-        "ZAMMAlignmentVault",
-        "CypherAlignmentVault"
+        "ZAMMAlignmentVault"
       ],
       "functions": [
         "vaultType",
@@ -392,19 +371,16 @@
     },
     "lpVaultAbi": [
       "UniAlignmentVault",
-      "ZAMMAlignmentVault",
-      "CypherAlignmentVault"
+      "ZAMMAlignmentVault"
     ],
     "benefactorPositionAbi": [
       "UniAlignmentVault",
-      "ZAMMAlignmentVault",
-      "CypherAlignmentVault"
+      "ZAMMAlignmentVault"
     ],
     "communityPayoutAbi": [
       "AlignmentEndowmentVault",
       "UniAlignmentVault",
-      "ZAMMAlignmentVault",
-      "CypherAlignmentVault"
+      "ZAMMAlignmentVault"
     ]
   },
   "skip": [
@@ -590,10 +566,6 @@
     },
     {
       "match": "ZAMMLiquidityDeployerModule.deployLiquidity",
-      "why": "The module leg, entered from the instance. See LiquidityDeployerModule.deployLiquidity."
-    },
-    {
-      "match": "CypherLiquidityDeployerModule.deployLiquidity",
       "why": "The module leg, entered from the instance. See LiquidityDeployerModule.deployLiquidity."
     },
     {
@@ -857,10 +829,6 @@
       "why": "onlyOwner: vaults are stamped by the protocol when a target is curated, in the same operator run that curates it. A creator reaches a vault by aligning to a target, never by deploying one."
     },
     {
-      "match": "*Factory.createVault",
-      "why": "onlyOwner. See deployVault."
-    },
-    {
       "match": "*Factory.computeVaultAddress",
       "why": "The deterministic address the operator's run checks before it stamps. The app is told a vault's address by the registry."
     },
@@ -928,10 +896,6 @@
     {
       "match": "*.MIN_*",
       "why": "A compile-time constant. See MAX_*."
-    },
-    {
-      "match": "*.TICK_*",
-      "why": "A compile-time constant: the fixed tick range a vault's position is opened at. See MAX_*."
     },
     {
       "match": "*.*_BPS",
@@ -1108,7 +1072,7 @@
       "why": "The reverse index behind resolveName, which the app reads."
     },
     {
-      "$comment": "--- the alignment vault's benefactor surface. A benefactor is an ADDRESS, not necessarily a collection instance: UniAlignmentVault and ZAMMAlignmentVault credit `msg.sender` straight out of `receive()`, and all three liquidity families credit whatever address `receiveContribution` names, which carries no caller gate. So a wallet that sends a vault ETH holds real shares, a real claim and a real delegation, and the three liquidity families' benefactor surface is the vault page's `BenefactorPosition`. Only the endowment family is skipped here, and for a contract reason: it implements the three writes by reverting `NotSupported`. ---"
+      "$comment": "--- the alignment vault's benefactor surface. A benefactor is an ADDRESS, not necessarily a collection instance: UniAlignmentVault and ZAMMAlignmentVault credit `msg.sender` straight out of `receive()`, and both liquidity families credit whatever address `receiveContribution` names, which carries no caller gate. So a wallet that sends a vault ETH holds real shares, a real claim and a real delegation, and both liquidity families' benefactor surface is the vault page's `BenefactorPosition`. Only the endowment family is skipped here, and for a contract reason: it implements the three writes by reverting `NotSupported`. ---"
     },
     {
       "match": "AlignmentEndowmentVault.claimFees",
@@ -1136,7 +1100,7 @@
     },
     {
       "match": "AlignmentEndowmentVault.getBenefactorContribution",
-      "why": "The interface's generic contribution read, skipped for the endowment family alone. On the endowment a benefactor IS always a collection instance -- nothing credits a wallet, because there is no `receive()` path in -- and this read now returns `principalOf`: LIVE principal that FALLS as the curated target deploys it, since the vesting/escrow duality was deleted. The figures its creator acts on are `principalOf`, `vestedOf` and `pendingYieldOf`, which the collection's vault panel shows. `usePortfolio`/`PortfolioPanels` reads this figure through the QueryAggregator's batch (`v.contribution`) purely as a nonzero-position gate and, on the Outbound ledger, as a displayed number -- which family-blindly renders an endowment donor's contribution falling over time with no caption saying why. Whether that is the intended read is a product question, not a UI bug this pass fixes. On the three liquidity families the same read is the vault page's benefactor position, and is claimed rather than skipped."
+      "why": "The interface's generic contribution read, skipped for the endowment family alone. On the endowment a benefactor IS always a collection instance -- nothing credits a wallet, because there is no `receive()` path in -- and this read now returns `principalOf`: LIVE principal that FALLS as the curated target deploys it, since the vesting/escrow duality was deleted. The figures its creator acts on are `principalOf`, `vestedOf` and `pendingYieldOf`, which the collection's vault panel shows. `usePortfolio`/`PortfolioPanels` reads this figure through the QueryAggregator's batch (`v.contribution`) purely as a nonzero-position gate and, on the Outbound ledger, as a displayed number -- which family-blindly renders an endowment donor's contribution falling over time with no caption saying why. Whether that is the intended read is a product question, not a UI bug this pass fixes. On both liquidity families the same read is the vault page's benefactor position, and is claimed rather than skipped."
     },
     {
       "match": "AlignmentEndowmentVault.getBenefactorShares",
@@ -1214,18 +1178,6 @@
       "why": "The Aave static-aToken the endowment holds its position in -- a wired address. See masterRegistry."
     },
     {
-      "match": "*.positionManager",
-      "why": "A wired venue address (the LP position manager). See masterRegistry."
-    },
-    {
-      "match": "*.swapRouter",
-      "why": "A wired venue address (the periphery router the vault swaps through). See masterRegistry."
-    },
-    {
-      "match": "*.algebraFactory",
-      "why": "A wired venue address (the Algebra factory that names the vault's pool). See masterRegistry."
-    },
-    {
       "match": "*.v3Factory",
       "why": "A wired venue address (the v3 factory the price validator reads reference pools from). See masterRegistry."
     },
@@ -1262,14 +1214,6 @@
       "why": "The vault's pool identifier. See v4PoolKey."
     },
     {
-      "match": "*.lpPool",
-      "why": "The vault's pool address. See v4PoolKey."
-    },
-    {
-      "match": "*.lpTokenId",
-      "why": "The NFT id of the vault's LP position. See v4PoolKey."
-    },
-    {
       "match": "*.lpBalance",
       "why": "The vault's LP balance in the venue's own units. See v4PoolKey."
     },
@@ -1284,10 +1228,6 @@
     {
       "match": "*.lastTickUpper",
       "why": "The upper bound of the range the vault last added to. See v4PoolKey."
-    },
-    {
-      "match": "*.tokenIsZero",
-      "why": "Whether the alignment token sorts as currency0 in the vault's pool. Ordering bookkeeping the vault needs to read its own position; it says nothing to a reader."
     },
     {
       "match": "*.validateCurrentPoolKey",
