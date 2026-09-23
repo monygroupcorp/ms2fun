@@ -2,7 +2,7 @@
  * Hand-written ABI slice for the community-payout surface (`components/vault/CommunityPayoutPanel`).
  *
  * Two reasons it is hand-written rather than generated. The liquidity-family vaults
- * (`UniAlignmentVault`, `CypherAlignmentVault`, `ZAMMAlignmentVault`) have no generated bindings at
+ * (`UniAlignmentVault`, `ZAMMAlignmentVault`) have no generated bindings at
  * all — `wagmi.config.ts` does not include them, and pulling three large ABIs in would swamp this
  * change with an unrelated regen diff, the same reasoning `lib/tithe/abis.ts` records. And the
  * endowment vault's generated ABI is now large enough that inferring over it inside a batched read

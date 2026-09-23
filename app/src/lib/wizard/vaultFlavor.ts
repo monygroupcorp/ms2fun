@@ -3,40 +3,43 @@
  * `vaultType()` string, and groups a set of enriched vaults into the family → venue shape the
  * alignment picker renders. Pure + dependency-free so it's unit-testable without a chain.
  *
- * vaultType() is one of exactly: "AaveEndowment", "UniswapV4LP", "ZAMMLP", "CypherLP".
+ * vaultType() is one of exactly: "AaveEndowment", "UniswapV4LP", "ZAMMLP".
  *  - family: an "…LP" suffix ⇒ 'lp' (Liquidity); everything else ⇒ 'yield' (Yield).
- *  - venue:  for LP, the type with "LP" stripped ("UniswapV4" | "ZAMM" | "Cypher");
+ *  - venue:  for LP, the type with "LP" stripped ("UniswapV4" | "ZAMM");
  *            for yield, the vaultType itself ("AaveEndowment").
  */
 export type VaultFamily = 'yield' | 'lp'
 
 export interface VaultFlavor {
   family: VaultFamily
-  /** Machine venue id — "UniswapV4" | "ZAMM" | "Cypher" | "AaveEndowment" (or an unknown passthrough). */
+  /** Machine venue id — "UniswapV4" | "ZAMM" | "AaveEndowment" (or an id the app does not know). */
   venue: string
 }
 
-/** Human labels for the known venues (Uniswap V4 / ZAMM / Cypher / Aave). Unknown ⇒ the id itself. */
+/** Human labels for the venues the app supports (Uniswap V4 / ZAMM / Aave). */
 const VENUE_LABELS: Record<string, string> = {
   UniswapV4: 'Uniswap V4',
   ZAMM: 'ZAMM',
-  Cypher: 'Cypher',
   AaveEndowment: 'Aave',
 }
 
 /**
- * Venue display order (D4): Uni is the workhorse — order LP venues Uni first, then ZAMM, then
- * Cypher. Yield's single Aave venue sorts first within its own family. Unknown venues sort last.
+ * Venue display order (D4): Uni is the workhorse — order LP venues Uni first, then ZAMM. Yield's
+ * single Aave venue sorts first within its own family. Unknown venues sort last.
  */
 const VENUE_ORDER: Record<string, number> = {
   AaveEndowment: 0,
   UniswapV4: 0,
   ZAMM: 1,
-  Cypher: 2,
 }
 
+/**
+ * A venue id the app does not know is named as unknown, never echoed back as if it were a venue.
+ * Retired venues are exactly this case: the protocol rejects them, so a surface that still printed
+ * their id would be offering the creator something no longer on the menu.
+ */
 export function venueLabel(venue: string): string {
-  return VENUE_LABELS[venue] ?? venue
+  return VENUE_LABELS[venue] ?? 'unknown venue'
 }
 
 export function deriveVaultFlavor(vaultType: string): VaultFlavor {
@@ -99,7 +102,7 @@ export interface TargetGroup<T extends TargetLike> {
  *
  * `AlignmentRegistryV1.tokenToTargetIds` is a push-list: the same token can be registered under more
  * than one alignment target so each sits under its own coherent acquisition route (e.g. one target
- * routes a community's token through Uniswap V4, a second through Cypher). Left ungrouped, the picker
+ * routes a community's token through Uniswap V4, a second through ZAMM). Left ungrouped, the picker
  * would show that community twice. A token with a single target collapses to a one-target group, so
  * its row renders exactly as it did before grouping existed.
  */

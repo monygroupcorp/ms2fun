@@ -1,12 +1,12 @@
 /**
  * The graduated surface offers a TRADE, never a redirect (noesis-349).
  *
- * Before this, a graduated collection whose venue was not one of the two zRouter-native ones
- * rendered a link to an unrelated exchange, with the chain hardcoded into the URL. Two things were
- * wrong with that at once: a Cypher-graduated token has no pool on that exchange, so the link is a
- * dead end; and the URL named a chain regardless of which chain the collection was being rendered
- * on. These cases pin both away — a resolvable venue trades in site, and an unresolvable one says so
- * in words with no outbound trade link anywhere on the surface.
+ * Before this, a graduated collection whose venue the app could not resolve rendered a link to an
+ * unrelated exchange, with the chain hardcoded into the URL. Two things were wrong with that at
+ * once: the token has no pool on that exchange, so the link is a dead end; and the URL named a
+ * chain regardless of which chain the collection was being rendered on. These cases pin both away —
+ * a resolvable venue trades in site, and an unresolvable one says so in words with no outbound trade
+ * link anywhere on the surface.
  *
  * The assertions are deliberately about the RENDERED DOM rather than about a component's props: an
  * `href` to somebody else's exchange is the defect, wherever in the tree it comes from.
@@ -21,8 +21,6 @@ import type { GraduatedVenue } from './useGraduatedVenue'
 const NOW = 1_000_000n
 const INSTANCE = '0x1111111111111111111111111111111111111111' as const
 const DEPLOYER = '0x3333333333333333333333333333333333333333' as const
-const POOL = '0x4444444444444444444444444444444444444444' as const
-const WETH = '0x5555555555555555555555555555555555555555' as const
 const ROUTER = '0x6666666666666666666666666666666666666666' as const
 const TRADER = '0x7777777777777777777777777777777777777777' as const
 
@@ -77,7 +75,7 @@ vi.mock('../../../generated/contracts', async (importOriginal) => ({
 // chain of its own is visibly naming the wrong one.
 vi.mock('../useCollectionChain', () => ({
   useCollectionChainId: () => 1337,
-  useCollectionAddresses: () => ({ zRouter: ROUTER, CypherSwapRouter: ROUTER }),
+  useCollectionAddresses: () => ({ zRouter: ROUTER }),
 }))
 
 vi.mock('./useBondingData', () => ({
@@ -131,7 +129,6 @@ function renderedHrefs(container: HTMLElement): string[] {
   return Array.from(container.querySelectorAll('[href]')).map((el) => el.getAttribute('href') ?? '')
 }
 
-const CYPHER: GraduatedVenue = { kind: 'cypher', deployer: DEPLOYER, pool: POOL, weth: WETH }
 const UNI: GraduatedVenue = { kind: 'uniV4', deployer: DEPLOYER, poolFee: 3000, tickSpacing: 60 }
 const ZAMM: GraduatedVenue = { kind: 'zamm', deployer: DEPLOYER, feeOrHook: 100n }
 const UNKNOWN: GraduatedVenue = { kind: 'unknown', deployer: DEPLOYER }
@@ -141,8 +138,8 @@ beforeEach(() => {
 })
 afterEach(cleanup)
 
-test('a cypher venue renders the embedded swap panel, not a link to another exchange', () => {
-  const container = mount(CYPHER)
+test('a zamm venue renders the embedded swap panel, not a link to another exchange', () => {
+  const container = mount(ZAMM)
   expect(screen.getByTestId('erc404-graduated-swap')).toBeTruthy()
   expect(screen.queryByTestId('erc404-graduated-no-route')).toBeNull()
   for (const href of renderedHrefs(container)) {
@@ -159,7 +156,7 @@ test('an unresolvable venue says so and offers no exchange link at all', () => {
 })
 
 test('no rendered href names a chain — on a non-mainnet collection or on any other', () => {
-  for (const venue of [CYPHER, UNI, ZAMM, UNKNOWN]) {
+  for (const venue of [UNI, ZAMM, UNKNOWN]) {
     const container = mount(venue)
     for (const href of renderedHrefs(container)) {
       expect(href).not.toContain('chain=mainnet')
@@ -173,7 +170,6 @@ test('each venue is named from its own kind rather than falling through to anoth
   const expected: Array<[GraduatedVenue, string]> = [
     [UNI, 'Uniswap V4 pool'],
     [ZAMM, 'ZAMM pool'],
-    [CYPHER, 'Cypher pool'],
   ]
   for (const [venue, label] of expected) {
     mount(venue)

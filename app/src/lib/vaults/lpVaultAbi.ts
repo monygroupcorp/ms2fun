@@ -1,7 +1,7 @@
 /**
  * The three liquidity vault families' protocol-cut surface, as one hand-written ABI slice.
  *
- * UniAlignmentVault, ZAMMAlignmentVault and CypherAlignmentVault declare this counter and this push
+ * UniAlignmentVault and ZAMMAlignmentVault both declare this counter and this push
  * identically. They have no generated bindings (the wizard never creates one directly; the liquidity
  * module deploys them at graduation, and the app finds them through the registry), so this slice is
  * how the app addresses them, and `contract-surface.json` records which contracts it speaks to.

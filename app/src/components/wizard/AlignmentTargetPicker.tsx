@@ -21,7 +21,6 @@ import styles from './AlignmentTargetPicker.module.css'
 const ALL_VENUES: { family: VaultFamily; venue: string }[] = [
   { family: 'yield', venue: 'AaveEndowment' },
   { family: 'lp', venue: 'UniswapV4' },
-  { family: 'lp', venue: 'Cypher' },
   { family: 'lp', venue: 'ZAMM' },
 ]
 

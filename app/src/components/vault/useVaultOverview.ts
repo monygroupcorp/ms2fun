@@ -2,7 +2,7 @@
  * useVaultOverview — vault-global reads for the detail page (`/vault/:address`). Unlike `useEndowment`
  * (which is per-benefactor and endowment-only), this reads the vault as a whole across families:
  *
- *  - `vaultType()`        — branch the UI (AaveEndowment / UniswapV4LP / ZAMMLP / CypherLP). The
+ *  - `vaultType()`        — branch the UI (AaveEndowment / UniswapV4LP / ZAMMLP). The
  *                           selector is shared across families (IAlignmentVault), so the endowment
  *                           ABI hook resolves it for any vault.
  *  - `accumulatedFees()`  — fees accrued (all families expose it via IAlignmentVault).
@@ -119,8 +119,6 @@ export function vaultFamilyLabel(vaultType: string | undefined): string {
       return 'Uni-V4 LP'
     case 'ZAMMLP':
       return 'ZAMM LP'
-    case 'CypherLP':
-      return 'Cypher LP'
     default:
       return vaultType || 'Vault'
   }

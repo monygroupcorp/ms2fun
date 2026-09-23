@@ -50,7 +50,7 @@ export interface RegisteredVault {
   address: `0x${string}`
   name: string
   targetId: bigint
-  /** Raw on-chain `vaultType()` — "AaveEndowment" | "UniswapV4LP" | "ZAMMLP" | "CypherLP". */
+  /** Raw on-chain `vaultType()` — "AaveEndowment" | "UniswapV4LP" | "ZAMMLP". */
   vaultType: string
   family: VaultFamily
   /** Machine venue id — see `deriveVaultFlavor`. */

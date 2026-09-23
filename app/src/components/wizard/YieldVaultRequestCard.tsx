@@ -10,7 +10,7 @@
  * A request creates no vault, so there is nothing to add to the roster on success: the card shows an
  * "awaiting review" state instead of invalidating the registered-vaults query.
  *
- * LP venues (Uni/ZAMM/Cypher) stay "coming soon" — they need the priceValidator/pool-config lockdown
+ * LP venues (Uni/ZAMM) stay "coming soon" — they need the priceValidator/pool-config lockdown
  * first (spec §4.2), and are intentionally NOT wired here.
  */
 import { useEffect, useMemo, useState } from 'react'

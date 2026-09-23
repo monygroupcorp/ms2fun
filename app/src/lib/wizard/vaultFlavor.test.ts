@@ -15,7 +15,6 @@ describe('deriveVaultFlavor', () => {
   it('maps each LP type to the lp family with the "LP" suffix stripped', () => {
     expect(deriveVaultFlavor('UniswapV4LP')).toEqual({ family: 'lp', venue: 'UniswapV4' })
     expect(deriveVaultFlavor('ZAMMLP')).toEqual({ family: 'lp', venue: 'ZAMM' })
-    expect(deriveVaultFlavor('CypherLP')).toEqual({ family: 'lp', venue: 'Cypher' })
   })
   it('treats an unknown non-LP type as yield, passing the venue through', () => {
     expect(deriveVaultFlavor('SomethingElse')).toEqual({ family: 'yield', venue: 'SomethingElse' })
@@ -26,11 +25,10 @@ describe('venueLabel', () => {
   it('labels the known venues', () => {
     expect(venueLabel('UniswapV4')).toBe('Uniswap V4')
     expect(venueLabel('ZAMM')).toBe('ZAMM')
-    expect(venueLabel('Cypher')).toBe('Cypher')
     expect(venueLabel('AaveEndowment')).toBe('Aave')
   })
-  it('passes an unknown venue id through', () => {
-    expect(venueLabel('Mystery')).toBe('Mystery')
+  it('names an unknown venue as unknown rather than echoing its id', () => {
+    expect(venueLabel('Mystery')).toBe('unknown venue')
   })
 })
 
@@ -41,19 +39,18 @@ const v = <T extends object>(vaultType: string, ready: boolean, extra?: T) => {
 }
 
 describe('groupVaultsByFamily', () => {
-  it('groups into families and orders LP venues Uni → ZAMM → Cypher', () => {
+  it('groups into families and orders LP venues Uni → ZAMM', () => {
     // Deliberately out of order to prove the sort.
     const groups = groupVaultsByFamily([
-      v('CypherLP', true),
-      v('AaveEndowment', true),
       v('ZAMMLP', true),
+      v('AaveEndowment', true),
       v('UniswapV4LP', true),
     ])
     expect(groups.map((g) => g.family)).toEqual(['yield', 'lp'])
     const yieldG = groups.find((g) => g.family === 'yield')!
     const lpG = groups.find((g) => g.family === 'lp')!
     expect(yieldG.venues.map((o) => o.venue)).toEqual(['AaveEndowment'])
-    expect(lpG.venues.map((o) => o.venue)).toEqual(['UniswapV4', 'ZAMM', 'Cypher'])
+    expect(lpG.venues.map((o) => o.venue)).toEqual(['UniswapV4', 'ZAMM'])
   })
 
   it('marks an unready LP venue disabled but never yield', () => {
@@ -102,7 +99,7 @@ describe('groupTargetsByToken', () => {
   })
 
   it('collapses a token registered under two targets into one group carrying both ids', () => {
-    // CULT registered under target 2 (e.g. Uniswap V4 route) and target 3 (e.g. Cypher/Algebra route).
+    // CULT registered under target 2 (e.g. Uniswap V4 route) and target 3 (e.g. a ZAMM route).
     const groups = groupTargetsByToken([t(1, MS2), t(2, CULT), t(3, CULT)])
     expect(groups).toHaveLength(2)
     const cultGroup = groups.find((g) => g.targets.length > 1)!

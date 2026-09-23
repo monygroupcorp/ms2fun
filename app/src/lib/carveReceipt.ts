@@ -24,7 +24,7 @@
  * what makes the excess-only case produce a figure instead of reading as "no carve".
  *
  * The summed gross is split 1% protocol / 19% vault / 80% creator, mirroring `RevenueSplitLib.split`
- * exactly (via `carveCreatorNet`). Every LiquidityDeployerModule variant (default/zamm/cypher)
+ * exactly (via `carveCreatorNet`). Every LiquidityDeployerModule variant (default/zamm)
  * declares both events with an identical signature, so decoding against the default ABI resolves
  * regardless of which module this instance's factory wired.
  */
