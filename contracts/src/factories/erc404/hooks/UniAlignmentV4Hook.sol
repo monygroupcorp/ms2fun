@@ -26,14 +26,17 @@ import { IAlignmentHook } from "./IAlignmentHook.sol";
  *      ETH-specified shapes (exact-input ETH buy, exact-output ETH-out sell), and afterSwap carries the
  *      tithe on the two ETH-unspecified shapes (exact-output ETH buy, exact-input token sell).
  *
- *      ON EVERY SHAPE THE TITHE IS `hookFeeBips` OF THE ETH THE SWAP ACTUALLY MOVES. The two shapes
- *      afterSwap taxes get that for free: they are taxed on the realised `BalanceDelta`. The two shapes
+ *      ON EVERY SHAPE THE TITHE IS PRICED ON ETH THE SWAP ACTUALLY MOVED, NEVER ON ETH IT DID NOT. The two
+ *      shapes afterSwap taxes get that for free: `hookFeeBips` of the realised `BalanceDelta`. The two shapes
  *      beforeSwap taxes cannot — v4 fixes a hook's credit on the SPECIFIED currency before the swap runs,
  *      and the pool may then fill only part of the leg (`Pool.swap` stops at `sqrtPriceLimitX96` and
- *      returns what it moved) — so for those two afterSwap re-reads the realised delta and REVERTS if the
- *      named leg was not filled. That is not belt-and-braces: a part-filled ETH-out sell charged on its
- *      name has taken 18% of a swapper's proceeds, and on a larger name has turned the sale into a net
- *      ETH outflow for the seller. See `afterSwap` for why a refund is not available instead.
+ *      returns what it moved) — so those take `hookFeeBips` of the leg the swapper NAMED, and afterSwap
+ *      re-reads the realised delta and REVERTS unless the pool moved that leg whole. The two bases agree to
+ *      within the fee itself and are not interchangeable to the wei: shapes 2 and 3 tithe `hookFeeBips` of
+ *      the POOL's ETH leg, shapes 1 and 4 of the SWAPPER's, which is the pool's leg plus or minus the fee.
+ *      The revert is not belt-and-braces: a part-filled ETH-out sell charged on its name has taken 18% of a
+ *      swapper's proceeds, and on a larger name has turned the sale into a net ETH outflow for the seller.
+ *      See `afterSwap` for why a refund is not available instead.
  *      Hook fee (hookFeeBips) is immutable — set once at deploy, no governance risk.
  *      LP fee (lpFeeRate) is owner-adjustable via setLpFeeRate().
  */
