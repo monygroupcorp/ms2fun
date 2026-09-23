@@ -386,6 +386,21 @@ contract UniAlignmentV4Hook_RealSettlement is Test {
         internal
         returns (UniAlignmentV4Hook h, PoolKey memory k)
     {
+        (h, k) = _deployHookedPoolWithoutLiquidity(seed, vaultAddr);
+
+        vm.deal(address(this), 10_000 ether);
+        IPoolManager.ModifyLiquidityParams memory lp =
+            IPoolManager.ModifyLiquidityParams({ tickLower: -6000, tickUpper: 6000, liquidityDelta: 100e18, salt: 0 });
+        modifyLiquidityRouter.modifyLiquidity{ value: 500 ether }(k, lp, ZERO_BYTES);
+    }
+
+    /// @dev The same hook and pool, initialized but with NO liquidity in it. A pool in this state can
+    ///      fill nothing, which is the only way to part-fill a wei-scale leg here: against the wide-range
+    ///      100e18 the helper above seeds, even 99 wei of exact output is a FULL fill.
+    function _deployHookedPoolWithoutLiquidity(uint160 seed, address vaultAddr)
+        internal
+        returns (UniAlignmentV4Hook h, PoolKey memory k)
+    {
         address addr = address((seed << 14) | uint160(0x00CC));
         deployCodeTo(
             "UniAlignmentV4Hook.sol:UniAlignmentV4Hook",
@@ -413,11 +428,6 @@ contract UniAlignmentV4Hook_RealSettlement is Test {
             hooks: IHooks(addr)
         });
         manager.initialize(k, SQRT_PRICE_1_1);
-
-        vm.deal(address(this), 10_000 ether);
-        IPoolManager.ModifyLiquidityParams memory lp =
-            IPoolManager.ModifyLiquidityParams({ tickLower: -6000, tickUpper: 6000, liquidityDelta: 100e18, salt: 0 });
-        modifyLiquidityRouter.modifyLiquidity{ value: 500 ether }(k, lp, ZERO_BYTES);
     }
 
     /// @dev A hook revert reaches the caller wrapped: `Hooks.callHook` catches it and re-reverts as
@@ -528,24 +538,38 @@ contract UniAlignmentV4Hook_RealSettlement is Test {
         );
 
         assertGt(d.amount0(), int128(0), "the part fill still pays the seller its ETH");
+        // And it really is a PART fill — 400 ETH named, 25.917066770240321653 moved — so what is let
+        // through is the same swap the first case above reverts, not some full fill in disguise.
+        assertLt(d.amount0(), int128(400 ether), "precondition: the pool cannot fill the whole named leg");
         assertEq(vault.totalReceived(), 0, "and a halted hook takes nothing from it");
         assertEq(hook.queuedFees(), 0, "and queues nothing either");
     }
 
-    /// @dev A fee that rounds to zero is no charge, so it is held to no fill: the smallest part-filled
-    ///      leg still settles. Guards the `feeAmount == 0` exit rather than leaving it to inference.
+    /// @dev A fee that rounds to zero is no charge, so it is held to no fill: even the most extreme part
+    ///      fill still settles. Guards the `feeAmount == 0` exit rather than leaving it to inference.
+    ///
+    ///      The pool is deliberately DRY, because a small name is not a part fill. Against the wide-range
+    ///      100e18 every other pool in this file seeds, 99 wei of exact output comes back filled to the
+    ///      wei (`amount0 == 99`) and the fill check is never reached — a fixture that seeds liquidity
+    ///      here asserts nothing, whatever its name says. With no liquidity the pool moves nothing, so 0
+    ///      of the 99 wei named is filled and the leg is short by all of it.
     function test_partFill_isLetThroughWhenTheFeeRoundsToZero() public {
-        // 99 wei * 100 bips / 10000 == 0. Named as an exact ETH output far beyond what one wei-scale
-        // swap can fill, so the leg is a part fill by construction.
-        (UniAlignmentV4Hook h, PoolKey memory k) = _deployHookedPool(0x5858, address(vault));
+        // 99 wei * 100 bips / 10000 == 0.
+        (UniAlignmentV4Hook h, PoolKey memory k) = _deployHookedPoolWithoutLiquidity(0x5959, address(vault));
         assertEq((99 * HOOK_FEE_BIPS) / 10000, 0, "precondition: this fee rounds to zero");
+        uint256 beforeBal = vault.totalReceived();
 
-        swapRouter.swap(
+        // Shape 4 — ETH is the specified currency, so this is the beforeSwap/afterSwap pair the fill
+        // check sits in. It must NOT revert: nothing was charged, so nothing can have been over-charged.
+        BalanceDelta d = swapRouter.swap(
             k,
             IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: 99, sqrtPriceLimitX96: MAX_PRICE_LIMIT }),
             _settings(),
             ZERO_BYTES
         );
+
+        assertEq(d.amount0(), int128(0), "precondition: the dry pool fills none of the 99 wei named");
+        assertEq(vault.totalReceived() - beforeBal, 0, "a zero fee tithes nothing");
         assertEq(h.queuedFees(), 0, "a zero fee queues nothing");
     }
 
