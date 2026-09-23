@@ -38,6 +38,11 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
     /// @dev Fixed at construction with no setter. A zero here would let `create` appear to succeed
     ///      while every clone delegatecalls into nothing, and ETH paid to a clone would be
     ///      unrecoverable — no repair is possible after deploy, so it is refused in the constructor.
+    /// @dev Immutable with no setter, and that is deliberate — do not add one. Every collection this
+    ///      factory has ever deployed delegatecalls into this address, so a setter would be one switch
+    ///      that rewrites the code of all of them at once, including collections whose creators are
+    ///      long gone. An implementation defect is repaired by deploying a NEW factory over a fixed
+    ///      implementation; collections already created stay on the code they were created with.
     address public immutable instanceImplementation;
     address public immutable globalMessageRegistry;
     IComponentRegistry public immutable componentRegistry;
