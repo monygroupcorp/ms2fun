@@ -6,6 +6,7 @@ import { LibClone } from "solady/utils/LibClone.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 
 import { AlignmentEndowmentVault } from "../../../src/vaults/aave/AlignmentEndowmentVault.sol";
+import { ERC4626_FLOOR_WEI } from "../helpers/Erc4626Rounding.sol";
 
 // NOTE: AaveV3Ethereum.sol transitively imports AaveV3.sol which requires the
 // aave-v3-origin submodule (not installed in this repo). We inline the two
@@ -202,13 +203,6 @@ contract AlignmentEndowmentVaultForkTest is Test {
 
     /// @notice The corpus is the whole principal from the block it lands, and an ambassador's withdrawal
     ///         redeems it out of the real Aave position. What is debited is what actually left.
-    /// @notice One wei: the most a single real ERC-4626 conversion can round away, and it always rounds
-    ///         DOWN, toward the vault. Aave's static aToken is an ERC-4626 wrapper, so every deposit,
-    ///         redeem and `convertToAssets` on the path floors once. The mock these suites were written
-    ///         against returned round numbers and hid it. A bound is only safe in the direction the
-    ///         rounding goes, so every use below asserts that direction separately from this magnitude.
-    uint256 internal constant ERC4626_FLOOR_WEI = 1;
-
     function test_withdraw_throughRealAave() public {
         uint256 amount = 1 ether;
 
