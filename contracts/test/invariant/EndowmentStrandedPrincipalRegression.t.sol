@@ -392,6 +392,103 @@ contract EndowmentStrandedPrincipalRegression is Test {
         );
     }
 
+    /// @notice The subtraction a deposit makes is netted against the pool the vault STILL PRICES, not
+    ///         against everything the ghost has outstanding — and this is the shape where the difference is
+    ///         the whole answer.
+    ///
+    /// @dev    `deposit` books `created` less `alreadyStranded`, and `alreadyStranded` is
+    ///         `outstanding - poolMid`: the outstanding yield that is NOT still standing in the pool the
+    ///         vault prices, which is exactly the part that went into the strand. Dropping the `- poolMid`
+    ///         term — netting against the bare `outstanding` — is correct in every shape the other tests
+    ///         here build, because each of them reaches the deposit with the vault's position priced at
+    ///         zero, and a zero pool makes `poolMid` zero and the two forms identical. That is why the
+    ///         stricter form was unguarded: the whole suite passes with it reverted.
+    ///
+    ///         The separating shape needs a deposit whose OWN crystallize is liquidity-capped and whose
+    ///         ceiling burn still takes the last share — so the same call both leaves a pool standing and
+    ///         inherits the strand it just created. The cap is sized so the crystallize redeems 1000 wei of
+    ///         a 50 ether pending pool: the pool the deposit lands on is `50 ether - 1000` and is REAL
+    ///         (the injection behind it is still outstanding and still priced), while the strand handed
+    ///         back is the orphaned principal alone.
+    ///
+    ///         With the `- poolMid` term the deposit books the 50_002_501 wei of orphaned principal and the
+    ///         handler's slack lands exactly on the vault's live pool. Without it, `alreadyStranded` reads
+    ///         the entire outstanding injection — money that never left the pool — the deposit books
+    ///         nothing, and the slack lands 50_002_501 wei BELOW the pool the vault is holding. That is the
+    ///         under-book direction: the ghost standing below what the vault can distribute, where
+    ///         `invariant_harvestFlatSplitConserves` reads `<=` and sees nothing wrong. So the covering
+    ///         property is asserted directly here rather than left to the conservation bound.
+    ///
+    ///         SIDE FINDING, NOT ASSERTED HERE. The deposit in this sequence trips
+    ///         `ghost_depositMintedYield`, and nothing was minted: basis and position value moved together,
+    ///         exactly as `test_aDepositMovesBasisAndPositionValueTogether` requires. The magnitude bound
+    ///         reads the strand BEFORE the call, and here the deposit's own crystallize is what CREATES the
+    ///         strand, so it is measured against a stale zero — `poolBefore` 50 ether, `poolAfter`
+    ///         50_000_000_000_050_001_501, appeared 50_001_501, `strandBefore` 0. That is a pre-existing
+    ///         defect in a different property (`invariant_depositRecoversAStrandButNeverMintsOne`) and is
+    ///         filed separately rather than papered over; this test asserts the covering property only, and
+    ///         deliberately reads no flag.
+    function test_aCappedDepositNetsTheStrandAgainstThePoolItStillPrices() public {
+        handler.deposit(0, 1e12);
+        handler.accrueYield(MAX);
+        handler.harvest(0);
+        assertEq(stata.totalShares(), 19_999, "the harvest ratchets the share price to ~5e7");
+
+        // An execute sized to leave EXACTLY one share standing: the remainder is one wei above the share
+        // price, so the ceiling burn takes 19_998 of the 19_999 and the position stays live.
+        handler.execute(999_949_997_499);
+        assertEq(stata.totalShares(), 1, "one share left standing, so the position is still priced");
+        assertEq(stata.totalManaged(), 50_002_501, "and it prices the whole remainder");
+        assertEq(vault.totalPrincipal(), 50_002_501, "the basis stands over it, un-orphaned");
+
+        // The injection this test is about. The supply is live, so `accrueYield` books it at the call and
+        // the vault prices every wei of it.
+        handler.accrueYield(MAX);
+        assertEq(stata.totalManaged(), 50_000_000_000_050_002_501, "the position carries the injection");
+        assertEq(
+            handler.sumYieldInjected() - handler.sumHarvestDistributed(), 50 ether, "the whole injection is outstanding"
+        );
+
+        // A cap far under the pending pool. The deposit's own crystallize redeems only this much, and the
+        // ceiling burn of even that much takes the one remaining share — so the same call leaves a pool of
+        // `50 ether - 1000` standing AND orphans the principal under it.
+        handler.setLiquidityCap(1000);
+
+        uint256 injectedBefore = handler.sumYieldInjected();
+        uint256 distributedBefore = handler.sumHarvestDistributed();
+        uint256 poolBefore = vault.currentPositionValue() - vault.totalPrincipal();
+        assertEq(poolBefore, 50 ether, "the pool the deposit lands on");
+
+        handler.deposit(1, 1e12);
+
+        // The covering property, asserted before anything else: whatever the handler has booked and the
+        // vault has not yet paid out must at least cover the pool the vault is standing on. This is the
+        // assertion the bare form turns red.
+        uint256 livePool = vault.currentPositionValue() - vault.totalPrincipal();
+        assertEq(livePool, 50_000_000_000_050_001_501, "the pool the vault is holding after the deposit");
+        assertGe(
+            handler.sumYieldInjected() - handler.sumHarvestDistributed(),
+            livePool,
+            "endowment: the injected ghost stands BELOW the vault's live pool"
+        );
+
+        // The three figures that make it up, so a change to any of them names itself.
+        assertEq(handler.sumHarvestDistributed() - distributedBefore, 1000, "the capped crystallize took the cap");
+        assertEq(stata.totalShares(), 1e12, "the last share burned and the deposit minted 1:1 against zero");
+        assertEq(handler.sumYieldInjected() - injectedBefore, 50_002_501, "the deposit booked the orphaned principal");
+
+        // And with the crunch over the vault distributes every wei of it, so the cover is tight rather
+        // than slack.
+        handler.setLiquidityCap(0);
+        handler.harvest(0);
+        assertEq(handler.sumHarvestDistributed() - distributedBefore, livePool + 1000, "the harvest split the pool");
+        assertEq(
+            handler.sumYieldInjected(),
+            handler.sumHarvestDistributed(),
+            "the injected ghost stands above what the vault could distribute: that gap is unwatched slack"
+        );
+    }
+
     /// @dev The three yield legs as the handler reads them — the creator counter PLUS the carried remainder,
     ///      because a leg too small to move the per-share accumulator waits in the remainder rather than in
     ///      the counter.
@@ -463,15 +560,28 @@ contract EndowmentStrandedPrincipalRegression is Test {
         );
     }
 
-    /// @notice `migrate` distributes on two sub-calls — its preparatory `harvest()` and `migratePosition`'s
-    ///         own crystallize — and the ghost books both.
+    /// @notice `migrate`'s preparatory `harvest()` distributes with no handler `harvest()` action involved,
+    ///         and the ghost books it.
     ///
-    /// @dev    Same direction as the `execute` test above. `migrate` is the other path whose distribution a
-    ///         harvest-only ghost misses, and it misses it twice over: the handler harvests first to make the
-    ///         redemption a principal redemption, and `migratePosition` crystallizes again on the way in. The
-    ///         preparatory harvest is booked OUTSIDE the `try`, because the vault has paid those legs whether
-    ///         or not the migration that follows goes through.
-    function test_aMigrateDistributesOnBothLegsAndTheGhostBooksBoth() public {
+    /// @dev    Same direction as the `execute` test above: `migrate` is the other path whose distribution a
+    ///         harvest-only ghost misses. The handler harvests first, to make the redemption that follows a
+    ///         principal redemption, and books those legs OUTSIDE the `try` because the vault has paid them
+    ///         whether or not the migration goes through.
+    ///
+    ///         WHAT THIS DOES NOT PIN, and it is deliberate. `migratePosition` opens with the same
+    ///         `_crystallizeYield` body, and the handler books that leg delta too — but no sequence of
+    ///         handler actions can make it nonzero, so this test cannot cover it and does not claim to.
+    ///         The reason is structural: `migrate` clears the liquidity cap before its preparatory harvest,
+    ///         an uncapped `_redeem` is capped only at `maxWithdraw`, which on a live position is the whole
+    ///         position value and therefore exceeds the pending yield, and `_crystallizeYield` has no revert
+    ///         path of its own (its sends are force-safe), so the `try` never catches. The pool is empty by
+    ///         construction when `migratePosition` crystallizes, and `y == 0` returns at the top.
+    ///         Measured: deleting the `migratePosition` leg booking from the handler leaves every test in
+    ///         `test/invariant/Endowment*` green. That booking is therefore held for the handler this file
+    ///         has yet to grow — a `migrate` that reaches `migratePosition` without an uncapped harvest in
+    ///         front of it — and a rename is preferred to a test whose name promises a leg nothing here can
+    ///         reach.
+    function test_aMigratePreparatoryHarvestDistributesAndTheGhostBooksIt() public {
         handler.deposit(0, 1e12);
         handler.accrueYield(MAX);
         assertEq(handler.sumHarvestDistributed(), 0, "no harvest has run");

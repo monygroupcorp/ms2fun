@@ -53,7 +53,8 @@ contract EndowmentVaultHandler is Test {
     // Σ yield the vault has distributed (creator+target+proto), across EVERY path that distributes — not
     // just `harvest()`. `deposit`, `execute` and `migratePosition` each open with the same
     // `_crystallizeYield` body, so each of them can pay the three legs, and a leg a handler action did not
-    // book is a distribution the conservation bound never sees. See `_legsPaid`.
+    // book is a distribution the conservation bound never sees. `releaseCorpusToCommunity` opens with it
+    // too and this handler drives no action that reaches it. See `_legsPaid` for the whole call-site set.
     uint256 public sumHarvestDistributed;
     // Σ strand a deposit handed back to the pool (see `_strandedInPosition`). A component of
     // `sumYieldInjected`, kept separately so the quantity is readable rather than absorbed.
@@ -126,13 +127,20 @@ contract EndowmentVaultHandler is Test {
     ///      accumulator could take on, and a leg too small to move it waits in the remainder.
     ///
     ///      This is read before and after every action that can distribute, and the difference is booked
-    ///      into `sumHarvestDistributed`. `harvest()` is not the only such action: `_crystallizeYield` is the
-    ///      first statement of the vault's `_deposit`, `execute` and `migratePosition` too, so each of those
-    ///      can pay all three legs before it touches principal. Booking only the `harvest()` ones leaves
-    ///      `sumHarvestDistributed` an undercount — which matters twice over. It leaves those distributions
-    ///      outside `invariant_harvestFlatSplitConserves` altogether, and it corrupts the one quantity the
-    ///      deposit-side strand booking has to reason about: how much of `sumYieldInjected` is still
-    ///      OUTSTANDING rather than already paid out.
+    ///      into `sumHarvestDistributed`. `harvest()` is not the only such action. The vault calls
+    ///      `_crystallizeYield` from FIVE places, and `harvest()`'s own body is only one of them: `_deposit`,
+    ///      `execute`, `migratePosition` and `releaseCorpusToCommunity` each open with it too, so any of
+    ///      those can pay all three legs before it touches principal. Booking only the `harvest()` ones
+    ///      leaves `sumHarvestDistributed` an undercount — which matters twice over. It leaves those
+    ///      distributions outside `invariant_harvestFlatSplitConserves` altogether, and it corrupts the one
+    ///      quantity the deposit-side strand booking has to reason about: how much of `sumYieldInjected` is
+    ///      still OUTSTANDING rather than already paid out.
+    ///
+    ///      Four of the five are driven here. `releaseCorpusToCommunity` is NOT — this handler exposes no
+    ///      release action, so the leg it can pay is unreachable and the omission costs nothing today. It is
+    ///      named rather than left out because the enumeration is what a future action would be read
+    ///      against: add a release to this handler without bracketing it in `_legsPaid` the way `execute`
+    ///      and `migrate` are, and it distributes yield the conservation bound never sees, silently.
     function _legsPaid() internal view returns (uint256) {
         return vault.totalYieldToCreators() + vault.creatorYieldRemainder() + vault.totalYieldToTarget()
             + vault.totalProtocolFees();

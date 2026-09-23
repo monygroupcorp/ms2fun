@@ -133,10 +133,11 @@ contract EndowmentImpairmentInvariantTest is StdInvariant, Test {
     // `EndowmentStrandedPrincipalRegression` pins the second deterministically.
     //
     // "Distributed" is likewise every leg the vault has paid, not only the ones `harvest()` paid. The vault's
-    // `_deposit`, `execute` and `migratePosition` all open with the same `_crystallizeYield` body, so each of
-    // them can pay all three legs before it touches principal, and the handler books those leg deltas too
-    // (`EndowmentVaultHandler._legsPaid`). That widens what this bound covers — a distribution made on the way
-    // into an execute or a migration is now inside it — and it is what keeps
+    // `_deposit`, `execute`, `migratePosition` and `releaseCorpusToCommunity` all open with the same
+    // `_crystallizeYield` body, so each of them can pay all three legs before it touches principal, and the
+    // handler books the leg deltas of the three it drives (`EndowmentVaultHandler._legsPaid`, which carries
+    // the whole call-site set and why the release is absent). That widens what this bound covers — a
+    // distribution made on the way into an execute or a migration is now inside it — and it is what keeps
     // `sumYieldInjected - sumHarvestDistributed` an exact figure for what the vault still owes, which is the
     // quantity the deposit-side strand booking subtracts against.
     function invariant_harvestFlatSplitConserves() public view {
