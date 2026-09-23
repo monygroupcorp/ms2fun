@@ -40,6 +40,7 @@ import { DynamicPricingModule } from "../src/factories/erc1155/DynamicPricingMod
 import { ERC721AuctionFactory } from "../src/factories/erc721/ERC721AuctionFactory.sol";
 import { QueryAggregator } from "../src/query/QueryAggregator.sol";
 import { zRouter, ChainConfig, mainnetChainConfig } from "../src/peripherals/zRouter.sol";
+import { AlignmentHookSwapRouter } from "../src/peripherals/AlignmentHookSwapRouter.sol";
 import { MerkleGatingModule } from "../src/gating/MerkleGatingModule.sol";
 import { FeatureUtils } from "../src/master/libraries/FeatureUtils.sol";
 import { MockComponentModule } from "../test/mocks/MockComponentModule.sol";
@@ -222,6 +223,15 @@ contract DeployCore is Script {
     /// @notice The Uni-V4 alignment-tithe hook factory (117a), registered under ALIGNMENT_HOOK but NOT
     ///         selected on the module (default OFF). address(0) where Uni isn't configured on this network.
     address public uniTitheHookFactory;
+    /// @notice Swap periphery for graduation pools whose key carries an alignment hook. address(0)
+    ///         where Uni isn't configured on this network.
+    /// @dev DEPLOYED FROM SOURCE ON EVERY NETWORK, and that is the point of it rather than an
+    ///      incidental choice. The aggregator at `zrouter` above is reused from a canonical address
+    ///      on mainnet and self-deployed on a testnet, and its V4 entry point cannot name a hook at
+    ///      all; a hooked pool is therefore untradeable through it on both, and unfixable on the one
+    ///      this project does not own. This router is ours on every chain, so the trade a testnet
+    ///      rehearses is the trade mainnet will run.
+    address public alignmentHookSwapRouter;
 
     // ── DEFERRAL NOTE: PromotionBadges is intentionally NOT deployed ──────────
     // `src/promotion/PromotionBadges.sol` is PARKED pre-testnet and has NO slot above and NO
@@ -598,6 +608,12 @@ contract DeployCore is Script {
             componentRegistry.approveComponent(
                 uniTitheHookFactory, FeatureUtils.ALIGNMENT_HOOK, "Uniswap V4 Alignment Tithe Hook"
             );
+
+            // Deployed unconditionally alongside the module, not behind the hook switch. The switch is
+            // a later governed call and the router has to already exist when it is thrown, or the
+            // first collection to graduate after it is untradeable until a second deploy catches up.
+            // It holds no funds and grants no allowances, so shipping it inert costs nothing.
+            alignmentHookSwapRouter = address(new AlignmentHookSwapRouter(cfg.v4PoolManager));
         } else {
             moduleUniV4Deployer = address(new MockComponentModule(deployer, uniV4Meta));
         }
@@ -718,6 +734,7 @@ contract DeployCore is Script {
         vm.serializeAddress(c, "DynamicPricingModule", address(dynamicPricingModule));
         vm.serializeAddress(c, "ModuleMerkleGating", address(moduleMerkleGating));
         vm.serializeAddress(c, "ModuleUniV4Deployer", address(moduleUniV4Deployer));
+        vm.serializeAddress(c, "AlignmentHookSwapRouter", alignmentHookSwapRouter);
         vm.serializeAddress(c, "ModuleZAMMDeployer", address(moduleZAMMDeployer));
         vm.serializeAddress(c, "ERC404StakingModule", address(erc404StakingModule));
         vm.serializeAddress(c, "MetadataResolverRouter", address(metadataResolverRouter));
