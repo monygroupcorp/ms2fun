@@ -81,11 +81,13 @@ contract StrandSink {
  *         about a live contract, so it is
  *         measured against the live contract rather than read off Aave's documentation, and each link is
  *         taken in order so the file says WHICH one breaks rather than only that the sequence declines to
- *         reproduce. `test_control_theMockRatchetsAndStrands` holds the mock's side of the same four links
- *         in miniature, so the difference between the two is a diff and not an assertion.
+ *         reproduce. `MockStataStrandControlTest`, at the foot of this file, holds the mock's side of the
+ *         same four links in miniature, so the difference between the two is a diff and not an assertion.
  *
  * @dev Fork-gated: `MAINNET_RPC_URL` unset -> `vm.skip(true)`, so the suite degrades instead of failing
- *      where no RPC is configured. Not in the default gate, which compiles it only.
+ *      where no RPC is configured. Pinned to `FORK_BLOCK`, so every figure it asserts is reproducible, and
+ *      an ARCHIVE RPC is therefore required. The default gate compiles this contract and skips it — the
+ *      control at the foot of the file is a separate contract precisely so it does not skip with it.
  *      Run: MAINNET_RPC_URL=<url> forge test --mp test/fork/AaveEndowmentStrandMainnetFork.t.sol -vv
  */
 contract AaveEndowmentStrandMainnetForkTest is Test {
@@ -97,6 +99,19 @@ contract AaveEndowmentStrandMainnetForkTest is Test {
     /// @dev Aave's ray. The static aToken's share price is quoted in it: `convertToAssets(1 RAY)` is the
     ///      liquidity index itself.
     uint256 internal constant RAY = 1e27;
+
+    /// @dev The block this suite reads mainnet at. PINNED, because two assertions below are equalities on
+    ///      live figures and an unpinned `latest` would move them under the test: `test_link1` asserts the
+    ///      share burn rounds up by EXACTLY one on five named sizes, which is true only while none of them
+    ///      divides evenly by the index, and `test_link2a`'s ratio-model comparison is false at any block
+    ///      where `totalSupply * index` happens to land on a whole ray. A suite whose premise depends on
+    ///      which block it caught is not evidence; pinning makes each number reproducible by anyone who
+    ///      runs it. Every figure asserted here was measured at this block.
+    ///
+    ///      Reading historical state needs an ARCHIVE RPC. A pruned endpoint fails the fork creation with a
+    ///      missing-trie-node error rather than skipping, and that is the right failure: it says the
+    ///      endpoint cannot answer the question, not that the answer is no.
+    uint256 internal constant FORK_BLOCK = 26_000_000;
 
     /// @dev The residue the drain deliberately leaves behind. It must be under `totalPrincipalShares /
     ///      MIN_SHARE_PRICE_INVERSE` (1e18 / 1e9 = 1e9 wei for a one-ether round) or the vault's round does
@@ -123,7 +138,7 @@ contract AaveEndowmentStrandMainnetForkTest is Test {
             vm.skip(true);
             return;
         }
-        vm.createSelectFork(rpc);
+        vm.createSelectFork(rpc, FORK_BLOCK);
         stata = IStata4626(MainnetAddresses.WETH_STATA_TOKEN);
         weth = IWethLike(MainnetAddresses.WETH);
     }
@@ -157,18 +172,40 @@ contract AaveEndowmentStrandMainnetForkTest is Test {
     //  Link 2 — can that over-burn ratchet the share price? This is the break.
     // ═════════════════════════════════════════════════════════════════════════
 
-    /// @notice The real token's share price is Aave's liquidity index, not an assets-over-shares ratio, so
-    ///         the over-burn of link 1 has nothing to ratchet.
+    /// @notice The real token's share price is Aave's liquidity index, and its assets are DERIVED from its
+    ///         supply through that index rather than held beside it. So the over-burn of link 1 has nothing
+    ///         to ratchet, and — the part links 3 and 4 die on — there is no second number for a stranded
+    ///         wei to live in.
     ///
-    /// @dev `convertToAssets(1 RAY)` equals `Pool.getReserveNormalizedIncome(WETH)` to the wei. The ratio
-    ///      model — which is exactly what `MockStataToken` implements — is a DIFFERENT number at the same
-    ///      block, and that is asserted too, so the two models are told apart here rather than assumed not
-    ///      to coincide.
+    /// @dev Two equalities, and the second is the one carrying the argument.
+    ///
+    ///      `convertToAssets(1 RAY)` equals `Pool.getReserveNormalizedIncome(WETH)` to the wei: the price is
+    ///      the index, read from the index's own publisher rather than from a second call on the token,
+    ///      which would agree with itself by construction.
+    ///
+    ///      Then `totalAssets()` equals `totalSupply() * index / RAY` to the wei. That is the DERIVATION,
+    ///      and it is what makes the orphan unrepresentable: assets are a function of supply, so an empty
+    ///      supply is empty assets in the same breath and "shares gone, assets remain" has nowhere to be.
+    ///      `MockStataToken` keeps `totalShares` and `totalManaged` as two free variables, which is the
+    ///      whole of the difference. Asserted exactly, not within a tolerance.
+    ///
+    ///      The third line is a weaker companion and is labelled as such: the ratio model — what the mock
+    ///      implements — reads a different number from the index at this block. It is honest but small, and
+    ///      it is small BECAUSE of the equality above: the gap is just the floor in the derivation, measured
+    ///      at 9360 parts in 1.07e27 at `FORK_BLOCK`. It is kept because it fails loudly if a future token
+    ///      is priced by an actual assets/shares ratio, and it is pinned to a block so it cannot pass or
+    ///      fail on which one the run happened to catch — but it is not what the file rests on.
     function test_link2a_theSharePriceIsTheLiquidityIndexNotAnAssetsOverSharesRatio() public view {
         if (skipped) return;
 
         uint256 index = IAavePool(AAVE_V3_POOL).getReserveNormalizedIncome(MainnetAddresses.WETH);
         assertEq(stata.convertToAssets(RAY), index, "the share price is not the liquidity index");
+
+        assertEq(
+            stata.totalAssets(),
+            (stata.totalSupply() * index) / RAY,
+            "totalAssets is not the supply priced by the index: it is an independent number, and an orphan fits in it"
+        );
 
         uint256 ratioModel = (RAY * stata.totalAssets()) / stata.totalSupply();
         assertTrue(ratioModel != index, "ratio and index coincide at this block: this test cannot tell them apart here");
@@ -363,53 +400,6 @@ contract AaveEndowmentStrandMainnetForkTest is Test {
         );
     }
 
-    // ═════════════════════════════════════════════════════════════════════════
-    //  The control: the same four links, against the mock, in miniature
-    // ═════════════════════════════════════════════════════════════════════════
-
-    /// @notice `MockStataToken` takes all four links, at three wei. Keeping the mock's side of the diff next
-    ///         to the real token's is what makes "the wrapper is the bound" a comparison rather than an
-    ///         assertion — and it pins the mock's behaviour, so a later rewrite of the mock that quietly
-    ///         removed the ratchet would show up as this test failing rather than as the tests above losing
-    ///         their subject without saying so.
-    ///
-    /// @dev Not a defect report against the mock and not a request to change it: a test double is entitled
-    ///      to be cruder than the thing it stands for. It is a statement of what the invariant finding rests
-    ///      on, held where the reader can see both halves at once.
-    function test_control_theMockRatchetsAndStrands() public {
-        if (skipped) return;
-
-        MockWETH mockWeth = new MockWETH();
-        MockStataToken mock = new MockStataToken(address(mockWeth));
-        mockWeth.mint(address(this), 10);
-        mockWeth.approve(address(mock), type(uint256).max);
-
-        // Three wei in, three shares out, price 1.
-        mock.deposit(3, address(this));
-        assertEq(mock.convertToAssets(1), 1, "the mock did not start at unit price");
-
-        // A wei of yield: 4 managed over 3 shares. The price is 1.33, which no integer can express.
-        mock.simulateYield(1);
-
-        // Links 1 and 2: the ceiling burn takes a whole share for 1 wei of assets, and the price RATCHETS
-        // from 4/3 to 3/2 — a move no redemption can make against the real token.
-        mock.withdraw(1, address(this), address(this));
-        assertEq(mock.totalShares(), 2, "the burn did not round up");
-        assertEq(mock.totalManaged(), 3, "the wrapper did not debit exactly what was withdrawn");
-
-        // Link 2 concluded: the drain sized to leave 1 wei takes the LAST share while an asset remains.
-        mock.withdraw(2, address(this), address(this));
-        assertEq(mock.totalShares(), 0, "the supply did not empty");
-        assertEq(mock.totalManaged(), 1, "there is nothing left to strand: the control is vacuous");
-
-        // Link 3: the wei is invisible. This is the read `currentPositionValue()` makes.
-        assertEq(mock.convertToAssets(mock.totalManaged()), 0, "the mock did not hide the remainder");
-
-        // Link 4: the next deposit mints 1:1 against the empty supply and inherits it — one wei in, two out.
-        uint256 shares = mock.deposit(1, address(this));
-        assertEq(mock.convertToAssets(shares), 2, "the next deposit did not inherit the orphan");
-    }
-
     // ── helpers ──────────────────────────────────────────────────────────────
 
     /// @dev Everything ever routed down the three yield legs. The creator leg is the counter PLUS the
@@ -461,5 +451,59 @@ contract AaveEndowmentStrandMainnetForkTest is Test {
             address(0xA0FD), // alignment token: registry paperwork, never touched by an endowment vault
             targetId
         );
+    }
+}
+
+/**
+ * @title MockStataStrandControlTest
+ * @notice The control for the suite above: the same four links, against `MockStataToken`, in miniature.
+ *
+ *         Its job is to keep "the wrapper is the bound" a COMPARISON rather than an assertion. The tests
+ *         above show the real token declining each link; this one shows the mock taking all four, at three
+ *         wei, so the reader has both halves in front of them and the difference is a diff.
+ *
+ *         Its other job is the one that decides where it lives. It pins the mock's behaviour, so a later
+ *         rewrite of the mock that quietly removed the ratchet shows up HERE rather than as the fork tests
+ *         above losing their subject and passing on without one. A guard against a silent rewrite is worth
+ *         only as often as it runs, and it is deliberately NOT part of the fork-gated contract: that
+ *         contract's `setUp` calls `vm.skip(true)` with no `MAINNET_RPC_URL`, which is every run of the
+ *         per-push gate, so from inside it this test would never execute on the push that made the rewrite.
+ *         It touches no fork state and needs none — two freshly constructed mocks and integer arithmetic —
+ *         so it sits here, ungated, and runs on every push.
+ *
+ * @dev Not a defect report against the mock and not a request to change it: a test double is entitled to be
+ *      cruder than the thing it stands for. It is a statement of what the invariant finding rests on.
+ */
+contract MockStataStrandControlTest is Test {
+    function test_control_theMockRatchetsAndStrands() public {
+        MockWETH mockWeth = new MockWETH();
+        MockStataToken mock = new MockStataToken(address(mockWeth));
+        mockWeth.mint(address(this), 10);
+        mockWeth.approve(address(mock), type(uint256).max);
+
+        // Three wei in, three shares out, price 1.
+        mock.deposit(3, address(this));
+        assertEq(mock.convertToAssets(1), 1, "the mock did not start at unit price");
+
+        // A wei of yield: 4 managed over 3 shares. The price is 1.33, which no integer can express.
+        mock.simulateYield(1);
+
+        // Links 1 and 2: the ceiling burn takes a whole share for 1 wei of assets, and the price RATCHETS
+        // from 4/3 to 3/2 — a move no redemption can make against the real token.
+        mock.withdraw(1, address(this), address(this));
+        assertEq(mock.totalShares(), 2, "the burn did not round up");
+        assertEq(mock.totalManaged(), 3, "the wrapper did not debit exactly what was withdrawn");
+
+        // Link 2 concluded: the drain sized to leave 1 wei takes the LAST share while an asset remains.
+        mock.withdraw(2, address(this), address(this));
+        assertEq(mock.totalShares(), 0, "the supply did not empty");
+        assertEq(mock.totalManaged(), 1, "there is nothing left to strand: the control is vacuous");
+
+        // Link 3: the wei is invisible. This is the read `currentPositionValue()` makes.
+        assertEq(mock.convertToAssets(mock.totalManaged()), 0, "the mock did not hide the remainder");
+
+        // Link 4: the next deposit mints 1:1 against the empty supply and inherits it — one wei in, two out.
+        uint256 shares = mock.deposit(1, address(this));
+        assertEq(mock.convertToAssets(shares), 2, "the next deposit did not inherit the orphan");
     }
 }
