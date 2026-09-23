@@ -19,6 +19,12 @@ import { MainnetAddresses } from "./MainnetAddresses.sol";
 ///      `InvalidSalt` for any other sender, and a mismatch should surface in simulation.
 ///   2. Set real alignment targets (token addresses, vault flags)
 ///   3. Set cfg.safe to the real Gnosis Safe address — address(0) deploys a MockSafe
+///   4. Choose cfg.hookFeeBips and cfg.lpFeeRate — the perpetual post-graduation swap tithe. Both are
+///      left at zero here DELIBERATELY: the rate is immutable per hook (baked into its init code at
+///      graduation), so it is an economic decision with no safe default, and Sepolia's 100 bips is a
+///      testnet rehearsal figure rather than a proposal for this network. Zero is not inert — enabled
+///      over a zero rate, every mainnet graduation mints a hook that takes nothing, forever, with no
+///      revert to say so. `test/script/MainnetConfigCompleteness.t.sol` holds the gap open.
 contract DeployMainnet is DeployCore {
     function run() public {
         vm.startBroadcast();
@@ -56,6 +62,9 @@ contract DeployMainnet is DeployCore {
         cfg.zrouterFee = 3000;
         cfg.zrouterTickSpacing = 60;
         cfg.zammFeeOrHook = 30; // 0.3% — LOCKED (rth, 2026-07-10); matches vault feeOrHook() and Uni launch tier
+        // TODO 4: cfg.hookFeeBips / cfg.lpFeeRate — the perpetual swap tithe, left unchosen. See the
+        // header. Turning the tithe ON is a separate governed call either way (script/
+        // EnableAlignmentTithe.s.sol); this pair is only the rate it would be turned on at.
         cfg.alignmentTargets = targets;
         cfg.jsonOutputPath = "./deployments/mainnet.json";
     }

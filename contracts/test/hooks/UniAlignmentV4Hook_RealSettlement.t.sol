@@ -877,6 +877,59 @@ contract LiquidityDeployerModuleGraduation_RealSettlement is Test {
         assertEq(d4.amount0(), int128(0.5 ether), "shape4 still delivers exactly the ETH specified");
     }
 
+    /// @notice The DEPLOYED path, end to end: the calldata the enable step hands to governance is what
+    ///         makes a graduated pool credit the alignment vault.
+    /// @dev    The test above sets the module up through its typed setters, which is how a fixture does
+    ///         it and not how the deployment does it. On a live network the switch is one `bytes`
+    ///         blob: `EnableAlignmentTithe.printEnableBatch()` prints it, a Safe proposes it and the
+    ///         Timelock executes it as a raw call, and nothing between the printing and the execution
+    ///         type-checks anything. A wrong selector, a mis-encoded argument or an argument the
+    ///         registry does not approve all produce a transaction that succeeds and a pool that is
+    ///         never taxed.
+    ///
+    ///         So this drives the module through `address(module).call(...)` with the blob assembled
+    ///         exactly as that script assembles it, and then asks the only question that settles it:
+    ///         after a real graduation, does a real swap through the real PoolManager move ETH into
+    ///         the vault? The rate is read back off the module rather than restated, so the number
+    ///         asserted is the one the deployment carries.
+    ///
+    ///         The counterpart in `test/script/SepoliaAlignmentTithe.t.sol` checks the other half —
+    ///         that the factory this points at is the one the deploy registered, and that the rate
+    ///         under it is not zero. Neither half is sufficient alone: that one cannot swap, and this
+    ///         one cannot see the deployment.
+    function test_theGovernedEnableCalldata_makesAGraduatedPoolTitheToTheVault() public {
+        module.setHookFeeBips(HOOK_FEE_BIPS);
+        module.setLpFeeRate(LP_FEE_RATE);
+
+        // The blob, assembled the way the enable script assembles it — selector and argument, nothing
+        // typed, delivered by a raw call the way a Timelock delivers it.
+        (bool ok,) = address(module)
+            .call(abi.encodeWithSelector(LiquidityDeployerModule.setAlignmentHookFactory.selector, address(factory)));
+        assertTrue(ok, "the enable calldata must be accepted by the module");
+        assertEq(module.alignmentHookFactory(), address(factory), "and it must land on the registered factory");
+
+        vm.recordLogs();
+        _graduate(100 ether, 1_000_000 ether);
+        address hookAddr = _capturedHook();
+        assertTrue(hookAddr != address(0), "the graduation after the switch mints the pool its hook");
+
+        // The rate is read back off the module, not restated: this asserts the deployment's own number.
+        uint256 rate = module.hookFeeBips();
+        assertGt(rate, 0, "a zero rate would make every assertion below vacuously true");
+
+        PoolKey memory hookedKey = _key(LPFeeLibrary.DYNAMIC_FEE_FLAG, IHooks(hookAddr));
+        _prepSwapper();
+
+        uint256 before = vault.totalReceived();
+        swapRouter.swap{ value: 1 ether }(hookedKey, _sp(true, -1 ether, MIN_PRICE_LIMIT), _settings(), ZERO_BYTES);
+
+        assertEq(
+            vault.totalReceived() - before,
+            (1 ether * rate) / 10_000,
+            "a swap through the graduated pool must credit the alignment vault at the module's rate"
+        );
+    }
+
     // ── (b) DEFAULT OFF: untaxed static pool, byte-identical to today ────────
 
     function test_graduation_default_off_untaxedStaticPool_byteIdentical() public {

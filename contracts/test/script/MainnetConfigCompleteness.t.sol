@@ -153,6 +153,25 @@ contract MainnetConfigCompletenessTest is Test {
         assertEq(cfg.saltMasterRegistry, bytes32(0), "TODO 1: the CREATE3 salt set is still unmined");
         assertEq(cfg.alignmentTargets.length, 0, "TODO 2: the alignment roster is still empty");
     }
+
+    /// @dev The perpetual swap tithe's RATE, which mainnet has not chosen. Sepolia carries 100 bips as
+    ///      a testnet rehearsal figure and that figure is not a proposal for this network: the rate is
+    ///      IMMUTABLE per hook, baked into the hook's init code at graduation, so the number this
+    ///      config holds on the day is the number every pool graduating after the switch keeps for
+    ///      good. Choosing it is an economic decision and there is no safe default — which is why the
+    ///      field's own doc in `NetworkConfig` marks it OPERATOR INPUT.
+    ///
+    ///      Held open as an assertion rather than as a comment because zero is not an inert
+    ///      placeholder here. If the switch is thrown over it — and `setAlignmentHookFactory` does not
+    ///      look at the rate — every graduated mainnet pool mints a hook that takes nothing on every
+    ///      swap, forever, with no revert and nothing in any log to say the community is earning zero.
+    ///      The seat that chooses the rate flips this assertion; `EnableAlignmentTithe` refuses to
+    ///      produce the call while it still reads zero.
+    function test_theMainnetTitheRateIsStillOwed() public view {
+        DeployCore.NetworkConfig memory cfg = harness.config();
+        assertEq(cfg.hookFeeBips, 0, "TODO 4: mainnet's perpetual swap-tithe rate is still unchosen");
+        assertEq(uint256(cfg.lpFeeRate), 0, "TODO 4: mainnet's hooked-pool LP fee rate is still unchosen");
+    }
 }
 
 /// @dev `_mainnetConfig()` is `internal`, which is right — it is the script's own statement of the
