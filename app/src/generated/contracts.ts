@@ -3258,6 +3258,11 @@ export const erc1155FactoryAbi = [
       },
       { name: '_componentRegistry', internalType: 'address', type: 'address' },
       { name: '_weth', internalType: 'address', type: 'address' },
+      {
+        name: '_instanceImplementation',
+        internalType: 'address',
+        type: 'address',
+      },
     ],
     stateMutability: 'nonpayable',
   },
@@ -3354,6 +3359,13 @@ export const erc1155FactoryAbi = [
     type: 'function',
     inputs: [],
     name: 'globalMessageRegistry',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'instanceImplementation',
     outputs: [{ name: '', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
   },
@@ -3561,45 +3573,7 @@ export const erc1155FactoryAbi = [
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export const erc1155InstanceAbi = [
-  {
-    type: 'constructor',
-    inputs: [
-      { name: '_name', internalType: 'string', type: 'string' },
-      { name: '_creator', internalType: 'address', type: 'address' },
-      { name: '_factory', internalType: 'address', type: 'address' },
-      { name: '_vault', internalType: 'address', type: 'address' },
-      { name: '_styleUri', internalType: 'string', type: 'string' },
-      {
-        name: '_init',
-        internalType: 'struct ERC1155Instance.InstanceInit',
-        type: 'tuple',
-        components: [
-          {
-            name: 'globalMessageRegistry',
-            internalType: 'address',
-            type: 'address',
-          },
-          {
-            name: 'protocolTreasury',
-            internalType: 'address',
-            type: 'address',
-          },
-          { name: 'masterRegistry', internalType: 'address', type: 'address' },
-          { name: 'gatingModule', internalType: 'address', type: 'address' },
-          {
-            name: 'dynamicPricingModule',
-            internalType: 'address',
-            type: 'address',
-          },
-          { name: 'weth', internalType: 'address', type: 'address' },
-        ],
-      },
-      { name: '_agentCreated', internalType: 'bool', type: 'bool' },
-      { name: '_metadataURI', internalType: 'string', type: 'string' },
-      { name: '_symbol', internalType: 'string', type: 'string' },
-    ],
-    stateMutability: 'nonpayable',
-  },
+  { type: 'constructor', inputs: [], stateMutability: 'nonpayable' },
   { type: 'receive', stateMutability: 'payable' },
   {
     type: 'function',
@@ -3904,6 +3878,47 @@ export const erc1155InstanceAbi = [
       },
     ],
     stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '_name', internalType: 'string', type: 'string' },
+      { name: '_creator', internalType: 'address', type: 'address' },
+      { name: '_factory', internalType: 'address', type: 'address' },
+      { name: '_vault', internalType: 'address', type: 'address' },
+      { name: '_styleUri', internalType: 'string', type: 'string' },
+      {
+        name: '_init',
+        internalType: 'struct ERC1155Instance.InstanceInit',
+        type: 'tuple',
+        components: [
+          {
+            name: 'globalMessageRegistry',
+            internalType: 'address',
+            type: 'address',
+          },
+          {
+            name: 'protocolTreasury',
+            internalType: 'address',
+            type: 'address',
+          },
+          { name: 'masterRegistry', internalType: 'address', type: 'address' },
+          { name: 'gatingModule', internalType: 'address', type: 'address' },
+          {
+            name: 'dynamicPricingModule',
+            internalType: 'address',
+            type: 'address',
+          },
+          { name: 'weth', internalType: 'address', type: 'address' },
+        ],
+      },
+      { name: '_agentCreated', internalType: 'bool', type: 'bool' },
+      { name: '_metadataURI', internalType: 'string', type: 'string' },
+      { name: '_symbol', internalType: 'string', type: 'string' },
+    ],
+    name: 'initialize',
+    outputs: [],
+    stateMutability: 'nonpayable',
   },
   {
     type: 'function',
@@ -4615,6 +4630,7 @@ export const erc1155InstanceAbi = [
   { type: 'error', inputs: [], name: 'FreeMintExceedsSupply' },
   { type: 'error', inputs: [], name: 'FreeMintExhausted' },
   { type: 'error', inputs: [], name: 'GatingCheckFailed' },
+  { type: 'error', inputs: [], name: 'InstanceAlreadyInitialized' },
   { type: 'error', inputs: [], name: 'InsufficientBalance' },
   { type: 'error', inputs: [], name: 'InsufficientPayment' },
   { type: 'error', inputs: [], name: 'InvalidAddress' },
@@ -18692,6 +18708,15 @@ export const useReadErc1155FactoryGlobalMessageRegistry =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155FactoryAbi}__ and `functionName` set to `"instanceImplementation"`
+ */
+export const useReadErc1155FactoryInstanceImplementation =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155FactoryAbi,
+    functionName: 'instanceImplementation',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155FactoryAbi}__ and `functionName` set to `"masterRegistry"`
  */
 export const useReadErc1155FactoryMasterRegistry =
@@ -19409,6 +19434,15 @@ export const useWriteErc1155InstanceCompleteOwnershipHandover =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"initialize"`
+ */
+export const useWriteErc1155InstanceInitialize =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'initialize',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"initializeFreeMint"`
  */
 export const useWriteErc1155InstanceInitializeFreeMint =
@@ -19617,6 +19651,15 @@ export const useSimulateErc1155InstanceCompleteOwnershipHandover =
   /*#__PURE__*/ createUseSimulateContract({
     abi: erc1155InstanceAbi,
     functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"initialize"`
+ */
+export const useSimulateErc1155InstanceInitialize =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'initialize',
   })
 
 /**
