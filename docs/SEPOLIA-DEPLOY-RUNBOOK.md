@@ -59,7 +59,16 @@ aid; that function is the source.
 | TWAP window            | 1800 s                                       |
 | zRouter fee / spacing  | 3000 / 60                                    |
 | ZAMM feeOrHook         | 30 (0.3%)                                    |
+| alignment tithe rate   | 100 bps (1% of the ETH leg) — **inert until §5.6** |
+| hooked-pool LP fee     | 3000 (0.3%) — the same tier an untaxed pool trades on |
 | deploy-time targets    | none — the roster is minted by the seed      |
+
+The last two rows are the **rate** of the perpetual post-graduation swap tithe, not a decision to
+charge it. `DeployCore` copies both onto the liquidity deployer module and leaves the module's
+`alignmentHookFactory` at `address(0)`, which is its OFF position: until §5.6 every graduation
+opens a plain static-fee pool with no hook and no tithe. The pair is set here because a switch
+thrown over a zero rate mints hooks that take nothing, immutably and silently, and that is not a
+thing a rehearsal should be able to discover on mainnet.
 
 Two peripherals are **self-deployed** rather than pointed at something already on the chain, and
 both are deliberate: neither pre-existing Sepolia zRouter is this repo's router (one predates
@@ -424,6 +433,71 @@ Phase 2 ends by reading the handover back and reverting if any part of it did no
 migration fails in simulation rather than leaving the protocol half-moved. Tick §6.6 anyway: that
 assertion ran against the simulated state, and §6.6 runs against the chain.
 
+### 5.6 Turn the perpetual alignment tithe on
+
+**This step is the other rehearsal**, and it is here for the same reason §5.5 is: the call has never
+been made on any network, and without this section the first time it is made would be on mainnet.
+
+**What it turns on.** A graduated Uniswap-V4 pool can carry an alignment hook that takes
+`hookFeeBips` — 1% here, §1.1 — of the ETH side of every swap and forwards it to that collection's
+alignment vault, credited to the collection. That is the community's perpetual earnings on secondary
+trading, as distinct from the one-time 19% they receive at graduation. `DeployCore` deploys the hook
+factory, registers it under the `alignment_hook` component tag, and stops. The module ships with
+`alignmentHookFactory == address(0)`, so **everything graduated before this step is untaxed and stays
+untaxed**, and one owner call is the entire difference.
+
+**Where it is not.** It is not in `DeploySepolia`, not in `DeployCore`, and not a flag. The owner
+call is a parameter change, and by this point the owner is the Timelock — so on this network it is
+proposed through the Safe and executed by governance, which is exactly the shape mainnet will have to
+use. Enabling it as a deploy-time EOA write would rehearse a call mainnet cannot make.
+
+**ORDER MATTERS, IN BOTH DIRECTIONS.**
+
+- **After §5.2.** The showcase seed graduates one row and then reads that pool's liquidity back off a
+  key it rebuilds from the module's parameters; it `require`s the hook is off, because a hooked pool
+  is a different key and the seed does not guess. Enabling before the seed fails the seed.
+- **After §5.5.** Ownership has moved, so this is a governed call and not a broadcast. Doing it
+  before the handover is *possible* — `--sig "run()"` broadcast by the deployer does it — but then
+  the governed form is never exercised, which is the thing this step exists to exercise.
+
+```
+cd contracts
+export MODULE_UNIV4_DEPLOYER=<ModuleUniV4Deployer from deployments/sepolia.json>
+export COMPONENT_REGISTRY=<ComponentRegistry from deployments/sepolia.json>
+
+# Print the one call the Timelock must execute.
+forge script script/EnableAlignmentTithe.s.sol --sig "printEnableBatch()" --rpc-url <sepolia-rpc>
+```
+
+It resolves the hook factory from the component registry rather than taking an address on trust, and
+refuses to print anything unless the rate under the switch is non-zero and the factory binds the same
+PoolManager and WETH as the module. A governance proposal is an expensive place to find out the rate
+was zero.
+
+Propose that call through the Safe, wait out `TIMELOCK_MIN_DELAY`, execute it, then read it back:
+
+```
+forge script script/EnableAlignmentTithe.s.sol --sig "verify()" --rpc-url <sepolia-rpc>
+```
+
+**Two things to know before you throw it, because neither is reversible for a pool that has already
+graduated.**
+
+1. **The rate is immutable per hook.** It is baked into the hook's init code at graduation, so
+   changing `hookFeeBips` later changes only pools that graduate after the change.
+2. **The in-app swap panel cannot trade a hooked pool.** `zRouter.swapV4` builds its pool key with
+   `hooks: address(0)` — the router is hookless by construction — and the panel passes the module's
+   *static* fee tier, so for a collection graduated after this step the app would name a pool that
+   does not exist. Trading such a collection needs a router that carries the hook and the dynamic-fee
+   flag in its key. That is a real limitation of this deployment and not a misconfiguration; it is why
+   §6.7 observes the tithe with `cast` against the PoolManager rather than through the app.
+
+**Turning it back off** is the same call with `address(0)`, and it is not a rollback: pools that
+graduated while it was on keep their hooks and keep tithing. It stops the next graduation from
+minting one.
+
+---
+
 ---
 
 ## 6. Verify
@@ -513,6 +587,80 @@ leaving the protocol under one key.
 
 A non-zero exit names the contract that failed, so a partial migration says which step to re-run.
 
+### 6.7 The tithe actually moves
+
+§5.6 turned a switch on; this is where somebody watches money cross. Nothing above it does: the
+switch reads on whether or not a single wei has ever reached a vault, and a hook minted at a zero
+rate, or bound to a pool nobody trades, looks identical from every read in §6.
+
+**Only Uniswap V4 tithes.** The perpetual post-graduation swap tithe exists on the Uni-V4 venue and
+on no other. A collection that graduates to **ZAMM** or to **Cypher** gets the one-time cut at
+graduation and **nothing** on the trading that follows — their pools carry no hook and no plugin, and
+that is a decision, not a gap (`docs/phases/vault-flavors.md`, "Per-venue economics"; it is stated
+again in `ZAMMLiquidityDeployerModule`'s own NatSpec). Adding a tithe to the alt venues was
+considered and rejected: seeding depth away from Uniswap is itself the greater alignment service, so
+taxing it would discourage the more valuable action. **Do not check this section against a ZAMM or
+Cypher graduation, and do not let a creator on those venues believe the tithe applies to them.**
+
+**Graduate something after §5.6.** Only pools graduated after the switch carry a hook, and the
+showcase's graduated row was graduated by the seed, before it. The seed deliberately leaves a READY
+row uncrossed for a visitor to graduate — that is the one to use, or launch a fresh collection.
+
+**1. Find the hook.** The graduation transaction emits `AlignmentHookDeployed(hook, vault, benefactor,
+hookFeeBips, lpFeeRate)` from the tithe hook factory — the `ALIGNMENT_HOOK` component, the address
+§5.6 pointed the module at. The first indexed topic is the hook.
+
+```
+cast logs --from-block <graduation block> --to-block <graduation block> \
+  --address <hook factory> \
+  "AlignmentHookDeployed(address,address,address,uint256,uint24)" --rpc-url <sepolia-rpc>
+```
+
+**2. Read the vault before the swap.** The vault is the collection's alignment vault; the benefactor
+credited is the collection's instance address.
+
+```
+cast call <vault> "totalPendingETH()(uint256)"               --rpc-url <sepolia-rpc>
+cast call <vault> "benefactorTotalETH(address)(uint256)" <instance> --rpc-url <sepolia-rpc>
+cast call <hook>  "queuedFees()(uint256)"                    --rpc-url <sepolia-rpc>
+```
+
+**3. Swap at least 0.1 ETH, and swap it through the PoolManager.** Two traps here, and both look like
+the tithe is broken when it is working:
+
+- **Size.** `UniAlignmentVault.MIN_CONTRIBUTION` is 0.001 ETH, and the hook does not revert a swap
+  whose take the vault rejects — it adds it to its own `queuedFees` and emits `AlignmentFeeQueued`
+  instead of `AlignmentFeeCollected`. At 1%, 0.1 ETH is the smallest swap whose tithe lands in the
+  vault in its own transaction. A 0.01 ETH test swap works, tithes, and credits the vault nothing
+  visible. Once `queuedFees` clears 0.001 ETH, anyone may call `flushQueuedFees()` on the hook to
+  push it through.
+- **Route.** The pool is a *dynamic-fee* pool whose key names the hook, and `zRouter.swapV4` — what
+  the app's trading panel uses — builds its key with `hooks: address(0)` and the module's static fee.
+  It cannot reach this pool. Swap against the V4 PoolManager directly, with
+  `fee = 0x800000` (the dynamic-fee flag), `tickSpacing = 60` and `hooks = <hook>`.
+- Buy direction, or an exact-input sell, is what you want. An **exact-output ETH-out sell is untaxed
+  by design** — it is not a frontend path — so it is the one shape that legitimately moves nothing.
+
+**4. Read it back.** `totalPendingETH` and `benefactorTotalETH(<instance>)` each rise by 1% of the ETH
+leg, and the swap transaction carries two logs that name it outright:
+
+| event | emitted by | means |
+| --- | --- | --- |
+| `AlignmentFeeCollected(uint256 ethAmount, address indexed benefactor)` | the hook | the tithe reached the vault |
+| `ContributionReceived(address indexed benefactor, uint256 amount)` | the vault | and was credited to the collection |
+| `AlignmentFeeQueued(uint256 ethAmount, address indexed benefactor)` | the hook | the vault declined it — almost always the 0.001 ETH minimum; it is held, not lost |
+
+```
+cast receipt <swap tx> --rpc-url <sepolia-rpc>
+cast call <vault> "totalPendingETH()(uint256)" --rpc-url <sepolia-rpc>   # up by 1% of the ETH leg
+```
+
+A rise here is the whole claim the alignment story makes about secondary trading, observed once on a
+real network. The mechanism behind it is pinned by
+`contracts/test/hooks/UniAlignmentV4Hook_RealSettlement.t.sol` (all four swap shapes, the queue and
+the flush) and the deployed configuration by
+`contracts/test/script/SepoliaAlignmentTithe.t.sol`; this step is the one that runs on the chain.
+
 ### 6.5 The walk, live
 
 The same numbered walk from §4, followed against the public testnet, in a browser, with a wallet.
@@ -593,6 +741,9 @@ Stated plainly, because everything else in this runbook is retryable and these a
 - **A preset at create.** Every collection launched on this deployment carries the rung it was
   created under, permanently. This is why §6.1 runs before anyone is invited.
 - **Immutable factory fields.** `zQuoter`, the pool tier, the fee — set at deploy, no setters.
+- **A graduated pool's alignment hook.** The tithe rate is baked into the hook's init code at
+  graduation. Turning the switch off (§5.6) stops the next graduation from minting a hook; it does
+  not remove or retune the hook on a pool that already has one.
 - **The published CID.** Repointing the name is a new transaction, but the old CID stays retrievable
   for as long as anyone pins it.
 

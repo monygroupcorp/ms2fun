@@ -159,6 +159,37 @@ contract DeploySepolia is DeployCore {
         cfg.zrouterFee = 3000;
         cfg.zrouterTickSpacing = 60;
         cfg.zammFeeOrHook = 30; // 0.3% — LOCKED (rth, 2026-07-10)
+        // ── The perpetual alignment tithe: its RATE, seeded here; its SWITCH, not here ────────────
+        //
+        // `DeployCore` copies both values onto the singleton `LiquidityDeployerModule` at deploy and
+        // leaves `alignmentHookFactory` at `address(0)`, which is the module's OFF position. So what
+        // this pair does on its own is nothing: it is the rate a hook WOULD be minted with, sitting
+        // ready, and until the switch is thrown no graduation deploys a hook at all.
+        //
+        // Both were previously left unset, and an unset rate is the failure this closes. Throwing the
+        // switch over a zero `hookFeeBips` mints a hook that takes zero on every swap — a graduated
+        // pool that looks taxed, emits nothing, and credits the community nothing, with no revert and
+        // no warning anywhere to say so. A rehearsal of the switch is only a rehearsal if there is a
+        // rate under it.
+        //
+        // 100 bips is the TESTNET rehearsal rate and is not a statement about mainnet's. Mainnet's is
+        // an open decision — see `DeployMainnet` and the assertion that holds it open in
+        // `test/script/MainnetConfigCompleteness.t.sol`. The rate is IMMUTABLE per deployed hook: it
+        // is baked into the hook's init code, so changing it here changes only hooks minted after the
+        // change, and every pool that already graduated keeps the rate it was born with.
+        //
+        // A NUMBER TO KNOW BEFORE TESTING THE SWITCH: `UniAlignmentVault.MIN_CONTRIBUTION` is
+        // 0.001 ETH, and the hook QUEUES a take the vault rejects rather than reverting the swap. At
+        // 100 bips that makes 0.1 ETH the smallest swap whose tithe reaches the vault in the swap's
+        // own transaction; below it the ETH lands in the hook's `queuedFees` and needs a
+        // `flushQueuedFees()` once the queue clears the minimum. See the runbook's observation step.
+        cfg.hookFeeBips = 100; // 1% of the ETH leg of every swap, to the pool's alignment vault
+        // The dynamic LP fee the hook overrides the pool with. Matched to `cfg.zrouterFee`, the static
+        // fee an untaxed graduation uses, so throwing the switch changes what the pool TAKES and not
+        // what it charges: the hooked pool trades on the same 0.3% tier as every pool graduated before
+        // it. A hooked pool must carry a dynamic fee (v4 honors the hook's `beforeSwap` override on no
+        // other kind), so this value cannot simply be inherited — it has to be stated.
+        cfg.lpFeeRate = 3000; // 0.3%
         cfg.alignmentTargets = targets;
         cfg.jsonOutputPath = DEPLOYMENT_PATH;
     }
