@@ -594,13 +594,15 @@ switch reads on whether or not a single wei has ever reached a vault, and a hook
 rate, or bound to a pool nobody trades, looks identical from every read in §6.
 
 **Only Uniswap V4 tithes.** The perpetual post-graduation swap tithe exists on the Uni-V4 venue and
-on no other. A collection that graduates to **ZAMM** or to **Cypher** gets the one-time cut at
-graduation and **nothing** on the trading that follows — their pools carry no hook and no plugin, and
-that is a decision, not a gap (`docs/phases/vault-flavors.md`, "Per-venue economics"; it is stated
-again in `ZAMMLiquidityDeployerModule`'s own NatSpec). Adding a tithe to the alt venues was
-considered and rejected: seeding depth away from Uniswap is itself the greater alignment service, so
-taxing it would discourage the more valuable action. **Do not check this section against a ZAMM or
-Cypher graduation, and do not let a creator on those venues believe the tithe applies to them.**
+on no other venue this protocol graduates to. A collection that graduates to **ZAMM**, or to any
+alternative venue, gets the one-time cut at graduation and **nothing** on the trading that follows —
+those pools carry no hook, and that is a decision rather than a gap
+(`docs/phases/vault-flavors.md`, "Per-venue economics"; `ZAMMLiquidityDeployerModule`'s own NatSpec
+says it again at the code). Extending the tithe to the alternative venues was considered and
+rejected: seeding depth away from Uniswap is itself the greater alignment service, so taxing it would
+discourage the more valuable action. **Do not check this section against a non-Uniswap graduation,
+and do not let a creator on one of those venues believe the tithe applies to them** — for them the
+alignment vault is funded at graduation and by contributions, and never by their traders.
 
 **Graduate something after §5.6.** Only pools graduated after the switch carry a hook, and the
 showcase's graduated row was graduated by the seed, before it. The seed deliberately leaves a READY
