@@ -51,6 +51,9 @@ contract EndowmentVaultHandler is Test {
     // NOT the raw intended `simulateYield` arg.
     uint256 public sumYieldInjected;
     uint256 public sumHarvestDistributed; // Σ yield distributed (creator+target+proto)
+    // Σ strand a deposit handed back to the pool (see `_strandedInPosition`). A component of
+    // `sumYieldInjected`, kept separately so the quantity is readable rather than absorbed.
+    uint256 public sumStrandRecoveredAtDeposit;
 
     uint256 public depositCount;
     uint256 public harvestCount;
@@ -65,6 +68,7 @@ contract EndowmentVaultHandler is Test {
     bool public ghost_harvestSplitViolation; // harvest split (80/19/1) mismatched
     bool public ghost_creatorYieldHeldWhenItCouldBeCredited; // held creator leg large enough to move the accumulator
     bool public ghost_principalExceedsBasis; // Σ live per-benefactor principal drifted above the basis
+    bool public ghost_depositMintedYield; // a deposit raised the yield pool by more than the strand it inherited
 
     constructor(
         AlignmentEndowmentVault _vault,
@@ -113,6 +117,28 @@ contract EndowmentVaultHandler is Test {
         return val > basis ? val - basis : 0;
     }
 
+    /// @dev Assets the ERC-4626 is holding that the vault's position does NOT price — the strand, measured
+    ///      from outside the vault.
+    ///
+    ///      `_yieldPoolValue` books a strand at the call that CREATES it, which is right whenever the
+    ///      position still prices the strand at that moment. There is one shape where it does not. A
+    ///      withdrawal sized so the 4626's ceiling share-burn takes the LAST share leaves assets behind with
+    ///      no share supply outstanding, and `convertToAssets` on a zero supply is zero — so the vault reads
+    ///      its position as empty, and the strand is invisible to `_yieldPoolValue` at the instant it is
+    ///      made. It reappears only at the NEXT deposit, which mints against a zero supply at 1:1 and so
+    ///      re-attributes the orphaned assets to the vault's fresh shares: position value comes back one
+    ///      strand above the basis the deposit credited, and the following harvest splits it 80/19/1.
+    ///
+    ///      So the deposit is the second place the realized-basis rule has to be applied, and this reader is
+    ///      what bounds it: a pool that appears across a deposit is legitimate only up to the strand that was
+    ///      already sitting in the 4626 before it. Anything beyond that is a deposit minting yield, which is
+    ///      the defect `ghost_depositMintedYield` names.
+    function _strandedInPosition() internal view returns (uint256) {
+        uint256 held = stata.totalManaged();
+        uint256 priced = vault.currentPositionValue();
+        return held > priced ? held - priced : 0;
+    }
+
     /// @dev Σ of every benefactor's live principal must never exceed the basis the position actually holds.
     ///      The per-benefactor figure is a share of one pool, so this is the check that the share arithmetic
     ///      never promises out more principal than there is.
@@ -140,9 +166,24 @@ contract EndowmentVaultHandler is Test {
 
         vm.deal(address(this), address(this).balance + amount);
         Currency native = Currency.wrap(address(0));
+        // Measured BEFORE the call: the strand already parked in the 4626, and the pool the vault prices.
+        uint256 strandBefore = _strandedInPosition();
+        uint256 poolBefore = _yieldPoolValue();
         try vault.receiveContribution{ value: amount }(native, amount, b) {
             sumDeposited += amount;
             depositCount++;
+            // A deposit adds `amount` to BOTH the position value and the basis, so on its own it moves the
+            // yield pool by nothing. A pool that appears here is a strand the 4626 was holding unpriced,
+            // handed to the fresh shares — realized yield the vault WILL split, booked on the same basis as
+            // `sumHarvestDistributed`, exactly as `execute` and `migrate` already book theirs. It is bounded
+            // by the strand that was there to hand over; a larger one is the deposit itself minting yield.
+            uint256 poolAfter = _yieldPoolValue();
+            if (poolAfter > poolBefore) {
+                uint256 appeared = poolAfter - poolBefore;
+                if (appeared > strandBefore) ghost_depositMintedYield = true;
+                sumYieldInjected += appeared;
+                sumStrandRecoveredAtDeposit += appeared;
+            }
             _checkPrincipalConserves();
         } catch { }
     }
