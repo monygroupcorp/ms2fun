@@ -563,12 +563,9 @@
           "calls": [
             "erc404BondingInstanceAbi.approve",
             "zRouterAbi.swapV4",
-            "zRouterAbi.swapVZ",
-            "algebraSwapRouterAbi.exactInputSingle",
-            "algebraSwapRouterAbi.multicall",
-            "algebraSwapRouterAbi.unwrapWNativeToken"
+            "zRouterAbi.swapVZ"
           ],
-          "given": "a graduated collection from C-15. Which router runs is set by the venue it graduated to — Uni-V4 and ZAMM go through zRouter, the Cypher family through the Algebra router — so walk this once per venue you can reach and record which one you actually traded.",
+          "given": "a graduated collection from C-15. Both venues a collection can graduate to — Uni-V4 and ZAMM — trade through zRouter, so walk this once per venue you can reach and record which one you actually traded.",
           "do": "buy with ETH, then approve and sell back to ETH",
           "expect": "the sell settles in native ETH, not in a wrapped token; the min-out shown before signing is a separate figure from the amount you receive, and the receipt lands between them",
           "blocking": true
@@ -699,7 +696,7 @@
             "communityPayoutAbi.flushTargetFees"
           ],
           "given": "a vault whose target carries the community payout address set in O-4, with fees accrued to it by the trading in B-1",
-          "do": "open the vault from /vaults and press deliver — the button sends flushTargetFees on an endowment vault and withdrawTargetFees on a Cypher, ZAMM or Uni one, so walk whichever kind the deploy has and say which in the row",
+          "do": "open the vault from /vaults and press deliver — the button sends flushTargetFees on an endowment vault and withdrawTargetFees on a ZAMM or Uni one, so walk whichever kind the deploy has and say which in the row",
           "expect": "the waiting amount falls to zero and the payout address receives it; with no payout address set the button is disabled and says the delivery is waiting on one, rather than sending a transaction that reverts",
           "blocking": true
         },
@@ -722,7 +719,7 @@
           "calls": [
             "communityPayoutAbi.releaseCorpusToCommunity"
           ],
-          "given": "an endowment vault reached in B-16 whose target was de-curated in O-10 — the Cypher, ZAMM and Uni families do not offer this and their panel does not show the control. The frozen-principal figure is the corpus still in the position plus any round residue parked in B-17 and not yet delivered",
+          "given": "an endowment vault reached in B-16 whose target was de-curated in O-10 — the ZAMM and Uni families do not offer this and their panel does not show the control. The frozen-principal figure is the corpus still in the position plus any round residue parked in B-17 and not yet delivered",
           "do": "press release, then press it a second time with nothing left to release",
           "expect": "the first release sends the frozen principal to the payout address in one call — corpus and parked residue together; the second is refused by a disabled button that says no principal is left to release, not by a revert",
           "blocking": true
@@ -734,7 +731,7 @@
           "calls": [
             "lpVaultAbi.withdrawProtocolFees"
           ],
-          "given": "a Uni, ZAMM or Cypher vault that has taken trading fees — the same vault B-16 delivers the community share from",
+          "given": "a Uni or ZAMM vault that has taken trading fees — the same vault B-16 delivers the community share from",
           "do": "open the vault from /vaults and press deliver on the protocol-cut section",
           "expect": "the undelivered figure falls to zero and the treasury the vault was wired with receives it. The call takes no destination, so pressing it from a stranger's wallet sends the money to the same place — walk it from a wallet that owns nothing and check the treasury balance, not the sender's. With nothing accrued the section is not on the page at all",
           "blocking": true
@@ -901,8 +898,8 @@
       "why": "the abi is picked at runtime from a FACTORY table, so the scan cannot pair it. It is an estimateContractGas read, not a write, and the write it estimates is covered by C-1/C-2/C-3."
     },
     {
-      "site": "app/src/components/collection/erc404/useStrandedTithe.ts:91",
-      "why": "the abi is picked at runtime from the venue the collection graduated to — one of three liquidity deployer modules — so the scan cannot pair it. The write is flushPendingVaultCut on whichever module holds the stranded cut; it is walked as C-18 on the auction family, and the ERC-404 row beside it sends the same call against the module instead of the instance."
+      "site": "app/src/components/collection/erc404/useStrandedTithe.ts:81",
+      "why": "the abi is picked at runtime from the venue the collection graduated to — one of two liquidity deployer modules — so the scan cannot pair it. The write is flushPendingVaultCut on whichever module holds the stranded cut; it is walked as C-18 on the auction family, and the ERC-404 row beside it sends the same call against the module instead of the instance."
     },
     {
       "site": "app/src/lib/useEthUsd.ts:76",
