@@ -140,7 +140,6 @@ contract AaveEndowmentMainnetForkTest is Test {
             name: "Endowment rehearsal target",
             description: "Fixture target, fork rehearsal only.",
             deployUniVault: false,
-            deployCypherVault: false,
             deployZAMMVault: false,
             communityPayout: address(0xB0B)
         });

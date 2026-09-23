@@ -16,9 +16,7 @@ import { SafeCast } from "v4-core/libraries/SafeCast.sol";
 
 import { LiquidityDeployerModule } from "../../src/factories/erc404/LiquidityDeployerModule.sol";
 import { ZAMMLiquidityDeployerModule } from "../../src/factories/erc404zamm/ZAMMLiquidityDeployerModule.sol";
-import { CypherLiquidityDeployerModule } from "../../src/factories/erc404cypher/CypherLiquidityDeployerModule.sol";
 import { ILiquidityDeployerModule } from "../../src/interfaces/ILiquidityDeployerModule.sol";
-import { CypherAlignmentVault } from "../../src/vaults/cypher/CypherAlignmentVault.sol";
 
 import { MockERC20 } from "../mocks/MockERC20.sol";
 import { MockWETH } from "../mocks/MockWETH.sol";
@@ -26,8 +24,6 @@ import { MockVault } from "../mocks/MockVault.sol";
 import { MockZAMM } from "../mocks/MockZAMM.sol";
 import { MockMasterRegistry } from "../mocks/MockMasterRegistry.sol";
 import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
-import { MockAlgebraFactory, MockAlgebraPositionManager, MockAlgebraSwapRouter } from "../mocks/MockCypherAlgebra.sol";
-import { IAlgebraPool } from "../../src/interfaces/algebra/IAlgebra.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 
 /**
@@ -341,8 +337,8 @@ contract V4GraduationLpResidueTest is Test {
         _assertRaiseFullyAccounted();
     }
 
-    /// @notice Uniswap v4 takes no min-amount parameter, so the ZAMM/Cypher `amount * 99 / 100` floors
-    ///         had no equivalent here and the band was the ONLY cap on how little the pool could take.
+    /// @notice Uniswap v4 takes no min-amount parameter, so the ZAMM module's `amount * 99 / 100`
+    ///         floors had no equivalent here and the band was the ONLY cap on how little the pool took.
     ///         The floor is now asserted on the settled delta: a venue that takes under 99% of a leg
     ///         reverts graduation instead of stranding the difference.
     function test_v4_venueTakingUnder99Percent_revertsRatherThanStranding() public {
@@ -532,159 +528,6 @@ contract ZAMMGraduationLpResidueTest is Test {
 
     /// @notice The coin backstop, same shape as the other two venues.
     function test_zamm_sweepUnconsumedCoin_sendsItToTheInstance() public {
-        token.mint(address(module), 5 ether);
-
-        vm.prank(makeAddr("passerby"));
-        module.sweepUnconsumedCoin(address(token));
-
-        assertEq(token.balanceOf(address(module)), 0, "the module is empty");
-        assertEq(token.balanceOf(address(token)), 5 ether, "the token contract has it");
-    }
-
-    receive() external payable { }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// C. Cypher / Algebra
-// ─────────────────────────────────────────────────────────────────────────────
-
-contract CypherGraduationLpResidueTest is Test {
-    function markGraduationSkipNFT(address) external { }
-
-    CypherLiquidityDeployerModule internal module;
-    CypherAlignmentVault internal vault;
-    MockAlgebraFactory internal algebraFactory;
-    MockAlgebraPositionManager internal positionManager;
-    MockAlgebraSwapRouter internal swapRouter;
-    MockERC20 internal token;
-    MockWETH internal weth;
-    MockMasterRegistry internal registry;
-    MockAlignmentRegistry internal alignmentRegistry;
-
-    address internal treasury = makeAddr("treasury");
-    address internal constant CREATOR = address(0xC0FFEE);
-
-    uint256 internal constant ETH_RESERVE = 25 ether;
-    uint256 internal constant TOKEN_RESERVE = 1_000_000 ether;
-    uint256 internal constant ETH_FOR_POOL = ETH_RESERVE - ETH_RESERVE / 100 - (ETH_RESERVE * 19) / 100;
-    uint256 internal constant TARGET_ID = 1;
-
-    function setUp() public {
-        algebraFactory = new MockAlgebraFactory();
-        positionManager = new MockAlgebraPositionManager();
-        swapRouter = new MockAlgebraSwapRouter();
-        token = new MockERC20("Token", "TKN");
-        weth = new MockWETH();
-        registry = new MockMasterRegistry();
-        alignmentRegistry = new MockAlignmentRegistry();
-        alignmentRegistry.setTargetActive(TARGET_ID, true);
-        alignmentRegistry.setTokenInTarget(TARGET_ID, address(token), true);
-
-        module = new CypherLiquidityDeployerModule(
-            address(algebraFactory), address(positionManager), address(weth), address(registry)
-        );
-
-        CypherAlignmentVault impl = new CypherAlignmentVault();
-        vault = CypherAlignmentVault(payable(LibClone.clone(address(impl))));
-        vault.initialize(
-            address(positionManager),
-            address(swapRouter),
-            address(algebraFactory),
-            address(weth),
-            address(token),
-            treasury,
-            makeAddr("zRouter"),
-            address(0),
-            address(0),
-            alignmentRegistry,
-            TARGET_ID
-        );
-    }
-
-    function _params() internal view returns (ILiquidityDeployerModule.DeployParams memory p) {
-        p = ILiquidityDeployerModule.DeployParams({
-            ethReserve: ETH_RESERVE,
-            tokenReserve: TOKEN_RESERVE,
-            protocolTreasury: treasury,
-            token: address(token),
-            vault: address(vault),
-            instance: address(this),
-            creator: CREATOR,
-            carveEth: 0,
-            excessEth: 0
-        });
-    }
-
-    function _graduate() internal {
-        token.mint(address(module), TOKEN_RESERVE);
-        vm.deal(address(this), ETH_RESERVE);
-        module.deployLiquidity{ value: ETH_RESERVE }(_params());
-    }
-
-    /// @notice The module wraps the WHOLE LP leg to WETH up front and mints with `amount*99/100`
-    ///         floors, so the position manager may absorb as little as 99% of each side. Whatever it
-    ///         leaves used to be WETH and coin sitting in a module that exposed no ERC20 transfer path
-    ///         at all — not even an owner one. Now the WETH is unwrapped onto the rail and the coin
-    ///         goes back to the instance. (`absorbBps` is the repo mock's own knob for exactly this.)
-    function test_cypher_venueAbsorbsLessThanSent_returnsBothSides() public {
-        positionManager.setAbsorbBps(9900);
-
-        uint256 railedBefore = treasury.balance + address(vault).balance + CREATOR.balance;
-        _graduate();
-
-        uint256 wethToPool = weth.balanceOf(address(positionManager));
-        assertLt(wethToPool, ETH_FOR_POOL, "precondition: the position manager under-absorbed");
-        uint256 residue = ETH_FOR_POOL - wethToPool;
-        emit log_named_decimal_uint("ETH for pool (wrapped)", ETH_FOR_POOL, 18);
-        emit log_named_decimal_uint("returned to the rail  ", residue, 18);
-
-        assertEq(weth.balanceOf(address(module)), 0, "no WETH left in the module");
-        assertEq(address(module).balance, 0, "no ETH left in the module");
-        assertEq(token.balanceOf(address(module)), 0, "no coin left in the module");
-        assertEq(
-            token.allowance(address(module), address(positionManager)),
-            0,
-            "no live allowance over coin it no longer holds"
-        );
-        assertGt(token.balanceOf(address(this)), 0, "the unabsorbed coin came back to the instance");
-        assertEq(
-            token.balanceOf(address(this)) + token.balanceOf(address(positionManager)),
-            TOKEN_RESERVE,
-            "every coin is placed or returned"
-        );
-
-        // The rail always takes the base 1% + 19% of the raise; the residue is what it gains ON TOP.
-        uint256 railed = treasury.balance + address(vault).balance + CREATOR.balance;
-        assertEq(
-            railed - railedBefore,
-            (ETH_RESERVE - ETH_FOR_POOL) + residue,
-            "the rail gained the base cuts plus exactly the unabsorbed ETH"
-        );
-        assertEq(railed + wethToPool, ETH_RESERVE, "every wei of the raise is placed or paid");
-    }
-
-    /// @notice Same band defect as Uniswap v4, same fix: the tolerance is 1% ON PRICE, where it used
-    ///         to be 1% on `sqrtPriceX96` and therefore 2% on the quantity that decides consumption.
-    ///         Cypher's `amountNMin` floors capped the damage at 1% of a leg, but the label was still
-    ///         wrong by a factor of two.
-    function test_cypher_initPriceBand_isOnePercentOnPrice() public {
-        bool tokenIsZero = address(token) < address(weth);
-        uint256 amount0 = tokenIsZero ? TOKEN_RESERVE : ETH_FOR_POOL;
-        uint256 amount1 = tokenIsZero ? ETH_FOR_POOL : TOKEN_RESERVE;
-        uint256 intended = FixedPointMathLib.sqrt(FixedPointMathLib.fullMulDiv(amount1, 1 << 192, amount0));
-
-        address pool = algebraFactory.createPool(address(token), address(weth), "");
-        // +1.01% on PRICE: inside the old root-measured band, outside the fixed price-measured one.
-        IAlgebraPool(pool).initialize(uint160(intended * FixedPointMathLib.sqrt(10_101e14 * 1e18) / 1e18));
-
-        token.mint(address(module), TOKEN_RESERVE);
-        vm.deal(address(this), ETH_RESERVE);
-        vm.expectRevert(CypherLiquidityDeployerModule.PoolPriceMismatch.selector);
-        module.deployLiquidity{ value: ETH_RESERVE }(_params());
-    }
-
-    /// @notice The coin backstop, same shape as the other two venues.
-    function test_cypher_sweepUnconsumedCoin_sendsItToTheInstance() public {
         token.mint(address(module), 5 ether);
 
         vm.prank(makeAddr("passerby"));

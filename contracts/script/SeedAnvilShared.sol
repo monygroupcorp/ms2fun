@@ -433,8 +433,7 @@ abstract contract SeedAnvilShared is Script {
     // fifth, choosing whichever is not already answering next to them. Current reuse: ART_BASE_DOODLE
     // backs both `ember-preopen`'s pieces and — on two surfaces that never sit beside it — the
     // agent-created commission and `prism-stacked`'s opt-in wave, whose stack already spends the
-    // other three (base = ANIME, band = ARCTIC, commissions = SIMIAN) — and `quench-ready`, which
-    // sits in the ready-to-graduate group where ARCTIC (cinder) and SIMIAN (molten) already answer.
+    // other three (base = ANIME, band = ARCTIC, commissions = SIMIAN).
     string internal constant ART_BASE_ANIME = "ipfs://QmZcH4YvBVVRJtdn4RdbaqgspFU8gH6P9vomDpBVpAL3u4/";
     string internal constant ART_BASE_ARCTIC = "ipfs://bafybeibc5sgo2plmjkq2tzmhrn54bk3crhnc23zd2msg4ea7a4pxrkgfna/";
     string internal constant ART_BASE_SIMIAN = "ipfs://QmeSjSinHpPnmXmspMjwiXyN6zS4E9zccariGR3jxcaWtq/";
@@ -544,12 +543,10 @@ abstract contract SeedAnvilShared is Script {
         GlobalMessageRegistry messages;
         address vault; // first Uni LP vault — generic contract vault
         address zammVault; // first ZAMM LP vault
-        address cypherVault; // first Cypher (Algebra) LP vault
         address endowmentVault; // first Aave endowment vault
         address stakingModule; // ERC404StakingModule (approved STAKING component)
         address zammDeployer; // ModuleZAMMDeployer (approved LIQUIDITY_DEPLOYER)
         address uniDeployer; // ModuleUniV4Deployer (approved LIQUIDITY_DEPLOYER)
-        address cypherDeployer; // ModuleCypherDeployer (approved LIQUIDITY_DEPLOYER)
         address resolverRouter; // MetadataResolverRouter (approved RESOLVER)
         address overlay; // MetadataOverlayModule (approved OVERLAY)
         address tier; // TokenTierBandResolver (approved TIER)
@@ -570,7 +567,6 @@ abstract contract SeedAnvilShared is Script {
         address vapor; // MID-CURVE — several buys + staking
         address cinder; // READY-TO-GRADUATE (Uni-V4)
         address molten; // READY-TO-GRADUATE (ZAMM)
-        address quench; // READY-TO-GRADUATE (Cypher/Algebra)
         address carve; // CARVE DEMO — bought until reserve >= 3 ETH
         address stacked; // STACKED METADATA — buy-with-mint + overlay authoring
         address schizo; // CATALOG flagship — READY-TO-GRADUATE, catalog-sized curve, CULT UniV4 vault
@@ -605,16 +601,14 @@ abstract contract SeedAnvilShared is Script {
         d.stakingModule = vm.parseJsonAddress(json, ".contracts.ERC404StakingModule");
         d.zammDeployer = vm.parseJsonAddress(json, ".contracts.ModuleZAMMDeployer");
         d.uniDeployer = vm.parseJsonAddress(json, ".contracts.ModuleUniV4Deployer");
-        d.cypherDeployer = vm.parseJsonAddress(json, ".contracts.ModuleCypherDeployer");
         d.resolverRouter = vm.parseJsonAddress(json, ".contracts.MetadataResolverRouter");
         d.overlay = vm.parseJsonAddress(json, ".contracts.MetadataOverlayModule");
         d.tier = vm.parseJsonAddress(json, ".contracts.TokenTierBandResolver");
         // Resolve the seed's vaults by FAMILY via DeployCore's convenience pointers, not by index
-        // into the `vaults` array — that array's ordering shifts as LP families (ZAMM/Cypher) are
+        // into the `vaults` array — that array's ordering shifts as LP families (ZAMM) are
         // enabled per network, so a fixed index silently binds to the wrong vault type.
         d.vault = vm.parseJsonAddress(json, ".contracts.SeedUniVault");
         d.zammVault = vm.parseJsonAddress(json, ".contracts.SeedZammVault");
-        d.cypherVault = vm.parseJsonAddress(json, ".contracts.SeedCypherVault");
         d.endowmentVault = vm.parseJsonAddress(json, ".contracts.SeedAaveVault");
         d.alignmentRegistry = vm.parseJsonAddress(json, ".contracts.AlignmentRegistry");
         d.master = vm.parseJsonAddress(json, ".contracts.MasterRegistry");
@@ -699,7 +693,6 @@ abstract contract SeedAnvilShared is Script {
         vm.serializeAddress(inner, "vapor", s.vapor);
         vm.serializeAddress(inner, "cinder", s.cinder);
         vm.serializeAddress(inner, "molten", s.molten);
-        vm.serializeAddress(inner, "quench", s.quench);
         vm.serializeAddress(inner, "carve", s.carve);
         vm.serializeAddress(inner, "schizo", s.schizo);
         vm.serializeAddress(inner, "pixelady", s.pixelady);
@@ -736,7 +729,6 @@ abstract contract SeedAnvilShared is Script {
         s.vapor = vm.parseJsonAddress(json, ".instances.vapor");
         s.cinder = vm.parseJsonAddress(json, ".instances.cinder");
         s.molten = vm.parseJsonAddress(json, ".instances.molten");
-        s.quench = vm.parseJsonAddress(json, ".instances.quench");
         s.carve = vm.parseJsonAddress(json, ".instances.carve");
         s.stacked = vm.parseJsonAddress(json, ".instances.stacked");
         s.schizo = vm.parseJsonAddress(json, ".instances.schizo");
@@ -754,7 +746,6 @@ abstract contract SeedAnvilShared is Script {
         require(s.vapor != address(0), "seed state: vapor missing");
         require(s.cinder != address(0), "seed state: cinder missing");
         require(s.molten != address(0), "seed state: molten missing");
-        require(s.quench != address(0), "seed state: quench missing");
         require(s.carve != address(0), "seed state: carve missing");
         require(s.stacked != address(0), "seed state: stacked missing");
         require(s.schizo != address(0), "seed state: schizo missing");

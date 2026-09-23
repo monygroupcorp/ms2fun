@@ -21,14 +21,12 @@ import { BondingCurveMath } from "../../../src/factories/erc404/libraries/Bondin
 import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 
 import { ZAMMLiquidityDeployerModule } from "../../../src/factories/erc404zamm/ZAMMLiquidityDeployerModule.sol";
-import { CypherLiquidityDeployerModule } from "../../../src/factories/erc404cypher/CypherLiquidityDeployerModule.sol";
 import { IGraduationSkipNFTTarget } from "../../../src/interfaces/ILiquidityDeployerModule.sol";
 
 import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
 import { MockVault } from "../../mocks/MockVault.sol";
 import { MockZAMM } from "../../mocks/MockZAMM.sol";
 import { MockWETH } from "../../mocks/MockWETH.sol";
-import { MockAlgebraFactory, MockAlgebraPositionManager } from "../../mocks/MockCypherAlgebra.sol";
 
 /// @dev Minimal V4 PoolManager: enough of the surface for one full graduation add — `extsload` for
 ///      `StateLibrary.getSlot0`, `initialize`, `unlock` (re-entering the caller's `unlockCallback`),
@@ -357,9 +355,9 @@ abstract contract VenueGraduationSkipNFTBase is Test {
     uint256 internal constant RESERVED_IDS = (NFT_COUNT * LIQUIDITY_RESERVE_BPS) / 10000; // 20,000
 
     /// @dev Ceiling for the whole graduation call. Comfortably above the settled cost of a
-    ///      no-NFT-work graduation on any of the three venues (measured: Uni and ZAMM under 700k,
-    ///      Cypher 861k) and two orders of magnitude below what the round trip costs at this size
-    ///      (measured: ~246M on each venue with the mechanism removed).
+    ///      no-NFT-work graduation on either venue (measured: Uni and ZAMM under 700k) and two orders
+    ///      of magnitude below what the round trip costs at this size (measured: ~246M on each venue
+    ///      with the mechanism removed).
     uint256 internal constant GRADUATION_GAS_BOUND = 3_000_000;
 
     /// @dev The venue's deployer module, wired into the instance at `initialize`.
@@ -523,85 +521,5 @@ contract ZAMMGraduationSkipNFTTest is VenueGraduationSkipNFTBase {
         vm.prank(buyer);
         instance.transfer(address(zamm), UNIT);
         assertEq(mirror.balanceOf(address(zamm)), 0, "a post-graduation credit minted ids to the AMM");
-    }
-}
-
-/**
- * @title CypherGraduationSkipNFTTest
- * @notice The Algebra venue is why the mechanism is a callback rather than a getter: the pool is
- *         created DURING graduation, so no accessor on the module can name it beforehand. Both the
- *         pool and the position manager are flagged — which of the two takes custody of the coin is
- *         an implementation detail of the periphery (this repo's in-tree Algebra double pulls both
- *         amounts to the position manager; production periphery pays payer->pool inside the mint
- *         callback), and flagging both is correct under either.
- */
-contract CypherGraduationSkipNFTTest is VenueGraduationSkipNFTBase {
-    CypherLiquidityDeployerModule internal deployer;
-    MockAlgebraFactory internal algebraFactory;
-    MockAlgebraPositionManager internal positionManager;
-    MockWETH internal weth;
-
-    function _deployerModule() internal view override returns (address) {
-        return address(deployer);
-    }
-
-    function setUp() public {
-        algebraFactory = new MockAlgebraFactory();
-        positionManager = new MockAlgebraPositionManager();
-        weth = new MockWETH();
-        MockMasterRegistry preRegistry = new MockMasterRegistry();
-        deployer = new CypherLiquidityDeployerModule(
-            address(algebraFactory), address(positionManager), address(weth), address(preRegistry)
-        );
-        _buildInstance();
-        preRegistry.setRegisteredInstance(address(instance), true);
-    }
-
-    function _pool() internal view returns (address) {
-        return algebraFactory.poolByPair(address(instance), address(weth));
-    }
-
-    function test_graduation_isGasBoundedAtALargeCollection() public {
-        _seedReserve();
-        uint256 spent = _graduate();
-        assertLt(spent, GRADUATION_GAS_BOUND, "graduation gas scaled with the reserved id count");
-    }
-
-    function test_graduation_mintsNoIdsToItsCounterparties() public {
-        _seedReserve();
-        _graduate();
-
-        address pool = _pool();
-        assertTrue(pool != address(0), "no pool was created");
-
-        // The coin really did travel instance -> module -> periphery. Under this repo's Algebra
-        // double the position manager is where it lands; the assertion is on the union of the two
-        // counterparties so it stays true under either custody model.
-        uint256 delivered = instance.balanceOf(pool) + instance.balanceOf(address(positionManager));
-        assertGt(delivered, 0, "neither counterparty holds coin");
-        assertApproxEqRel(delivered, RESERVED_IDS * UNIT, 1e14, "the counterparties hold the reserve");
-        assertEq(instance.balanceOf(address(deployer)), 0, "the module passed the reserve on");
-
-        assertEq(mirror.balanceOf(address(deployer)), 0, "the deployer module holds no id");
-        assertEq(mirror.balanceOf(pool), 0, "the pool holds no id");
-        assertEq(mirror.balanceOf(address(positionManager)), 0, "the position manager holds no id");
-        assertTrue(instance.getSkipNFT(address(deployer)), "the module is flagged NFT-skipping");
-        assertTrue(instance.getSkipNFT(pool), "the pool is flagged NFT-skipping");
-        assertTrue(instance.getSkipNFT(address(positionManager)), "the position manager is flagged NFT-skipping");
-    }
-
-    /// @dev The flag is permanent, not saved and restored: the pool keeps receiving coin on the sell
-    ///      side of every later swap, and a restored flag would re-mint the reserve's worth of ids.
-    function test_counterpartyStaysNFTSkippingAfterGraduation() public {
-        _seedReserve();
-        _graduate();
-
-        address pool = _pool();
-        vm.startPrank(buyer);
-        instance.transfer(pool, UNIT);
-        instance.transfer(address(positionManager), UNIT);
-        vm.stopPrank();
-        assertEq(mirror.balanceOf(pool), 0, "a post-graduation credit minted ids to the pool");
-        assertEq(mirror.balanceOf(address(positionManager)), 0, "a post-graduation credit minted ids to the periphery");
     }
 }

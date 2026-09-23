@@ -132,7 +132,6 @@ contract SeedAnvilBuys is SeedAnvilShared {
         _buysMidCurve(s.vapor);
         _buyReadyToGraduate(s.cinder, "cinder");
         _buyReadyToGraduate(s.molten, "molten");
-        _buyReadyToGraduate(s.quench, "quench");
         _buysCarveDemo(s.carve);
         _buysStacked(d, s.stacked);
 
@@ -156,7 +155,7 @@ contract SeedAnvilBuys is SeedAnvilShared {
         _assertCatalogPhase2(d, s, k);
 
         console.log("=== SeedAnvilBuys (phase 2: buys + handover) complete ===");
-        console.log("ERC404 : vapor mid-curve + staked; cinder/molten/quench bought (reserve > 0, graduate-ready)");
+        console.log("ERC404 : vapor mid-curve + staked; cinder/molten bought (reserve > 0, graduate-ready)");
         console.log("ERC404 : carve reserve >= 3 ETH; stacked NFTs held by ADMIN + overlay authored");
         console.log("CATALOG: three curves filled to a quarter, the small row bought out (ungraduated)");
         console.log("ARTIST : both endowments settled, principal committed, harvest split to the artist payout");

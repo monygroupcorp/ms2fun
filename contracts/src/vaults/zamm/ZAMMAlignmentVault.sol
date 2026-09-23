@@ -207,7 +207,7 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     ///         `accRewardPerContribution` but not yet claimed. Rises by `benefactorFees` on every
     ///         harvest that credits the accumulator, falls by each claim's payout, so it is the ETH
     ///         this vault still owes benefactors — which is what `accumulatedFees()` reports.
-    /// @dev    Mirrors `CypherAlignmentVault`'s counter. It exists because a balance-derived figure
+    /// @dev    It exists because a balance-derived figure
     ///         cannot answer the question: the vault's raw balance also holds the protocol and
     ///         target cuts awaiting their push, and (since the residual re-credit) ETH carried
     ///         forward for the next conversion. Appended at the end of storage so the addition is

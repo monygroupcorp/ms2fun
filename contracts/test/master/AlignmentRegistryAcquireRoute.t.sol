@@ -17,7 +17,7 @@ contract AlignmentRegistryAcquireRouteTest is Test {
     address public otherToken = makeAddr("OTHER");
 
     function setUp() public {
-        AlignmentRegistryV1 impl = new AlignmentRegistryV1(makeAddr("WETH"), address(0), address(0));
+        AlignmentRegistryV1 impl = new AlignmentRegistryV1(makeAddr("WETH"), address(0));
         address proxy = LibClone.deployERC1967(address(impl));
         registry = AlignmentRegistryV1(proxy);
         registry.initialize(daoOwner);
@@ -67,19 +67,26 @@ contract AlignmentRegistryAcquireRouteTest is Test {
         assertEq(got.feeOrHook, 100);
     }
 
-    /// Algebra fees are dynamic (see IAlgebra.sol) — a route with zero fee/tickSpacing must be accepted.
-    function test_SetAcquireRoute_Algebra_AcceptsZeroParams() public {
+    /// @dev The venue enum is NONE | UNI_V4 | ZAMM since CYPHER wound down and ALGEBRA was removed.
+    ///      A word past the last member is refused in the ABI decode, before `setAcquireRoute` runs —
+    ///      so a stale caller still naming the old ALGEBRA ordinal (3) cannot curate a target onto a
+    ///      venue this protocol no longer has.
+    function test_SetAcquireRoute_RetiredAlgebraOrdinalIsUndecodable() public {
         uint256 targetId = _registerTarget();
-        IAlignmentRegistry.AcquireRoute memory route = IAlignmentRegistry.AcquireRoute({
-            venue: IAlignmentRegistry.Venue.ALGEBRA, fee: 0, tickSpacing: 0, feeOrHook: 0
-        });
-
         vm.prank(daoOwner);
-        registry.setAcquireRoute(targetId, cultToken, route);
-
-        assertEq(
-            uint256(registry.getAcquireRoute(targetId, cultToken).venue), uint256(IAlignmentRegistry.Venue.ALGEBRA)
-        );
+        (bool ok,) = address(registry)
+            .call(
+                abi.encodeWithSignature(
+                    "setAcquireRoute(uint256,address,(uint8,uint24,int24,uint256))",
+                    targetId,
+                    cultToken,
+                    uint8(3),
+                    0,
+                    0,
+                    0
+                )
+            );
+        assertFalse(ok, "the retired ALGEBRA ordinal must not decode into a route");
     }
 
     function test_SetAcquireRoute_Update() public {
@@ -175,16 +182,6 @@ contract AlignmentRegistryAcquireRouteTest is Test {
         uint256 targetId = _registerTarget();
         IAlignmentRegistry.AcquireRoute memory route = IAlignmentRegistry.AcquireRoute({
             venue: IAlignmentRegistry.Venue.NONE, fee: 1, tickSpacing: 0, feeOrHook: 0
-        });
-        vm.prank(daoOwner);
-        vm.expectRevert(AlignmentRegistryV1.InvalidRoute.selector);
-        registry.setAcquireRoute(targetId, cultToken, route);
-    }
-
-    function test_SetAcquireRoute_RevertAlgebraWithParams() public {
-        uint256 targetId = _registerTarget();
-        IAlignmentRegistry.AcquireRoute memory route = IAlignmentRegistry.AcquireRoute({
-            venue: IAlignmentRegistry.Venue.ALGEBRA, fee: 500, tickSpacing: 0, feeOrHook: 0
         });
         vm.prank(daoOwner);
         vm.expectRevert(AlignmentRegistryV1.InvalidRoute.selector);

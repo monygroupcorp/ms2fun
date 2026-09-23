@@ -1281,8 +1281,8 @@ contract ERC404FactoryTest is Test {
 
     /// @notice Every liquidity-family vault type creates too — no family is special here.
     function test_createInstance_acceptsLiquidityFamilyVaults() public {
-        string[3] memory types = ["UniswapV4LP", "ZAMMLP", "CypherLP"];
-        string[3] memory names = ["UniLpToken", "ZammLpToken", "CypherLpToken"];
+        string[2] memory types = ["UniswapV4LP", "ZAMMLP"];
+        string[2] memory names = ["UniLpToken", "ZammLpToken"];
         for (uint256 i; i < types.length; ++i) {
             address instance = _createWithVault(names[i], address(new TypedVault(types[i])));
             assertTrue(instance != address(0), "LP-family vault must still create");

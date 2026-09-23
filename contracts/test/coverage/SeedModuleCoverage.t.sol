@@ -198,9 +198,6 @@ contract SeedModuleCoverageHarness is SeedAnvil {
 ///         here because the seed has no slot for it.
 contract SeedModuleCoverageTest is Test {
     address constant STUB_ZAMM = address(0xADD0);
-    address constant STUB_CYPHER_PM = address(0xADD1);
-    address constant STUB_CYPHER_ROUTER = address(0xADD2);
-    address constant STUB_CYPHER_FACTORY = address(0xADD4);
     uint256 constant DEPLOYER_KEY = 0xD59;
 
     bytes32 constant ERC1155_INSTANCE_CREATED = keccak256("InstanceCreated(address,address,string,address)");
@@ -218,11 +215,10 @@ contract SeedModuleCoverageTest is Test {
     address internal veil; // gated (noesis-357)
 
     // ── ERC404 instances ──
-    address internal ember; // preopen: cypher vault + cypher deployer, ungated, no staking
+    address internal ember; // preopen: uni vault + uni deployer, ungated, no staking
     address internal vapor; // mid-curve: uni vault + uni deployer + staking module
     address internal cinder; // ready-to-graduate: uni vault + uni deployer
     address internal molten; // ready-to-graduate: zamm vault + zamm deployer
-    address internal quench; // ready-to-graduate: cypher vault + cypher deployer
     address internal prism; // stacked metadata: zamm vault + zamm deployer + resolver/overlay/tier
     address internal sigil; // gated (noesis-357)
 
@@ -289,12 +285,10 @@ contract SeedModuleCoverageTest is Test {
         d.messages = s.globalMessageRegistry();
         d.vault = s.uniVaults(0);
         d.zammVault = s.zammVaults(0);
-        d.cypherVault = s.cypherVaults(0);
         d.endowmentVault = s.aaveVaults(0);
         d.stakingModule = address(s.erc404StakingModule());
         d.zammDeployer = s.moduleZAMMDeployer();
         d.uniDeployer = s.moduleUniV4Deployer();
-        d.cypherDeployer = s.moduleCypherDeployer();
         d.resolverRouter = address(s.metadataResolverRouter());
         d.overlay = address(s.metadataOverlayModule());
         d.tier = address(s.tokenTierBandResolver());
@@ -343,10 +337,9 @@ contract SeedModuleCoverageTest is Test {
         vm.recordLogs();
         harness.seedErc404ReadyToGraduate(d);
         // One graduate-ready instance per LP venue, in the seed's own creation order.
-        address[] memory ready = _instances(address(d.erc404), ERC404_INSTANCE_CREATED, 3);
+        address[] memory ready = _instances(address(d.erc404), ERC404_INSTANCE_CREATED, 2);
         cinder = ready[0];
         molten = ready[1];
-        quench = ready[2];
 
         vm.recordLogs();
         harness.seedErc404Stacked(d);
@@ -405,13 +398,12 @@ contract SeedModuleCoverageTest is Test {
     function test_gatingModule_atLeastOneInstanceWiresAModule() public view {
         address[] memory ungatedErc1155 = new address[](1);
         ungatedErc1155[0] = c2;
-        address[] memory ungatedErc404 = new address[](6);
+        address[] memory ungatedErc404 = new address[](5);
         ungatedErc404[0] = ember;
         ungatedErc404[1] = vapor;
         ungatedErc404[2] = cinder;
         ungatedErc404[3] = molten;
-        ungatedErc404[4] = quench;
-        ungatedErc404[5] = prism;
+        ungatedErc404[4] = prism;
 
         uint256 total = ungatedErc1155.length + ungatedErc404.length + 2; // + veil, sigil
         uint256 wired;
@@ -426,7 +418,7 @@ contract SeedModuleCoverageTest is Test {
         if (address(ERC404BondingInstance(payable(sigil)).gatingModule()) != address(0)) wired++;
 
         assertGt(wired, 0, string.concat("gating: 0 of ", vm.toString(total), " instances wire a module"));
-        // The baseline family (c2, ember, vapor, cinder, molten, quench, prism) must stay open — a gate that
+        // The baseline family (c2, ember, vapor, cinder, molten, prism) must stay open — a gate that
         // is non-vacuous by accident (everything gated) would hide a regression the other way.
         assertLt(wired, total, "gating: every instance is gated - the ungated baseline is gone");
     }
@@ -446,9 +438,9 @@ contract SeedModuleCoverageTest is Test {
         );
     }
 
-    // ── liquidityDeployer: all three families (uniV4, ZAMM, cypher) must appear ──
+    // ── liquidityDeployer: both families (uniV4, ZAMM) must appear ──
 
-    function test_liquidityDeployer_allThreeFamiliesAppear() public view {
+    function test_liquidityDeployer_bothFamiliesAppear() public view {
         assertEq(
             address(ERC404BondingInstance(payable(vapor)).liquidityDeployer()),
             d.uniDeployer,
@@ -456,18 +448,13 @@ contract SeedModuleCoverageTest is Test {
         );
         assertEq(
             address(ERC404BondingInstance(payable(ember)).liquidityDeployer()),
-            d.cypherDeployer,
-            "liquidityDeployer: cypher deployer not found on ember-preopen"
+            d.uniDeployer,
+            "liquidityDeployer: uniV4 deployer not found on ember-preopen"
         );
         assertEq(
             address(ERC404BondingInstance(payable(molten)).liquidityDeployer()),
             d.zammDeployer,
             "liquidityDeployer: ZAMM deployer not found on molten-ready"
-        );
-        assertEq(
-            address(ERC404BondingInstance(payable(quench)).liquidityDeployer()),
-            d.cypherDeployer,
-            "liquidityDeployer: cypher deployer not found on quench-ready"
         );
     }
 
@@ -487,9 +474,9 @@ contract SeedModuleCoverageTest is Test {
         assertEq(router.resolvers(prism, 1), d.tier, "metadata: tier is not the router's second child");
     }
 
-    // ── vault flavor: all four families (aave, uni, zamm, cypher) must appear ──
+    // ── vault flavor: all three families (aave, uni, zamm) must appear ──
 
-    function test_vaultFlavor_allFourFamiliesAppear() public view {
+    function test_vaultFlavor_allThreeFamiliesAppear() public view {
         assertEq(
             address(ERC1155Instance(payable(c0)).vault()),
             d.endowmentVault,
@@ -498,18 +485,13 @@ contract SeedModuleCoverageTest is Test {
         assertEq(address(ERC1155Instance(payable(c2)).vault()), d.vault, "vault: uni vault not found on ghost-mint");
         assertEq(
             address(ERC404BondingInstance(payable(ember)).vault()),
-            d.cypherVault,
-            "vault: cypher vault not found on ember-preopen"
+            d.vault,
+            "vault: uni vault not found on ember-preopen"
         );
         assertEq(
             address(ERC404BondingInstance(payable(molten)).vault()),
             d.zammVault,
             "vault: ZAMM vault not found on molten-ready"
-        );
-        assertEq(
-            address(ERC404BondingInstance(payable(quench)).vault()),
-            d.cypherVault,
-            "vault: cypher vault not found on quench-ready"
         );
     }
 
@@ -850,22 +832,21 @@ contract SeedModuleCoverageTest is Test {
     }
 
     /// @dev THE REASON THE TABLE IS KEYED BY THE CALLER. The showcase carries one asset on more than
-    ///      one venue — CULT on Uniswap V4 and on Cypher's Algebra pool, MS2 on Uniswap V4 and on
-    ///      ZAMM — in separate vaults, each flooring its convert against its own venue's price
-    ///      authority. `BestRouteAcquirer` is inlined into the vault, so the vault is `msg.sender`
-    ///      here, and this asserts the three answers that fact has to produce: the Uni vault gets its
-    ///      V4 tier, the ZAMM vault gets its OWN venue rather than the sibling's, and the Cypher
-    ///      vault — whose venue the acquirer has no typed leg for — gets nothing, which is what puts
-    ///      it on its Algebra fallback. Keyed by token alone, all three would read the same row.
+    ///      one venue — MS2 on Uniswap V4 and on ZAMM — in separate vaults, each flooring its convert
+    ///      against its own venue's price authority. `BestRouteAcquirer` is inlined into the vault, so
+    ///      the vault is `msg.sender` here, and this asserts the three answers that fact has to
+    ///      produce: the Uni vault gets its V4 tier, the ZAMM vault gets its OWN venue rather than the
+    ///      sibling's, and an unregistered vault gets nothing, which is what puts it on its own fixed
+    ///      fallback. Keyed by token alone, all three would read the same row.
     function test_sepoliaRouteQuoter_aRowAnswersOneVaultOnly() public {
         SepoliaRouteQuoter quoter = new SepoliaRouteQuoter(address(this));
         address uniVault = address(0x11);
         address zammVault = address(0x22);
-        address cypherVault = address(0x33);
+        address unroutedVault = address(0x33);
 
         quoter.setRoute(uniVault, cultToken, SepoliaRouteQuoter.AMM.UNI_V4, 30);
         quoter.setRoute(zammVault, cultToken, SepoliaRouteQuoter.AMM.ZAMM, 1234);
-        // cypherVault is deliberately left unregistered.
+        // unroutedVault is deliberately left unregistered.
 
         vm.prank(uniVault);
         (SepoliaRouteQuoter.Quote memory uni,) = quoter.getQuotes(false, address(0), cultToken, 1 ether);
@@ -879,11 +860,11 @@ contract SeedModuleCoverageTest is Test {
         );
         assertEq(zamm.feeBps, 1234, "route table: the ZAMM vault got the sibling's fee word");
 
-        vm.prank(cypherVault);
-        (SepoliaRouteQuoter.Quote memory cypher, SepoliaRouteQuoter.Quote[] memory none) =
+        vm.prank(unroutedVault);
+        (SepoliaRouteQuoter.Quote memory unrouted, SepoliaRouteQuoter.Quote[] memory none) =
             quoter.getQuotes(false, address(0), cultToken, 1 ether);
-        assertEq(cypher.amountOut, 0, "route table: the Algebra vault was best-routed off its own venue");
-        assertEq(none.length, 0, "route table: the Algebra vault was handed a route list");
+        assertEq(unrouted.amountOut, 0, "route table: an unregistered vault was best-routed off its own venue");
+        assertEq(none.length, 0, "route table: an unregistered vault was handed a route list");
     }
 
     /// @dev The table steers real vault ETH, so only the deployer writes it; a fee word wider than
@@ -1104,7 +1085,6 @@ contract SeedModuleCoverageTest is Test {
             name: "Wrapped Ether",
             description: "Test alignment target",
             deployUniVault: true,
-            deployCypherVault: true,
             deployZAMMVault: true,
             communityPayout: address(0)
         });
@@ -1114,7 +1094,6 @@ contract SeedModuleCoverageTest is Test {
             name: "Catalog-Alignment-Target",
             description: "The target the catalog roster binds to",
             deployUniVault: true,
-            deployCypherVault: true,
             deployZAMMVault: true,
             communityPayout: address(0)
         });
@@ -1128,7 +1107,6 @@ contract SeedModuleCoverageTest is Test {
             name: ArtistEndowments.PARADILF_TITLE,
             description: "Artist endowment target (fixture)",
             deployUniVault: false,
-            deployCypherVault: false,
             deployZAMMVault: false,
             communityPayout: ArtistEndowments.payout(ArtistEndowments.PARADILF_SLUG)
         });
@@ -1138,7 +1116,6 @@ contract SeedModuleCoverageTest is Test {
             name: ArtistEndowments.PETRAVOICE_TITLE,
             description: "Artist endowment target (fixture)",
             deployUniVault: false,
-            deployCypherVault: false,
             deployZAMMVault: false,
             communityPayout: ArtistEndowments.payout(ArtistEndowments.PETRAVOICE_SLUG)
         });
@@ -1147,9 +1124,6 @@ contract SeedModuleCoverageTest is Test {
         cfg.weth = weth;
         cfg.v3Factory = address(v3Factory);
         cfg.v4PoolManager = address(1);
-        cfg.cypherPositionManager = STUB_CYPHER_PM;
-        cfg.cypherRouter = STUB_CYPHER_ROUTER;
-        cfg.cypherAlgebraFactory = STUB_CYPHER_FACTORY;
         cfg.zamm = STUB_ZAMM;
         cfg.aaveStataToken = stata;
         cfg.saltMasterRegistry = bytes32(uint256(1));

@@ -96,7 +96,6 @@ contract ValidateSepoliaTest is Test {
             name: "Chainlink",
             description: "Test alignment target",
             deployUniVault: true,
-            deployCypherVault: false,
             deployZAMMVault: false,
             communityPayout: address(0)
         });
@@ -106,8 +105,6 @@ contract ValidateSepoliaTest is Test {
         cfg.v4PoolManager = address(1);
         cfg.v3Factory = address(0);
         cfg.v2Factory = address(0);
-        cfg.cypherPositionManager = address(0);
-        cfg.cypherRouter = address(0);
         cfg.zamm = address(0);
         cfg.zrouter = address(0);
         cfg.safe = address(0);
@@ -302,7 +299,7 @@ contract ValidateSepoliaTest is Test {
 
     /// @dev An approved liquidity deployer is an unconditional requirement of `_createInstance`.
     function test_noApprovedLiquidityDeployer_failsTheValidator() public {
-        // The test config enables Uni and ZAMM deployers (Cypher is unconfigured, so undeployed).
+        // The test config enables the Uni and ZAMM deployers.
         _revoke(s.moduleUniV4Deployer());
         _revoke(s.moduleZAMMDeployer());
 

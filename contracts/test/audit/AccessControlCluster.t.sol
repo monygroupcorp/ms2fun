@@ -10,8 +10,6 @@ import { UniAlignmentVault } from "../../src/vaults/uni/UniAlignmentVault.sol";
 import { ZAMMAlignmentVaultFactory } from "../../src/vaults/zamm/ZAMMAlignmentVaultFactory.sol";
 import { IZAMM, ZAMMAlignmentVault } from "../../src/vaults/zamm/ZAMMAlignmentVault.sol";
 import { AlignmentEndowmentVaultFactory } from "../../src/vaults/aave/AlignmentEndowmentVaultFactory.sol";
-import { CypherAlignmentVaultFactory } from "../../src/vaults/cypher/CypherAlignmentVaultFactory.sol";
-import { CypherAlignmentVault } from "../../src/vaults/cypher/CypherAlignmentVault.sol";
 import { SafeOwnable } from "../../src/shared/SafeOwnable.sol";
 import { ProtocolTreasuryV1 } from "../../src/treasury/ProtocolTreasuryV1.sol";
 import { ProtocolOwnedLiquidityV1 } from "../../src/treasury/ProtocolOwnedLiquidityV1.sol";
@@ -285,17 +283,14 @@ contract AccessControlClusterTest is Test {
         assertEq(ZAMMAlignmentVault(payable(clone)).protocolTreasury(), address(0xFEE), "nothing moved");
     }
 
-    /// @dev Cypher and Uni genuinely have no setter — their sink is written once at `initialize`.
-    ///      What L-4 names there is a docstring that claimed otherwise, copied from the ZAMM sibling.
-    ///      Whether those two families should gain a setter is a separate question and is not touched:
+    /// @dev Uni genuinely has no setter — its sink is written once at `initialize`. What L-4 names
+    ///      there is a docstring that claimed otherwise, copied from the ZAMM sibling. Whether that
+    ///      family should gain a setter is a separate question and is not touched:
     ///      `test/vaults/ProtocolFeeExitParity.t.sol` still pins the table as it stands.
-    function test_E_cypherAndUniStillCarryNoSetter() public {
-        CypherAlignmentVault cypher = new CypherAlignmentVault();
+    function test_E_uniStillCarriesNoSetter() public {
         UniAlignmentVault uni = new UniAlignmentVault();
 
-        (bool cypherOk,) = address(cypher).call(abi.encodeWithSignature("setProtocolTreasury(address)", address(0xFEE)));
         (bool uniOk,) = address(uni).call(abi.encodeWithSignature("setProtocolTreasury(address)", address(0xFEE)));
-        assertFalse(cypherOk, "CypherAlignmentVault has no setProtocolTreasury");
         assertFalse(uniOk, "UniAlignmentVault has no setProtocolTreasury");
     }
 
@@ -329,16 +324,7 @@ contract AccessControlClusterTest is Test {
         AlignmentEndowmentVaultFactory aave = new AlignmentEndowmentVaultFactory(
             address(0xE7), address(0x57A7A), address(0xFEE), address(0x4444), IAlignmentRegistry(address(0))
         );
-        CypherAlignmentVaultFactory cypher = new CypherAlignmentVaultFactory(
-            address(0xC0DE),
-            IVaultPriceValidator(address(0)),
-            address(0xA16),
-            address(0x2222),
-            address(0),
-            IAlignmentRegistry(address(0))
-        );
-
-        address[4] memory factories = [address(uni), address(zamm), address(aave), address(cypher)];
+        address[3] memory factories = [address(uni), address(zamm), address(aave)];
         for (uint256 i; i < factories.length; i++) {
             assertEq(Ownable(factories[i]).owner(), address(this), "deployer owns it");
             vm.expectRevert(SafeOwnable.RenounceDisabled.selector);

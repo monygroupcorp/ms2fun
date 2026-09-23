@@ -73,7 +73,6 @@ contract MigrateOwnershipTest is Test {
     address internal alignmentRegistry;
     address internal targetRequestRegistry;
     address internal uniVaultFactory;
-    address internal cypherVaultFactory;
     address internal zrouter;
     address internal launchManager;
     address internal curveParamsComputer;
@@ -85,7 +84,6 @@ contract MigrateOwnershipTest is Test {
     address internal moduleMerkleGating;
     address internal moduleUniV4Deployer;
     address internal moduleZAMMDeployer;
-    address internal moduleCypherDeployer;
     address internal erc404StakingModule;
     address internal metadataResolverRouter;
     address internal metadataOverlayModule;
@@ -140,7 +138,6 @@ contract MigrateOwnershipTest is Test {
         targetRequestRegistry = address(s.targetRequestRegistry());
         uniVaultFactory = address(s.uniVaultFactory());
         zrouter = address(s.zrouter());
-        cypherVaultFactory = address(s.cypherVaultFactory());
         launchManager = address(s.launchManager());
         curveParamsComputer = address(s.curveParamsComputer());
         erc404Factory = address(s.erc404Factory());
@@ -151,7 +148,6 @@ contract MigrateOwnershipTest is Test {
         moduleMerkleGating = address(s.moduleMerkleGating());
         moduleUniV4Deployer = s.moduleUniV4Deployer();
         moduleZAMMDeployer = s.moduleZAMMDeployer();
-        moduleCypherDeployer = s.moduleCypherDeployer();
         erc404StakingModule = address(s.erc404StakingModule());
         metadataResolverRouter = address(s.metadataResolverRouter());
         metadataOverlayModule = address(s.metadataOverlayModule());
@@ -191,10 +187,9 @@ contract MigrateOwnershipTest is Test {
         vm.setEnv("METADATA_OVERLAY_MODULE", vm.toString(metadataOverlayModule));
         vm.setEnv("TOKEN_TIER_BAND_RESOLVER", vm.toString(tokenTierBandResolver));
 
-        // Optional — present in this config: uni + cypher vault factories. Aave/ZAMM factories and the
-        // Cypher liquidity-deployer module are not deployed here, so their env vars stay unset.
+        // Optional — present in this config: the uni vault factory. The Aave/ZAMM factories are not
+        // deployed here, so their env vars stay unset.
         vm.setEnv("UNI_VAULT_FACTORY", vm.toString(uniVaultFactory));
-        vm.setEnv("CYPHER_VAULT_FACTORY", vm.toString(cypherVaultFactory));
         // This config self-deploys the router (`cfg.zrouter == address(0)`), so it is deployer-owned
         // and migrates. A network reusing the canonical external singleton leaves ZROUTER unset.
         vm.setEnv("ZROUTER", vm.toString(zrouter));
@@ -399,9 +394,9 @@ contract MigrateOwnershipTest is Test {
         assertEq(safe[6], masterRegistry, "master is the last two-step element");
 
         address[] memory plain = h.plainOwnable();
-        // 15 required + uni and cypher vault factories + the self-deployed zRouter (aave/zamm
-        // factories and the cypher liquidity-deployer module are not deployed in this config).
-        assertEq(plain.length, 18, "plain len");
+        // 15 required + the uni vault factory + the self-deployed zRouter (the aave/zamm factories
+        // are not deployed in this config).
+        assertEq(plain.length, 17, "plain len");
         assertEq(plain[0], targetRequestRegistry, "plain[0]");
         assertEq(plain[1], launchManager, "plain[1]");
         assertEq(plain[2], curveParamsComputer, "plain[2]");
@@ -418,9 +413,7 @@ contract MigrateOwnershipTest is Test {
         assertEq(plain[13], metadataOverlayModule, "plain[13]");
         assertEq(plain[14], tokenTierBandResolver, "plain[14]");
         assertEq(plain[15], uniVaultFactory, "plain[15] uni");
-        assertEq(plain[16], cypherVaultFactory, "plain[16] cypher");
-        assertEq(plain[17], zrouter, "plain[17] zrouter");
-        assertEq(moduleCypherDeployer, address(0), "cypher liquidity module absent in this config");
+        assertEq(plain[16], zrouter, "plain[16] zrouter");
     }
 
     // ── config ───────────────────────────────────────────────────────────────────────────────────
@@ -433,7 +426,6 @@ contract MigrateOwnershipTest is Test {
             name: "Chainlink",
             description: "Test alignment target",
             deployUniVault: true,
-            deployCypherVault: false,
             deployZAMMVault: false,
             communityPayout: address(0)
         });
@@ -443,8 +435,6 @@ contract MigrateOwnershipTest is Test {
         cfg.v4PoolManager = address(1);
         cfg.v3Factory = address(0);
         cfg.v2Factory = address(0);
-        cfg.cypherPositionManager = address(1); // nonzero → DeployCore deploys the Ownable CypherAlignmentVaultFactory (noesis-094/112)
-        cfg.cypherRouter = address(0);
         cfg.zamm = address(0);
         cfg.zrouter = address(0);
         cfg.safe = address(0);

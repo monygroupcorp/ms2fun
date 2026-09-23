@@ -38,8 +38,8 @@ import { LPFeeLibrary } from "v4-core/libraries/LPFeeLibrary.sol";
  *      independent of any instance. Do NOT add a path that removes or withdraws this position. Pinned by
  *      test (`test/factories/LpLockInvariant.t.sol`).
  *      NOTE: the perpetual post-graduation swap tithe to the alignment vault lives on `UniAlignmentV4Hook`
- *      wired to this venue's pool — Uni is the ONLY venue that levies it (by design); the ZAMM/Cypher
- *      graduated pools are untaxed. See docs/phases/vault-flavors.md.
+ *      wired to this venue's pool — Uni is the ONLY venue that levies it (by design); a ZAMM
+ *      graduated pool is untaxed. See docs/phases/vault-flavors.md.
  */
 contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, Ownable {
     using CurrencyLibrary for Currency;
@@ -74,7 +74,7 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
     uint256 public constant MAX_INIT_PRICE_DEVIATION_BPS = 100;
 
     /// @notice Floor (bps) on how much of each side the pool must actually take. Mirrors the
-    ///         `a0Min/a1Min = amount * 99 / 100` floors the ZAMM and Cypher modules pass their venues:
+    ///         `a0Min/a1Min = amount * 99 / 100` floor the ZAMM module passes its venue:
     ///         v4 has no min-amount parameter to pass, so the same guarantee is asserted on the
     ///         settled delta inside `unlockCallback` instead of delegated to the venue.
     /// @dev Consistent with `MAX_INIT_PRICE_DEVIATION_BPS` by construction: a pool at the edge of a
@@ -533,8 +533,8 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
         uint256 used0 = delta0 < 0 ? uint256(-delta0) : 0;
         uint256 used1 = delta1 < 0 ? uint256(-delta1) : 0;
 
-        // The slippage floor v4 gives no parameter for. ZAMM and Cypher pass `amount * 99 / 100` mins
-        // and their venues revert past them; here the only cap on how little the pool takes was the
+        // The slippage floor v4 gives no parameter for. ZAMM passes `amount * 99 / 100` mins and its
+        // venue reverts past them; here the only cap on how little the pool takes was the
         // init-price band, so the same floor is asserted directly on the delta.
         if (used0 * 10_000 < ctx.amount0 * MIN_LP_CONSUMED_BPS || used1 * 10_000 < ctx.amount1 * MIN_LP_CONSUMED_BPS) {
             revert InsufficientLiquidityConsumed();

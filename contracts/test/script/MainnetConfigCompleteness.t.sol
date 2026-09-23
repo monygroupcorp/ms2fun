@@ -44,16 +44,15 @@ contract MainnetConfigCompletenessTest is Test {
         );
     }
 
-    function test_theCypherFamilyIsWired() public view {
+    /// @dev CYPHER wound down (rth 2026-09-23) and the whole family came out of the tree. This used
+    ///      to assert the opposite — that the mainnet config wired the rail — so it is inverted rather
+    ///      than deleted: the config must carry NO Cypher field at all, and a re-introduction would
+    ///      fail to compile here before it could reach a deploy. The mainnet addresses are gone from
+    ///      `MainnetAddresses` for the same reason.
+    function test_theCypherFamilyIsGone() public view {
         DeployCore.NetworkConfig memory cfg = harness.config();
-        assertTrue(
-            cfg.cypherPositionManager != address(0),
-            "cfg.cypherPositionManager unset omits the Cypher vault factory (DeployCore:388)"
-        );
-        assertTrue(
-            cfg.cypherAlgebraFactory != address(0),
-            "cfg.cypherAlgebraFactory unset omits the Cypher launch deployer (DeployCore:660)"
-        );
+        assertTrue(cfg.v4PoolManager != address(0), "the venue families that remain are still wired");
+        assertTrue(cfg.zamm != address(0), "the venue families that remain are still wired");
     }
 
     /// @dev `NetworkConfig.zQuoter`'s own doc: "EVERY DEPLOYMENT WIRES A QUOTER. address(0) IS A TEST
@@ -94,9 +93,6 @@ contract MainnetConfigCompletenessTest is Test {
         assertEq(cfg.zrouter, MainnetAddresses.ZROUTER, "zrouter");
         assertEq(cfg.zQuoter, MainnetAddresses.ZQUOTER, "zquoter");
         assertEq(cfg.aaveStataToken, MainnetAddresses.WETH_STATA_TOKEN, "aave stataToken");
-        assertEq(cfg.cypherPositionManager, MainnetAddresses.CYPHER_POSITION_MANAGER, "cypher NFPM");
-        assertEq(cfg.cypherRouter, MainnetAddresses.CYPHER_SWAP_ROUTER, "cypher router");
-        assertEq(cfg.cypherAlgebraFactory, MainnetAddresses.CYPHER_ALGEBRA_FACTORY, "cypher algebra factory");
     }
 
     // ── What is still owed before this script may be run ─────────────────────

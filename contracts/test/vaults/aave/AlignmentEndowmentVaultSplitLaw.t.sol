@@ -95,7 +95,7 @@ contract AlignmentEndowmentVaultSplitLawTest is Test {
         stata = new MockStataToken(address(weth));
         masterRegistry = new MockMasterRegistry();
 
-        registry = new AlignmentRegistryV1(address(weth), address(0), address(0));
+        registry = new AlignmentRegistryV1(address(weth), address(0));
         registry.initialize(protocolOwner);
         masterRegistry.setAlignmentRegistry(address(registry));
 
@@ -567,7 +567,7 @@ contract AlignmentEndowmentVaultSplitLawTest is Test {
         _pinSink(communityMultisig);
         _contribute(address(benefactor), 1 ether);
 
-        AlignmentRegistryV1 replacement = new AlignmentRegistryV1(address(weth), address(0), address(0));
+        AlignmentRegistryV1 replacement = new AlignmentRegistryV1(address(weth), address(0));
         replacement.initialize(protocolOwner);
         IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);
         assets[0] =

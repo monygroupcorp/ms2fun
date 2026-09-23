@@ -81,11 +81,8 @@ contract MigrateOwnership is Script {
     ///        - REQUIRED (`envAddress`): contracts `DeployCore` creates on every network. A missing
     ///          env var fails the run loudly rather than silently leaving the contract behind.
     ///        - OPTIONAL (`envOr(..., address(0))`): contracts a given network may not deploy — the
-    ///          vault factories and the Cypher liquidity-deployer module. Skipped when absent, so a
-    ///          partial deploy does not turn into a reverting migration.
-    ///      NOTE: CypherAlignmentVaultFactory joins the plain-Ownable set as of noesis-094, which made
-    ///      it `Ownable` (Solady, deployer-owned) with owner-only validator/deviation passthroughs; its
-    ///      admin is migrated to the Timelock here like the other single-step vault factories.
+    ///          vault factories. Skipped when absent, so a partial deploy does not turn into a
+    ///          reverting migration.
     ///      NOTE: MODULE_UNIV4_DEPLOYER / MODULE_ZAMM_DEPLOYER are required rather than optional —
     ///      `DeployCore` always sets both, either to the real liquidity-deployer module or to a
     ///      metadata-only component stub. Both flavors are plain `Ownable` and deployer-owned, so the
@@ -115,8 +112,6 @@ contract MigrateOwnership is Script {
         address uniVaultFactory = vm.envOr("UNI_VAULT_FACTORY", address(0)); // D2
         address aaveVaultFactory = vm.envOr("AAVE_VAULT_FACTORY", address(0)); // D2
         address zammVaultFactory = vm.envOr("ZAMM_VAULT_FACTORY", address(0)); // D2
-        address cypherVaultFactory = vm.envOr("CYPHER_VAULT_FACTORY", address(0)); // D2 — Ownable as of noesis-094
-        address cypherModule = vm.envOr("MODULE_CYPHER_DEPLOYER", address(0)); // only where Cypher is configured
         // zRouter takes its owner as a constructor argument and exposes the same single-step
         // `transferOwnership(address)`, so it migrates like any other plain-Ownable contract. OPTIONAL
         // on purpose: only a network that SELF-DEPLOYS the router (`cfg.zrouter == address(0)` — Sepolia
@@ -127,8 +122,6 @@ contract MigrateOwnership is Script {
         if (uniVaultFactory != address(0)) tmp[n++] = uniVaultFactory;
         if (aaveVaultFactory != address(0)) tmp[n++] = aaveVaultFactory;
         if (zammVaultFactory != address(0)) tmp[n++] = zammVaultFactory;
-        if (cypherVaultFactory != address(0)) tmp[n++] = cypherVaultFactory;
-        if (cypherModule != address(0)) tmp[n++] = cypherModule;
         if (zrouter != address(0)) tmp[n++] = zrouter;
 
         list = new address[](n);

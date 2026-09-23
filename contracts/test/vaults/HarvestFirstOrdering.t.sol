@@ -4,9 +4,7 @@ pragma solidity ^0.8.24;
 import { Test } from "forge-std/Test.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 import { ZAMMAlignmentVault, IZAMM } from "../../src/vaults/zamm/ZAMMAlignmentVault.sol";
-import { CypherAlignmentVault } from "../../src/vaults/cypher/CypherAlignmentVault.sol";
 import { TestableUniAlignmentVault } from "../helpers/TestableUniAlignmentVault.sol";
-import { TestableCypherAlignmentVault } from "../helpers/TestableCypherAlignmentVault.sol";
 import { MockZAMM } from "../mocks/MockZAMM.sol";
 import { MockZRouter } from "../mocks/MockZRouter.sol";
 import { MockWETH } from "../mocks/MockWETH.sol";
@@ -14,7 +12,6 @@ import { MockEXECToken } from "../mocks/MockEXECToken.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
 import { MockVaultPriceValidator } from "../mocks/MockVaultPriceValidator.sol";
 import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
-import { MockAlgebraPositionManager, MockAlgebraSwapRouter, MockAlgebraFactory } from "../mocks/MockCypherAlgebra.sol";
 import { IVaultPriceValidator } from "../../src/interfaces/IVaultPriceValidator.sol";
 import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
 import { Currency } from "v4-core/types/Currency.sol";
@@ -258,104 +255,5 @@ contract HarvestFirstUniTest is Test {
         // 80/19/1 split: benefactors get 80% of the 1 ETH pre-join fee = 0.8 ETH, all to the incumbent.
         assertApproxEqAbs(vault.calculateClaimableAmount(alice), 0.8 ether, 1e6, "incumbent retains all pre-join fees");
         assertEq(vault.calculateClaimableAmount(bob), 0, "joiner captures none of the pre-join fees");
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Cypher — pre-weight-change crystallization on receiveContribution
-// ─────────────────────────────────────────────────────────────────────────────
-
-contract HarvestFirstCypherTest is Test {
-    TestableCypherAlignmentVault internal vault;
-    TestableCypherAlignmentVault internal impl;
-    MockERC20 internal alignmentToken;
-    MockWETH internal weth;
-    MockAlgebraPositionManager internal positionManager;
-    MockAlgebraSwapRouter internal swapRouter;
-    MockAlgebraFactory internal factory;
-    MockAlignmentRegistry internal registry;
-    MockVaultPriceValidator internal validator;
-
-    address internal treasury = makeAddr("treasury");
-    address internal refPool = makeAddr("refPool");
-    address internal alice = makeAddr("alice");
-    address internal bob = makeAddr("bob");
-
-    uint256 internal constant TARGET_ID = 1;
-
-    function setUp() public {
-        alignmentToken = new MockERC20("Alignment", "ALN");
-        weth = new MockWETH();
-        positionManager = new MockAlgebraPositionManager();
-        swapRouter = new MockAlgebraSwapRouter();
-        factory = new MockAlgebraFactory();
-        registry = new MockAlignmentRegistry();
-        validator = new MockVaultPriceValidator();
-        validator.setEthPer1e18Tokens(1e18);
-
-        registry.setTargetActive(TARGET_ID, true);
-        registry.setTokenInTarget(TARGET_ID, address(alignmentToken), true);
-        registry.setReferencePool(
-            TARGET_ID,
-            address(alignmentToken),
-            IAlignmentRegistry.ReferencePool({ pool: refPool, kind: 1, twapWindow: 0 })
-        );
-        registry.setAcquireRoute(
-            TARGET_ID,
-            address(alignmentToken),
-            IAlignmentRegistry.AcquireRoute({
-                venue: IAlignmentRegistry.Venue.ALGEBRA, fee: 0, tickSpacing: 0, feeOrHook: 0
-            })
-        );
-
-        impl = new TestableCypherAlignmentVault();
-        vault = TestableCypherAlignmentVault(payable(LibClone.clone(address(impl))));
-        vault.initialize(
-            address(positionManager),
-            address(swapRouter),
-            address(factory),
-            address(weth),
-            address(alignmentToken),
-            treasury,
-            makeAddr("zRouter"), // unused by these tests; initialize now requires nonzero
-            address(0),
-            address(validator),
-            registry,
-            TARGET_ID
-        );
-    }
-
-    function _contribute(address who, uint256 amount) internal {
-        vm.deal(address(this), amount);
-        vault.receiveContribution{ value: amount }(Currency.wrap(address(0)), amount, who);
-    }
-
-    /// @dev Stage `wethFees` of collectable WETH-side fee on the vault's alignment position (tokenId 1).
-    function _stageWethFees(uint256 wethFees) internal {
-        vault.setPositionForTest(1, refPool, true);
-        positionManager.setPosition(1, address(alignmentToken), address(weth), address(vault));
-        weth.mint(address(positionManager), wethFees);
-        positionManager.setFees(1, 0, wethFees); // token0 = alignment (0 fee), token1 = weth (fee)
-        vm.deal(address(weth), wethFees);
-    }
-
-    /// @notice Cypher grows the accumulator weight synchronously in receiveContribution; a benefactor
-    ///         arriving while fees sit uncollected must not dilute the incumbent's pre-join fees.
-    function test_cypher_contributionCrystallizesBeforeGrowingWeight() public {
-        // Alice is the incumbent, holding all contribution weight.
-        _contribute(alice, 1 ether);
-
-        // 1 ETH of fees accrues on the vault's position, uncollected.
-        _stageWethFees(1 ether);
-
-        // Bob contributes an equal stake. receiveContribution must collect + accrue the pending fee at
-        // alice's (sole) weight BEFORE bob's weight is added.
-        _contribute(bob, 1 ether);
-
-        // 80/19/1 split: 0.8 ETH benefactor share, all to the incumbent; the joiner gets nothing of it.
-        assertEq(vault.calculateClaimableAmount(alice), 0.8 ether, "incumbent retains all pre-join fees");
-        assertEq(vault.calculateClaimableAmount(bob), 0, "joiner captures none of the pre-join fees");
-        assertEq(vault.accumulatedProtocolFees(), 0.01 ether, "1% protocol cut taken once");
-        assertEq(vault.accumulatedTargetFees(), 0.19 ether, "19% target cut taken once");
     }
 }

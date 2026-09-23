@@ -24,15 +24,6 @@ interface IUniV3Pool {
     function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16, uint16, uint16, uint8, bool);
 }
 
-interface IAlgebraFactory {
-    function poolByPair(address a, address b) external view returns (address);
-}
-
-interface IAlgebraPool {
-    function liquidity() external view returns (uint128);
-    function globalState() external view returns (uint160 price, int24 tick, uint16, uint16, uint8, bool);
-}
-
 /// @title ScanAlignmentPools
 /// @notice **Admin tool** — scan the on-chain LP pools an alignment target's token can be wired into,
 ///         per venue, and recommend the deepest (which becomes the vault's pool key). Run per token
@@ -40,7 +31,7 @@ interface IAlgebraPool {
 ///
 ///         Answers "which fee tier / venue has the liquidity?" with measurement instead of the
 ///         hardcoded tier the deploy scripts currently bake (resolves vault-flavors O3). The Uni V4
-///         native-ETH pools are the wireable target for the UniswapV4LP vault; V3/ZAMM/Cypher are
+///         native-ETH pools are the wireable target for the UniswapV4LP vault; V3 and ZAMM are
 ///         reported so the admin sees the full LP-family picture across venues.
 ///
 ///         Run:
@@ -55,7 +46,6 @@ contract ScanAlignmentPools is Script {
     address constant V4_PM = 0x000000000004444c5dc75cB358380D2e3dE08A90;
     address constant V3_FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
     address constant ZAMM = 0x000000000000040470635EB91b7CE4D132D616eD;
-    address constant CYPHER_FACTORY = 0xfb8Ed3485EfA29a0e4bed93351dD51B59fC4b0f0; // Algebra Integral
 
     uint24[4] FEES = [uint24(100), 500, 3000, 10000];
     int24[4] SPACINGS = [int24(1), 10, 60, 200];
@@ -79,7 +69,6 @@ contract ScanAlignmentPools is Script {
         Best memory best = _scanUniV4Native(token);
         _scanUniV3(token);
         _scanZamm(token);
-        _scanCypher(token);
 
         console.log("\n--- RECOMMENDATION (UniswapV4LP vault pool key) ---");
         if (best.found) {
@@ -92,7 +81,7 @@ contract ScanAlignmentPools is Script {
         } else {
             console.log("  NO native-ETH V4 pool found for this token across standard tiers.");
             console.log("  The UniswapV4LP vault needs a native-ETH pool - none exists yet.");
-            console.log("  Options: seed/init one, choose a different venue (ZAMM/Cypher), or a different token.");
+            console.log("  Options: seed/init one, choose a different venue (ZAMM), or a different token.");
         }
         console.log("");
     }
@@ -163,19 +152,6 @@ contract ScanAlignmentPools is Script {
                 "   no pool found for probed feeOrHook selectors {1,30,100,3000} - check the ZAMM app for the real one."
             );
         }
-    }
-
-    // ── Cypher (Algebra Integral, WETH/token) — dynamic-fee single pool ───────
-    function _scanCypher(address token) internal view {
-        console.log("-- Cypher / Algebra (WETH / token) [CypherLP vault] --");
-        address pool = IAlgebraFactory(CYPHER_FACTORY).poolByPair(WETH, token);
-        if (pool == address(0)) {
-            console.log("   no Algebra pool for this pair.");
-            return;
-        }
-        uint128 liq = IAlgebraPool(pool).liquidity();
-        console.log("   pool:", pool);
-        console.log("   liquidity L:", liq);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

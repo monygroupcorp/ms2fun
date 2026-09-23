@@ -62,7 +62,7 @@ contract AlignmentRegistryReferencePoolUpgradeTest is Test {
         // That is precisely why this layout proof still holds across the noesis-283 upgrade: two addresses
         // were added to the implementation and not one storage slot moved.
         MockUniV3RefFactory uniFactory = new MockUniV3RefFactory();
-        AlignmentRegistryV1 newImpl = new AlignmentRegistryV1(weth, address(uniFactory), address(0));
+        AlignmentRegistryV1 newImpl = new AlignmentRegistryV1(weth, address(uniFactory));
         vm.prank(daoOwner);
         legacy.upgradeToAndCall(address(newImpl), "");
 

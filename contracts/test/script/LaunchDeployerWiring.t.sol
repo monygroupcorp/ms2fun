@@ -9,7 +9,6 @@ import { FeatureUtils } from "../../src/master/libraries/FeatureUtils.sol";
 import { IComponentRegistry } from "../../src/registry/interfaces/IComponentRegistry.sol";
 import { LiquidityDeployerModule } from "../../src/factories/erc404/LiquidityDeployerModule.sol";
 import { ZAMMLiquidityDeployerModule } from "../../src/factories/erc404zamm/ZAMMLiquidityDeployerModule.sol";
-import { CypherLiquidityDeployerModule } from "../../src/factories/erc404cypher/CypherLiquidityDeployerModule.sol";
 import { zRouter, mainnetChainConfig } from "../../src/peripherals/zRouter.sol";
 
 /**
@@ -17,9 +16,7 @@ import { zRouter, mainnetChainConfig } from "../../src/peripherals/zRouter.sol";
  * @notice The audit invariant for noesis-039: a production-shaped deploy must NEVER approve a
  *         MockComponentModule under the functional LIQUIDITY_DEPLOYER tag — an approved stub in a
  *         functional slot bricks ERC404 graduation. Also proves:
- *           - a configured zRouter singleton is REUSED (not a freshly-deployed throwaway);
- *           - where Cypher's Algebra addresses are configured, the REAL Cypher deployer is approved;
- *           - where Cypher is unconfigured (Sepolia), the deployer is OMITTED — not stubbed.
+ *           - a configured zRouter singleton is REUSED (not a freshly-deployed throwaway).
  */
 contract LaunchDeployerWiringTest is Test {
     bytes constant RETURN_TRUE = hex"600160005260206000f3";
@@ -28,9 +25,6 @@ contract LaunchDeployerWiringTest is Test {
     // ctor probes with a self-guarded code.length check).
     address constant WETH = address(0x7E7);
     address constant V4_PM = address(1);
-    address constant CYPHER_FACTORY = address(0xCA1);
-    address constant CYPHER_NFPM = address(0xCA2);
-    address constant CYPHER_ROUTER = address(0xCA3);
     address constant ZAMM = address(0x2A11);
 
     uint24 constant FEE = 3000;
@@ -42,14 +36,11 @@ contract LaunchDeployerWiringTest is Test {
         vm.etch(WETH, RETURN_TRUE);
     }
 
-    // ── Mainnet-shaped config: WETH + V4 + zamm + zrouter + Cypher all configured. ──
+    // ── Mainnet-shaped config: WETH + V4 + zamm + zrouter all configured. ──
     function _mainnetLikeConfig(address zrouterAddr) internal pure returns (DeployCore.NetworkConfig memory cfg) {
         cfg.chainId = 1;
         cfg.weth = WETH;
         cfg.v4PoolManager = V4_PM;
-        cfg.cypherPositionManager = CYPHER_NFPM;
-        cfg.cypherRouter = CYPHER_ROUTER;
-        cfg.cypherAlgebraFactory = CYPHER_FACTORY;
         cfg.zamm = ZAMM;
         cfg.zrouter = zrouterAddr;
         cfg.saltMasterRegistry = bytes32(uint256(1));
@@ -80,52 +71,41 @@ contract LaunchDeployerWiringTest is Test {
 
         address uni = s.moduleUniV4Deployer();
         address zamm = s.moduleZAMMDeployer();
-        address cypher = s.moduleCypherDeployer();
-        assertTrue(uni != address(0) && zamm != address(0) && cypher != address(0), "all three deployers built");
+        assertTrue(uni != address(0) && zamm != address(0), "both deployers built");
 
         // Each is the REAL module (a MockComponentModule has none of these getters → would revert).
         assertEq(LiquidityDeployerModule(payable(uni)).poolFee(), FEE, "uni deployer is the real module");
         assertEq(
             ZAMMLiquidityDeployerModule(payable(zamm)).feeOrHook(), ZAMM_FEE_OR_HOOK, "zamm deployer is the real module"
         );
-        assertEq(
-            CypherLiquidityDeployerModule(payable(cypher)).algebraFactory(),
-            CYPHER_FACTORY,
-            "cypher deployer is the real module"
-        );
 
-        // The audit invariant: every approved LIQUIDITY_DEPLOYER is one of the three real modules —
-        // no MockComponentModule is approved under the functional tag.
+        // The audit invariant: every approved LIQUIDITY_DEPLOYER is one of the real modules — no
+        // MockComponentModule is approved under the functional tag.
         address[] memory deployers = IComponentRegistry(address(s.componentRegistry()))
             .getApprovedComponentsByTag(FeatureUtils.LIQUIDITY_DEPLOYER);
-        assertEq(deployers.length, 3, "exactly the three real deployers approved");
+        assertEq(deployers.length, 2, "exactly the two real deployers approved");
         for (uint256 i = 0; i < deployers.length; i++) {
             assertTrue(
-                deployers[i] == uni || deployers[i] == zamm || deployers[i] == cypher,
+                deployers[i] == uni || deployers[i] == zamm,
                 "no non-real (mock) module approved under LIQUIDITY_DEPLOYER"
             );
         }
     }
 
-    /// @notice Sepolia-shaped deploy (Cypher unconfigured): the Cypher deployer is OMITTED entirely —
-    ///         NOT replaced with an approved metadata stub — while uni + zamm remain real.
-    function test_sepoliaLike_cypherOmitted_notStubbed() public {
+    /// @notice A deploy with no zRouter configured self-deploys one, and the LP deployers are still
+    ///         the real modules rather than approved metadata stubs.
+    function test_selfDeployedZRouter_deployersStayReal() public {
         DeployCore.NetworkConfig memory cfg = _mainnetLikeConfig(address(0));
-        cfg.cypherPositionManager = address(0);
-        cfg.cypherRouter = address(0);
-        cfg.cypherAlgebraFactory = address(0);
 
         DeployCore s = new DeployCore();
         s.deploy(address(s), cfg);
-
-        assertEq(s.moduleCypherDeployer(), address(0), "Cypher deployer must be omitted when unconfigured");
 
         address uni = s.moduleUniV4Deployer();
         address zamm = s.moduleZAMMDeployer();
 
         address[] memory deployers = IComponentRegistry(address(s.componentRegistry()))
             .getApprovedComponentsByTag(FeatureUtils.LIQUIDITY_DEPLOYER);
-        assertEq(deployers.length, 2, "only uni + zamm approved; no Cypher stub");
+        assertEq(deployers.length, 2, "only uni + zamm approved; no stub");
         for (uint256 i = 0; i < deployers.length; i++) {
             assertTrue(deployers[i] == uni || deployers[i] == zamm, "no stub approved under LIQUIDITY_DEPLOYER");
         }

@@ -8,18 +8,14 @@ import { Currency } from "v4-core/types/Currency.sol";
 import { IHooks } from "v4-core/interfaces/IHooks.sol";
 
 import { LiquidityDeployerModule } from "../../src/factories/erc404/LiquidityDeployerModule.sol";
-import { CypherLiquidityDeployerModule } from "../../src/factories/erc404cypher/CypherLiquidityDeployerModule.sol";
 import { ZAMMLiquidityDeployerModule } from "../../src/factories/erc404zamm/ZAMMLiquidityDeployerModule.sol";
 import { ILiquidityDeployerModule } from "../../src/interfaces/ILiquidityDeployerModule.sol";
-import { IAlgebraPool } from "../../src/interfaces/algebra/IAlgebra.sol";
-import { CypherAlignmentVault } from "../../src/vaults/cypher/CypherAlignmentVault.sol";
 
 import { MockZAMM } from "../mocks/MockZAMM.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
 import { MockVault } from "../mocks/MockVault.sol";
 import { MockWETH } from "../mocks/MockWETH.sol";
 import { MockMasterRegistry } from "../mocks/MockMasterRegistry.sol";
-import { MockAlgebraFactory, MockAlgebraPositionManager, MockAlgebraSwapRouter } from "../mocks/MockCypherAlgebra.sol";
 import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 
@@ -142,122 +138,6 @@ contract V4FrontRunGuardTest is Test {
     function test_v4_onePercentOnTheRootIsNowRefused() public {
         vm.expectRevert(LiquidityDeployerModule.PoolPriceMismatch.selector);
         harness.requireTol(uint160(uint256(INTENDED) * 101 / 100), INTENDED);
-    }
-}
-
-// ── Cypher (Algebra) ──────────────────────────────────────────────────────────
-contract CypherFrontRunGuardTest is Test {
-    /// @dev This contract stands in for the graduating ERC404 instance, so it must answer the
-    ///      deployer module's `IGraduationSkipNFTTarget` handshake. The real instance flags the
-    ///      counterparty NFT-skipping; nothing here holds ids, so recording is enough.
-    function markGraduationSkipNFT(address) external { }
-
-    CypherLiquidityDeployerModule deployer;
-    CypherAlignmentVault vault;
-    MockAlgebraFactory algebraFactory;
-    MockAlgebraPositionManager positionManager;
-    MockAlgebraSwapRouter swapRouter;
-    MockERC20 token;
-    MockWETH weth;
-    MockMasterRegistry registry;
-    MockAlignmentRegistry alignmentRegistry;
-
-    address protocolTreasury = makeAddr("treasury");
-    address instance;
-
-    uint256 constant ETH_RESERVE = 1 ether;
-    uint256 constant TOKEN_RESERVE = 1000e18;
-    uint256 constant TARGET_ID = 1;
-
-    function setUp() public {
-        algebraFactory = new MockAlgebraFactory();
-        positionManager = new MockAlgebraPositionManager();
-        swapRouter = new MockAlgebraSwapRouter();
-        token = new MockERC20("Token", "TKN");
-        weth = new MockWETH();
-        registry = new MockMasterRegistry();
-        alignmentRegistry = new MockAlignmentRegistry();
-        alignmentRegistry.setTargetActive(TARGET_ID, true);
-        alignmentRegistry.setTokenInTarget(TARGET_ID, address(token), true);
-        instance = address(this);
-
-        deployer = new CypherLiquidityDeployerModule(
-            address(algebraFactory), address(positionManager), address(weth), address(registry)
-        );
-
-        CypherAlignmentVault impl = new CypherAlignmentVault();
-        vault = CypherAlignmentVault(payable(LibClone.clone(address(impl))));
-        vault.initialize(
-            address(positionManager),
-            address(swapRouter),
-            address(algebraFactory),
-            address(weth),
-            address(token),
-            protocolTreasury,
-            makeAddr("zRouter"), // unused by these tests; initialize now requires nonzero
-            address(0), // zQuoter
-            address(0), // priceValidator inert
-            alignmentRegistry,
-            TARGET_ID
-        );
-    }
-
-    /// @dev The exact intended graduation sqrtPriceX96 the module computes (mirrors _setupPool).
-    function _intendedSqrtPrice() internal view returns (uint160) {
-        uint256 ethToLP = ETH_RESERVE - ETH_RESERVE / 100 - (ETH_RESERVE * 19) / 100; // 80%
-        bool tokenIsZero = address(token) < address(weth);
-        uint256 amount0 = tokenIsZero ? TOKEN_RESERVE : ethToLP;
-        uint256 amount1 = tokenIsZero ? ethToLP : TOKEN_RESERVE;
-        return uint160(FixedPointMathLib.sqrt(FixedPointMathLib.fullMulDiv(amount1, 1 << 192, amount0)));
-    }
-
-    function _params() internal view returns (ILiquidityDeployerModule.DeployParams memory p) {
-        p = ILiquidityDeployerModule.DeployParams({
-            ethReserve: ETH_RESERVE,
-            tokenReserve: TOKEN_RESERVE,
-            protocolTreasury: protocolTreasury,
-            token: address(token),
-            vault: address(vault),
-            instance: instance,
-            creator: address(0),
-            carveEth: 0,
-            excessEth: 0
-        });
-    }
-
-    function _deploy() internal {
-        token.mint(address(deployer), TOKEN_RESERVE);
-        vm.deal(address(this), ETH_RESERVE);
-        deployer.deployLiquidity{ value: ETH_RESERVE }(_params());
-    }
-
-    /// @notice Attacker pre-creates+initializes the pool at a skewed price → graduation REVERTS.
-    function test_cypher_frontRun_skewedPrice_reverts() public {
-        address pool = algebraFactory.createPool(address(token), address(weth), "");
-        IAlgebraPool(pool).initialize(uint160(uint256(_intendedSqrtPrice()) * 2));
-
-        token.mint(address(deployer), TOKEN_RESERVE);
-        vm.deal(address(this), ETH_RESERVE);
-        vm.expectRevert(CypherLiquidityDeployerModule.PoolPriceMismatch.selector);
-        deployer.deployLiquidity{ value: ETH_RESERVE }(_params());
-    }
-
-    /// @notice Attacker pre-creates+initializes at the CORRECT price → graduation still SUCCEEDS.
-    function test_cypher_frontRun_correctPrice_idempotentSuccess() public {
-        address pool = algebraFactory.createPool(address(token), address(weth), "");
-        IAlgebraPool(pool).initialize(_intendedSqrtPrice());
-
-        _deploy();
-        // D2: the launch position is minted to the instance (tokenId 1), not registered on the vault.
-        assertEq(positionManager.ownerOf(1), instance, "graduation must complete despite benign pre-init");
-    }
-
-    /// @notice Attacker only pre-CREATES the pool (uninitialized) — the old unconditional createPool
-    ///         would have reverted "Pool exists" (permanent DoS); the module now reuses+initializes it.
-    function test_cypher_frontRun_createdButUninitialized_success() public {
-        algebraFactory.createPool(address(token), address(weth), ""); // exists but price == 0
-        _deploy();
-        assertEq(positionManager.ownerOf(1), instance, "graduation must complete on a pre-created uninitialized pool");
     }
 }
 

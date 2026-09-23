@@ -105,7 +105,7 @@ contract ValidateSepolia is Script {
     ///         `vaultType()` discriminator, and — for the LP families — is operationally
     ///         liquidity-ready (pool key + validator wired, O2). Reads the `vaults` array from the
     ///         deployment JSON, so it covers whichever families the network config enabled: Uni-only
-    ///         today, and all four (Yield + Uni/ZAMM/Cypher LP) once Sepolia's config promotes them.
+    ///         today, and all three (Yield + Uni/ZAMM LP) once Sepolia's config promotes them.
     /// @dev Targets the current DeployCore output where `.vaults` is a JSON-encoded STRING (mirrors
     ///      SeedAnvil). Run against a fresh `deployments/sepolia.json` from the current DeployCore.
     function _checkVaults(string memory json) internal view {
@@ -177,7 +177,6 @@ contract ValidateSepolia is Script {
         bytes32 h = keccak256(bytes(tag));
         if (h == keccak256("UNIv4")) return "UniswapV4LP";
         if (h == keccak256("ZAMM")) return "ZAMMLP";
-        if (h == keccak256("CYPHER")) return "CypherLP";
         return "AaveEndowment"; // "AaveEndowment" tag passes through unchanged
     }
 

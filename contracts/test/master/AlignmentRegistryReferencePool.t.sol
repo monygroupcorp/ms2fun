@@ -49,46 +49,6 @@ contract MockUniV3RefPool {
     }
 }
 
-/// @notice Mock Algebra Integral volatility-oracle plugin.
-contract MockVolatilityOracle {
-    bool public reverts;
-    uint256 public cumCount = 2;
-
-    function setReverts(bool v) external {
-        reverts = v;
-    }
-
-    function setCumCount(uint256 n) external {
-        cumCount = n;
-    }
-
-    function getTimepoints(uint32[] calldata)
-        external
-        view
-        returns (int56[] memory tickCumulatives, uint88[] memory volatilityCumulatives)
-    {
-        require(!reverts, "no history");
-        tickCumulatives = new int56[](cumCount);
-        volatilityCumulatives = new uint88[](cumCount);
-        for (uint256 i = 0; i < cumCount; i++) {
-            tickCumulatives[i] = int56(int256(i) * 1000);
-        }
-    }
-}
-
-/// @notice Mock Algebra pool. Its oracle is `plugin()`; `address(0)` means no oracle (unusable).
-contract MockAlgebraRefPool {
-    address public token0;
-    address public token1;
-    address public plugin;
-
-    constructor(address _token0, address _token1, address _plugin) {
-        token0 = _token0;
-        token1 = _token1;
-        plugin = _plugin;
-    }
-}
-
 /// @notice Mock canonical Uniswap V3 factory. `getPool` answers only for pairs explicitly registered here,
 ///         which is what makes an unregistered look-alike distinguishable from a real pool.
 contract MockUniV3RefFactory {
@@ -108,25 +68,6 @@ contract MockUniV3RefFactory {
     }
 }
 
-/// @notice Mock canonical Algebra factory. Algebra has one pool per pair, so no fee tier in the key.
-contract MockAlgebraRefFactory {
-    mapping(bytes32 => address) private _pools;
-
-    function _key(address a, address b) private pure returns (bytes32) {
-        (address lo, address hi) = a < b ? (a, b) : (b, a);
-        return keccak256(abi.encode(lo, hi));
-    }
-
-    function register(address t0, address t1, address pool) external {
-        _pools[_key(t0, t1)] = pool;
-    }
-
-    function poolByPair(address tokenA, address tokenB) external view returns (address) {
-        return _pools[_key(tokenA, tokenB)];
-    }
-}
-
-/// @notice noesis-035 — canonical reference pool (setReferencePool / getReferencePool) with setter teeth.
 contract AlignmentRegistryReferencePoolTest is Test {
     AlignmentRegistryV1 public registry;
 
@@ -137,15 +78,12 @@ contract AlignmentRegistryReferencePoolTest is Test {
     address public otherToken = makeAddr("OTHER");
 
     uint8 internal constant KIND_UNI = 0;
-    uint8 internal constant KIND_ALGEBRA = 1;
 
     MockUniV3RefFactory public uniFactory;
-    MockAlgebraRefFactory public algebraFactory;
 
     function setUp() public {
         uniFactory = new MockUniV3RefFactory();
-        algebraFactory = new MockAlgebraRefFactory();
-        AlignmentRegistryV1 impl = new AlignmentRegistryV1(weth, address(uniFactory), address(algebraFactory));
+        AlignmentRegistryV1 impl = new AlignmentRegistryV1(weth, address(uniFactory));
         address proxy = LibClone.deployERC1967(address(impl));
         registry = AlignmentRegistryV1(proxy);
         registry.initialize(daoOwner);
@@ -158,11 +96,6 @@ contract AlignmentRegistryReferencePoolTest is Test {
     function _uniPool(address t0, address t1) internal returns (MockUniV3RefPool p) {
         p = new MockUniV3RefPool(t0, t1);
         uniFactory.register(t0, t1, p.fee(), address(p));
-    }
-
-    function _algebraPool(address t0, address t1, address plugin) internal returns (MockAlgebraRefPool p) {
-        p = new MockAlgebraRefPool(t0, t1, plugin);
-        algebraFactory.register(t0, t1, address(p));
     }
 
     function _registerTarget() internal returns (uint256) {
@@ -206,21 +139,17 @@ contract AlignmentRegistryReferencePoolTest is Test {
         assertEq(registry.getReferencePool(targetId, cultToken).pool, address(pool));
     }
 
-    /// The CYPH-on-Algebra case: a real target whose deep price authority lives on an Algebra pool.
-    function test_SetReferencePool_Algebra_StoresAndEmits() public {
+    /// @dev Kind 1 was the Algebra reference pool, and it left the tree with the Cypher venue. The
+    ///      FIELD stays so a second oracle family can be added without migrating stored routes, but
+    ///      the registry accepts only kind 0 today — a stale pin naming the retired kind is refused
+    ///      rather than probed against a factory that no longer exists.
+    function test_SetReferencePool_RetiredAlgebraKindIsRefused() public {
         uint256 targetId = _registerTarget();
-        MockVolatilityOracle oracle = new MockVolatilityOracle();
-        MockAlgebraRefPool pool = _algebraPool(cultToken, weth, address(oracle));
+        MockUniV3RefPool pool = _uniPool(cultToken, weth);
 
         vm.prank(daoOwner);
-        vm.expectEmit(true, true, false, true);
-        emit IAlignmentRegistry.ReferencePoolSet(targetId, cultToken, address(pool), KIND_ALGEBRA);
-        registry.setReferencePool(targetId, cultToken, _ref(address(pool), KIND_ALGEBRA, 900));
-
-        IAlignmentRegistry.ReferencePool memory got = registry.getReferencePool(targetId, cultToken);
-        assertEq(got.pool, address(pool));
-        assertEq(uint256(got.kind), KIND_ALGEBRA);
-        assertEq(uint256(got.twapWindow), 900);
+        vm.expectRevert(AlignmentRegistryV1.InvalidReferenceKind.selector);
+        registry.setReferencePool(targetId, cultToken, _ref(address(pool), 1, 900));
     }
 
     /// noesis-285: a caller's 0 is RESOLVED at set time and the proved window is what is stored, so the
@@ -240,14 +169,13 @@ contract AlignmentRegistryReferencePoolTest is Test {
         vm.prank(daoOwner);
         registry.setReferencePool(targetId, cultToken, _ref(address(uni), KIND_UNI, 0));
 
-        MockVolatilityOracle oracle = new MockVolatilityOracle();
-        MockAlgebraRefPool algebra = _algebraPool(weth, cultToken, address(oracle));
+        MockUniV3RefPool second = _uniPool(weth, cultToken);
         vm.prank(daoOwner);
-        registry.setReferencePool(targetId, cultToken, _ref(address(algebra), KIND_ALGEBRA, 0));
+        registry.setReferencePool(targetId, cultToken, _ref(address(second), KIND_UNI, 0));
 
         IAlignmentRegistry.ReferencePool memory got = registry.getReferencePool(targetId, cultToken);
-        assertEq(got.pool, address(algebra));
-        assertEq(uint256(got.kind), KIND_ALGEBRA);
+        assertEq(got.pool, address(second));
+        assertEq(uint256(got.kind), KIND_UNI);
     }
 
     // ── getter default ──────────────────────────────────────────────────────────
@@ -329,33 +257,6 @@ contract AlignmentRegistryReferencePoolTest is Test {
         registry.setReferencePool(targetId, cultToken, _ref(address(pool), KIND_UNI, 0));
     }
 
-    function test_SetReferencePool_RevertAlgebraWrongPair() public {
-        uint256 targetId = _registerTarget();
-        MockVolatilityOracle oracle = new MockVolatilityOracle();
-        MockAlgebraRefPool pool = _algebraPool(cultToken, otherToken, address(oracle));
-        vm.prank(daoOwner);
-        vm.expectRevert(AlignmentRegistryV1.ReferencePoolTokenMismatch.selector);
-        registry.setReferencePool(targetId, cultToken, _ref(address(pool), KIND_ALGEBRA, 0));
-    }
-
-    function test_SetReferencePool_RevertAlgebraNoPlugin() public {
-        uint256 targetId = _registerTarget();
-        MockAlgebraRefPool pool = _algebraPool(cultToken, weth, address(0)); // plugin() == 0
-        vm.prank(daoOwner);
-        vm.expectRevert(AlignmentRegistryV1.ReferencePoolUnusable.selector);
-        registry.setReferencePool(targetId, cultToken, _ref(address(pool), KIND_ALGEBRA, 0));
-    }
-
-    function test_SetReferencePool_RevertAlgebraOracleNoHistory() public {
-        uint256 targetId = _registerTarget();
-        MockVolatilityOracle oracle = new MockVolatilityOracle();
-        oracle.setReverts(true);
-        MockAlgebraRefPool pool = _algebraPool(cultToken, weth, address(oracle));
-        vm.prank(daoOwner);
-        vm.expectRevert(AlignmentRegistryV1.ReferencePoolUnusable.selector);
-        registry.setReferencePool(targetId, cultToken, _ref(address(pool), KIND_ALGEBRA, 0));
-    }
-
     // ── provenance (noesis-283): shape is not origin ────────────────────────────
 
     /**
@@ -403,23 +304,13 @@ contract AlignmentRegistryReferencePoolTest is Test {
         registry.setReferencePool(targetId, cultToken, _ref(address(pool), KIND_UNI, 3600));
     }
 
-    function test_SetReferencePool_Algebra_RejectsLookAlikeTheFactoryDoesNotName() public {
-        uint256 targetId = _registerTarget();
-        MockVolatilityOracle oracle = new MockVolatilityOracle();
-        MockAlgebraRefPool forgery = new MockAlgebraRefPool(cultToken, weth, address(oracle));
-
-        vm.prank(daoOwner);
-        vm.expectRevert(AlignmentRegistryV1.ReferencePoolNotCanonical.selector);
-        registry.setReferencePool(targetId, cultToken, _ref(address(forgery), KIND_ALGEBRA, 900));
-    }
-
     /**
      * A deployment with no canonical factory for a kind cannot pin that kind AT ALL. The alternative —
      * treating `address(0)` as "skip the check" — would make the guard vanish on exactly the networks
      * where nobody configured it, which is the fail-open shape this whole change exists to remove.
      */
     function test_SetReferencePool_UnavailableKindIsRefusedNotWaved() public {
-        AlignmentRegistryV1 impl = new AlignmentRegistryV1(weth, address(0), address(0));
+        AlignmentRegistryV1 impl = new AlignmentRegistryV1(weth, address(0));
         AlignmentRegistryV1 bare = AlignmentRegistryV1(LibClone.deployERC1967(address(impl)));
         bare.initialize(daoOwner);
 
@@ -432,17 +323,10 @@ contract AlignmentRegistryReferencePoolTest is Test {
         vm.prank(daoOwner);
         vm.expectRevert(AlignmentRegistryV1.ReferenceKindUnavailable.selector);
         bare.setReferencePool(targetId, cultToken, _ref(address(uni), KIND_UNI, 3600));
-
-        MockVolatilityOracle oracle = new MockVolatilityOracle();
-        MockAlgebraRefPool algebra = _algebraPool(cultToken, weth, address(oracle));
-        vm.prank(daoOwner);
-        vm.expectRevert(AlignmentRegistryV1.ReferenceKindUnavailable.selector);
-        bare.setReferencePool(targetId, cultToken, _ref(address(algebra), KIND_ALGEBRA, 900));
     }
 
-    /// The factories are immutables, so they are readable and fixed for the life of the implementation.
+    /// The factory is an immutable, so it is readable and fixed for the life of the implementation.
     function test_FactoriesAreExposedImmutables() public view {
         assertEq(registry.v3Factory(), address(uniFactory));
-        assertEq(registry.algebraFactory(), address(algebraFactory));
     }
 }

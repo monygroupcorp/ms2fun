@@ -110,7 +110,7 @@ contract PinnedGenesisFamily1155Test is Test {
 
     /// @notice Regression: a genuinely liquidity-family genesis still settles 1/19/80 (creator 80%).
     function test_liquidityGenesis_keepsCreator80() public {
-        (ERC1155Instance inst, MockFamilyVault genesis) = _deploy("CypherLP");
+        (ERC1155Instance inst, MockFamilyVault genesis) = _deploy("ZAMMLP");
 
         uint256 treasuryBefore = TREASURY.balance;
         uint256 creatorBefore = CREATOR.balance;

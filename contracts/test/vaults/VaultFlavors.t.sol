@@ -25,10 +25,7 @@ contract VaultFlavorsTest is Test {
     // these (no calls at deploy), except the Aave path which calls weth.approve(stataToken) — covered
     // by the RETURN_TRUE etch on weth below.
     address constant STUB_ZAMM = address(0xADD0);
-    address constant STUB_CYPHER_PM = address(0xADD1);
-    address constant STUB_CYPHER_ROUTER = address(0xADD2);
     address constant STUB_STATA = address(0xADD3);
-    address constant STUB_CYPHER_FACTORY = address(0xADD4);
     // Nonzero best-route quoter used to prove the deploy path wires it into every vault (F1 enablement).
     address constant STUB_QUOTER = address(0xADD5);
 
@@ -57,7 +54,6 @@ contract VaultFlavorsTest is Test {
             name: "Chainlink",
             description: "Test alignment target",
             deployUniVault: true,
-            deployCypherVault: true,
             deployZAMMVault: true,
             communityPayout: address(0)
         });
@@ -65,9 +61,6 @@ contract VaultFlavorsTest is Test {
         cfg.chainId = 1337;
         cfg.weth = STUB_LINK; // etched RETURN_TRUE — Aave init's approve() succeeds
         cfg.v4PoolManager = address(1);
-        cfg.cypherPositionManager = STUB_CYPHER_PM;
-        cfg.cypherRouter = STUB_CYPHER_ROUTER;
-        cfg.cypherAlgebraFactory = STUB_CYPHER_FACTORY; // O2: Cypher vault needs its Algebra factory wired
         cfg.zamm = STUB_ZAMM;
         cfg.aaveStataToken = STUB_STATA;
         cfg.saltMasterRegistry = bytes32(uint256(1));
@@ -85,13 +78,12 @@ contract VaultFlavorsTest is Test {
         cfg.jsonOutputPath = "";
     }
 
-    // ── All four families register per target ────────────────────────────────
+    // ── All three families register per target ───────────────────────────────
 
-    function test_fourVaultFamiliesRegisteredPerTarget() public view {
+    function test_threeVaultFamiliesRegisteredPerTarget() public view {
         uint256 targetId = s.alignmentTargetIds(0);
         _assertRegistered(s.uniVaults(0), targetId);
         _assertRegistered(s.zammVaults(0), targetId);
-        _assertRegistered(s.cypherVaults(0), targetId);
         _assertRegistered(s.aaveVaults(0), targetId);
     }
 
@@ -107,7 +99,6 @@ contract VaultFlavorsTest is Test {
     function test_vaultTypeDiscriminators() public view {
         assertEq(IAlignmentVault(payable(s.uniVaults(0))).vaultType(), "UniswapV4LP");
         assertEq(IAlignmentVault(payable(s.zammVaults(0))).vaultType(), "ZAMMLP");
-        assertEq(IAlignmentVault(payable(s.cypherVaults(0))).vaultType(), "CypherLP");
         assertEq(IAlignmentVault(payable(s.aaveVaults(0))).vaultType(), "AaveEndowment");
     }
 
@@ -116,7 +107,6 @@ contract VaultFlavorsTest is Test {
     function test_allDeployedVaultsAreLiquidityReady() public view {
         assertTrue(_ready(s.uniVaults(0)), "uni ready");
         assertTrue(_ready(s.zammVaults(0)), "zamm ready");
-        assertTrue(_ready(s.cypherVaults(0)), "cypher ready");
         assertTrue(_ready(s.aaveVaults(0)), "aave ready");
     }
 
@@ -183,10 +173,9 @@ contract VaultFlavorsTest is Test {
     function test_bestRouteDisabledByDefault() public view {
         assertEq(UniAlignmentVault(payable(s.uniVaults(0))).zQuoter(), address(0), "uni: quoter unset by default");
         assertEq(ZAMMAlignmentVault(payable(s.zammVaults(0))).zQuoter(), address(0), "zamm: quoter unset by default");
-        assertEq(_vaultQuoter(s.cypherVaults(0)), address(0), "cypher: quoter unset by default");
     }
 
-    /// @dev Setting `cfg.zQuoter` to a real quoter must thread it through DeployCore into all three vault
+    /// @dev Setting `cfg.zQuoter` to a real quoter must thread it through DeployCore into both LP vault
     ///      factories and onto every deployed vault at deploy time — best-route ENABLED, no post-deploy
     ///      `setZQuoter` admin action required. This is the load-bearing F1 fix (the deploy scripts passed
     ///      `address(0)` at every site).
@@ -205,7 +194,6 @@ contract VaultFlavorsTest is Test {
 
         assertEq(UniAlignmentVault(payable(s2.uniVaults(0))).zQuoter(), STUB_QUOTER, "uni: quoter wired at deploy");
         assertEq(ZAMMAlignmentVault(payable(s2.zammVaults(0))).zQuoter(), STUB_QUOTER, "zamm: quoter wired at deploy");
-        assertEq(_vaultQuoter(s2.cypherVaults(0)), STUB_QUOTER, "cypher: quoter wired at deploy");
     }
 
     function _vaultQuoter(address vault) internal view returns (address) {

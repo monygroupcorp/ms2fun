@@ -21,7 +21,7 @@ contract AlignmentRegistryVaultRequestTest is Test {
     event VaultRequested(uint256 indexed targetId, address indexed token, address indexed requester);
 
     function setUp() public {
-        AlignmentRegistryV1 impl = new AlignmentRegistryV1(makeAddr("WETH"), address(0), address(0));
+        AlignmentRegistryV1 impl = new AlignmentRegistryV1(makeAddr("WETH"), address(0));
         address proxy = LibClone.deployERC1967(address(impl));
         registry = AlignmentRegistryV1(proxy);
         registry.initialize(daoOwner);

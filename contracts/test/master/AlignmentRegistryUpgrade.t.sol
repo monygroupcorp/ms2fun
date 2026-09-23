@@ -50,7 +50,7 @@ contract AlignmentRegistryUpgradeTest is Test {
         assertEq(legacy.nextAlignmentTargetId(), 2);
 
         // ── upgrade the SAME proxy to the NEW implementation ──
-        AlignmentRegistryV1 newImpl = new AlignmentRegistryV1(makeAddr("WETH"), address(0), address(0));
+        AlignmentRegistryV1 newImpl = new AlignmentRegistryV1(makeAddr("WETH"), address(0));
         vm.prank(daoOwner);
         legacy.upgradeToAndCall(address(newImpl), "");
 

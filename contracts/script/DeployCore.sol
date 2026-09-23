@@ -15,8 +15,6 @@ import { CurationRegistry } from "../src/registry/CurationRegistry.sol";
 import { ProtocolTreasuryV1 } from "../src/treasury/ProtocolTreasuryV1.sol";
 import { UniAlignmentVault } from "../src/vaults/uni/UniAlignmentVault.sol";
 import { UniAlignmentVaultFactory } from "../src/vaults/uni/UniAlignmentVaultFactory.sol";
-import { CypherAlignmentVault } from "../src/vaults/cypher/CypherAlignmentVault.sol";
-import { CypherAlignmentVaultFactory } from "../src/vaults/cypher/CypherAlignmentVaultFactory.sol";
 import { IZAMM, ZAMMAlignmentVault } from "../src/vaults/zamm/ZAMMAlignmentVault.sol";
 import { ZAMMAlignmentVaultFactory } from "../src/vaults/zamm/ZAMMAlignmentVaultFactory.sol";
 import { AlignmentEndowmentVaultFactory } from "../src/vaults/aave/AlignmentEndowmentVaultFactory.sol";
@@ -49,7 +47,6 @@ import { LiquidityDeployerModule } from "../src/factories/erc404/LiquidityDeploy
 import { UniTitheHookFactory } from "../src/factories/erc404/hooks/UniTitheHookFactory.sol";
 import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
 import { ZAMMLiquidityDeployerModule } from "../src/factories/erc404zamm/ZAMMLiquidityDeployerModule.sol";
-import { CypherLiquidityDeployerModule } from "../src/factories/erc404cypher/CypherLiquidityDeployerModule.sol";
 import { MockSafe } from "../test/mocks/MockSafe.sol";
 import { ICreateX, CREATEX } from "../src/shared/CreateXConstants.sol";
 
@@ -66,7 +63,6 @@ contract DeployCore is Script {
         string name;
         string description;
         bool deployUniVault;
-        bool deployCypherVault;
         bool deployZAMMVault;
         address communityPayout; // endowment community destination; address(0) = set later, off-chain
     }
@@ -81,11 +77,6 @@ contract DeployCore is Script {
         address v2Factory;
 
         // Vault AMM addresses — address(0) means that AMM isn't on this network, skip factory
-        address cypherPositionManager;
-        address cypherRouter;
-        // Cypher/Algebra factory — needed by the REAL CypherLiquidityDeployerModule (launch pool).
-        // address(0) means Cypher has no launch venue on this network → deployer is omitted, NOT stubbed.
-        address cypherAlgebraFactory;
         address zamm;
         address aaveStataToken; // Aave WETH StaticATokenV2 (waEthWETH); address(0) = no endowment vault
         // WETH the Aave endowment family wraps into before supplying `aaveStataToken`. The vault wraps
@@ -198,13 +189,11 @@ contract DeployCore is Script {
 
     // Vault factories
     UniAlignmentVaultFactory public uniVaultFactory;
-    CypherAlignmentVaultFactory public cypherVaultFactory;
     ZAMMAlignmentVaultFactory public zammVaultFactory;
     AlignmentEndowmentVaultFactory public aaveVaultFactory;
 
     // Deployed vault instances — indexed by target index
     address[] public uniVaults;
-    address[] public cypherVaults;
     address[] public zammVaults;
     address[] public aaveVaults;
     uint256[] public alignmentTargetIds;
@@ -230,7 +219,6 @@ contract DeployCore is Script {
     // MockComponentModule stub, chosen per-network by whether that AMM's config is present.
     address public moduleUniV4Deployer;
     address public moduleZAMMDeployer;
-    address public moduleCypherDeployer;
     /// @notice The Uni-V4 alignment-tithe hook factory (117a), registered under ALIGNMENT_HOOK but NOT
     ///         selected on the module (default OFF). address(0) where Uni isn't configured on this network.
     address public uniTitheHookFactory;
@@ -322,7 +310,7 @@ contract DeployCore is Script {
             )
         );
 
-        alignmentRegistryImpl = new AlignmentRegistryV1(cfg.weth, cfg.v3Factory, cfg.cypherAlgebraFactory);
+        alignmentRegistryImpl = new AlignmentRegistryV1(cfg.weth, cfg.v3Factory);
         alignmentRegistry = AlignmentRegistryV1(
             _deployProxyCreate3(
                 address(alignmentRegistryImpl),
@@ -391,18 +379,6 @@ contract DeployCore is Script {
             alignmentRegistry,
             cfg.zQuoter // best-route quoter (address(0) = fixed-pool fallback only); OPERATOR INPUT
         );
-
-        if (cfg.cypherPositionManager != address(0)) {
-            CypherAlignmentVault cypherImpl = new CypherAlignmentVault();
-            cypherVaultFactory = new CypherAlignmentVaultFactory(
-                address(cypherImpl),
-                IVaultPriceValidator(address(priceValidator)),
-                cfg.cypherAlgebraFactory,
-                address(zrouter),
-                cfg.zQuoter, // best-route quoter (address(0) = Algebra fixed-pool fallback); OPERATOR INPUT
-                alignmentRegistry
-            );
-        }
 
         if (cfg.zamm != address(0)) {
             zammVaultFactory = new ZAMMAlignmentVaultFactory(
@@ -506,26 +482,6 @@ contract DeployCore is Script {
                 uniVaults.push(vault);
             }
 
-            if (t.deployCypherVault && address(cypherVaultFactory) != address(0)) {
-                bytes32 salt = _vaultSalt(cfg.chainId, i, "CYPHER", cfg.saltNonce);
-                address vault = address(
-                    cypherVaultFactory.createVault(
-                        salt,
-                        cfg.cypherPositionManager,
-                        cfg.cypherRouter,
-                        cfg.weth,
-                        t.token,
-                        address(treasury),
-                        targetId
-                    )
-                );
-                MasterRegistryV1(masterRegistry)
-                    .registerVault(
-                        vault, deployer, string.concat(t.symbol, " Cypher Vault"), "https://ms2.fun", targetId
-                    );
-                cypherVaults.push(vault);
-            }
-
             if (t.deployZAMMVault && address(zammVaultFactory) != address(0)) {
                 bytes32 salt = _vaultSalt(cfg.chainId, i, "ZAMM", cfg.saltNonce);
                 // Operational LP wiring (T2): bake the real ETH/alignmentToken ZAMM pool key at
@@ -605,8 +561,6 @@ contract DeployCore is Script {
             "data:application/json,{\"name\":\"Uniswap V4 Deployer\",\"subtitle\":\"Uniswap V4 \\u00b7 Concentrated Liquidity\",\"description\":\"Deploy liquidity to a Uniswap V4 pool on graduation.\",\"configType\":\"launch-profile\"}";
         string memory zammMeta =
             "data:application/json,{\"name\":\"ZAMM Deployer\",\"subtitle\":\"ZAMM \\u00b7 Constant Product\",\"description\":\"Deploy liquidity to ZAMM on graduation.\",\"configType\":\"launch-profile\"}";
-        string memory cypherMeta =
-            "data:application/json,{\"name\":\"Cypher Deployer\",\"subtitle\":\"Cypher \\u00b7 Concentrated Liquidity\",\"description\":\"Deploy liquidity to Cypher on graduation.\",\"configType\":\"launch-profile\"}";
 
         // Real merkle-allowlist gating module: per-instance, per-edition, quantity-capped allowlists.
         // The wizard passes its address to createInstance verbatim; the owner calls configureFor
@@ -658,21 +612,6 @@ contract DeployCore is Script {
             moduleZAMMDeployer = address(new MockComponentModule(deployer, zammMeta));
         }
         componentRegistry.approveComponent(moduleZAMMDeployer, FeatureUtils.LIQUIDITY_DEPLOYER, "ZAMM Deployer");
-
-        // Cypher/Algebra: build the REAL launch deployer where the Algebra addresses are configured
-        // (algebraFactory + positionManager/NFPM + weth are the exact ctor args). Where Cypher has no
-        // launch venue on this network (e.g. Sepolia), DO NOT approve a metadata-only stub under the
-        // functional LIQUIDITY_DEPLOYER tag — an approved stub bricks graduation. Omit it instead so
-        // the wizard simply won't offer Cypher on that network.
-        if (cfg.cypherAlgebraFactory != address(0) && cfg.cypherPositionManager != address(0) && cfg.weth != address(0))
-        {
-            CypherLiquidityDeployerModule cypherMod = new CypherLiquidityDeployerModule(
-                cfg.cypherAlgebraFactory, cfg.cypherPositionManager, cfg.weth, masterRegistry
-            );
-            cypherMod.setMetadataURI(cypherMeta);
-            moduleCypherDeployer = address(cypherMod);
-            componentRegistry.approveComponent(moduleCypherDeployer, FeatureUtils.LIQUIDITY_DEPLOYER, "Cypher Deployer");
-        }
 
         // ERC404 staking module (functional, not a stub) — the ERC404 factory wires this into
         // instances created with staking enabled; ValidateSepolia expects it approved as STAKING.
@@ -780,12 +719,6 @@ contract DeployCore is Script {
         vm.serializeAddress(c, "ModuleMerkleGating", address(moduleMerkleGating));
         vm.serializeAddress(c, "ModuleUniV4Deployer", address(moduleUniV4Deployer));
         vm.serializeAddress(c, "ModuleZAMMDeployer", address(moduleZAMMDeployer));
-        vm.serializeAddress(c, "ModuleCypherDeployer", address(moduleCypherDeployer));
-        // The Cypher venue's periphery swap router. Not deployed by us — it is the network's Algebra
-        // router, supplied as config — but the frontend needs it to trade a Cypher-graduated token in
-        // site, so it is published alongside the addresses we do deploy. Zero on a network with no
-        // Algebra deployment, which the app reads as "no router here yet".
-        vm.serializeAddress(c, "CypherSwapRouter", cfg.cypherRouter);
         vm.serializeAddress(c, "ERC404StakingModule", address(erc404StakingModule));
         vm.serializeAddress(c, "MetadataResolverRouter", address(metadataResolverRouter));
         vm.serializeAddress(c, "MetadataOverlayModule", address(metadataOverlayModule));
@@ -796,10 +729,9 @@ contract DeployCore is Script {
         // array (whose ordering shifts as LP families are enabled/disabled per network).
         vm.serializeAddress(c, "SeedUniVault", uniVaults.length > 0 ? uniVaults[0] : address(0));
         vm.serializeAddress(c, "SeedAaveVault", aaveVaults.length > 0 ? aaveVaults[0] : address(0));
-        // ZAMM + Cypher LP families — same family-resolved convenience pointers so the seed can bind
-        // instances across all four vault flavors (the wizard offers all four; the seed demonstrates them).
+        // The ZAMM LP family — same family-resolved convenience pointer so the seed can bind instances
+        // across all three vault flavors (the wizard offers all three; the seed demonstrates them).
         vm.serializeAddress(c, "SeedZammVault", zammVaults.length > 0 ? zammVaults[0] : address(0));
-        vm.serializeAddress(c, "SeedCypherVault", cypherVaults.length > 0 ? cypherVaults[0] : address(0));
         string memory contracts = vm.serializeAddress(c, "UniswapVaultPriceValidator", address(priceValidator));
 
         // factories sub-object
@@ -833,20 +765,6 @@ contract DeployCore is Script {
                 '{"address":"',
                 vm.toString(uniVaults[i]),
                 '","type":"UNIv4","alignmentToken":"',
-                vm.toString(cfg.alignmentTargets[i].token),
-                '","targetId":',
-                vm.toString(alignmentTargetIds[i]),
-                "}"
-            );
-        }
-        for (uint256 i = 0; i < cypherVaults.length; i++) {
-            if (!firstVault) vaultsJson = string.concat(vaultsJson, ",");
-            firstVault = false;
-            vaultsJson = string.concat(
-                vaultsJson,
-                '{"address":"',
-                vm.toString(cypherVaults[i]),
-                '","type":"CYPHER","alignmentToken":"',
                 vm.toString(cfg.alignmentTargets[i].token),
                 '","targetId":',
                 vm.toString(alignmentTargetIds[i]),

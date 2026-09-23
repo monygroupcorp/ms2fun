@@ -128,7 +128,6 @@ contract AaveEndowmentWethParamTest is Test {
             name: "Chainlink",
             description: "Test alignment target",
             deployUniVault: false,
-            deployCypherVault: false,
             deployZAMMVault: true,
             communityPayout: address(0)
         });

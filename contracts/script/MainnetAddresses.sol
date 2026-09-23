@@ -55,12 +55,4 @@ library MainnetAddresses {
     ///      deployment (`lib/zRouter/base/zQuoter.sol`, 0x772E2810A471dB2CC7ADA0d37D6395476535889a)
     ///      answers a different six-member enum and is NOT interchangeable with it.
     address internal constant ZQUOTER = 0x0180Fe9Ae92Cd04dA670F974DE9d928EA69CfA66;
-
-    // ── Cypher (Algebra Integral on Ethereum) ─────────────────────────────────────────────────
-    //    Addresses from the camel404 mainnet deployment, verified live on the fork. The launch
-    //    deployer's constructor takes exactly (algebraFactory, positionManager/NFPM, weth); the
-    //    swap router feeds the Cypher alignment vault.
-    address internal constant CYPHER_ALGEBRA_FACTORY = 0xfb8Ed3485EfA29a0e4bed93351dD51B59fC4b0f0;
-    address internal constant CYPHER_POSITION_MANAGER = 0x0a984a446A116335ac90425d2D1E69A7199A2f7c;
-    address internal constant CYPHER_SWAP_ROUTER = 0x20C5893f69F635f55b0367C519F3f95e59c0b0Ab;
 }

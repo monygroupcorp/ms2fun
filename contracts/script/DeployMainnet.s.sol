@@ -35,9 +35,6 @@ contract DeployMainnet is DeployCore {
         cfg.v4PoolManager = MainnetAddresses.V4_POOL_MANAGER;
         cfg.v3Factory = MainnetAddresses.V3_FACTORY;
         cfg.v2Factory = MainnetAddresses.V2_FACTORY;
-        cfg.cypherPositionManager = MainnetAddresses.CYPHER_POSITION_MANAGER;
-        cfg.cypherRouter = MainnetAddresses.CYPHER_SWAP_ROUTER;
-        cfg.cypherAlgebraFactory = MainnetAddresses.CYPHER_ALGEBRA_FACTORY;
         cfg.zamm = MainnetAddresses.ZAMM_V1;
         // The Aave endowment family. Unset gates the family off entirely (`DeployCore` treats a zero
         // stataToken as "this network has no endowment rail"), which is how it came to be missing
