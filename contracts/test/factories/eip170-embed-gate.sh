@@ -25,22 +25,23 @@
 # reports `NOT PRESENT` is the only thing that would notice the blob coming back, and because the
 # before/after is the measured price of lever A, which was an estimate until it was built:
 #
-#     ERC1155Factory   24,015B runtime,   561B free  ->   4,996B runtime,  19,580B free
-#     ERC1155Instance  16,756B runtime, 7,820B apparent -> 18,301B runtime, 6,275B REAL
+#     ERC1155Factory   23,965B runtime,   611B free  ->   4,996B runtime,  19,580B free
+#     ERC1155Instance  16,706B runtime, 7,870B apparent -> 18,251B runtime, 6,325B REAL
 #
 # The instance grows because a constructor that ran once in creation code becomes an `initialize`
 # that lives in runtime code, and shrinks because four `immutable` reads inlined at every site
 # become four storage slots: -349B for the immutables, +1,894B for the initializer. What the family
-# actually gained is the 561B -> 6,275B, because 561B was the whole budget for an edition-side
-# change and 6,275B is a budget nothing else can spend.
+# actually gained is the 611B -> 6,325B, because 611B was the whole budget for an edition-side
+# change and 6,325B is a budget nothing else can spend.
 #
 # That is the whole disease: a byte added to an embedded contract is a byte off the EMBEDDER's
 # margin, and the embedded contract's own headroom reads large and is not a budget. ERC1155 was the
 # tight one, and its margin was spent from BOTH sides while each side's suite measured only its own
 # contract. The tightest rows today are zRouter at 3,457B of runtime and ERC721AuctionFactory at
-# 4,757B, and ERC721AuctionFactory still has the disease: 15,449B of its 19,819B is the instance.
-# Every merge to main that touched `src/factories/erc1155/` was rebuilt and sized on 2026-09-21;
-# ERC1155Factory runtime margin, and where each merge spent it:
+# 4,807B, and ERC721AuctionFactory still has the disease: 15,399B of its 19,769B is the instance.
+# Every merge to main that touched `src/factories/erc1155/` was rebuilt and sized the same way, the
+# first ten on 2026-09-21 and #475 on 2026-09-23; ERC1155Factory runtime margin, and where each
+# merge spent it:
 #
 #     merged      PR     factory    margin    blob      logic    this merge cost
 #     2026-08-04  #132   22,837B    1,739B    18,082B   4,755B   -
@@ -53,7 +54,8 @@
 #     2026-09-11  #383   23,532B    1,044B    18,763B   4,769B    -90B  all instance
 #     2026-09-19  #441   23,952B      624B    19,183B   4,769B   +420B  all instance
 #     2026-09-19  #431   24,015B      561B    19,183B   4,832B    +63B  all factory
-#     -           clone   4,996B   19,580B         0B   4,996B  -19,019B  the lever
+#     2026-09-23  #475   23,965B      611B    19,133B   4,832B    -50B  all instance
+#     -           clone   4,996B   19,580B         0B   4,996B  -18,969B  the lever
 #
 # Three things in that column that a single reading of today's number does not show, and they are
 # why the lever was worth taking rather than dieting the instance one more time.
@@ -67,9 +69,9 @@
 # THE MARGIN IS NOT A RATCHET. #376 and #383 gave back 183B between them. A diet on the instance is
 # a real alternative to the lever below, and it is cheaper than either.
 #
-# THE SPEND IS LUMPY, SO THE AVERAGE LIES. 1,178B went in 46 days, which averages 26B/day and would
-# put the remaining 561B some three weeks out. But two merges account for 1,089B of that 1,178B, and
-# the largest single one, #174's +669B, is ITSELF larger than the 561B left today. The question a
+# THE SPEND IS LUMPY, SO THE AVERAGE LIES. 1,128B went in 50 days, which averages 23B/day and would
+# put the remaining 611B some four weeks out. But two merges account for 1,089B of that 1,128B, and
+# the largest single one, #174's +669B, is ITSELF larger than the 611B left today. The question a
 # floor answers is not how many days remain. It is whether the next ordinary edition-side change is
 # allowed to be the size that ordinary edition-side changes have actually been.
 #
@@ -129,8 +131,8 @@
 #      instance, and the instance is then the only thing left to watch; see GRADUATES below, which
 #      is the row that keeps it watched.
 #      ERC1155 TOOK THIS ROUTE, so the entry above is no longer a projection. What it cost, built
-#      and measured rather than estimated: the factory fell 24,015B to 4,996B and the instance rose
-#      16,756B to 18,301B, because the `constructor` became an `initialize` and that logic moved
+#      and measured rather than estimated: the factory fell 23,965B to 4,996B and the instance rose
+#      16,706B to 18,251B, because the `constructor` became an `initialize` and that logic moved
 #      from creation code into runtime code (+1,894B), while four `immutable` reads inlined at every
 #      site became four storage slots (-349B). An `immutable` lives in the runtime code every clone
 #      SHARES, so a value that differs per collection cannot be one: `genesisVault` is per
@@ -138,7 +140,7 @@
 #      retune them between instances. `globalMessageRegistry` is protocol-wide and could have
 #      stayed `immutable` on the implementation; it moved with the other three so that one rule
 #      covers all four and `initialize` is the only writer of any of them. The reads are cold
-#      SLOADs now. The net for the family is 561B of growth budget becoming 6,275B.
+#      SLOADs now. The net for the family is 611B of growth budget becoming 6,325B.
 #      THE SAME PRICE WAS PAID ONCE BEFORE, in the vault family three of the CREATION rows below
 #      belong to. That evidence is a measurement taken 2026-09-21 against the Cypher vault family,
 #      which has since been REMOVED from this tree (CYPHER wound down); the two contracts named
@@ -184,8 +186,8 @@ EIP3860=49152
 # TWO FLOORS ARE RULED, both on the ERC1155 pair and both against the EIP-170 runtime budget:
 #
 #   ERC1155Instance   2,000B — the same number ERC404Instance carries, so one figure means one thing
-#                              across the tree. Against the 6,275B the clone left real, that allows
-#                              about 4,275B of edition-side growth before the alarm fires, which is
+#                              across the tree. Against the 6,325B the clone left real, that allows
+#                              about 4,325B of edition-side growth before the alarm fires, which is
 #                              wider than any single merge this family has ever spent.
 #   ERC1155Factory   15,000B — the clone gave the factory 19,580B of runtime it has no blob to put
 #                              in. Reserving 15,000B keeps most of what the lever won rather than
@@ -261,8 +263,8 @@ PAIRS=(
 # build, and this is where a floor for it can be typed.
 #
 # ERC1155Instance is here because the clone put it here. While the factory embedded it, the
-# factory's 561B was the scarce budget and the instance's 7,820B was apparent; now the factory has
-# 19,580B it has no way to spend and the instance has 6,275B that is the entire growth budget for
+# factory's 611B was the scarce budget and the instance's 7,870B was apparent; now the factory has
+# 19,580B it has no way to spend and the instance has 6,325B that is the entire growth budget for
 # editions. Keeping the ERC1155Factory row and stopping there would have moved the family out from
 # under every table on the day the lever was taken — the same blindness this gate refuses, one step
 # later in time, and the worse version of it because the row that remains reads green.
