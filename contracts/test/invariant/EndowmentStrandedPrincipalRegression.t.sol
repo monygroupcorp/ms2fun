@@ -311,4 +311,180 @@ contract EndowmentStrandedPrincipalRegression is Test {
         assertEq(handler.sumStrandRecoveredAtDeposit(), 0, "no strand, so nothing to recover");
         assertFalse(handler.ghost_depositMintedYield(), "and nothing minted");
     }
+
+    /// @notice Yield that an injection already booked, left behind by a LIQUIDITY-CAPPED harvest and then
+    ///         orphaned into the strand, is booked ONCE — the deposit that hands the strand back books only
+    ///         the part of it that is not already outstanding.
+    ///
+    /// @dev    The sibling above closes the double-booking an `accrueYield` into an EMPTY share supply made.
+    ///         This is the same double-booking reached with the supply still live, so the injection is
+    ///         legitimately booked at the call and the guard there cannot help. A liquidity cap sized to
+    ///         leave a remainder under the position's ratcheted share price makes the harvest's ceiling burn
+    ///         take the LAST share: the harvest distributes only what the cap let it redeem, and the rest of
+    ///         the injection — value `sumYieldInjected` is still carrying as outstanding — is orphaned in the
+    ///         wrapper alongside the principal. The next deposit inherits BOTH as one strand.
+    ///
+    ///         Booking the whole strand there counts the injected part twice, and nothing catches it:
+    ///         `ghost_depositMintedYield` compares what appeared against the strand that was sitting in the
+    ///         wrapper, and the injected part is genuinely PART of that strand. What moves is the
+    ///         conservation bound. Measured before the fix, on exactly this sequence:
+    ///         `sumYieldInjected - sumHarvestDistributed` ended at 2_499_125_056_252_812 wei, so
+    ///         `invariant_harvestFlatSplitConserves` would have held over an overpay of that size.
+    ///
+    ///         The window the cap has to land in is (share price - the wei the burn may not swallow), which
+    ///         is narrow while the price is near one and widens without bound as each redemption's ceiling
+    ///         burn ratchets it — the same unbounded quantity the tests above drive from 1 wei to the whole
+    ///         principal. The assertion at the end is that the gap is zero, not that it is small.
+    function test_aCappedHarvestLeavesAnInjectionInTheStrandBookedOnce() public {
+        handler.deposit(0, 1e12);
+        handler.accrueYield(MAX);
+        handler.harvest(0);
+        assertEq(stata.totalShares(), 19_999, "the first harvest ratchets the share price to ~5e7");
+
+        // A second injection, this time with the supply still live: it lands on the outstanding shares, so
+        // it is assignable and `accrueYield` books it at the call, exactly as it should.
+        handler.accrueYield(MAX);
+        uint256 managed = stata.totalManaged();
+        uint256 shares = stata.totalShares();
+        assertEq(managed, 50_000_001_000_000_000_000, "position assets carrying the second injection");
+        assertEq(shares, 19_999, "an injection mints no shares");
+        assertEq(handler.sumYieldInjected() - handler.sumHarvestDistributed(), 50 ether, "the whole injection");
+
+        // The largest cap whose ceiling burn still swallows every share: the remainder it leaves is the
+        // position's share price, and a burn of `ceil(cap * shares / managed)` at that size takes all 19_999.
+        uint256 cap = (managed * (shares - 1)) / shares + 1;
+        assertEq(cap, 49_997_500_874_943_747_188, "cap targeted at the last share");
+        handler.setLiquidityCap(cap);
+
+        handler.harvest(0);
+        assertEq(stata.totalShares(), 0, "the capped redeem's ceiling burn took the last share");
+        assertEq(stata.totalManaged(), managed - cap, "the rest of the injection is left in the wrapper");
+        assertEq(vault.currentPositionValue(), 0, "and the vault reads its position as empty");
+        assertEq(vault.totalPrincipal(), 1e12, "while the basis still stands over the orphaned principal");
+
+        // What the harvest could not take is still outstanding in the injected ghost. It is ALSO now sitting
+        // in the strand, which is what makes the deposit below able to book it a second time.
+        uint256 outstanding = handler.sumYieldInjected() - handler.sumHarvestDistributed();
+        assertEq(outstanding, 50 ether - cap, "the capped harvest left this much of the injection outstanding");
+        assertEq(stata.totalManaged(), outstanding + 1e12, "strand = the outstanding injection + the principal");
+
+        handler.setLiquidityCap(0);
+        uint256 distributedBefore = handler.sumHarvestDistributed();
+        uint256 strandBefore = stata.totalManaged();
+        uint256 recoveredBefore = handler.sumStrandRecoveredAtDeposit();
+
+        handler.deposit(1, 1e12);
+        assertEq(vault.currentPositionValue() - vault.totalPrincipal(), strandBefore, "the whole strand came back");
+        assertEq(
+            handler.sumStrandRecoveredAtDeposit() - recoveredBefore,
+            1e12,
+            "the deposit booked the outstanding injection a second time"
+        );
+        assertFalse(handler.ghost_depositMintedYield(), "the strand genuinely held it, so the magnitude bound is mute");
+
+        // The vault distributes every wei of the strand, and the ghost has room for exactly that and no more.
+        handler.harvest(0);
+        assertEq(handler.sumHarvestDistributed() - distributedBefore, strandBefore, "the harvest split the strand");
+        assertEq(
+            handler.sumYieldInjected(),
+            handler.sumHarvestDistributed(),
+            "the injected ghost stands above what the vault could distribute: that gap is unwatched slack"
+        );
+    }
+
+    /// @dev The three yield legs as the handler reads them — the creator counter PLUS the carried remainder,
+    ///      because a leg too small to move the per-share accumulator waits in the remainder rather than in
+    ///      the counter.
+    function _legsPaid() internal view returns (uint256) {
+        return vault.totalYieldToCreators() + vault.creatorYieldRemainder() + vault.totalYieldToTarget()
+            + vault.totalProtocolFees();
+    }
+
+    /// @notice `execute` distributes yield before it moves principal, and the ghost books it — so the
+    ///         handler's view of what is still OUTSTANDING is what the vault actually owes, not an overstate.
+    ///
+    /// @dev    This is the direction the strand fix above could have gone wrong in. That fix books only the
+    ///         part of a strand that is not already outstanding, and it reads "outstanding" as
+    ///         `sumYieldInjected - sumHarvestDistributed`. `execute` opens with the same `_crystallizeYield`
+    ///         body `harvest()` does, so it pays all three legs; a handler that books `harvest()`'s legs and
+    ///         not `execute`'s leaves that difference standing over money the vault already paid out, and the
+    ///         subtraction then treats a genuinely fresh strand as already-booked and UNDER-books it — the
+    ///         ghost running BELOW what the vault can distribute, which is the direction no invariant here
+    ///         watches.
+    ///
+    ///         So the leg delta is booked on every path that crystallizes, and this pins it on `execute` end
+    ///         to end, with the two roles separated: the first execute distributes the yield and the second
+    ///         orphans a strand worth ~5e7 wei, so the fresh strand and the money already paid out are
+    ///         different orders of magnitude and a confusion between them cannot hide in rounding.
+    ///
+    ///         Checked that it bites, by deleting the `execute` leg booking: `sumHarvestDistributed` stays 0
+    ///         where the vault has paid 50 ether, `outstanding` reads 50 ether instead of 0, the deposit
+    ///         books 0 of the strand instead of all of it, and the run ends with `sumYieldInjected` 50 ether
+    ///         against `sumHarvestDistributed` of one strand. The mutation is not committed.
+    function test_anExecuteDistributesAndTheGhostBooksItSoTheStrandIsNotUnderBooked() public {
+        handler.deposit(0, 1e12);
+        handler.accrueYield(MAX);
+        assertEq(handler.sumYieldInjected(), 50 ether, "the only injection so far");
+        assertEq(handler.sumHarvestDistributed(), 0, "and no harvest has run");
+
+        // Step 1: an `execute` with yield pending. Its own crystallize pays the legs; no `harvest()` is
+        // involved, so this is exactly the distribution a harvest-only ghost cannot see. One wei of corpus
+        // is deployed alongside, which leaves the position live and its share price ratcheted.
+        uint256 legsBefore = _legsPaid();
+        handler.execute(1);
+        assertEq(_legsPaid() - legsBefore, 50 ether, "the execute crystallized the pending yield");
+        assertEq(handler.sumHarvestDistributed(), 50 ether, "and the ghost booked it as distributed");
+        assertEq(
+            handler.sumYieldInjected() - handler.sumHarvestDistributed(),
+            0,
+            "nothing is outstanding: every injected wei has been paid out"
+        );
+
+        // Step 2: a second execute, sized to leave a remainder under the ratcheted share price, so the
+        // ceiling burn takes the last share and the remainder is orphaned unpriced.
+        uint256 strand = stata.totalManaged() / stata.totalShares() - 1;
+        assertEq(strand, 50_004_999, "strand targeted at the ratcheted share price");
+        handler.execute(vault.deployableCorpus() - strand);
+        assertEq(stata.totalShares(), 0, "every share burned");
+        assertEq(stata.totalManaged(), strand, "the whole strand left unpriced");
+        assertEq(vault.currentPositionValue(), 0, "and the vault reads its position as empty");
+
+        // Step 3: the deposit inherits it. With `outstanding` at zero the whole strand is fresh, so it is
+        // booked in full — the assertion an unbooked execute-side distribution turns red.
+        handler.deposit(1, 1e12);
+        assertEq(handler.sumStrandRecoveredAtDeposit(), strand, "the strand was under-booked at the deposit");
+        assertFalse(handler.ghost_depositMintedYield(), "and it is within the strand that was there");
+
+        handler.harvest(0);
+        assertEq(
+            handler.sumYieldInjected(),
+            handler.sumHarvestDistributed(),
+            "the ghost and the vault disagree about what has been distributed"
+        );
+    }
+
+    /// @notice `migrate` distributes on two sub-calls — its preparatory `harvest()` and `migratePosition`'s
+    ///         own crystallize — and the ghost books both.
+    ///
+    /// @dev    Same direction as the `execute` test above. `migrate` is the other path whose distribution a
+    ///         harvest-only ghost misses, and it misses it twice over: the handler harvests first to make the
+    ///         redemption a principal redemption, and `migratePosition` crystallizes again on the way in. The
+    ///         preparatory harvest is booked OUTSIDE the `try`, because the vault has paid those legs whether
+    ///         or not the migration that follows goes through.
+    function test_aMigrateDistributesOnBothLegsAndTheGhostBooksBoth() public {
+        handler.deposit(0, 1e12);
+        handler.accrueYield(MAX);
+        assertEq(handler.sumHarvestDistributed(), 0, "no harvest has run");
+
+        uint256 legsBefore = _legsPaid();
+        handler.migrate(0);
+        assertEq(handler.migrateCount(), 1, "the migration did not go through");
+        assertEq(_legsPaid() - legsBefore, 50 ether, "the migrate crystallized the pending yield");
+        assertEq(handler.sumHarvestDistributed(), 50 ether, "and the ghost booked every wei of it");
+        assertEq(
+            handler.sumYieldInjected(),
+            handler.sumHarvestDistributed(),
+            "the ghost is carrying yield the vault has already paid out as still outstanding"
+        );
+    }
 }

@@ -50,7 +50,11 @@ contract EndowmentVaultHandler is Test {
     // `simulateYield` injections PLUS any principal a dust-tolerated partial redeem stranded into the pool.
     // NOT the raw intended `simulateYield` arg.
     uint256 public sumYieldInjected;
-    uint256 public sumHarvestDistributed; // Σ yield distributed (creator+target+proto)
+    // Σ yield the vault has distributed (creator+target+proto), across EVERY path that distributes — not
+    // just `harvest()`. `deposit`, `execute` and `migratePosition` each open with the same
+    // `_crystallizeYield` body, so each of them can pay the three legs, and a leg a handler action did not
+    // book is a distribution the conservation bound never sees. See `_legsPaid`.
+    uint256 public sumHarvestDistributed;
     // Σ strand a deposit handed back to the pool (see `_strandedInPosition`). A component of
     // `sumYieldInjected`, kept separately so the quantity is readable rather than absorbed.
     uint256 public sumStrandRecoveredAtDeposit;
@@ -117,6 +121,43 @@ contract EndowmentVaultHandler is Test {
         return val > basis ? val - basis : 0;
     }
 
+    /// @dev Σ of the three yield legs the vault has booked to date. The creator leg is the counter PLUS the
+    ///      carried remainder, for the reason `harvest` states: the counter holds only the wei the per-share
+    ///      accumulator could take on, and a leg too small to move it waits in the remainder.
+    ///
+    ///      This is read before and after every action that can distribute, and the difference is booked
+    ///      into `sumHarvestDistributed`. `harvest()` is not the only such action: `_crystallizeYield` is the
+    ///      first statement of the vault's `_deposit`, `execute` and `migratePosition` too, so each of those
+    ///      can pay all three legs before it touches principal. Booking only the `harvest()` ones leaves
+    ///      `sumHarvestDistributed` an undercount — which matters twice over. It leaves those distributions
+    ///      outside `invariant_harvestFlatSplitConserves` altogether, and it corrupts the one quantity the
+    ///      deposit-side strand booking has to reason about: how much of `sumYieldInjected` is still
+    ///      OUTSTANDING rather than already paid out.
+    function _legsPaid() internal view returns (uint256) {
+        return vault.totalYieldToCreators() + vault.creatorYieldRemainder() + vault.totalYieldToTarget()
+            + vault.totalProtocolFees();
+    }
+
+    /// @dev The pool value an action created out of value the ghost has not seen, given the pool before the
+    ///      call, the pool after it, and what the call distributed on the way through.
+    ///
+    ///      `poolAfter - poolBefore` is the wrong measure the moment an action distributes: the call's own
+    ///      `_crystallizeYield` takes `distributed` OUT of the pool before anything new lands in it, so the
+    ///      raw difference nets a creation against a payout and under-books the creation by exactly that
+    ///      much. The pool the creation landed on top of is `poolBefore - distributed` — call it the mid
+    ///      pool — and the creation is what stands above THAT.
+    ///
+    ///      Booking `created` into `sumYieldInjected` and `distributed` into `sumHarvestDistributed` keeps
+    ///      the handler's slack `sumYieldInjected - sumHarvestDistributed` at or above the vault's live pool
+    ///      across every action: an injection raises both by the same wei, a distribution lowers both by the
+    ///      same wei, and an impairment lowers only the pool. That is what makes the slack safe to SUBTRACT
+    ///      in `deposit`, and it is why the fix is to book what was missing rather than to add a second
+    ///      counter beside the two that already exist.
+    function _created(uint256 poolBefore, uint256 poolAfter, uint256 distributed) internal pure returns (uint256) {
+        uint256 poolMid = poolBefore > distributed ? poolBefore - distributed : 0;
+        return poolAfter > poolMid ? poolAfter - poolMid : 0;
+    }
+
     /// @dev Assets the ERC-4626 is holding that the vault's position does NOT price — the strand, measured
     ///      from outside the vault.
     ///
@@ -166,23 +207,52 @@ contract EndowmentVaultHandler is Test {
 
         vm.deal(address(this), address(this).balance + amount);
         Currency native = Currency.wrap(address(0));
-        // Measured BEFORE the call: the strand already parked in the 4626, and the pool the vault prices.
+        // Measured BEFORE the call: the strand already parked in the 4626, the pool the vault prices, and
+        // the legs to date (`_deposit` opens with `_crystallizeYield`, so this call may distribute).
         uint256 strandBefore = _strandedInPosition();
         uint256 poolBefore = _yieldPoolValue();
+        uint256 legsBefore = _legsPaid();
         try vault.receiveContribution{ value: amount }(native, amount, b) {
             sumDeposited += amount;
             depositCount++;
+
+            uint256 distributed = _legsPaid() - legsBefore;
+            sumHarvestDistributed += distributed;
+
             // A deposit adds `amount` to BOTH the position value and the basis, so on its own it moves the
             // yield pool by nothing. A pool that appears here is a strand the 4626 was holding unpriced,
             // handed to the fresh shares — realized yield the vault WILL split, booked on the same basis as
             // `sumHarvestDistributed`, exactly as `execute` and `migrate` already book theirs. It is bounded
             // by the strand that was there to hand over; a larger one is the deposit itself minting yield.
             uint256 poolAfter = _yieldPoolValue();
-            if (poolAfter > poolBefore) {
-                uint256 appeared = poolAfter - poolBefore;
-                if (appeared > strandBefore) ghost_depositMintedYield = true;
-                sumYieldInjected += appeared;
-                sumStrandRecoveredAtDeposit += appeared;
+            if (poolAfter > poolBefore && poolAfter - poolBefore > strandBefore) ghost_depositMintedYield = true;
+
+            uint256 created = _created(poolBefore, poolAfter, distributed);
+            if (created > 0) {
+                // Book only the part of the strand that is NOT already outstanding in `sumYieldInjected`.
+                //
+                // A strand is not necessarily orphaned PRINCIPAL. Everything the wrapper holds that the
+                // position does not price lands in it, and an `accrueYield` the vault has been paid for but
+                // has not yet distributed is one of the things that can be sitting there: a liquidity-capped
+                // harvest redeems less than the pending yield and the ceiling burn can still take the last
+                // share, leaving the remainder of that injection orphaned exactly as the principal is. Those
+                // wei are already in `sumYieldInjected` from the `accrueYield` call, so booking the whole
+                // strand here counts them twice and hands `invariant_harvestFlatSplitConserves` that much
+                // unwatched slack in the safe direction. `ghost_depositMintedYield` cannot see it — the
+                // strand genuinely holds the money, so the magnitude bound above is satisfied.
+                //
+                // `outstanding` is what the ghost has booked and the vault has not yet paid out, and
+                // `_legsPaid` is what makes it exact rather than an estimate — every path that distributes
+                // now subtracts from it. Of that, the part sitting ABOVE the pool the vault still prices is
+                // precisely the part that went into the strand, so it is what this deposit is handing back
+                // rather than meeting for the first time.
+                uint256 outstanding =
+                    sumYieldInjected > sumHarvestDistributed ? sumYieldInjected - sumHarvestDistributed : 0;
+                uint256 poolMid = poolBefore > distributed ? poolBefore - distributed : 0;
+                uint256 alreadyStranded = outstanding > poolMid ? outstanding - poolMid : 0;
+                uint256 fresh = created > alreadyStranded ? created - alreadyStranded : 0;
+                sumYieldInjected += fresh;
+                sumStrandRecoveredAtDeposit += fresh;
             }
             _checkPrincipalConserves();
         } catch { }
@@ -258,6 +328,7 @@ contract EndowmentVaultHandler is Test {
         if (corpus == 0) return;
         amount = bound(amount, 1, corpus);
         uint256 poolBefore = _yieldPoolValue();
+        uint256 legsBefore = _legsPaid();
         uint256 sinkBefore = deploySink.balance;
         vm.prank(ambassador);
         try vault.execute(deploySink, amount, "") returns (bytes memory) {
@@ -267,11 +338,16 @@ contract EndowmentVaultHandler is Test {
             // principal-out by the retained-and-redeployable dust and spuriously trip `invariant_neverOverRedeem`.
             sumDeployedViaExecute += deploySink.balance - sinkBefore;
             executeCount++;
+            // `execute` opens with `_crystallizeYield`, so it pays the three legs before it moves any
+            // principal. Book that as distributed: it is a distribution the conservation bound must cover,
+            // and it is also what tells `deposit` how much of `sumYieldInjected` is still outstanding.
+            uint256 distributed = _legsPaid() - legsBefore;
+            sumHarvestDistributed += distributed;
             // A dust-tolerated partial redeem (got < value, within REDEEM_DUST) strands the un-redeemed
             // principal in the position with its basis already debited → it surfaces as realized yield.
-            // Book it on the same realized basis as `sumHarvestDistributed`.
-            uint256 poolAfter = _yieldPoolValue();
-            if (poolAfter > poolBefore) sumYieldInjected += poolAfter - poolBefore;
+            // Book it on the same realized basis as `sumHarvestDistributed`, measured against the pool this
+            // call's own distribution left behind rather than the pool it started with (see `_created`).
+            sumYieldInjected += _created(poolBefore, _yieldPoolValue(), distributed);
             _checkPrincipalConserves();
         } catch { }
     }
@@ -306,7 +382,11 @@ contract EndowmentVaultHandler is Test {
         // Solvency-only conditions: clear any liquidity cap so a RedeemShortfall here would be a real defect,
         // and expel unrealized yield so the redemption is a PRINCIPAL redemption (Σredeemed ≤ Σdeposited).
         stata.setMaxWithdrawCap(0);
+        // The preparatory harvest distributes for real whether or not the migration below goes through, so
+        // book its legs here rather than inside the `try` — the vault has paid them either way.
+        uint256 legsBefore = _legsPaid();
         try vault.harvest() { } catch { }
+        sumHarvestDistributed += _legsPaid() - legsBefore;
 
         uint256 basis = vault.totalPrincipal();
         uint256 value = vault.currentPositionValue();
@@ -314,6 +394,7 @@ contract EndowmentVaultHandler is Test {
 
         uint256 balBefore = recovery.balance;
         uint256 poolBefore = _yieldPoolValue();
+        legsBefore = _legsPaid();
         vm.prank(vaultOwner);
         try vault.migratePosition(recovery) {
             uint256 got = recovery.balance - balBefore;
@@ -321,10 +402,14 @@ contract EndowmentVaultHandler is Test {
             if (got > basis || got > value) ghost_overRedeemToRecipient = true;
             sumRedeemedViaMigrate += got;
             migrateCount++;
+            // `migratePosition` crystallizes too, so it can pay the legs on its way through; book that as
+            // distributed for the same two reasons `execute` does.
+            uint256 distributed = _legsPaid() - legsBefore;
+            sumHarvestDistributed += distributed;
             // Zeroing the basis while redeeming only the floor of the realizable value can leave a sub-wei
-            // residual as position-value-above-basis (realized yield); book it on the realized basis.
-            uint256 poolAfter = _yieldPoolValue();
-            if (poolAfter > poolBefore) sumYieldInjected += poolAfter - poolBefore;
+            // residual as position-value-above-basis (realized yield); book it on the realized basis, net of
+            // what this call distributed out of the pool it started with (see `_created`).
+            sumYieldInjected += _created(poolBefore, _yieldPoolValue(), distributed);
         } catch {
             // Under a solvency-only position the written-down basis is always redeemable — a shortfall here
             // is a solvency/liquidity confusion (the very bug this suite guards against).
