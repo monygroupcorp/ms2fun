@@ -563,11 +563,12 @@
           "calls": [
             "erc404BondingInstanceAbi.approve",
             "zRouterAbi.swapV4",
-            "zRouterAbi.swapVZ"
+            "zRouterAbi.swapVZ",
+            "alignmentHookSwapRouterAbi.swap"
           ],
-          "given": "a graduated collection from C-15. Both venues a collection can graduate to — Uni-V4 and ZAMM — trade through zRouter, so walk this once per venue you can reach and record which one you actually traded.",
+          "given": "a graduated collection from C-15. A ZAMM graduation and a Uni-V4 graduation taken while the alignment hook was off both trade through zRouter; a Uni-V4 graduation taken after the hook was switched on has that hook in its pool key and trades through AlignmentHookSwapRouter instead. Walk this once per pool shape you can reach and record which one you actually traded.",
           "do": "buy with ETH, then approve and sell back to ETH",
-          "expect": "the sell settles in native ETH, not in a wrapped token; the min-out shown before signing is a separate figure from the amount you receive, and the receipt lands between them",
+          "expect": "the sell settles in native ETH, not in a wrapped token; the min-out shown before signing is a separate figure from the amount you receive, and the receipt lands between them. On a hooked pool the amount received is already net of the alignment tithe, so the quote and the receipt agree with each other and both sit below the untithed pool price",
           "blocking": true
         },
         {

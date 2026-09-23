@@ -30,6 +30,7 @@ function forgeRecord(overrides: Record<string, unknown> = {}) {
       zRouter: address(14),
       ModuleUniV4Deployer: address(15),
       ModuleZAMMDeployer: address(16),
+      AlignmentHookSwapRouter: address(22),
     },
     factories: {
       ERC404: address(17),

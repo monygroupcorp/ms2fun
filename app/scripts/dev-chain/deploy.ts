@@ -481,6 +481,10 @@ async function main(): Promise<void> {
       zRouter: required(c, 'zRouter'),
       ModuleUniV4Deployer: required(c, 'ModuleUniV4Deployer'),
       ModuleZAMMDeployer: required(c, 'ModuleZAMMDeployer'),
+      // The hooked-pool swap periphery. Deployed from this repo's own source on every network,
+      // because a graduation pool whose key names an alignment hook cannot be reached through
+      // `zRouter` above — its V4 entry point has no hook argument to carry.
+      AlignmentHookSwapRouter: required(c, 'AlignmentHookSwapRouter'),
     },
   }
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`)

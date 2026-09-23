@@ -35,6 +35,10 @@ export default defineConfig({
         // Target the exact contract JSONs — the `.sol/**` glob would also pull each file's helper
         // interfaces (e.g. a duplicate `IWETH`), which wagmi rejects as non-unique.
         'zRouter.sol/zRouter.json',
+        // The hooked-pool swap periphery. A graduation pool whose key carries an alignment hook is
+        // not reachable through the aggregator above — its V4 entry point has no hook argument — so
+        // the panel routes those trades here instead.
+        'AlignmentHookSwapRouter.sol/AlignmentHookSwapRouter.json',
         'LiquidityDeployerModule.sol/LiquidityDeployerModule.json',
         'ZAMMLiquidityDeployerModule.sol/ZAMMLiquidityDeployerModule.json',
         'ERC1155Factory.sol/**',

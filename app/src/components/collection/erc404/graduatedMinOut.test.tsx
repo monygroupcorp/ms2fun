@@ -63,6 +63,20 @@ vi.mock('../../../generated/contracts', async (importOriginal) => ({
   useReadErc404BondingInstanceSymbol: () => ({ data: 'DEMO' }),
   useReadErc404BondingInstanceAllowance: () => ({ data: ALLOWANCE, refetch: vi.fn() }),
   useReadErc404BondingInstanceBalanceOf: () => ({ data: QUOTE_OUT, refetch: vi.fn() }),
+  // The hooked-pool periphery. These venues are hookless, so the panel never routes here — but the
+  // hooks are still called, and unstubbed they would reach for a real wagmi config.
+  useSimulateAlignmentHookSwapRouterSwap: () => ({
+    data: undefined,
+    error: null,
+    isFetching: false,
+  }),
+  useWriteAlignmentHookSwapRouterSwap: () => ({
+    data: undefined,
+    error: null,
+    isPending: false,
+    reset: vi.fn(),
+    writeContract: vi.fn(),
+  }),
   useSimulateZRouterSwapV4: () => ({ data: undefined, error: null, isFetching: false }),
   // The zamm venue quotes through swapVZ, which returns (amountIn, amountOut).
   useSimulateZRouterSwapVz: () => ({
