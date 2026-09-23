@@ -17,6 +17,7 @@
  * wrong twice over: the flow is yield rather than fees, and it conceals that the creator is taking
  * 80% of that same yield. These strings are the per-family answer.
  */
+import { formatBps } from '../format'
 import type { VaultFamily } from '../wizard/vaultFlavor'
 
 /** The weights, stated once. Every string below is a reading of these three numbers. */
@@ -114,28 +115,70 @@ export function settlementMomentSentence(standard: LaunchStandard): string {
 /**
  * What happens after the primary sale, per standard — the half the old copy got wrong.
  *
- * Only ERC-404 has an after. Its graduated Uniswap V4 pool can carry `UniAlignmentV4Hook`, which
- * takes `hookFeeBips` of the ETH side of every swap and forwards it to the vault
- * (`UniAlignmentV4Hook.beforeSwap`/`afterSwap` → `_collectAndForward`). ZAMM graduates into a
- * pool with no hook at all, by decision rather than by omission. And the hook is a protocol
- * switch that ships off — `LiquidityDeployerModule.alignmentHookFactory` is `address(0)` until a
- * governed `setAlignmentHookFactory` call turns it on — so the surface names it as what the venue
- * can carry, never as money already moving.
+ * Editions and auctions have no after of any kind. There is no `royaltyInfo` and no ERC-2981 in any
+ * file under `contracts/src`, so nothing here takes a share of a resale, and both may say so flat.
  *
- * Editions and auctions have no after of any kind. There is no `royaltyInfo` and no ERC-2981 in
- * any file under `contracts/src`, so nothing here takes a share of a resale.
+ * ERC-404 is the one standard with an after, and it is `null` here on purpose: its answer is not a
+ * property of the standard but of the deployer the launch graduates through, so it cannot be
+ * written down in advance. `swapTitheSentence` answers it from what that deployer actually says.
  */
-const SECONDARY_EARN: Record<LaunchStandard, string> = {
-  erc404:
-    'After graduation the token trades in a real pool, and on the Uniswap V4 venue that pool can carry an alignment hook that taxes the ETH side of every swap — buys and sells alike — straight into the vault. That is the pool charging, not a marketplace being asked. ZAMM graduates into an untaxed pool, where the graduation 19% is the whole of it, and the hook is a protocol-level switch rather than a creator setting — so count on the graduation share, and treat the swap tithe as what the venue makes possible.',
+const SECONDARY_EARN: Record<LaunchStandard, string | null> = {
+  erc404: null,
   erc1155:
     'Nothing is taken after that. An edition pays the community on the way out of the primary sale and never again — not on a resale, not on a transfer.',
   erc721:
     'Nothing is taken after that. An auction collection pays the community when a piece sells here and never again — not on a resale, not on a transfer.',
 }
 
-export function secondaryEarnSentence(standard: LaunchStandard): string {
+export function secondaryEarnSentence(standard: LaunchStandard): string | null {
   return SECONDARY_EARN[standard]
+}
+
+// ── The ERC-404 swap tithe, as the chain reports it ──────────────────────────
+
+/**
+ * What the selected liquidity deployer says about the perpetual swap tithe.
+ *
+ * The tithe is `UniAlignmentV4Hook`: it takes `hookFeeBips` of the ETH side of each swap and
+ * forwards it to the vault (`beforeSwap`/`afterSwap` → `_collectAndForward`). Whether a graduation
+ * mints that hook at all is `LiquidityDeployerModule.alignmentHookFactory` — `address(0)` (the
+ * ship default) means the pool graduates with `hooks: address(0)` and a static fee, untaxed.
+ *
+ * Three answers, and the third is not a failure mode to be papered over:
+ *
+ *  - `taxed`   the deployer names a hook factory, so every graduation through it mints a hook at
+ *              `feeBips`. The claim can be made flat, with the real number.
+ *  - `untaxed` the deployer names `address(0)`. The pool takes nothing after graduation, and a
+ *              creator must hear that rather than be left hoping.
+ *  - `unknown` nothing was asked, or the answer did not come back. The ZAMM deployer is the plain
+ *              case: it declares neither getter (the tithe is Uni-V4-only by decision, see
+ *              `ZAMMLiquidityDeployerModule`'s header and `docs/phases/vault-flavors.md`), so the
+ *              call hits no function and reverts. An unreachable node reverts too, and the two are
+ *              indistinguishable from here — which is exactly why this branch says nothing at all
+ *              instead of guessing `untaxed`. Telling a Uniswap creator their pool is untaxed
+ *              because the RPC was down is the same lie as the overclaim, pointed the other way.
+ *  - `pending` the read is in flight. Also silent: a step that shows "untaxed" for half a second
+ *              and then flips has already told the creator something false.
+ */
+export type SwapTithe =
+  | { kind: 'pending' }
+  | { kind: 'unknown' }
+  | { kind: 'untaxed' }
+  | { kind: 'taxed'; feeBips: bigint }
+
+/**
+ * The after-market sentence for an ERC-404 launch, or `null` when the honest output is silence.
+ *
+ * `feeBips` is basis points against a 10_000 denominator — `formatBps` is the only thing that reads
+ * it, and 100 bips renders "1%". A hook wired at zero bips is worded as untaxed: it exists, but it
+ * moves no money, and "every swap pays 0%" is a sentence that informs nobody.
+ */
+export function swapTitheSentence(tithe: SwapTithe): string | null {
+  if (tithe.kind === 'pending' || tithe.kind === 'unknown') return null
+  if (tithe.kind === 'untaxed' || tithe.feeBips === 0n) {
+    return 'After graduation the token trades in an untaxed pool: no swap through it pays the community anything. The share taken at graduation is the whole of it — count on that, and do not count on a cut of the trading that follows.'
+  }
+  return `After graduation the token trades in a pool that charges for the community: every swap through it pays ${formatBps(tithe.feeBips)} of the ETH side into the vault — buys and sells alike — for as long as the pool trades. The rate is fixed in the pool's own hook at deploy and cannot be raised afterwards, and no marketplace is asked to honour it: the pool takes it.`
 }
 
 /**

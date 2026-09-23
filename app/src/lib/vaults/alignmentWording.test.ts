@@ -16,6 +16,7 @@ import {
   communityCutSentence,
   secondaryEarnSentence,
   settlementMomentSentence,
+  swapTitheSentence,
   type LaunchStandard,
 } from './alignmentWording'
 
@@ -147,17 +148,17 @@ describe('settlementMomentSentence', () => {
 })
 
 describe('secondaryEarnSentence', () => {
-  it('gives ERC-404 the pool, because the pool is the only thing here that charges after a sale', () => {
-    const s = secondaryEarnSentence('erc404')
-    expect(s).toMatch(/swap/i)
-    expect(s).toMatch(/Uniswap V4/)
-    // The venue divergence is a decision, not an oversight: ZAMM graduates into an untaxed pool.
-    expect(s).toMatch(/ZAMM/)
+  // ERC-404's after-market answer is a property of the DEPLOYER, not of the standard: the same
+  // ERC-404 launch pays the community forever or never, depending on the module it graduates
+  // through. A fixed string here could only be a hedge, so there is none — `swapTitheSentence`
+  // answers it from the chain.
+  it('has no fixed answer for ERC-404, because the standard does not have one', () => {
+    expect(secondaryEarnSentence('erc404')).toBeNull()
   })
 
   it('says plainly that editions and auctions take nothing after the primary sale', () => {
     for (const s of ['erc1155', 'erc721'] as const) {
-      const said = secondaryEarnSentence(s)
+      const said = secondaryEarnSentence(s) ?? ''
       expect(said).toMatch(/nothing is taken/i)
       expect(said).toMatch(/resale/i)
       expect(said).toMatch(/never again/i)
@@ -166,7 +167,65 @@ describe('secondaryEarnSentence', () => {
 
   it('claims no resale share on ANY standard — no contract under contracts/src takes one', () => {
     for (const s of STANDARDS) {
-      expect(secondaryEarnSentence(s)).not.toMatch(/\d+% of (every |each |the )?resale/i)
+      expect(secondaryEarnSentence(s) ?? '').not.toMatch(/\d+% of (every |each |the )?resale/i)
+    }
+  })
+})
+
+/**
+ * The tri-state. Each branch is a different promise to a creator deciding where to graduate, and
+ * the two silent branches are load-bearing: the wizard renders nothing at all for them, so a
+ * sentence leaking out of `pending` or `unknown` IS the defect.
+ */
+describe('swapTitheSentence', () => {
+  it('states the tithe flat when the deployer mints a hook — no "can carry", no "may"', () => {
+    const said = swapTitheSentence({ kind: 'taxed', feeBips: 100n }) ?? ''
+    expect(said).toMatch(/every swap/i)
+    expect(said).toMatch(/pays/i)
+    expect(said).not.toMatch(/can carry|could|may |might|possible/i)
+  })
+
+  it('renders bips as bips: 100 is 1%, not 100%', () => {
+    expect(swapTitheSentence({ kind: 'taxed', feeBips: 100n })).toContain('1% of the ETH side')
+    expect(swapTitheSentence({ kind: 'taxed', feeBips: 50n })).toContain('0.5% of the ETH side')
+    expect(swapTitheSentence({ kind: 'taxed', feeBips: 1_900n })).toContain('19% of the ETH side')
+    expect(swapTitheSentence({ kind: 'taxed', feeBips: 10_000n })).toContain('100% of the ETH side')
+  })
+
+  it('quotes the rate it was given and hardcodes none', () => {
+    const said = swapTitheSentence({ kind: 'taxed', feeBips: 137n }) ?? ''
+    expect(said).toContain('1.37%')
+  })
+
+  it('words a hook wired at zero bips as untaxed — it exists and moves nothing', () => {
+    expect(swapTitheSentence({ kind: 'taxed', feeBips: 0n })).toBe(
+      swapTitheSentence({ kind: 'untaxed' }),
+    )
+  })
+
+  it('tells an untaxed venue straight, so nobody banks on an earn that will not arrive', () => {
+    const said = swapTitheSentence({ kind: 'untaxed' }) ?? ''
+    expect(said).toMatch(/untaxed/i)
+    expect(said).toMatch(/whole of it/i)
+    expect(said).not.toMatch(/\d+% of the ETH side/)
+  })
+
+  it('says NOTHING while the read is in flight — a flash of "untaxed" is already a lie', () => {
+    expect(swapTitheSentence({ kind: 'pending' })).toBeNull()
+  })
+
+  it('says NOTHING when the answer did not come back, rather than guessing either way', () => {
+    expect(swapTitheSentence({ kind: 'unknown' })).toBeNull()
+  })
+
+  it('never claims a resale royalty on any branch', () => {
+    for (const t of [
+      { kind: 'taxed', feeBips: 100n },
+      { kind: 'untaxed' },
+      { kind: 'pending' },
+      { kind: 'unknown' },
+    ] as const) {
+      expect(swapTitheSentence(t) ?? '').not.toMatch(/resale|royalt/i)
     }
   })
 })

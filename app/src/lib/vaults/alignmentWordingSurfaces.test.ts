@@ -119,3 +119,59 @@ describe('the per-standard alignment claim', () => {
     expect(src).toMatch(/NO_ROYALTY_SENTENCE|no secondary royalty|no royalty field/i)
   })
 })
+
+/**
+ * The third ratchet: the ERC-404 after-market claim is READ, never written down.
+ *
+ * The sentence the earlier pass left behind was true but conditional — the graduated pool "can
+ * carry" a hook that taxes every swap — and it was conditional only because the app never asked.
+ * `LiquidityDeployerModule.alignmentHookFactory()` is the switch and `hookFeeBips()` is the rate,
+ * both public getters, both on the module the wizard has already selected. So the copy is a
+ * function of what that module says, and these assertions stop it drifting back into either a
+ * hedge or a hardcoded number:
+ *
+ *  - `alignmentWording.ts` must not spell a swap-tithe percentage of its own. The rate is
+ *    owner-set on-chain (`setHookFeeBips`); a literal here is a number that goes stale silently
+ *    and is read by a creator sizing a decision.
+ *  - `WizardPage.tsx` must draw `swapTitheSentence`, so the branch that renders nothing at all —
+ *    read in flight, or read failed — stays reachable from the surface.
+ */
+describe('the ERC-404 swap tithe is read off the deployer', () => {
+  const WORDING = '/src/lib/vaults/alignmentWording.ts'
+  const WIZARD = '/src/routes/WizardPage.tsx'
+
+  it('states no swap-tithe percentage of its own — the rate is owner-set on-chain', () => {
+    const code = stripComments(SOURCE_FILES[WORDING] ?? '')
+    expect(code).not.toMatch(/\d+(\.\d+)?%\s+of the ETH/i)
+  })
+
+  it('does not hedge the tithe into a "can carry" — the deployer answers it outright', () => {
+    const code = stripComments(SOURCE_FILES[WORDING] ?? '')
+    expect(code).not.toMatch(/(can|may|could|might)\s+carry/i)
+  })
+
+  it('leaves ERC-404 with no fixed after-market string to drift', () => {
+    const code = stripComments(SOURCE_FILES[WORDING] ?? '')
+    expect(code).toMatch(/erc404:\s*null/)
+  })
+
+  it('has the wizard draw the tri-state rather than write a claim of its own', () => {
+    const src = SOURCE_FILES[WIZARD] ?? ''
+    expect(src).toMatch(/swapTitheSentence/)
+    expect(src).toMatch(/useSwapTithe/)
+  })
+
+  // The silent branches only stay silent if the surface GUARDS the render. An unguarded
+  // `{swapTitheSentence(...)}` would put a bare `null` in the tree — harmless — but the guard is
+  // also what keeps the paragraph element itself from being emitted empty, and it is the line a
+  // later edit is most likely to drop.
+  it('renders the tithe paragraph only when there is a sentence to put in it', () => {
+    const src = SOURCE_FILES[WIZARD] ?? ''
+    expect(src).toMatch(/\{titheSentence && </)
+  })
+
+  it('has the wizard spell no swap-tithe percentage either', () => {
+    const code = stripComments(SOURCE_FILES[WIZARD] ?? '')
+    expect(code).not.toMatch(/\d+(\.\d+)?%\s+of the ETH/i)
+  })
+})

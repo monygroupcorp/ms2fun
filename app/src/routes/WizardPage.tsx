@@ -48,9 +48,11 @@ import {
   NO_ROYALTY_SENTENCE,
   secondaryEarnSentence,
   settlementMomentSentence,
+  swapTitheSentence,
   type LaunchStandard,
 } from '../lib/vaults/alignmentWording'
 import { useRegisteredVaults } from '../components/wizard/useRegisteredVaults'
+import { useSwapTithe } from '../components/wizard/useSwapTithe'
 import { useCreateSubmit } from '../components/wizard/useCreateSubmit'
 import { WalletButton } from '../components/WalletButton'
 import { truncateAddress } from '../lib/format'
@@ -250,6 +252,11 @@ export function WizardPage() {
 
   const submit = useCreateSubmit()
   const vaults = useRegisteredVaults()
+  // What the chosen liquidity deployer actually does about the perpetual swap tithe. Only ERC-404
+  // graduates into a pool, so it is the only standard that can have an answer; the other two are
+  // covered by `secondaryEarnSentence`, which says flatly that nothing is taken after the sale.
+  const swapTithe = useSwapTithe(modules.liquidityDeployer, typeKey === 'erc404')
+  const titheSentence = swapTitheSentence(swapTithe)
   // Live deploy-bond (N12). 0 while the lever is OFF → create sends no bond (today's behavior).
   const { data: deployBondAmount } = useReadDeployBondEscrowBondAmount({
     address: forkAddresses.DeployBondEscrow,
@@ -753,9 +760,8 @@ export function WizardPage() {
               This choice also decides whether the community keeps earning after graduation. Only a{' '}
               <b>Uniswap V4</b> pool can carry the alignment hook that taxes the ETH side of every
               swap into the vault, for as long as the pool trades; <b>ZAMM</b> graduates into an
-              untaxed pool, where the 19% taken at graduation is the whole of the
-              community&rsquo;s take. The hook is a protocol-level switch, not a setting you make
-              here.
+              untaxed pool, where the 19% taken at graduation is the whole of the community&rsquo;s
+              take. The hook is a protocol-level switch, not a setting you make here.
             </p>
             {slot && renderSlot(slot)}
           </div>
@@ -764,6 +770,7 @@ export function WizardPage() {
 
       case 'alignment': {
         const bind = BIND_SOURCE[typeKey]
+        const secondaryEarn = secondaryEarnSentence(typeKey)
         return (
           <div className={styles.body}>
             <div className={styles.decision}>
@@ -773,7 +780,14 @@ export function WizardPage() {
                 change what a settlement pays out. Pick the <b>community</b> you&rsquo;re aligning
                 to, then its <b>vault</b>. This is what makes it not a grift.
               </p>
-              <p className={styles.lede}>{secondaryEarnSentence(typeKey)}</p>
+              {secondaryEarn && <p className={styles.lede}>{secondaryEarn}</p>}
+              {/*
+                ERC-404 has no fixed answer here: the pool pays the community forever, or not at
+                all, depending on the deployer chosen a step earlier. `useSwapTithe` asks it, and
+                renders nothing while the read is in flight or when it does not come back — a step
+                that flashes "untaxed" and then corrects itself has already misled the creator.
+              */}
+              {titheSentence && <p className={styles.lede}>{titheSentence}</p>}
               <p className={styles.help}>{NO_ROYALTY_SENTENCE}</p>
               <AlignmentTargetPicker
                 vaults={vaults.data}
