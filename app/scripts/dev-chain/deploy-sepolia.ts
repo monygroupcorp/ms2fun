@@ -5,11 +5,8 @@
  * one runs, against a Sepolia fork on :8546, exactly what the real Sepolia broadcast will run and in
  * the same order:
  *
- *   1. the Algebra Integral standup (`scripts/sepolia-algebra/`) — Sepolia carries no Algebra
- *      deployment, so the Cypher rail is stood up from mainnet bytecode before anything reads it;
- *   2. `DeploySepolia`, with the standup's three periphery addresses supplied through the
- *      `SEPOLIA_CYPHER_*` environment overlay the script already reads, and the zRouter self-deployed;
- *   3. the two-phase showcase seed (`scripts/sepolia-seed/seed.ts`), unchanged.
+ *   1. `DeploySepolia`, with the zRouter self-deployed;
+ *   2. the two-phase showcase seed (`scripts/sepolia-seed/seed.ts`), unchanged.
  *
  * NOTHING HERE IS REWRITTEN — this file only sequences tools that already exist and are the same
  * tools the live run uses. That is the point: what the fork shows is what the testnet will hold.
@@ -38,17 +35,14 @@
  *
  * Run (from `app/`, with the channel up — `pnpm chain:fork:sepolia`):
  *
- *   pnpm chain:deploy:sepolia [--skip-algebra] [--rpc-url <url>]
- *
- * `--skip-algebra` reuses the newest standup record for this chain instead of standing Algebra up
- * again, which is what you want when re-deploying against a fork that already carries one.
+ *   pnpm chain:deploy:sepolia [--rpc-url <url>]
  *
  * Writes `src/config/local-deployment.sepolia.json` — the channel's own app config artifact. It does
  * NOT touch `src/config/local-deployment.json` (the mainnet channel's) or
  * `src/config/sepolia-deployment.json` (the committed placeholder for the real network).
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -70,7 +64,6 @@ const repoRoot = resolve(appDir, '..')
 const contractsDir = resolve(repoRoot, 'contracts')
 const saltsPath = resolve(contractsDir, 'script/SepoliaSalts.sol')
 const deploySepoliaPath = resolve(contractsDir, 'script/DeploySepolia.s.sol')
-const algebraArtifactDir = resolve(appDir, 'scripts/sepolia-algebra/artifacts')
 
 const CHAIN_ID = 11155111
 const DEFAULT_RPC = 'http://127.0.0.1:8546'
@@ -84,17 +77,6 @@ const APP_CONFIG_REL = 'src/config/local-deployment.sepolia.json'
 const CREATEX = '0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed' as const
 const CREATEX_PROXY_INITCODE_HASH =
   '0x21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f' as const
-
-/**
- * Anvil's well-known account #0. It funds the Algebra standup only — a public test key for a local
- * fork, and it is NOT the protocol deployer (that address is impersonated, see above).
- */
-const ANVIL_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
-const ANVIL_KEY_ENV = 'DEV_CHAIN_ANVIL_KEY'
-
-function flag(name: string): boolean {
-  return process.argv.includes(`--${name}`)
-}
 
 function option(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`)
@@ -220,30 +202,6 @@ function stampForkArtifacts(): void {
   console.log("✓ Stamped this run's deployment artifacts as a fork rehearsal")
 }
 
-interface AlgebraRecord {
-  chainId: number
-  contracts: { role: string; address: Address }[]
-  deviations: string[]
-}
-
-/** The newest Algebra standup record written for this chain. */
-function newestAlgebraRecord(): AlgebraRecord {
-  const dir = resolve(algebraArtifactDir, 'deployments')
-  if (!existsSync(dir)) throw new Error(`no Algebra standup records under ${dir}`)
-  const candidates = readdirSync(dir)
-    .filter((name) => name.startsWith(`${CHAIN_ID}-`) && name.endsWith('.json'))
-    .sort()
-  const newest = candidates.at(-1)
-  if (!newest) throw new Error(`no Algebra standup record for chain ${CHAIN_ID} under ${dir}`)
-  return JSON.parse(readFileSync(resolve(dir, newest), 'utf8')) as AlgebraRecord
-}
-
-function algebraAddress(record: AlgebraRecord, role: string): Address {
-  const hit = record.contracts.find((c) => c.role === role)
-  if (!hit) throw new Error(`Algebra standup record carries no ${role}`)
-  return hit.address
-}
-
 async function main(): Promise<void> {
   // ── Preflight ──
   let chainId: number
@@ -278,46 +236,7 @@ async function main(): Promise<void> {
   await testClient.setBalance({ address: deployer, value: parseEther('10000') })
   console.log(`✓ Funded the deployer on the fork`)
 
-  // ── 1. Algebra Integral standup (the Cypher rail) ──
-  if (flag('skip-algebra')) {
-    console.log('\n▶ Algebra standup skipped (--skip-algebra) — reusing the newest record')
-  } else {
-    if (!existsSync(resolve(algebraArtifactDir, 'resolved.json'))) {
-      console.log('\n▶ sepolia-algebra/fetch.ts   (pull the mainnet set — gitignored artifacts)')
-      run('pnpm', ['exec', 'tsx', 'scripts/sepolia-algebra/fetch.ts'], appDir)
-    } else {
-      console.log('\n▶ Algebra artifacts already fetched — reusing them')
-    }
-    console.log('\n▶ sepolia-algebra/deploy.ts   (ten contracts + the fee regime)')
-    run(
-      'pnpm',
-      [
-        'exec',
-        'tsx',
-        'scripts/sepolia-algebra/deploy.ts',
-        '--rpc',
-        rpcUrl,
-        '--wnative',
-        wnative,
-        '--private-key-env',
-        ANVIL_KEY_ENV,
-      ],
-      appDir,
-      { ...process.env, [ANVIL_KEY_ENV]: ANVIL_KEY },
-    )
-  }
-  const algebra = newestAlgebraRecord()
-  const cypher = {
-    positionManager: algebraAddress(algebra, 'positionManager'),
-    router: algebraAddress(algebra, 'swapRouter'),
-    factory: algebraAddress(algebra, 'algebraFactory'),
-  }
-  console.log(`✓ Cypher rail: factory ${cypher.factory}`)
-  if (algebra.deviations.length > 0) {
-    for (const d of algebra.deviations) console.log(`  ⚠ standup deviation: ${d}`)
-  }
-
-  // ── 2. Clear the spent CREATE3 salt set ──
+  // ── 1. Clear the spent CREATE3 salt set ──
   //
   // Re-derive rather than restate: each salt must reproduce the address `SepoliaSalts.sol`
   // documents, so a wrong CreateX constant or a wrong derivation fails here instead of producing a
@@ -337,7 +256,7 @@ async function main(): Promise<void> {
       ' The live set is NOT spent — this clears empty accounts until the first live deploy.',
   )
 
-  // ── 3. DeploySepolia ──
+  // ── 2. DeploySepolia ──
   //
   // The log-scan floor (ADR-0010 Tier 1B): read before the first protocol transaction, so the app
   // never scans the fork from genesis.
@@ -361,16 +280,11 @@ async function main(): Promise<void> {
       '30000',
     ],
     contractsDir,
-    {
-      ...forgeEnv,
-      SEPOLIA_CYPHER_POSITION_MANAGER: cypher.positionManager,
-      SEPOLIA_CYPHER_ROUTER: cypher.router,
-      SEPOLIA_CYPHER_ALGEBRA_FACTORY: cypher.factory,
-    },
+    forgeEnv,
   )
   stampForkArtifacts()
 
-  // ── 4. The showcase seed, both phases ──
+  // ── 3. The showcase seed, both phases ──
   //
   // Run without `--broadcast`, which is what puts the orchestrator on its fork branch: the arm
   // window and the reference pools' TWAP window are crossed with `evm_increaseTime` instead of
@@ -395,7 +309,7 @@ async function main(): Promise<void> {
   )
   stampForkArtifacts()
 
-  // ── 5. The channel's app config artifact ──
+  // ── 4. The channel's app config artifact ──
   //
   // The same bridge the live deploy uses, pointed at the channel's own output file. It is a separate
   // artifact on purpose: `local-deployment.json` belongs to the mainnet channel and

@@ -113,7 +113,6 @@ const ALIGNMENT_ROSTER: { title: string; logo: string; endowment: boolean }[] = 
   { title: 'SPX6900', logo: 'SPX.png', endowment: false },
   { title: 'MOG', logo: 'MOG.png', endowment: false },
   { title: 'ZAMM', logo: 'ZAMM.png', endowment: false },
-  { title: 'CYPH', logo: 'CYPH.png', endowment: false },
 ]
 
 /** Sepolia LINK — curated as a target once, to hang the endowment vault on. It must not come back. */
@@ -201,11 +200,6 @@ const BREADTH_PIECE_BASES: { key: BreadthKey; label: string; expected: string }[
     label: 'carve-demo',
     expected: 'ipfs://bafybeic5in4it4rsocajjvzn3zs5scsci4a7hhpbpd5fulqca42vqtjs2q/',
   },
-  {
-    key: 'cypher404',
-    label: 'cypher-flagship',
-    expected: 'ipfs://bafybeicrcd4fgtumtkjfzkxkmlzqvy3w6cn2tlb3vm6jvbnxbojebvnwne/',
-  },
 ]
 
 /**
@@ -254,9 +248,8 @@ const MESSAGE_TYPE = { POST: 0, REPLY: 1, QUOTE: 2, REACT: 3 } as const
  *
  * PER_CHANNEL is two because a single message renders as a one-line feed that still reads as an
  * accident; the seed posts two to every collection so each ACTIVITY section shows a filled state.
- * GLOBAL_MIN is the whole batch at its SMALLEST legal size — eleven collections (the Cypher row is
- * absent on deployments without the Algebra rail) times two, plus the nine messages the salon and
- * the typed trio contribute. A deployment carrying the Cypher row exceeds it by two.
+ * GLOBAL_MIN is the whole batch at its SMALLEST legal size — the eleven collections the seed
+ * creates times two, plus the nine messages the salon and the typed trio contribute.
  */
 const ACTIVITY_MESSAGES_PER_CHANNEL = 2
 const ACTIVITY_GLOBAL_MIN = 31
@@ -308,8 +301,8 @@ const NAME_BY_SLUG: Record<string, { name: string; symbol: string }> = {
 
 /**
  * The same reading for every row recorded under its own hand-off field: the two edition
- * collections, the three remaining ERC-404 rows, the Cypher flagship and the two auction houses.
- * Together with `NAME_BY_SLUG` this covers all twelve collections the seed creates.
+ * collections, the three remaining ERC-404 rows and the two auction houses. Together with
+ * `NAME_BY_SLUG` this covers all eleven collections the seed creates.
  */
 const NAMED_ROWS: { key: NamedKey; label: string; name: string; symbol: string }[] = [
   { key: 'editions', label: 'atlas-editions', name: 'GladbroWebring', symbol: 'GLADBRO' },
@@ -317,7 +310,6 @@ const NAMED_ROWS: { key: NamedKey; label: string; name: string; symbol: string }
   { key: 'staking404', label: 'quarry-staking', name: 'MiladySubstation', symbol: 'SUBSTN' },
   { key: 'tiers404', label: 'prism-tiers', name: 'SonoraEcho', symbol: 'ECHO' },
   { key: 'carve404', label: 'carve-demo', name: 'Ghibladita', symbol: 'GBLD' },
-  { key: 'cypher404', label: 'cypher-flagship', name: 'AngeliteMaker', symbol: 'ANGLT' },
   { key: 'auctionTimed', label: 'relic-line', name: 'Mewlady', symbol: 'MEW' },
   { key: 'auctionLive', label: 'salon-line', name: 'Colombilady', symbol: 'COLMB' },
 ]
@@ -376,7 +368,7 @@ interface AppConfig {
 }
 
 /** The hand-off fields that name a breadth row carrying an on-chain piece base. */
-type BreadthKey = 'staking404' | 'tiers404' | 'carve404' | 'cypher404'
+type BreadthKey = 'staking404' | 'tiers404' | 'carve404'
 
 /** Every hand-off field holding a collection whose name and symbol are checked below. */
 type NamedKey = BreadthKey | 'editions' | 'gatedEditions' | 'auctionTimed' | 'auctionLive'
@@ -391,14 +383,11 @@ interface SeedState {
   staking404?: Address
   tiers404?: Address
   carve404?: Address
-  cypher404?: Address
   ms2Vault?: Address
   cultVault?: Address
   ms2ZammVault?: Address
-  cultCypherVault?: Address
   ms2ReferencePool?: Address
   cultReferencePool?: Address
-  cultAlgebraPool?: Address
   targetTokens?: Address[]
   targetVaults?: Address[]
   targetIds?: number[]
@@ -406,7 +395,6 @@ interface SeedState {
   ms2TargetId?: number
   cultTargetId?: number
   ms2ZammTargetId?: number
-  cultAlgebraTargetId?: number
   featured?: Address[]
 }
 
@@ -592,15 +580,11 @@ async function main(): Promise<void> {
     checkNotRetired(slug, base)
   }
 
-  // The breadth rows wear their own collections on the same terms. The Cypher row is optional: its
-  // rail is not wired on every deployment, and phase 1 records a zero address when it is skipped.
+  // The breadth rows wear their own collections on the same terms. Every one of them is mandatory:
+  // a row missing from the hand-off is a seed that did not finish, not a deployment variant.
   for (const { key, label, expected } of BREADTH_PIECE_BASES) {
     const instance = seed[key]
     if (!instance || instance === zeroAddress) {
-      if (key === 'cypher404') {
-        console.log(`  · ${label} is not on this deployment — its art is not checked`)
-        continue
-      }
       check(false, '', `${label} is missing from the seed hand-off — its art cannot be checked`)
       continue
     }
@@ -617,7 +601,7 @@ async function main(): Promise<void> {
 
   // ── The alignment roster ──
   //
-  // Six communities, each with its own logo, its own vault and a curated venue behind it. Read from
+  // Five communities, each with its own logo, its own vault and a curated venue behind it. Read from
   // the REGISTRY rather than from the seed's hand-off where it can be, because the hand-off records
   // what the seed believes it did and this check exists to disagree with that when it is wrong.
   console.log('\nalignment roster')
@@ -868,7 +852,7 @@ async function main(): Promise<void> {
   // ── What every row is CALLED ──
   //
   // A collection's name and symbol are fixed at create, so a seed that came up under the wrong ones
-  // cannot be corrected in place — the deployment has to be re-seeded. Asserting all twelve here is
+  // cannot be corrected in place — the deployment has to be re-seeded. Asserting all eleven here is
   // what turns that into a preflight failure rather than something read off the home page later.
   console.log('\ncollection names')
   for (const [slug, expected] of Object.entries(NAME_BY_SLUG)) {
@@ -882,12 +866,6 @@ async function main(): Promise<void> {
   for (const { key, label, name, symbol } of NAMED_ROWS) {
     const instance = seed[key]
     if (!instance || instance === zeroAddress) {
-      // Same rule the art check follows: the Cypher rail is not wired on every deployment, and
-      // phase 1 records a zero there rather than failing the whole showcase over one absent venue.
-      if (key === 'cypher404') {
-        console.log(`  · ${label} is not on this deployment — its name is not checked`)
-        continue
-      }
       check(false, '', `${label} is missing from the seed hand-off — its name cannot be checked`)
       continue
     }
@@ -919,13 +897,12 @@ async function main(): Promise<void> {
     )
   }
 
-  // ── The four alignment targets and their venues ──
+  // ── The three alignment targets and their venues ──
   console.log('\nalignment targets')
   const targets: [string, number | undefined][] = [
     ['MS2 / UNI_V4', seed.ms2TargetId],
     ['CULT / UNI_V4', seed.cultTargetId],
     ['MS2 / ZAMM', seed.ms2ZammTargetId],
-    ['CULT / ALGEBRA', seed.cultAlgebraTargetId],
   ]
   for (const [label, id] of targets) {
     check(
@@ -940,10 +917,8 @@ async function main(): Promise<void> {
     ['MS2 alignment vault', seed.ms2Vault],
     ['CULT alignment vault', seed.cultVault],
     ['MS2 ZAMM vault', seed.ms2ZammVault],
-    ['CULT Cypher vault', seed.cultCypherVault],
     ['MS2 reference pool', seed.ms2ReferencePool],
     ['CULT reference pool', seed.cultReferencePool],
-    ['CULT Algebra pool', seed.cultAlgebraPool],
   ]
   for (const [label, address] of addressChecks) {
     if (!address || address === zeroAddress) {
@@ -1008,11 +983,10 @@ async function main(): Promise<void> {
     }
   }
 
-  // The venue hand-off is what a later script reads to reach the ZAMM and Cypher families.
+  // The venue hand-off is what a later script reads to reach the ZAMM family.
   const venues = readJson<{
     chainId: number
     zammVaultFactory: Address
-    cypherVaultFactory: Address
   }>(venuePath, 'the venue hand-off')
   console.log('\nvenue factories')
   check(
@@ -1020,10 +994,7 @@ async function main(): Promise<void> {
     `venue hand-off names chain ${venues.chainId}`,
     `venue hand-off names chain ${venues.chainId}, expected ${CHAIN_ID}`,
   )
-  for (const [label, address] of [
-    ['ZAMM vault factory', venues.zammVaultFactory],
-    ['Cypher vault factory', venues.cypherVaultFactory],
-  ] as const) {
+  for (const [label, address] of [['ZAMM vault factory', venues.zammVaultFactory]] as const) {
     check(
       await hasCode(client, address),
       `${label} ${address}`,
@@ -1035,7 +1006,7 @@ async function main(): Promise<void> {
   //
   // Every check above asserts something a visitor can only reach by clicking. This one asserts what
   // they read FIRST: the home page's activity preview, each collection's ACTIVITY section and the
-  // board are rendered entirely from `MessagePosted`, so a seed that builds twelve collections and
+  // board are rendered entirely from `MessagePosted`, so a seed that builds eleven collections and
   // posts to none of them opens all three on their empty state while passing every other group here.
   console.log('\nactivity')
   const registry = config.contracts.GlobalMessageRegistry
@@ -1068,9 +1039,9 @@ async function main(): Promise<void> {
         `board carries ${logs.length} message(s), fewer than the ${ACTIVITY_GLOBAL_MIN} the seed posts — the board and the home preview open near-empty`,
       )
 
-      // Per-channel, over the same twelve collections the name group walks. A total that clears the
-      // floor says nothing about DISTRIBUTION: one busy channel and eleven silent ones passes the
-      // count and still leaves eleven collection pages on their empty state.
+      // Per-channel, over the same eleven collections the name group walks. A total that clears the
+      // floor says nothing about DISTRIBUTION: one busy channel and ten silent ones passes the
+      // count and still leaves ten collection pages on their empty state.
       const perChannel = new Map<string, number>()
       let wallPosts = 0
       const typed = new Set<number>()
@@ -1091,11 +1062,6 @@ async function main(): Promise<void> {
       ]
       for (const [label, instance] of activityChannels) {
         if (!instance || instance === zeroAddress) {
-          // Same rule the art and name groups follow: the Cypher rail is not on every deployment.
-          if (label === 'cypher-flagship') {
-            console.log(`  · ${label} is not on this deployment — its channel is not checked`)
-            continue
-          }
           check(
             false,
             '',
