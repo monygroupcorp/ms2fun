@@ -115,11 +115,33 @@ contract AaveEndowmentSepoliaForkTest is Test {
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    /// @dev The real Sepolia config, with fresh salts: the live vanity set is already consumed on
-    ///      Sepolia and a fork of latest would `CreateCollision` on the first proxy. Salt choice is
-    ///      irrelevant to what this test asserts.
+    /// @dev The real Sepolia config, with one endowment target to hang a vault on and fresh salts:
+    ///      the live vanity set is already consumed on Sepolia and a fork of latest would
+    ///      `CreateCollision` on the first proxy. Salt choice is irrelevant to what this test asserts.
+    ///
+    ///      The target is supplied here for the same reason the mainnet twin supplies one. This test
+    ///      was written when `_sepoliaConfig()` still carried a single LINK target that existed only
+    ///      to give the per-target endowment vault something to hang on; the roster then moved to
+    ///      `SeedSepolia`, and `cfg.alignmentTargets` on this network is now deliberately EMPTY. An
+    ///      empty roster deploys the endowment factory and no vault, so `aaveVaults(0)` reverts on an
+    ///      out-of-bounds read — a network-config change silently taking a fork rehearsal with it.
+    ///      What this file asserts is the WETH pairing on the live chain, not the shipped roster, so
+    ///      it names its own target rather than depending on whatever the network config carries.
     function _config() internal returns (DeployCore.NetworkConfig memory cfg) {
         cfg = new DeploySepoliaHarness().sepoliaConfig();
+
+        DeployCore.AlignmentTargetConfig[] memory targets = new DeployCore.AlignmentTargetConfig[](1);
+        targets[0] = DeployCore.AlignmentTargetConfig({
+            token: CANONICAL_WETH, // registry paperwork only; an endowment vault never touches it
+            symbol: "REHEARSAL",
+            name: "Endowment rehearsal target",
+            description: "Fixture target, fork rehearsal only.",
+            deployUniVault: false,
+            deployZAMMVault: false,
+            communityPayout: address(0xB0B)
+        });
+        cfg.alignmentTargets = targets;
+
         cfg.saltMasterRegistry = keccak256("rehearsal.masterRegistry");
         cfg.saltTreasury = keccak256("rehearsal.treasury");
         cfg.saltQueueManager = keccak256("rehearsal.queueManager");
