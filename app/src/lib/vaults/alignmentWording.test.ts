@@ -185,6 +185,36 @@ describe('swapTitheSentence', () => {
     expect(said).not.toMatch(/can carry|could|may |might|possible/i)
   })
 
+  /**
+   * The bound the earlier wording overstated. `UniAlignmentV4Hook.haltTithe` is permissionless and
+   * gated only on `masterRegistry.isVaultRegistered(vault)` having gone false — which the protocol
+   * owner causes with `deactivateVault` — and while `titheHalted` is set the hook takes nothing at
+   * all. `resumeTithe` is the permissionless mirror, reachable only once the registry carries the
+   * vault again. So the charge runs while the VAULT is curated, not while the POOL trades.
+   *
+   * The second half matters as much: a halted tithe is not folded into the creator's leg the way a
+   * de-curated settlement cut is (`LiquidityDeployerModule._postUnlock`). The swapper keeps it. A
+   * creator told only "it stops" would reasonably read that as "it comes to me instead".
+   */
+  it('bounds the tithe by curation, and says a halt does not pay the creator instead', () => {
+    const said = swapTitheSentence({ kind: 'taxed', feeBips: 100n }) ?? ''
+    expect(said).not.toMatch(/as long as the pool trades/i)
+    expect(said).toMatch(/as long as that vault stays curated/i)
+    expect(said).toMatch(/does not come back to you/i)
+  })
+
+  /**
+   * The rate quoted is read off `LiquidityDeployerModule.hookFeeBips`, which `setHookFeeBips` lets
+   * the protocol owner change right up until this collection graduates. Only the HOOK's
+   * `hookFeeBips` is `immutable`, and that hook is not minted until graduation — so "fixed at
+   * deploy", in a wizard whose deploy button is the next step, promised a lock nobody holds yet.
+   */
+  it("names graduation as the moment the rate locks, not the creator's own deploy", () => {
+    const said = swapTitheSentence({ kind: 'taxed', feeBips: 100n }) ?? ''
+    expect(said).toMatch(/at graduation/i)
+    expect(said).not.toMatch(/fixed .{0,30}at deploy/i)
+  })
+
   it('renders bips as bips: 100 is 1%, not 100%', () => {
     expect(swapTitheSentence({ kind: 'taxed', feeBips: 100n })).toContain('1% of the ETH side')
     expect(swapTitheSentence({ kind: 'taxed', feeBips: 50n })).toContain('0.5% of the ETH side')

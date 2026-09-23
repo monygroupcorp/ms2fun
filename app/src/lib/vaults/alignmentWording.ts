@@ -172,13 +172,36 @@ export type SwapTithe =
  * `feeBips` is basis points against a 10_000 denominator — `formatBps` is the only thing that reads
  * it, and 100 bips renders "1%". A hook wired at zero bips is worded as untaxed: it exists, but it
  * moves no money, and "every swap pays 0%" is a sentence that informs nobody.
+ *
+ * THE FIGURE IS A FORECAST, AND THE COPY SAYS SO. `hookFeeBips` is `immutable` on the HOOK, so a
+ * live pool's rate genuinely cannot be raised. But the number quoted here is read off the MODULE,
+ * whose `setHookFeeBips` the protocol owner can still call at any point before this collection's
+ * curve fills — the hook that locks the rate is not minted until graduation. "Fixed at deploy" read
+ * as a lock the creator already holds, in a wizard where "deploy" is the button they are about to
+ * press; naming the moment as graduation, and saying the figure is today's, costs a clause and
+ * removes the wrong reading.
+ *
+ * WHAT BOUNDS THE TITHE IS CURATION, NOT THE POOL. The earlier wording said the charge ran "for as
+ * long as the pool trades", which is not what the hook does. `UniAlignmentV4Hook.titheHalted` turns
+ * it off entirely — no take, no fee delta, nothing queued — and `haltTithe()` is PERMISSIONLESS,
+ * gated only on `masterRegistry.isVaultRegistered(vault)` having gone false, which happens when the
+ * protocol owner retires that vault with `deactivateVault`. `resumeTithe()` is its permissionless
+ * mirror and succeeds only once the registry carries the vault again. So the charge runs exactly
+ * while the vault it feeds is a curated one, and a pool that trades for a decade past a retirement
+ * pays nothing for any of it.
+ *
+ * And a halted tithe is NOT redirected. The settlement paths fold a de-curated vault's cut into the
+ * creator's leg — `LiquidityDeployerModule._postUnlock` and `flushPendingVaultCut` both do, and the
+ * copy says so. The swap hook has no such fold: it simply stops taking, and the ETH stays with the
+ * swapper. A creator sizing a decision on this needs both halves, because the difference between
+ * "paused" and "returned to me" is the whole of what they are being asked to count on.
  */
 export function swapTitheSentence(tithe: SwapTithe): string | null {
   if (tithe.kind === 'pending' || tithe.kind === 'unknown') return null
   if (tithe.kind === 'untaxed' || tithe.feeBips === 0n) {
     return 'After graduation the token trades in an untaxed pool: no swap through it pays the community anything. The share taken at graduation is the whole of it — count on that, and do not count on a cut of the trading that follows.'
   }
-  return `After graduation the token trades in a pool that charges for the community: every swap through it pays ${formatBps(tithe.feeBips)} of the ETH side into the vault — buys and sells alike — for as long as the pool trades. The rate is fixed in the pool's own hook at deploy and cannot be raised afterwards, and no marketplace is asked to honour it: the pool takes it.`
+  return `After graduation the token trades in a pool that charges for the community: every swap through it pays ${formatBps(tithe.feeBips)} of the ETH side into the vault — buys and sells alike — for as long as that vault stays curated. No marketplace is asked to honour it: the pool takes it. The rate is set into the pool's own hook at graduation and cannot be raised after that — but the protocol can still change what it hands to new pools before your curve fills, so read this figure as today's rather than as one you already hold. If the protocol retires the vault, anyone can halt the charge and swaps stop paying it — the ETH stays with the trader, and unlike the share taken at settlement it does not come back to you. If the vault is curated again, anyone can start the charge back up.`
 }
 
 /**

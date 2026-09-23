@@ -759,9 +759,10 @@ export function WizardPage() {
             <p className={styles.help}>
               This choice also decides whether the community keeps earning after graduation. Only a{' '}
               <b>Uniswap V4</b> pool can carry the alignment hook that taxes the ETH side of every
-              swap into the vault, for as long as the pool trades; <b>ZAMM</b> graduates into an
-              untaxed pool, where the 19% taken at graduation is the whole of the community&rsquo;s
-              take. The hook is a protocol-level switch, not a setting you make here.
+              swap into the vault, for as long as that vault stays curated; <b>ZAMM</b> graduates
+              into an untaxed pool, where the 19% taken at graduation is the whole of the
+              community&rsquo;s take. The hook is a protocol-level switch, not a setting you make
+              here.
             </p>
             {slot && renderSlot(slot)}
           </div>
