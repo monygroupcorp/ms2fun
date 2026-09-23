@@ -110,7 +110,18 @@ export function useVaultOverview(vault: `0x${string}` | undefined): VaultOvervie
   }
 }
 
-/** Short human label for a vaultType() string. */
+/**
+ * Short human label for a `vaultType()` string.
+ *
+ * A type this app does not know is named as unknown, never echoed back as if it were a family — the
+ * same house rule `venueLabel` applies to venues. A vault answers `vaultType()` with whatever string
+ * its own bytecode carries, so a retired family still deployed somewhere would otherwise render its
+ * own name as a badge and read as a family on the menu, while the protocol's own split library
+ * reverts on it.
+ *
+ * `undefined` is a different thing and stays neutral: the read has not landed yet (or failed), which
+ * is not a claim that the family is unrecognised.
+ */
 export function vaultFamilyLabel(vaultType: string | undefined): string {
   switch (vaultType) {
     case 'AaveEndowment':
@@ -120,6 +131,6 @@ export function vaultFamilyLabel(vaultType: string | undefined): string {
     case 'ZAMMLP':
       return 'ZAMM LP'
     default:
-      return vaultType || 'Vault'
+      return vaultType ? 'unknown family' : 'Vault'
   }
 }
