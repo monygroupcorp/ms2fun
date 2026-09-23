@@ -243,21 +243,17 @@ export function GraduatedSwapPanel({
   const v4Swap = useWriteZRouterSwapV4()
   const hookedSwap = useWriteAlignmentHookSwapRouterSwap()
   const vzSwap = useWriteZRouterSwapVz()
-  const swapData = isHookedUni
-    ? hookedSwap.data
-    : venue.kind === 'uniV4'
-      ? v4Swap.data
-      : vzSwap.data
-  const swapIsPending = isHookedUni
-    ? hookedSwap.isPending
-    : venue.kind === 'uniV4'
-      ? v4Swap.isPending
-      : vzSwap.isPending
-  const swapRawError = isHookedUni
-    ? hookedSwap.error
-    : venue.kind === 'uniV4'
-      ? v4Swap.error
-      : vzSwap.error
+  // Three writers are mounted because a hook cannot be called conditionally, but only ONE of them
+  // ever signs, and every read of writer state has to be a read of that same one. Selecting it once
+  // here is what makes that true by construction. Picking `data`, `isPending`, `error` and `reset`
+  // through four separate ternaries let them disagree, and they did: reset went to the aggregator's
+  // writer on a hooked venue while `data` was read from the hooked one, so the submitted hash was
+  // never cleared, the confirmed-swap screen re-rendered itself, and "trade again" was a dead button
+  // until the page was reloaded.
+  const swapWriter = isHookedUni ? hookedSwap : venue.kind === 'uniV4' ? v4Swap : vzSwap
+  const swapData = swapWriter.data
+  const swapIsPending = swapWriter.isPending
+  const swapRawError = swapWriter.error
 
   const { isLoading: isApproving, isSuccess: approveConfirmed } = useWaitForTransactionReceipt({
     hash: approve.data,
@@ -340,8 +336,8 @@ export function GraduatedSwapPanel({
   }
 
   function handleReset(): void {
-    if (venue.kind === 'uniV4') v4Swap.reset()
-    else vzSwap.reset()
+    // The writer that actually signed — which on a hooked Uni-V4 venue is not the aggregator's.
+    swapWriter.reset()
     setAmountStr('')
     void balanceRead.refetch()
     void allowanceRead.refetch()
