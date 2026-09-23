@@ -36,7 +36,6 @@ import { GatingScope } from "../../../src/gating/IGatingModule.sol";
 import { MerkleGatingModule } from "../../../src/gating/MerkleGatingModule.sol";
 import { MerkleConfig } from "../../../src/gating/IMerkleGatingModule.sol";
 import { MerkleAllowlistHelper } from "../../gating/MerkleAllowlistHelper.sol";
-import { newERC1155InstanceClone } from "../../helpers/ERC1155InstanceClone.sol";
 
 contract MockRejectGatingModule {
     function canMint(address, uint256, uint256, uint256, bytes calldata)

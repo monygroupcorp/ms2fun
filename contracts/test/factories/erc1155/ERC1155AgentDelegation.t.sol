@@ -23,7 +23,6 @@ import { ICreateX, CREATEX } from "../../../src/shared/CreateXConstants.sol";
 import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
 import { FreeMintParams } from "../../../src/interfaces/IFactoryTypes.sol";
 import { GatingScope } from "../../../src/gating/IGatingModule.sol";
-import { newERC1155InstanceClone } from "../../helpers/ERC1155InstanceClone.sol";
 
 contract ERC1155AgentDelegationTest is GlobalMessagingTestBase {
     ERC1155Factory public factory;

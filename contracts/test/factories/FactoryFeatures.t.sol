@@ -19,7 +19,6 @@ import { ComponentRegistry } from "../../src/registry/ComponentRegistry.sol";
 import { MockMasterRegistry } from "../mocks/MockMasterRegistry.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 import { ERC1155Instance } from "../../src/factories/erc1155/ERC1155Instance.sol";
-import { newERC1155InstanceClone } from "../helpers/ERC1155InstanceClone.sol";
 
 /// @title FactoryFeaturesTest
 /// @notice Verifies that every factory implements IFactory.features() correctly and

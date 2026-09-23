@@ -20,7 +20,6 @@ import { ComponentRegistry } from "../../../src/registry/ComponentRegistry.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 import { ICreateX, CREATEX } from "../../../src/shared/CreateXConstants.sol";
 import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
-import { newERC1155InstanceClone } from "../../helpers/ERC1155InstanceClone.sol";
 
 contract MockVaultERC1155FM {
     function supportsCapability(bytes32) external pure returns (bool) {

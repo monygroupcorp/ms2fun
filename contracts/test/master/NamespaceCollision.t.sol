@@ -21,7 +21,6 @@ import { GatingScope } from "../../src/gating/IGatingModule.sol";
 import { CREATEX } from "../../src/shared/CreateXConstants.sol";
 import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
 import { ERC1155Instance } from "../../src/factories/erc1155/ERC1155Instance.sol";
-import { newERC1155InstanceClone } from "../helpers/ERC1155InstanceClone.sol";
 
 /// @dev Mock vault that satisfies factory checks. Exposes alignmentToken() so it can be registered
 ///      through the real MasterRegistry.registerVault (alignment-validated) path.
