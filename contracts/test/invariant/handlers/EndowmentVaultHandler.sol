@@ -190,7 +190,18 @@ contract EndowmentVaultHandler is Test {
 
     /// @notice Inject Aave yield (value-per-share appreciation) so harvest has something to split.
     function accrueYield(uint256 amount) external {
-        if (vault.totalShares() == 0) return; // no basis → injected value is unassignable, skip
+        // The guard reads the ERC-4626's SHARE SUPPLY, and it has to. `simulateYield` raises the wrapper's
+        // managed assets without minting, so the outstanding supply is what decides whether the injected
+        // value lands on anything. With no supply it lands on nothing: it sits in the wrapper unpriced by
+        // `convertToAssets`, and `deposit` books it as strand when the next mint hands it to fresh shares.
+        // Counting it here as well books the same wei twice and hands `invariant_harvestFlatSplitConserves`
+        // exactly that much slack.
+        //
+        // NOT `vault.totalShares()`. The endowment has no tradable shares and that accessor returns the
+        // principal BASIS. A basis can stand over an emptied supply — the shape
+        // `EndowmentStrandedPrincipalRegression` pins — so reading it here passes the guard in the one state
+        // the guard exists to refuse.
+        if (stata.totalShares() == 0) return; // no share supply → injected value is unassignable, skip
         amount = bound(amount, 1e9, 50 ether);
         // Back the WETH so downstream redemptions settle in ETH (mirrors the unit test's _simulateYield).
         vm.deal(address(weth), address(weth).balance + amount);

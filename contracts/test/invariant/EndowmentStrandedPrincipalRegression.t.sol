@@ -226,6 +226,60 @@ contract EndowmentStrandedPrincipalRegression is Test {
         );
     }
 
+    /// @notice An injection made while the wrapper's share supply is EMPTY is booked once, at the deposit
+    ///         that surfaces it — not once by the injection and again by the strand.
+    ///
+    /// @dev    The orphan state above is also a state the handler can keep injecting into: `simulateYield`
+    ///         raises the wrapper's managed assets whether or not any shares are outstanding. With no supply
+    ///         the injected value is unpriced exactly as the orphaned principal is, so it leaves in the same
+    ///         strand and the next deposit hands the two back together. Book the injection at the call as
+    ///         well and the same wei is in `sumYieldInjected` twice.
+    ///
+    ///         That double booking is invisible to the magnitude bound: `ghost_depositMintedYield` compares
+    ///         what appeared against the strand that was sitting there, and the injection is legitimately
+    ///         PART of that strand. What it moves is the conservation bound — `sumYieldInjected` runs ahead
+    ///         of anything the vault can distribute, so `invariant_harvestFlatSplitConserves` holds with the
+    ///         whole injection as slack and would keep holding over an overpay of that size. Measured before
+    ///         the handler's guard read the wrapper's supply: an `accrueYield` of 50 ether here left
+    ///         `sumHarvestDistributed` 50 ether below `sumYieldInjected`. The assertion at the end is that
+    ///         the gap is zero, not that it is small.
+    function test_anAccrualIntoAnEmptySupplyIsBookedOnceNotTwice() public {
+        handler.deposit(0, 1e12);
+        handler.accrueYield(MAX);
+        handler.harvest(0);
+        handler.accrueYield(MAX);
+        handler.harvest(0);
+
+        // The orphan: no share supply, the principal still in the wrapper, the basis still standing over it.
+        assertEq(stata.totalShares(), 0, "the setup did not reach the orphaned position");
+        assertEq(stata.totalManaged(), 1e12, "the principal is not in the wrapper to be injected alongside");
+        assertNotEq(vault.totalShares(), 0, "the basis is zero: the wrong guard would skip for the right reason");
+
+        uint256 injectedBefore = handler.sumYieldInjected();
+        uint256 distributedBefore = handler.sumHarvestDistributed();
+        assertEq(injectedBefore, distributedBefore, "the two harvests left a gap before the probe even starts");
+
+        // The injection the position cannot assign. It must not be booked here.
+        handler.accrueYield(MAX);
+        assertEq(handler.sumYieldInjected(), injectedBefore, "an unassignable injection was booked at the call");
+        assertEq(stata.totalManaged(), 1e12, "the wrapper took an injection it had no supply to price");
+
+        // The deposit hands back the strand, and the strand is the principal alone.
+        handler.deposit(1, MAX - 1);
+        assertEq(handler.sumYieldInjected() - injectedBefore, 1e12, "the deposit booked more than the strand held");
+        assertEq(handler.sumStrandRecoveredAtDeposit(), 1e12, "the strand is the orphaned principal, nothing more");
+        assertFalse(handler.ghost_depositMintedYield(), "and it is within the strand that was there to hand over");
+
+        // And the vault distributes every wei of it, so the conservation bound is tight rather than slack.
+        handler.harvest(0);
+        assertEq(handler.sumHarvestDistributed() - distributedBefore, 1e12, "the harvest split something else");
+        assertEq(
+            handler.sumYieldInjected(),
+            handler.sumHarvestDistributed(),
+            "the injected ghost stands above what the vault could distribute: that gap is unwatched slack"
+        );
+    }
+
     /// @notice The bound is not reachable from the vault as written, and that is the claim, not an excuse.
     ///         A deposit adds the same `amount` to the position value and to the basis, so it moves the yield
     ///         pool by nothing of its own; everything that appears across one is a strand handed back. This
