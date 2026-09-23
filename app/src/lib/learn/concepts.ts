@@ -36,7 +36,7 @@ Classic editions: you define pieces, each with its own supply and price. Buyers 
 ## ERC-721 — auction collection
 One-of-one pieces sold by timed auction. Best for scarce, individually-valued work.
 
-Every standard routes the same **fixed alignment share** to a vault and settles fees the same way — the difference is purely how minting and pricing work.
+Every standard routes the same **fixed 19%** to an alignment vault, but each takes it at its own moment — a graduating raise, a withdrawal of mint proceeds, a settled auction — and only ERC-404 carries anything at all after the primary sale. None of the three takes a secondary royalty.
 `,
     related: ['erc404', 'erc1155', 'erc721', 'alignment-vault', 'bonding-curve-graduation'],
   },
@@ -94,16 +94,24 @@ Every standard routes the same **fixed alignment share** to a vault and settles 
   'alignment-vault': {
     title: 'Alignment vaults',
     summary:
-      "19% of every collection's fees route to a vault aligned with an established community, the thing that makes it not a grift.",
+      'Every collection pays an established community 19% of what it sells, taken at settlement by the contract that moves the money — the thing that makes it not a grift.',
     body: `
-Every launch here is **bound to an alignment vault**. On mint and on every resale, **19% of fees route to the community** through that vault, which holds or LPs the target community's token.
+Every launch here is **bound to an alignment vault**, which holds or LPs the target community's token. You pick the community you're aligning to, then one of its vaults. The share is **19%**, and it is taken at **settlement** — inside the contract that is already moving the money, out of the sale itself rather than a fee added on top of it.
 
-This is the core idea of the launchpad: a derivative collection that **materially supports** the community it draws from, instead of extracting from it. You pick the community you're aligning to, then one of its vaults.
+This is the core idea of the launchpad: a derivative collection that **materially supports** the community it draws from, instead of extracting from it.
 
-- The **share is a contract constant** — no setter and no owner path, so nobody can change what a settlement pays out.
-- The **destination is curation, not code** — the protocol owner can repoint a target's payout address or retire the target. The ratio is the promise; the payee is a listing decision you can watch and leave over.
+**Where the 19% is taken depends on the standard, and only one standard has an after.**
+
+- **ERC-404** — taken at **graduation**, on the whole raise, before a single wei reaches the pool. Buying along the curve is fee-free. After graduation the token trades in a real pool, and on the **Uniswap V4** venue that pool can carry an **alignment hook** that taxes the ETH side of every swap — buys and sells alike — straight into the vault. ZAMM graduates into an untaxed pool, where the graduation 19% is the whole of it. The hook is a protocol-level switch, not a creator setting.
+- **ERC-1155 editions** — taken on **every withdrawal of mint proceeds**. Nothing is taken after that: an edition pays on the way out of the primary sale and never again.
+- **ERC-721 auctions** — taken at **settlement of each auction**, on the winning bid, after your reserve is refunded to you. Nothing is taken after that either.
+
+**There is no secondary royalty here, on any standard, and that is a position rather than a gap.** A royalty written into NFT metadata is a request a marketplace is free to decline, and most now do; it moves no money on its own. So this protocol does not ask. It takes its share where it cannot be declined — at settlement — and the perpetual earn, where a collection has one, is a **pool charging its own traders**, not a marketplace being asked nicely.
+
+- The **share is a contract constant** — \`RevenueSplitLib.split\` hardcodes 1/19/80 with no setter, and the vaults' own \`TARGET_CUT_BPS\` is \`constant\` too, so nobody can change what a settlement pays out.
+- The **destination is curation, not code** — the protocol owner can repoint a target's payout address or retire the target. The ratio is the promise; the payee is a listing decision you can watch and leave over. If a target is retired after you bind, the community cut is **returned to you**, never to the protocol.
 - The capital is **not custodial to us** — it lives in the vault contract.
-- Ongoing LP yield is split by the same **1% protocol · 19% aligned community · 80% benefactors** law as the graduation carve: the 19% flows to that target's own alignment sink, and benefactor collections earn a proportional share of the remaining 80%.
+- Ongoing LP yield is split by the same **1% protocol · 19% aligned community · 80% benefactors** law as the graduation carve: the 19% flows to that target's own alignment sink, and benefactor collections earn a proportional share of the remaining 80% — so what your collection tithed keeps working, and most of what it earns comes back to you.
 
 If the community you want isn't listed, you can request a new alignment target.
 `,
@@ -119,8 +127,10 @@ An ERC-404 collection sells along a **bonding curve**: the price of the next min
 When the curve reaches its **funding target**, the collection **graduates**:
 
 - Liquidity is deployed into the DEX you chose, so the token trades openly.
-- The revenue split settles: **1% protocol · 19% alignment vault · 80% liquidity/creator**.
+- The revenue split settles: **1% protocol · 19% alignment vault · 80% liquidity/creator** — on the whole raise, before the pool is funded.
 - A creator carve-out is tithed at graduation, within the allowance you declared at create.
+
+**The venue decides whether the community keeps earning.** Only a **Uniswap V4** pool can carry an alignment hook, which taxes the ETH side of every swap — buys and sells alike — into the vault for as long as the pool trades. ZAMM graduates into an untaxed pool: there the graduation 19% is the whole of the community's take, and seeding depth on a venue the community does not already depend on is the service instead. The hook is a protocol-level switch rather than a creator setting.
 
 Before the curve opens, nothing can be minted or claimed — including free mints. After graduation, the bonding phase is over and the token trades on its pool.
 `,

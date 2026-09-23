@@ -10,9 +10,16 @@ import {
   ALIGNMENT_LAW_SECTION_SENTENCE,
   ALIGNMENT_LAW_SENTENCE,
   ALIGNMENT_SPLIT,
+  NO_ROYALTY_NOTE,
+  NO_ROYALTY_SENTENCE,
   alignmentLawSentence,
   communityCutSentence,
+  secondaryEarnSentence,
+  settlementMomentSentence,
+  type LaunchStandard,
 } from './alignmentWording'
+
+const STANDARDS: LaunchStandard[] = ['erc404', 'erc1155', 'erc721']
 
 describe('ALIGNMENT_SPLIT', () => {
   it('is the 1/19/80 the contracts hold, and sums to the whole', () => {
@@ -113,5 +120,71 @@ describe('ALIGNMENT_LAW_NOTE', () => {
 
   it("says the number is the contract's and not the creator's", () => {
     expect(ALIGNMENT_LAW_NOTE).toMatch(/not a creator setting/i)
+  })
+})
+
+describe('settlementMomentSentence', () => {
+  it('names a different moment per standard — one sentence for all three is the defect', () => {
+    const said = STANDARDS.map((s) => settlementMomentSentence(s))
+    expect(new Set(said).size).toBe(STANDARDS.length)
+  })
+
+  it('states the ratio on every standard, because the ratio is what does not vary', () => {
+    for (const s of STANDARDS) expect(settlementMomentSentence(s)).toContain('19%')
+  })
+
+  it('names the raise, the mint proceeds and the winning bid — the real base on each', () => {
+    expect(settlementMomentSentence('erc404')).toMatch(/raise/i)
+    expect(settlementMomentSentence('erc1155')).toMatch(/mint proceeds/i)
+    expect(settlementMomentSentence('erc721')).toMatch(/winning bid/i)
+  })
+
+  it('calls the base a sale and never a fee — `RevenueSplitLib.split` takes the price, not a fee', () => {
+    for (const s of STANDARDS) {
+      expect(settlementMomentSentence(s)).not.toMatch(/19% of (every |the )?fees?/i)
+    }
+  })
+})
+
+describe('secondaryEarnSentence', () => {
+  it('gives ERC-404 the pool, because the pool is the only thing here that charges after a sale', () => {
+    const s = secondaryEarnSentence('erc404')
+    expect(s).toMatch(/swap/i)
+    expect(s).toMatch(/Uniswap V4/)
+    // The venue divergence is a decision, not an oversight: ZAMM graduates into an untaxed pool.
+    expect(s).toMatch(/ZAMM/)
+  })
+
+  it('says plainly that editions and auctions take nothing after the primary sale', () => {
+    for (const s of ['erc1155', 'erc721'] as const) {
+      const said = secondaryEarnSentence(s)
+      expect(said).toMatch(/nothing is taken/i)
+      expect(said).toMatch(/resale/i)
+      expect(said).toMatch(/never again/i)
+    }
+  })
+
+  it('claims no resale share on ANY standard — no contract under contracts/src takes one', () => {
+    for (const s of STANDARDS) {
+      expect(secondaryEarnSentence(s)).not.toMatch(/\d+% of (every |each |the )?resale/i)
+    }
+  })
+})
+
+describe('the royalty no', () => {
+  it('is stated as a decision, not an omission', () => {
+    expect(NO_ROYALTY_SENTENCE).toMatch(/no royalty field/i)
+    expect(NO_ROYALTY_SENTENCE).toMatch(/position rather than a gap/i)
+  })
+
+  it('gives the reason a creator can check: a marketplace may decline the request', () => {
+    expect(NO_ROYALTY_SENTENCE).toMatch(/decline/i)
+    expect(NO_ROYALTY_SENTENCE).toMatch(/settlement/i)
+  })
+
+  it('survives the caption-width slot with both halves intact', () => {
+    expect(NO_ROYALTY_NOTE).toMatch(/no secondary royalty/i)
+    expect(NO_ROYALTY_NOTE).toMatch(/ignore/i)
+    expect(NO_ROYALTY_NOTE).toMatch(/settlement/i)
   })
 })

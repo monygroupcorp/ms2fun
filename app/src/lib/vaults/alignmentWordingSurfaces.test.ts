@@ -73,3 +73,49 @@ describe('the 19% surfaces draw their wording', () => {
     expect(code).not.toMatch(/Fee split/i)
   })
 })
+
+/**
+ * The second ratchet: the two CREATOR-FACING surfaces that state the claim in full prose — the
+ * `/learn` concept registry and the launch wizard.
+ *
+ * These two may spell `19%`: the learn body quotes the whole 1/19/80 law, and the wizard's bind
+ * diagram is the number rendered large. What they may NOT do is re-assert the reading the ruling
+ * struck out. Both used to say the share was taken "on mint and on every resale", from "fees", on
+ * "every launch":
+ *
+ *   concepts.ts     "On mint and on every resale, 19% of fees route to the community"
+ *   WizardPage.tsx  "Every launch routes 19% of its fees … on mint and every resale"
+ *
+ * Every clause of that is wrong. The base is the sale — `RevenueSplitLib.split` takes the ERC404
+ * raise, the ERC1155 withdrawal of mint proceeds, or the ERC721 winning bid — never a fee levied
+ * on top of one. The moment differs per standard. And no contract under `contracts/src` takes a
+ * share of a resale at all: `royaltyInfo`/ERC-2981 are implemented nowhere, so a resale claim on
+ * an edition or an auction had nothing behind it, and on ERC404 the after-market share is the
+ * graduated pool's own swap hook rather than anything a marketplace is asked to honour.
+ */
+const CLAIM_SURFACES = ['/src/lib/learn/concepts.ts', '/src/routes/WizardPage.tsx'] as const
+
+describe('the per-standard alignment claim', () => {
+  it.each(CLAIM_SURFACES)('%s exists on disk', (path) => {
+    expect(SOURCE_FILES[path], `missing on disk: ${path}`).toBeDefined()
+  })
+
+  it.each(CLAIM_SURFACES)('%s takes no share of a resale', (path) => {
+    const code = stripComments(SOURCE_FILES[path] ?? '')
+    expect(code).not.toMatch(/every resale/i)
+    expect(code).not.toMatch(/\d+% of (every |each |the )?resale/i)
+    expect(code).not.toMatch(/on mint and/i)
+  })
+
+  it.each(CLAIM_SURFACES)('%s does not call the base a fee', (path) => {
+    const code = stripComments(SOURCE_FILES[path] ?? '')
+    expect(code).not.toMatch(/\d+% of (every |each |the )?(collection'?s? )?fees?/i)
+    expect(code).not.toMatch(/routes? .{0,20}\d+% of its fees/i)
+  })
+
+  it.each(CLAIM_SURFACES)('%s says the royalty no out loud', (path) => {
+    const src = SOURCE_FILES[path] ?? ''
+    // The learn body writes it; the wizard draws `NO_ROYALTY_SENTENCE` from `alignmentWording`.
+    expect(src).toMatch(/NO_ROYALTY_SENTENCE|no secondary royalty|no royalty field/i)
+  })
+})
