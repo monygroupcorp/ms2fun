@@ -46,7 +46,7 @@ contract ReferenceTwapWindowFloorTest is Test {
 
     function setUp() public {
         uniFactory = new MockUniV3RefFactory();
-        AlignmentRegistryV1 impl = new AlignmentRegistryV1(weth, address(uniFactory), address(0));
+        AlignmentRegistryV1 impl = new AlignmentRegistryV1(weth, address(uniFactory));
         registry = AlignmentRegistryV1(LibClone.deployERC1967(address(impl)));
         registry.initialize(dao);
 

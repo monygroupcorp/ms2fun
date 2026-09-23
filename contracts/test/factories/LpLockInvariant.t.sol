@@ -3,12 +3,11 @@ pragma solidity ^0.8.24;
 
 // Graduation-LP permanence invariant (noesis-069 / finding 2, Medium).
 //
-// The "permanent liquidity depth" promise across the three ERC404 graduation venues was proven only
+// The "permanent liquidity depth" promise across the ERC404 graduation venues was proven only
 // by absence-of-removal-code — no test pinned "after graduation on venue X, no actor can remove the
 // launch liquidity." These tests formalize that guarantee for each venue:
 //   * Uni V4  — the position accrues to the singleton LiquidityDeployerModule (locked on the module).
 //   * ZAMM    — LP shares are minted to the ERC404 instance (p.instance).
-//   * Cypher  — the Algebra position NFT is minted to the ERC404 instance (p.instance).
 // In every case NO contract in the system exposes a callable path that removes/withdraws that
 // liquidity. The assertions below are: (a) the LP lands on the expected lock, (b) the deployer module
 // custodies nothing withdrawable and exposes no removal entry point, and (c) exercising every
@@ -25,12 +24,8 @@ import { MockZAMM } from "../mocks/MockZAMM.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
 import { MockVault } from "../mocks/MockVault.sol";
 
-// ── Cypher venue ──────────────────────────────────────────────────────────────
-import { CypherLiquidityDeployerModule } from "../../src/factories/erc404cypher/CypherLiquidityDeployerModule.sol";
-import { CypherAlignmentVault } from "../../src/vaults/cypher/CypherAlignmentVault.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 import { MockWETH } from "../mocks/MockWETH.sol";
-import { MockAlgebraFactory, MockAlgebraPositionManager, MockAlgebraSwapRouter } from "../mocks/MockCypherAlgebra.sol";
 import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
 
 // ── Uni V4 venue ──────────────────────────────────────────────────────────────
@@ -130,112 +125,6 @@ contract ZammLpLockInvariantTest is Test {
 
         assertEq(zamm.balanceOf(instance, poolId), lockedLp, "locked LP intact after every module external");
         assertEq(zamm.balanceOf(address(module), poolId), 0, "module still custodies no LP");
-    }
-}
-
-// ════════════════════════════════════════════════════════════════════════════════
-// Cypher — also asserts the module still deploys liquidity correctly after the IERC20 import unify.
-// ════════════════════════════════════════════════════════════════════════════════
-contract CypherLpLockInvariantTest is Test {
-    /// @dev This contract stands in for the graduating ERC404 instance, so it must answer the
-    ///      deployer module's `IGraduationSkipNFTTarget` handshake. The real instance flags the
-    ///      counterparty NFT-skipping; nothing here holds ids, so recording is enough.
-    function markGraduationSkipNFT(address) external { }
-
-    CypherLiquidityDeployerModule deployer;
-    CypherAlignmentVault vault;
-    MockAlgebraFactory algebraFactory;
-    MockAlgebraPositionManager positionManager;
-    MockAlgebraSwapRouter swapRouter;
-    MockERC20 token;
-    MockWETH weth;
-    MockMasterRegistry registry;
-    MockAlignmentRegistry alignmentRegistry;
-
-    address protocolTreasury = makeAddr("treasury");
-    address instance;
-    uint256 constant TARGET_ID = 1;
-
-    function setUp() public {
-        algebraFactory = new MockAlgebraFactory();
-        positionManager = new MockAlgebraPositionManager();
-        swapRouter = new MockAlgebraSwapRouter();
-        token = new MockERC20("Token", "TKN");
-        weth = new MockWETH();
-        registry = new MockMasterRegistry();
-        alignmentRegistry = new MockAlignmentRegistry();
-        alignmentRegistry.setTargetActive(TARGET_ID, true);
-        alignmentRegistry.setTokenInTarget(TARGET_ID, address(token), true);
-        instance = address(this);
-
-        deployer = new CypherLiquidityDeployerModule(
-            address(algebraFactory), address(positionManager), address(weth), address(registry)
-        );
-
-        CypherAlignmentVault impl = new CypherAlignmentVault();
-        vault = CypherAlignmentVault(payable(LibClone.clone(address(impl))));
-        vault.initialize(
-            address(positionManager),
-            address(swapRouter),
-            address(algebraFactory),
-            address(weth),
-            address(token),
-            protocolTreasury,
-            makeAddr("zRouter"), // unused by these tests; initialize now requires nonzero
-            address(0),
-            address(0),
-            alignmentRegistry,
-            TARGET_ID
-        );
-    }
-
-    function _graduate() internal {
-        uint256 ethReserve = 1 ether;
-        uint256 tokenReserve = 1000e18;
-        token.mint(address(deployer), tokenReserve);
-        vm.deal(address(this), ethReserve);
-        deployer.deployLiquidity{ value: ethReserve }(
-            ILiquidityDeployerModule.DeployParams({
-                ethReserve: ethReserve,
-                tokenReserve: tokenReserve,
-                protocolTreasury: protocolTreasury,
-                token: address(token),
-                vault: address(vault),
-                instance: instance,
-                creator: address(0),
-                carveEth: 0,
-                excessEth: 0
-            })
-        );
-    }
-
-    /// @notice After the OZ→shared IERC20 unify, Cypher still deploys graduation liquidity correctly:
-    ///         a pool is created and the position NFT is minted to the instance.
-    function test_cypher_deploysLiquidityAfterIerc20Unify() public {
-        _graduate();
-        assertEq(positionManager.ownerOf(1), instance, "position NFT minted to the instance");
-        assertNotEq(algebraFactory.poolByPair(address(token), address(weth)), address(0), "pool created");
-        assertGt(vault.benefactorContribution(instance), 0, "19% tithe credited to the vault");
-    }
-
-    /// @notice The graduation position NFT is permanently locked on the instance: the module custodies
-    ///         no NFT, exposes no removal path, and every callable module external leaves ownership
-    ///         intact. (Sub-note: Algebra LP swap fees accrue to this position with no collect() path
-    ///         on the instance — stranded, benign, adds to locked depth; NOT the alignment tithe.)
-    function test_cypher_graduationNftIsPermanentlyLocked() public {
-        _graduate();
-        uint256 tokenId = 1;
-        assertEq(positionManager.ownerOf(tokenId), instance, "NFT owned by the instance");
-        assertNotEq(positionManager.ownerOf(tokenId), address(deployer), "module does not custody the NFT");
-
-        RemovalProbe.assertNoRemovalEntryPoints(address(deployer));
-
-        deployer.setMetadataURI("ipfs://x"); // onlyOwner
-        vm.deal(address(this), 1 wei);
-        (bool ok,) = payable(address(deployer)).call{ value: 1 wei }(""); // receive()
-        assertTrue(ok, "module receive() accepts ETH");
-
-        assertEq(positionManager.ownerOf(tokenId), instance, "NFT ownership intact after every module external");
     }
 }
 

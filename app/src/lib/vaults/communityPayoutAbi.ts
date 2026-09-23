@@ -2,13 +2,13 @@
  * Hand-written ABI slice for the community-payout surface (`components/vault/CommunityPayoutPanel`).
  *
  * Two reasons it is hand-written rather than generated. The liquidity-family vaults
- * (`UniAlignmentVault`, `CypherAlignmentVault`, `ZAMMAlignmentVault`) have no generated bindings at
- * all — `wagmi.config.ts` does not include them, and pulling three large ABIs in would swamp this
+ * (`UniAlignmentVault`, `ZAMMAlignmentVault`) have no generated bindings at
+ * all — `wagmi.config.ts` does not include them, and pulling two large ABIs in would swamp this
  * change with an unrelated regen diff, the same reasoning `lib/tithe/abis.ts` records. And the
  * endowment vault's generated ABI is now large enough that inferring over it inside a batched read
  * trips TS2589, which is why `useVaultsSummary` keeps its own slice too.
  *
- * The names below are uniform across the four vault families where they exist at all:
+ * The names below are uniform across the three vault families where they exist at all:
  *   - `accumulatedTargetFees()` — every family: the target's cut that accrued while the community
  *     sink was unset, held by the vault rather than dropped.
  *   - `withdrawTargetFees()` — liquidity families only: delivers that balance to the registry's

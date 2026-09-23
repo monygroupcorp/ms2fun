@@ -8,7 +8,7 @@ import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
 
 /// @dev Exposes the internal amount computation so the carve split can be unit-tested without a
 ///      full V4 PoolManager (the payment dispatch itself is fork-tested + mirrored in the ZAMM /
-///      Cypher module tests, which share the identical splitGraduation-driven shape).
+///      ZAMM module tests, which share the identical splitGraduation-driven shape).
 contract LiquidityDeployerModuleHarness is LiquidityDeployerModule {
     constructor() LiquidityDeployerModule(address(0), address(0x3), 3000, 60, address(0)) { }
 

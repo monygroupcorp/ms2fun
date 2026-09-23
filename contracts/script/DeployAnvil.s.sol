@@ -66,7 +66,6 @@ contract DeployAnvil is DeployCore {
             name: "Milady-Station-2",
             description: "MS2 community alignment target",
             deployUniVault: true,
-            deployCypherVault: true,
             deployZAMMVault: true,
             // local-only deterministic placeholder community payout (a real deploy passes the actual address)
             communityPayout: address(uint160(uint256(keccak256(abi.encode("ms2.community", MS2_TOKEN)))))
@@ -81,7 +80,6 @@ contract DeployAnvil is DeployCore {
             name: "Milady Cult Coin",
             description: "Remilia / Milady community alignment target",
             deployUniVault: true,
-            deployCypherVault: true,
             deployZAMMVault: true,
             communityPayout: address(uint160(uint256(keccak256(abi.encode("ms2.community", CULT_TOKEN)))))
         });
@@ -95,7 +93,6 @@ contract DeployAnvil is DeployCore {
             name: ArtistEndowments.PARADILF_TITLE,
             description: "An artist endowment. Collections bound here escrow permanent principal and stream its yield to the artist rather than buying a token. Demonstration target: the payout address and the alignment token are generated fixtures, not a real person's.",
             deployUniVault: false,
-            deployCypherVault: false,
             deployZAMMVault: false,
             communityPayout: ArtistEndowments.payout(ArtistEndowments.PARADILF_SLUG)
         });
@@ -105,7 +102,6 @@ contract DeployAnvil is DeployCore {
             name: ArtistEndowments.PETRAVOICE_TITLE,
             description: "An artist endowment. Collections bound here escrow permanent principal and stream its yield to the artist they are aligned to. Demonstration target: the payout address and the alignment token are generated fixtures, not a real person's.",
             deployUniVault: false,
-            deployCypherVault: false,
             deployZAMMVault: false,
             communityPayout: ArtistEndowments.payout(ArtistEndowments.PETRAVOICE_SLUG)
         });
@@ -116,9 +112,6 @@ contract DeployAnvil is DeployCore {
         cfg.v4PoolManager = MainnetAddresses.V4_POOL_MANAGER;
         cfg.v3Factory = MainnetAddresses.V3_FACTORY;
         cfg.v2Factory = MainnetAddresses.V2_FACTORY;
-        cfg.cypherAlgebraFactory = MainnetAddresses.CYPHER_ALGEBRA_FACTORY; // Algebra Integral factory — live on the fork
-        cfg.cypherPositionManager = MainnetAddresses.CYPHER_POSITION_MANAGER; // Cypher (Algebra Integral) — live on the fork
-        cfg.cypherRouter = MainnetAddresses.CYPHER_SWAP_ROUTER;
         cfg.zamm = MainnetAddresses.ZAMM_V1; // ZAMM LP family — live on the mainnet fork
         cfg.aaveStataToken = MainnetAddresses.WETH_STATA_TOKEN; // waEthWETH (mainnet fork)
         cfg.zrouter = address(0);

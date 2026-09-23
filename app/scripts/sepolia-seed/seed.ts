@@ -358,16 +358,14 @@ async function main(): Promise<void> {
     const venues = JSON.parse(readFileSync(venuePath, 'utf8')) as {
       chainId: number
       zammVaultFactory: Address
-      cypherVaultFactory: Address
     }
     if (venues.chainId !== SEPOLIA_CHAIN_ID) {
       throw new Error(`sepolia-venues.json chainId ${venues.chainId} != ${SEPOLIA_CHAIN_ID}`)
     }
     console.log(`  zamm family    : ${venues.zammVaultFactory}`)
-    console.log(`  cypher family  : ${venues.cypherVaultFactory}`)
   } else {
     console.warn(
-      `⚠ No ${venuePath} — the ZAMM and Cypher legs will be reported unavailable and skipped.` +
+      `⚠ No ${venuePath} — the ZAMM leg will be reported unavailable and skipped.` +
         '\n  It is written by DeploySepolia; redeploy if this deployment predates it.',
     )
   }
@@ -391,8 +389,6 @@ async function main(): Promise<void> {
     ms2ReferencePool?: Address
     cultReferencePool?: Address
     ms2ZammVault?: Address
-    cultCypherVault?: Address
-    cypher404?: Address
     instances: Record<string, Address>
   }
   if (seedState.chainId !== SEPOLIA_CHAIN_ID) {
@@ -408,9 +404,6 @@ async function main(): Promise<void> {
   console.log(`  uniswap v4     : seeded (both alignment targets)`)
   console.log(
     `  zamm           : ${seedState.ms2ZammVault ?? '(not available on this deployment)'}`,
-  )
-  console.log(
-    `  cypher/algebra : ${seedState.cultCypherVault ?? '(rail not wired on this deployment)'}`,
   )
 
   const referencePools = [seedState.ms2ReferencePool, seedState.cultReferencePool].filter(

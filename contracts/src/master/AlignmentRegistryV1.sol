@@ -4,11 +4,9 @@ pragma solidity ^0.8.20;
 import { SafeOwnableUUPS } from "../shared/SafeOwnableUUPS.sol";
 import { IAlignmentRegistry } from "./interfaces/IAlignmentRegistry.sol";
 import { MetadataUtils } from "../shared/libraries/MetadataUtils.sol";
-import { IAlgebraFactory, IAlgebraPool, IVolatilityOracle } from "../interfaces/algebra/IAlgebra.sol";
 
 /// @notice Minimal Uniswap V3 pool surface the reference-pool setter probes. Hand-written (repo practice:
 ///         see the identical interface in `peripherals/UniswapVaultPriceValidator.sol`) rather than vendored.
-///         `token0()/token1()` are ABI-identical on Algebra pools, so the Algebra probe reuses this cast.
 interface IUniswapV3Pool {
     function observe(uint32[] calldata secondsAgos)
         external
@@ -94,11 +92,6 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     ///         impl bytecode, NOT proxy storage — layout-safe.
     address public immutable v3Factory;
 
-    /// @notice Canonical Algebra factory, injected at deploy. A different contract from `v3Factory`, playing
-    ///         the same role for kind-1 pools via `poolByPair`. `address(0)` means no kind-1 pool can be
-    ///         pinned. Immutable, so it adds nothing to proxy storage.
-    address public immutable algebraFactory;
-
     // ── State ──
     bool private _initialized;
     uint256 public nextAlignmentTargetId;
@@ -125,14 +118,12 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     /// @param _weth Canonical WETH address (the mandatory counter-asset of every reference pool). Stored as an
     ///        immutable, so it lives in impl bytecode and adds nothing to proxy storage.
     /// @param _v3Factory Canonical Uniswap V3 factory; `address(0)` disables kind-0 references entirely.
-    /// @param _algebraFactory Canonical Algebra factory; `address(0)` disables kind-1 references entirely.
-    /// @dev All three are immutables — impl bytecode, not proxy storage — so adding the two factories does not
-    ///      move a single storage slot. That is what makes this a shippable upgrade to a live proxy, and it is
+    /// @dev Both are immutables — impl bytecode, not proxy storage — so neither adding nor dropping one moves
+    ///      a single storage slot. That is what makes this a shippable upgrade to a live proxy, and it is
     ///      the property `AlignmentRegistryReferencePoolUpgrade.t.sol` pins.
-    constructor(address _weth, address _v3Factory, address _algebraFactory) {
+    constructor(address _weth, address _v3Factory) {
         weth = _weth;
         v3Factory = _v3Factory;
-        algebraFactory = _algebraFactory;
         _initializeOwner(msg.sender);
     }
 
@@ -483,12 +474,10 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
         } else if (route.venue == Venue.UNI_V4) {
             // Uni v4 pool key needs a real fee and tick spacing; feeOrHook is a ZAMM-only field.
             if (route.fee == 0 || route.tickSpacing == 0 || route.feeOrHook != 0) revert InvalidRoute();
-        } else if (route.venue == Venue.ZAMM) {
-            // ZAMM leg needs feeOrHook; the UNI_V4 fields must be empty.
-            if (route.feeOrHook == 0 || route.fee != 0 || route.tickSpacing != 0) revert InvalidRoute();
         } else {
-            // ALGEBRA derives its own pool and uses dynamic fees; it carries no params.
-            if (route.fee != 0 || route.tickSpacing != 0 || route.feeOrHook != 0) revert InvalidRoute();
+            // ZAMM leg needs feeOrHook; the UNI_V4 fields must be empty. Every enum member is covered, and a
+            // word outside the enum reverts in the ABI decode before it reaches here.
+            if (route.feeOrHook == 0 || route.fee != 0 || route.tickSpacing != 0) revert InvalidRoute();
         }
     }
 
@@ -523,7 +512,7 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
      *      block turns the average into the spot price the pin exists to avoid quoting.
      * @param targetId ID of the alignment target (must exist and be active)
      * @param token    Token that must already belong to the target
-     * @param ref      Reference pool: `pool`, `kind` (0 = Uniswap V3, 1 = Algebra), `twapWindow`
+     * @param ref      Reference pool: `pool`, `kind` (0 = Uniswap V3, the only accepted value), `twapWindow`
      *                 (0 => `DEFAULT_TWAP_WINDOW`, which is RESOLVED HERE and stored, so what is read back
      *                 is the window this pool was proved over and never a bare `0`)
      */
@@ -532,18 +521,14 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
         if (!alignmentTargets[targetId].active) revert TargetNotFound();
         if (!_isTokenInTarget(targetId, token)) revert TokenNotInTarget();
         if (ref.pool.code.length == 0) revert ReferencePoolUnusable();
-        if (ref.kind > 1) revert InvalidReferenceKind();
+        if (ref.kind != 0) revert InvalidReferenceKind();
 
         uint32 window = ref.twapWindow == 0 ? DEFAULT_TWAP_WINDOW : ref.twapWindow;
         // Checked on the RESOLVED window, so the `0` shorthand is measured against the same floor as an
         // explicit value rather than slipping past it. `DEFAULT_TWAP_WINDOW` clears the floor by
         // construction, so the shorthand is never what this rejects.
         if (window < MIN_TWAP_WINDOW) revert ReferenceTwapWindowTooShort(window, MIN_TWAP_WINDOW);
-        if (ref.kind == 0) {
-            _probeUniswapReference(ref.pool, token, window);
-        } else {
-            _probeAlgebraReference(ref.pool, token, window);
-        }
+        _probeUniswapReference(ref.pool, token, window);
 
         // Store the window that was actually PROVED, never the caller's `0`. A zero is resolved twice on
         // two different constants otherwise — here against `DEFAULT_TWAP_WINDOW`, and again at read time
@@ -603,33 +588,6 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
         if (v3Factory == address(0)) revert ReferenceKindUnavailable();
         if (IUniswapV3Factory(v3Factory).getPool(t0, t1, IUniswapV3Pool(pool).fee()) != pool) {
             revert ReferencePoolNotCanonical();
-        }
-    }
-
-    /// @dev Probe an Algebra reference pool: its pair must be `{token, weth}`, the canonical Algebra factory
-    ///      must NAME it, it must expose a volatility-oracle plugin (`plugin() != 0`), and that oracle must
-    ///      serve a TWAP over the window. `token0()/token1()` are ABI-identical to Uniswap's, so the pair read
-    ///      reuses the `IUniswapV3Pool` cast. Algebra keeps one pool per pair, so the lookup needs no fee tier
-    ///      and the candidate reports nothing the factory does not already settle.
-    function _probeAlgebraReference(address pool, address token, uint32 window) private view {
-        address t0 = IUniswapV3Pool(pool).token0();
-        address t1 = IUniswapV3Pool(pool).token1();
-        if (!_isTokenWethPair(t0, t1, token)) revert ReferencePoolTokenMismatch();
-        if (algebraFactory == address(0)) revert ReferenceKindUnavailable();
-        if (IAlgebraFactory(algebraFactory).poolByPair(t0, t1) != pool) revert ReferencePoolNotCanonical();
-
-        address oracle = IAlgebraPool(pool).plugin();
-        if (oracle == address(0)) revert ReferencePoolUnusable();
-
-        uint32[] memory secondsAgos = new uint32[](2);
-        secondsAgos[0] = window;
-        secondsAgos[1] = 0;
-        try IVolatilityOracle(oracle).getTimepoints(secondsAgos) returns (
-            int56[] memory tickCumulatives, uint88[] memory
-        ) {
-            if (tickCumulatives.length != 2) revert ReferencePoolUnusable();
-        } catch {
-            revert ReferencePoolUnusable();
         }
     }
 

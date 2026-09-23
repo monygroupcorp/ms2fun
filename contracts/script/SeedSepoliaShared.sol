@@ -148,7 +148,7 @@ abstract contract SeedSepoliaShared is Script {
     // rehearses the code mainnet runs instead of the fallback around it.
     //
     // ONE TIER IS A UNISWAP STATEMENT AND NOT A DEPLOYMENT-WIDE ONE. The same wall also curates MS2
-    // on ZAMM and CULT on Algebra, in vaults with their own pools and their own price authorities.
+    // on ZAMM, in a vault with its own pool and its own price authority.
     // The quoter's rows are keyed by the vault that asks, for exactly that reason — see
     // `SepoliaRouteQuoter` — so this tier is what the UNI vaults acquire on, and nothing else.
 
@@ -308,24 +308,14 @@ abstract contract SeedSepoliaShared is Script {
     string internal constant ENV_ZAMM_DEPTH_WEI = "SEPOLIA_ZAMM_DEPTH_WEI";
     uint256 internal constant DEFAULT_ZAMM_DEPTH_WEI = 0.05 ether;
 
-    /// @dev ETH into the Algebra {token, WETH} pool that is BOTH the Cypher venue and its reference.
-    string internal constant ENV_ALGEBRA_DEPTH_WEI = "SEPOLIA_ALGEBRA_DEPTH_WEI";
-    uint256 internal constant DEFAULT_ALGEBRA_DEPTH_WEI = 0.05 ether;
-
     /// @dev The tithe seeded directly into the ZAMM vault so its convert has something to convert.
-    ///      The Uni and Cypher vaults receive theirs the way the product does — 19% of a real
-    ///      graduation — because a collection graduates into each of those venues in this seed. No
+    ///      The Uni vault receives its own the way the product does — 19% of a real graduation —
+    ///      because a collection graduates into that venue in this seed. No
     ///      collection graduates into ZAMM here, so its pending balance is a plain contribution from
     ///      the seed's own account: real ETH, credited to a real benefactor, converted by the real
     ///      call. It is stated here rather than dressed up as a raise.
     string internal constant ENV_ZAMM_VAULT_TITHE_WEI = "SEPOLIA_ZAMM_VAULT_TITHE_WEI";
     uint256 internal constant DEFAULT_ZAMM_VAULT_TITHE_WEI = 0.002 ether;
-
-    /// @dev The Cypher flagship's fill, in bps of its bondable supply. It is bought to be GRADUATED,
-    ///      so the only floor is a raise the graduation will accept; it is sized like the graduated
-    ///      spine row for the same reason — the pool it opens should be worth looking at.
-    string internal constant ENV_CYPHER_FILL_BPS = "SEPOLIA_CYPHER_FILL_BPS";
-    uint256 internal constant DEFAULT_CYPHER_FILL_BPS = 700;
 
     /// @dev The demo swap that produces the LP-fee delta the staking stream is funded from. It buys
     ///      the alignment asset on the vault's own venue pool, so the fee it pays is earned by the
@@ -539,9 +529,6 @@ abstract contract SeedSepoliaShared is Script {
     string internal constant ART_TILE_PRISM = "ipfs://QmcX9WYUF6Z79Gg8RBxzX9sowQpNJKaQRn6Gn1xUVqQB2t/1.png";
     string internal constant ART_TILE_CARVE =
         "ipfs://bafybeih77zrj3rugllheg277n4sib4avy2hb5i4xnhrt6y5ix5xiwjzote/1.png";
-    string internal constant ART_TILE_CYPHER =
-        "ipfs://bafybeifgzaqtirkmmy7rqgtchfg2twe4olz2i3ul64w4pnlufrsaovkhau/1.png";
-
     string internal constant ART_TILE_RELIC =
         "ipfs://bafybeic5ayyoejk74vhbrodtgw66lg5n4fbkkua6fhrqniwjuciaiaau5e/1.png";
     string internal constant ART_PIECE_RELIC_I =
@@ -640,7 +627,7 @@ abstract contract SeedSepoliaShared is Script {
     ///      with a live venue behind it so a collection launched against one during a walk can
     ///      actually tithe rather than reverting at its first acquire.
     function _alignmentRoster() internal pure returns (AlignmentSeed[] memory r) {
-        r = new AlignmentSeed[](6);
+        r = new AlignmentSeed[](5);
         r[0] = AlignmentSeed({
             symbol: "CULT",
             tokenName: "Remilia Fixture Token",
@@ -686,15 +673,6 @@ abstract contract SeedSepoliaShared is Script {
             description: "ZAMM - the token of the venue this platform already routes one of its vault families through. Fixture asset for mainnet 0xE9b1cFEA55BAA219e34301f2F31b9FD0921664ED.",
             endowment: false
         });
-        r[5] = AlignmentSeed({
-            symbol: "CYPH",
-            tokenName: "Cypher Fixture Token",
-            title: "CYPH",
-            logo: "CYPH.png",
-            mainnetToken: 0xa279cA693D66fE65Ba0062D0218578F424249dfD,
-            description: "Cypher - the community behind the Algebra rail this deployment also curates as a venue. Fixture asset for mainnet 0xa279cA693D66fE65Ba0062D0218578F424249dfD.",
-            endowment: false
-        });
     }
 
     /// @dev The addresses the deploy wrote, narrowed to what an ERC404 showcase seed touches.
@@ -722,12 +700,7 @@ abstract contract SeedSepoliaShared is Script {
         address tierResolver; // TokenTierBandResolver (static band art)
         // ── Wave-3 venues: the LP families beyond Uni, and the periphery they ride ──
         address zammVaultFactory; // ZAMMAlignmentVaultFactory — zero when this network has no ZAMM
-        address cypherVaultFactory; // CypherAlignmentVaultFactory — zero until the Algebra rail is up
-        address cypherPositionManager;
-        address cypherRouter;
-        address cypherAlgebraFactory;
         address zammDeployer; // approved LIQUIDITY_DEPLOYER — the ZAMM module
-        address cypherDeployer; // approved LIQUIDITY_DEPLOYER — the Cypher module
         address v3Factory;
         address zamm;
         uint256 zammFeeOrHook;
@@ -757,7 +730,7 @@ abstract contract SeedSepoliaShared is Script {
         //
         // The two named pairs above are the roster's first two rows, kept as their own fields because
         // every collection binds to one of them by name. These arrays carry the WHOLE roster, so the
-        // check script can hold all six rows to the same reading without knowing their names.
+        // check script can hold all five rows to the same reading without knowing their names.
         address[] targetTokens;
         address[] targetVaults;
         uint256[] targetIds;
@@ -776,20 +749,16 @@ abstract contract SeedSepoliaShared is Script {
         // ── Wave-3 venues ──
         //
         // WHY EACH VENUE CARRIES ITS OWN ALIGNMENT TARGET. The registry stores ONE acquire route per
-        // (targetId, token), and the Cypher vault refuses to convert unless the route it reads says
-        // ALGEBRA. So one target cannot carry a live Uniswap convert AND a live Cypher convert for the
-        // same asset — and pointing a vault at a venue the registry curates as something else is the
+        // (targetId, token), and a vault refuses to convert unless the route it reads names its own
+        // venue. So one target cannot carry a live convert on two venues for the same asset — and
+        // pointing a vault at a venue the registry curates as something else is the
         // registry-vs-executed divergence the acquire route exists to close. Each venue therefore gets
         // its own target, each with a coherent route and its own reference pool. Two targets naming one
         // asset is a PICKER question (one asset, venue as an add-on), not a registry question.
         uint256 ms2ZammTargetId; // MS2 under a ZAMM route
-        uint256 cultAlgebraTargetId; // CULT under an ALGEBRA route — the Cypher flagship's target
         address ms2ZammVault;
-        address cultCypherVault;
         address ms2ReferencePool; // Uniswap V3 {MS2, WETH} — price authority for both MS2 targets
         address cultReferencePool; // Uniswap V3 {CULT, WETH} — price authority for CULT's Uni target
-        address cultAlgebraPool; // Algebra {CULT, WETH} — the Cypher venue AND its price authority
-        address cypher404; // the CULT-on-Cypher collection, graduating through the Algebra rail
         uint256 referenceReadyAt; // when the seeded pools can first serve the deployment's TWAP window
         // ── The featured wall ──
         //
@@ -985,7 +954,6 @@ abstract contract SeedSepoliaShared is Script {
 
         // ── Wave-3 venues: the LP modules the deploy already publishes ──
         d.zammDeployer = vm.parseJsonAddress(json, ".contracts.ModuleZAMMDeployer");
-        d.cypherDeployer = vm.parseJsonAddress(json, ".contracts.ModuleCypherDeployer");
         _readVenueHandoff(d);
 
         require(address(d.erc404) != address(0), "sepolia.json: ERC404 factory missing");
@@ -1012,18 +980,17 @@ abstract contract SeedSepoliaShared is Script {
         require(address(d.messages) != address(0), "sepolia.json: GlobalMessageRegistry missing");
     }
 
-    /// @dev The venue addresses `DeploySepolia` wrote beside the deployment file: the two vault
-    ///      factories the seed deploys ZAMM and Cypher vaults from (its alignment assets are fixtures
-    ///      that do not exist at deploy time), plus the Algebra periphery and the plain externals the
-    ///      venue legs ride. Read from a Sepolia-local file so the cross-network `DeployCore` keeps
-    ///      one output shape.
+    /// @dev The venue addresses `DeploySepolia` wrote beside the deployment file: the vault factory
+    ///      the seed deploys ZAMM vaults from (its alignment assets are fixtures that do not exist at
+    ///      deploy time), plus the plain externals the venue legs ride. Read from a Sepolia-local file
+    ///      so the cross-network `DeployCore` keeps one output shape.
     ///
-    ///      A ZERO here is a STATE, not a failure: an Algebra standup may not have happened yet, and a
-    ///      network may carry no ZAMM. The seed reports the venue as unavailable and continues rather
-    ///      than reverting a whole showcase over one absent rail.
+    ///      A ZERO here is a STATE, not a failure: a network may carry no ZAMM. The seed reports the
+    ///      venue as unavailable and continues rather than reverting a whole showcase over one absent
+    ///      rail.
     function _readVenueHandoff(Deployed memory d) internal view {
         if (!vm.exists(VENUE_PATH)) {
-            console.log("VENUES: no", VENUE_PATH, "- ZAMM and Cypher legs will be reported unavailable");
+            console.log("VENUES: no", VENUE_PATH, "- the ZAMM leg will be reported unavailable");
             return;
         }
         string memory json = vm.readFile(VENUE_PATH);
@@ -1032,22 +999,10 @@ abstract contract SeedSepoliaShared is Script {
             "sepolia-venues.json: wrong chainId (stale file from another chain?)"
         );
         d.zammVaultFactory = vm.parseJsonAddress(json, ".zammVaultFactory");
-        d.cypherVaultFactory = vm.parseJsonAddress(json, ".cypherVaultFactory");
-        d.cypherPositionManager = vm.parseJsonAddress(json, ".cypherPositionManager");
-        d.cypherRouter = vm.parseJsonAddress(json, ".cypherRouter");
-        d.cypherAlgebraFactory = vm.parseJsonAddress(json, ".cypherAlgebraFactory");
         d.v3Factory = vm.parseJsonAddress(json, ".v3Factory");
         d.zamm = vm.parseJsonAddress(json, ".zamm");
         d.zammFeeOrHook = vm.parseJsonUint(json, ".zammFeeOrHook");
         require(d.v3Factory != address(0), "sepolia-venues.json: v3Factory missing (no reference pool can be stood up)");
-    }
-
-    /// @dev True when the Cypher rail is wired end to end. Anything less than ALL of it is not a
-    ///      partial venue, it is no venue: a vault factory with no router cannot acquire, and a router
-    ///      with no vault factory has nothing to acquire for.
-    function _cypherAvailable(Deployed memory d) internal pure returns (bool) {
-        return d.cypherVaultFactory != address(0) && d.cypherPositionManager != address(0)
-            && d.cypherRouter != address(0) && d.cypherAlgebraFactory != address(0) && d.cypherDeployer != address(0);
     }
 
     function _zammAvailable(Deployed memory d) internal pure returns (bool) {
@@ -1091,13 +1046,9 @@ abstract contract SeedSepoliaShared is Script {
         vm.serializeUint(root, "liveLotId", h.liveLotId);
         // ── Wave-3 venues ──
         vm.serializeUint(root, "ms2ZammTargetId", h.ms2ZammTargetId);
-        vm.serializeUint(root, "cultAlgebraTargetId", h.cultAlgebraTargetId);
         vm.serializeAddress(root, "ms2ZammVault", h.ms2ZammVault);
-        vm.serializeAddress(root, "cultCypherVault", h.cultCypherVault);
         vm.serializeAddress(root, "ms2ReferencePool", h.ms2ReferencePool);
         vm.serializeAddress(root, "cultReferencePool", h.cultReferencePool);
-        vm.serializeAddress(root, "cultAlgebraPool", h.cultAlgebraPool);
-        vm.serializeAddress(root, "cypher404", h.cypher404);
         vm.serializeUint(root, "referenceReadyAt", h.referenceReadyAt);
         // ── The featured wall, in rendered order ──
         vm.serializeAddress(root, "featured", h.featured);
@@ -1148,13 +1099,9 @@ abstract contract SeedSepoliaShared is Script {
         // ── Wave-3 venues. Zeros are legal here: a venue whose rail this network does not carry was
         //    reported unavailable in phase 1 and is skipped, not asserted, in phase 2.
         h.ms2ZammTargetId = vm.parseJsonUint(json, ".ms2ZammTargetId");
-        h.cultAlgebraTargetId = vm.parseJsonUint(json, ".cultAlgebraTargetId");
         h.ms2ZammVault = vm.parseJsonAddress(json, ".ms2ZammVault");
-        h.cultCypherVault = vm.parseJsonAddress(json, ".cultCypherVault");
         h.ms2ReferencePool = vm.parseJsonAddress(json, ".ms2ReferencePool");
         h.cultReferencePool = vm.parseJsonAddress(json, ".cultReferencePool");
-        h.cultAlgebraPool = vm.parseJsonAddress(json, ".cultAlgebraPool");
-        h.cypher404 = vm.parseJsonAddress(json, ".cypher404");
         h.referenceReadyAt = vm.parseJsonUint(json, ".referenceReadyAt");
         _requireBreadthHandoff(h);
 
@@ -1401,11 +1348,6 @@ abstract contract SeedSepoliaShared is Script {
         _assertPieceBase(ART_BASE_GHIBLADY, "carve-demo");
         _assertPieceCoverage(COVER_GHIBLADY, SHOWCASE_NFT_COUNT, "carve-demo");
 
-        // 8. The Cypher flagship.
-        _assertTileArt(ART_TILE_CYPHER, ART_IMG_ELITE, "cypher-flagship");
-        _assertPieceBase(ART_BASE_ELITE, "cypher-flagship");
-        _assertPieceCoverage(COVER_ELITE, SHOWCASE_NFT_COUNT, "cypher-flagship");
-
         // 6. The two auction houses.
         _assertTileArt(ART_TILE_RELIC, ART_IMG_MEOWLADY, "relic-line");
         _assertTileArt(ART_PIECE_RELIC_I, ART_IMG_MEOWLADY, "relic-line lot I");
@@ -1545,17 +1487,13 @@ abstract contract SeedSepoliaShared is Script {
     ///      exact size — a memory array cannot be grown, and shrinking one takes assembly.
     uint256 internal constant ACTIVITY_EXTRA_MESSAGES = 9;
 
-    /// @dev The twelve collection channels, in the order the run log prints them. The Cypher row is
-    ///      the one optional member: its rail is not wired on every deployment and phase 1 records a
-    ///      zero address when it is skipped, so it is dropped from the set rather than posted into
-    ///      the zero address.
+    /// @dev The eleven collection channels, in the order the run log prints them.
     function _activityChannels(ShowcaseLeg[] memory legs, address[] memory instances, SeedHandoff memory h)
         internal
         pure
         returns (ActivityChannel[] memory chans)
     {
-        bool hasCypher = h.cypher404 != address(0);
-        chans = new ActivityChannel[](hasCypher ? 12 : 11);
+        chans = new ActivityChannel[](11);
         uint256 n;
 
         chans[n++] = ActivityChannel({
@@ -1612,14 +1550,6 @@ abstract contract SeedSepoliaShared is Script {
             first: "the creator declared a maximum carve before the first buy. that number cannot be raised afterwards.",
             second: "at graduation the carve comes out of the raise, up to the declared cap and no further."
         });
-        if (hasCypher) {
-            chans[n++] = ActivityChannel({
-                channel: h.cypher404,
-                label: "cypher-flagship",
-                first: "this row graduates through the algebra rail instead of uniswap. same curve, different venue.",
-                second: "its tithe lands in a cypher vault, which converts on the venue the target is curated for."
-            });
-        }
         chans[n++] = ActivityChannel({
             channel: h.auctionTimed,
             label: "relic-line",
@@ -2037,16 +1967,8 @@ abstract contract SeedSepoliaShared is Script {
         return vm.envOr(ENV_ZAMM_DEPTH_WEI, DEFAULT_ZAMM_DEPTH_WEI);
     }
 
-    function _algebraDepthWei() internal view returns (uint256) {
-        return vm.envOr(ENV_ALGEBRA_DEPTH_WEI, DEFAULT_ALGEBRA_DEPTH_WEI);
-    }
-
     function _zammVaultTitheWei() internal view returns (uint256) {
         return vm.envOr(ENV_ZAMM_VAULT_TITHE_WEI, DEFAULT_ZAMM_VAULT_TITHE_WEI);
-    }
-
-    function _cypherFillBps() internal view returns (uint256) {
-        return vm.envOr(ENV_CYPHER_FILL_BPS, DEFAULT_CYPHER_FILL_BPS);
     }
 
     function _demoSwapWei() internal view returns (uint256) {
@@ -2117,9 +2039,9 @@ abstract contract SeedSepoliaShared is Script {
         return IZAMM.PoolKey({ id0: 0, id1: 0, token0: address(0), token1: token, feeOrHook: feeOrHook });
     }
 
-    /// @dev The pending tithe a vault holds, across the two names the three families give it.
+    /// @dev The pending tithe a vault holds, across the two names the families give it.
     ///
-    ///      `UniAlignmentVault` and `CypherAlignmentVault` expose `totalPendingETH()`;
+    ///      `UniAlignmentVault` exposes `totalPendingETH()`;
     ///      `ZAMMAlignmentVault` exposes `pendingETH()`. Probed rather than branched on a family flag
     ///      the seed would have to keep in step by hand — and a vault that answers NEITHER is refused
     ///      here rather than read as a zero, because a zero is also what "this vault held no tithe"
@@ -2466,7 +2388,7 @@ abstract contract SeedSepoliaShared is Script {
     ///         serve a convert, and proven by a convert that actually executed.
     ///
     /// @dev Three of these facts are the ones a venue quietly fails on, and none of them reads the
-    ///      others. The ROUTE is what the Cypher vault refuses to convert against when it disagrees,
+    ///      others. The ROUTE is what a vault refuses to convert against when it disagrees,
     ///      and what the app shows a visitor either way. The REFERENCE POOL is the price authority the
     ///      -5% floor reads; unpinned, the convert reverts before it reaches any pool. The ACTIVE
     ///      LIQUIDITY is the one a deposit figure cannot stand in for — a position minted outside the
@@ -2724,8 +2646,8 @@ interface IUniswapV3PoolMinimal {
     function token1() external view returns (address);
 }
 
-/// @dev Minimal WETH surface. The V4 and ZAMM venues are NATIVE-ETH pools; the reference pool and the
-///      Algebra venue are WETH pairs, so exactly the ETH those consume is wrapped and nothing else.
+/// @dev Minimal WETH surface. The V4 and ZAMM venues are NATIVE-ETH pools; the reference pool is a
+///      WETH pair, so exactly the ETH it consumes is wrapped and nothing else.
 interface IWethMinimal {
     function deposit() external payable;
     function approve(address spender, uint256 amount) external returns (bool);
@@ -2742,13 +2664,6 @@ interface IFixtureToken {
     function approve(address spender, uint256 amount) external returns (bool);
     function transfer(address to, uint256 amount) external returns (bool);
     function balanceOf(address account) external view returns (uint256);
-}
-
-/// @dev The Algebra pool's ACTIVE in-range depth. Declared here rather than added to the shared
-///      `IAlgebraPool` because it is a seed-side read: what a convert swaps through is the liquidity
-///      at the current tick, and a deposit figure cannot stand in for it.
-interface IAlgebraPoolLiquidity {
-    function liquidity() external view returns (uint128);
 }
 
 /// @dev The owner-only registry setters the venue wiring drives. Declared here rather than imported
@@ -2775,8 +2690,8 @@ interface IVenueVaultView {
     function priceValidator() external view returns (address);
 }
 
-/// @dev The convert, as the Uniswap and Cypher families expose it: one slippage bound, floored by the
-///      vault to an oracle-derived minimum.
+/// @dev The convert, as the Uniswap family exposes it: one slippage bound, floored by the vault to
+///      an oracle-derived minimum.
 interface IVenueVaultConvert {
     function convertAndAddLiquidity(uint256 minOutTarget) external returns (uint256 lpPositionValue);
 }

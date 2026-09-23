@@ -61,7 +61,7 @@ const CULT_TARGET_UNI: AlignmentTargetRow = {
   metadataURI: '',
   token: CULT,
 }
-const CULT_TARGET_CYPHER: AlignmentTargetRow = {
+const CULT_TARGET_ZAMM: AlignmentTargetRow = {
   id: 3n,
   title: 'CULT',
   description: 'Community fixture',
@@ -81,17 +81,17 @@ const vault = (targetId: bigint, vaultType: string, address: string): Registered
 })
 
 const CULT_UNI_VAULT = vault(2n, 'UniswapV4LP', '0x0000000000000000000000000000000000a001')
-const CULT_CYPHER_VAULT = vault(3n, 'CypherLP', '0x0000000000000000000000000000000000a002')
+const CULT_ZAMM_VAULT = vault(3n, 'ZAMMLP', '0x0000000000000000000000000000000000a002')
 
 function renderPicker(overrides?: { targets?: AlignmentTargetRow[]; vaults?: RegisteredVault[] }) {
   mockUseAlignmentTargets.mockReturnValue({
-    targets: overrides?.targets ?? [MS2_TARGET, CULT_TARGET_UNI, CULT_TARGET_CYPHER],
+    targets: overrides?.targets ?? [MS2_TARGET, CULT_TARGET_UNI, CULT_TARGET_ZAMM],
     isPending: false,
   })
   const onSelectVault = vi.fn()
   render(
     <AlignmentTargetPicker
-      vaults={overrides?.vaults ?? [CULT_UNI_VAULT, CULT_CYPHER_VAULT]}
+      vaults={overrides?.vaults ?? [CULT_UNI_VAULT, CULT_ZAMM_VAULT]}
       isPending={false}
       isError={false}
       selectedVault={undefined}
@@ -110,19 +110,19 @@ describe('AlignmentTargetPicker — token grouping (noesis-412)', () => {
   test('the grouped row offers both venues as an add-on', () => {
     renderPicker()
     expect(screen.getByRole('button', { name: 'Uniswap V4' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Cypher' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'ZAMM' })).toBeInTheDocument()
   })
 
   test('selecting each venue surfaces the correct distinct target (its own vault section)', () => {
     renderPicker()
     fireEvent.click(screen.getByRole('button', { name: 'Uniswap V4' }))
     expect(screen.getByText(/vault for cult/i)).toBeInTheDocument()
-    // Level 2 (the vault section below) resolves to the V4 vault's own address; the Cypher vault
+    // Level 2 (the vault section below) resolves to the V4 vault's own address; the ZAMM vault
     // (a different target id) is not shown alongside it.
     expect(screen.getByText('0x0000…a001')).toBeInTheDocument()
     expect(screen.queryByText('0x0000…a002')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cypher' }))
+    fireEvent.click(screen.getByRole('button', { name: 'ZAMM' }))
     expect(screen.getByText('0x0000…a002')).toBeInTheDocument()
     expect(screen.queryByText('0x0000…a001')).not.toBeInTheDocument()
   })
@@ -132,13 +132,13 @@ describe('AlignmentTargetPicker — token grouping (noesis-412)', () => {
     const ms2Card = screen.getByRole('button', { name: /ms2/i })
     expect(ms2Card).toBeInTheDocument()
     // No pill add-on for MS2 — only the CULT row's two venue pills exist.
-    expect(screen.getAllByRole('button', { name: /uniswap v4|cypher/i })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /uniswap v4|zamm/i })).toHaveLength(2)
   })
 
   test('non-vacuity: without grouping, the same two targets would render as two separate rows', () => {
     // Simulates "grouping removed" by feeding the raw ungrouped target list straight through — this
     // is the shape the picker rendered before noesis-412, and it must show CULT twice.
-    renderPicker({ targets: [CULT_TARGET_UNI, CULT_TARGET_CYPHER] })
+    renderPicker({ targets: [CULT_TARGET_UNI, CULT_TARGET_ZAMM] })
     // With grouping (the real behavior under test), it still collapses to one — proving the assertion
     // below is a real constraint the grouping enforces, not a vacuous one.
     expect(screen.getAllByText('CULT')).toHaveLength(1)

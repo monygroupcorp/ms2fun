@@ -12,12 +12,10 @@ import {
     IAlignmentRouteAdmin,
     IVenueVaultView,
     IVenueVaultConvert,
-    IZammVaultConvert,
-    IAlgebraPoolLiquidity
+    IZammVaultConvert
 } from "./SeedSepoliaShared.sol";
 import { IAlignmentRegistry } from "../src/master/interfaces/IAlignmentRegistry.sol";
 import { IZAMM } from "../src/vaults/zamm/ZAMMAlignmentVault.sol";
-import { IAlgebraPool } from "../src/interfaces/algebra/IAlgebra.sol";
 import { ERC404BondingInstance } from "../src/factories/erc404/ERC404BondingInstance.sol";
 import { ERC1155Instance } from "../src/factories/erc1155/ERC1155Instance.sol";
 import { IDynamicPricingModule } from "../src/factories/erc1155/interfaces/IDynamicPricingModule.sol";
@@ -203,14 +201,12 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
 
     VenueOutcome internal _uniOutcome;
     VenueOutcome internal _zammOutcome;
-    VenueOutcome internal _cypherOutcome;
     StreamFacts internal _streamFacts;
 
     /// @dev Pin the price authority for every (target, token) this seed curates.
     ///
-    ///      The Uniswap targets read a Uniswap V3 pool (`kind` 0); the Cypher target reads its own
-    ///      Algebra pool through that pool's oracle plugin (`kind` 1). Both were created a TWAP window
-    ///      ago by phase 1. The window passed to the setter is the DEPLOYMENT's own — read off the
+    ///      Every target reads a Uniswap V3 pool (`kind` 0), created a TWAP window ago by phase 1.
+    ///      The window passed to the setter is the DEPLOYMENT's own — read off the
     ///      validator rather than restated — so the window the registry probes with and the window the
     ///      floor later prices with cannot drift apart.
     ///
@@ -254,27 +250,15 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
                 IAlignmentRegistry.ReferencePool({ pool: h.ms2ReferencePool, kind: 0, twapWindow: window })
             );
         }
-        if (h.cultCypherVault != address(0)) {
-            reg.setReferencePool(
-                h.cultAlgebraTargetId,
-                h.cultToken,
-                IAlignmentRegistry.ReferencePool({ pool: h.cultAlgebraPool, kind: 1, twapWindow: window })
-            );
-        }
         vm.stopBroadcast();
 
         console.log("REFERENCE pinned - ms2 / cult (uniswap v3):", h.ms2ReferencePool, h.cultReferencePool);
-        if (h.cultCypherVault != address(0)) console.log("REFERENCE pinned - cult (algebra):", h.cultAlgebraPool);
     }
 
     /// @dev Put every wired venue through the call it exists for.
     /// @return spent the ETH this leg moved that is not recoverable from a curve — the ZAMM tithe and
     ///         the demo swap. Reported with the curve spend because it leaves the same balance.
     function _crossVenues(Deployed memory d, SeedHandoff memory h) internal returns (uint256 spent) {
-        // The Cypher flagship first: its graduation is what puts a real tithe in the Cypher vault, and
-        // it opens the Algebra pool for its own coin on the way past.
-        spent += _graduateCypherCollection(d, h);
-
         // UNI — the tithe here is entirely earned: two collections graduated into this vault above.
         _uniOutcome = _convert(h.ms2Vault, "uni-v4 (MS2)");
 
@@ -290,11 +274,6 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
             require(ok, "venue: the ZAMM vault refused a direct contribution");
             spent += tithe;
             _zammOutcome = _convertZamm(h.ms2ZammVault, "zamm (MS2)");
-        }
-
-        // CYPHER — the tithe is the flagship's graduation, 19% by contract.
-        if (h.cultCypherVault != address(0)) {
-            _cypherOutcome = _convert(h.cultCypherVault, "cypher (CULT)");
         }
 
         spent += _activateStakingStream(d, h);
@@ -338,25 +317,6 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
     function _reportConvert(string memory label, VenueOutcome memory o) internal pure {
         console.log(string.concat("CONVERTED ", label, " - tithe before / LP position value (wei):"));
         console.log("  ", o.pendingBefore, o.lpPositionValue);
-    }
-
-    /// @dev Buy out enough of the Cypher flagship to graduate it, then graduate it onto the Algebra
-    ///      rail. Returns the curve ETH it cost.
-    function _graduateCypherCollection(Deployed memory d, SeedHandoff memory h) internal returns (uint256 cost) {
-        if (h.cypher404 == address(0)) return 0;
-        ERC404BondingInstance b = ERC404BondingInstance(payable(h.cypher404));
-        cost = _buyBondingMint(b, _fillAmount(b, _cypherFillBps()));
-
-        vm.startBroadcast();
-        b.deployLiquidity(0); // no carve — the carve is its own row's demonstration
-        vm.stopBroadcast();
-
-        require(b.graduated(), "cypher: the flagship did not graduate");
-        require(_pendingTithe(h.cultCypherVault) > 0, "cypher: the graduation sent no tithe to the Cypher vault");
-        console.log("GRADUATED cypher-flagship (cost wei):", cost);
-        // Named for the operator: the rail the pool was opened on is the module the row was created
-        // against, and it is the deployment's Cypher deployer rather than the Uniswap one.
-        console.log("  liquidity deployer:", d.cypherDeployer);
     }
 
     /// @dev Start the staking row's reward stream, on a fee it actually earned.
@@ -417,8 +377,8 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
     // ─────────────────────── Venue post-conditions ───────────────────────
 
     /// @dev Every venue this deployment carries is live, and the stream is running on an earned fee.
-    ///      An unwired rail is REPORTED rather than asserted — a network with no Algebra deployment is
-    ///      a network with no Cypher venue, and claiming one would be the only dishonest option here.
+    ///      An unwired rail is REPORTED rather than asserted — a network that does not carry a venue
+    ///      is not one this seed claims a venue on.
     function _assertVenues(Deployed memory d, SeedHandoff memory h) internal view {
         IAlignmentRouteAdmin reg = IAlignmentRouteAdmin(d.alignmentRegistry);
 
@@ -453,34 +413,6 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
             );
         } else {
             console.log("VENUE zamm: not available on this network - not asserted, not claimed");
-        }
-
-        if (h.cultCypherVault != address(0)) {
-            // The Algebra pool's ACTIVE liquidity is what a convert swaps through, and the plugin is
-            // what lets it price at all. Both are read here rather than assumed from the seed's own
-            // deposit figure: drop the plugin wiring and this row goes red.
-            require(
-                IAlgebraPool(h.cultAlgebraPool).plugin() != address(0),
-                "venue: the Algebra pool has no plugin (its own reference could not be read)"
-            );
-            _assertVenueShowcase(
-                _venueFacts(
-                    d,
-                    reg,
-                    "cypher (CULT)",
-                    uint8(IAlignmentRegistry.Venue.ALGEBRA),
-                    h.cultAlgebraTargetId,
-                    h.cultToken,
-                    h.cultCypherVault,
-                    uint256(IAlgebraPoolLiquidity(h.cultAlgebraPool).liquidity()),
-                    _cypherOutcome
-                )
-            );
-            require(
-                ERC404BondingInstance(payable(h.cypher404)).graduated(), "venue: the Cypher flagship is not graduated"
-            );
-        } else {
-            console.log("VENUE cypher: the Algebra rail is not wired - not asserted, not claimed");
         }
 
         _assertStakingStream(_streamFacts);
@@ -629,13 +561,9 @@ contract SeedSepoliaBuys is SeedSepoliaShared {
         ERC404BondingInstance carve = ERC404BondingInstance(payable(h.carve404));
         projected += _buyCost(carve, _fillAmount(carve, _carveFillBps()));
 
-        // The venue legs: the Cypher flagship's curve, the ZAMM vault's contribution and the demo
-        // swap. All three leave the same balance the rows above do, and the operator is deciding
-        // whether to send this phase at all — so they are projected with them rather than beside them.
-        if (h.cypher404 != address(0)) {
-            ERC404BondingInstance cyph = ERC404BondingInstance(payable(h.cypher404));
-            projected += _buyCost(cyph, _fillAmount(cyph, _cypherFillBps()));
-        }
+        // The venue legs: the ZAMM vault's contribution and the demo swap. Both leave the same
+        // balance the rows above do, and the operator is deciding whether to send this phase at all —
+        // so they are projected with them rather than beside them.
         if (h.ms2ZammVault != address(0)) projected += _zammVaultTitheWei();
         projected += _demoSwapWei();
     }

@@ -45,7 +45,7 @@ Every standard routes the same **fixed alignment share** to a vault and settles 
     summary:
       'A hybrid NFT/fungible token that mints along a bonding curve and graduates to a live DEX market.',
     body: `
-**What it is.** ERC-404 is a hybrid: every piece is at once an NFT and a slice of a fungible token. Buyers mint along a **bonding curve** — the price of the next mint rises as supply sells — and there is no fixed edition price. When the curve reaches its funding target the collection **graduates**: liquidity is deployed to the DEX you chose (Uniswap V4, ZAMM, or Cypher) and the token trades openly. It also supports an optional **free-mint reserve**.
+**What it is.** ERC-404 is a hybrid: every piece is at once an NFT and a slice of a fungible token. Buyers mint along a **bonding curve** — the price of the next mint rises as supply sells — and there is no fixed edition price. When the curve reaches its funding target the collection **graduates**: liquidity is deployed to the DEX you chose and the token trades openly. It also supports an optional **free-mint reserve**.
 
 **Who it's for.** Creators who want **price discovery and a liquid market** rather than a fixed-price drop — a launch that funds itself as it fills and then trades like any token.
 
@@ -118,7 +118,7 @@ An ERC-404 collection sells along a **bonding curve**: the price of the next min
 
 When the curve reaches its **funding target**, the collection **graduates**:
 
-- Liquidity is deployed into the DEX you chose (Uniswap V4, ZAMM, or Cypher), so the token trades openly.
+- Liquidity is deployed into the DEX you chose, so the token trades openly.
 - The revenue split settles: **1% protocol · 19% alignment vault · 80% liquidity/creator**.
 - A creator carve-out is tithed at graduation, within the allowance you declared at create.
 

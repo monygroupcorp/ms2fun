@@ -175,8 +175,8 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
 
   if (phase === 'graduated') {
     // The curve is closed, but the token is still an ERC-20 that trades on its graduated pool —
-    // and every venue we can name trades IN-SITE (noesis-349): Uni-V4 and ZAMM through zRouter,
-    // Cypher through the Algebra periphery router. A venue we cannot resolve gets a plain statement
+    // and every venue we can name trades IN-SITE (noesis-349): Uni-V4 and ZAMM both through
+    // zRouter. A venue we cannot resolve gets a plain statement
     // of that fact rather than a redirect to an unrelated exchange, which would be a dead end for a
     // token with no pool there and would name a chain this collection may not even be on.
     // The candles below are the pre-graduation bonding history.

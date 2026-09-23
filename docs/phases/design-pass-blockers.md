@@ -439,3 +439,10 @@ Verify: tsc + eslint clean; 440 unit green; forge build clean. T1–T4 + T2 are 
 reseed. Two follow-ups stay pending because both are contract changes, not frontend work:
 owner-gating `deployLiquidity()` on-chain (the admin menu hides the button, it does not gate the
 call), and a payable `post()` with a value threshold the poster must clear.
+
+---
+
+**Wind-down, 2026-09-23.** The Cypher venue is removed from the protocol before the Sepolia testnet
+launch — out as an LP venue and as an alignment target, removed rather than disabled. Items above
+that name it describe a surface that no longer exists; they are left as written, as the record of
+what the 2026-07-01 walkthrough found.

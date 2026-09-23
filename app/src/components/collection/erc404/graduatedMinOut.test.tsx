@@ -89,7 +89,7 @@ vi.mock('../../../generated/contracts', async (importOriginal) => ({
 
 vi.mock('../useCollectionChain', () => ({
   useCollectionChainId: () => 1337,
-  useCollectionAddresses: () => ({ zRouter: ROUTER, CypherSwapRouter: ROUTER }),
+  useCollectionAddresses: () => ({ zRouter: ROUTER }),
 }))
 
 vi.mock('./useBondingData', () => ({

@@ -1307,3 +1307,18 @@ actually reaches before running them — because a `--match-path` that matches n
 proof can no longer be skipped and unwatched at the same time without something going red.
 `FreeMintCurveSolvency.t.sol` is the one file recorded as out, red by the H-1 ruling and for as long
 as it stands.
+
+---
+
+## Superseded in part — the Cypher venue was removed 2026-09-23
+
+This report audits the tree as it stood at its base commit, and that tree carried the Cypher LP
+venue and the CYPH alignment target. Both were **removed from the protocol** on 2026-09-23, ahead of
+the Sepolia testnet launch — removed, not disabled behind a flag: the vault, its factory, the ERC-404
+Cypher factory and liquidity-deployer module, the Algebra acquire route and the Algebra reference-pool
+kind are all gone from `contracts/src`, and the registry refuses the retired route and pool kinds.
+
+Every finding, line reference and coverage count above is left exactly as written. Findings scoped to
+the Cypher contracts describe code that is no longer in the tree and need no fix; findings elsewhere
+are unaffected. Read this report as the record of what was audited on 2026-09-17, not as an
+inventory of what ships.

@@ -788,8 +788,8 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle, IGra
     ///      pool's worth of ids, and the module burns its set again on the way out. The cost scales
     ///      linearly with the collection size and dominates the graduation transaction.
     ///
-    ///      The module names its own counterparties here because only it knows them, and on the Algebra
-    ///      venue the pool is created DURING graduation — there is nothing to read beforehand. Each
+    ///      The module names its own counterparties here because only it knows them, and a venue that
+    ///      creates its pool DURING graduation leaves nothing to read beforehand. Each
     ///      module calls this before its coin moves; the deployer's own leg is flagged by the graduation
     ///      body before the coin is transferred to it.
     ///

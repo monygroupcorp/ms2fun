@@ -144,3 +144,8 @@ collection instance (the deployer passes `instance` as `benefactor`); the creato
   Chosen because the north star is communities championing the platform: alignment is the product
   (the flywheel), so optimize for durable visible community value (the endowment) while protecting
   creator principal. Reverses earlier "yield→100% alignment" and "yield→creator" drafts.
+- **2026-09-23** — The Liquidity family named in the 2026-07-01 and 2026-07-07 amendments above
+  **loses its Cypher leg**: `CypherLP` is removed from the protocol before the Sepolia testnet
+  launch, leaving `UniswapV4LP` / `ZAMMLP`. This ADR's own economics — the Yield family, principal
+  deposit + tithe-out, and the family-aware settlement split — are untouched; only the membership of
+  the other family changes. The amendments above are left as written.

@@ -210,6 +210,12 @@ export default defineConfig({
     allowedHosts: true,
     hmr: { clientPort: 5173 },
     proxy: devChainProxy,
+    // `src/lib/vaults/acquireVenues.test.ts` reads the registry interface out of the contracts tree
+    // so the app's venue-label mirror is pinned to the enum it mirrors rather than to a copy of it.
+    // Vite refuses to load a file outside the project root unless it is allowed here, and that
+    // refusal reaches the test runner too. Scoped to the contract sources, which ship in this
+    // repository already.
+    fs: { allow: ['.', resolve(__dirname, '../contracts/src')] },
   },
   preview: {
     proxy: devChainProxy,

@@ -46,7 +46,6 @@ contract ScanAlignmentPoolsForkTest is Test {
     address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address constant V4_PM = 0x000000000004444c5dc75cB358380D2e3dE08A90;
     address constant V3_FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-    address constant CYPHER_FACTORY = 0xfb8Ed3485EfA29a0e4bed93351dD51B59fC4b0f0;
 
     uint24 constant DEEP_FEE = 10_000;
     int24 constant DEEP_SPACING = 200;
@@ -101,16 +100,13 @@ contract ScanAlignmentPoolsForkTest is Test {
         assertTrue(best.fee != EMPTY_FEE, "an initialized tier with zero liquidity won the recommendation");
     }
 
-    /// @notice The V3 and Algebra scans must read the pool they found. `expectCall` fails if the
-    ///         report path after the pool-exists branch is never reached.
+    /// @notice The V3 scan must read the pool it found. `expectCall` fails if the report path after
+    ///         the pool-exists branch is never reached.
     function test_referenceVenueScans_readTheFoundPool() public {
         address v3Pool = _v3Pool(DEEP_FEE);
-        address algebraPool = _algebraPool();
         assertTrue(v3Pool != address(0), "premise: a V3 pool is expected for the reference pair");
-        assertTrue(algebraPool != address(0), "premise: an Algebra pool is expected for the reference pair");
 
         vm.expectCall(v3Pool, abi.encodeWithSignature("liquidity()"));
-        vm.expectCall(algebraPool, abi.encodeWithSignature("liquidity()"));
 
         scanner.run(REFERENCE_TOKEN);
     }
@@ -120,13 +116,6 @@ contract ScanAlignmentPoolsForkTest is Test {
             abi.encodeWithSignature("getPool(address,address,uint24)", WETH, REFERENCE_TOKEN, fee)
         );
         require(ok, "v3 factory query failed");
-        pool = abi.decode(data, (address));
-    }
-
-    function _algebraPool() internal view returns (address pool) {
-        (bool ok, bytes memory data) =
-            CYPHER_FACTORY.staticcall(abi.encodeWithSignature("poolByPair(address,address)", WETH, REFERENCE_TOKEN));
-        require(ok, "algebra factory query failed");
         pool = abi.decode(data, (address));
     }
 }

@@ -122,7 +122,6 @@ contract RevenueSplitInvariantTest is Test {
     function test_isLiquidityFamilyLiquiditySet() external pure {
         assertTrue(RevenueSplitLib.isLiquidityFamily("UniswapV4LP"), "UniswapV4LP is liquidity");
         assertTrue(RevenueSplitLib.isLiquidityFamily("ZAMMLP"), "ZAMMLP is liquidity");
-        assertTrue(RevenueSplitLib.isLiquidityFamily("CypherLP"), "CypherLP is liquidity");
     }
 
     function test_isLiquidityFamilyYieldSet() external pure {
@@ -133,6 +132,14 @@ contract RevenueSplitInvariantTest is Test {
     ///      revert lands a frame below the cheatcode (vm.expectRevert requirement).
     function classify(string calldata vaultType) external pure returns (bool) {
         return RevenueSplitLib.isLiquidityFamily(vaultType);
+    }
+
+    /// @dev CYPHER wound down and its family was removed. A retired vaultType must be REFUSED, not
+    ///      quietly re-admitted: a vault still reporting it is a deploy-config error, and settling
+    ///      against it as if the family were live is exactly what `UnknownVaultFamily` exists to stop.
+    function test_isLiquidityFamilyRetiredCypherReverts() external {
+        vm.expectRevert(abi.encodeWithSelector(RevenueSplitLib.UnknownVaultFamily.selector, "CypherLP"));
+        this.classify("CypherLP");
     }
 
     function test_isLiquidityFamilyUnknownReverts() external {

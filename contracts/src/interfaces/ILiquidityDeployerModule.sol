@@ -36,10 +36,10 @@ interface ILiquidityDeployerModule is IComponentModule {
 /// @dev WHY A CALLBACK AND NOT AN ACCESSOR. An ERC404 bonding instance mints one NFT id per `unit`
 ///      to any recipient that has not set the skip flag, so a graduation pool takes delivery of one
 ///      id per unit of the pool's coin side and the deployer module takes delivery of the same count
-///      on the way through. Only the module knows which address that is, and for at least one venue
-///      (Algebra/Cypher) the pool is created DURING graduation — there is no address to read before
-///      the call, so no getter on the module can name it. The module therefore tells the instance,
-///      at the moment it knows, and every venue is covered by the same mechanism.
+///      on the way through. Only the module knows which address that is, and a venue may create its
+///      pool DURING graduation — there is then no address to read before the call, so no getter on the
+///      module can name it. The module therefore tells the instance, at the moment it knows, and every
+///      venue is covered by the same mechanism rather than by a per-venue getter.
 /// @dev The instance IMPLEMENTS this interface rather than being probed for it: a rename is then a
 ///      compile error instead of a silently unflagged pool. Implementations must authorize the call
 ///      to the wired deployer module and nothing else, and must NOT take a reentrancy guard — the

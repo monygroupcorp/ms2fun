@@ -21,13 +21,13 @@ interface IVaultPriceValidator {
 
     /// @notice Venue-agnostic swap proportion from a caller-supplied `sqrtPriceX96`.
     /// @dev The venue-independent core of {calculateSwapProportion}: it needs only the LP tick range and
-    ///      a spot `sqrtPriceX96`, not a V4 PoolManager, so a non-V4 caller (e.g. an Algebra vault reading
-    ///      `IAlgebraPool.globalState().price`) can size its own zap-in. Applies the SAME TWAP cross-check
+    ///      a spot `sqrtPriceX96`, not a V4 PoolManager, so a non-V4 caller reading its own pool's spot
+    ///      price can size its own zap-in. Applies the SAME TWAP cross-check
     ///      and absolute [35%,65%] clamp as {calculateSwapProportion}.
     ///
     ///      The numeraire ordering is NOT assumed — the caller passes `ethIsCurrency0` for its own pool.
     ///      A V4 native-ETH pool has ETH = currency0 (address(0) sorts first), so its caller passes `true`.
-    ///      An Algebra/Cypher pool is ERC20/ERC20 ordered by WNativeToken-vs-token address, so its caller
+    ///      An ERC20/ERC20 pool is ordered by WNativeToken-vs-token address, so its caller
     ///      passes `weth < token` (which is `false` when the alignment token sorts below WETH — a real,
     ///      supported ordering). Passing the wrong flag inverts the price direction and mis-sizes the swap,
     ///      so the ordering MUST reflect the pool that produced `sqrtPriceX96`.
@@ -53,8 +53,8 @@ interface IVaultPriceValidator {
     ///      usable pool (the DoS-vs-fail-open tradeoff is intentional). The validator does not read the
     ///      registry itself — the caller resolves the canonical `ReferencePool` and passes its params in.
     /// @param pool Pinned canonical pool to read the TWAP from (WETH/`token`, either token ordering)
-    /// @param kind Pool family: 0 = Uniswap V3 (`observe`), 1 = Algebra (`plugin().getTimepoints`);
-    ///             any value >= 2 reverts
+    /// @param kind Pool family: 0 = Uniswap V3 (`observe`), the only value accepted today. Carried so a
+    ///             second oracle family can be added without moving this signature; anything else reverts
     /// @param window TWAP lookback in seconds; 0 uses the validator's configured `twapSecondsAgo`
     /// @param token Token to price (the non-WETH leg of `pool`)
     /// @param amount Amount of `token` to value in ETH

@@ -96,7 +96,7 @@ contract FamilyBlindSplitTest is Test {
 
     function test_1155_liquidityFamily_takes_1_19_80() public {
         // A non-Uni liquidity venue settles identically — that is the point.
-        (ERC1155Instance inst, MockFamilyVault vault) = _deploy1155("CypherLP");
+        (ERC1155Instance inst, MockFamilyVault vault) = _deploy1155("ZAMMLP");
 
         uint256 vaultBefore = address(vault).balance;
         uint256 treasuryBefore = TREASURY.balance;

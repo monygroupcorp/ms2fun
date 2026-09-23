@@ -94,12 +94,7 @@ async function main(): Promise<void> {
   // scanned, not that the run fails.
   // The omission is deliberate, but it has to reach the OUTPUT: an unscanned source and a
   // scanned-and-empty one both render `redirected: 0`, so the report declares its own coverage.
-  const moduleKeys = [
-    'ModuleUniV4Deployer',
-    'ModuleZAMMDeployer',
-    'ModuleCypherDeployer',
-    'MetadataOverlayModule',
-  ] as const
+  const moduleKeys = ['ModuleUniV4Deployer', 'ModuleZAMMDeployer', 'MetadataOverlayModule'] as const
   const moduleEntries = moduleKeys.map((key) => [key, deployment.contracts[key]] as const)
   const moduleAddresses = moduleEntries
     .map(([, address]) => address)

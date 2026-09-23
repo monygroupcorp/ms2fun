@@ -4,7 +4,7 @@
  * The generated wagmi bindings (`src/generated/contracts.ts`) carry `alignmentEndowmentVaultAbi`,
  * `alignmentRegistryV1Abi` and `masterRegistryV1Abi` — the report imports and reuses those directly
  * — but no ABI for the three liquidity-family vault contracts (`UniAlignmentVault`,
- * `CypherAlignmentVault`, `ZAMMAlignmentVault`) or for the hazard events emitted by the instance and
+ * `ZAMMAlignmentVault`) or for the hazard events emitted by the instance and
  * module contracts that call `receiveContribution`. CI never regenerates bindings, and running
  * `pnpm wagmi:generate` here would swamp this change with an unrelated regen diff, so these
  * fragments are hand-written instead — the minimal slice this report needs. Source line references
@@ -12,7 +12,7 @@
  */
 
 /**
- * `UniAlignmentVault.alignmentTargetId()` / `CypherAlignmentVault.alignmentTargetId()` /
+ * `UniAlignmentVault.alignmentTargetId()` /
  * `ZAMMAlignmentVault.alignmentTargetId()` — the liquidity-family target getter (set once at
  * initialization, no setter, so a read at `latest` is valid for all history). The endowment vault's
  * equivalent field is named `targetId()` and already ships in `alignmentEndowmentVaultAbi`; a report

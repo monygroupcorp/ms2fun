@@ -15,9 +15,7 @@
  * transaction state, and one `flush()`.
  */
 import {
-  cypherLiquidityDeployerModuleAbi,
   liquidityDeployerModuleAbi,
-  useReadCypherLiquidityDeployerModulePendingVaultCut,
   useReadLiquidityDeployerModulePendingVaultCut,
   useReadZammLiquidityDeployerModulePendingVaultCut,
   zammLiquidityDeployerModuleAbi,
@@ -55,21 +53,13 @@ export function useStrandedTithe(instance: `0x${string}`): StrandedTithe {
     args,
     query: { enabled: venue?.kind === 'zamm' },
   })
-  const cypher = useReadCypherLiquidityDeployerModulePendingVaultCut({
-    ...at,
-    chainId,
-    args,
-    query: { enabled: venue?.kind === 'cypher' },
-  })
 
   const read =
     venue?.kind === 'uniV4'
       ? { hook: uni, abi: liquidityDeployerModuleAbi }
       : venue?.kind === 'zamm'
         ? { hook: zamm, abi: zammLiquidityDeployerModuleAbi }
-        : venue?.kind === 'cypher'
-          ? { hook: cypher, abi: cypherLiquidityDeployerModuleAbi }
-          : undefined
+        : undefined
 
   // The getter returns the PendingCut struct as a positional tuple `[vault, amount]`.
   const amount = read?.hook.data?.[1]

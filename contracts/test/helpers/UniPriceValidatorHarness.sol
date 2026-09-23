@@ -32,7 +32,7 @@ contract UniPriceValidatorHarness is UniswapVaultPriceValidator {
         return _computeProportionFromSqrtPrice(sqrtPriceX96, address(0) < token, tickLower, tickUpper);
     }
 
-    /// @notice Exposes the core with an EXPLICIT numeraire ordering, so tests can model an Algebra/Cypher
+    /// @notice Exposes the core with an EXPLICIT numeraire ordering, so tests can model an ERC20/ERC20
     ///         pool where the WETH leg is currency1 (`ethIsCurrency0 == false` — the token0-alignment case).
     function computeProportionOrdered(uint160 sqrtPriceX96, bool ethIsCurrency0, int24 tickLower, int24 tickUpper)
         external

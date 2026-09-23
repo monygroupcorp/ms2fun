@@ -159,11 +159,6 @@ export function projectConfig(
       zRouter: required(c, 'zRouter'),
       ModuleUniV4Deployer: required(c, 'ModuleUniV4Deployer'),
       ModuleZAMMDeployer: required(c, 'ModuleZAMMDeployer'),
-      // Cypher has no Sepolia deployment to point at, so DeployCore leaves these at the zero address
-      // rather than reusing another network's Algebra addresses. The app reads that as "no Cypher
-      // venue here" and says so instead of offering a trade (noesis-349).
-      ModuleCypherDeployer: required(c, 'ModuleCypherDeployer'),
-      CypherSwapRouter: required(c, 'CypherSwapRouter'),
     },
   }
 }

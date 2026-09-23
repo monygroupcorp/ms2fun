@@ -6,7 +6,7 @@
  * `AlignmentEndowmentVault.PROTOCOL_BPS`/`TARGET_BPS`). What DOES vary is the thing being split, and
  * a single sentence cannot be true of both:
  *
- *  - LP families (Uniswap V4 / ZAMM / Cypher) hold a liquidity position and split the TRADING FEES
+ *  - LP families (Uniswap V4 / ZAMM) hold a liquidity position and split the TRADING FEES
  *    it collects. The 80% remainder accrues to the benefactor collections bound to the vault.
  *  - The endowment family (Aave) takes each aligned collection's 19% graduation tithe as CORPUS and
  *    splits the YIELD that corpus earns. So the community's 19% here is 19% of the yield on a

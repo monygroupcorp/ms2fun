@@ -16,9 +16,7 @@ import {
 } from "./SeedSepoliaShared.sol";
 import { IZAMM } from "../src/vaults/zamm/ZAMMAlignmentVault.sol";
 import { ZAMMAlignmentVaultFactory } from "../src/vaults/zamm/ZAMMAlignmentVaultFactory.sol";
-import { CypherAlignmentVaultFactory } from "../src/vaults/cypher/CypherAlignmentVaultFactory.sol";
 import { AlignmentEndowmentVaultFactory } from "../src/vaults/aave/AlignmentEndowmentVaultFactory.sol";
-import { IAlgebraFactory, IAlgebraPool, IAlgebraNFTPositionManager } from "../src/interfaces/algebra/IAlgebra.sol";
 import { PoolIdLibrary } from "v4-core/types/PoolId.sol";
 import { StateLibrary } from "v4-core/libraries/StateLibrary.sol";
 import { TickMath } from "v4-core/libraries/TickMath.sol";
@@ -89,9 +87,8 @@ contract SeedSepolia is SeedSepoliaShared {
         // ── Alignment wiring: fixture tokens, targets, vaults, pools ──
         SeedHandoff memory h = _seedAlignment(d);
 
-        // ── The other two venues, each with its own target, vault and pool ──
+        // ── The other venue, with its own target, vault and pool ──
         _seedZammVenue(d, h);
-        _seedCypherVenue(d, h);
 
         // The instant every pool seeded above can first answer the deployment's TWAP window. Phase 2
         // pins the reference pools, and `setReferencePool` refuses a pool that cannot yet serve one.
@@ -118,11 +115,6 @@ contract SeedSepolia is SeedSepoliaShared {
         // above stood up, and because its own clock (the timed auction) has to join the same wait.
         uint256 breadthClock = _seedBreadth(d, h);
         if (breadthClock > latestArm) latestArm = breadthClock;
-
-        // The Cypher flagship, created and armed on the same clock as everything else. It graduates
-        // through the Algebra rail in phase 2, which is what puts a real tithe in the Cypher vault.
-        uint256 cypherArm = _seedCypherCollection(d, h);
-        if (cypherArm > latestArm) latestArm = cypherArm;
 
         // ── The front door: rent the wall the home page renders ──
         //
@@ -170,9 +162,9 @@ contract SeedSepolia is SeedSepoliaShared {
     ///
     ///      ── WHY ONE ASSET CARRIES MORE THAN ONE TARGET ──
     ///
-    ///      The registry stores ONE acquire route per (targetId, token), and a Cypher vault refuses to
-    ///      convert unless the route it reads says ALGEBRA. So a single target cannot carry a live
-    ///      Uniswap convert and a live Cypher convert for the same asset — and pointing a vault at a
+    ///      The registry stores ONE acquire route per (targetId, token), and a vault refuses to
+    ///      convert unless the route it reads names its own venue. So a single target cannot carry a
+    ///      live convert on two venues for the same asset — and pointing a vault at a
     ///      venue the registry curates as something else is precisely the divergence the acquire route
     ///      exists to close. Each venue therefore gets its own target, each internally coherent: its
     ///      route, its reference pool and its vault all name the same venue. Presenting two targets
@@ -338,7 +330,7 @@ contract SeedSepolia is SeedSepoliaShared {
         // would let the two drift apart.
         //
         // The row names THIS VAULT and no other. `token` alone would also answer the venue vaults
-        // that share the asset — the Cypher vault on CULT, the ZAMM vault on MS2 — and send their
+        // that share the asset — the ZAMM vault on MS2 — and send their
         // converts to this Uniswap pool instead of the venue they LP into and floor against.
         vm.startBroadcast();
         SepoliaRouteQuoter(d.zQuoter).setRoute(vault, token, SepoliaRouteQuoter.AMM.UNI_V4, POOL_FEE_BPS);
@@ -436,152 +428,6 @@ contract SeedSepolia is SeedSepoliaShared {
         console.log("VENUE MS2 zamm target/vault:", h.ms2ZammTargetId, h.ms2ZammVault);
         console.log("  pool feeOrHook / ETH deposited (wei):", d.zammFeeOrHook, budget);
         console.log("  reserves (eth, token):", uint256(pool.reserve0), uint256(pool.reserve1));
-    }
-
-    // ─────────────────────── The Cypher venue ───────────────────────
-
-    /// @dev CULT's Cypher leg: its own alignment target on an ALGEBRA route, the Algebra pool that is
-    ///      BOTH the venue and its own price authority, and the vault that converts through it.
-    ///
-    ///      THE POOL HAS TO EXIST BEFORE THE VAULT CONVERTS, not merely before it LPs. The vault
-    ///      resolves-or-creates its LP pool as part of a convert, but the ACQUIRE leg swaps first —
-    ///      through the Algebra router, against whatever depth is there. A pool created by the convert
-    ///      and empty at the moment of the swap serves nothing.
-    ///
-    ///      THE PLUGIN IS WHAT MAKES THE POOL A REFERENCE. The validator's Algebra branch reads the
-    ///      TWAP off `pool.plugin()`, not off the pool, so a pool created by a factory with no default
-    ///      plugin factory wired is unusable as a reference no matter how deep it is. That is asserted
-    ///      here rather than discovered a window later at the pin.
-    function _seedCypherVenue(Deployed memory d, SeedHandoff memory h) internal {
-        if (!_cypherAvailable(d)) {
-            console.log("VENUE cypher: the Algebra rail is not wired on this deployment - leg skipped");
-            return;
-        }
-        uint256 budget = _algebraDepthWei();
-
-        vm.startBroadcast();
-        h.cultAlgebraTargetId = _registerTarget(
-            AlignmentRegistryV1(d.alignmentRegistry),
-            h.cultToken,
-            "CULT",
-            "Remilia-Cypher",
-            "The same FIXTURE asset as the Remilia target, curated on the Cypher (Algebra) venue instead. A separate target because a Cypher vault refuses to convert unless the route it reads names ALGEBRA - the vault checks the curation rather than trusting its own wiring.",
-            _collectionMeta(
-                "Remilia-Cypher",
-                "The Remilia target, curated on the Cypher (Algebra) venue instead of Uniswap.",
-                string.concat(ART_IMG_TARGETS, "CULT.png")
-            )
-        );
-        h.cultCypherVault = address(
-            CypherAlignmentVaultFactory(d.cypherVaultFactory)
-                .createVault(
-                    keccak256(abi.encode(block.chainid, h.cultToken, "CULT", "CYPHER-SHOWCASE", _vaultSaltNonce())),
-                    d.cypherPositionManager,
-                    d.cypherRouter,
-                    d.weth,
-                    h.cultToken,
-                    d.protocolTreasury,
-                    h.cultAlgebraTargetId
-                )
-        );
-        MasterRegistryV1(d.masterRegistry)
-            .registerVault(
-                h.cultCypherVault,
-                deployer,
-                "CULT Cypher Vault",
-                _collectionMeta(
-                    "CULT Cypher Vault",
-                    "Alignment vault for the showcase, LPing on the Cypher venue. A collection aligned to this target sends it 19 percent of its graduation raise, by contract.",
-                    ""
-                ),
-                h.cultAlgebraTargetId
-            );
-
-        h.cultAlgebraPool = _standUpAlgebraPool(d, h.cultToken, budget);
-
-        IAlignmentRouteAdmin(d.alignmentRegistry)
-            .setAcquireRoute(
-                h.cultAlgebraTargetId,
-                h.cultToken,
-                // ALGEBRA derives its own pool and runs a dynamic fee, so the leg carries no params;
-                // the registry refuses any other shape.
-                IAlignmentRegistry.AcquireRoute({
-                    venue: IAlignmentRegistry.Venue.ALGEBRA, fee: 0, tickSpacing: 0, feeOrHook: 0
-                })
-            );
-        vm.stopBroadcast();
-
-        // NO best-route row for this vault, deliberately, and it is the row's ABSENCE that puts the
-        // acquire leg on Algebra. `BestRouteAcquirer`'s typed set is swapV2/V3/V4/VZ — there is no
-        // Algebra leg for it to dispatch to — so any row this vault could be given would name some
-        // OTHER venue, and it would then buy CULT on that venue while LPing on Algebra and flooring
-        // against the Algebra pool's own TWAP. An empty route is how this ABI says "no route I can
-        // execute", and it is what sends the acquire through `exactInputSingle` on the pool this
-        // function just stood up.
-        console.log("VENUE CULT cypher target/vault:", h.cultAlgebraTargetId, h.cultCypherVault);
-        console.log("  algebra pool / ETH deposited (wei):", h.cultAlgebraPool, budget);
-    }
-
-    /// @dev Create-or-adopt the Algebra {token, WETH} pool, initialize it at parity, and put real
-    ///      two-sided depth in it through the deployment's position manager. Broadcast is already open.
-    function _standUpAlgebraPool(Deployed memory d, address token, uint256 budget) internal returns (address pool) {
-        pool = IAlgebraFactory(d.cypherAlgebraFactory).poolByPair(d.weth, token);
-        if (pool == address(0)) {
-            pool = IAlgebraFactory(d.cypherAlgebraFactory).createPool(d.weth, token, "");
-        }
-        (uint160 price,,,,,) = IAlgebraPool(pool).globalState();
-        if (price == 0) IAlgebraPool(pool).initialize(SQRT_PRICE_1_1);
-        require(
-            IAlgebraPool(pool).plugin() != address(0),
-            "venue: the Algebra pool carries no plugin (getTimepoints could not serve the price validator)"
-        );
-
-        IWethMinimal(d.weth).deposit{ value: budget }();
-        MockERC20(token).mint(deployer, budget);
-        IWethMinimal(d.weth).approve(d.cypherPositionManager, budget);
-        MockERC20(token).approve(d.cypherPositionManager, budget);
-
-        (, int24 tick,,,,) = IAlgebraPool(pool).globalState();
-        (int24 tickLower, int24 tickUpper) = _alignedRange(tick, POOL_TICK_SPACING, _depthHalfWidthTicks());
-        (address token0, address token1) = d.weth < token ? (d.weth, token) : (token, d.weth);
-
-        (, uint128 liquidity,,) = IAlgebraNFTPositionManager(d.cypherPositionManager)
-            .mint(
-                IAlgebraNFTPositionManager.MintParams({
-                    token0: token0,
-                    token1: token1,
-                    deployer: address(0), // the factory-created (default-deployer) pool
-                    tickLower: tickLower,
-                    tickUpper: tickUpper,
-                    amount0Desired: budget,
-                    amount1Desired: budget,
-                    amount0Min: 0,
-                    amount1Min: 0,
-                    recipient: deployer,
-                    deadline: block.timestamp + 1 hours
-                })
-            );
-        require(liquidity > 0, "venue: the Algebra depth seed minted no liquidity");
-    }
-
-    /// @dev A tick range centred on `tick`, aligned DOWN to `spacing` and clamped to the usable band.
-    function _alignedRange(int24 tick, int24 spacing, int24 halfWidth)
-        internal
-        pure
-        returns (int24 lower, int24 upper)
-    {
-        lower = _floorTick(tick - halfWidth, spacing);
-        upper = _floorTick(tick + halfWidth, spacing);
-        int24 minTick = TickMath.minUsableTick(spacing);
-        int24 maxTick = TickMath.maxUsableTick(spacing);
-        if (lower < minTick) lower = minTick;
-        if (upper > maxTick) upper = maxTick;
-    }
-
-    function _floorTick(int24 tick, int24 spacing) internal pure returns (int24) {
-        int24 compressed = tick / spacing;
-        if (tick < 0 && tick % spacing != 0) compressed--;
-        return compressed * spacing;
     }
 
     function _registerTarget(
@@ -1050,85 +896,6 @@ contract SeedSepolia is SeedSepoliaShared {
         console.log("  declared max allowance (bps):", uint256(CARVE_DECLARED_MAX_BPS));
     }
 
-    // ─────────────────────── 8. The Cypher flagship ───────────────────────
-
-    /// @dev The collection that rides the Cypher rail end to end: created against the Cypher LP
-    ///      deployer, aligned to the Cypher vault, and armed to be GRADUATED in phase 2.
-    ///
-    ///      It is armed like the ready-to-graduate row (open, then matured) rather than merely opened,
-    ///      because graduating it is the point: the graduation is what opens an Algebra pool for the
-    ///      collection's own coin AND what sends a real 19% tithe to the Cypher vault, which is what
-    ///      that vault then converts. Without it the Cypher venue would be a vault with nothing in it.
-    ///
-    ///      Returns the clock phase 2 must wait past, or zero when the rail is not wired here.
-    function _seedCypherCollection(Deployed memory d, SeedHandoff memory h) internal returns (uint256 maturedAt) {
-        if (!_cypherAvailable(d) || h.cultCypherVault == address(0)) {
-            console.log("CYPHER collection: the Algebra rail is not wired on this deployment - row skipped");
-            return 0;
-        }
-        vm.startBroadcast();
-        address instance = _createBreadthCurveOnVenue(
-            d,
-            h.cultCypherVault,
-            d.cypherDeployer,
-            "cypher-flagship",
-            "ANGLT",
-            "AngeliteMaker",
-            "This collection demonstrates the CYPHER venue. Its curve graduates onto an Algebra pool rather than a Uniswap one, and the 19 percent alignment tithe it pays goes to a vault that acquires and LPs on that same venue - the route the registry curates, the pool the vault deposits into and the pool the swap executes on are one pool. Graduate it, then read the pool it opened.",
-            ART_TILE_CYPHER,
-            ART_BASE_ELITE,
-            SHOWCASE_NFT_COUNT
-        );
-        ERC404BondingInstance b = ERC404BondingInstance(payable(instance));
-        uint256 openAt = block.timestamp + _armWindow();
-        b.setBondingOpenTime(openAt);
-        maturedAt = openAt + _maturityOffset();
-        b.setBondingMaturityTime(maturedAt);
-        b.setBondingActive(true);
-        vm.stopBroadcast();
-
-        h.cypher404 = instance;
-        console.log("CYPHER cypher-flagship:", instance);
-    }
-
-    /// @dev Create + register one curve row on a NAMED LP venue. Same shape as `_createBreadthCurve`,
-    ///      with the liquidity deployer as a parameter — that address is what decides which venue the
-    ///      row's graduation opens a pool on, and it is the only thing the Cypher row varies.
-    function _createBreadthCurveOnVenue(
-        Deployed memory d,
-        address vault,
-        address liquidityDeployer,
-        string memory slug,
-        string memory symbol,
-        string memory title,
-        string memory description,
-        string memory image,
-        string memory pieceBase,
-        uint256 nftCount
-    ) internal returns (address instance) {
-        _assertPieceBase(pieceBase, slug);
-        instance = d.erc404
-            .createInstance(
-                ERC404Factory.CreateParams({
-                    salt: keccak256(abi.encode(block.timestamp, slug, "ERC404-SEPOLIA")),
-                    name: title,
-                    symbol: symbol,
-                    styleUri: "",
-                    tokenBaseURI: pieceBase,
-                    owner: deployer,
-                    vault: vault,
-                    nftCount: nftCount,
-                    presetId: PRESET_NICHE,
-                    stakingModule: address(0),
-                    declaredMaxAllowanceBps: 0
-                }),
-                _collectionMeta(title, description, image),
-                liquidityDeployer,
-                address(0),
-                FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
-            );
-    }
-
     /// @dev Create + register one breadth curve row. Kept beside its callers so the parameters a row
     ///      does NOT vary (owner, preset, LP venue, gating, free mint) are stated exactly once.
     function _createBreadthCurve(
@@ -1361,28 +1128,6 @@ contract SeedSepolia is SeedSepoliaShared {
                 "venue: the ZAMM vault's best-route row names another pool than the one it LPs into"
             );
             _assertVaultBinding(h.ms2ZammVault, h.ms2Token, h.ms2ZammTargetId, "MS2 zamm");
-        }
-
-        if (h.cultCypherVault != address(0)) {
-            require(
-                reg.getAcquireRoute(h.cultAlgebraTargetId, h.cultToken).venue == IAlignmentRegistry.Venue.ALGEBRA,
-                "venue: the Cypher target is not curated as ALGEBRA"
-            );
-            require(h.cultAlgebraPool != address(0), "venue: the Cypher target has no Algebra pool");
-            // The plugin is what makes this pool answerable as a price authority at all; a pool
-            // without one is deep and unusable, and the pin a window from now would refuse it.
-            require(
-                IAlgebraPool(h.cultAlgebraPool).plugin() != address(0),
-                "venue: the Algebra pool lost its plugin (getTimepoints would not serve the validator)"
-            );
-            // ABSENCE, asserted. CULT is also a Uniswap target, and a row on this vault — at any
-            // venue, since none of the acquirer's typed legs is Algebra — would take its convert off
-            // the Algebra pool it LPs into and floors against. There is nothing to seed here; there
-            // is something to keep un-seeded, so it is stated.
-            (,, bool cypherRouted) = SepoliaRouteQuoter(d.zQuoter).routeOf(h.cultCypherVault, h.cultToken);
-            require(!cypherRouted, "venue: the Cypher vault carries a best-route row (it has no typed leg)");
-            _assertVaultBinding(h.cultCypherVault, h.cultToken, h.cultAlgebraTargetId, "CULT cypher");
-            require(h.cypher404 != address(0), "venue: the Cypher rail is wired but carries no collection");
         }
 
         console.log("VENUE phase-1 post-conditions OK");

@@ -221,28 +221,27 @@ contract SepoliaShowcaseVenuesTest is Test {
         h.assertVenue(f);
     }
 
-    /// @dev The Cypher row is the leg the acceptance asks to be vacuity-checked by name, and it is the
-    ///      same predicate under a different expectation — which is the point: one venue check, four
-    ///      independent facts, and no per-venue special case that could be true by construction.
-    function test_passesOnALiveCypherVenue() public view {
+    /// @dev The non-Uni row is the leg the acceptance asks to be vacuity-checked by name, and it is
+    ///      the same predicate under a different expectation — which is the point: one venue check,
+    ///      four independent facts, and no per-venue special case that could be true by construction.
+    function test_passesOnALiveZammVenue() public view {
         SeedSepoliaShared.VenueFacts memory f = _healthyVenue();
-        f.label = "cypher (fixture)";
-        f.routeVenue = uint8(IAlignmentRegistry.Venue.ALGEBRA);
-        f.expectedVenue = uint8(IAlignmentRegistry.Venue.ALGEBRA);
+        f.label = "zamm (fixture)";
+        f.routeVenue = uint8(IAlignmentRegistry.Venue.ZAMM);
+        f.expectedVenue = uint8(IAlignmentRegistry.Venue.ZAMM);
         h.assertVenue(f);
     }
 
-    /// @dev Removing the PLUGIN wiring from a Cypher pool is what makes it unusable as a price
-    ///      authority: the validator's Algebra branch reads the TWAP off `pool.plugin()`, so a pool
-    ///      with no plugin cannot be pinned and the pin therefore cannot be present. That surfaces
-    ///      here as an unpinnable reference, which is the same red this predicate already states.
-    function test_redWhenTheCypherPoolCouldNotBePinned() public {
+    /// @dev A venue whose reference pool could not be pinned is unusable as a price authority no
+    ///      matter how deep it is, and the -5% floor has nothing to read. That surfaces here as an
+    ///      unpinnable reference, which is the same red this predicate already states.
+    function test_redWhenTheZammPoolCouldNotBePinned() public {
         SeedSepoliaShared.VenueFacts memory f = _healthyVenue();
-        f.label = "cypher (fixture)";
-        f.routeVenue = uint8(IAlignmentRegistry.Venue.ALGEBRA);
-        f.expectedVenue = uint8(IAlignmentRegistry.Venue.ALGEBRA);
+        f.label = "zamm (fixture)";
+        f.routeVenue = uint8(IAlignmentRegistry.Venue.ZAMM);
+        f.expectedVenue = uint8(IAlignmentRegistry.Venue.ZAMM);
         f.referencePool = address(0);
-        vm.expectRevert(bytes("venue: cypher (fixture) has no pinned reference pool"));
+        vm.expectRevert(bytes("venue: zamm (fixture) has no pinned reference pool"));
         h.assertVenue(f);
     }
 

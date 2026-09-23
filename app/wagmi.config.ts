@@ -37,7 +37,6 @@ export default defineConfig({
         'zRouter.sol/zRouter.json',
         'LiquidityDeployerModule.sol/LiquidityDeployerModule.json',
         'ZAMMLiquidityDeployerModule.sol/ZAMMLiquidityDeployerModule.json',
-        'CypherLiquidityDeployerModule.sol/CypherLiquidityDeployerModule.json',
         'ERC1155Factory.sol/**',
         'ERC1155Instance.sol/**',
         'AlignmentEndowmentVault.sol/**',

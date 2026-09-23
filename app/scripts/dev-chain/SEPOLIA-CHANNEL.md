@@ -40,16 +40,13 @@ port, and by the app flag below.
 
 cd app
 pnpm chain:fork:sepolia      # anvil, :8546, forked chain id, --auto-impersonate
-pnpm chain:deploy:sepolia    # Algebra standup -> DeploySepolia -> seed phase 1 -> phase 2
+pnpm chain:deploy:sepolia    # DeploySepolia -> seed phase 1 -> seed phase 2
 pnpm chain:check:sepolia     # asserts the fork holds what the seed claims
 
 VITE_SEPOLIA_FORK=1 VITE_CHAIN_ID=11155111 pnpm dev
 
 pnpm chain:stop:sepolia      # when you are done; `pnpm chain:stop` is still the other channel
 ```
-
-`pnpm chain:deploy:sepolia --skip-algebra` reuses the newest Algebra standup record instead of
-standing the rail up again — for a re-deploy against a fork that already carries one.
 
 ### Reaching it from a wallet
 
@@ -70,18 +67,14 @@ accounts with 10 000 ETH each; import one of those to have a balance to spend.
 
 ## What the channel actually runs
 
-Three tools, in the order the live broadcast runs them, none of them written for the channel:
+Two tools, in the order the live broadcast runs them, neither of them written for the channel:
 
-1. **`scripts/sepolia-algebra/`** — Sepolia carries no Algebra deployment, so the Cypher rail is
-   stood up from mainnet bytecode (ten contracts and the mainnet fee regime). The three periphery
-   addresses it produces are handed to the deploy through the `SEPOLIA_CYPHER_*` environment overlay
-   `DeploySepolia` already reads.
-2. **`contracts/script/DeploySepolia.s.sol`** — the protocol, with the zRouter self-deployed.
-3. **`scripts/sepolia-seed/seed.ts`** — the two-phase showcase seed: create and arm, then buy,
+1. **`contracts/script/DeploySepolia.s.sol`** — the protocol, with the zRouter self-deployed.
+2. **`scripts/sepolia-seed/seed.ts`** — the two-phase showcase seed: create and arm, then buy,
    graduate and convert on every venue.
 
-What lands: the four curve states (pre-open, mid-curve, ready-to-graduate, graduated), the four
-alignment targets (MS2/UNI_V4, CULT/UNI_V4, MS2/ZAMM, CULT/ALGEBRA) with their vaults and pools, and
+What lands: the four curve states (pre-open, mid-curve, ready-to-graduate, graduated), the three
+alignment targets (MS2/UNI_V4, CULT/UNI_V4, MS2/ZAMM) with their vaults and pools, and
 the breadth rows — editions, an allowlist, staking, tiers, the creator carve, auctions. The seed's
 own runbook (`scripts/sepolia-seed/README.md`) is the inventory.
 

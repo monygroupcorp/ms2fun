@@ -43,7 +43,6 @@ contract DeployCoreTest is Test {
             name: "Chainlink",
             description: "Test alignment target",
             deployUniVault: true,
-            deployCypherVault: false,
             deployZAMMVault: false,
             communityPayout: address(0) // not needed in deploy test
         });
@@ -53,8 +52,6 @@ contract DeployCoreTest is Test {
         cfg.v4PoolManager = address(1); // non-zero stub — vault init rejects address(0)
         cfg.v3Factory = address(0);
         cfg.v2Factory = address(0);
-        cfg.cypherPositionManager = address(0);
-        cfg.cypherRouter = address(0);
         cfg.zamm = address(0);
         cfg.zrouter = address(0);
         cfg.safe = address(0);

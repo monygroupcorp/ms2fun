@@ -44,24 +44,68 @@ contract MainnetConfigCompletenessTest is Test {
         );
     }
 
-    function test_theCypherFamilyIsWired() public view {
-        DeployCore.NetworkConfig memory cfg = harness.config();
-        assertTrue(
-            cfg.cypherPositionManager != address(0),
-            "cfg.cypherPositionManager unset omits the Cypher vault factory (DeployCore:388)"
-        );
-        assertTrue(
-            cfg.cypherAlgebraFactory != address(0),
-            "cfg.cypherAlgebraFactory unset omits the Cypher launch deployer (DeployCore:660)"
-        );
-    }
-
     /// @dev `NetworkConfig.zQuoter`'s own doc: "EVERY DEPLOYMENT WIRES A QUOTER. address(0) IS A TEST
     ///      SHAPE, NOT A DEPLOYMENT OPTION." Unset ships multi-venue acquisition silently off, and
     ///      `deploy()` only warns — the vault takes the quoter as a constructor immutable, so it is
     ///      not repairable afterwards.
     function test_bestRouteAcquisitionIsWired() public view {
         assertTrue(harness.config().zQuoter != address(0), "cfg.zQuoter unset disables best-route acquisition");
+    }
+
+    // ── The config carries these fields and no others ────────────────────────
+
+    /// @dev The CYPHER venue wound down and the whole family came out of the tree, `NetworkConfig`'s
+    ///      field for it included. This used to assert the opposite — that the mainnet config wired
+    ///      the rail — and inverting it into a runtime read of the remaining fields would have proved
+    ///      nothing: a re-added `cypherPositionManager` would compile, deploy, and leave every such
+    ///      assertion green.
+    ///
+    ///      So the guard is the compiler's, and it is deliberately blunt: the named-argument struct
+    ///      constructor below must supply EVERY field of `NetworkConfig` and may supply no other, so
+    ///      a field added, removed or renamed anywhere in that struct fails to build this file until
+    ///      someone comes here and says so. A wound-down rail cannot quietly reappear in the config a
+    ///      mainnet deploy reads. The cost is that an intended field change also stops here — that is
+    ///      the price of the guard, not a defect in it, and the fix is one line in the list below.
+    ///
+    ///      The runtime half keeps the enumeration honest: the rebuilt struct is compared to the real
+    ///      config, so a field copied from the wrong source is caught rather than merely named.
+    function test_theNetworkConfigCarriesExactlyTheseFields() public view {
+        DeployCore.NetworkConfig memory cfg = harness.config();
+        DeployCore.NetworkConfig memory rebuilt = DeployCore.NetworkConfig({
+            chainId: cfg.chainId,
+            weth: cfg.weth,
+            v4PoolManager: cfg.v4PoolManager,
+            v3Factory: cfg.v3Factory,
+            v2Factory: cfg.v2Factory,
+            zamm: cfg.zamm,
+            aaveStataToken: cfg.aaveStataToken,
+            aaveWeth: cfg.aaveWeth,
+            zrouter: cfg.zrouter,
+            zrouterChain: cfg.zrouterChain,
+            safe: cfg.safe,
+            zQuoter: cfg.zQuoter,
+            saltMasterRegistry: cfg.saltMasterRegistry,
+            saltTreasury: cfg.saltTreasury,
+            saltQueueManager: cfg.saltQueueManager,
+            saltGlobalMsgReg: cfg.saltGlobalMsgReg,
+            saltAlignmentReg: cfg.saltAlignmentReg,
+            saltComponentReg: cfg.saltComponentReg,
+            saltNonce: cfg.saltNonce,
+            priceDeviationBps: cfg.priceDeviationBps,
+            twapSeconds: cfg.twapSeconds,
+            zrouterFee: cfg.zrouterFee,
+            zrouterTickSpacing: cfg.zrouterTickSpacing,
+            zammFeeOrHook: cfg.zammFeeOrHook,
+            hookFeeBips: cfg.hookFeeBips,
+            lpFeeRate: cfg.lpFeeRate,
+            alignmentTargets: cfg.alignmentTargets,
+            jsonOutputPath: cfg.jsonOutputPath
+        });
+        assertEq(
+            keccak256(abi.encode(rebuilt)),
+            keccak256(abi.encode(cfg)),
+            "the field list above no longer enumerates the mainnet config faithfully"
+        );
     }
 
     // ── The endowment rail's two halves agree ────────────────────────────────
@@ -94,9 +138,6 @@ contract MainnetConfigCompletenessTest is Test {
         assertEq(cfg.zrouter, MainnetAddresses.ZROUTER, "zrouter");
         assertEq(cfg.zQuoter, MainnetAddresses.ZQUOTER, "zquoter");
         assertEq(cfg.aaveStataToken, MainnetAddresses.WETH_STATA_TOKEN, "aave stataToken");
-        assertEq(cfg.cypherPositionManager, MainnetAddresses.CYPHER_POSITION_MANAGER, "cypher NFPM");
-        assertEq(cfg.cypherRouter, MainnetAddresses.CYPHER_SWAP_ROUTER, "cypher router");
-        assertEq(cfg.cypherAlgebraFactory, MainnetAddresses.CYPHER_ALGEBRA_FACTORY, "cypher algebra factory");
     }
 
     // ── What is still owed before this script may be run ─────────────────────

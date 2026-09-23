@@ -15,7 +15,7 @@ import { alignmentRegistryV1Abi } from '../../generated/contracts'
 import { forkAddresses, forkChainId } from '../addresses'
 
 /** `IAlignmentRegistry.Venue` — kept in the same order as the enum it mirrors. */
-export const VENUE_LABELS = ['not curated', 'Uniswap V4', 'ZAMM', 'Cypher'] as const
+export const VENUE_LABELS = ['not curated', 'Uniswap V4', 'ZAMM'] as const
 
 export function venueLabel(venue: number | undefined): string {
   if (venue === undefined) return 'venue unread'

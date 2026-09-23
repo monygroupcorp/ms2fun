@@ -59,7 +59,7 @@ contract MockV3TwapFactory {
 ///
 ///         What is pinned here: (1) a FULL-RANGE position is 50% by value at every price and therefore
 ///         cannot trip the deviation guard however far the TWAP disagrees — the property both shipped
-///         vaults rely on (`UniAlignmentVault:373-374`, `CypherAlignmentVault:85-86`); (2) a zero-liquidity
+///         vaults rely on (`UniAlignmentVault:373-374`); (2) a zero-liquidity
 ///         pool is skipped and the scan continues; (3) a pool whose `observe` reverts is skipped and the
 ///         scan continues; (4) with no pool at any tier the deviation check does not run and the absolute
 ///         [35%, 65%] clamp still applies.

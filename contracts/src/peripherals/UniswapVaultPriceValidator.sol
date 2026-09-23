@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 import { IVaultPriceValidator } from "../interfaces/IVaultPriceValidator.sol";
-import { IAlgebraPool, IVolatilityOracle } from "../interfaces/algebra/IAlgebra.sol";
 import { StateLibrary } from "v4-core/libraries/StateLibrary.sol";
 import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
 import { PoolId } from "v4-core/types/PoolId.sol";
@@ -54,7 +53,7 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     /// @notice The pinned canonical pool could not produce a usable TWAP. Thrown by
     ///         {quoteEthForTokensVia} INSTEAD OF returning 0 — this is the anti-fail-open guarantee.
     error ReferenceTwapUnavailable();
-    /// @notice `kind` passed to {quoteEthForTokensVia} is not a supported pool family (only 0 and 1 are).
+    /// @notice `kind` passed to {quoteEthForTokensVia} is not a supported pool family (only 0 is).
     error UnsupportedPoolKind(uint8 kind);
     /// @notice `v3Factory` is codeless — a misconfigured validator, never a legitimate per-token
     ///         state. Thrown by {_getTwapSqrtPriceX96} INSTEAD OF returning 0, so a wrong/absent
@@ -120,7 +119,7 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         returns (uint256)
     {
         // Invalid pool family is a caller/config error — reject before doing anything else.
-        if (kind >= 2) revert UnsupportedPoolKind(kind);
+        if (kind != 0) revert UnsupportedPoolKind(kind);
         if (amount == 0) return 0;
 
         // window == 0 falls back to the validator's configured TWAP window (constructor-guaranteed non-zero).
@@ -128,8 +127,8 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
 
         int56 tickCumulativeDelta = _pinnedTwapTickDelta(pool, kind, win);
 
-        // Token ordering is canonical (token0 = lower address) for both Uniswap V3 and Algebra factories,
-        // so WETH is token0 iff `weth < token` — no token0() call needed (Algebra's minimal interface omits it).
+        // Token ordering is canonical (token0 = lower address) on a Uniswap V3 factory, so WETH is token0
+        // iff `weth < token` — no token0() call needed.
         (bool ok, uint256 ethPerToken) = _ethPerTokenFromTwapDelta(tickCumulativeDelta, win, weth < token);
 
         // NO fail-open: a zero / unusable price means the pinned pool cannot serve as a reference.
@@ -138,12 +137,20 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         return (amount * ethPerToken) / 1e18;
     }
 
-    /// @dev Reads the tick-cumulative delta over `window` from the pinned `pool`. `kind == 0` uses the
-    ///      Uniswap V3 `observe`; `kind == 1` uses the Algebra volatility-oracle plugin's `getTimepoints`.
-    ///      ANY failure to obtain the delta (pool has no code, insufficient observation history, missing
-    ///      or reverting plugin) reverts `ReferenceTwapUnavailable` — never a silent 0. Callers must have
-    ///      already rejected `kind >= 2`.
-    function _pinnedTwapTickDelta(address pool, uint8 kind, uint32 window) private view returns (int56) {
+    /// @dev Reads the tick-cumulative delta over `window` from the pinned `pool` via the Uniswap V3
+    ///      `observe`. ANY failure to obtain the delta (pool has no code, insufficient observation history)
+    ///      reverts `ReferenceTwapUnavailable` — never a silent 0. `kind` is carried so a second oracle
+    ///      family can be added without moving this signature; callers must have already rejected `kind != 0`.
+    function _pinnedTwapTickDelta(
+        address pool,
+        uint8,
+        /* kind */
+        uint32 window
+    )
+        private
+        view
+        returns (int56)
+    {
         // A no-code target's high-level call reverts via the compiler's extcodesize pre-check, which
         // try/catch does NOT trap (it reverts with empty data). Guard it explicitly so an absent pool
         // is the named ReferenceTwapUnavailable, never a bare revert and never a fail-open.
@@ -153,24 +160,8 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         secondsAgos[0] = window;
         secondsAgos[1] = 0;
 
-        if (kind == 0) {
-            try IUniswapV3Pool(pool).observe(secondsAgos) returns (int56[] memory tickCumulatives, uint160[] memory) {
-                return tickCumulatives[1] - tickCumulatives[0];
-            } catch {
-                revert ReferenceTwapUnavailable();
-            }
-        }
-
-        // kind == 1 (Algebra): the TWAP oracle lives on the pool's plugin (hook), not the pool itself.
-        try IAlgebraPool(pool).plugin() returns (address oracle) {
-            if (oracle == address(0)) revert ReferenceTwapUnavailable();
-            try IVolatilityOracle(oracle).getTimepoints(secondsAgos) returns (
-                int56[] memory tickCumulatives, uint88[] memory
-            ) {
-                return tickCumulatives[1] - tickCumulatives[0];
-            } catch {
-                revert ReferenceTwapUnavailable();
-            }
+        try IUniswapV3Pool(pool).observe(secondsAgos) returns (int56[] memory tickCumulatives, uint160[] memory) {
+            return tickCumulatives[1] - tickCumulatives[0];
         } catch {
             revert ReferenceTwapUnavailable();
         }
@@ -244,7 +235,7 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         }
 
         // Get current V4 pool spot price and delegate to the venue-agnostic core so the numeraire +
-        // direction fix cannot drift between the V4 and non-V4 (Algebra) entry points.
+        // direction fix cannot drift between the V4 and non-V4 entry points.
         (uint160 sqrtPriceX96,,,) = StateLibrary.getSlot0(IPoolManager(_poolManager), PoolId.wrap(poolId));
 
         // A V4 alignment pool is native-ETH-paired: ETH = address(0) sorts first, so ETH is ALWAYS
@@ -297,8 +288,8 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         // caller's `ethIsCurrency0`; the TWAP uses the ordering of the V3 WETH/`token` pool the TWAP was
         // actually read out of, which `_getTwapSqrtPriceX96` returns alongside the price.
         //
-        // Reusing the caller's flag for both looked sound because an Algebra caller derives its flag from
-        // the same `weth < token` comparison the V3 pool is ordered by. The V4 caller does not: a V4
+        // Reusing the caller's flag for both looked sound because an ERC20/ERC20 caller derives its flag
+        // from the same `weth < token` comparison the V3 pool is ordered by. The V4 caller does not: a V4
         // alignment pool is native-ETH-paired, so its flag is unconditionally `true`, while the V3 pool
         // it is cross-checked against orders WETH second for any token sorting below WETH. For those
         // tokens the two proportions were derived on opposite numeraires and were not comparable — on a
@@ -383,7 +374,7 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     ///      the tightest band this contract can be configured with, so the mapping cannot move a decision.
     ///
     ///      The deviation is measured on PRICE, matching the scale `maxPriceDeviationBps` carries at every
-    ///      other reader in this tree (`CypherAlignmentVault._validateExistingPool`, `_floorTokenOut`).
+    ///      other reader in this tree (`_floorTokenOut`).
     ///      Comparing sqrt deltas directly would spend a price-space bound in sqrt space and admit a band
     ///      roughly twice as wide as its label.
     function _requireSpotWithinTwapBand(uint160 spotSqrtPriceX96, uint160 twapSqrtPriceX96, bool sameOrdering)
@@ -427,8 +418,8 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     ///      theorem about the vault's configuration, NOT hardcoded here: this validator is a shared
     ///      IVaultPriceValidator and must be correct for bounded ranges too.
     ///      The numeraire ordering is supplied by the caller (`ethIsCurrency0`), NOT derived from the
-    ///      token address: a V4 native-ETH pool always has ETH = currency0, but an Algebra/Cypher pool is
-    ///      ERC20/ERC20 ordered by WNativeToken-vs-token address, so its WETH leg can be currency1. A
+    ///      token address: a V4 native-ETH pool always has ETH = currency0, but an ERC20/ERC20 pool is
+    ///      ordered by WNativeToken-vs-token address, so its WETH leg can be currency1. A
     ///      hardcoded `address(0) < token` (always true) would invert the direction for a token0-token pool
     ///      and strand ETH or token in the vault.
     function _computeProportionFromSqrtPrice(

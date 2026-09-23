@@ -2,7 +2,7 @@
  * useVaultOverview — vault-global reads for the detail page (`/vault/:address`). Unlike `useEndowment`
  * (which is per-benefactor and endowment-only), this reads the vault as a whole across families:
  *
- *  - `vaultType()`        — branch the UI (AaveEndowment / UniswapV4LP / ZAMMLP / CypherLP). The
+ *  - `vaultType()`        — branch the UI (AaveEndowment / UniswapV4LP / ZAMMLP). The
  *                           selector is shared across families (IAlignmentVault), so the endowment
  *                           ABI hook resolves it for any vault.
  *  - `accumulatedFees()`  — fees accrued (all families expose it via IAlignmentVault).
@@ -110,7 +110,18 @@ export function useVaultOverview(vault: `0x${string}` | undefined): VaultOvervie
   }
 }
 
-/** Short human label for a vaultType() string. */
+/**
+ * Short human label for a `vaultType()` string.
+ *
+ * A type this app does not know is named as unknown, never echoed back as if it were a family — the
+ * same house rule `venueLabel` applies to venues. A vault answers `vaultType()` with whatever string
+ * its own bytecode carries, so a retired family still deployed somewhere would otherwise render its
+ * own name as a badge and read as a family on the menu, while the protocol's own split library
+ * reverts on it.
+ *
+ * `undefined` is a different thing and stays neutral: the read has not landed yet (or failed), which
+ * is not a claim that the family is unrecognised.
+ */
 export function vaultFamilyLabel(vaultType: string | undefined): string {
   switch (vaultType) {
     case 'AaveEndowment':
@@ -119,9 +130,7 @@ export function vaultFamilyLabel(vaultType: string | undefined): string {
       return 'Uni-V4 LP'
     case 'ZAMMLP':
       return 'ZAMM LP'
-    case 'CypherLP':
-      return 'Cypher LP'
     default:
-      return vaultType || 'Vault'
+      return vaultType ? 'unknown family' : 'Vault'
   }
 }

@@ -5,7 +5,6 @@ import { Test } from "forge-std/Test.sol";
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 
-import { CypherAlignmentVault } from "../../src/vaults/cypher/CypherAlignmentVault.sol";
 import { ZAMMAlignmentVault, IZAMM } from "../../src/vaults/zamm/ZAMMAlignmentVault.sol";
 import { UniAlignmentVault } from "../../src/vaults/uni/UniAlignmentVault.sol";
 import { AlignmentEndowmentVault } from "../../src/vaults/aave/AlignmentEndowmentVault.sol";
@@ -19,12 +18,11 @@ import { MockZAMM } from "../mocks/MockZAMM.sol";
 import { MockZRouter } from "../mocks/MockZRouter.sol";
 import { MockVaultPriceValidator } from "../mocks/MockVaultPriceValidator.sol";
 import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
-import { MockAlgebraPositionManager, MockAlgebraSwapRouter, MockAlgebraFactory } from "../mocks/MockCypherAlgebra.sol";
 
 /**
  * @title ProtocolFeeExitParity
  * @notice Cross-family parity gate for the 1% protocol-fee exit.
- * @dev The three fee-bearing liquidity families — Uni, ZAMM, Cypher — each accrue a protocol cut in
+ * @dev The two fee-bearing liquidity families — Uni and ZAMM — each accrue a protocol cut in
  *      `accumulatedProtocolFees` and each expose a `withdrawProtocolFees()` push. Divergence between
  *      them is what this file exists to catch, on two axes:
  *
@@ -33,16 +31,16 @@ import { MockAlgebraPositionManager, MockAlgebraSwapRouter, MockAlgebraFactory }
  *                 is zeroed, and an unpinned sink reverts `TreasuryNotSet`.
  *
  *        Axis 2 — SINK MUTABILITY. Whether a family can re-point `protocolTreasury` after deploy.
- *                 Today only ZAMM exposes `setProtocolTreasury`; Cypher and Uni write the sink once at
+ *                 Today only ZAMM exposes `setProtocolTreasury`; Uni writes the sink once at
  *                 `initialize`. This file asserts that table AS IT STANDS so a future divergence fails
- *                 loudly. It does not claim which shape is correct — whether Cypher and Uni should
- *                 gain a setter is a separate, unruled question.
+ *                 loudly. It does not claim which shape is correct — whether Uni should gain a setter
+ *                 is a separate, unruled question.
  *
  *        Axis 3 — SINK PINNED AT BIRTH. `initialize` refuses a zero `protocolTreasury` in every family.
  *                 This is the half of the property that axis 1 cannot supply: because the sink is
- *                 write-once for two of the three families, a vault born with a zero sink accrues the
+ *                 write-once for one of the two families, a vault born with a zero sink accrues the
  *                 1% cut into a bucket that can never be withdrawn (axis 1 reverts, correctly) and can
- *                 never be re-pointed (axis 2, for those families). The factories take the treasury as
+ *                 never be re-pointed (axis 2, for that family). The factories take the treasury as
  *                 a caller-supplied argument, so init is the boundary where it has to be rejected.
  *
  *      NAMED EXCLUSION: `AlignmentEndowmentVault` is a fourth vault family and is deliberately NOT in
@@ -68,15 +66,10 @@ contract ProtocolFeeExitParityTest is Test {
     MockVaultPriceValidator internal validator;
     MockZRouter internal zRouter;
     MockZAMM internal zamm;
-    MockAlgebraPositionManager internal positionManager;
-    MockAlgebraSwapRouter internal swapRouter;
-    MockAlgebraFactory internal algebraFactory;
 
-    CypherAlignmentVault internal cypherImpl;
     ZAMMAlignmentVault internal zammImpl;
     UniAlignmentVault internal uniImpl;
 
-    CypherAlignmentVault internal cypher;
     ZAMMAlignmentVault internal zammVault;
     UniAlignmentVault internal uni;
 
@@ -85,9 +78,6 @@ contract ProtocolFeeExitParityTest is Test {
         weth = new MockWETH();
         zRouter = new MockZRouter();
         zamm = new MockZAMM();
-        positionManager = new MockAlgebraPositionManager();
-        swapRouter = new MockAlgebraSwapRouter();
-        algebraFactory = new MockAlgebraFactory();
 
         validator = new MockVaultPriceValidator();
         validator.setEthPer1e18Tokens(1e18);
@@ -101,11 +91,9 @@ contract ProtocolFeeExitParityTest is Test {
             IAlignmentRegistry.ReferencePool({ pool: refPool, kind: 0, twapWindow: 1800 })
         );
 
-        cypherImpl = new CypherAlignmentVault();
         zammImpl = new ZAMMAlignmentVault();
         uniImpl = new UniAlignmentVault();
 
-        cypher = _newCypher(treasury);
         zammVault = _newZamm(treasury);
         uni = _newUni(treasury);
     }
@@ -115,31 +103,6 @@ contract ProtocolFeeExitParityTest is Test {
     // Clone and init are split so axis 3 can arm `vm.expectRevert` on the `initialize` call alone —
     // armed across the clone it would trip on the deployment instead — while both paths still drive
     // the same argument list.
-
-    function _newCypher(address treasury_) internal returns (CypherAlignmentVault v) {
-        v = _cloneCypher();
-        _initCypher(v, treasury_);
-    }
-
-    function _cloneCypher() internal returns (CypherAlignmentVault) {
-        return CypherAlignmentVault(payable(LibClone.clone(address(cypherImpl))));
-    }
-
-    function _initCypher(CypherAlignmentVault v, address treasury_) internal {
-        v.initialize(
-            address(positionManager),
-            address(swapRouter),
-            address(algebraFactory),
-            address(weth),
-            address(alignmentToken),
-            treasury_,
-            address(zRouter), // initialize now requires nonzero; reuses the same mock as the ZAMM/Uni inits below
-            address(0), // zQuoter
-            address(validator),
-            IAlignmentRegistry(address(registry)),
-            TARGET_ID
-        );
-    }
 
     function _newZamm(address treasury_) internal returns (ZAMMAlignmentVault v) {
         v = _cloneZamm();
@@ -238,10 +201,6 @@ contract ProtocolFeeExitParityTest is Test {
 
     // ── Axis 1 — exit callability ───────────────────────────────────────────
 
-    function test_axis1_cypher_exitIsPermissionlessAndLandsAtTreasury() public {
-        _assertPermissionlessExit(address(cypher));
-    }
-
     function test_axis1_zamm_exitIsPermissionlessAndLandsAtTreasury() public {
         _assertPermissionlessExit(address(zammVault));
     }
@@ -251,15 +210,8 @@ contract ProtocolFeeExitParityTest is Test {
     }
 
     // An unpinned sink must revert rather than burn the cut. Asserted on an UNINITIALIZED clone
-    // uniformly across the three families: Cypher, Uni and ZAMM all refuse a zero treasury at
-    // `initialize` (axis 3), so a fresh clone is the only state in which the guard is reachable for
-    // all three.
-
-    function test_axis1_cypher_revertsWhenTreasuryUnset() public {
-        CypherAlignmentVault v = CypherAlignmentVault(payable(LibClone.clone(address(cypherImpl))));
-        vm.expectRevert(CypherAlignmentVault.TreasuryNotSet.selector);
-        v.withdrawProtocolFees();
-    }
+    // uniformly across both families: Uni and ZAMM both refuse a zero treasury at `initialize`
+    // (axis 3), so a fresh clone is the only state in which the guard is reachable for either.
 
     function test_axis1_zamm_revertsWhenTreasuryUnset() public {
         ZAMMAlignmentVault v = ZAMMAlignmentVault(payable(LibClone.clone(address(zammImpl))));
@@ -280,7 +232,6 @@ contract ProtocolFeeExitParityTest is Test {
     ///      discovery.
     function test_axis2_sinkMutabilityTable() public {
         assertTrue(_ownerCanRepointSink(address(zammVault)), "ZAMM: sink is re-pointable by the owner");
-        assertFalse(_ownerCanRepointSink(address(cypher)), "Cypher: sink is write-once at initialize");
         assertFalse(_ownerCanRepointSink(address(uni)), "Uni: sink is write-once at initialize");
     }
 
@@ -303,12 +254,6 @@ contract ProtocolFeeExitParityTest is Test {
     // happy-path fixtures use, with `address(0)` in the treasury slot, so the assertion tracks the real
     // constructor argument order rather than a hand-rolled copy of it.
 
-    function test_axis3_cypher_initializeRejectsZeroTreasury() public {
-        CypherAlignmentVault v = _cloneCypher();
-        vm.expectRevert(CypherAlignmentVault.TreasuryNotSet.selector);
-        _initCypher(v, address(0));
-    }
-
     function test_axis3_zamm_initializeRejectsZeroTreasury() public {
         ZAMMAlignmentVault v = _cloneZamm();
         vm.expectRevert(ZAMMAlignmentVault.TreasuryNotSet.selector);
@@ -325,7 +270,6 @@ contract ProtocolFeeExitParityTest is Test {
     ///      argument supplied, so the axis-3 reverts above cannot be satisfied by an `initialize` that
     ///      rejects everything.
     function test_axis3_nonZeroTreasuryIsPinnedInEveryFamily() public view {
-        assertEq(cypher.protocolTreasury(), treasury, "Cypher pins the supplied sink");
         assertEq(zammVault.protocolTreasury(), treasury, "ZAMM pins the supplied sink");
         assertEq(uni.protocolTreasury(), treasury, "Uni pins the supplied sink");
     }

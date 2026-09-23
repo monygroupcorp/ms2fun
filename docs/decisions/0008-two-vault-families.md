@@ -88,3 +88,9 @@ stated Cypher was not on mainnet; corrected 2026-07-01.)
   discriminator) and the per-target LP wiring runbook (pool key + price validator, gated in the
   wizard). DAO/governance stays retired; EXEC404 stays grandfathered. Implementation tracked in
   `docs/phases/vault-flavors.md` (T1–T7).
+- **2026-09-23** — The **Cypher leg of the Liquidity family is withdrawn**, before the Sepolia
+  testnet launch. Cypher goes out as an LP venue and as an alignment target — removed from the
+  protocol, not toggled off — so the Liquidity family is `UniswapV4LP` / `ZAMMLP` and the
+  `vaultType()` taxonomy is three strings, not four. Everything above is the record as it stood,
+  including the 2026-07-01 correction about Cypher being live on mainnet, and is not rewritten:
+  it was true when it was written and the removal is a later decision, not a retraction of it.

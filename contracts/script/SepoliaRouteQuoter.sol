@@ -20,20 +20,18 @@ pragma solidity ^0.8.20;
 ///         showcase asset has exactly one seeded pool per vault that acquires it.
 ///
 ///         WHY THE TABLE IS KEYED BY THE VAULT THAT ASKS, AND NOT BY THE TOKEN ALONE. The showcase
-///         deliberately carries one asset across more than one venue: CULT is the Uniswap V4 target
-///         AND the Cypher (Algebra) target, MS2 is the Uniswap V4 target AND the ZAMM target. Those
-///         are different vaults, LPing on different venues, each flooring its convert against its own
-///         venue's price authority. A table keyed by token alone cannot tell them apart: one UNI_V4
-///         row for CULT answers the Cypher vault too, and that vault — which `CypherAlignmentVault`
-///         has just made revert unless the registry curates it as ALGEBRA — buys on the Uniswap pool
-///         instead, against a floor derived from the Algebra pool's TWAP. The Algebra and ZAMM legs
+///         deliberately carries one asset across more than one venue: MS2 is the Uniswap V4 target
+///         AND the ZAMM target. Those are different vaults, LPing on different venues, each flooring
+///         its convert against its own venue's price authority. A table keyed by token alone cannot
+///         tell them apart: one UNI_V4 row for MS2 answers the ZAMM vault too, and that vault buys on
+///         the Uniswap pool instead, against a floor derived from its own venue's TWAP. The ZAMM leg
 ///         the showcase exists to rehearse would then never execute on this chain at all.
 ///
 ///         `BestRouteAcquirer` is inlined into its vault, so `getQuotes` sees the VAULT as
 ///         `msg.sender`, and a row is registered against it. Nothing about the caller changes: the
 ///         acquirer asks the same question and decodes the same reply it will on mainnet. What
-///         changes is that this table can say "the Cypher vault acquires CULT on Algebra", which on
-///         this ABI is said by having no row — see the note on `setRoute`.
+///         changes is that this table can say "this vault acquires on its own venue", which on this
+///         ABI is said by having no row — see the note on `setRoute`.
 ///
 ///         `amountOut` IS A FLAG, NOT A PRICE. `BestRouteAcquirer` reads it only as a non-zero
 ///         "route exists" test; the bound the swap actually executes against is the vault's own
@@ -101,9 +99,9 @@ contract SepoliaRouteQuoter {
     ///      pool the depth went into, and no other.
     ///
     ///      A VAULT WHOSE VENUE HAS NO TYPED LEG GETS NO ROW. `BestRouteAcquirer` dispatches to
-    ///      `swapV2/V3/V4/VZ` and nothing else — there is no Algebra leg for it to pick, and the
-    ///      Cypher vault reaches its Algebra router through the fallback by design. The honest row
-    ///      for such a vault is no row: "I cannot route this" is what an empty route means, and it is
+    ///      `swapV2/V3/V4/VZ` and nothing else; a vault on any other venue reaches it through the
+    ///      fallback by design. The honest row for such a vault is no row: "I cannot route this" is
+    ///      what an empty route means, and it is
     ///      what puts the vault on the venue it LPs into. Hence the refusal below of the four
     ///      upstream members this library quotes but cannot execute — storing one would be storing a
     ///      row that can only degrade to the fallback, indistinguishable in effect from absence and

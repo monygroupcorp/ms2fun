@@ -10,7 +10,7 @@ gate (`test/factories/erc404/eip170-diet-gate.sh`), `forge test`, and the v4
 Reason: a **whole-tree** Slither pass **crashes** on this tree (a hard abort during
 IR construction, not a finding), on every release tested. However, Slither **does**
 run successfully when **targeted at individual contracts / sectors** whose import
-closure avoids the two files with tuple-returning ternaries (see below). So Slither
+closure avoids the file with tuple-returning ternaries (see below). So Slither
 is usable as a **manual, sector-targeted advisory tool** — it is simply not wired
 into CI (decision 2026-08-02: keep manual, do not build a CI job yet).
 
@@ -48,22 +48,21 @@ Every version aborts with `SlithIRError` — exit 255, **zero findings emitted**
   if zeroForOne then (r0,r1) else (r1,r0)
   ```
 
-  at `src/peripherals/zRouter.sol:62` (also `zRouter.sol:151/343/392/898`,
-  `src/vaults/cypher/CypherAlignmentVault.sol:289/294`).
+  at `src/peripherals/zRouter.sol:62` (also `zRouter.sol:151/343/392/898`).
 
 - **0.10.0:** will not import under Python 3.14 (`No module named 'pkg_resources'`).
 
-Note: you cannot simply `forge build --skip` the two tuple-ternary files out of a
-whole-tree build — `CypherAlignmentVault` is interdependent (imported by
-`src/factories/erc404cypher/CypherLiquidityDeployerModule.sol`), so excising it
-yields empty/partial ASTs that corrupt the parse and then trip the Solady crash.
+Note: you cannot simply `forge build --skip` the tuple-ternary file out of a
+whole-tree build — it is interdependent with the contracts that route through it, so
+excising it yields empty/partial ASTs that corrupt the parse and then trip the Solady
+crash.
 
 ### Sector-targeted pass — works on 0.10.4
 
 Pointing **Slither 0.10.4** at a contract (or sector directory) lets it resolve just
-that contract's import closure. Closures that do **not** pull in the two tuple-ternary
-files (`src/peripherals/zRouter.sol`, `src/vaults/cypher/CypherAlignmentVault.sol`)
-analyze cleanly, Solady `ReentrancyGuard` and all. Confirmed example:
+that contract's import closure. Closures that do **not** pull in the tuple-ternary
+file (`src/peripherals/zRouter.sol`) analyze cleanly, Solady `ReentrancyGuard` and
+all. Confirmed example:
 
 ```
 slither src/factories/erc1155/ERC1155Factory.sol \
@@ -74,15 +73,14 @@ slither src/factories/erc1155/ERC1155Factory.sol \
 The ERC1155 / ERC721 / ERC404 factory families (which contain the 18 Solady-
 `ReentrancyGuard` money contracts) are coverable this way. The **uncovered sector**
 is `zRouter.sol` (vendored z-fi upstream — audit upstream separately, do not edit
-here) plus `CypherAlignmentVault.sol` and anything whose closure includes it; these
-stay uncovered until the tuple-ternary crash is resolved (upstream fix, or a
-spec-gated rewrite — see triggers).
+here) and anything whose closure includes it; these stay uncovered until the
+tuple-ternary crash is resolved upstream (see triggers).
 
 ## Manual Pre-Deploy Procedure (Advisory)
 
 On a working local toolchain (Slither **0.10.4**, Python ≤ 3.12), run Slither
-**per sector**, targeting an entry contract (or dir) whose closure avoids the two
-tuple-ternary files. Example for the ERC1155 family:
+**per sector**, targeting an entry contract (or dir) whose closure avoids the
+tuple-ternary file. Example for the ERC1155 family:
 
 ```
 slither src/factories/erc1155/ \
@@ -91,7 +89,7 @@ slither src/factories/erc1155/ \
 
 Repeat for the erc721 and erc404 factory families. Triage findings by hand.
 Do **not** run the whole-tree `slither .` form — it aborts (see Evidence).
-For the zRouter/Cypher sector there is no working Slither pass today; rely on
+For the zRouter sector there is no working Slither pass today; rely on
 manual review + the existing test/audit gates there.
 
 `contracts/slither.config.json` (`filter_paths`, `detectors_to_exclude`, pinned
@@ -103,8 +101,9 @@ manual review + the existing test/audit gates there.
    Wire it into `contracts-ci.yml` as an advisory job (`fail-on: none`, SARIF
    upload) pinned to that version, then ratchet `fail-on` up once a triage baseline
    is green.
-2. **A deliberate, spec-gated, re-audited money-code pass** that rewrites
-   `CypherAlignmentVault.sol`'s tuple-ternaries to if/else removes the tuple-ternary
-   crash class for the Cypher sector (`zRouter.sol` is vendored — leave it). The
-   Solady `ReentrancyGuard` crash class still needs the upstream fix for a
-   *whole-tree* run, but sector-targeted 0.10.4 already covers the Solady contracts.
+2. **The vendored `zRouter.sol` changes upstream** in a way that drops the
+   tuple-returning ternaries. It is the only remaining source of that crash class,
+   and it is not rewritten here — so short of trigger 1 this is the other way the
+   sector becomes coverable. The Solady `ReentrancyGuard` crash class still needs the
+   upstream fix for a *whole-tree* run, but sector-targeted 0.10.4 already covers the
+   Solady contracts.

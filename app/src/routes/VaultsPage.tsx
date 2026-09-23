@@ -7,7 +7,7 @@
  * answers "who can a collection align to", and the target page answers "and what is bound to them".
  *
  * TVL is shown per the "honest split": endowment vaults report real `totalPrincipal()`; LP vaults
- * (Uni/ZAMM/Cypher) expose no principal read, so they show a family badge + accrued fees instead of
+ * (Uni/ZAMM) expose no principal read, so they show a family badge + accrued fees instead of
  * a fabricated number. The header total sums ONLY endowment principals, labelled as such.
  */
 import { Link } from 'wouter'

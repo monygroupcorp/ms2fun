@@ -64,12 +64,12 @@ test('an address the deployment omits resolves to zero, never to another chainâ€
     chainId: sepoliaChainId,
     contracts: { ...SEPOLIA.contracts },
   }
-  delete partial.contracts.ModuleCypherDeployer
-  delete partial.contracts.CypherSwapRouter
+  delete partial.contracts.ModuleUniV4Deployer
+  delete partial.contracts.ModuleZAMMDeployer
 
   const resolved = addressesFromDeployment(partial)
-  expect(resolved.ModuleCypherDeployer).toBe(ZERO)
-  expect(resolved.CypherSwapRouter).toBe(ZERO)
+  expect(resolved.ModuleUniV4Deployer).toBe(ZERO)
+  expect(resolved.ModuleZAMMDeployer).toBe(ZERO)
   expect(resolved.MasterRegistryV1).toBe(SEPOLIA.contracts.MasterRegistryV1)
 })
 

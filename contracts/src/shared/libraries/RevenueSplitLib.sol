@@ -11,11 +11,10 @@ library RevenueSplitLib {
     error UnknownVaultFamily(string vaultType);
 
     // Precomputed keccak of the recognized vaultType() literals. The strings are compile-time
-    // constants, so hashing them once as `constant`s avoids recomputing four keccaks on every
+    // constants, so hashing them once as `constant`s avoids recomputing three keccaks on every
     // settlement call in `isLiquidityFamily`.
     bytes32 private constant _HASH_UNISWAP_V4_LP = keccak256(bytes("UniswapV4LP"));
     bytes32 private constant _HASH_ZAMM_LP = keccak256(bytes("ZAMMLP"));
-    bytes32 private constant _HASH_CYPHER_LP = keccak256(bytes("CypherLP"));
     bytes32 private constant _HASH_AAVE_ENDOWMENT = keccak256(bytes("AaveEndowment"));
 
     struct Split {
@@ -37,7 +36,7 @@ library RevenueSplitLib {
     }
 
     /// @notice Classify an alignment vault's `vaultType()` string into its revenue-split family.
-    /// @dev Liquidity set = {"UniswapV4LP","ZAMMLP","CypherLP"}; yield set = {"AaveEndowment"}.
+    /// @dev Liquidity set = {"UniswapV4LP","ZAMMLP"}; yield set = {"AaveEndowment"}.
     ///      keccak256 over the UTF-8 bytes is an exact, collision-free string match. An unrecognized
     ///      vaultType reverts `UnknownVaultFamily` — an unknown family is a deploy-config error caught
     ///      loud, never silently defaulted.
@@ -45,7 +44,7 @@ library RevenueSplitLib {
     /// @return liquidityFamily True for the liquidity set, false for the yield set; reverts otherwise.
     function isLiquidityFamily(string memory vaultType) internal pure returns (bool liquidityFamily) {
         bytes32 h = keccak256(bytes(vaultType));
-        if (h == _HASH_UNISWAP_V4_LP || h == _HASH_ZAMM_LP || h == _HASH_CYPHER_LP) {
+        if (h == _HASH_UNISWAP_V4_LP || h == _HASH_ZAMM_LP) {
             return true;
         }
         if (h == _HASH_AAVE_ENDOWMENT) {

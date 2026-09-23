@@ -18,7 +18,7 @@ contract AlignmentRegistryAmbassadorMetadataWriteTest is Test {
     address public cultToken = makeAddr("CULT");
 
     function setUp() public {
-        registry = new AlignmentRegistryV1(makeAddr("WETH"), address(0), address(0));
+        registry = new AlignmentRegistryV1(makeAddr("WETH"), address(0));
         registry.initialize(daoOwner);
     }
 
@@ -219,7 +219,7 @@ contract AlignmentRegistryAmbassadorMetadataWriteTest is Test {
         uint256 targetId = _registerTargetWithAmbassador();
 
         IAlignmentRegistry.AcquireRoute memory route = IAlignmentRegistry.AcquireRoute({
-            venue: IAlignmentRegistry.Venue.ALGEBRA, fee: 0, tickSpacing: 0, feeOrHook: 0
+            venue: IAlignmentRegistry.Venue.ZAMM, fee: 0, tickSpacing: 0, feeOrHook: 30
         });
 
         vm.prank(ambassador);

@@ -38,33 +38,29 @@ contract SlitherSuppressionCensusTest is Test {
 
     /// @dev Number of `.sol` files discovered under `src`. Asserted so that a file — and therefore a
     ///      possible suppression — cannot be added or moved outside the census unnoticed.
-    uint256 internal constant EXPECTED_SOL_FILES = 92;
+    uint256 internal constant EXPECTED_SOL_FILES = 88;
 
     /// @dev Total `missing-zero-check` directives across `src`.
-    uint256 internal constant EXPECTED_TOTAL = 20;
+    uint256 internal constant EXPECTED_TOTAL = 15;
 
     function _expected() internal pure returns (string[] memory paths, uint256[] memory counts) {
-        paths = new string[](9);
-        counts = new uint256[](9);
+        paths = new string[](7);
+        counts = new uint256[](7);
 
         paths[0] = "src/factories/erc404/LiquidityDeployerModule.sol";
         counts[0] = 1;
-        paths[1] = "src/factories/erc404cypher/CypherLiquidityDeployerModule.sol";
+        paths[1] = "src/factories/erc404zamm/ZAMMLiquidityDeployerModule.sol";
         counts[1] = 1;
-        paths[2] = "src/factories/erc404zamm/ZAMMLiquidityDeployerModule.sol";
-        counts[2] = 1;
-        paths[3] = "src/peripherals/UniswapVaultPriceValidator.sol";
-        counts[3] = 3;
-        paths[4] = "src/promotion/PromotionBadges.sol";
+        paths[2] = "src/peripherals/UniswapVaultPriceValidator.sol";
+        counts[2] = 3;
+        paths[3] = "src/promotion/PromotionBadges.sol";
+        counts[3] = 1;
+        paths[4] = "src/treasury/ProtocolTreasuryV1.sol";
         counts[4] = 1;
-        paths[5] = "src/treasury/ProtocolTreasuryV1.sol";
-        counts[5] = 1;
-        paths[6] = "src/vaults/aave/AlignmentEndowmentVaultFactory.sol";
+        paths[5] = "src/vaults/aave/AlignmentEndowmentVaultFactory.sol";
+        counts[5] = 4;
+        paths[6] = "src/vaults/uni/UniAlignmentVaultFactory.sol";
         counts[6] = 4;
-        paths[7] = "src/vaults/cypher/CypherAlignmentVault.sol";
-        counts[7] = 4;
-        paths[8] = "src/vaults/uni/UniAlignmentVaultFactory.sol";
-        counts[8] = 4;
     }
 
     // ── The census ────────────────────────────────────────────────────────

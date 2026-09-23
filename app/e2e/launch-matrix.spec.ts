@@ -9,9 +9,9 @@
  *
  * Combination axes (all live on the seeded fork):
  *   - project type: erc404 | erc1155 | erc721
- *   - erc404 liquidity deployer: Uniswap V4 | ZAMM | Cypher (required slot)
+ *   - erc404 liquidity deployer: Uniswap V4 | ZAMM (required slot)
  *   - optional module slots: gating (Merkle) · staking · resolver (router) · overlay · tier
- *   - alignment: community (target) × venue (Aave yield / Uni V4 / ZAMM / Cypher LP)
+ *   - alignment: community (target) × venue (Aave yield / Uni V4 LP / ZAMM LP)
  *   - erc404 launch preset 0/1/2, free-mint allocation + gating scope
  *   - erc721 auction lines 1..3, erc1155 gating scope 0/1/2
  *
@@ -99,7 +99,7 @@ interface LaunchCase {
   /** Overlay policy inputs, when the overlay slot is selected. */
   overlay?: { autoLatest?: boolean; payout?: 'Artist' | 'Split' }
   /** Alignment: community card title substring + venue card label. */
-  align: { community: string; venue: 'Aave' | 'Uniswap V4' | 'ZAMM' | 'Cypher' }
+  align: { community: string; venue: 'Aave' | 'Uniswap V4' | 'ZAMM' }
 }
 
 /** Which step owns a free-mint input depends on the TYPE. ERC-404 carries `freeMint` as a group, and
@@ -284,13 +284,6 @@ const CASES: LaunchCase[] = [
     modules: { 'Liquidity deployer': 'ZAMM' },
     align: { community: 'MS2|Milady', venue: 'ZAMM' },
   },
-  {
-    id: 'lm404-cypher-bare',
-    type: 'erc404',
-    fields: ERC404_BASE,
-    modules: { 'Liquidity deployer': 'Cypher' },
-    align: { community: 'MS2|Milady', venue: 'Cypher' },
-  },
   // ERC-404 — every slot except tier, on at once (tier needs its own ladder + resolver — see the
   // dedicated tiered case below), free mint on with a narrowed gating scope, HYPE preset, largest supply.
   {
@@ -318,14 +311,16 @@ const CASES: LaunchCase[] = [
     overlay: { payout: 'Artist' },
     align: { community: 'CULT', venue: 'ZAMM' },
   },
-  // ERC-404 — staking + gating, paid-only scope, no metadata stack, Cypher venue on the other target.
+  // ERC-404 — staking + gating, paid-only scope, no metadata stack, on the other target. This is the
+  // only case that exercises staking, gating and the paid-only scope together, so it keeps its shape
+  // and moves to another venue rather than being dropped with the one it used to name.
   {
-    id: 'lm404-stake-gate-cypher',
+    id: 'lm404-stake-gate-zamm',
     type: 'erc404',
     fields: { ...ERC404_BASE, 'Free allocation': '5' },
     selects: { 'Gating scope': 'Paid only' },
-    modules: { 'Liquidity deployer': 'Cypher', Gating: 'Merkle', Staking: 'Staking' },
-    align: { community: 'CULT', venue: 'Cypher' },
+    modules: { 'Liquidity deployer': 'ZAMM', Gating: 'Merkle', Staking: 'Staking' },
+    align: { community: 'CULT', venue: 'ZAMM' },
   },
   // ERC-404 — carve rights waived forever (declared max 0), the other end of the disclosure range.
   {
@@ -382,7 +377,7 @@ const CASES: LaunchCase[] = [
       'Anti-snipe buffer': '60',
       'Min bid increment': '0.01',
     },
-    align: { community: 'CULT', venue: 'Cypher' },
+    align: { community: 'CULT', venue: 'Uniswap V4' },
   },
 ]
 

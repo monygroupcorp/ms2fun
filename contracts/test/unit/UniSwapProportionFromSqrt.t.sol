@@ -9,7 +9,7 @@ import { TickMath } from "v4-core/libraries/TickMath.sol";
 /// @notice noesis-027a — proves the NEW venue-agnostic entry point
 ///         `calculateSwapProportionFromSqrtPrice(token, tickLower, tickUpper, sqrtPriceX96)` is the SAME
 ///         numeraire-correct, direction-correct core as the V4 `calculateSwapProportion`, just fed a
-///         caller-supplied spot price (what an Algebra vault passes from `globalState().price`).
+///         caller-supplied spot price (what a non-V4 vault passes from its own pool's spot read).
 ///
 ///         The harness is a full validator constructed with dummy factory addresses, so the V3 TWAP
 ///         source has no code => TWAP unavailable => only the absolute [35%,65%] clamp fires. That makes
@@ -127,7 +127,7 @@ contract UniSwapProportionFromSqrtTest is Test {
         assertEq(harness.calculateSwapProportionFromSqrtPrice(TOKEN, lower, upper, 0, true), 5e17, "zero spot => 50%");
     }
 
-    // ── Numeraire ordering (the 027a gauntlet fix): an Algebra/Cypher pool where the alignment token sorts
+    // ── Numeraire ordering (the 027a gauntlet fix): an ERC20/ERC20 pool where the alignment token sorts
     //    BELOW WETH has the token as currency0 and the WETH numeraire as currency1 (ethIsCurrency0 == false).
     //    CAMEL.sol supports this ordering, so the core must NOT hardcode `address(0) < token` (always true).
     //    Same sqrtPrice + range as test_fromSqrt_boundedInterior_isTokenSideThenClamped (P=1, range ≈ [0.5,8]),
