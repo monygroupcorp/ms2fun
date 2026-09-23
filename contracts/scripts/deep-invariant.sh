@@ -37,6 +37,19 @@
 # so there is no counterexample and the fuzzer found nothing. A real violation names the
 # assertion and prints the call sequence that reached it.
 #
+# THE OTHER SHAPE, so both are on the page. Observed 2026-09-23 on the same host, same profile:
+#
+#   [FAIL: endowment: harvest distributed more yield than was injected:
+#    39387567573988343698 > 39387567573988343697]
+#     [Sequence] (original: 19, shrunk: 6)  ... six handler calls ...
+#    invariant_harvestFlatSplitConserves() (runs: 42, calls: 21000, reverts: 0)
+#
+# Named assertion, concrete numbers, a shrunk sequence, and a non-zero run count: the property ran
+# and the fuzzer found something. That is a violation, and it stays a violation even though a fresh
+# campaign of the same property alone then passed 10,000 runs / 5,000,000 calls — the seed differs
+# per invocation, and a property that fails one campaign in several is a property that fails. Do not
+# re-roll until it is green.
+#
 # There is deliberately no retry here. A retry would also paper over a real intermittent
 # violation, which is the one result this whole profile exists to catch. Re-run the suite by hand,
 # and if it passes alone, say that is what happened rather than calling the first run a pass.

@@ -62,9 +62,11 @@ a scheduled nightly or weekly run, which is new CI infrastructure and was not bu
 10,000 runs / 5M calls / zero reverts. **That is one suite, and this document quotes no pass/fail
 number for the profile as a whole, because none has been observed.** Nobody else should either.
 
-**Update 2026-09-23 — the complete run happened, and it is green. The prohibition above is
-lifted: there is now a number, and this is it.** Every suite ran to completion on forge
-1.5.1-stable, 32-core host, `FOUNDRY_THREADS` capped at 12 because the machine was shared:
+**First complete run, 2026-09-23 — SUPERSEDED. It did not measure the tree we ship.** It was taken
+before the Cypher vault was wound down, and the wind-down deleted `CypherVaultInvariant.t.sol`
+outright along with the five properties in it. Kept as history, because it is where the two backend
+observations below were first seen and because the heaviest suite's cost is what sizes the CI
+timeout. **Do not quote it as the state of the code.**
 
 > **54 invariant properties across 10 suites. 54 passed, 0 failed, 0 skipped.** Each property at
 > 10,000 runs × 500 depth = 5,000,000 calls; 270,000,000 calls in total. 12.96 CPU-hours, summed
@@ -72,22 +74,66 @@ lifted: there is now a number, and this is it.** Every suite ran to completion o
 > the 2026-08-12 attempt never reached the end of — finished in 2,655.82s wall / 7.37 CPU-hours
 > with 11 invariants and 0 reverts.
 
-Reproduce it with `contracts/scripts/deep-invariant.sh`, which is also what CI now runs.
+**Re-measured 2026-09-23 on the wound-down tree, and it is NOT green.** Same toolchain — forge
+1.5.1-stable, 32-core host, `FOUNDRY_THREADS` capped at 12 across two queues of six because the
+machine was shared. All nine suites ran to completion; one property failed. **This, not the block
+above, is the number for the code as it stands:**
 
-Two things the run found that are worth carrying forward, neither of them a contract defect:
+> **49 invariant properties across 9 suites. 48 passed, 1 FAILED, 0 skipped.** Each passing
+> property at 10,000 runs × 500 depth = 5,000,000 calls; 240,021,000 calls in total. 14.5
+> CPU-hours, summed per-suite wall time 8,263s, clock 1h12m.
+>
+> | suite | result | wall | CPU |
+> | --- | --- | --- | --- |
+> | `BondingCurveInvariant` | 12 passed | 3,119.96s | 31,327.84s |
+> | `BondingCurveFreeMintInvariant` | 9 passed | 1,333.61s | 8,685.48s |
+> | `UniVaultInvariant` | 5 passed | 971.02s | 3,452.36s |
+> | `DeployBondDeadlineInvariant` | 9 passed | 790.33s | 2,073.52s |
+> | `ERC1155EditionInvariant` | 2 passed | 539.66s | 945.29s |
+> | `ZAMMVaultInvariant` | 5 passed | 515.49s | 2,210.60s |
+> | `EndowmentBasisZeroInvariant` | 4 passed | 442.25s | 1,715.18s |
+> | `ERC404StakingStreamAndExit` | 5 passed | 293.39s | 293.39s |
+> | `EndowmentImpairmentInvariant` | 7 passed, **1 failed** | 257.73s | 1,550.88s |
 
-- `UniVaultInvariant.invariant_noPhantomETH` first reported `failed to set up invariant testing
-  environment: EVM error; database error: missing bytecode for code hash 0x…` at `runs: 0,
-  calls: 0`, while the other four invariants in the same contract each completed 5,000,000 calls.
-  Re-run alone at the same depth it passed: 10,000 runs, 5,000,000 calls, 618 reverts, 618.41s.
-  That is the fuzzing backend racing itself, not a violation — `runs: 0` means the property never
-  executed and so found nothing. `scripts/deep-invariant.sh` documents the tell, because a reader
-  who mistakes it for a violation will chase a defect that is not there, and a reader who assumes
-  every red is that flake will wave a real one through.
+The suite count fell by one because the Cypher suite was deleted with the vault, not because a
+suite was dropped from a list: `scripts/deep-invariant.sh` asks forge which files declare an
+`invariant_` function, and there is no written-down list to drift from. The same question also
+correctly passes over `test/invariant/RevenueSplitInvariant.t.sol`, which despite its name and its
+directory declares no invariant and is a unit-test file.
+
+Reproduce it with `contracts/scripts/deep-invariant.sh`, which is also what CI runs.
+
+**The failure.** `EndowmentImpairmentInvariant.invariant_harvestFlatSplitConserves`, at
+`runs: 42, calls: 21000, reverts: 0`:
+
+> `endowment: harvest distributed more yield than was injected:`
+> `39387567573988343698 > 39387567573988343697`
+
+One wei more paid out of a harvest than was ever injected, reached by a six-call shrunk sequence
+of `deposit → accrueYield → harvest → execute → deposit → harvest`. This is a real counterexample
+and not the backend flake described below: the property executed, the assertion is named, and the
+sequence that reached it was printed. It is seed-dependent — a fresh campaign of that property
+alone, 10,000 runs / 5,000,000 calls, came back green in 173.41s, and the per-push `ci` depth
+(256 runs / 128,000 calls) passes, so the per-push gate does not reach it. **A property that fails
+one campaign in several is a property that fails.** Per the closing rule of this entry it is not
+carried here as a deferral; it is escalated on its own.
+
+Two backend observations worth carrying forward, neither of them a contract defect:
+
+- `UniVaultInvariant.invariant_noPhantomETH` reported, in the first run only, `failed to set up
+  invariant testing environment: EVM error; database error: missing bytecode for code hash 0x…` at
+  `runs: 0, calls: 0`, while the other four invariants in the same contract each completed
+  5,000,000 calls. Re-run alone at the same depth it passed: 10,000 runs, 5,000,000 calls, 618
+  reverts, 618.41s. That is the fuzzing backend racing itself, not a violation — `runs: 0` means
+  the property never executed and so found nothing. It did not recur in the re-measurement, where
+  the suite was 5/5 clean. `scripts/deep-invariant.sh` documents the tell, because a reader who
+  mistakes it for a violation will chase a defect that is not there, and a reader who assumes
+  every red is that flake will wave a real one through — the endowment failure above is exactly
+  the red that must not be waved through.
 - `ZAMMVaultInvariant` passes, but roughly 808,000 of each property's 5,000,000 calls revert
-  (~16%). `fail_on_revert = false`, so those calls are discarded and the depth they were supposed
-  to buy is not bought. The suite is green and this is not a defect; it is a handler that could
-  explore more state for the same money.
+  (~16%), unchanged across both runs. `fail_on_revert = false`, so those calls are discarded and
+  the depth they were supposed to buy is not bought. The suite is green and this is not a defect;
+  it is a handler that could explore more state for the same money.
 
 **Still open, and this is why the entry is not struck.** The scheduled job
 (`.github/workflows/contracts-deep-invariant.yml`) has not yet run once on a schedule. Entry 1 of
@@ -95,10 +141,14 @@ this document sets the standard and it applies here: a workflow that looks corre
 workflow that ran.
 
 **Discharges when.** The scheduled job has completed at least one run, *observed* — not merged,
-run. The complete pass/fail half of this condition is met as of 2026-09-23.
+run. The profile now produces a complete result on demand, which is the half of this condition
+that was missing at filing; it has not yet produced a clean one, and the entry cannot be struck on
+a red run.
 
 **If a future run comes back red, it does not belong on this checklist.** An invariant violation on
-money-path contracts wants its own item and an escalation, not a line in a deferral list.
+money-path contracts wants its own item and an escalation, not a line in a deferral list. The
+2026-09-23 endowment failure is recorded above as part of the measurement it came out of, and is
+escalated on its own; it is not accepted here.
 
 ---
 
