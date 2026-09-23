@@ -5,6 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { StdInvariant } from "forge-std/StdInvariant.sol";
 import { ERC1155Instance } from "../../src/factories/erc1155/ERC1155Instance.sol";
 import { ERC1155EditionHandler } from "./handlers/ERC1155EditionHandler.sol";
+import { newERC1155InstanceClone } from "../helpers/ERC1155InstanceClone.sol";
 
 contract MockGlobalMessageRegistry {
     function postForAction(address, address, bytes calldata) external { }
@@ -35,7 +36,8 @@ contract ERC1155EditionInvariantTest is StdInvariant, Test {
 
         vm.startPrank(owner);
 
-        instance = new ERC1155Instance(
+        instance = newERC1155InstanceClone();
+        instance.initialize(
             "Test Collection",
             owner, // creator
             owner, // factory = owner so owner can call factory-gated fns

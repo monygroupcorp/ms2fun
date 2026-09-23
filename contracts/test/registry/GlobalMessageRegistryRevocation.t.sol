@@ -14,6 +14,7 @@ import { CurveParamsComputer } from "../../src/factories/erc404/CurveParamsCompu
 import { BondingCurveMath } from "../../src/factories/erc404/libraries/BondingCurveMath.sol";
 import { ERC1155Instance } from "../../src/factories/erc1155/ERC1155Instance.sol";
 import { ERC721AuctionInstance } from "../../src/factories/erc721/ERC721AuctionInstance.sol";
+import { newERC1155InstanceClone } from "../helpers/ERC1155InstanceClone.sol";
 
 /// @dev Minimal vault surface: `registerVault` needs `alignmentToken()`, and no path under test
 ///      (buy / sell / mint / bid) calls a vault at all.
@@ -152,7 +153,8 @@ contract GlobalMessageRegistryRevocationTest is Test {
     }
 
     function _deployEditions() internal returns (ERC1155Instance inst) {
-        inst = new ERC1155Instance(
+        inst = newERC1155InstanceClone();
+        inst.initialize(
             "Revocation Editions",
             creator,
             factory,

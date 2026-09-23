@@ -34,6 +34,16 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
     error FreeMintAllocationIsPerEdition();
 
     IMasterRegistry public masterRegistry;
+    /// @notice The ERC1155Instance every collection is an EIP-1167 clone of.
+    /// @dev Fixed at construction with no setter. A zero here would let `create` appear to succeed
+    ///      while every clone delegatecalls into nothing, and ETH paid to a clone would be
+    ///      unrecoverable — no repair is possible after deploy, so it is refused in the constructor.
+    /// @dev Immutable with no setter, and that is deliberate — do not add one. Every collection this
+    ///      factory has ever deployed delegatecalls into this address, so a setter would be one switch
+    ///      that rewrites the code of all of them at once, including collections whose creators are
+    ///      long gone. An implementation defect is repaired by deploying a NEW factory over a fixed
+    ///      implementation; collections already created stay on the code they were created with.
+    address public immutable instanceImplementation;
     address public immutable globalMessageRegistry;
     IComponentRegistry public immutable componentRegistry;
     address public protocolTreasury;
@@ -58,10 +68,18 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
     event InstanceCreated(address indexed instance, address indexed creator, string name, address indexed vault);
     event ProtocolTreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
 
-    constructor(address _masterRegistry, address _globalMessageRegistry, address _componentRegistry, address _weth) {
+    constructor(
+        address _masterRegistry,
+        address _globalMessageRegistry,
+        address _componentRegistry,
+        address _weth,
+        address _instanceImplementation
+    ) {
         _initializeOwner(msg.sender);
         if (_globalMessageRegistry == address(0)) revert InvalidAddress();
         if (_weth == address(0)) revert InvalidAddress();
+        if (_instanceImplementation == address(0)) revert InvalidAddress();
+        instanceImplementation = _instanceImplementation;
         masterRegistry = IMasterRegistry(_masterRegistry);
         globalMessageRegistry = _globalMessageRegistry;
         componentRegistry = IComponentRegistry(_componentRegistry);
@@ -129,14 +147,28 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
         // 21st byte 0x00, and the guard becomes keccak256(msg.sender, salt), which no third party can
         // reproduce. See CreateXSalt.
         bytes32 create3Salt = CreateXSalt.permissioned(address(this), msg.sender, salt);
-        instance = ICreateX(CREATEX).deployCreate3(create3Salt, _buildInitCode(params, agentCreated));
+        // The EIP-1167 minimal proxy, 45 bytes, in place of the instance's whole 19,183-byte
+        // creation code. CREATE3 reaches an address derived from the caller and the salt ALONE —
+        // `computeCreate3Address` takes no initcode argument, because CreateX deploys a CREATE2
+        // proxy and lets that proxy CREATE at nonce 1 — so swapping what is deployed here moves no
+        // address that this factory has ever handed out or ever will.
+        instance = ICreateX(CREATEX)
+            .deployCreate3(
+                create3Salt,
+                abi.encodePacked(
+                    hex"3d602d80600a3d3981f3363d3d373d3d3d363d73",
+                    instanceImplementation,
+                    hex"5af43d82803e903d91602b57fd5bf3"
+                )
+            );
+        _initializeInstance(instance, params, agentCreated);
         masterRegistry.registerInstance(
             instance, address(this), params.creator, params.name, params.metadataURI, params.vault
         );
     }
 
-    /// @dev Isolated so that the large abi.encode runs in a fresh stack frame.
-    function _buildInitCode(CreateParams calldata params, bool agentCreated) private view returns (bytes memory) {
+    /// @dev Isolated so that the large struct build runs in a fresh stack frame.
+    function _initializeInstance(address instance, CreateParams calldata params, bool agentCreated) private {
         ERC1155Instance.InstanceInit memory init = ERC1155Instance.InstanceInit({
             globalMessageRegistry: globalMessageRegistry,
             protocolTreasury: protocolTreasury,
@@ -145,9 +177,8 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
             dynamicPricingModule: dynamicPricingModule,
             weth: weth
         });
-        return abi.encodePacked(
-            type(ERC1155Instance).creationCode,
-            abi.encode(
+        ERC1155Instance(payable(instance))
+            .initialize(
                 params.name,
                 params.creator,
                 address(this),
@@ -157,8 +188,7 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
                 agentCreated,
                 params.metadataURI,
                 params.symbol
-            )
-        );
+            );
     }
 
     // ── Admin ─────────────────────────────────────────────────────────────────

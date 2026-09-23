@@ -36,6 +36,7 @@ import { MetadataResolverRouter } from "../src/metadata/MetadataResolverRouter.s
 import { MetadataOverlayModule } from "../src/metadata/MetadataOverlayModule.sol";
 import { TokenTierBandResolver } from "../src/metadata/TokenTierBandResolver.sol";
 import { ERC1155Factory } from "../src/factories/erc1155/ERC1155Factory.sol";
+import { ERC1155Instance } from "../src/factories/erc1155/ERC1155Instance.sol";
 import { DynamicPricingModule } from "../src/factories/erc1155/DynamicPricingModule.sol";
 import { ERC721AuctionFactory } from "../src/factories/erc721/ERC721AuctionFactory.sol";
 import { QueryAggregator } from "../src/query/QueryAggregator.sol";
@@ -209,6 +210,7 @@ contract DeployCore is Script {
     MetadataResolverRouter public metadataResolverRouter;
     MetadataOverlayModule public metadataOverlayModule;
     TokenTierBandResolver public tokenTierBandResolver;
+    ERC1155Instance public erc1155Impl;
     ERC1155Factory public erc1155Factory;
     DynamicPricingModule public dynamicPricingModule;
     ERC721AuctionFactory public erc721Factory;
@@ -546,8 +548,13 @@ contract DeployCore is Script {
 
         // ── Phase 7: ERC1155Factory + DynamicPricingModule ───────────────────
 
-        erc1155Factory =
-            new ERC1155Factory(masterRegistry, address(globalMessageRegistry), address(componentRegistry), cfg.weth);
+        // Every collection is an EIP-1167 clone of this one implementation, so it is deployed once
+        // here and fixed in the factory's constructor. It is locked on deploy (its own constructor
+        // sets the initialized flag), so nobody can claim the implementation itself.
+        erc1155Impl = new ERC1155Instance();
+        erc1155Factory = new ERC1155Factory(
+            masterRegistry, address(globalMessageRegistry), address(componentRegistry), cfg.weth, address(erc1155Impl)
+        );
         erc1155Factory.setProtocolTreasury(address(treasury));
 
         dynamicPricingModule = new DynamicPricingModule();
@@ -731,6 +738,10 @@ contract DeployCore is Script {
         vm.serializeAddress(c, "zQuoter", cfg.zQuoter);
         vm.serializeAddress(c, "LaunchManager", address(launchManager));
         vm.serializeAddress(c, "CurveParamsComputer", address(curveParamsComputer));
+        // The shared ERC-1155 collection implementation. Every collection is an EIP-1167 clone of
+        // it, so a block explorer resolves each one's read/write surface from THIS contract's
+        // verified source; without the address here a verification pass has nothing to point at.
+        vm.serializeAddress(c, "ERC1155Instance", address(erc1155Impl));
         vm.serializeAddress(c, "DynamicPricingModule", address(dynamicPricingModule));
         vm.serializeAddress(c, "ModuleMerkleGating", address(moduleMerkleGating));
         vm.serializeAddress(c, "ModuleUniV4Deployer", address(moduleUniV4Deployer));

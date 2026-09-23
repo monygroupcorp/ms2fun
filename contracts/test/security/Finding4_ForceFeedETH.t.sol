@@ -5,6 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { ERC1155Instance } from "../../src/factories/erc1155/ERC1155Instance.sol";
 import { InsufficientBalance } from "../../src/factories/erc1155/ERC1155Instance.sol";
 import { MockRevertingVault } from "../mocks/MockRevertingVault.sol";
+import { newERC1155InstanceClone } from "../helpers/ERC1155InstanceClone.sol";
 
 /// @notice Minimal master-registry stub. noesis-113 made the ERC1155 settle path read
 ///         `masterRegistry.isVaultRegistered(vault)` before the tithe; a zero `masterRegistry` reverts
@@ -30,7 +31,8 @@ contract Finding4_ERC1155ForceFeedTest is Test {
     address public weth = address(0xE770);
 
     function setUp() public {
-        instance = new ERC1155Instance(
+        instance = newERC1155InstanceClone();
+        instance.initialize(
             "TestCollection",
             creator,
             address(this),

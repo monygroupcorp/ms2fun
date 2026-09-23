@@ -18,6 +18,7 @@ import { CurveParamsComputer } from "../../src/factories/erc404/CurveParamsCompu
 import { ComponentRegistry } from "../../src/registry/ComponentRegistry.sol";
 import { MockMasterRegistry } from "../mocks/MockMasterRegistry.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
+import { ERC1155Instance } from "../../src/factories/erc1155/ERC1155Instance.sol";
 
 /// @title FactoryFeaturesTest
 /// @notice Verifies that every factory implements IFactory.features() correctly and
@@ -92,7 +93,10 @@ contract FactoryFeaturesTest is Test {
     function test_ERC1155Factory_features_returnsArrayViaInterface() public {
         ComponentRegistry compReg = _deployComponentRegistry();
 
-        ERC1155Factory factory = new ERC1155Factory(makeAddr("mr"), makeAddr("gmr"), address(compReg), address(0xBEEF));
+        // The factory clones THIS, so it must be a real implementation and not itself a clone.
+        address erc1155Impl_ = address(new ERC1155Instance());
+        ERC1155Factory factory =
+            new ERC1155Factory(makeAddr("mr"), makeAddr("gmr"), address(compReg), address(0xBEEF), erc1155Impl_);
 
         bytes32[] memory feats = IFactory(address(factory)).features();
         assertTrue(_hasGating(feats), "ERC1155Factory: GATING tag missing from features()");
@@ -148,7 +152,10 @@ contract FactoryFeaturesTest is Test {
     function test_ERC1155Factory_requiredFeatures_returnsEmpty() public {
         ComponentRegistry compReg = _deployComponentRegistry();
 
-        ERC1155Factory factory = new ERC1155Factory(makeAddr("mr"), makeAddr("gmr"), address(compReg), address(0xBEEF));
+        // The factory clones THIS, so it must be a real implementation and not itself a clone.
+        address erc1155Impl_ = address(new ERC1155Instance());
+        ERC1155Factory factory =
+            new ERC1155Factory(makeAddr("mr"), makeAddr("gmr"), address(compReg), address(0xBEEF), erc1155Impl_);
 
         bytes32[] memory req = IFactory(address(factory)).requiredFeatures();
         assertEq(req.length, 0, "ERC1155Factory: requiredFeatures() must be empty");

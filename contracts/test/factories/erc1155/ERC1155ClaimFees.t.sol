@@ -7,6 +7,7 @@ import {
     InsufficientBalance,
     NoFeesToClaim
 } from "../../../src/factories/erc1155/ERC1155Instance.sol";
+import { newERC1155InstanceClone } from "../../helpers/ERC1155InstanceClone.sol";
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -75,7 +76,8 @@ contract ERC1155ClaimFeesTest is Test {
             dynamicPricingModule: address(0),
             weth: address(0)
         });
-        inst = new ERC1155Instance("FeeTest", creator, factory, activeVault, "", init, false, "", "");
+        inst = newERC1155InstanceClone();
+        inst.initialize("FeeTest", creator, factory, activeVault, "", init, false, "", "");
     }
 
     // ── claimVaultFees (single-vault path) ────────────────────────────────────

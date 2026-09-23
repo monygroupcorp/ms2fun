@@ -10,9 +10,8 @@
 #   in the CONSTRUCTOR  -> the blob is in the deployer's CREATION code only, against EIP-3860's
 #                          49,152B initcode cap. Its runtime never carries it.
 #
-# Eight embeddings exist in `src/` today. Four are on the EIP-170 clock:
+# Seven embeddings exist in `src/` today. Three are on the EIP-170 clock:
 #
-#     ERC1155Factory.sol:149        type(ERC1155Instance).creationCode
 #     ERC721AuctionFactory.sol:104  type(ERC721AuctionInstance).creationCode
 #     UniTitheHookFactory.sol:103   type(UniAlignmentV4Hook).creationCode
 #     ERC404Factory.sol:617         new DN404Mirror(address(this))        in _deployAndInitialize
@@ -21,11 +20,28 @@
 # Factory, ZAMMAlignmentVaultFactory and UniAlignmentVaultFactory each build their implementation in
 # their constructor, and zRouter builds its SafeExecutor there.
 #
+# ERC1155Factory was the eighth and is the first row to have TAKEN THE LEVER: it deploys collections
+# as EIP-1167 clones of one implementation and embeds nothing. Its row is kept because a row that
+# reports `NOT PRESENT` is the only thing that would notice the blob coming back, and because the
+# before/after is the measured price of lever A, which was an estimate until it was built:
+#
+#     ERC1155Factory   23,965B runtime,   611B free  ->   4,996B runtime,  19,580B free
+#     ERC1155Instance  16,706B runtime, 7,870B apparent -> 18,251B runtime, 6,325B REAL
+#
+# The instance grows because a constructor that ran once in creation code becomes an `initialize`
+# that lives in runtime code, and shrinks because four `immutable` reads inlined at every site
+# become four storage slots: -349B for the immutables, +1,894B for the initializer. What the family
+# actually gained is the 611B -> 6,325B, because 611B was the whole budget for an edition-side
+# change and 6,325B is a budget nothing else can spend.
+#
 # That is the whole disease: a byte added to an embedded contract is a byte off the EMBEDDER's
-# margin, and the embedded contract's own headroom reads large and is not a budget. ERC1155 is the
-# tight one, and its margin is spent from BOTH sides while each side's suite measures only its own
-# contract. Every merge to main that touched `src/factories/erc1155/` was rebuilt and sized on
-# 2026-09-21; ERC1155Factory runtime margin, and where each merge spent it:
+# margin, and the embedded contract's own headroom reads large and is not a budget. ERC1155 was the
+# tight one, and its margin was spent from BOTH sides while each side's suite measured only its own
+# contract. The tightest rows today are zRouter at 3,457B of runtime and ERC721AuctionFactory at
+# 4,807B, and ERC721AuctionFactory still has the disease: 15,399B of its 19,769B is the instance.
+# Every merge to main that touched `src/factories/erc1155/` was rebuilt and sized the same way, the
+# first ten on 2026-09-21 and #475 on 2026-09-23; ERC1155Factory runtime margin, and where each
+# merge spent it:
 #
 #     merged      PR     factory    margin    blob      logic    this merge cost
 #     2026-08-04  #132   22,837B    1,739B    18,082B   4,755B   -
@@ -38,8 +54,11 @@
 #     2026-09-11  #383   23,532B    1,044B    18,763B   4,769B    -90B  all instance
 #     2026-09-19  #441   23,952B      624B    19,183B   4,769B   +420B  all instance
 #     2026-09-19  #431   24,015B      561B    19,183B   4,832B    +63B  all factory
+#     2026-09-23  #475   23,965B      611B    19,133B   4,832B    -50B  all instance
+#     -           clone   4,996B   19,580B         0B   4,996B  -18,969B  the lever
 #
-# Three things in that column that a single reading of today's number does not show.
+# Three things in that column that a single reading of today's number does not show, and they are
+# why the lever was worth taking rather than dieting the instance one more time.
 #
 # NO MERGE EVER SPENT FROM BOTH SIDES. Seven moved only the blob, two moved only the factory's own
 # logic, one moved neither. So every one of them was reviewed by a suite that measured the side it
@@ -50,9 +69,9 @@
 # THE MARGIN IS NOT A RATCHET. #376 and #383 gave back 183B between them. A diet on the instance is
 # a real alternative to the lever below, and it is cheaper than either.
 #
-# THE SPEND IS LUMPY, SO THE AVERAGE LIES. 1,178B went in 46 days, which averages 26B/day and would
-# put the remaining 561B some three weeks out. But two merges account for 1,089B of that 1,178B, and
-# the largest single one, #174's +669B, is ITSELF larger than the 561B left today. The question a
+# THE SPEND IS LUMPY, SO THE AVERAGE LIES. 1,128B went in 50 days, which averages 23B/day and would
+# put the remaining 611B some four weeks out. But two merges account for 1,089B of that 1,128B, and
+# the largest single one, #174's +669B, is ITSELF larger than the 611B left today. The question a
 # floor answers is not how many days remain. It is whether the next ordinary edition-side change is
 # allowed to be the size that ordinary edition-side changes have actually been.
 #
@@ -74,8 +93,12 @@
 #   3. The blob is where the row says it is. A row marked CREATION whose blob turns up in the RUNTIME
 #      means a `new X(...)` moved out of a constructor and into a function, which silently moves that
 #      contract onto the EIP-170 clock; that is a hard failure naming the row, not a quiet reclassify.
-#   4. A headroom FLOOR against either budget, once one is typed below. None is typed today — see
-#      the FLOORS block.
+#   4. A headroom FLOOR against either budget, for the rows that carry one. Two do, both on the
+#      ERC1155 pair — see the FLOORS block. A floor that is typed but cannot be compared, or typed
+#      under a label no row carries, is a hard failure: the table would read armed and reserve
+#      nothing.
+#   5. The same two ceilings for a GRADUATE — a contract that embeds nothing but holds the budget
+#      its family spends, which is what an embedded instance becomes the day the lever is taken.
 #
 # WHAT IT ASSERTS ABOUT ITSELF:
 #   That the PAIRS table below is complete. Those rows are typed, and a typed table is the same
@@ -102,23 +125,29 @@
 # Measured on main at 3886044c on 2026-09-21:
 #
 #   A. EIP-1167 CLONE off a master implementation, the way the ERC404 family already deploys. The
-#      factory holds a ~45B proxy template instead of the 19,183B blob, and the instance becomes a
-#      normal deployed contract standing on its own EIP-170 budget — its 16,756B runtime and 7,820B
-#      of headroom stop being apparent and become real. After this there is no second contract whose
-#      size tracks the instance, so this gate has nothing left to watch on the ERC1155 row.
-#      What it costs: the instance's `constructor` becomes an `initialize`, and the three values that
-#      differ per instance or per cohort — `genesisVault`, plus `protocolTreasury` and `weth`, which
-#      `ERC1155Factory.setProtocolTreasury`/`setWeth` may retune between instances today — stop being
-#      `immutable` and become storage, so `withdraw` pays three cold SLOADs it does not pay now. The
-#      protocol-wide ones can stay `immutable` in the master and be read through the proxy, which is
-#      what `ERC404BondingInstance._ops` already does.
-#      THAT PRICE IS NOT AN ESTIMATE — this repo has paid it, in the same vault family the CREATION
-#      rows below belong to. The evidence is a measurement taken 2026-09-21 against the Cypher vault
-#      family, which has since been REMOVED from this tree (CYPHER wound down); the two contracts
-#      named here are no longer buildable, and the numbers are kept because the comparison is what
-#      makes the argument, not because either row can be re-measured. That factory deployed its vault
-#      as a CREATE3 clone off an implementation address fixed in its constructor and embedded none of
-#      it, beside the ZAMM sibling whose vault was almost the same size:
+#      factory holds a 45B proxy template instead of the whole blob, and the instance becomes a
+#      normal deployed contract standing on its own EIP-170 budget — its headroom stops being
+#      apparent and becomes real. After this there is no second contract whose size tracks the
+#      instance, and the instance is then the only thing left to watch; see GRADUATES below, which
+#      is the row that keeps it watched.
+#      ERC1155 TOOK THIS ROUTE, so the entry above is no longer a projection. What it cost, built
+#      and measured rather than estimated: the factory fell 23,965B to 4,996B and the instance rose
+#      16,706B to 18,251B, because the `constructor` became an `initialize` and that logic moved
+#      from creation code into runtime code (+1,894B), while four `immutable` reads inlined at every
+#      site became four storage slots (-349B). An `immutable` lives in the runtime code every clone
+#      SHARES, so a value that differs per collection cannot be one: `genesisVault` is per
+#      collection, and `protocolTreasury` and `weth` are per cohort because the factory's setters
+#      retune them between instances. `globalMessageRegistry` is protocol-wide and could have
+#      stayed `immutable` on the implementation; it moved with the other three so that one rule
+#      covers all four and `initialize` is the only writer of any of them. The reads are cold
+#      SLOADs now. The net for the family is 611B of growth budget becoming 6,325B.
+#      THE SAME PRICE WAS PAID ONCE BEFORE, in the vault family three of the CREATION rows below
+#      belong to. That evidence is a measurement taken 2026-09-21 against the Cypher vault family,
+#      which has since been REMOVED from this tree (CYPHER wound down); the two contracts named
+#      there are no longer buildable, and the numbers are kept because the comparison is what makes
+#      the argument, not because either row can be re-measured. That factory deployed its vault as a
+#      CREATE3 clone off an implementation address fixed in its constructor and embedded none of it,
+#      beside the ZAMM sibling whose vault was almost the same size:
 #
 #          ZAMMAlignmentVaultFactory   17,893B creation   carrying a 14,039B vault as a blob
 #          CypherAlignmentVaultFactory  3,131B creation   deploying a 13,681B vault as a clone
@@ -154,21 +183,43 @@ EIP3860=49152
 # seat's to invent. The ERC404 family has two, both his: a 2,000B instance floor (2026-08-06) and a
 # 500B ERC404BondingOps floor (2026-08-12), enforced in test/factories/erc404/eip170-diet-gate.sh.
 #
-# NO FLOOR HAS BEEN RULED FOR ANY ROW BELOW. Leave a value empty and this gate checks the ceilings
-# only, and says so on every run so the absence stays visible rather than reading as a gate that
+# TWO FLOORS ARE RULED, both on the ERC1155 pair and both against the EIP-170 runtime budget:
+#
+#   ERC1155Instance   2,000B — the same number ERC404Instance carries, so one figure means one thing
+#                              across the tree. Against the 6,325B the clone left real, that allows
+#                              about 4,325B of edition-side growth before the alarm fires, which is
+#                              wider than any single merge this family has ever spent.
+#   ERC1155Factory   15,000B — the clone gave the factory 19,580B of runtime it has no blob to put
+#                              in. Reserving 15,000B keeps most of what the lever won rather than
+#                              letting it be spent back unnoticed, and still leaves 4,580B for
+#                              factory logic, more than the 4,996B the whole factory occupies today.
+#
+# The other seven rows are empty. Leave a value empty and this gate checks the ceilings only, and
+# says so on that row every run so the absence stays visible rather than reading as a gate that
 # passed. To arm one, put the ruled number in the table for the budget it is about; nothing else
 # changes.
+#
+# A FLOOR THAT CANNOT TRIP IS THE DEFECT; A NUMBER NOBODY HAS RULED IS NOT. An empty value is the
+# second: it is announced on its own row and again in the closing line, so the absence is loud. The
+# first is what this script refuses outright, in the two shapes a hand-typed table produces it. A
+# value that is not a whole number of bytes — `2,000`, `2000B`, `4_000` — makes
+# `[ "$room" -lt "$floor" ]` error, and an erroring test is indistinguishable at the call site from
+# a floor that held, so the row reads armed and enforces nothing. A value typed under a label no row
+# carries is never read at all. Both are hard failures naming the entry, because both are the same
+# vacuity a floor armed against the roomy budget has: a guard that passes because it cannot run.
 #
 # THERE ARE TWO TABLES BECAUSE A ROW'S BLOB BUDGET IS NOT ALWAYS ITS SCARCE ONE, and a floor armed
 # against the roomy budget reads as a guard and cannot trip — the same vacuity this gate refuses
 # elsewhere by making an unreadable artifact a hard failure rather than a 0B that passes every
 # comparison. The ceilings above are already asserted on BOTH budgets for every row; floors are
 # typed the same way. zRouter is the live proof: its blob sits in its creation code, where it has
-# 26,519B free, while its RUNTIME is 21,069B with 3,507B left — the tightest contract in this table
-# after ERC1155Factory. A single floor bound to the blob's budget could not have said anything
-# about the 3,507B, and a 4,000B floor typed for it passed.
-declare -A FLOOR_RUNTIME=(   # headroom to keep under EIP-170, per embedder
-  [ERC1155Factory]=""
+# 26,519B free, while its RUNTIME is 21,069B with 3,507B left — at the time, the tightest contract
+# in this table after ERC1155Factory, and since the clone freed that one, the tightest outright. A
+# single floor bound to the blob's budget could not have said anything about the 3,507B, and a
+# 4,000B floor typed for it passed.
+declare -A FLOOR_RUNTIME=(   # headroom to keep under EIP-170, per row
+  [ERC1155Factory]="15000"
+  [ERC1155Instance]="2000"
   [ERC721AuctionFactory]=""
   [UniTitheHookFactory]=""
   [ERC404Factory]=""
@@ -177,8 +228,9 @@ declare -A FLOOR_RUNTIME=(   # headroom to keep under EIP-170, per embedder
   [UniAlignmentVaultFactory]=""
   [zRouter]=""
 )
-declare -A FLOOR_CREATION=(  # headroom to keep under EIP-3860, per embedder
+declare -A FLOOR_CREATION=(  # headroom to keep under EIP-3860, per row
   [ERC1155Factory]=""
+  [ERC1155Instance]=""
   [ERC721AuctionFactory]=""
   [UniTitheHookFactory]=""
   [ERC404Factory]=""
@@ -202,6 +254,24 @@ PAIRS=(
   "ZAMMAlignmentVaultFactory|CREATION|src/vaults/zamm/ZAMMAlignmentVaultFactory.sol:ZAMMAlignmentVaultFactory|src/vaults/zamm/ZAMMAlignmentVault.sol:ZAMMAlignmentVault"
   "UniAlignmentVaultFactory|CREATION|src/vaults/uni/UniAlignmentVaultFactory.sol:UniAlignmentVaultFactory|src/vaults/uni/UniAlignmentVault.sol:UniAlignmentVault"
   "zRouter|CREATION|src/peripherals/zRouter.sol:zRouter|src/peripherals/zRouter.sol:SafeExecutor"
+)
+
+# ── GRADUATES ─────────────────────────────────────────────────────────────────────────────────────
+# A contract that embeds nothing and sits inside nobody, but whose own EIP-170 runtime budget is the
+# one its family actually spends. It is measured here for the reason the embedders are: the number
+# that decides whether the next change fits should be on somebody's screen before it is in a red
+# build, and this is where a floor for it can be typed.
+#
+# ERC1155Instance is here because the clone put it here. While the factory embedded it, the
+# factory's 611B was the scarce budget and the instance's 7,870B was apparent; now the factory has
+# 19,580B it has no way to spend and the instance has 6,325B that is the entire growth budget for
+# editions. Keeping the ERC1155Factory row and stopping there would have moved the family out from
+# under every table on the day the lever was taken — the same blindness this gate refuses, one step
+# later in time, and the worse version of it because the row that remains reads green.
+#
+# <label>|<artifact>|<the embedder row it graduated from>
+GRADUATES=(
+  "ERC1155Instance|src/factories/erc1155/ERC1155Instance.sol:ERC1155Instance|ERC1155Factory"
 )
 
 # `forge inspect` reads the CACHED artifact and prints `0x…`; an empty read is a missing artifact and
@@ -266,12 +336,45 @@ embedders() {
 floorsTyped=0
 fail=0
 
+# A floor is typed by hand into a table keyed by label, so a key that matches no row is a number
+# somebody ruled and nothing enforces. Bash would not say a word about it.
+for floorTable in FLOOR_RUNTIME FLOOR_CREATION; do
+  declare -n floors="$floorTable"
+  for key in "${!floors[@]}"; do
+    known=0
+    for row in "${PAIRS[@]}" "${GRADUATES[@]}"; do
+      if [ "${row%%|*}" = "$key" ]; then
+        known=1
+        break
+      fi
+    done
+    if [ "$known" -eq 0 ]; then
+      echo "FAIL: ${floorTable}[${key}] is typed but no row is labelled ${key}, so nothing reads it." >&2
+      echo "      Either the label is misspelled or the row it belonged to was removed. A floor" >&2
+      echo "      nothing reads is worse than no floor: the table says the budget is reserved." >&2
+      fail=1
+    fi
+  done
+  unset -n floors
+done
+
 # One floor, against one budget, for one row. Called once per budget so a row may carry either or
 # both. `count` is how many blob copies that budget holds, and it decides which remedy is named:
 # the lever frees a budget only where the blob actually sits.
 assert_floor() {
   local label="$1" budget="$2" floor="$3" room="$4" count="$5" embeddedName="$6"
   [ -n "$floor" ] || return 0
+  case "$floor" in
+    *[!0-9]*)
+      echo "FAIL: the ${budget} floor typed for ${label} is \"${floor}\", which is not a whole" >&2
+      echo "      number of bytes. It is read with [ room -lt floor ]; bash cannot compare that" >&2
+      echo "      value, the test errors, and an erroring test is indistinguishable at the call" >&2
+      echo "      site from a floor that held — the row would read armed and reserve nothing." >&2
+      echo "      Type the byte count alone: 2000, not 2,000 and not 2000B." >&2
+      fail=1
+      return 0
+      ;;
+  esac
   floorsTyped=$((floorsTyped + 1))
   echo "  floor                 ${floor}B  (against the ${budget} budget, ${room}B free)"
   [ "$room" -lt "$floor" ] || return 0
@@ -284,9 +387,12 @@ assert_floor() {
     echo "        move that initcode out. Read THE LEVER above first — an EIP-1167 clone ends this" >&2
     echo "        coupling, a separate deployer only relocates it to a contract with a smaller" >&2
     echo "        budget, which is what the DN404 mirror move already did once here." >&2
-  else
+  elif [ -n "$embeddedName" ]; then
     echo "        or diet ${label} itself. ${embeddedName}'s initcode is NOT in this budget, so the" >&2
     echo "        lever above frees nothing here — these bytes are ${label}'s own code." >&2
+  else
+    echo "        or diet ${label} itself. It embeds nothing, so the lever above has already been" >&2
+    echo "        taken or was never available — every one of these bytes is ${label}'s own." >&2
   fi
   fail=1
 }
@@ -388,14 +494,55 @@ for row in "${PAIRS[@]}"; do
   assert_floor "$label" CREATION "$floorC" "$cRoom" "$inCreation" "${embedded##*:}"
 done
 
+# Same two ceilings and the same floor slots as an embedder row, with no blob to look for — the
+# point of a graduate is that there is nothing left to look for and the budget still decides.
+for row in "${GRADUATES[@]}"; do
+  IFS='|' read -r label artifact origin <<<"$row"
+
+  runtimeHex="$(hex "$artifact" deployedBytecode)"
+  creationHex="$(hex "$artifact" bytecode)"
+
+  rsize=$(((${#runtimeHex}) / 2))
+  csize=$(((${#creationHex}) / 2))
+  rRoom=$((EIP170 - rsize))
+  cRoom=$((EIP3860 - csize))
+
+  echo "$label  [GRADUATE of $origin]"
+  echo "  runtime               ${rsize}B  (EIP-170  limit ${EIP170}B, headroom ${rRoom}B)"
+  echo "  creation              ${csize}B  (EIP-3860 limit ${EIP3860}B, headroom ${cRoom}B)"
+  echo "  embeds nothing        ${rRoom}B of runtime is this family's whole growth budget"
+
+  if [ "$rsize" -ge "$EIP170" ]; then
+    echo "  FAIL: ${label} runtime ${rsize}B >= EIP-170 limit ${EIP170}B — it cannot be deployed." >&2
+    echo "        It embeds nothing, so every byte is its own and a diet is the only lever." >&2
+    fail=1
+    continue
+  fi
+
+  if [ "$csize" -ge "$EIP3860" ]; then
+    echo "  FAIL: ${label} creation code ${csize}B >= EIP-3860 limit ${EIP3860}B — the transaction" >&2
+    echo "        that deploys it is rejected before it runs." >&2
+    fail=1
+    continue
+  fi
+
+  floorR="${FLOOR_RUNTIME[$label]}"
+  floorC="${FLOOR_CREATION[$label]}"
+  if [ -z "$floorR" ] && [ -z "$floorC" ]; then
+    echo "  floor                 NONE TYPED — ceilings only, ${rRoom}B runtime and ${cRoom}B creation are unreserved"
+  fi
+  assert_floor "$label" RUNTIME "$floorR" "$rRoom" 0 ""
+  assert_floor "$label" CREATION "$floorC" "$cRoom" 0 ""
+done
+
 if [ "$fail" -ne 0 ]; then
   exit 1
 fi
 
 if [ "$floorsTyped" -eq 0 ]; then
-  echo "EIP-170 embed gate: PASS (ceilings only — no headroom floor is ruled for any of these"
-  echo "                    embedders, so the next item to touch one finds the limit by a red"
-  echo "                    build, not by a guard)"
+  echo "EIP-170 embed gate: PASS (ceilings only — no headroom floor is ruled for any row above,"
+  echo "                    so the next item to touch one finds the limit by a red build, not"
+  echo "                    by a guard)"
 else
   echo "EIP-170 embed gate: PASS"
 fi

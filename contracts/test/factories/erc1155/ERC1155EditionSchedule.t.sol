@@ -65,7 +65,11 @@ contract ERC1155EditionScheduleTest is Test {
         componentRegistry = ComponentRegistry(proxy);
         componentRegistry.initialize(protocol);
 
-        factory = new ERC1155Factory(address(mockRegistry), mockGMR, address(componentRegistry), address(0xBEEF));
+        // The factory clones THIS, so it must be a real implementation and not itself a clone.
+        address erc1155Impl_ = address(new ERC1155Instance());
+        factory = new ERC1155Factory(
+            address(mockRegistry), mockGMR, address(componentRegistry), address(0xBEEF), erc1155Impl_
+        );
         vm.stopPrank();
 
         // A real timestamp: `_validateSchedule` compares a close time against `block.timestamp` when

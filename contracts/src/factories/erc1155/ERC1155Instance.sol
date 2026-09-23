@@ -47,6 +47,9 @@ error ERC1155RejectedTokens();
 error NoDynamicPricingModule();
 error OnlyFactory();
 error AlreadyInitialized();
+/// @dev The clone guard, distinct from `AlreadyInitialized` so a revert says WHICH one-shot was
+///      spent: the free-mint setup, or the claim on the instance itself.
+error InstanceAlreadyInitialized();
 import { Currency } from "v4-core/types/Currency.sol";
 import { RevenueSplitLib } from "../../shared/libraries/RevenueSplitLib.sol";
 import { IInstanceLifecycle, TYPE_ERC1155, STATE_MINTING } from "../../interfaces/IInstanceLifecycle.sol";
@@ -107,14 +110,22 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     address public factory;
     IAlignmentVault public vault;
     /// @notice The genesis vault (the one bound at construction — what buyers pay in against). Pinned
-    ///         immutably so the revenue-split family used at settlement can never diverge from what
-    ///         buyers paid into, even if `vault` is later migrated (audit finding #2, defense-in-depth).
-    address public immutable genesisVault;
+    ///         at initialization so the revenue-split family used at settlement can never diverge
+    ///         from what buyers paid into, even if `vault` is later migrated (audit finding #2,
+    ///         defense-in-depth).
+    /// @dev SET ONCE AND NEVER AGAIN. These four were `immutable` until this contract became the
+    ///      implementation behind EIP-1167 clones, and an immutable lives in the runtime code every
+    ///      clone SHARES — so a per-collection value cannot be one. What made them safe was never
+    ///      the keyword: it was that nothing can write them after the one write. That still holds —
+    ///      `initialize` is the only writer and `_initialized` lets it run once — and it is what the
+    ///      audit finding asked for. `slither-disable` markers are kept off them deliberately:
+    ///      slither's `immutable-states` suggestion is exactly the change this comment refuses.
+    address public genesisVault;
     // slither-disable-next-line immutable-states
     IMasterRegistry public masterRegistry;
-    IGlobalMessageRegistry public immutable globalMessageRegistry;
-    address public immutable protocolTreasury;
-    address public immutable weth;
+    IGlobalMessageRegistry public globalMessageRegistry;
+    address public protocolTreasury;
+    address public weth;
 
     // Customization
     string public styleUri;
@@ -214,17 +225,38 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     // │      Constructor        │
     // └─────────────────────────┘
 
-    constructor(
-        string memory _name,
+    // ── Clone guard ───────────────────────────────────────────────────────
+
+    /// @dev True for the implementation from the moment it is deployed, and for a clone from the
+    ///      moment the factory initializes it.
+    bool private _initialized;
+
+    /// @notice Locks the implementation this file deploys directly.
+    /// @dev Collections are EIP-1167 clones of one implementation, and an implementation left
+    ///      uninitialized is anyone's to call `initialize` on and own. Setting the flag in the
+    ///      constructor means the only contract `initialize` can ever run on is a clone, whose
+    ///      storage starts empty and whose constructor never runs.
+    constructor() {
+        _initialized = true;
+    }
+
+    /// @notice Bind a freshly cloned instance to its collection. Called by the factory in the same
+    ///         transaction that deploys the clone, so there is no window in which an uninitialized
+    ///         clone exists at a known address for anyone else to claim.
+    function initialize(
+        string calldata _name,
         address _creator,
         address _factory,
         address _vault,
-        string memory _styleUri,
-        InstanceInit memory _init,
+        string calldata _styleUri,
+        InstanceInit calldata _init,
         bool _agentCreated,
-        string memory _metadataURI,
-        string memory _symbol
-    ) {
+        string calldata _metadataURI,
+        string calldata _symbol
+    ) external {
+        if (_initialized) revert InstanceAlreadyInitialized();
+        _initialized = true;
+
         if (bytes(_name).length == 0) revert InvalidName();
         if (_creator == address(0)) revert InvalidAddress();
         if (_factory == address(0)) revert InvalidAddress();

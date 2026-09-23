@@ -20,6 +20,7 @@ import { FreeMintParams } from "../../src/interfaces/IFactoryTypes.sol";
 import { GatingScope } from "../../src/gating/IGatingModule.sol";
 import { CREATEX } from "../../src/shared/CreateXConstants.sol";
 import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
+import { ERC1155Instance } from "../../src/factories/erc1155/ERC1155Instance.sol";
 
 /// @dev Mock vault that satisfies factory checks. Exposes alignmentToken() so it can be registered
 ///      through the real MasterRegistry.registerVault (alignment-validated) path.
@@ -167,8 +168,10 @@ contract NamespaceCollisionTest is Test {
         );
 
         // Deploy ERC1155Factory
+        // The factory clones THIS, so it must be a real implementation and not itself a clone.
+        address erc1155Impl_ = address(new ERC1155Instance());
         erc1155Factory = new ERC1155Factory(
-            address(registry), address(globalMsgRegistry), address(componentRegistry), address(0xBEEF)
+            address(registry), address(globalMsgRegistry), address(componentRegistry), address(0xBEEF), erc1155Impl_
         );
 
         // Set protocol treasury on both factories

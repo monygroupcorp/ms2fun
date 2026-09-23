@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import { Test } from "forge-std/Test.sol";
 import { ERC1155Instance } from "../../../src/factories/erc1155/ERC1155Instance.sol";
 import { MockFamilyVault } from "../../mocks/MockFamilyVault.sol";
+import { newERC1155InstanceClone } from "../../helpers/ERC1155InstanceClone.sol";
 
 contract MockGMRPin1155 {
     function postForAction(address, address, bytes calldata) external { }
@@ -51,7 +52,8 @@ contract PinnedGenesisFamily1155Test is Test {
 
     function _deploy(string memory genesisType) internal returns (ERC1155Instance inst, MockFamilyVault genesis) {
         genesis = new MockFamilyVault(genesisType);
-        inst = new ERC1155Instance(
+        inst = newERC1155InstanceClone();
+        inst.initialize(
             "Fam",
             CREATOR,
             address(this),
