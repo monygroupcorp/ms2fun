@@ -9,6 +9,8 @@ import { Currency, CurrencyLibrary } from "v4-core/types/Currency.sol";
 import { PoolKey } from "v4-core/types/PoolKey.sol";
 import { BalanceDelta } from "v4-core/types/BalanceDelta.sol";
 import { LPFeeLibrary } from "v4-core/libraries/LPFeeLibrary.sol";
+import { Hooks } from "v4-core/libraries/Hooks.sol";
+import { CustomRevert } from "v4-core/libraries/CustomRevert.sol";
 import { TickMath } from "v4-core/libraries/TickMath.sol";
 import { PoolSwapTest } from "../../lib/v4-core/src/test/PoolSwapTest.sol";
 import { PoolModifyLiquidityTest } from "../../lib/v4-core/src/test/PoolModifyLiquidityTest.sol";
@@ -416,6 +418,135 @@ contract UniAlignmentV4Hook_RealSettlement is Test {
         IPoolManager.ModifyLiquidityParams memory lp =
             IPoolManager.ModifyLiquidityParams({ tickLower: -6000, tickUpper: 6000, liquidityDelta: 100e18, salt: 0 });
         modifyLiquidityRouter.modifyLiquidity{ value: 500 ether }(k, lp, ZERO_BYTES);
+    }
+
+    /// @dev A hook revert reaches the caller wrapped: `Hooks.callHook` catches it and re-reverts as
+    ///      ERC-7751 `WrappedError(hook, callback, reason, HookCallFailed)`. Asserting the whole wrapper
+    ///      rather than `vm.expectRevert()` keeps these tests from passing on some OTHER revert — a
+    ///      transfer that failed for want of ETH under the singleton would satisfy a bare expectRevert
+    ///      and prove nothing about the tithe.
+    function _expectHookRevert(address h, bytes4 callback, bytes4 reason) internal {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CustomRevert.WrappedError.selector,
+                h,
+                callback,
+                abi.encodeWithSelector(reason),
+                abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+            )
+        );
+    }
+
+    // ==== A NAME IS NOT A FILL: the two beforeSwap-taxed shapes must move the leg they were taxed on ====
+    //
+    // `beforeSwap` prices the tithe on `|amountSpecified|` — the ETH the swapper NAMES — because v4 fixes
+    // a hook's credit on the SPECIFIED currency before the swap runs. `Pool.swap` then stops at
+    // `sqrtPriceLimitX96` and returns only what it moved, so a name larger than the pool can fill leaves
+    // a fee priced on ETH that never moved. The three cases below are the measured ones; each comment
+    // carries the number this fixture produced while the tithe was charged on the name alone.
+
+    /// @dev Shape 4, part-filled. 400 ETH named out of a pool holding 25.917066770240321653 ETH in range:
+    ///      the swap moved all of it, the vault took 4 ETH (1% of the NAME), and the seller was credited
+    ///      21.917066770240321653 ETH — an 18.25% tithe on their proceeds for a 1% fee.
+    function test_exactOutput_tokenSell_partFill_revertsRatherThanTitheTheName() public {
+        vm.deal(address(this), 10_000 ether);
+        _expectHookRevert(address(hook), IHooks.afterSwap.selector, UniAlignmentV4Hook.NamedEthLegNotFilled.selector);
+        swapRouter.swap(
+            poolKey,
+            IPoolManager.SwapParams({
+                zeroForOne: false, amountSpecified: 400 ether, sqrtPriceLimitX96: MAX_PRICE_LIMIT
+            }),
+            _settings(),
+            ZERO_BYTES
+        );
+        assertEq(vault.totalReceived(), 0, "a leg the pool cannot fill must tithe nothing");
+    }
+
+    /// @dev Shape 4, part-filled against a singleton holding OTHER pools' ETH — which is every live
+    ///      deployment, and the reason the `take` succeeds at all. 5000 ETH named: the vault took 50 ETH,
+    ///      nearly twice the pool's whole in-range reserve, and the SELLER PAID 35.089123490018570836
+    ///      token AND 24.082933229759678347 ETH to receive no ETH at all. An exact-output sell became a
+    ///      net ETH outflow for the seller. The `vm.deal` is load-bearing: without other pools' ETH under
+    ///      the singleton this fails on the transfer instead, and would prove nothing about the tithe.
+    function test_exactOutput_tokenSell_cannotBecomeANetEthOutflowForTheSeller() public {
+        vm.deal(address(manager), address(manager).balance + 10_000 ether);
+        vm.deal(address(this), 10_000 ether);
+        uint256 ethBefore = address(this).balance;
+        uint256 tokenBefore = token.balanceOf(address(this));
+
+        _expectHookRevert(address(hook), IHooks.afterSwap.selector, UniAlignmentV4Hook.NamedEthLegNotFilled.selector);
+        swapRouter.swap{ value: 1000 ether }(
+            poolKey,
+            IPoolManager.SwapParams({
+                zeroForOne: false, amountSpecified: 5000 ether, sqrtPriceLimitX96: MAX_PRICE_LIMIT
+            }),
+            _settings(),
+            ZERO_BYTES
+        );
+
+        assertEq(address(this).balance, ethBefore, "the seller parts with no ETH");
+        assertEq(token.balanceOf(address(this)), tokenBefore, "and with no token");
+        assertEq(vault.totalReceived(), 0, "and the vault takes nothing from a sale that did not happen");
+    }
+
+    /// @dev Shape 1, part-filled. 400 ETH named in: the pool absorbed 35.089123490018570836 ETH, the
+    ///      buyer parted with 39.089123490018570836 ETH in all, and 4 of that was the tithe — 10.23%
+    ///      for a 1% fee. The overcharge is self-limiting in ABSOLUTE terms (it can never exceed the
+    ///      input the buyer committed) but not in RATE: as the realised spend falls toward zero the fee
+    ///      stays 1% of the name, so the effective rate is bounded only by 100% of what was spent.
+    function test_exactInput_ethBuy_partFill_revertsRatherThanTitheTheName() public {
+        vm.deal(address(this), 10_000 ether);
+        _expectHookRevert(address(hook), IHooks.afterSwap.selector, UniAlignmentV4Hook.NamedEthLegNotFilled.selector);
+        swapRouter.swap{ value: 500 ether }(
+            poolKey,
+            IPoolManager.SwapParams({
+                zeroForOne: true, amountSpecified: -400 ether, sqrtPriceLimitX96: MIN_PRICE_LIMIT
+            }),
+            _settings(),
+            ZERO_BYTES
+        );
+        assertEq(vault.totalReceived(), 0, "a leg the pool cannot fill must tithe nothing");
+    }
+
+    /// @dev The check answers to the CHARGE, not to the shape. A halted tithe takes nothing, so there is
+    ///      nothing to hold to a fill and the part-filled swap runs exactly as v4 would have run it
+    ///      untaxed — the same swap that reverts above. Without this the halt would have stopped the
+    ///      hook charging and started it refusing trades, which is not what halting is for (audit M-4).
+    function test_partFill_isLetThroughUntaxedWhileTitheIsHalted() public {
+        registry.setVaultRegistered(address(vault), false);
+        hook.haltTithe();
+        assertTrue(hook.titheHalted(), "precondition: the tithe is halted");
+
+        vm.deal(address(this), 10_000 ether);
+        BalanceDelta d = swapRouter.swap(
+            poolKey,
+            IPoolManager.SwapParams({
+                zeroForOne: false, amountSpecified: 400 ether, sqrtPriceLimitX96: MAX_PRICE_LIMIT
+            }),
+            _settings(),
+            ZERO_BYTES
+        );
+
+        assertGt(d.amount0(), int128(0), "the part fill still pays the seller its ETH");
+        assertEq(vault.totalReceived(), 0, "and a halted hook takes nothing from it");
+        assertEq(hook.queuedFees(), 0, "and queues nothing either");
+    }
+
+    /// @dev A fee that rounds to zero is no charge, so it is held to no fill: the smallest part-filled
+    ///      leg still settles. Guards the `feeAmount == 0` exit rather than leaving it to inference.
+    function test_partFill_isLetThroughWhenTheFeeRoundsToZero() public {
+        // 99 wei * 100 bips / 10000 == 0. Named as an exact ETH output far beyond what one wei-scale
+        // swap can fill, so the leg is a part fill by construction.
+        (UniAlignmentV4Hook h, PoolKey memory k) = _deployHookedPool(0x5858, address(vault));
+        assertEq((99 * HOOK_FEE_BIPS) / 10000, 0, "precondition: this fee rounds to zero");
+
+        swapRouter.swap(
+            k,
+            IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: 99, sqrtPriceLimitX96: MAX_PRICE_LIMIT }),
+            _settings(),
+            ZERO_BYTES
+        );
+        assertEq(h.queuedFees(), 0, "a zero fee queues nothing");
     }
 
     receive() external payable { }

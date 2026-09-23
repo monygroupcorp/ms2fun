@@ -25,6 +25,15 @@ import { IAlignmentHook } from "./IAlignmentHook.sol";
  *      the UNSPECIFIED one. So beforeSwap carries the dynamic LP fee override plus the tithe on the two
  *      ETH-specified shapes (exact-input ETH buy, exact-output ETH-out sell), and afterSwap carries the
  *      tithe on the two ETH-unspecified shapes (exact-output ETH buy, exact-input token sell).
+ *
+ *      ON EVERY SHAPE THE TITHE IS `hookFeeBips` OF THE ETH THE SWAP ACTUALLY MOVES. The two shapes
+ *      afterSwap taxes get that for free: they are taxed on the realised `BalanceDelta`. The two shapes
+ *      beforeSwap taxes cannot — v4 fixes a hook's credit on the SPECIFIED currency before the swap runs,
+ *      and the pool may then fill only part of the leg (`Pool.swap` stops at `sqrtPriceLimitX96` and
+ *      returns what it moved) — so for those two afterSwap re-reads the realised delta and REVERTS if the
+ *      named leg was not filled. That is not belt-and-braces: a part-filled ETH-out sell charged on its
+ *      name has taken 18% of a swapper's proceeds, and on a larger name has turned the sale into a net
+ *      ETH outflow for the seller. See `afterSwap` for why a refund is not available instead.
  *      Hook fee (hookFeeBips) is immutable — set once at deploy, no governance risk.
  *      LP fee (lpFeeRate) is owner-adjustable via setLpFeeRate().
  */
@@ -48,6 +57,10 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
     error VaultStillRegistered();
     error VaultNotRegistered();
     error TitheNotHalted();
+    /// @notice The pool did not move the whole ETH leg the swapper named, so the tithe `beforeSwap`
+    ///         charged against that name is worth more than `hookFeeBips` of the ETH that moved.
+    /// @dev Reachable only on the two shapes where ETH is the SPECIFIED currency; see `afterSwap`.
+    error NamedEthLegNotFilled();
 
     IPoolManager public immutable poolManager;
     IAlignmentVault public immutable vault;
@@ -216,7 +229,7 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
      *         specified side, which v4 credits back to the hook on currency0 — cancelling the take's debt
      *         so the swap settles.
      *
-     *         The base is `|amountSpecified|` — the ETH leg the swapper named — at the same `hookFeeBips`
+     *         The base is `|amountSpecified|` — the ETH leg the swapper NAMED — at the same `hookFeeBips`
      *         the ETH-unspecified shapes pay, and the sign of the adjustment falls out of v4's own
      *         `amountToSwap += hookDeltaSpecified`, so one branch serves both shapes:
      *           * shape 1 (`amountSpecified < 0`): the swapped-in amount SHRINKS by `feeAmount`. The
@@ -229,6 +242,10 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
      *         Neither adjustment can flip the swap's exact-input/exact-output type, so v4's
      *         `HookDeltaExceedsSwapAmount` guard cannot trip: a positive specified delta moves an
      *         exact-input amount toward zero from below and an exact-output amount further above it.
+     *
+     *         A NAME IS NOT A FILL. `Pool.swap` stops at `sqrtPriceLimitX96` and returns what it moved,
+     *         so the leg named here may be filled only in part — and this fee is already spent by then.
+     *         `afterSwap` is where that is caught; it reads the realised delta and reverts.
      */
     // slither-disable-next-line reentrancy-events
     function beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata params, bytes calldata)
@@ -264,12 +281,38 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
     }
 
     /**
-     * @notice Collect the alignment fee on the ETH side when ETH is the UNSPECIFIED currency
-     * @dev Fires ONLY for the two shapes where ETH (currency0) is unspecified — exact-output ETH buy
-     *      (shape 2) and exact-input token->ETH sell (shape 3) — so the afterSwap return-delta (which v4
-     *      applies to the unspecified currency) lands on ETH and settles against `take(currency0)`.
-     *      When ETH is the SPECIFIED currency (shapes 1 and 4, both already taxed in beforeSwap) this is
-     *      a clean NO-OP — takes nothing and returns 0 — so the swap settles and there is no double-tax.
+     * @notice Collect the alignment fee on the ETH side when ETH is the UNSPECIFIED currency, and hold
+     *         the other two shapes to the fill their tithe was priced against
+     * @dev Takes the fee ONLY for the two shapes where ETH (currency0) is unspecified — exact-output ETH
+     *      buy (shape 2) and exact-input token->ETH sell (shape 3) — so the afterSwap return-delta (which
+     *      v4 applies to the unspecified currency) lands on ETH and settles against `take(currency0)`.
+     *      Those two are charged on `delta`, the ETH the swap actually moved, and so are right by
+     *      construction whether the pool filled the whole swap or stopped short of it.
+     *
+     *      When ETH is the SPECIFIED currency (shapes 1 and 4) beforeSwap has already taken the tithe, so
+     *      this takes nothing and returns 0 — no double-tax — but it is NOT a bare no-op: it re-reads the
+     *      realised delta and reverts unless the pool moved the whole ETH leg beforeSwap priced the fee
+     *      against. `Pool.swap` exits at `sqrtPriceLimitX96` and returns `amountSpecified` minus whatever
+     *      it could not fill, so a leg that names more ETH than the pool holds in range comes back short
+     *      while the fee charged against the name does not. On this hook's own fixture, naming 400 ETH out
+     *      of a pool holding 25.917 ETH in range credited the swapper 21.917 ETH and handed the vault
+     *      4 ETH — an 18% tithe on the proceeds — and naming 5000 ETH out turned the sale into a NET ETH
+     *      OUTFLOW: the seller paid 35.089 token AND 24.083 ETH and received none.
+     *
+     *      REVERTING, NOT RECONCILING, because v4 leaves no room to reconcile. A hook's credit on the
+     *      SPECIFIED currency is `beforeSwapDelta`'s, fixed before the swap runs; `Hooks.afterSwap` adds
+     *      this callback's return to `hookDeltaUnspecified` only, which on these two shapes is the TOKEN.
+     *      So nothing here can hand the swapper back ETH: the swapper's `amount0` is already
+     *      `realised - feeAmount` whatever this returns. Settling the excess to the manager, or taking it
+     *      out to the caller, would credit an address whose router settles the delta `swap()` handed it
+     *      and would leave the unlock unbalanced. Reverting is also the honest answer for shape 4 on its
+     *      own terms — an exact-OUTPUT request that cannot be honoured in full is not the trade that was
+     *      asked for — and for shape 1 it is the lesser of the two available answers: as the realised
+     *      spend falls toward zero the fee stays at `hookFeeBips` of the NAME, so the effective rate is
+     *      bounded only by 100% of what the buyer parted with. It cost the fixture's buyer 10.2%.
+     *
+     *      The check is tied to the charge, not to the shape: no charge, nothing to mis-charge. A halted
+     *      tithe and a fee that rounds to zero both leave the swap exactly as v4 would have run it.
      */
     // slither-disable-next-line reentrancy-events
     function afterSwap(
@@ -283,9 +326,13 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
 
         // ETH (currency0) is the specified currency exactly when (amountSpecified < 0) == zeroForOne.
         // For those shapes (1 and 4) beforeSwap has already taken the tithe on the specified side, so
-        // afterSwap must cleanly skip — no take, no revert, no double-tax.
+        // afterSwap takes nothing here — no double-tax — and only holds that tithe to its fill.
         bool ethIsSpecified = (params.amountSpecified < 0) == params.zeroForOne;
-        if (ethIsSpecified || titheHalted) {
+        if (ethIsSpecified) {
+            if (!titheHalted) _requireNamedEthLegFilled(params, delta);
+            return (IHooks.afterSwap.selector, int128(0));
+        }
+        if (titheHalted) {
             return (IHooks.afterSwap.selector, int128(0));
         }
 
@@ -302,8 +349,36 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
     }
 
     /**
+     * @notice Require that the pool moved the whole ETH leg `beforeSwap` priced this swap's tithe against
+     * @dev Only meaningful on the two ETH-SPECIFIED shapes, and only once a fee has actually been taken;
+     *      `afterSwap` calls it under both conditions. `Hooks.beforeSwap` hands the pool
+     *      `amountToSwap = amountSpecified + feeAmount`, which SHRINKS an exact input and GROWS an exact
+     *      output, so the leg to fill is `|amountSpecified| -/+ feeAmount` on the respective sign. `delta`
+     *      is the pool's own realised delta, handed to `afterSwap` before v4 folds the hook's credit into
+     *      the swapper's — so `|delta.amount0()|` is exactly what the pool moved, and anything short of
+     *      the leg means the swapper is carrying a fee priced on ETH that never moved.
+     * @param params The swap's original parameters, as v4 passes them to both callbacks.
+     * @param delta  The pool's realised balance delta for this swap.
+     */
+    function _requireNamedEthLegFilled(IPoolManager.SwapParams calldata params, BalanceDelta delta) private view {
+        uint256 ethNamed =
+            params.amountSpecified < 0 ? uint256(-params.amountSpecified) : uint256(params.amountSpecified);
+        // Recomputed rather than carried across the two callbacks: the inputs are `params` (v4 passes the
+        // same struct to both) and an immutable, so the answer is identical without a transient slot that
+        // one swap of a nested pair could read from the other.
+        uint256 feeAmount = (ethNamed * hookFeeBips) / 10000;
+        if (feeAmount == 0) return; // nothing was charged, so nothing can have been over-charged
+
+        uint256 ethLeg = params.amountSpecified < 0 ? ethNamed - feeAmount : ethNamed + feeAmount;
+        int128 amount0 = delta.amount0();
+        uint256 ethFilled = amount0 < 0 ? uint256(uint128(-amount0)) : uint256(uint128(amount0));
+        if (ethFilled < ethLeg) revert NamedEthLegNotFilled();
+    }
+
+    /**
      * @notice Take `feeAmount` of ETH (currency0) from the PoolManager and forward it to the vault
-     * @dev Shared by beforeSwap (ETH-input buys) and afterSwap (ETH-output sells). The `take` pulls ETH
+     * @dev Shared by beforeSwap (the ETH-specified shapes) and afterSwap (the ETH-unspecified ones), so
+     *      every shape's tithe queues, emits and credits the benefactor the same way. The `take` pulls ETH
      *      to this hook (creating a currency0 debt the caller cancels via the returned delta), then the
      *      ETH is forwarded to the vault as a contribution credited to the fixed benefactor. If the vault
      *      call reverts, the ETH is queued in the hook for a later flushQueuedFees() retry.
