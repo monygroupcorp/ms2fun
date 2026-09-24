@@ -1,0 +1,156 @@
+name: contracts-deep-invariant
+
+# The `deep` profile, on a schedule, because it is too expensive to be on a push.
+#
+# contracts-ci runs the `ci` profile: elevated fuzz depth, invariant depth left at forge's
+# default. `[profile.deep.invariant] runs = 10000` raises invariant depth about 39x on top of
+# that, and the cost is measured rather than guessed: 2026-08-12 on the pinned toolchain, 32
+# cores, a whole-tree deep run was killed at 61 minutes WITHOUT finishing -- six invariant suites
+# done, together roughly 7.9 CPU-hours, the heaviest still running. The same tree under the
+# default profile is about 2 minutes on that host. That does not fit a per-push gate at any width,
+# and it does not fit a 4-vCPU hosted runner in one job at all.
+#
+# So: weekly, plus on demand. What this buys that contracts-ci does not is depth of state
+# exploration -- an invariant that only breaks 4,000 sequences in is one this job finds and the
+# per-push job does not. What it costs is that a violation surfaces up to a week after the commit
+# that introduced it, which is the trade being made deliberately. Run it by hand before a deploy
+# rather than trusting the last scheduled run; that is what workflow_dispatch is for.
+#
+# ONE JOB PER SUITE, and that is the load-bearing part of the design. A single job running every
+# suite reports nothing until the slowest finishes, which is exactly how the 2026-08-12 attempt
+# produced no quotable number for any suite including the six that had completed. Fanned out, a
+# suite that passes is a green job with a number in it whatever the others do, and the heaviest
+# suite -- BondingCurveInvariant, more CPU under the ci profile than every other suite together --
+# gets a whole runner and the full 6-hour ceiling to itself.
+#
+# The suite list is NOT written here. contracts/scripts/deep-invariant.sh derives it by asking
+# forge which test files declare an `invariant_` function, and this workflow calls that script for
+# both the matrix and the run, so there is no second copy to drift. A hand-kept list would drift
+# silently: a new invariant suite nothing reaches never runs at this depth and nothing goes red.
+# Note that the derived set reaches outside test/invariant/ -- today
+# test/factories/erc404/ERC404StakingStreamAndExit.t.sol declares one, and a path glob would miss
+# it.
+#
+# Until a complete pass has been observed, quote no pass/fail number for this profile. That rule
+# is foundry.toml's and it stands; a job that was cancelled at the timeout is not a pass.
+on:
+  schedule:
+    # Sundays 03:00 UTC. Weekly rather than nightly: a run is hours of runner time across ten
+    # jobs, and these suites move on the order of weeks, not hours.
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: 'Single suite path to run (blank = every suite)'
+        required: false
+        default: ''
+
+defaults:
+  run:
+    working-directory: contracts
+
+# A scheduled run and a hand-dispatched one must not overlap and double the runner bill; the
+# hand-dispatched one is the one someone is waiting on, so let it cancel the scheduled one.
+concurrency:
+  group: contracts-deep-invariant
+  cancel-in-progress: true
+
+env:
+  # Pinned to match contracts-ci.yml and app-ci.yml's G7. `--skip` glob semantics differ across
+  # releases and nightly reds where v1.5.1 is green; a depth run that reds on toolchain drift
+  # would be read as an invariant violation, which is the worst possible false alarm here.
+  FOUNDRY_VERSION: v1.5.1
+
+jobs:
+  # Compile once and hand the tree to the suite jobs, the same shape contracts-ci uses. The cache
+  # key is contracts-ci's key expression verbatim, so a scheduled run on main normally restores
+  # the tree the last push already compiled instead of paying 14 minutes of via_ir again.
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      suites: ${{ steps.suites.outputs.suites }}
+      cache_key: ${{ steps.cache-key.outputs.key }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Install contracts/lib deps
+        run: ./scripts/install-libs.sh all
+
+      - name: Cache key
+        id: cache-key
+        run: echo "key=forge-${{ hashFiles('contracts/src/**', 'contracts/test/**', 'contracts/script/**', 'contracts/foundry.toml', 'contracts/foundry.v4.toml', 'contracts/scripts/lib-pins.txt') }}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore compiled tree
+        uses: actions/cache@v4
+        with:
+          path: |
+            contracts/out
+            contracts/cache
+          key: ${{ steps.cache-key.outputs.key }}
+          restore-keys: |
+            forge-
+
+      - name: Build contracts
+        run: forge build
+
+      # A dispatch naming one suite runs that suite alone; otherwise every suite forge reports an
+      # `invariant_` function in. An empty matrix would make the fan-out vacuously green, so the
+      # script exits non-zero on one and this job reds instead.
+      - name: Suite matrix
+        id: suites
+        env:
+          ONE: ${{ inputs.suite }}
+        run: |
+          if [ -n "$ONE" ]; then
+            suites=$(jq -cn --arg s "$ONE" '[$s]')
+          else
+            suites=$(./scripts/deep-invariant.sh --list --json)
+          fi
+          [ "$suites" = "[]" ] && { echo "no invariant suites found" >&2; exit 1; }
+          echo "suites=$suites" >> "$GITHUB_OUTPUT"
+
+  invariant:
+    needs: build
+    runs-on: ubuntu-latest
+    # The hosted-runner ceiling. A suite that hits it did NOT pass and must not be reported as
+    # one; it is a suite whose depth no longer fits a hosted runner, and the answer is to split it
+    # or to run it somewhere wider, not to lower the profile's runs.
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: ${{ fromJSON(needs.build.outputs.suites) }}
+    name: deep (${{ matrix.suite }})
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Install contracts/lib deps
+        run: ./scripts/install-libs.sh all
+
+      - name: Restore compiled tree
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            contracts/out
+            contracts/cache
+          key: ${{ needs.build.outputs.cache_key }}
+          fail-on-cache-miss: true
+
+      # The script sets FOUNDRY_PROFILE=deep itself and prints the suite's wall time, which is the
+      # number this job exists to produce. No FOUNDRY_THREADS: the runner is ours alone here.
+      - name: Deep invariant run
+        run: ./scripts/deep-invariant.sh '${{ matrix.suite }}'
