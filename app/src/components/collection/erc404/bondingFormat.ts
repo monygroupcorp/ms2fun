@@ -34,14 +34,11 @@ function toBpsBigint(slippageBps: number): bigint {
   return BigInt(Math.round(slippageBps))
 }
 
-/** Format a bps fee for display, e.g. 1900n → "19%". Pure integer math, no float drift. */
-export function formatBps(bps: bigint): string {
-  const whole = bps / 100n
-  const frac = bps % 100n
-  if (frac === 0n) return `${whole}%`
-  const fracStr = frac.toString().padStart(2, '0').replace(/0+$/, '')
-  return `${whole}.${fracStr}%`
-}
+/**
+ * Bps → percent lives in `lib/format` now that the launch wizard renders a rate too; re-exported
+ * here so the bonding surface keeps one import for its presentation helpers.
+ */
+export { formatBps } from '../../../lib/format'
 
 /** Format a unix-second remaining count as a compact `Dd Hh Mm Ss` countdown. <=0 → "now". */
 export function formatCountdown(remainingSec: number): string {

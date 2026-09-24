@@ -46,9 +46,20 @@
     <link rel="icon" href="%BASE_URL%favicon-32.png" sizes="32x32" />
     <link rel="icon" href="%BASE_URL%favicon-16.png" sizes="16x16" />
     <link rel="apple-touch-icon" href="%BASE_URL%apple-touch-icon.png" />
+    <!--
+      The claim below is the SITE-WIDE one, and it names no source on purpose. What the 19% is a
+      share OF differs per standard — the ERC-404 raise at graduation, an ERC-1155 withdrawal of
+      mint proceeds, an ERC-721 winning bid — and it is never a fee levied on top of a sale. So a
+      one-sentence card that says "of every fee" asserts one family's reading over all three, which
+      is the defect `src/lib/vaults/alignmentWording.ts` exists to prevent; the ratio is the only
+      part that is invariant, and it is the only part stated here. The same sentence is repeated
+      verbatim on the og: and twitter: tags below — three surfaces, one claim — and
+      `src/lib/vaults/alignmentWordingSurfaces.test.ts` scans this file for the struck-out readings
+      and holds the three copies identical.
+    -->
     <meta
       name="description"
-      content="noesis — onchain alignment launchpad. Curated art/token releases route a fixed share of every fee to the communities that inspired them, at a ratio set in the contract."
+      content="noesis — onchain alignment launchpad. Every curated release is bound to the community that inspired it and pays it 19%, at a ratio nobody can change."
     />
     <!--
       Share card tags (og:/twitter:). `%VITE_PUBLIC_ORIGIN%` is substituted at build time from
@@ -65,7 +76,7 @@
     <meta property="og:title" content="noesis — onchain alignment launchpad" />
     <meta
       property="og:description"
-      content="noesis — onchain alignment launchpad. Curated art/token releases route a fixed share of every fee to the communities that inspired them, at a ratio set in the contract."
+      content="noesis — onchain alignment launchpad. Every curated release is bound to the community that inspired it and pays it 19%, at a ratio nobody can change."
     />
     <meta property="og:url" content="%VITE_PUBLIC_ORIGIN%" />
     <meta property="og:image" content="%VITE_PUBLIC_ORIGIN%/icon-512.png" />
@@ -76,7 +87,7 @@
     <meta name="twitter:title" content="noesis — onchain alignment launchpad" />
     <meta
       name="twitter:description"
-      content="noesis — onchain alignment launchpad. Curated art/token releases route a fixed share of every fee to the communities that inspired them, at a ratio set in the contract."
+      content="noesis — onchain alignment launchpad. Every curated release is bound to the community that inspired it and pays it 19%, at a ratio nobody can change."
     />
     <meta name="twitter:image" content="%VITE_PUBLIC_ORIGIN%/icon-512.png" />
     <link rel="stylesheet" href="%BASE_URL%fonts/fonts.css" />

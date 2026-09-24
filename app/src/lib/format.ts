@@ -79,3 +79,16 @@ export function formatSupplyCount(value: bigint, contractType: string): string {
 export function formatSupplyCountTitle(value: bigint, contractType: string): string {
   return contractType === 'ERC404' ? formatTokenAmount(value) : value.toString()
 }
+
+/**
+ * Format a basis-point rate for display, e.g. 1900n → "19%", 50n → "0.5%". Pure integer math, so a
+ * rate read off a contract renders without float drift. 100 bps is 1%, not 100% — the denominator
+ * is 10_000, and getting it wrong misstates a fee by two orders of magnitude.
+ */
+export function formatBps(bps: bigint): string {
+  const whole = bps / 100n
+  const frac = bps % 100n
+  if (frac === 0n) return `${whole}%`
+  const fracStr = frac.toString().padStart(2, '0').replace(/0+$/, '')
+  return `${whole}.${fracStr}%`
+}

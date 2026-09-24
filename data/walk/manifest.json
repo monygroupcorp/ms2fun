@@ -478,7 +478,7 @@
             "alignmentEndowmentVaultAbi.flushTargetFees"
           ],
           "given": "a collection on an endowment vault — C-4 asked for one at launch — with yield harvested into it in B-11",
-          "do": "on the collection page, open the community-endowment panel. Press claim yield as the collection owner, then look at it again from a wallet that is not the owner. Press deliver community share when one is shown as undelivered. There is no vest control and no maturity date: the panel says 19% of fees route to the community and the principal is the target's to deploy from the block it arrives",
+          "do": "on the collection page, open the community-endowment panel. Press claim yield as the collection owner, then look at it again from a wallet that is not the owner. Press deliver community share when one is shown as undelivered. There is no vest control and no maturity date, and the panel states no split at all: what it shows is this collection's principal, marked permanent \u2014 leaves only when the target withdraws it, the harvestable yield, the community payout address, and the total endowment across every aligned collection. The 19% here is a share of the YIELD that principal earns, never of a fee \u2014 the split itself is watched in B-11 \u2014 and the principal is the target's to deploy from the block it arrives",
           "expect": "the claim pays the owner and the accrued figure falls to zero; from any other wallet the claim button is not on the page at all, rather than present and reverting. The delivery is disabled while no community payout is wired, and names that as the reason",
           "blocking": true
         }

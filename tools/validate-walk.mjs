@@ -281,6 +281,82 @@ const NEVER = /(?!)/;
 const CAMEL_FIELD = CAMEL.length ? new RegExp(`\\b(${CAMEL.join('|')})\\b`) : NEVER;
 const FIELD_LITERAL = FIELDS.length ? new RegExp(`\\b(?:${FIELDS.join('|')}):\\S+`) : NEVER;
 
+// The alignment claim, in the one document a tester reads instead of the app.
+//
+// `app/src/lib/vaults/alignmentWordingSurfaces.test.ts` derives this same ban over every shipped
+// source and over `app/index.html`, and it cannot reach here: this is JSON in a different tree,
+// scanned by a node tool rather than by vitest. So the list is MIRRORED — same reading names, same
+// patterns, same proof sentences — and each half proves itself where it runs. What made that worth
+// doing is what C-19 did for weeks: it told a tester the endowment panel "says 19% of fees route to
+// the community" after the copy had been corrected per family, so the walk sent a human to look for
+// a sentence that was gone. Every existing check passed, because they check writes and routes.
+//
+// The base is never a fee levied on top of a sale: `RevenueSplitLib.split` takes the ERC-404 raise
+// at graduation, an ERC-1155 withdrawal of mint proceeds, or an ERC-721 winning bid, and on an
+// endowment vault the community's 19% is a share of the YIELD a corpus earns. No contract under
+// `contracts/src` implements `royaltyInfo`, so a resale share has nothing behind it anywhere.
+//
+// What is NOT struck matters as much. "19% of the trading fees this vault's liquidity earns" is the
+// true LP-family sentence and every pattern below lets it through, and a step may honestly say
+// "sweep every fee bucket", which is `claimAllFees()` and a different mechanism entirely. A guard
+// that reds true prose is a guard the next author routes around.
+const SHARE_OF = (base) =>
+  new RegExp(String.raw`(\d+\s*%|\bshare\b|\bcut\b|\bportion\b|\bpercentage\b)[^.!?]{0,60}${base}`, 'i');
+const STRUCK_READINGS = [
+  ['takes a share of every resale', /every resale/i, '19% of every resale routes to the community'],
+  ['takes a percentage of a resale', /\d+% of (every |each |the )?resale/i, 'the creator keeps 81% of each resale'],
+  ['splits the moment across mint and something else', /on mint and/i, 'On mint and on every resale, 19% routes'],
+  ['calls the base a fee', /\d+% of (every |each |the )?(collection'?s? )?fees?/i, "19% of every collection's fees route to a vault"],
+  ['has a launch route a share of its fees', /routes? .{0,20}\d+% of its fees/i, 'Every launch routes 19% of its fees to a community'],
+  ['makes every fee the base of a share', SHARE_OF(String.raw`every\s+fees?\b`), 'route a fixed share of every fee to the communities'],
+  ['makes every mint the moment of a share', SHARE_OF(String.raw`every\s+mint\b`), '19% of fees route to the community on every mint'],
+];
+
+// The mirror is only a mirror while the two halves agree, and nothing else would notice them
+// parting: each side is green on its own tree with its own list. So the names are read off the app
+// side and compared. Names rather than patterns, because the two runtimes need different escaping
+// for the same ban and a byte comparison would red on that alone — what must not happen is a
+// reading added on one side and forgotten on the other, which is the failure this whole goal is.
+const SIBLING = 'app/src/lib/vaults/alignmentWordingSurfaces.test.ts';
+const siblingNames = (() => {
+  const src = readFileSync(SIBLING, 'utf8');
+  const list = src.match(/const STRUCK_READINGS = \[([\s\S]*?)\n\] as const/);
+  if (!list) return null;
+  return [...list[1].matchAll(/^\s*\[\s*'((?:[^'\\]|\\.)*)'/gm)].map((m) => m[1].replace(/\\'/g, "'"));
+})();
+if (!siblingNames) {
+  fail(`${SIBLING} no longer declares a STRUCK_READINGS list this file can read, so the two halves of the ban can part without either going red`);
+} else {
+  const here = new Set(STRUCK_READINGS.map(([name]) => name));
+  const there = new Set(siblingNames);
+  for (const name of there) if (!here.has(name)) fail(`${SIBLING} bans '${name}' and this file does not — the walk's prose is not held to it`);
+  for (const name of here) if (!there.has(name)) fail(`this file bans '${name}' and ${SIBLING} does not — the app's surfaces are not held to it`);
+}
+
+// Non-vacuity, run every time rather than under a flag: a ban whose pattern stops matching goes
+// green exactly like a document with nothing to find, and this file's whole subject is a document
+// drifting away from the thing it describes.
+const STILL_TRUE = [
+  "19% of the trading fees this vault's liquidity earns route to the community",
+  'sweep every fee bucket in one transaction',
+  'the 19% here is a share of the yield that principal earns',
+];
+for (const [name, pattern, struck] of STRUCK_READINGS) {
+  if (!pattern.test(struck)) fail(`the struck reading '${name}' no longer catches the sentence it was written for, so its green means nothing`);
+  for (const honest of STILL_TRUE) {
+    if (pattern.test(honest)) fail(`the struck reading '${name}' reds prose that is true: '${honest}'`);
+  }
+}
+
+for (const [where, text] of invitedProse) {
+  for (const [name, pattern] of STRUCK_READINGS) {
+    const hit = text.match(pattern);
+    if (hit) {
+      fail(`${where} ${name}: '${hit[0]}'. A tester reads this line and then looks at the app for it. The 19% comes out of the SALE — the ERC-404 raise, an ERC-1155 withdrawal of mint proceeds, an ERC-721 winning bid — or, on an endowment vault, out of the yield that corpus earns; it is never a fee levied on top of a sale, and no contract takes a share of a resale at all`);
+    }
+  }
+}
+
 for (const [where, text] of invitedProse) {
   const path = text.match(REPO_PATH);
   if (path) {

@@ -43,7 +43,16 @@ import { CollectionMetaForm } from '../components/wizard/CollectionMetaForm'
 import { StylePreviewControl } from '../components/wizard/StylePreviewControl'
 import { CollectionHeroPreview } from '../components/wizard/CollectionHeroPreview'
 import { AlignmentTargetPicker } from '../components/wizard/AlignmentTargetPicker'
+import {
+  NO_ROYALTY_NOTE,
+  NO_ROYALTY_SENTENCE,
+  secondaryEarnSentence,
+  settlementMomentSentence,
+  swapTitheSentence,
+  type LaunchStandard,
+} from '../lib/vaults/alignmentWording'
 import { useRegisteredVaults } from '../components/wizard/useRegisteredVaults'
+import { useSwapTithe } from '../components/wizard/useSwapTithe'
 import { useCreateSubmit } from '../components/wizard/useCreateSubmit'
 import { WalletButton } from '../components/WalletButton'
 import { truncateAddress } from '../lib/format'
@@ -99,6 +108,19 @@ const TYPE_LABEL: Record<string, string> = {
   erc404: 'ERC-404',
   erc1155: 'ERC-1155',
   erc721: 'ERC-721',
+}
+
+/**
+ * The left cell of the bind diagram — what the 19% is actually taken OUT of, per standard.
+ *
+ * It used to read "your fees / fees" on every type, which is wrong on all three: `RevenueSplitLib`
+ * splits the raise, the withdrawn mint proceeds, or the winning bid — the sale itself, never a fee
+ * levied on top of one.
+ */
+const BIND_SOURCE: Record<LaunchStandard, { label: string; value: string }> = {
+  erc404: { label: 'your raise, at graduation', value: 'raise' },
+  erc1155: { label: 'your mint proceeds', value: 'mints' },
+  erc721: { label: 'each winning bid', value: 'bids' },
 }
 
 const STEP_LABEL: Record<StepKey, string> = Object.fromEntries(
@@ -230,6 +252,11 @@ export function WizardPage() {
 
   const submit = useCreateSubmit()
   const vaults = useRegisteredVaults()
+  // What the chosen liquidity deployer actually does about the perpetual swap tithe. Only ERC-404
+  // graduates into a pool, so it is the only standard that can have an answer; the other two are
+  // covered by `secondaryEarnSentence`, which says flatly that nothing is taken after the sale.
+  const swapTithe = useSwapTithe(modules.liquidityDeployer, typeKey === 'erc404')
+  const titheSentence = swapTitheSentence(swapTithe)
   // Live deploy-bond (N12). 0 while the lever is OFF → create sends no bond (today's behavior).
   const { data: deployBondAmount } = useReadDeployBondEscrowBondAmount({
     address: forkAddresses.DeployBondEscrow,
@@ -729,22 +756,40 @@ export function WizardPage() {
             <p className={styles.lede}>
               Where the bonding curve graduates — the DEX the collection lists into on completion.
             </p>
+            <p className={styles.help}>
+              This choice also decides whether the community keeps earning after graduation. Only a{' '}
+              <b>Uniswap V4</b> pool can carry the alignment hook that taxes the ETH side of every
+              swap into the vault, for as long as that vault stays curated; <b>ZAMM</b> graduates
+              into an untaxed pool, where the 19% taken at graduation is the whole of the
+              community&rsquo;s take. The hook is a protocol-level switch, not a setting you make
+              here.
+            </p>
             {slot && renderSlot(slot)}
           </div>
         )
       }
 
       case 'alignment': {
+        const bind = BIND_SOURCE[typeKey]
+        const secondaryEarn = secondaryEarnSentence(typeKey)
         return (
           <div className={styles.body}>
             <div className={styles.decision}>
               <h2 className={styles.question}>How should this align?</h2>
               <p className={styles.lede}>
-                Every launch routes <b>19% of its fees</b> to the community, through an alignment
-                vault, on mint and every resale — at a ratio nobody can change. Pick the{' '}
-                <b>community</b> you&rsquo;re aligning to, then its <b>vault</b>. This is what makes
-                it not a grift.
+                {settlementMomentSentence(typeKey)} The ratio is a contract constant, so nobody can
+                change what a settlement pays out. Pick the <b>community</b> you&rsquo;re aligning
+                to, then its <b>vault</b>. This is what makes it not a grift.
               </p>
+              {secondaryEarn && <p className={styles.lede}>{secondaryEarn}</p>}
+              {/*
+                ERC-404 has no fixed answer here: the pool pays the community forever, or not at
+                all, depending on the deployer chosen a step earlier. `useSwapTithe` asks it, and
+                renders nothing while the read is in flight or when it does not come back — a step
+                that flashes "untaxed" and then corrects itself has already misled the creator.
+              */}
+              {titheSentence && <p className={styles.lede}>{titheSentence}</p>}
+              <p className={styles.help}>{NO_ROYALTY_SENTENCE}</p>
               <AlignmentTargetPicker
                 vaults={vaults.data}
                 isPending={vaults.isPending}
@@ -756,7 +801,8 @@ export function WizardPage() {
                 <>
                   <div className={`noesis-bind ${styles.bind}`}>
                     <div className="cell">
-                      your fees<b>fees</b>
+                      {bind.label}
+                      <b>{bind.value}</b>
                     </div>
                     <div className="arrow">→</div>
                     <div className="cell vault">
@@ -847,6 +893,7 @@ export function WizardPage() {
                 and the <b>alignment share</b> are fixed on-chain —{' '}
                 <b>they can&rsquo;t be undone.</b>
               </div>
+              <p className={styles.bindNote}>{NO_ROYALTY_NOTE}</p>
               {noPieceArt && (
                 <p className={styles.bindNote}>
                   Your pieces will have no art — every id renders as a bare placeholder. You can add
