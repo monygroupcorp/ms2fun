@@ -181,14 +181,24 @@ contract V4HookTaxationTest is ForkTestBase, IUnlockCallback {
 
         // Verify the protocol ceiling is enforced, not merely v4's 100% bound: the top standard 1% tier
         // lands, one unit above it does not, and v4's own maximum is out of reach entirely.
-        hook.setLpFeeRate(hook.MAX_CONFIGURABLE_LP_FEE());
+        //
+        // The ceiling is read into a local first. `vm.expectRevert` arms the NEXT call, and an
+        // external read left inside the argument list becomes that call -- the cheat code is spent
+        // on a staticcall that returns, and the rejection below it is never reached.
+        uint24 maxRate = hook.MAX_CONFIGURABLE_LP_FEE();
+
+        hook.setLpFeeRate(maxRate);
         assertEq(hook.lpFeeRate(), 10_000, "the 1% ceiling is settable");
 
         vm.expectRevert(UniAlignmentV4Hook.RateTooHigh.selector);
-        hook.setLpFeeRate(hook.MAX_CONFIGURABLE_LP_FEE() + 1);
+        hook.setLpFeeRate(maxRate + 1);
+
+        assertEq(hook.lpFeeRate(), 10_000, "a rejected rate leaves the ceiling standing");
 
         vm.expectRevert(UniAlignmentV4Hook.RateTooHigh.selector);
         hook.setLpFeeRate(uint24(LPFeeLibrary.MAX_LP_FEE));
+
+        assertEq(hook.lpFeeRate(), 10_000, "v4's own maximum is out of reach");
 
         emit log_string("");
         emit log_string("[SUCCESS] LP fee rate is configurable, hook fee is immutable!");

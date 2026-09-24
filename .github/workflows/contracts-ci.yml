@@ -86,6 +86,19 @@ jobs:
           ./scripts/zrouter-approval-gate.sh --self-test
           ./scripts/zrouter-approval-gate.sh
 
+      # `vm.expectRevert` arms the next call frame, and Solidity evaluates arguments before the
+      # call -- so an external read left inside the guarded call's argument list BECOMES that
+      # frame, spends the cheat code, and the rejection the test was written to prove is never
+      # reached. The shape aborts with "next call did not revert as expected" whether the
+      # contract is right or wrong, so it carries no signal in either direction and a diff does
+      # not show it. It reached main once this way (PR #482, the alignment hook's 1% LP-fee
+      # ceiling) past review and a green gate, because the suite it lives in is fork-only. Source
+      # scan, so it sits beside INV-1 before the build; --self-test first, same reason.
+      - name: expectRevert argument gate
+        run: |
+          ./scripts/expect-revert-gate.sh --self-test
+          ./scripts/expect-revert-gate.sh
+
       # The compiled tree is keyed on everything the compiler reads: sources, tests, scripts,
       # the config, and the dependency pins. Exact key when this tree was compiled before;
       # otherwise the newest older tree, which forge's per-file cache turns into an incremental
