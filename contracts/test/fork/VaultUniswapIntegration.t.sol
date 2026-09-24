@@ -627,18 +627,30 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         uint256 expectedAliceClaim = (1 ether * aliceShares) / totalShares;
         uint256 expectedBobClaim = (1 ether * bobShares) / totalShares;
 
-        // Alice claims
+        // Each claim is exact-or-floored, never over. `expected*Claim` above is computed from the
+        // share split in one step; the vault reaches the same figure through its fee accumulator,
+        // which floors on the way. Against a real AMM the two agree at some blocks and differ by a
+        // wei at others, so `assertEq` here asserts the block and not the code -- see the three-block
+        // measurement in the goal this test is filed under. `_assertClaimFloors` is what the rest of
+        // this file already uses, and it keeps the property that matters: a claim ABOVE entitlement
+        // is a leak, a claim below by a bounded amount is rounding left in the vault.
         vm.prank(alice);
         uint256 aliceClaimed = vault.claimFees();
-        assertEq(aliceClaimed, expectedAliceClaim, "Alice claim mismatch");
+        _assertClaimFloors(aliceClaimed, expectedAliceClaim, "alice, proportional claim");
 
-        // Bob claims
         vm.prank(bob);
         uint256 bobClaimed = vault.claimFees();
-        assertEq(bobClaimed, expectedBobClaim, "Bob claim mismatch");
+        _assertClaimFloors(bobClaimed, expectedBobClaim, "bob, proportional claim");
 
-        // Total claimed should equal total fees (within rounding)
-        assertApproxEqAbs(aliceClaimed + bobClaimed, 1 ether, 2, "Total claims should equal total fees");
+        // Both claimants together may leave at most one floor each in the vault. Derived from the
+        // same bound as the per-claim assertion rather than the literal 2 wei this carried, so a
+        // change to the share scale widens it instead of quietly reddening the test.
+        assertLe(aliceClaimed + bobClaimed, 1 ether, "the pair claimed MORE than the fees accrued -- a leak");
+        assertGe(
+            aliceClaimed + bobClaimed + 2 * _claimFloorBound(),
+            1 ether,
+            "the pair left more than two accumulator floors unclaimed"
+        );
 
         emit log_string("[PASS] Multiple contributors claim proportional fees");
     }
