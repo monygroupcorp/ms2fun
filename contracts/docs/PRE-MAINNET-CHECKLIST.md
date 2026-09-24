@@ -74,49 +74,56 @@ timeout. **Do not quote it as the state of the code.**
 > the 2026-08-12 attempt never reached the end of — finished in 2,655.82s wall / 7.37 CPU-hours
 > with 11 invariants and 0 reverts.
 
-**Re-measured 2026-09-23 on the wound-down tree, and it is NOT green.** Same toolchain — forge
-1.5.1-stable, 32-core host, `FOUNDRY_THREADS` capped at 12 across two queues of six because the
-machine was shared. All nine suites ran to completion; one property failed. **This, not the block
-above, is the number for the code as it stands:**
+**Re-measured 2026-09-23 on the wound-down tree, and it came back red — SUPERSEDED, the defect it
+found is fixed.** Same toolchain, all nine suites to completion, one property failing:
+`EndowmentImpairmentInvariant.invariant_harvestFlatSplitConserves` at `runs: 42, calls: 21000,
+reverts: 0`, a harvest distributing one wei more yield than was injected
+(`39387567573988343698 > 39387567573988343697`) down a six-call shrunk sequence of
+`deposit → accrueYield → harvest → execute → deposit → harvest`. It was escalated on its own
+rather than carried here, which is what this entry's closing rule asks for, and **PR #481 fixed it
+by booking every crystallize leg so the strand is counted once.** Kept as history because it is the
+measurement that found the defect. **Do not quote it as the state of the code.**
 
-> **49 invariant properties across 9 suites. 48 passed, 1 FAILED, 0 skipped.** Each passing
-> property at 10,000 runs × 500 depth = 5,000,000 calls; 240,021,000 calls in total. 14.5
-> CPU-hours, summed per-suite wall time 8,263s, clock 1h12m.
+**The number for the code as it stands — 2026-09-23, and it is green.** Run on `c69c2894` plus the
+infrastructure this branch adds, forge 1.5.1-stable on a 32-core host, 19:07:37 → 20:51:11
+(1h43m34s clock), `rc=0`:
+
+> **50 invariant properties across 9 suites. 50 passed, 0 failed, 0 skipped.** Each property at
+> 10,000 runs × 500 depth = 5,000,000 calls; **250,000,000 calls** in total. 10.86 CPU-hours,
+> summed per-suite wall 6,210s.
 >
-> | suite | result | wall | CPU |
-> | --- | --- | --- | --- |
-> | `BondingCurveInvariant` | 12 passed | 3,119.96s | 31,327.84s |
-> | `BondingCurveFreeMintInvariant` | 9 passed | 1,333.61s | 8,685.48s |
-> | `UniVaultInvariant` | 5 passed | 971.02s | 3,452.36s |
-> | `DeployBondDeadlineInvariant` | 9 passed | 790.33s | 2,073.52s |
-> | `ERC1155EditionInvariant` | 2 passed | 539.66s | 945.29s |
-> | `ZAMMVaultInvariant` | 5 passed | 515.49s | 2,210.60s |
-> | `EndowmentBasisZeroInvariant` | 4 passed | 442.25s | 1,715.18s |
-> | `ERC404StakingStreamAndExit` | 5 passed | 293.39s | 293.39s |
-> | `EndowmentImpairmentInvariant` | 7 passed, **1 failed** | 257.73s | 1,550.88s |
+> The `props` column counts `invariant_` functions. The `tests` column counts every test forge ran
+> in that contract, which is not the same number — `BondingCurveInvariant` carries a unit test
+> beside its eleven properties — and the two were conflated in an earlier draft of this entry.
+> Sibling contracts in the same *files* that declare no invariant (`DeployBondCoverageIsReachable`,
+> for one) are not counted in either column and are not part of this profile.
+>
+> | suite | props | tests | wall | CPU |
+> | --- | ---: | ---: | ---: | ---: |
+> | `BondingCurveInvariant` | 11 | 12 | 2,365.07s | 23,877.80s |
+> | `BondingCurveFreeMintInvariant` | 9 | 9 | 871.81s | 5,608.38s |
+> | `UniVaultInvariant` | 5 | 5 | 632.46s | 2,042.84s |
+> | `DeployBondDeadlineInvariant` | 4 | 4 | 567.59s | 1,530.34s |
+> | `ERC1155EditionInvariant` | 2 | 2 | 503.48s | 850.63s |
+> | `ZAMMVaultInvariant` | 5 | 5 | 435.28s | 1,879.35s |
+> | `EndowmentBasisZeroInvariant` | 4 | 4 | 366.34s | 1,402.47s |
+> | `ERC404StakingStreamAndExit` | 1 | 1 | 240.50s | 240.50s |
+> | `EndowmentImpairmentInvariant` | 9 | 9 | 227.87s | 1,655.81s |
+> | **total** | **50** | **51** | **6,210.40s** | **39,088.12s** |
 
-The suite count fell by one because the Cypher suite was deleted with the vault, not because a
-suite was dropped from a list: `scripts/deep-invariant.sh` asks forge which files declare an
-`invariant_` function, and there is no written-down list to drift from. The same question also
-correctly passes over `test/invariant/RevenueSplitInvariant.t.sol`, which despite its name and its
-directory declares no invariant and is a unit-test file.
+`EndowmentImpairmentInvariant` is 9/9 here, the property that failed the red run included. Because
+that failure was seed-dependent, one green campaign is not on its own an answer to it: the property
+was additionally run alone against **eight independent fuzz seeds**, each at 10,000 runs /
+5,000,000 calls / 0 reverts, and all eight passed (182.78s–186.02s). That is the evidence the fix
+holds rather than the seed having moved.
+
+The suite count is nine rather than the ten of the first run because the Cypher suite was deleted
+with the vault, not because a suite was dropped from a list: `scripts/deep-invariant.sh` asks forge
+which files declare an `invariant_` function, and there is no written-down list to drift from. The
+same question also correctly passes over `test/invariant/RevenueSplitInvariant.t.sol`, which despite
+its name and its directory declares no invariant and is a unit-test file.
 
 Reproduce it with `contracts/scripts/deep-invariant.sh`, which is also what CI runs.
-
-**The failure.** `EndowmentImpairmentInvariant.invariant_harvestFlatSplitConserves`, at
-`runs: 42, calls: 21000, reverts: 0`:
-
-> `endowment: harvest distributed more yield than was injected:`
-> `39387567573988343698 > 39387567573988343697`
-
-One wei more paid out of a harvest than was ever injected, reached by a six-call shrunk sequence
-of `deposit → accrueYield → harvest → execute → deposit → harvest`. This is a real counterexample
-and not the backend flake described below: the property executed, the assertion is named, and the
-sequence that reached it was printed. It is seed-dependent — a fresh campaign of that property
-alone, 10,000 runs / 5,000,000 calls, came back green in 173.41s, and the per-push `ci` depth
-(256 runs / 128,000 calls) passes, so the per-push gate does not reach it. **A property that fails
-one campaign in several is a property that fails.** Per the closing rule of this entry it is not
-carried here as a deferral; it is escalated on its own.
 
 Two backend observations worth carrying forward, neither of them a contract defect:
 
@@ -131,7 +138,7 @@ Two backend observations worth carrying forward, neither of them a contract defe
   every red is that flake will wave a real one through — the endowment failure above is exactly
   the red that must not be waved through.
 - `ZAMMVaultInvariant` passes, but roughly 808,000 of each property's 5,000,000 calls revert
-  (~16%), unchanged across both runs. `fail_on_revert = false`, so those calls are discarded and
+  (~16%), unchanged across all three runs. `fail_on_revert = false`, so those calls are discarded and
   the depth they were supposed to buy is not bought. The suite is green and this is not a defect;
   it is a handler that could explore more state for the same money.
 
@@ -141,14 +148,16 @@ this document sets the standard and it applies here: a workflow that looks corre
 workflow that ran.
 
 **Discharges when.** The scheduled job has completed at least one run, *observed* — not merged,
-run. The profile now produces a complete result on demand, which is the half of this condition
-that was missing at filing; it has not yet produced a clean one, and the entry cannot be struck on
-a red run.
+run. Both halves that were missing at filing are now in hand: the profile produces a complete
+result on demand, and that result is clean. What is left is the schedule itself, and it is left
+deliberately — a hand-run number proves the code, a scheduled run proves the code will keep being
+asked.
 
 **If a future run comes back red, it does not belong on this checklist.** An invariant violation on
-money-path contracts wants its own item and an escalation, not a line in a deferral list. The
-2026-09-23 endowment failure is recorded above as part of the measurement it came out of, and is
-escalated on its own; it is not accepted here.
+money-path contracts wants its own item and an escalation, not a line in a deferral list. That is
+not a rule written in advance and untested: the 2026-09-23 red above was escalated that way, fixed
+under PR #481, and the green run recorded here is what came back. The rule works; use it again
+rather than widening this entry.
 
 ---
 

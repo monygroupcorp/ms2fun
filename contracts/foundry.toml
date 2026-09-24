@@ -128,11 +128,12 @@ remappings = [
 #
 # QUOTE NO PASS/FAIL NUMBER FOR A RUN THAT DID NOT COMPLETE. A suite cancelled at a timeout is
 # not a pass, and a whole-tree run still going is not a result. The current number, measured
-# 2026-09-23 on the wound-down tree — 49 invariant properties across 9 suites, 48 passed, 1
-# FAILED, 240M calls — is recorded in entry 2 of `docs/PRE-MAINNET-CHECKLIST.md`, which must be
-# read before any mainnet deploy, together with the counterexample and the earlier 54-property
-# figure it supersedes. Quote those, not a recollection: the 54-property run predates the Cypher
-# wind-down and describes a tree that is no longer shipped.
+# 2026-09-23 on c69c2894 — 50 invariant properties across 9 suites, 50 passed 0 failed, 250M
+# calls, 10.86 CPU-hours — is recorded in entry 2 of `docs/PRE-MAINNET-CHECKLIST.md`, which must
+# be read before any mainnet deploy, together with the two runs it supersedes and why each is
+# superseded. Quote that, not a recollection: the 54-property figure predates the Cypher
+# wind-down and describes a tree that is no longer shipped, and the 49-property figure carries a
+# harvest-conservation failure that PR #481 has since fixed.
 [profile.ci.fuzz]
 runs = 1000
 
