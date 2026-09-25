@@ -23,7 +23,7 @@ import { forkChainId } from '../addresses'
  * functions here, so a three-entry const ABI keeps inference shallow while staying fully typed (no
  * `@ts-expect-error`, no `any`). Selectors verified against contracts/out/AlignmentEndowmentVault.
  */
-const vaultSummaryAbi = [
+export const vaultSummaryAbi = [
   {
     type: 'function',
     name: 'vaultType',
@@ -75,8 +75,32 @@ const vaultSummaryAbi = [
   },
 ] as const
 
-/** Reads per vault in the batch, in call order. */
-const CALLS_PER_VAULT = 7
+/**
+ * The per-vault batch, in call order — the ONE place that order is written down.
+ *
+ * Both the request and the reader derive from this list: the stride is its length and every field
+ * is found by name. That is deliberate rather than tidy. This read is a flat array of
+ * `addresses.length * CALLS_PER_VAULT` results with nothing in a result saying which vault or which
+ * function it came from, so a stride that disagrees with the calls actually sent does not fail --
+ * it silently reads the NEXT vault's fields, and the page renders confident, wrong numbers.
+ *
+ * Which is what happened. The list carried seven names, two calls were dropped from the request in
+ * a refactor, and the stride stayed at seven. Only the first vault landed on its own results; every
+ * vault after it read a neighbour's, so target ids came back as nonsense and their vaults rendered
+ * as "Unattributed" -- a display failure wearing the look of a protocol state. Deriving both ends
+ * from one list makes that class of bug unrepresentable.
+ */
+export const VAULT_SUMMARY_CALLS = [
+  'vaultType',
+  'totalPrincipalLocked',
+  'accumulatedFees',
+  'targetId',
+  'alignmentTargetId',
+  'totalEthLocked',
+  'totalPendingETH',
+] as const
+
+const CALLS_PER_VAULT = VAULT_SUMMARY_CALLS.length
 
 export interface VaultSummary {
   vaultType: string | undefined
@@ -110,40 +134,13 @@ export function useVaultsSummary(addresses: readonly `0x${string}`[]): {
 } {
   const contracts = useMemo(
     () =>
-      addresses.flatMap(
-        (address) =>
-          [
-            {
-              address,
-              abi: vaultSummaryAbi,
-              functionName: 'vaultType',
-              chainId: forkChainId,
-            },
-            {
-              address,
-              abi: vaultSummaryAbi,
-              functionName: 'totalPrincipalLocked',
-              chainId: forkChainId,
-            },
-            {
-              address,
-              abi: vaultSummaryAbi,
-              functionName: 'accumulatedFees',
-              chainId: forkChainId,
-            },
-            {
-              address,
-              abi: vaultSummaryAbi,
-              functionName: 'targetId',
-              chainId: forkChainId,
-            },
-            {
-              address,
-              abi: vaultSummaryAbi,
-              functionName: 'alignmentTargetId',
-              chainId: forkChainId,
-            },
-          ] as const,
+      addresses.flatMap((address) =>
+        VAULT_SUMMARY_CALLS.map((functionName) => ({
+          address,
+          abi: vaultSummaryAbi,
+          functionName,
+          chainId: forkChainId,
+        })),
       ),
     [addresses],
   )
@@ -161,13 +158,16 @@ export function useVaultsSummary(addresses: readonly `0x${string}`[]): {
     let lpPendingEth = 0n
     addresses.forEach((address, i) => {
       const base = i * CALLS_PER_VAULT
-      const typeRes = data?.[base]
-      const principalRes = data?.[base + 1]
-      const feesRes = data?.[base + 2]
-      const endowmentTargetRes = data?.[base + 3]
-      const liquidityTargetRes = data?.[base + 4]
-      const ethLockedRes = data?.[base + 5]
-      const pendingEthRes = data?.[base + 6]
+      // By NAME, never by a hand-counted offset: see VAULT_SUMMARY_CALLS.
+      const read = (name: (typeof VAULT_SUMMARY_CALLS)[number]) =>
+        data?.[base + VAULT_SUMMARY_CALLS.indexOf(name)]
+      const typeRes = read('vaultType')
+      const principalRes = read('totalPrincipalLocked')
+      const feesRes = read('accumulatedFees')
+      const endowmentTargetRes = read('targetId')
+      const liquidityTargetRes = read('alignmentTargetId')
+      const ethLockedRes = read('totalEthLocked')
+      const pendingEthRes = read('totalPendingETH')
       const vaultType = typeRes?.status === 'success' ? (typeRes.result as string) : undefined
       const totalPrincipal =
         vaultType === 'AaveEndowment' && principalRes?.status === 'success'

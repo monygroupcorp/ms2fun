@@ -129,6 +129,8 @@ catch (e) { die(`cannot read ${relative(ROOT, APP_SRC)}: ${e.message}`); }
 //   functionName="setMetadataURI"                                     handed to a shared editor as a prop
 //   functionName: isEndowment ? 'flushTargetFees' : 'withdrawTargetFees'   one panel, two contracts
 //   functionName: fn  with  fn: 'addAmbassador' | 'removeAmbassador'  forwarded from a union
+//   functionName,  over  CALLS.map((functionName) => ...)  with  CALLS = ['targetId', ...]
+//                                                          the shorthand over a declared list
 // So the value is read as an EXPRESSION and never as a literal shape, and every literal in it counts:
 // in a union or a ternary the caller picks one at runtime, so the path exists for all of them. This is
 // `valueAfter` from the walk's own scanner rather than a second reader, because the two gates
@@ -139,18 +141,37 @@ const LITERAL = /['"`]([A-Za-z0-9_$]+)['"`]/g;
 
 const literalsAt = (text, from) => [...valueAfter(text, from).matchAll(LITERAL)].map((m) => m[1]);
 
+// The literals an identifier resolves to inside one file: its union annotation (`fn: 'a' | 'b'`,
+// where a shared component declares which calls it stands for) and, when it is a callback
+// parameter, the declared list being mapped (`CALLS.map((fn) => ...)` with `CALLS = ['a', 'b']`).
+const identLiterals = (text, ident) => {
+  const names = [];
+  for (const decl of text.matchAll(new RegExp(`\\b${ident}\\s*\\??\\s*:\\s*`, 'g')))
+    names.push(...literalsAt(text, decl.index + decl[0].length));
+  for (const cb of text.matchAll(
+    new RegExp(`\\b([A-Za-z_$][A-Za-z0-9_$]*)\\s*\\.\\s*(?:flatMap|map|forEach)\\s*\\(\\s*\\(?\\s*${ident}\\b`, 'g'),
+  ))
+    for (const list of text.matchAll(new RegExp(`\\b${cb[1]}\\s*(?::[^=]*)?=\\s*`, 'g')))
+      names.push(...literalsAt(text, list.index + list[0].length));
+  return names;
+};
+
 function callNames(text) {
   const names = new Set();
-  for (const m of text.matchAll(/\b(?:functionName|eventName)\s*[:=]\s*\{?\s*/g)) {
+  // `[:=]` for the four written forms; the lookahead for the fifth, where the key IS the binding
+  // and there is no separator at all. A shorthand property is how a batch derived from ONE declared
+  // list of names reaches wagmi -- `CALLS.map((functionName) => ({ address, abi, functionName }))` --
+  // and reading it as a name nobody calls is the failure this gate exists to avoid: the two vault
+  // families' `alignmentTargetId` is read on the vaults page through exactly that shape, and a
+  // detector that stopped at `functionName:` reported both as unclaimed.
+  for (const m of text.matchAll(/\b(?:functionName|eventName)\s*(?:[:=]\s*\{?\s*|(?=[,}]))/g)) {
     const at = m.index + m[0].length;
     const direct = literalsAt(text, at);
     if (direct.length) { for (const n of direct) names.add(n); continue; }
-    // The name is forwarded from a variable. Take the literals of that identifier's union annotation
-    // in the same file, which is where a shared component declares which calls it stands for.
-    const ident = text.slice(at).match(/^([A-Za-z_$][A-Za-z0-9_$]*)/);
-    if (!ident) continue;
-    for (const decl of text.matchAll(new RegExp(`\\b${ident[1]}\\s*\\??\\s*:\\s*`, 'g')))
-      for (const n of literalsAt(text, decl.index + decl[0].length)) names.add(n);
+    // The name is forwarded from a variable -- the key's own identifier in the shorthand form,
+    // whatever follows the separator otherwise.
+    const ident = text.slice(at).match(/^([A-Za-z_$][A-Za-z0-9_$]*)/)?.[1] ?? m[0].match(/^\w+/)[0];
+    for (const n of identLiterals(text, ident)) names.add(n);
   }
   return names;
 }
