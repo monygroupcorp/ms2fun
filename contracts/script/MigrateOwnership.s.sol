@@ -209,11 +209,13 @@ contract MigrateOwnership is Script {
     ///         Timelock. Requires Phase 1 (Timelock requests) to have already executed for every
     ///         SafeOwnableUUPS contract.
     function run() external {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address timelock = vm.envAddress("TIMELOCK_ADDRESS");
         require(timelock != address(0), "MigrateOwnership: TIMELOCK_ADDRESS unset");
 
-        vm.startBroadcast(deployerPrivateKey);
+        // No argument: forge supplies the signer from `--account <keystore>` (or `--ledger`), so the
+        // deployer key is never put in this process's environment. This is the step that moves
+        // ownership of every deployed contract, which is the last place a key should be an env var.
+        vm.startBroadcast();
         _migrate(timelock);
         vm.stopBroadcast();
 

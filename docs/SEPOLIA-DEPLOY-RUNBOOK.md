@@ -127,6 +127,53 @@ up front so the mismatch surfaces in simulation rather than on chain.
 
 It is also the operator of the route quoter and the owner of the deployed protocol.
 
+### 1.5 Signing
+
+**Every broadcast in this runbook signs from an encrypted keystore, and the key is never put in the
+environment.** One deployer serves both chains, so this key is the mainnet genesis key from the
+moment it exists and is handled at that grade on Sepolia too.
+
+```
+# once, when the key is minted. Hidden passphrase prompt; writes an encrypted keystore and
+# prints ONLY the address — the private key is never displayed, so it never reaches a terminal
+# scrollback, a screen recording or a shell history. Do not use `cast wallet new` without a path,
+# which prints the key, and never `--unsafe-password`.
+cast wallet new ~/.foundry/keystores noesis-deployer
+
+# every broadcast, in this runbook and on mainnet
+DEPLOYER=$(sed -n 's/.*constant DEPLOYER = \(0x[0-9a-fA-F]\{40\}\);.*/\1/p' contracts/script/SepoliaSalts.sol)
+forge script <script> --rpc-url <rpc> --account noesis-deployer --sender "$DEPLOYER" --broadcast
+```
+
+`--sender` is derived from the salt file rather than typed, because the deployer is bytes 0..19 of
+every salt and the two cannot be allowed to disagree: a typed address that has drifted from the salt
+set reverts `InvalidSalt` inside CreateX, and the salt file is the one place either is edited.
+
+What this forbids, and why the scripts enforce it rather than the prose: **no `export PRIVATE_KEY=`,
+no `--private-key`, no key in `contracts/.env`, no key in shell history.** `DeploySepolia`,
+`DeployTimelock` and `MigrateOwnership` all call a bare `vm.startBroadcast()`, which takes the signer
+from the flags above and has no way to read a key out of the environment. `MigrateOwnership` is the
+step that moves ownership of every deployed contract, and it used to be the one step that asked for
+the raw key — a custody model is only as strong as its weakest step, and that was the weakest.
+
+The Anvil scripts (`DeployAnvil`, `SeedAnvil`, `SeedAnvilBuys`, `SeedRich`) still read `PRIVATE_KEY`
+and should: they sign as a well-known local account on a throwaway chain, and putting a keystore
+ceremony in front of the dev loop would buy nothing.
+
+**The hardware wallet belongs on the Safe, not here.** §5.5 hands every ownership, `PROTOCOL_ROLE`,
+the hook owner and the emergency revoker to the Timelock, whose admin, proposer and canceller is the
+Safe from §5.5.1. On mainnet the deployer's privilege ends there by design; the Safe's owner keys are
+what hold it afterwards, and they are the keys worth putting on a device.
+
+**One capability does not move, and it is this network's alone.** `SepoliaRouteQuoter.operator` is
+`immutable`, set to the deployer at construction, and `setRoute` is gated on it with no setter to
+re-point — so for the life of that quoter the deployer is the only account that can write its route
+table, and `MigrateOwnership` cannot hand it over. That is a reason to keep this key rather than
+retire it after the handover, not a reason to distrust it: `DeployMainnet` wires the canonical
+upstream `zQuoter` (`MainnetAddresses.ZQUOTER`) and constructs no quoter of its own, so nothing on
+mainnet carries an operator bound to the deployer. A Sepolia route table that must outlive this key
+is re-pointed by deploying a fresh quoter and setting `cfg.zQuoter`, which is a deploy step.
+
 ---
 
 ## 2. Funding
@@ -144,7 +191,7 @@ Both figures are measurements taken before this runbook was written, not estimat
 both go stale. Re-read the balance on the day:
 
 ```
-cast balance 0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6 --rpc-url <sepolia-rpc> --ether
+cast balance "$DEPLOYER" --rpc-url <sepolia-rpc> --ether        # $DEPLOYER as derived in §1.5
 ```
 
 The deploy cost scales linearly with gas price, and 15 gwei is a Sepolia figure that moves. Check the
@@ -223,8 +270,9 @@ Everything here is read-only. None of it sends a transaction.
    non-archive, load-balanced public endpoint fails partway through with missing-trie-node errors —
    partway through a broadcast, which is the expensive place to discover it.
 
-4. **The keystore is the deployer.** `cast wallet address --account <keystore>` must print
-   `0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6`.
+4. **The keystore is the deployer.** `cast wallet address --account noesis-deployer` must print the
+   `$DEPLOYER` read out of the salt file above. They are the same address or the run reverts
+   `InvalidSalt` inside CreateX; see §1.5.
 
 ---
 
@@ -286,8 +334,8 @@ before the broadcast, not after — after, a fix that touches a deployed contrac
 cd contracts
 forge script script/DeploySepolia.s.sol \
   --rpc-url <sepolia-rpc> \
-  --account <keystore> \
-  --sender 0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6 \
+  --account noesis-deployer \
+  --sender "$DEPLOYER" \
   --broadcast --slow --verify \
   --code-size-limit 30000
 ```
@@ -322,7 +370,7 @@ broadcast leg.
 ```
 cd app
 pnpm exec tsx scripts/sepolia-seed/seed.ts --broadcast --rpc-url <sepolia-rpc> \
-  --sender 0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6 --account <keystore>
+  --sender "$DEPLOYER" --account noesis-deployer
 ```
 
 Do **not** pass `--yes`; it exists for the rehearsal and skips the prompts.
@@ -393,15 +441,15 @@ will not run without one. Create it on Sepolia (`app.safe.global`, Sepolia netwo
 address. This is NOT `cfg.safe` in `DeployCore` — that field is read by nothing (see §9) and wiring
 a real Safe into it installs no governance at all.
 
-**5.5.2 — the Timelock.** `SAFE_ADDRESS` is the Safe from 5.5.1; the deployer key is the same one
-§5.1 broadcast with.
+**5.5.2 — the Timelock.** `SAFE_ADDRESS` is the Safe from 5.5.1; the signer is the same keystore
+§5.1 broadcast with, and it is passed the same way — see §1.5.
 
 ```
 cd contracts
-export PRIVATE_KEY=<deployer>
 export SAFE_ADDRESS=<the Safe from 5.5.1>
 export TIMELOCK_MIN_DELAY=3600        # testnet only; unset is the 24h mainnet default
-forge script script/DeployTimelock.s.sol --rpc-url <sepolia-rpc> --broadcast
+forge script script/DeployTimelock.s.sol --rpc-url <sepolia-rpc> \
+  --account noesis-deployer --sender "$DEPLOYER" --broadcast
 export TIMELOCK_ADDRESS=<the address it printed>
 ```
 
@@ -426,7 +474,8 @@ forge script script/MigrateOwnership.s.sol --sig "printRequestBatch()" --rpc-url
 
 # Phase 2 — from the deployer. Completes the handovers, moves PROTOCOL_ROLE,
 # re-points the emergency revoker, and asserts the result before it lands.
-forge script script/MigrateOwnership.s.sol --rpc-url <sepolia-rpc> --broadcast
+forge script script/MigrateOwnership.s.sol --rpc-url <sepolia-rpc> \
+  --account noesis-deployer --sender "$DEPLOYER" --broadcast
 ```
 
 **Both phases read the addresses to migrate from the environment, and the source for every one of
