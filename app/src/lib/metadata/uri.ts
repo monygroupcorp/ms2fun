@@ -14,9 +14,11 @@
  */
 import { customGatewayStore } from '../storage/keys'
 import {
+  attemptTimeoutMs,
   classifyStatus,
   gatewayKey,
   nextAvailableAt,
+  noteFault,
   noteOutcome,
   noteRosterFault,
   noteRosterRecovered,
@@ -60,21 +62,35 @@ export interface IpfsGateway {
  * Public IPFS gateways, tried in sequence. No backend, account, API key or dashboard of ours —
  * public endpoints only, so the list stays walkawayable.
  *
- * Deliberately spans three independent operators. Ordered by observed retrieval reliability, and
- * kept short: under sequential rotation a long roster is a long tail of failures to walk before
- * giving up.
+ * Deliberately spans three independent operators, and kept short: under sequential rotation a long
+ * roster is a long tail of failures to walk before giving up.
+ *
+ * ORDERED BY MEASURED LATENCY, and the measurement is a command rather than a memory:
+ * `pnpm ipfs:latency` times every entry here against art we pin and exits non-zero when a later
+ * entry is meaningfully faster than an earlier one. This comment used to read "ordered by observed
+ * retrieval reliability" with nothing holding it to anything, and by 2026-09-24 it was false — the
+ * first entry answered in 5.69 s and the second in 0.02 s, so every cold load paid a 369x penalty
+ * before reaching the fast gateway. Re-run the harness when this list is edited.
  *
  * Each entry was checked against a live CID in a real browser (a real Chrome, not a spoofed
  * user-agent) before being listed; documentation alone is not evidence a gateway serves bytes.
  */
 export const IPFS_GATEWAYS: readonly IpfsGateway[] = [
-  // Pinata. Path form only — the public gateway has no wildcard subdomain host.
-  { operator: 'Pinata', form: 'path', base: 'https://gateway.pinata.cloud/ipfs/' },
   // Filebase. Path form only — subdomain requests to this host do not resolve to content.
+  // First because it is measurably first: 0.02 s median against 5.69 s, 2026-09-25.
   { operator: 'Filebase', form: 'path', base: 'https://ipfs.filebase.io/ipfs/' },
-  // 4EVERLAND. Subdomain form only: the path endpoint does not respond, and the subdomain host
-  // lower-cases the label, so a CIDv0 sent here comes back as a client error. See
-  // `isSubdomainSafeCid` — CIDv0 pointers skip this entry rather than emitting a URL that 400s.
+  // Pinata. Path form only — the public gateway has no wildcard subdomain host. This is the PUBLIC
+  // endpoint, metered against the viewer's own address; it shares an operator with the account that
+  // pins our art but none of that account's quota.
+  { operator: 'Pinata', form: 'path', base: 'https://gateway.pinata.cloud/ipfs/' },
+  // 4EVERLAND. Subdomain form: the path endpoint 301s here, and the subdomain host lower-cases the
+  // label, so a CIDv0 sent here comes back as a client error. See `isSubdomainSafeCid` — CIDv0
+  // pointers skip this entry rather than emitting a URL that 400s.
+  //
+  // MEASURED DEAD 2026-09-25 and kept only until its replacement is ruled on: it answers 410 Gone
+  // for the canonical zero-byte file and accepts-then-never-answers for our art (3/3 runs past the
+  // 12 s timeout, both forms). It is last, so a healthy load never reaches it, and `gatewayHealth`
+  // demotes a silent gateway rather than spending the full timeout on it every load.
   { operator: '4EVERLAND', form: 'subdomain', base: '4everland.io' },
 ] as const
 
@@ -167,9 +183,14 @@ export function isImmutableUri(uri: string | undefined | null): uri is string {
  * Stable cache key for a pointer's CONTENT, independent of which gateway serves it: `ipfs://QmX`
  * and `ipfs://ipfs/QmX` are one entry. Non-ipfs pointers key on the trimmed pointer itself.
  */
-export function contentKey(uri: string): string {
+export function contentKey(uri: string, width?: ArtWidth): string {
   const trimmed = uri.trim()
-  return trimmed.startsWith('ipfs://') ? `ipfs://${ipfsPath(trimmed)}` : trimmed
+  const base = trimmed.startsWith('ipfs://') ? `ipfs://${ipfsPath(trimmed)}` : trimmed
+  // A resized variant is DIFFERENT BYTES under the same CID, so it cannot share the pointer's key.
+  // Without this suffix a grid that cached a 320 px thumbnail would serve that thumbnail to the
+  // detail view asking the same pointer for full size, and the art would render blurry with
+  // nothing in the network tab to explain why.
+  return width === undefined ? base : `${base}@${width}`
 }
 
 /** ipfs://CID[/path] (and ipfs://ipfs/CID) → `CID[/path]`. */
@@ -227,16 +248,75 @@ export function getIpfsGateways(
  * ar:/http/data resolve to a single URL with no gateway identity — there is nothing to rotate to
  * and no shared bucket to protect.
  */
-export function resolveCandidates(uri: string): UriCandidate[] {
+export function resolveCandidates(uri: string, width?: ArtWidth): UriCandidate[] {
   const trimmed = uri.trim()
   if (!trimmed.startsWith('ipfs://')) return [{ url: resolveUri(trimmed), gatewayKey: null }]
   const path = ipfsPath(trimmed)
   const candidates: UriCandidate[] = []
+  // The art service first when one is configured and a size was asked for: it answers from an edge
+  // cache on our own quota, where a public gateway answers on the viewer's and meters them for it.
+  if (width !== undefined) {
+    const url = artServiceUrl(path, width)
+    if (url) candidates.push({ url, gatewayKey: ART_SERVICE_KEY })
+  }
+  // Gateways stay underneath, and they serve the ORIGINAL rather than a variant. A viewer whose
+  // art service is cold, over budget or gone therefore sees the right art at the wrong size, which
+  // is a slower page and not a broken one.
   for (const gateway of orderGateways(usableGateways(path))) {
     const url = gatewayUrl(gateway, path)
     if (url) candidates.push({ url, gatewayKey: gatewayKey(gateway) })
   }
   return candidates
+}
+
+/**
+ * The widths the art service may be asked for, smallest first.
+ *
+ * A LADDER RATHER THAN A FREE PARAMETER, and the reason is cost: every distinct (image, width) pair
+ * is a separate transformation that is paid for once and stored forever. A component passing its
+ * own measured pixel width would mint a new variant per viewport, which is an unbounded bill and a
+ * cache that never hits. Callers ask for what they need and {@link snapArtWidth} rounds up to a rung.
+ *
+ *  - 320  — a grid card. What the collection wall actually needs.
+ *  - 640  — a card on a dense desktop grid, and a phone at 2x.
+ *  - 1024 — the detail view.
+ *
+ * Above the top rung the original is served untouched, so large art is never upscaled into a
+ * variant that is bigger than the thing it came from.
+ */
+export const ART_WIDTHS = [320, 640, 1024] as const
+
+/** One of {@link ART_WIDTHS}. */
+export type ArtWidth = (typeof ART_WIDTHS)[number]
+
+/** Round a wanted width UP to the nearest rung, so a variant is never smaller than asked for. */
+export function snapArtWidth(wanted: number): ArtWidth {
+  for (const rung of ART_WIDTHS) if (wanted <= rung) return rung
+  return ART_WIDTHS[ART_WIDTHS.length - 1]!
+}
+
+/** Health key for the art service, so it cools down and is skipped exactly like a gateway. */
+export const ART_SERVICE_KEY = 'art-service'
+
+/**
+ * Base URL of the art delivery service, or null when none is configured.
+ *
+ * Read from the environment rather than written here on purpose: the hostname belongs to a
+ * deployment, and `app/scripts/ipfs-dist/RUNBOOK.md` section 2 keeps deployment identifiers out of
+ * this repository. UNSET IS A SUPPORTED STATE and is what every test and local build runs in — the
+ * roster then behaves exactly as it did before this existed.
+ */
+function artServiceBase(): string | null {
+  const raw = import.meta.env.VITE_ART_SERVICE
+  if (typeof raw !== 'string') return null
+  const trimmed = raw.trim().replace(/\/+$/, '')
+  return /^https:\/\/|^http:\/\//.test(trimmed) ? trimmed : null
+}
+
+/** The art service URL for a path at a width, or null when no service is configured. */
+export function artServiceUrl(path: string, width: ArtWidth): string | null {
+  const base = artServiceBase()
+  return base === null ? null : `${base}/art/${path}?w=${width}`
 }
 
 /** One URL to try, and the gateway whose health an attempt at it reports to (null = not a gateway). */
@@ -315,11 +395,15 @@ function retryAfterOf(res: Response): number | null {
 }
 
 /** One gateway attempt with its own timeout-abort, linked to the caller's signal. */
-async function fetchOne<T>(url: string, parentSignal: AbortSignal): Promise<Attempt<T>> {
+async function fetchOne<T>(
+  url: string,
+  parentSignal: AbortSignal,
+  budgetMs: number = GATEWAY_TIMEOUT_MS,
+): Promise<Attempt<T>> {
   const ctrl = new AbortController()
   const onParent = () => ctrl.abort()
   parentSignal.addEventListener('abort', onParent, { once: true })
-  const timer = setTimeout(() => ctrl.abort(), GATEWAY_TIMEOUT_MS)
+  const timer = setTimeout(() => ctrl.abort(), budgetMs)
   try {
     const res = await fetch(url, { signal: ctrl.signal })
     const outcome = classifyResponse(res)
@@ -400,9 +484,24 @@ export async function fetchJson<T = unknown>(
   let sawMissing = false
   try {
     for (const candidate of candidates) {
-      const attempt = await fetchOne<T>(candidate.url, stop.signal)
+      // A gateway on probation is given a short budget rather than the full one, so an endpoint
+      // that accepts and then goes quiet stops costing every load the whole timeout.
+      const budget = attemptTimeoutMs(candidate.gatewayKey, GATEWAY_TIMEOUT_MS)
+      const started = Date.now()
+      const attempt = await fetchOne<T>(candidate.url, stop.signal, budget)
+      const elapsed = Date.now() - started
       if (candidate.gatewayKey) {
-        noteOutcome(candidate.gatewayKey, attempt.outcome, attempt.retryAfterMs)
+        if (attempt.outcome === 'fault' && elapsed >= budget * 0.9) {
+          noteFault(candidate.gatewayKey, Date.now(), 'silent')
+        } else {
+          noteOutcome(
+            candidate.gatewayKey,
+            attempt.outcome,
+            attempt.retryAfterMs,
+            Date.now(),
+            elapsed,
+          )
+        }
       }
       if (attempt.outcome === 'ok') {
         noteRosterRecovered()
