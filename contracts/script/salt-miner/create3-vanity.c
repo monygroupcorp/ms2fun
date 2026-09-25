@@ -50,6 +50,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
@@ -166,7 +167,12 @@ static void printhex(const uint8_t *b, size_t n)
 
 typedef struct {
     uint8_t deployer[20];
-    int prefix_bytes;
+    // The wanted address prefix, as nibbles. `prefix[]` holds it byte-aligned from the left, so an
+    // odd nibble count leaves the last wanted nibble in the HIGH half of prefix[nibbles/2] and the
+    // low half unused. `--prefix-bytes N` is sugar for 2N zero nibbles, which is why there is one
+    // comparison here and not two modes: a zero-byte run is just a prefix that happens to be zero.
+    uint8_t prefix[20];
+    int prefix_nibbles;
     int count;
     uint64_t seed;
     int thread_id;
@@ -218,11 +224,15 @@ static void *worker(void *p)
             derive_address(guard_in, addr);
 
             int ok = 1;
-            for (int i = 0; i < a->prefix_bytes; i++)
-                if (addr[i] != 0x00) {
+            const int whole = a->prefix_nibbles >> 1;
+            for (int i = 0; i < whole; i++)
+                if (addr[i] != a->prefix[i]) {
                     ok = 0;
                     break;
                 }
+            // A trailing odd nibble: only the high half of the next byte is constrained.
+            if (ok && (a->prefix_nibbles & 1) && (addr[whole] & 0xf0) != (a->prefix[whole] & 0xf0))
+                ok = 0;
             if (ok) {
                 pthread_mutex_lock(&hits_lock);
                 if (hits < a->count) {
@@ -254,7 +264,9 @@ int main(int argc, char **argv)
 {
     uint8_t deployer[20];
     int have_deployer = 0;
-    int prefix_bytes = 5; // the shipped sets' ADDRESS_ZERO_PREFIX_BYTES; see README Cost
+    uint8_t prefix[20] = { 0 };
+    int prefix_nibbles = 10; // the shipped set's five zero bytes; see README Cost
+    const char *prefix_hex = NULL;
     int count = 6;
     int threads = (int)sysconf(_SC_NPROCESSORS_ONLN);
     uint64_t seed = 0;
@@ -268,7 +280,9 @@ int main(int argc, char **argv)
             }
             have_deployer = 1;
         } else if (!strcmp(argv[i], "--prefix-bytes") && i + 1 < argc) {
-            prefix_bytes = atoi(argv[++i]);
+            prefix_nibbles = 2 * atoi(argv[++i]);
+        } else if (!strcmp(argv[i], "--prefix-hex") && i + 1 < argc) {
+            prefix_hex = argv[++i];
         } else if (!strcmp(argv[i], "--count") && i + 1 < argc) {
             count = atoi(argv[++i]);
         } else if (!strcmp(argv[i], "--threads") && i + 1 < argc) {
@@ -304,12 +318,34 @@ int main(int argc, char **argv)
     }
 
     if (!have_deployer) {
-        fprintf(stderr, "usage: %s --deployer 0x<address> [--prefix-bytes N] [--count N] "
-                        "[--threads N] [--seed N]\n       %s --verify 0x<32-byte salt>\n",
+        fprintf(stderr, "usage: %s --deployer 0x<address> [--prefix-hex HEX | --prefix-bytes N] "
+                        "[--count N] [--threads N] [--seed N]\n       %s --verify 0x<32-byte salt>\n",
             argv[0], argv[0]);
         return 2;
     }
-    if (prefix_bytes < 1 || prefix_bytes > 19) {
+    // `--prefix-hex` wins over `--prefix-bytes`: it says the same thing with more of it.
+    if (prefix_hex) {
+        const char *h = prefix_hex;
+        if (h[0] == '0' && (h[1] == 'x' || h[1] == 'X')) h += 2;
+        size_t n = strlen(h);
+        if (n < 1 || n > 38) {
+            fprintf(stderr, "--prefix-hex must be 1..38 hex digits (an address is 40)\n");
+            return 2;
+        }
+        memset(prefix, 0, sizeof(prefix));
+        for (size_t i = 0; i < n; i++) {
+            const char *d = strchr("0123456789abcdef", tolower((unsigned char)h[i]));
+            if (!d) {
+                fprintf(stderr, "--prefix-hex is not hex: %s\n", prefix_hex);
+                return 2;
+            }
+            uint8_t v = (uint8_t)(d - "0123456789abcdef");
+            // Byte-align from the left: nibble i lands in the high half of byte i/2 when i is even.
+            prefix[i / 2] |= (i % 2 == 0) ? (uint8_t)(v << 4) : v;
+        }
+        prefix_nibbles = (int)n;
+    }
+    if (prefix_nibbles < 1 || prefix_nibbles > 38) {
         fprintf(stderr, "--prefix-bytes must be 1..19\n");
         return 2;
     }
@@ -326,8 +362,11 @@ int main(int argc, char **argv)
     }
 
     printf("deployer      "); printhex(deployer, 20); printf("\n");
-    printf("prefix        %d zero byte(s) — expected ~2^%d candidates per hit\n", prefix_bytes,
-        prefix_bytes * 8);
+    printf("prefix        0x");
+    for (int i = 0; i < prefix_nibbles; i++)
+        printf("%x", (i % 2 == 0) ? (prefix[i / 2] >> 4) : (prefix[i / 2] & 0x0f));
+    printf("… — %d nibble(s), expected ~2^%d candidates per hit\n", prefix_nibbles,
+        prefix_nibbles * 4);
     printf("count         %d\nthreads       %d\nseed          0x%016" PRIx64 "\n\n", count, threads, seed);
 
     pthread_t *tid = calloc((size_t)threads, sizeof(pthread_t));
@@ -337,7 +376,8 @@ int main(int argc, char **argv)
 
     for (int i = 0; i < threads; i++) {
         memcpy(args[i].deployer, deployer, 20);
-        args[i].prefix_bytes = prefix_bytes;
+        memcpy(args[i].prefix, prefix, 20);
+        args[i].prefix_nibbles = prefix_nibbles;
         args[i].count = count;
         args[i].seed = seed;
         args[i].thread_id = i;

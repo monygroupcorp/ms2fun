@@ -19,7 +19,7 @@ import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
 ///              permissioned-deploy guard, without which the deploy reverts `InvalidSalt`;
 ///           2. every salt has the cross-chain redeploy-protection flag OFF at byte 20 — the form
 ///              the address derivation below assumes, and the form CreateX will apply;
-///           3. every derived address carries `ADDRESS_ZERO_PREFIX_BYTES` leading zero bytes;
+///           3. every derived address carries the declared `ADDRESS_PREFIX` nibbles;
 ///           4. the six salts are distinct, so no two proxies collide with each other.
 ///
 ///         Vacuity check (vacuity-check): zero any one of the six constants and case 1 fails
@@ -58,14 +58,24 @@ contract SepoliaSaltSetTest is Test {
 
     /// @dev The cosmetic property the set is mined for, asserted against the address CreateX itself
     ///      computes rather than against the comment beside the constant.
-    function test_everySaltMinesTheDeclaredZeroPrefix() public view {
-        uint256 want = SepoliaSalts.ADDRESS_ZERO_PREFIX_BYTES;
+    ///
+    ///      Asserted as the DECLARED PREFIX and not as a count of leading zero bytes, because a
+    ///      prefix is the general thing and a zero run is one case of it: a set mined for `0x000888`
+    ///      carries one leading zero byte and would pass a zero-byte-count assertion of 1 while
+    ///      saying nothing about the digits that were actually paid for. Shifting the address down to
+    ///      the declared width compares every nibble that was mined and none that was not, so an odd
+    ///      nibble count works without a special case.
+    function test_everySaltMinesTheDeclaredPrefix() public view {
+        uint256 n = SepoliaSalts.ADDRESS_PREFIX_NIBBLES;
+        assertGt(n, 0, "the declared prefix has no width");
+        assertLe(n, 40, "the declared prefix is wider than an address");
         for (uint256 i = 0; i < salts.length; i++) {
             address derived = _create3Address(salts[i]);
-            bytes20 b = bytes20(derived);
-            for (uint256 j = 0; j < want; j++) {
-                assertEq(uint8(b[j]), 0, "derived address is short of the declared zero-byte prefix");
-            }
+            assertEq(
+                uint256(uint160(derived)) >> (160 - 4 * n),
+                SepoliaSalts.ADDRESS_PREFIX,
+                "derived address does not carry the declared prefix"
+            );
         }
     }
 

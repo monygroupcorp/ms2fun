@@ -46,9 +46,16 @@ library SepoliaSalts {
     ///         `InvalidSalt` inside CreateX before anything is deployed.
     address internal constant DEPLOYER = 0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6;
 
-    /// @notice How many leading zero bytes every address in this set carries. The salt-set test
-    ///         asserts it, so a hand-edited constant that does not meet it fails the suite.
-    uint256 internal constant ADDRESS_ZERO_PREFIX_BYTES = 5;
+    /// @notice The leading nibbles every address in this set carries, written the way an address is
+    ///         read. `ADDRESS_PREFIX` is the digits and `ADDRESS_PREFIX_NIBBLES` is how many of them
+    ///         are meant, which is the only way a prefix whose own leading digit is `0` can state its
+    ///         width: `0x000888` and `0x888` are the same number, and only the count says the first
+    ///         is six nibbles rather than three. The salt-set test shifts each derived address down
+    ///         to that width and compares, so a hand-edited constant that does not meet it fails the
+    ///         suite. A run of zero bytes is just a prefix that happens to be zero — the miner's
+    ///         `--prefix-bytes N` is sugar for `--prefix-hex` over 2N zeroes.
+    uint256 internal constant ADDRESS_PREFIX = 0x0000000000;
+    uint256 internal constant ADDRESS_PREFIX_NIBBLES = 10;
 
     // ── Mined salt set ────────────────────────────────────────────────────────────────────────
     // Replace all six together; a partially replaced set mixes spent and fresh salts. The trailing
