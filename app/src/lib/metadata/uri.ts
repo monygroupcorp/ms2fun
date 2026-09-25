@@ -60,21 +60,35 @@ export interface IpfsGateway {
  * Public IPFS gateways, tried in sequence. No backend, account, API key or dashboard of ours —
  * public endpoints only, so the list stays walkawayable.
  *
- * Deliberately spans three independent operators. Ordered by observed retrieval reliability, and
- * kept short: under sequential rotation a long roster is a long tail of failures to walk before
- * giving up.
+ * Deliberately spans three independent operators, and kept short: under sequential rotation a long
+ * roster is a long tail of failures to walk before giving up.
+ *
+ * ORDERED BY MEASURED LATENCY, and the measurement is a command rather than a memory:
+ * `pnpm ipfs:latency` times every entry here against art we pin and exits non-zero when a later
+ * entry is meaningfully faster than an earlier one. This comment used to read "ordered by observed
+ * retrieval reliability" with nothing holding it to anything, and by 2026-09-24 it was false — the
+ * first entry answered in 5.69 s and the second in 0.02 s, so every cold load paid a 369x penalty
+ * before reaching the fast gateway. Re-run the harness when this list is edited.
  *
  * Each entry was checked against a live CID in a real browser (a real Chrome, not a spoofed
  * user-agent) before being listed; documentation alone is not evidence a gateway serves bytes.
  */
 export const IPFS_GATEWAYS: readonly IpfsGateway[] = [
-  // Pinata. Path form only — the public gateway has no wildcard subdomain host.
-  { operator: 'Pinata', form: 'path', base: 'https://gateway.pinata.cloud/ipfs/' },
   // Filebase. Path form only — subdomain requests to this host do not resolve to content.
+  // First because it is measurably first: 0.02 s median against 5.69 s, 2026-09-25.
   { operator: 'Filebase', form: 'path', base: 'https://ipfs.filebase.io/ipfs/' },
-  // 4EVERLAND. Subdomain form only: the path endpoint does not respond, and the subdomain host
-  // lower-cases the label, so a CIDv0 sent here comes back as a client error. See
-  // `isSubdomainSafeCid` — CIDv0 pointers skip this entry rather than emitting a URL that 400s.
+  // Pinata. Path form only — the public gateway has no wildcard subdomain host. This is the PUBLIC
+  // endpoint, metered against the viewer's own address; it shares an operator with the account that
+  // pins our art but none of that account's quota.
+  { operator: 'Pinata', form: 'path', base: 'https://gateway.pinata.cloud/ipfs/' },
+  // 4EVERLAND. Subdomain form: the path endpoint 301s here, and the subdomain host lower-cases the
+  // label, so a CIDv0 sent here comes back as a client error. See `isSubdomainSafeCid` — CIDv0
+  // pointers skip this entry rather than emitting a URL that 400s.
+  //
+  // MEASURED DEAD 2026-09-25 and kept only until its replacement is ruled on: it answers 410 Gone
+  // for the canonical zero-byte file and accepts-then-never-answers for our art (3/3 runs past the
+  // 12 s timeout, both forms). It is last, so a healthy load never reaches it, and `gatewayHealth`
+  // demotes a silent gateway rather than spending the full timeout on it every load.
   { operator: '4EVERLAND', form: 'subdomain', base: '4everland.io' },
 ] as const
 
