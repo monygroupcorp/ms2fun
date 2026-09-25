@@ -212,10 +212,13 @@ export default defineConfig({
     proxy: devChainProxy,
     // `src/lib/vaults/acquireVenues.test.ts` reads the registry interface out of the contracts tree
     // so the app's venue-label mirror is pinned to the enum it mirrors rather than to a copy of it.
+    // `src/lib/metadata/artService.contract.test.ts` reads `services/art/` the same way, so the
+    // width rungs the app asks for and the ones that service will serve cannot drift apart silently.
     // Vite refuses to load a file outside the project root unless it is allowed here, and that
-    // refusal reaches the test runner too. Scoped to the contract sources, which ship in this
-    // repository already.
-    fs: { allow: ['.', resolve(__dirname, '../contracts/src')] },
+    // refusal reaches the test runner too. Scoped to trees that ship in this repository already.
+    fs: {
+      allow: ['.', resolve(__dirname, '../contracts/src'), resolve(__dirname, '../services/art')],
+    },
   },
   preview: {
     proxy: devChainProxy,
