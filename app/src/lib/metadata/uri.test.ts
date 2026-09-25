@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  ART_SERVICE_KEY,
+  ART_WIDTHS,
+  artServiceUrl,
   contentKey,
+  snapArtWidth,
   fetchJson,
   jsonOrNull,
   resolveCandidates,
@@ -718,5 +722,79 @@ describe('fetchJson against a gateway that answers with a document', () => {
     mockFetch.mockClear()
     await fetchJson(`ipfs://${CID_V1}/two.json`)
     expect(mockFetch.mock.calls.map((c) => c[0])).not.toContain(publicUrls(`${CID_V1}/two.json`)[0])
+  })
+})
+
+/**
+ * The art delivery service — the edge cache that answers on OUR quota, where a public gateway
+ * answers on the viewer's and rate-limits them for it. Unset is the supported default: every
+ * assertion here that leaves `VITE_ART_SERVICE` alone is also asserting that nothing changed for a
+ * build with no service configured.
+ */
+describe('art service', () => {
+  const ART = 'https://art.example'
+
+  // `vi.stubEnv` mutates import.meta.env for the rest of the FILE, and this project configures no
+  // automatic `unstubEnvs`. Without this every test appended after this block would inherit a
+  // configured art service and quietly assert the wrong roster.
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('is absent unless configured, and then the roster is exactly the gateways', () => {
+    expect(artServiceUrl(CID_V1, 320)).toBeNull()
+    const candidates = resolveCandidates(`ipfs://${CID_V1}`, 320)
+    expect(candidates.every((c) => c.gatewayKey !== ART_SERVICE_KEY)).toBe(true)
+    expect(candidates.map((c) => c.url)).toEqual(publicUrls(CID_V1))
+  })
+
+  it('is tried FIRST when configured and a width is asked for', () => {
+    vi.stubEnv('VITE_ART_SERVICE', ART)
+    const candidates = resolveCandidates(`ipfs://${CID_V1}`, 320)
+    expect(candidates[0]).toEqual({
+      url: `${ART}/art/${CID_V1}?w=320`,
+      gatewayKey: ART_SERVICE_KEY,
+    })
+  })
+
+  it('keeps every gateway BEHIND it, so a cold or dead service degrades instead of breaking', () => {
+    vi.stubEnv('VITE_ART_SERVICE', ART)
+    const candidates = resolveCandidates(`ipfs://${CID_V1}`, 320)
+    expect(candidates.slice(1).map((c) => c.url)).toEqual(publicUrls(CID_V1))
+  })
+
+  it('is not asked at all when no width is wanted — an original comes from a gateway', () => {
+    vi.stubEnv('VITE_ART_SERVICE', ART)
+    expect(resolveCandidates(`ipfs://${CID_V1}`).map((c) => c.url)).toEqual(publicUrls(CID_V1))
+  })
+
+  it('ignores a configured value that is not an http(s) origin', () => {
+    vi.stubEnv('VITE_ART_SERVICE', 'javascript:alert(1)')
+    expect(artServiceUrl(CID_V1, 320)).toBeNull()
+    vi.stubEnv('VITE_ART_SERVICE', '   ')
+    expect(artServiceUrl(CID_V1, 320)).toBeNull()
+  })
+
+  it('does not double the slash when the configured base carries a trailing one', () => {
+    vi.stubEnv('VITE_ART_SERVICE', `${ART}/`)
+    expect(artServiceUrl(CID_V1, 640)).toBe(`${ART}/art/${CID_V1}?w=640`)
+  })
+
+  it('rounds a wanted width UP to a rung, so a variant is never smaller than asked for', () => {
+    expect(snapArtWidth(1)).toBe(320)
+    expect(snapArtWidth(320)).toBe(320)
+    expect(snapArtWidth(321)).toBe(640)
+    expect(snapArtWidth(1024)).toBe(1024)
+  })
+
+  it('caps at the top rung rather than minting a variant per viewport', () => {
+    expect(snapArtWidth(4000)).toBe(ART_WIDTHS[ART_WIDTHS.length - 1])
+  })
+
+  it('gives a variant its own content key, so a thumbnail cannot be served as the original', () => {
+    const original = contentKey(`ipfs://${CID_V1}`)
+    expect(contentKey(`ipfs://${CID_V1}`, 320)).not.toBe(original)
+    expect(contentKey(`ipfs://${CID_V1}`, 320)).not.toBe(contentKey(`ipfs://${CID_V1}`, 1024))
+    expect(contentKey(`ipfs://${CID_V1}`, 320)).toBe(`${original}@320`)
   })
 })

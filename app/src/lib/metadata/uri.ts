@@ -181,9 +181,14 @@ export function isImmutableUri(uri: string | undefined | null): uri is string {
  * Stable cache key for a pointer's CONTENT, independent of which gateway serves it: `ipfs://QmX`
  * and `ipfs://ipfs/QmX` are one entry. Non-ipfs pointers key on the trimmed pointer itself.
  */
-export function contentKey(uri: string): string {
+export function contentKey(uri: string, width?: ArtWidth): string {
   const trimmed = uri.trim()
-  return trimmed.startsWith('ipfs://') ? `ipfs://${ipfsPath(trimmed)}` : trimmed
+  const base = trimmed.startsWith('ipfs://') ? `ipfs://${ipfsPath(trimmed)}` : trimmed
+  // A resized variant is DIFFERENT BYTES under the same CID, so it cannot share the pointer's key.
+  // Without this suffix a grid that cached a 320 px thumbnail would serve that thumbnail to the
+  // detail view asking the same pointer for full size, and the art would render blurry with
+  // nothing in the network tab to explain why.
+  return width === undefined ? base : `${base}@${width}`
 }
 
 /** ipfs://CID[/path] (and ipfs://ipfs/CID) → `CID[/path]`. */
@@ -241,16 +246,75 @@ export function getIpfsGateways(
  * ar:/http/data resolve to a single URL with no gateway identity — there is nothing to rotate to
  * and no shared bucket to protect.
  */
-export function resolveCandidates(uri: string): UriCandidate[] {
+export function resolveCandidates(uri: string, width?: ArtWidth): UriCandidate[] {
   const trimmed = uri.trim()
   if (!trimmed.startsWith('ipfs://')) return [{ url: resolveUri(trimmed), gatewayKey: null }]
   const path = ipfsPath(trimmed)
   const candidates: UriCandidate[] = []
+  // The art service first when one is configured and a size was asked for: it answers from an edge
+  // cache on our own quota, where a public gateway answers on the viewer's and meters them for it.
+  if (width !== undefined) {
+    const url = artServiceUrl(path, width)
+    if (url) candidates.push({ url, gatewayKey: ART_SERVICE_KEY })
+  }
+  // Gateways stay underneath, and they serve the ORIGINAL rather than a variant. A viewer whose
+  // art service is cold, over budget or gone therefore sees the right art at the wrong size, which
+  // is a slower page and not a broken one.
   for (const gateway of orderGateways(usableGateways(path))) {
     const url = gatewayUrl(gateway, path)
     if (url) candidates.push({ url, gatewayKey: gatewayKey(gateway) })
   }
   return candidates
+}
+
+/**
+ * The widths the art service may be asked for, smallest first.
+ *
+ * A LADDER RATHER THAN A FREE PARAMETER, and the reason is cost: every distinct (image, width) pair
+ * is a separate transformation that is paid for once and stored forever. A component passing its
+ * own measured pixel width would mint a new variant per viewport, which is an unbounded bill and a
+ * cache that never hits. Callers ask for what they need and {@link snapArtWidth} rounds up to a rung.
+ *
+ *  - 320  — a grid card. What the collection wall actually needs.
+ *  - 640  — a card on a dense desktop grid, and a phone at 2x.
+ *  - 1024 — the detail view.
+ *
+ * Above the top rung the original is served untouched, so large art is never upscaled into a
+ * variant that is bigger than the thing it came from.
+ */
+export const ART_WIDTHS = [320, 640, 1024] as const
+
+/** One of {@link ART_WIDTHS}. */
+export type ArtWidth = (typeof ART_WIDTHS)[number]
+
+/** Round a wanted width UP to the nearest rung, so a variant is never smaller than asked for. */
+export function snapArtWidth(wanted: number): ArtWidth {
+  for (const rung of ART_WIDTHS) if (wanted <= rung) return rung
+  return ART_WIDTHS[ART_WIDTHS.length - 1]!
+}
+
+/** Health key for the art service, so it cools down and is skipped exactly like a gateway. */
+export const ART_SERVICE_KEY = 'art-service'
+
+/**
+ * Base URL of the art delivery service, or null when none is configured.
+ *
+ * Read from the environment rather than written here on purpose: the hostname belongs to a
+ * deployment, and `app/scripts/ipfs-dist/RUNBOOK.md` section 2 keeps deployment identifiers out of
+ * this repository. UNSET IS A SUPPORTED STATE and is what every test and local build runs in — the
+ * roster then behaves exactly as it did before this existed.
+ */
+function artServiceBase(): string | null {
+  const raw = import.meta.env.VITE_ART_SERVICE
+  if (typeof raw !== 'string') return null
+  const trimmed = raw.trim().replace(/\/+$/, '')
+  return /^https:\/\/|^http:\/\//.test(trimmed) ? trimmed : null
+}
+
+/** The art service URL for a path at a width, or null when no service is configured. */
+export function artServiceUrl(path: string, width: ArtWidth): string | null {
+  const base = artServiceBase()
+  return base === null ? null : `${base}/art/${path}?w=${width}`
 }
 
 /** One URL to try, and the gateway whose health an attempt at it reports to (null = not a gateway). */

@@ -22,7 +22,15 @@
  * is the outcome of each attempt, so a gateway that refuses an image is parked for metadata too.
  */
 import { classifyStatus, noteOutcome, parseRetryAfter } from './gatewayHealth'
-import { contentKey, isImmutableUri, resolveCandidates, retryAtFor } from './uri'
+import {
+  ART_SERVICE_KEY,
+  type ArtWidth,
+  contentKey,
+  isImmutableUri,
+  resolveCandidates,
+  retryAtFor,
+  snapArtWidth,
+} from './uri'
 
 /** Cache API bucket. Bump the suffix to discard every stored object (breaking format change). */
 export const ART_CACHE_NAME = 'noesis-art-v1'
@@ -217,13 +225,24 @@ async function fetchCandidate(url: string, gatewayKey: string | null): Promise<B
   }
 }
 
-async function fetchArt(uri: string, key: string): Promise<string> {
+async function fetchArt(uri: string, key: string, width?: ArtWidth): Promise<string> {
   const stored = await matchArt(key)
   if (stored) {
     touchArt(key)
     return URL.createObjectURL(stored)
   }
-  const candidates = resolveCandidates(uri)
+  // A variant miss can still be answered by the ORIGINAL, when some earlier full-size view cached
+  // it. Bigger bytes than were asked for, but the right art and no request at all, which beats
+  // going to the network for a smaller copy of something already in hand.
+  if (width !== undefined) {
+    const originalKey = contentKey(uri)
+    const original = await matchArt(originalKey)
+    if (original) {
+      touchArt(originalKey)
+      return URL.createObjectURL(original)
+    }
+  }
+  const candidates = resolveCandidates(uri, width)
   if (candidates.length === 0) {
     // Addressable, but every gateway that could serve it is cooling. Asking anyway is what keeps
     // the window from clearing, so nothing is spent and the state is reported as what it is.
@@ -234,7 +253,10 @@ async function fetchArt(uri: string, key: string): Promise<string> {
   for (const candidate of candidates) {
     try {
       const blob = await fetchCandidate(candidate.url, candidate.gatewayKey)
-      void storeArt(key, blob)
+      // Filed under a key describing WHAT CAME BACK, not what was asked for. Only the art service
+      // returns a variant; a gateway fallback returns the original, and storing that under the
+      // variant key would park full-size bytes in front of every later request for the thumbnail.
+      void storeArt(candidate.gatewayKey === ART_SERVICE_KEY ? key : contentKey(uri), blob)
       return URL.createObjectURL(blob)
     } catch (err) {
       const reason = artFailureReason(err)
@@ -249,10 +271,11 @@ async function fetchArt(uri: string, key: string): Promise<string> {
 }
 
 /** Already-resolved URL for a pointer, or undefined. A hit means a re-mount costs no request. */
-export function peekArt(uri: string): string | undefined {
+export function peekArt(uri: string, wantedWidth?: number): string | undefined {
   const trimmed = uri.trim()
   if (trimmed.startsWith('data:')) return trimmed
-  return resolved.get(contentKey(trimmed))
+  const width = wantedWidth === undefined ? undefined : snapArtWidth(wantedWidth)
+  return resolved.get(contentKey(trimmed, width)) ?? resolved.get(contentKey(trimmed))
 }
 
 /**
@@ -262,20 +285,23 @@ export function peekArt(uri: string): string | undefined {
  * Only content-addressed pointers may be passed: an `http(s)://` URL is mutable, so caching it
  * permanently would serve bytes the server has since replaced. Callers render those directly.
  */
-export function loadArt(uri: string): Promise<string> {
+export function loadArt(uri: string, wantedWidth?: number): Promise<string> {
   const trimmed = uri.trim()
   if (trimmed.startsWith('data:')) return Promise.resolve(trimmed)
   if (!isImmutableUri(trimmed)) {
     return Promise.reject(new Error('loadArt is only valid for content-addressed pointers'))
   }
 
-  const key = contentKey(trimmed)
+  // Snapped here rather than at the call site, so a component may pass its own measured width
+  // without minting a variant per viewport. See ART_WIDTHS.
+  const width = wantedWidth === undefined ? undefined : snapArtWidth(wantedWidth)
+  const key = contentKey(trimmed, width)
   const done = resolved.get(key)
   if (done) return Promise.resolve(done)
   const pending = inFlight.get(key)
   if (pending) return pending
 
-  const promise = fetchArt(trimmed, key)
+  const promise = fetchArt(trimmed, key, width)
     .then((url) => {
       resolved.set(key, url)
       return url
