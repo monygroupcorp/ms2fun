@@ -10,7 +10,6 @@ contract DeployTimelock is Script {
     uint256 public constant MIN_DELAY = 24 hours; // 86400 seconds
 
     function run() external {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address safe = vm.envAddress("SAFE_ADDRESS");
         // TIMELOCK_MIN_DELAY exists for testnet, where a 24h wait between proposing the ownership
         // handover and executing it makes the rehearsal a two-day operation for no safety gained —
@@ -19,7 +18,10 @@ contract DeployTimelock is Script {
         // whatever the last testnet run used.
         uint256 minDelay = vm.envOr("TIMELOCK_MIN_DELAY", MIN_DELAY);
 
-        vm.startBroadcast(deployerPrivateKey);
+        // No argument: forge supplies the signer from `--account <keystore>` (or `--ledger`), so the
+        // deployer key is never put in this process's environment. See DeploySepolia, which has always
+        // broadcast this way, and the runbook's signing section.
+        vm.startBroadcast();
 
         // Deploy Timelock directly (not behind a proxy — timelocks should be immutable)
         Timelock timelock = new Timelock();
