@@ -68,7 +68,13 @@ export function gatewayKey(gateway: IpfsGateway): string {
   return `${gateway.operator}|${gateway.base}`
 }
 
-const EMPTY: GatewayHealth = { lastGoodAt: 0, failures: 0, cooldownUntil: 0 }
+const EMPTY: GatewayHealth = {
+  lastGoodAt: 0,
+  failures: 0,
+  cooldownUntil: 0,
+  latencyMs: 0,
+  silentFaults: 0,
+}
 
 /** In-memory mirror of the persisted map; `undefined` until the first read. */
 let cache: GatewayHealthMap | undefined
@@ -133,11 +139,47 @@ function update(key: string, patch: GatewayHealth): void {
 }
 
 /** Record a 2xx: the gateway is good, any backoff it had accumulated is discharged. */
-export function noteSuccess(key: string, now: number = Date.now()): void {
+export function noteSuccess(
+  key: string,
+  now: number = Date.now(),
+  latencyMs: number | null = null,
+): void {
   coolReason.delete(key)
   const current = healthOf(key)
-  if (current.lastGoodAt === now && current.failures === 0 && current.cooldownUntil === 0) return
-  update(key, { lastGoodAt: now, failures: 0, cooldownUntil: 0 })
+  const nextLatency = blendLatency(current.latencyMs, latencyMs)
+  if (
+    current.lastGoodAt === now &&
+    current.failures === 0 &&
+    current.cooldownUntil === 0 &&
+    current.latencyMs === nextLatency &&
+    current.silentFaults === 0
+  ) {
+    return
+  }
+  update(key, {
+    lastGoodAt: now,
+    failures: 0,
+    cooldownUntil: 0,
+    latencyMs: nextLatency,
+    // Answering at all clears probation: the gateway just proved it can.
+    silentFaults: 0,
+  })
+}
+
+/**
+ * Weight of a new timing against the record, as an exponential moving average.
+ *
+ * A single sample is a poor description of a gateway: the same endpoint answers in 20 ms warm and
+ * 800 ms on a cold DNS lookup, and letting either one define it makes the ordering thrash. At 0.3
+ * a genuinely changed gateway is re-ranked within a handful of loads, while one unlucky draw moves
+ * it by less than a third of the difference.
+ */
+export const LATENCY_SMOOTHING = 0.3
+
+function blendLatency(current: number, sample: number | null): number {
+  if (sample === null || !Number.isFinite(sample) || sample < 0) return current
+  if (current === 0) return Math.round(sample)
+  return Math.round(current * (1 - LATENCY_SMOOTHING) + sample * LATENCY_SMOOTHING)
 }
 
 /**
@@ -173,11 +215,22 @@ export function noteThrottled(
       ? Math.min(retryAfterMs, THROTTLE_MAX_MS)
       : backoff(THROTTLE_BASE_MS, THROTTLE_MAX_MS, current.failures)
   coolReason.set(key, 'throttle')
-  update(key, { lastGoodAt: current.lastGoodAt, failures, cooldownUntil: now + delay })
+  update(key, {
+    lastGoodAt: current.lastGoodAt,
+    failures,
+    cooldownUntil: now + delay,
+    latencyMs: current.latencyMs,
+    // An explicit 429/503 is a fast, cheap refusal — the gateway answered. Not probation.
+    silentFaults: current.silentFaults,
+  })
 }
 
 /** Record a 5xx / challenge document / network error: deprioritise, with a short cooldown. */
-export function noteFault(key: string, now: number = Date.now()): void {
+export function noteFault(
+  key: string,
+  now: number = Date.now(),
+  kind: 'error' | 'silent' = 'error',
+): void {
   const current = healthOf(key)
   const failures = current.failures + 1
   coolReason.set(key, 'fault')
@@ -185,7 +238,25 @@ export function noteFault(key: string, now: number = Date.now()): void {
     lastGoodAt: current.lastGoodAt,
     failures,
     cooldownUntil: now + backoff(FAULT_BASE_MS, FAULT_MAX_MS, current.failures),
+    latencyMs: current.latencyMs,
+    silentFaults: kind === 'silent' ? current.silentFaults + 1 : current.silentFaults,
   })
+}
+
+/**
+ * The request budget for the next attempt at this gateway.
+ *
+ * A gateway that has burned the full budget and returned nothing does not get the full budget
+ * again. It gets {@link PROBATION_TIMEOUT_MS} to prove it can answer at all, and earns the whole
+ * one back the moment it does. Without this, an endpoint that accepts connections and then goes
+ * quiet — which is how a retired gateway usually behaves, rather than by refusing outright —
+ * costs every later load the entire timeout before the next candidate is even tried.
+ */
+export const PROBATION_TIMEOUT_MS = 2_000
+
+export function attemptTimeoutMs(key: string | null, fullMs: number): number {
+  if (key === null) return fullMs
+  return healthOf(key).silentFaults > 0 ? Math.min(fullMs, PROBATION_TIMEOUT_MS) : fullMs
 }
 
 /** Route an outcome to the right bookkeeping. `missing` deliberately touches nothing. */
@@ -194,8 +265,9 @@ export function noteOutcome(
   outcome: AttemptOutcome,
   retryAfterMs: number | null = null,
   now: number = Date.now(),
+  latencyMs: number | null = null,
 ): void {
-  if (outcome === 'ok') noteSuccess(key, now)
+  if (outcome === 'ok') noteSuccess(key, now, latencyMs)
   else if (outcome === 'throttled') noteThrottled(key, retryAfterMs, now)
   else if (outcome === 'fault') noteFault(key, now)
   // 'missing' — the content is absent and the gateway is fine. Not its fault, not its cooldown.
@@ -252,11 +324,33 @@ export function orderGateways(
     }
   }
   const rest = candidates
-    .map((g, index) => ({ g, index, at: healthOf(gatewayKey(g)).lastGoodAt }))
-    // Most-recently-good first; never-tried entries keep their roster order behind them.
-    .sort((a, b) => b.at - a.at || a.index - b.index)
+    .map((g, index) => ({ g, index, rank: rankOf(gatewayKey(g), index) }))
+    // Fastest measured first; see rankOf for how a gateway nobody has timed yet is placed.
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
     .map((entry) => entry.g)
   return [...custom, ...rest]
+}
+
+/**
+ * What a gateway is worth trying, lower first: its measured latency, or a prior read off its
+ * position in the roster when nobody has timed it yet.
+ *
+ * The prior matters more than it looks. `IPFS_GATEWAYS` is not written in an arbitrary order — it
+ * is ordered by a measurement that `pnpm ipfs:latency` re-runs and fails on, so position IS
+ * evidence and a first load should honour it. Giving an untimed gateway a prior of zero would try
+ * the unknown ahead of a gateway measured at 20 ms; giving it infinity would bury the fast entry
+ * at the top of the roster behind a slow one that happens to have been timed once. A rung of
+ * {@link UNMEASURED_PRIOR_MS} per position places it between the two: ahead of anything measurably
+ * slow, behind anything measurably fast, and in roster order among its untimed peers.
+ *
+ * The rung is the same 250 ms the ordering harness uses as the margin below which it refuses to
+ * call two gateways different — the granularity at which this project treats a latency gap as real.
+ */
+export const UNMEASURED_PRIOR_MS = 250
+
+function rankOf(key: string, index: number): number {
+  const measured = healthOf(key).latencyMs
+  return measured > 0 ? measured : UNMEASURED_PRIOR_MS * (index + 1)
 }
 
 /** Epoch ms at which the first of `gateways` becomes askable again, or 0 when one already is. */

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
+  attemptTimeoutMs,
   classifyStatus,
   FAULT_BASE_MS,
   FAULT_STARVATION_THRESHOLD,
@@ -16,10 +17,12 @@ import {
   noteThrottled,
   orderGateways,
   parseRetryAfter,
+  PROBATION_TIMEOUT_MS,
   resetGatewayHealth,
   THROTTLE_BASE_MS,
   THROTTLE_MAX_MS,
   throttleSnapshot,
+  UNMEASURED_PRIOR_MS,
 } from './gatewayHealth'
 import type { IpfsGateway } from './uri'
 
@@ -121,7 +124,13 @@ describe('cooldowns', () => {
     noteThrottled(keyA, null, now)
     noteThrottled(keyA, null, now)
     noteSuccess(keyA, now + 1)
-    expect(healthOf(keyA)).toEqual({ lastGoodAt: now + 1, failures: 0, cooldownUntil: 0 })
+    expect(healthOf(keyA)).toEqual({
+      lastGoodAt: now + 1,
+      failures: 0,
+      cooldownUntil: 0,
+      latencyMs: 0,
+      silentFaults: 0,
+    })
     expect(isCooling(keyA, now + 2)).toBe(false)
   })
 
@@ -129,7 +138,13 @@ describe('cooldowns', () => {
     const now = 1_000_000
     noteSuccess(keyA, now)
     noteOutcome(keyA, 'missing', null, now + 1)
-    expect(healthOf(keyA)).toEqual({ lastGoodAt: now, failures: 0, cooldownUntil: 0 })
+    expect(healthOf(keyA)).toEqual({
+      lastGoodAt: now,
+      failures: 0,
+      cooldownUntil: 0,
+      latencyMs: 0,
+      silentFaults: 0,
+    })
     expect(isCooling(keyA, now + 2)).toBe(false)
   })
 
@@ -146,10 +161,28 @@ describe('orderGateways', () => {
     expect(orderGateways([A, B, C])).toEqual([A, B, C])
   })
 
-  it('puts the most-recently-good gateway first', () => {
+  it('orders by measured latency, so the fastest gateway a viewer can reach is tried first', () => {
+    const now = 1_000_000
+    noteSuccess(keyA, now, 5_000)
+    noteSuccess(keyB, now, 20)
+    noteSuccess(keyC, now, 800)
+    expect(orderGateways([A, B, C], now + 1)).toEqual([B, C, A])
+  })
+
+  it('does NOT let a recent success jump the roster when nobody has timed it', () => {
+    // Supersedes the old recency rule deliberately. The roster is itself ordered by a measurement
+    // the latency harness re-runs and fails on, so an untimed gateway's POSITION is the better
+    // evidence — "answered at some point" says nothing about how long it took.
     const now = 1_000_000
     noteSuccess(keyB, now)
-    expect(orderGateways([A, B, C], now + 1)[0]).toEqual(B)
+    expect(orderGateways([A, B, C], now + 1)[0]).toEqual(A)
+  })
+
+  it('ranks a measured-fast gateway ahead of an untimed one, and an untimed one ahead of a dog', () => {
+    const now = 1_000_000
+    noteSuccess(keyC, now, 20)
+    noteSuccess(keyA, now, 9_000)
+    expect(orderGateways([A, B, C], now + 1)).toEqual([C, B, A])
   })
 
   it('drops a cooling gateway instead of demoting it', () => {
@@ -281,5 +314,83 @@ describe('roster fault streak', () => {
     for (let i = 0; i < FAULT_STARVATION_THRESHOLD; i += 1) noteRosterFault()
     resetGatewayHealth()
     expect(isRosterStarved()).toBe(false)
+  })
+})
+
+/**
+ * Probation — what stops a retired gateway costing every load the full request budget.
+ *
+ * The case this exists for was measured on 2026-09-25: a roster entry that answered `410 Gone` for
+ * a canonical object and, for real content, accepted the connection and then returned nothing on
+ * every run past a 12 s timeout, in both addressing forms. Nothing in the health record could tell
+ * that apart from a gateway that refuses quickly, so every later load handed it the whole budget
+ * again.
+ */
+describe('probation', () => {
+  const FULL = 12_000
+
+  it('gives an untried gateway the full request budget', () => {
+    expect(attemptTimeoutMs(keyA, FULL)).toBe(FULL)
+  })
+
+  it('a silent gateway is demoted before the timeout, so no later load spends the full budget', () => {
+    noteFault(keyA, 1_000_000, 'silent')
+    expect(attemptTimeoutMs(keyA, FULL)).toBe(PROBATION_TIMEOUT_MS)
+    expect(PROBATION_TIMEOUT_MS).toBeLessThan(FULL)
+  })
+
+  it('leaves a gateway that refused QUICKLY on the full budget — it answered, it was just wrong', () => {
+    noteFault(keyA, 1_000_000, 'error')
+    expect(attemptTimeoutMs(keyA, FULL)).toBe(FULL)
+  })
+
+  it('does not put a gateway on probation for an explicit rate limit', () => {
+    noteThrottled(keyA, null, 1_000_000)
+    expect(attemptTimeoutMs(keyA, FULL)).toBe(FULL)
+  })
+
+  it('restores the full budget as soon as the gateway answers again', () => {
+    noteFault(keyA, 1_000_000, 'silent')
+    expect(attemptTimeoutMs(keyA, FULL)).toBe(PROBATION_TIMEOUT_MS)
+    noteSuccess(keyA, 1_000_001, 30)
+    expect(attemptTimeoutMs(keyA, FULL)).toBe(FULL)
+  })
+
+  it('never lengthens a budget that is already shorter than probation', () => {
+    noteFault(keyA, 1_000_000, 'silent')
+    expect(attemptTimeoutMs(keyA, 500)).toBe(500)
+  })
+
+  it('has no opinion about a candidate that is not a gateway', () => {
+    expect(attemptTimeoutMs(null, FULL)).toBe(FULL)
+  })
+})
+
+describe('latency recording', () => {
+  it('records how long a success took, not merely that it succeeded', () => {
+    noteSuccess(keyA, 1_000_000, 4_400)
+    expect(healthOf(keyA).latencyMs).toBe(4_400)
+  })
+
+  it('smooths a later sample instead of letting one draw define the gateway', () => {
+    noteSuccess(keyA, 1_000_000, 1_000)
+    noteSuccess(keyA, 1_000_001, 2_000)
+    const blended = healthOf(keyA).latencyMs
+    expect(blended).toBeGreaterThan(1_000)
+    expect(blended).toBeLessThan(2_000)
+  })
+
+  it('leaves the record alone when an outcome carries no timing', () => {
+    noteSuccess(keyA, 1_000_000, 4_400)
+    noteSuccess(keyA, 1_000_001)
+    expect(healthOf(keyA).latencyMs).toBe(4_400)
+  })
+
+  it('places an untimed gateway by its roster position, which is itself a measurement', () => {
+    // The roster is ordered by `pnpm ipfs:latency`, so position is evidence rather than a guess:
+    // ahead of anything measurably slow, behind anything measurably fast.
+    const now = 1_000_000
+    noteSuccess(keyA, now, UNMEASURED_PRIOR_MS * 10)
+    expect(orderGateways([A, B, C], now + 1)).toEqual([B, C, A])
   })
 })

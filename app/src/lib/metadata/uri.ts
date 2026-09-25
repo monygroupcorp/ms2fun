@@ -14,9 +14,11 @@
  */
 import { customGatewayStore } from '../storage/keys'
 import {
+  attemptTimeoutMs,
   classifyStatus,
   gatewayKey,
   nextAvailableAt,
+  noteFault,
   noteOutcome,
   noteRosterFault,
   noteRosterRecovered,
@@ -393,11 +395,15 @@ function retryAfterOf(res: Response): number | null {
 }
 
 /** One gateway attempt with its own timeout-abort, linked to the caller's signal. */
-async function fetchOne<T>(url: string, parentSignal: AbortSignal): Promise<Attempt<T>> {
+async function fetchOne<T>(
+  url: string,
+  parentSignal: AbortSignal,
+  budgetMs: number = GATEWAY_TIMEOUT_MS,
+): Promise<Attempt<T>> {
   const ctrl = new AbortController()
   const onParent = () => ctrl.abort()
   parentSignal.addEventListener('abort', onParent, { once: true })
-  const timer = setTimeout(() => ctrl.abort(), GATEWAY_TIMEOUT_MS)
+  const timer = setTimeout(() => ctrl.abort(), budgetMs)
   try {
     const res = await fetch(url, { signal: ctrl.signal })
     const outcome = classifyResponse(res)
@@ -478,9 +484,24 @@ export async function fetchJson<T = unknown>(
   let sawMissing = false
   try {
     for (const candidate of candidates) {
-      const attempt = await fetchOne<T>(candidate.url, stop.signal)
+      // A gateway on probation is given a short budget rather than the full one, so an endpoint
+      // that accepts and then goes quiet stops costing every load the whole timeout.
+      const budget = attemptTimeoutMs(candidate.gatewayKey, GATEWAY_TIMEOUT_MS)
+      const started = Date.now()
+      const attempt = await fetchOne<T>(candidate.url, stop.signal, budget)
+      const elapsed = Date.now() - started
       if (candidate.gatewayKey) {
-        noteOutcome(candidate.gatewayKey, attempt.outcome, attempt.retryAfterMs)
+        if (attempt.outcome === 'fault' && elapsed >= budget * 0.9) {
+          noteFault(candidate.gatewayKey, Date.now(), 'silent')
+        } else {
+          noteOutcome(
+            candidate.gatewayKey,
+            attempt.outcome,
+            attempt.retryAfterMs,
+            Date.now(),
+            elapsed,
+          )
+        }
       }
       if (attempt.outcome === 'ok') {
         noteRosterRecovered()

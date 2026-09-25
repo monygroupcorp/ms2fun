@@ -21,7 +21,13 @@
  * is health-ordered, and are tried in the order given. What this module DOES owe the health module
  * is the outcome of each attempt, so a gateway that refuses an image is parked for metadata too.
  */
-import { classifyStatus, noteOutcome, parseRetryAfter } from './gatewayHealth'
+import {
+  attemptTimeoutMs,
+  classifyStatus,
+  noteFault,
+  noteOutcome,
+  parseRetryAfter,
+} from './gatewayHealth'
 import {
   ART_SERVICE_KEY,
   type ArtWidth,
@@ -205,11 +211,16 @@ function retryAfterOf(res: Response): number | null {
 /** Fetch one candidate URL with its own timeout, reporting the outcome to the health module. */
 async function fetchCandidate(url: string, gatewayKey: string | null): Promise<Blob> {
   const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), ART_TIMEOUT_MS)
+  // A gateway on probation gets a short budget rather than the full one; see attemptTimeoutMs.
+  const budget = attemptTimeoutMs(gatewayKey, ART_TIMEOUT_MS)
+  const timer = setTimeout(() => ctrl.abort(), budget)
+  const started = Date.now()
   try {
     const res = await fetch(url, { signal: ctrl.signal })
     const outcome = classifyStatus(typeof res.status === 'number' ? res.status : res.ok ? 200 : 0)
-    if (gatewayKey) noteOutcome(gatewayKey, outcome, retryAfterOf(res))
+    if (gatewayKey) {
+      noteOutcome(gatewayKey, outcome, retryAfterOf(res), Date.now(), Date.now() - started)
+    }
     if (outcome === 'throttled') throw new ArtUnavailableError('throttled')
     if (outcome === 'missing') throw new ArtUnavailableError('missing')
     // Any other non-2xx: this gateway did not deliver, but the content may still exist elsewhere.
@@ -217,8 +228,14 @@ async function fetchCandidate(url: string, gatewayKey: string | null): Promise<B
     return await res.blob()
   } catch (err) {
     if (err instanceof ArtUnavailableError) throw err
-    // Timeout or network error: the gateway did not deliver, so it is demoted like any other fault.
-    if (gatewayKey) noteOutcome(gatewayKey, 'fault')
+    // Timeout or network error: the gateway did not deliver, so it is demoted like any other
+    // fault — but a gateway that spent the WHOLE budget and said nothing is recorded as silent,
+    // which shortens what it is given next time. A connection refused in 40 ms is cheap to retry;
+    // one that hangs costs the full timeout on every load until something stops handing it one.
+    if (gatewayKey) {
+      const spentWholeBudget = Date.now() - started >= budget * 0.9
+      noteFault(gatewayKey, Date.now(), spentWholeBudget ? 'silent' : 'error')
+    }
     throw new ArtUnavailableError('offline')
   } finally {
     clearTimeout(timer)
