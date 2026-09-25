@@ -109,5 +109,30 @@ export default tseslint.config(
     },
   },
 
+  // MUST STAY LAST of the blocks that match this file. Flat config does not merge two settings of
+  // one rule; the last matching block replaces it outright, so the src/lib/** override above would
+  // silently win from anywhere earlier and this guard would read as present while enforcing nothing.
+  // The gateway roster is shared with the art delivery service in services/art/, which runs in a
+  // worker: no localStorage, no window, no document. That is the entire reason it was split out of
+  // uri.ts, which reaches all three through its stores. An import here is a service that no longer
+  // builds, so the file is held to importing NOTHING rather than to a list of banned things.
+  {
+    files: ['src/lib/metadata/gateways.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['*', '**'],
+              message:
+                'gateways.ts is shared with the worker-side art service and must import nothing. Put anything that needs a dependency in uri.ts.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   prettier,
 )
