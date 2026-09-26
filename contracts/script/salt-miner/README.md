@@ -1,10 +1,16 @@
 # CREATE3 vanity salt miner
 
 `create3-vanity.c` mines CreateX permissioned CREATE3 salts whose deployed address begins with a
-run of zero bytes. It exists because a CreateX salt is **single-use per deployer** — the CREATE2
-proxy CreateX derives from the guarded salt is what collides, so once that proxy carries code the
-next `deployCreate3` under the same salt reverts `CreateCollision` — which makes a fresh salt set a
-prerequisite for every redeploy, not a one-time setup step.
+chosen run of hex digits. It exists because a CreateX salt is **single-use per deployer** — the
+CREATE2 proxy CreateX derives from the guarded salt is what collides, so once that proxy carries
+code the next `deployCreate3` under the same salt reverts `CreateCollision` — which makes a fresh
+salt set a prerequisite for every redeploy, not a one-time setup step.
+
+**This mines SALTS, not keys.** The deployer's own address is a different search — a keypair hunt,
+one secp256k1 point per candidate, whose output is a private key — and it is not this tool's job.
+Use `cast wallet vanity` for that, and do not extend this file to do it: its search is seeded from
+64 bits with a `time(NULL)` fallback and an explicit reproducible `--seed`, all of which is harmless
+for a public salt and is the Profanity failure mode for a key.
 
 ## Build and run
 
@@ -12,8 +18,12 @@ prerequisite for every redeploy, not a one-time setup step.
 cd contracts/script/salt-miner
 cc -O3 -march=native -pthread -o create3-vanity create3-vanity.c
 
-# the six salts a full protocol deploy needs
-./create3-vanity --deployer 0x<broadcasting address> --prefix-hex 000888 --count 6
+# the six salts a full protocol deploy needs. Five zero bytes is what ships; on this CPU that is
+# a multi-day run, so the real mine goes to createXcrunch on a GPU — see Cost.
+./create3-vanity --deployer 0x<broadcasting address> --prefix-bytes 5 --count 6
+
+# check a set somebody else's miner produced, one salt at a time, before a deploy spends it
+./create3-vanity --verify 0x<32-byte salt>
 ```
 
 | flag | meaning |
@@ -50,26 +60,44 @@ A prefix of `N` nibbles is one hit per `2^(4N)` candidates, and each candidate c
 keccak-f1600 permutations (guarded salt, CREATE2 proxy, RLP of the proxy's first CREATE). Each
 additional nibble costs 16x, so each additional whole byte costs 256x.
 
-Measured on a 24-core desktop CPU, 30 threads: **~28 M candidates/s**. Divide `2^(8K)` by that to
-get the mean wall clock for one hit, and multiply by `--count` for a set:
+**THE SHIPPED SETS ARE MINED ON A GPU, AND THIS MINER IS NOT WHAT MINED THEM.** The five-zero-byte
+set in `SepoliaSalts.sol` was produced with [createXcrunch](https://github.com/HrikB/createXcrunch),
+a Rust CreateX salt miner with an OpenCL kernel, and it took **hours**. Plan a mine against that
+number. The table below is this C miner on a CPU, which is between two and three orders of magnitude
+slower, and reading it as the cost of a re-mine is how a one-evening job gets budgeted as a
+multi-day one — or, worse, how a set gets mined shorter than it needed to be to fit an imaginary
+deadline.
 
-| prefix | nibbles | candidates per hit | one hit | a set of six |
+Measured on this repository's reference box, 32 cores, idle: **~27 M candidates/s** (26.7–26.9 across runs).
+
+| prefix | nibbles | candidates per hit | one hit (CPU) | a set of six (CPU) |
 |---|---|---|---|---|
 | `000888` | 6 | `2^24` ≈ 1.7e7 | under a second | a few seconds |
-| 4 bytes | 8 | `2^32` ≈ 4.3e9 | ~2.5 min | ~15 min |
+| 4 bytes | 8 | `2^32` ≈ 4.3e9 | ~2.7 min | ~16 min |
 | 5 bytes | 10 | `2^40` ≈ 1.1e12 | ~11 h | ~2.7 days |
 | 6 bytes | 12 | `2^48` ≈ 2.8e14 | ~16 weeks | out of reach |
 
-**5 bytes is what shipped**, and it is the default above. It is a multi-day job on one desktop, not
-a launch-day step: budget the mine before the deploy window, and remember that the deployer address
-is an input to every salt, so changing the broadcasting wallet re-mines the whole set from scratch.
+**5 bytes is what shipped**, and it is the default above. 6 bytes is the wall on any hardware.
 
-A short prefix changes that calculus rather than merely costing less. At six nibbles a re-mine is
-seconds, so a spent set stops being a scarce thing to protect — a deploy that has to be re-run is a
-fresh mine and not a rebuild. What the surrendered zero bytes cost is calldata gas, at 4 per zero
-byte against 16 per non-zero: an address in calldata is 260 gas at five leading zero bytes and 308 at
-`0x000888`'s one, so the whole trade is **48 gas per address appearance**.
-6 bytes is the wall.
+So what is this miner for? Two things, and neither is the bulk mine:
+
+- **Verifying somebody else's output.** `--verify` re-derives the address from a 32-byte salt using
+  the documented derivation and nothing else. A salt is public and guarded by `msg.sender`, so the
+  risk a vanity miner carries is not theft but a salt that does not produce the address it claims —
+  and that risk is closed by re-deriving it here, and again in Solidity by
+  `test/coverage/SepoliaSaltSet.t.sol`, which asserts every address off the constants. **Whatever
+  mines a set, check it with both before a deploy spends one.**
+- **A mine short enough not to need a GPU.** At four nibbles or fewer this is done before a GPU has
+  finished initialising.
+
+The deployer address is an input to every salt, so changing the broadcasting wallet re-mines the
+whole set from scratch — on whichever tool, that is the cost that actually bites.
+
+What the surrendered zero bytes buy back is calldata gas, at 4 per zero byte against 16 per
+non-zero: an address in calldata is 260 gas at five leading zero bytes, 272 at four, and 308 at
+`0x000888`'s one. So dropping a byte to shorten a mine is worth **12 gas per address appearance** —
+which is a reason to mine the longer prefix when the hardware makes it an evening rather than a
+week.
 
 These are means of a memoryless search, not deadlines — an individual hit can take several times the
 figure above. `--count 6` mines the six independently, so a set's total is the sum and not the max.
