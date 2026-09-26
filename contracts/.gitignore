@@ -58,3 +58,7 @@ reports/
 CLAUDE.md
 STANDARDIZED_EVENTS_SPEC.md
 deployments/anvil-seed.json
+
+# Python bytecode from script/mint-deployer.py and its selftest
+__pycache__/
+*.pyc

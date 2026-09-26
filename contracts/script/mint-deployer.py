@@ -33,6 +33,13 @@ What is avoided is every form that OUTLIVES the process or is visible from outsi
 scrollback, no shell history, no file, no argv. Python strings are immutable, so the buffers here
 cannot be reliably zeroed; they are dropped as soon as they are used and the process is short-lived.
 
+Two residues discipline cannot remove, named so nobody assumes otherwise. **Anonymous memory can be
+swapped**, so on a machine with swap enabled the key may touch a disk this program never writes to —
+encrypted swap, or none, is the only answer, and it is a property of the machine and not of this
+script. And **anything running as this user can read this process's memory** through ptrace while it
+runs. Both are the ordinary conditions under which any key is generated anywhere. Neither is made
+worse here, and neither is fixed here.
+
 Entropy is `cast wallet vanity`'s: a fresh random wallet per candidate, not a walk from one seed.
 That distinction is the whole of the Profanity failure — 1inch's miner seeded from 32 bits, which
 collapsed the keyspace and drained the addresses it had produced.
@@ -69,7 +76,26 @@ def mine(prefix: str, threads: int | None) -> tuple[str, str]:
     argv = ["cast", "wallet", "vanity", "--starts-with", prefix]
     if threads is not None:
         argv += ["--jobs", str(threads)]
-    print(f"mining an address starting 0x{prefix} — this is the slow part, leave it alone", file=sys.stderr)
+    # Measured on this box at ~88,000 addr/s. It is a memoryless search, so this is a mean and an
+    # individual run can take several times it — but an order of magnitude is what stops a typo'd
+    # long prefix from looking exactly like a working one, since stdout is captured either way and
+    # both are silent.
+    tries = 16 ** len(prefix)
+    seconds = tries / 88_000
+    if seconds < 90:
+        eta = f"~{max(1, round(seconds))}s"
+    elif seconds < 5400:
+        eta = f"~{round(seconds / 60)} min"
+    else:
+        eta = f"~{seconds / 3600:.1f} h"
+    print(
+        f"mining an address starting 0x{prefix} — 1 in {tries:,} addresses, so {eta} on average.\n"
+        "Nothing will be printed until it lands: cast's output is captured so the key cannot reach "
+        "this terminal.",
+        file=sys.stderr,
+    )
+    if seconds > 6 * 3600:
+        die(f"a {len(prefix)}-digit prefix averages {eta} — refusing; shorten it or mine it deliberately")
     try:
         done = subprocess.run(argv, capture_output=True, text=True, check=False)
     except FileNotFoundError:
@@ -121,7 +147,16 @@ def store(account: str, keystore_dir: str | None, key: str, password: str) -> st
 
     code = os.waitstatus_to_exitcode(status)
     if code != 0:
-        die(f"cast wallet import exited {code}; the keystore was not written")
+        # Cast's own words, because the likeliest failure is "account already exists" and an
+        # operator who cannot see that might DELETE the existing keystore to get past this. The
+        # transcript is safe to show: cast turns echo off for both prompts, so it carries the
+        # prompts and the error and never the key. Scrubbed anyway, because that is one upstream
+        # change away from being false.
+        reason = re.sub(r"0x[0-9a-fA-F]{64}", "<redacted>", transcript).strip()
+        die(
+            f"cast wallet import exited {code}; the keystore was not written.\n"
+            f"cast said: {reason[-500:] or '(nothing)'}"
+        )
     saved = SAVED.search(transcript)
     if saved is None:
         die("cast wallet import did not report an address; assume the keystore was NOT written")
@@ -152,9 +187,16 @@ def verify(account: str, keystore_dir: str | None, expected: str, password: str)
         shutil.rmtree(scratch, ignore_errors=True)
     got = done.stdout.strip()
     if done.returncode != 0 or got.lower() != expected.lower():
+        where = keystore or os.path.join(
+            os.path.expanduser("~/.foundry/keystores"), account
+        )
         die(
             "the keystore does not read back as the address that was mined "
-            f"(wanted {expected}, got {got or 'nothing'}) — do NOT use it"
+            f"(wanted {expected}, got {got or 'nothing'}) — do NOT use it.\n"
+            f"The file cast wrote is still at {where}. It is NOT deleted here, because removing "
+            "key material on a failure path is how a good key gets destroyed by a bad check — "
+            "move it aside yourself before re-running, since cast refuses to overwrite an "
+            "account that already exists."
         )
 
 
@@ -201,14 +243,18 @@ def main() -> None:
     ap = argparse.ArgumentParser(
         description="Mine a vanity address into an encrypted keystore without ever printing the key."
     )
-    if "--selftest" in sys.argv[1:]:
-        selftest()
-        return
-    ap.add_argument("--prefix", required=True, help="leading hex digits of the address, e.g. 000888")
-    ap.add_argument("--account", required=True, help="keystore account name, e.g. noesis-deployer")
+    ap.add_argument("--selftest", action="store_true", help="prove no key reaches the output, then exit")
+    ap.add_argument("--prefix", help="leading hex digits of the address, e.g. 000888")
+    ap.add_argument("--account", help="keystore account name, e.g. noesis-deployer")
     ap.add_argument("--keystore-dir", default=None, help="default: ~/.foundry/keystores")
     ap.add_argument("--jobs", type=int, default=None, help="mining threads (default: all cores)")
     args = ap.parse_args()
+
+    if args.selftest:
+        selftest()
+        return
+    if not args.prefix or not args.account:
+        ap.error("--prefix and --account are required unless --selftest is given")
 
     prefix = args.prefix[2:] if args.prefix[:2].lower() == "0x" else args.prefix
     if not re.fullmatch(r"[0-9a-fA-F]{1,38}", prefix):
