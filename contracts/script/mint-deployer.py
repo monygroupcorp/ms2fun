@@ -263,11 +263,26 @@ def main() -> None:
     if not sys.stdin.isatty():
         die("refusing to run without a terminal: the password must be typed, never piped")
 
-    password = getpass.getpass("Keystore password (this encrypts the key): ")
+    # The passphrase carries more weight here than a keystore prompt usually implies. Measured on
+    # the file cast writes: scrypt with n=8192, r=8, p=1 — the LIGHT parameter set, 32x below the
+    # 262144 that geth-style keystores use. That is not a defect in cast, it is a speed choice, but
+    # it means the work factor will not rescue a guessable passphrase: at n=8192 a guess costs
+    # milliseconds and 8 MiB, so offline cracking scales with the attacker's hardware and the only
+    # thing that does not is the ENTROPY of what is typed here. Generated, not invented.
+    print(
+        "The keystore uses scrypt n=8192 (cast's light setting), so passphrase entropy is what\n"
+        "protects this key at rest — not length alone. Use a generated passphrase or a long\n"
+        "diceware phrase; `cast wallet new` this is not, and a memorable one is a guessable one.",
+        file=sys.stderr,
+    )
+    password = getpass.getpass("Keystore passphrase (this encrypts the key): ")
     if password != getpass.getpass("Again: "):
-        die("passwords did not match")
-    if len(password) < 12:
-        die("use a longer passphrase — this is the only thing protecting the key at rest")
+        die("passphrases did not match")
+    if len(password) < 20:
+        die(
+            "refusing a passphrase under 20 characters: with scrypt at n=8192 the KDF will not "
+            "make up the difference. `openssl rand -base64 24` if you need one."
+        )
 
     address, key = mine(prefix, args.jobs)
     saved = store(args.account, args.keystore_dir, key, password)
