@@ -1,0 +1,26 @@
+# Art delivery service — deployment template.
+#
+# THIS FILE CARRIES NO ACCOUNT IDENTIFIER, CREDENTIAL OR HOSTNAME, and it must stay that way
+# (rth 2026-09-25: open source, and lean). A fork stands up its own with `wrangler deploy` after
+# filling the two blanks below in its OWN environment; this repository never learns either value.
+#
+#   account_id  -> set CLOUDFLARE_ACCOUNT_ID in the environment, never here
+#   route/host  -> set at deploy time, or use the workers.dev subdomain
+#
+# See README.md for the bucket, the lifecycle rule that makes this a cache rather than custody,
+# and what the app does when no service is configured at all (it works; that is the point).
+
+name = "noesis-art"
+main = "src/worker.ts"
+compatibility_date = "2026-09-01"
+
+# Width rungs this deployment will serve. MUST mirror ART_WIDTHS in app/src/lib/metadata/uri.ts —
+# a width the app asks for and this does not list is refused, and the app falls back to the roster.
+[vars]
+ART_WIDTHS = "320,640,1024"
+
+# The cache. `bucket_name` is a local name and not an identifier of ours; create it in your own
+# account and apply the lifecycle rule from README.md, which is what bounds the bill.
+[[r2_buckets]]
+binding = "ART_CACHE"
+bucket_name = "noesis-art-cache"
