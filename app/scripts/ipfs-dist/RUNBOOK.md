@@ -33,8 +33,29 @@ entirely. `scripts/ipfs-dist/smoke.ts` asserts both against the emitted bytes on
 
 ```
 cd app
-pnpm build:ipfs
+VITE_ART_SERVICE=https://<your-art-service> pnpm build:ipfs
 ```
+
+**`VITE_ART_SERVICE` is part of the build, not of the running site**, and forgetting it is a silent
+downgrade rather than an error. Vite inlines the value, so a bundle built without it has no art
+service at all: every card fetches its metadata and then its full-size art from a public IPFS gateway
+on each visitor's own metered IP, which is the grey-grid first impression `services/art/` exists to
+remove. Nothing breaks, nothing warns, and the only symptom is that the site is slow for strangers.
+
+Three consequences of it being baked in, all of which follow from the pin being immutable:
+
+- **The service URL is published permanently.** It is in the pinned CID, which is public and cannot be
+  edited. That is fine — it is a hostname a browser would reveal anyway — but it is not revocable.
+- **Changing or retiring the service is a rebuild.** New value → new bundle → new CID → re-pin →
+  update the gwei record. There is no way to re-point a build that is already pinned.
+- **An old CID keeps pointing at it forever.** Anyone holding a superseded link keeps addressing that
+  hostname. This is survivable by design and not by luck: the app treats a service that is down, over
+  budget or switched off exactly as it treats a cooling gateway — it cools it and falls back to the
+  public roster — so a retired service makes an old pin slower, never broken.
+
+It also qualifies the determinism below: the CID is a function of the commit **and of this variable**.
+Two builds at one commit with different values are two different releases. Record the value you used
+beside the CID.
 
 This runs the ipfs-target vite build, then the path-prefix smoke, then the packer. It prints:
 
@@ -44,9 +65,10 @@ ipfs-dist: car    …/app/dist/ipfs.car (<bytes> bytes, <n> blocks)
 ipfs-dist: root   bafy…
 ```
 
-`root` is the release CID. It is a function of the commit: run the build twice from a clean checkout
-at the same commit and both the CID and the CAR bytes are identical (`pack.test.ts` pins the
-packing half of that; the vite half is the standard content-hashed output plus the commit stamp).
+`root` is the release CID. It is a function of the commit and of the build variables above: run the
+build twice from a clean checkout at the same commit with the same `VITE_ART_SERVICE` and both the
+CID and the CAR bytes are identical (`pack.test.ts` pins the packing half of that; the vite half is
+the standard content-hashed output plus the commit stamp).
 Record the CID next to the commit — the footer of the running app shows the same short commit, so a
 bug report from the pinned site names the build it was found on.
 
