@@ -97,9 +97,28 @@ something and a person who answers.
 
 ## Spend
 
-The bill has two parts: R2 storage and Class A/B operations. Both are visible in the Cloudflare
-dashboard, and neither is bounded by anything in this repository except the lifecycle rule above.
+```sh
+CLOUDFLARE_ACCOUNT_ID=... CLOUDFLARE_API_TOKEN=... ART_BUDGET_USD=25 pnpm spend
+```
 
-A command that prints the month's cost against a named budget is an open clause on this goal and is
-not built yet. Until it is, **the lifecycle rule is the only thing standing between this and an
-unbounded bill** — set it when you create the bucket, not later.
+Prints the month so far — R2 storage, Class A and Class B operations, Worker requests, each as
+billable-over-free — then the total against the budget, and exits 1 when it is over, so the same
+command works as a scheduled check and not only as something a person reads. The token needs
+Account Analytics:Read. `ART_BUCKET` and `ART_WORKER` override the names it asks about.
+
+Two things it does on purpose:
+
+- **It prints the prices it used, and the date and pages they were read from.** A cost is measured
+  usage times a published price, and the price is the half that goes stale: a table nobody notices
+  has moved prints a confident wrong number, which is worse than printing nothing. After
+  `STALE_AFTER_DAYS` every run says the table may have moved, and a test fails the day it does — so
+  re-read those two pages, update the table, move the date.
+- **It fails rather than under-reports.** A figure it cannot read, or an R2 operation it cannot put
+  on one side of the Class A/B split, is an error and never a zero. A spend report that quietly
+  omits a cost is the surprise this exists to remove.
+
+What it has NOT done is talk to the live API from this repository: the query's field names come from
+Cloudflare's documentation, not from a captured response, so the first real run is also the first
+proof the query is right. It will say so loudly if it is not.
+
+The lifecycle rule above is still the only thing that BOUNDS the bill. This measures it.

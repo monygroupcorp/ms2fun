@@ -24,6 +24,20 @@ const SERVICE = import.meta.glob(
   },
 ) as Record<string, string>
 
+/**
+ * EVERY hand-written file in the service, for the identifier guard.
+ *
+ * Named apart from `SERVICE` above, which is a fixed list the rung assertions read by name. The
+ * guard must not be a fixed list: it existed while `scripts/spend.ts` was added — a file whose whole
+ * job is to hold an account id and an API token in variables — and would have gone on passing
+ * because that path was not one of the three it named.
+ */
+const SERVICE_TREE = import.meta.glob('../../../../services/art/**/*.{ts,toml,md,json}', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>
+
 /** Every component and route in the app, read as source, for the render-site guard below. */
 const APP_SOURCES = import.meta.glob('../../{components,routes}/**/*.tsx', {
   query: '?raw',
@@ -72,12 +86,24 @@ describe('the art service contract', () => {
     // right words through, a hole exactly where the guard is supposed to be solid.
     const SECRET =
       /\b[0-9a-f]{32,}\b|\b[a-z0-9-]+\.workers\.dev\b|(?:account_id|api[_-]?token)\s*[=:]\s*["']?[A-Za-z0-9_-]{8,}/i
-    for (const file of ['wrangler.toml', 'worker.ts', 'README.md']) {
-      const offenders = read(file)
-        .split('\n')
-        .filter((line: string) => SECRET.test(line))
-      expect(offenders, `services/art/${file} names a deployment identifier`).toEqual([])
+    for (const [path, source] of Object.entries(SERVICE_TREE)) {
+      if (path.includes('/node_modules/') || path.endsWith('pnpm-lock.yaml')) continue
+      const offenders = source.split('\n').filter((line: string) => SECRET.test(line))
+      expect(
+        offenders,
+        `${path.replace(/^.*\/services\//, 'services/')} names an identifier`,
+      ).toEqual([])
     }
+  })
+
+  it('reads the whole service tree, so the guard above cannot go vacuous', () => {
+    // A glob that stopped matching — a rename, a moved directory — would make every assertion in
+    // that loop pass by having nothing to loop over.
+    const paths = Object.keys(SERVICE_TREE).map((p) => p.replace(/^.*\/services\/art\//, ''))
+    expect(paths).toContain('src/worker.ts')
+    expect(paths).toContain('scripts/spend.ts')
+    expect(paths).toContain('wrangler.toml')
+    expect(paths).toContain('README.md')
   })
 
   /**

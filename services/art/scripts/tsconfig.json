@@ -1,0 +1,20 @@
+{
+  // Operator tooling, NOT the worker. It runs on Node and so it gets Node's types; `src/` gets only
+  // `@cloudflare/workers-types`, which is what stops a Node API drifting into code that deploys to
+  // an edge runtime that has none.
+  "compilerOptions": {
+    "target": "es2022",
+    "lib": ["es2022"],
+    "module": "es2022",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "strict": true,
+    "noEmit": true,
+    // Node's own type stripping resolves the path it is given, so an import here ends in `.ts` and
+    // this has to be told that is intentional. Nothing is emitted, so there is nothing to rewrite.
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": ["**/*.ts"]
+}
