@@ -134,16 +134,27 @@ environment.** One deployer serves both chains, so this key is the mainnet genes
 moment it exists and is handled at that grade on Sepolia too.
 
 ```
-# once, when the key is minted. Hidden passphrase prompt; writes an encrypted keystore and
-# prints ONLY the address — the private key is never displayed, so it never reaches a terminal
-# scrollback, a screen recording or a shell history. Do not use `cast wallet new` without a path,
-# which prints the key, and never `--unsafe-password`.
-cast wallet new ~/.foundry/keystores noesis-deployer
+# once, when the key is minted. Asks for the passphrase twice, mines the vanity address, and
+# writes the encrypted keystore — printing ONLY the address. The private key is never displayed,
+# never written to a file, and never placed in an argument list, so it reaches no terminal
+# scrollback, no screen recording and no shell history.
+contracts/script/mint-deployer.py --prefix 000888 --account noesis-deployer
 
 # every broadcast, in this runbook and on mainnet
 DEPLOYER=$(sed -n 's/.*constant DEPLOYER = \(0x[0-9a-fA-F]\{40\}\);.*/\1/p' contracts/script/SepoliaSalts.sol)
 forge script <script> --rpc-url <rpc> --account noesis-deployer --sender "$DEPLOYER" --broadcast
 ```
+
+**Why a script and not two `cast` commands.** The deployer's address is CHOSEN, so `cast wallet new`
+— which does write straight into an encrypted keystore — cannot produce it. The tool that can,
+`cast wallet vanity`, prints the private key to stdout; its `--save-path` writes the key as plaintext
+JSON; and `cast wallet import --interactive` reads from `/dev/tty`, so the key cannot be piped from
+one to the other. Every composition of those leaves the key on a terminal, in a file in the clear, or
+in `argv` where `/proc` and `ps` expose it. `mint-deployer.py` drives both halves instead, keeping the
+key in memory and handing it over a pseudo-terminal. It implements no cryptography of its own — the
+keygen, the address derivation and the keystore encryption are all Foundry's — and
+`mint-deployer.py --selftest` asserts that no key reaches its output, that the keystore is an
+encrypted V3 file, and that the key is not inside it in clear.
 
 `--sender` is derived from the salt file rather than typed, because the deployer is bytes 0..19 of
 every salt and the two cannot be allowed to disagree: a typed address that has drifted from the salt
@@ -152,9 +163,8 @@ set reverts `InvalidSalt` inside CreateX, and the salt file is the one place eit
 What this forbids, and why the scripts enforce it rather than the prose: **no `export PRIVATE_KEY=`,
 no `--private-key`, no key in `contracts/.env`, no key in shell history.** `DeploySepolia`,
 `DeployTimelock` and `MigrateOwnership` all call a bare `vm.startBroadcast()`, which takes the signer
-from the flags above and has no way to read a key out of the environment. `MigrateOwnership` is the
-step that moves ownership of every deployed contract, and it used to be the one step that asked for
-the raw key — a custody model is only as strong as its weakest step, and that was the weakest.
+from the flags above and has no way to read a key out of the environment. Every step signs the same
+way, including the one that moves ownership of every deployed contract.
 
 The Anvil scripts (`DeployAnvil`, `SeedAnvil`, `SeedAnvilBuys`, `SeedRich`) still read `PRIVATE_KEY`
 and should: they sign as a well-known local account on a throwaway chain, and putting a keystore
