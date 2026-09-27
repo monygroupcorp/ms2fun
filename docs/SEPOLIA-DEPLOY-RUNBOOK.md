@@ -102,12 +102,12 @@ The six registry proxies land on vanity addresses through CreateX, under the sal
 
 | proxy                 | address                                      |
 | --------------------- | -------------------------------------------- |
-| MasterRegistry        | `0x0000000000564ad22a8d86622a869b166a1ed2d2` |
-| Treasury              | `0x0000000000e0c98e51036bdb2fdd232891fb9585` |
-| QueueManager          | `0x00000000002c9176071e23396e10f124a2c48517` |
-| GlobalMessageRegistry | `0x00000000003aec021b3aa39e096c5bce2886a014` |
-| AlignmentRegistry     | `0x00000000005e8b175d22400baf60a457fb6328f2` |
-| ComponentRegistry     | `0x000000000083a32325c0eee5ad21d093d8052ea0` |
+| MasterRegistry        | `0x0000000000666868b0a9ec07fa495da351718bce` |
+| Treasury              | `0x00000000004c604d01a8a75106e62365b0ca6d18` |
+| QueueManager          | `0x0000000000d63383941e33a38082ff446712b259` |
+| GlobalMessageRegistry | `0x000000000016f898e9a381d0638c215df95d3259` |
+| AlignmentRegistry     | `0x00000000005d8eb87dab4ff3d6aa9b7c6381fea3` |
+| ComponentRegistry     | `0x0000000000a0022a42827319be7f3cd40b5fef9c` |
 
 Everything below them is nonce-derived and cannot be predicted before the run.
 
@@ -120,12 +120,19 @@ live broadcast in it and no more.
 
 ### 1.4 The deployer
 
-`SepoliaSalts.DEPLOYER` is `0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6`. The address is embedded in
+`SepoliaSalts.DEPLOYER` is `0x000888695d3e361434f67D9dbd110f1A443822b9`. The address is embedded in
 every salt as CreateX's permissioned-deploy guard, so **this address and no other can broadcast the
 deploy**; CreateX reverts `InvalidSalt` for anyone else, and `DeploySepolia.run()` asserts the match
 up front so the mismatch surfaces in simulation rather than on chain.
 
-It is also the operator of the route quoter and the owner of the deployed protocol.
+It is also the operator of the route quoter and the owner of the deployed protocol until §5.5 hands
+ownership to the Timelock.
+
+**Its only history is this protocol.** The address was minted for this deploy and nothing else has
+ever been broadcast from it — verified at mint: nonce 0 on mainnet and nonce 0 on Sepolia. That is
+the property to preserve: a contract's creator link is rendered on every Etherscan page it has, so an
+address with unrelated history would publish that history beside the protocol's genesis forever.
+Nothing else is ever sent from this address, and the same address serves mainnet.
 
 ### 1.5 Signing
 
@@ -191,11 +198,15 @@ is re-pointed by deploying a fresh quoter and setting `cfg.zQuoter`, which is a 
 The deployer must be funded before anything is broadcast, and it is the one prerequisite with a lead
 time — Sepolia ETH is faucet-rationed.
 
-| figure                         | amount         |
-| ------------------------------ | -------------- |
-| deploy cost, measured @15 gwei | **3.78 ETH**   |
-| deployer balance, 2026-09-15   | **0.5849 ETH** |
-| **shortfall**                  | **≈3.20 ETH**  |
+| figure                         | amount       |
+| ------------------------------ | ------------ |
+| deploy cost, measured @15 gwei | **3.78 ETH** |
+| deployer balance at mint       | **0 ETH**    |
+| **shortfall**                  | **3.78 ETH** |
+
+**The deployer starts empty, and that is deliberate.** It was minted for this deploy and has nonce 0
+on both chains, so there is no carried-over balance to draw down — the whole amount is funded in, and
+the earlier figures against the previous address no longer apply.
 
 Both figures are measurements taken before this runbook was written, not estimates derived here, and
 both go stale. Re-read the balance on the day:
@@ -220,7 +231,12 @@ through. Budget the deploy and the seed together.
 
 Fund to a round figure above the sum with headroom for a retry — a deploy that runs out of gas
 partway leaves a half-built protocol on spent salts, which is the one failure in this runbook that
-cannot be retried onto the same addresses.
+cannot be retried onto the same addresses. A fresh set is minutes of GPU time, but the addresses
+change, and on mainnet the addresses are the thing being preserved.
+
+Whoever funds it is one hop from the deployer on any block explorer. On this network that is a faucet
+and does not matter; the same transfer on mainnet is a deliberate link and is decided before the
+mainnet window, not on the day.
 
 ---
 

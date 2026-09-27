@@ -11,7 +11,7 @@ function forgeRecord(overrides: Record<string, unknown> = {}) {
   const address = (n: number) => `0x${String(n).padStart(2, '0').repeat(20)}`.slice(0, 42)
   return {
     chainId: 11155111,
-    deployer: '0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6',
+    deployer: '0x000888695d3e361434f67D9dbd110f1A443822b9',
     contracts: {
       MasterRegistry: address(1),
       AlignmentRegistry: address(2),
