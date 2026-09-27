@@ -81,9 +81,20 @@ contract SepoliaRouteQuoter {
 
     event RouteSet(address indexed vault, address indexed token, AMM source, uint256 feeOrHook);
     event RouteCleared(address indexed vault, address indexed token);
+    event OperatorTransferred(address indexed from, address indexed to);
 
-    /// @notice The deployer, and the only account that may write the table.
-    address public immutable operator;
+    /// @notice The only account that may write the table. Starts as the deployer and moves with
+    ///         `setOperator`.
+    /// @dev NOT `immutable`, and the reason is the ownership handover rather than anything this
+    ///      contract needs. `MigrateOwnership` exists so that after the deploy no capability is left
+    ///      on the deployer EOA — a freshly minted key whose whole design goal is to stop mattering
+    ///      once governance is in place. An immutable operator was the one exception: it would have
+    ///      kept `setRoute` and `clearRoute` on that key for this contract's entire life, so the
+    ///      honest answer to "does the deployer still hold anything?" would have been "yes, a little"
+    ///      rather than a flat no. It is a route table on one test network, so the power is small —
+    ///      but a handover with one documented hole in it is the kind of thing that gets copied
+    ///      forward, and the fix is four lines.
+    address public operator;
 
     /// @notice vault -> tokenOut -> the route that vault acquires that token through.
     mapping(address => mapping(address => Route)) public routeOf;
@@ -132,6 +143,23 @@ contract SepoliaRouteQuoter {
         if (msg.sender != operator) revert NotOperator();
         delete routeOf[vault][token];
         emit RouteCleared(vault, token);
+    }
+
+    /// @notice Hand the table's write permission to another account — the governance Timelock, at the
+    ///         ownership handover.
+    /// @dev Single-step and deliberately so, unlike the protocol's `SafeOwnableUUPS` two-step
+    ///      handover. A two-step request/complete exists to stop ownership being sent somewhere that
+    ///      cannot accept it, because for those contracts a mistake is unrecoverable. Here it is not:
+    ///      the table is rebuildable, and a vault whose row is missing degrades to its own fixed-pool
+    ///      leg rather than breaking, so the worst case is a quoter redeployed and re-pointed with
+    ///      `setZQuoter`. The zero-address check is kept because that case is not a mistake anyone
+    ///      recovers from by choice — it would freeze the table permanently while leaving every
+    ///      existing row live.
+    function setOperator(address newOperator) external {
+        if (msg.sender != operator) revert NotOperator();
+        if (newOperator == address(0)) revert InvalidRoute();
+        emit OperatorTransferred(operator, newOperator);
+        operator = newOperator;
     }
 
     /// @notice The `zQuoter.getQuotes` surface `BestRouteAcquirer` calls.
