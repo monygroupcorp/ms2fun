@@ -2,11 +2,21 @@
 pragma solidity ^0.8.20;
 
 /// @title  SepoliaSalts
-/// @notice The CreateX CREATE3 salt set the Sepolia deploy uses for its six registry proxies.
+/// @notice The CreateX CREATE3 salt set for the six registry proxies. It is named for the chain it
+///         is spent on first, not for the only chain it serves: ONE deployer and THIS ONE SET serve
+///         both Sepolia and Ethereum mainnet, and no second set is ever mined.
 ///
 ///         **This is the one place a salt set is edited.** `DeploySepolia` reads every salt from
 ///         here, and `test/coverage/SepoliaSaltSet.t.sol` re-derives the addresses from these
 ///         constants, so replacing the six literals below is the whole of a re-mine.
+///
+/// ── One set, both chains ─────────────────────────────────────────────────────────────
+///         `block.chainid` is not an input to the derivation below — byte 20 is `0x00`, so the same
+///         deployer under the same salt yields the SAME six addresses on every chain. What is
+///         per-chain is only the CREATE2 proxy that collides, so a set spent on Sepolia is still
+///         unspent on mainnet. That is why `DeployMainnet` reuses these constants instead of mining
+///         its own: the rehearsal then proves the literal addresses mainnet will carry, and nothing
+///         about the address set is done for the first time with real money behind it.
 ///
 /// ── Why a salt set is single-use ──────────────────────────────────────────────────────────────
 ///         CreateX's CREATE3 entry point deploys a CREATE2 proxy under the guarded salt and then
