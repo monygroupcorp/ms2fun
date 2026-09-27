@@ -163,8 +163,7 @@ contract MigrateOwnership is Script {
         address[2] memory factories = [_optionalAddress("UNI_VAULT_FACTORY"), _optionalAddress("ZAMM_VAULT_FACTORY")];
         for (uint256 i; i < factories.length; i++) {
             if (factories[i] == address(0)) continue;
-            (bool ok, bytes memory ret) =
-                factories[i].staticcall{ gas: 100_000 }(abi.encodeWithSignature("zQuoter()"));
+            (bool ok, bytes memory ret) = factories[i].staticcall{ gas: 100_000 }(abi.encodeWithSignature("zQuoter()"));
             if (!ok || ret.length != 32) continue;
             address quoter = abi.decode(ret, (address));
             if (quoter == address(0)) continue; // best-route acquisition disabled on this network
