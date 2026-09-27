@@ -65,6 +65,11 @@ ADDRESS = re.compile(r"Address:\s*(0x[0-9a-fA-F]{40})")
 PRIVATE_KEY = re.compile(r"Private Key:\s*(0x[0-9a-fA-F]{64})")
 SAVED = re.compile(r"Address:\s*(0x[0-9a-fA-F]{40})")
 
+# A floor and a comfort level, not a policy. The floor exists to catch a mistyped or truncated
+# passphrase; above it the operator's judgement stands and the tool says its piece once.
+MIN_PASSPHRASE = 12
+COMFORTABLE_PASSPHRASE = 20
+
 
 def die(message: str) -> "NoReturn":  # type: ignore[valid-type]
     print(f"mint-deployer: {message}", file=sys.stderr)
@@ -263,18 +268,29 @@ def main() -> None:
     if not sys.stdin.isatty():
         die("refusing to run without a terminal: the password must be typed, never piped")
 
-    # Entropy is what protects a keystore at rest, and length alone is not entropy. Generated,
-    # not invented.
+    # This key has two ways to be lost and they pull in opposite directions. It can be cracked, which
+    # argues for entropy; and the passphrase can be FORGOTTEN, which loses the key outright with no
+    # recovery — and for a deployer that means re-mining the salt set and redeploying everything
+    # derived from it. A generated string has to be stored somewhere, which is where that second
+    # risk lives. So the choice is the operator's: this refuses only a length nobody intends, warns
+    # once above it, and otherwise takes what is typed.
     print(
-        "Use a generated passphrase, not a memorable one — memorable is the property that makes\n"
-        "a passphrase guessable. `openssl rand -base64 24` produces a suitable one.",
+        "Use a passphrase you will not lose. There is no recovery: forgetting it loses the key,\n"
+        "and for a deployer that means re-mining the salt set and redeploying. Longer is stronger,\n"
+        "and a long phrase you already know beats a random string you have to write down.",
         file=sys.stderr,
     )
     password = getpass.getpass("Keystore passphrase (this encrypts the key): ")
     if password != getpass.getpass("Again: "):
         die("passphrases did not match")
-    if len(password) < 20:
-        die("refusing a passphrase under 20 characters. `openssl rand -base64 24` if you need one.")
+    if len(password) < MIN_PASSPHRASE:
+        die(f"refusing a passphrase under {MIN_PASSPHRASE} characters — that is a slip, not a choice")
+    if len(password) < COMFORTABLE_PASSPHRASE:
+        print(
+            f"note: {len(password)} characters. Accepted — it is your key — but a keystore's only "
+            "at-rest protection is this passphrase.",
+            file=sys.stderr,
+        )
 
     address, key = mine(prefix, args.jobs)
     saved = store(args.account, args.keystore_dir, key, password)
