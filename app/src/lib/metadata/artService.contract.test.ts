@@ -24,6 +24,13 @@ const SERVICE = import.meta.glob(
   },
 ) as Record<string, string>
 
+/** Every component and route in the app, read as source, for the render-site guard below. */
+const APP_SOURCES = import.meta.glob('../../{components,routes}/**/*.tsx', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>
+
 function read(name: string): string {
   const key = Object.keys(SERVICE).find((path) => path.endsWith(`/${name}`))
   if (key === undefined) throw new Error(`services/art/${name} was not readable from this test`)
@@ -71,5 +78,41 @@ describe('the art service contract', () => {
         .filter((line: string) => SECRET.test(line))
       expect(offenders, `services/art/${file} names a deployment identifier`).toEqual([])
     }
+  })
+
+  /**
+   * THE GUARD THAT WOULD HAVE CAUGHT THE ORIGINAL DEFECT. The service, its worker, its R2 cache and
+   * this whole width ladder shipped and then sat unused for a fortnight, because `IpfsImage`'s
+   * `width` prop is what puts the service in front of the roster and not one render site passed it.
+   * Nothing looked broken — every card still rendered, just at full size and on the viewer's quota,
+   * which is the exact bill this service exists to stop paying.
+   *
+   * So a render site that asks for no width is a DECISION and has to be written down here. The list
+   * being empty is the point; a new grid added without a width fails this test by default.
+   */
+  it('every art render site declares the size it needs', () => {
+    /** Sites that deliberately want the original. Add with a reason, not to make this pass. */
+    const ORIGINAL_ON_PURPOSE: readonly string[] = []
+
+    const offenders: string[] = []
+    for (const [path, source] of Object.entries(APP_SOURCES)) {
+      const file = path.replace(/^.*\/src\//, 'src/')
+      if (file.endsWith('.test.tsx') || file.endsWith('/IpfsImage.tsx')) continue
+      if (ORIGINAL_ON_PURPOSE.includes(file)) continue
+      // Each element from its opening tag to the closing `/>` or `>`, whichever ends the props.
+      for (const element of source.match(/<IpfsImage\b[\s\S]*?\/>/g) ?? []) {
+        if (!/\bwidth=\{/.test(element)) offenders.push(file)
+      }
+    }
+
+    expect(offenders, 'these render art with no width, so the art service is never asked').toEqual(
+      [],
+    )
+  })
+
+  it('reads enough source for that guard to mean anything', () => {
+    // A glob that matched nothing would make the guard above pass vacuously forever.
+    const withArt = Object.values(APP_SOURCES).filter((src) => src.includes('<IpfsImage'))
+    expect(withArt.length).toBeGreaterThan(15)
   })
 })

@@ -11,6 +11,7 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  ART_BOX,
   gatewayKey,
   IPFS_GATEWAYS,
   noteThrottled,
@@ -168,5 +169,126 @@ describe('IpfsImage', () => {
     render(<IpfsImage uri={CID} alt="art" testId="art" fallback={<span>no art</span>} />)
 
     await waitFor(() => expect(screen.getByText('no art')).toBeInTheDocument())
+  })
+})
+
+/**
+ * The `width` prop is the ONLY thing that puts the art service in front of the roster, and for a
+ * while nothing passed it: the service, its worker, its cache and its width ladder all shipped while
+ * every render site asked for an original off a public gateway. The defect was invisible because
+ * everything still worked — just on the viewer's quota, at full size. So these assert the wiring
+ * itself rather than the plumbing underneath it.
+ */
+describe('IpfsImage width → the art service', () => {
+  const ART = 'https://art.example'
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  /** The URL of the first request the loader actually spent. */
+  function firstRequestedUrl(): string {
+    expect(fetchMock).toHaveBeenCalled()
+    return String(fetchMock.mock.calls[0]?.[0])
+  }
+
+  it('asks the service for a rung when a width is given', async () => {
+    vi.stubEnv('VITE_ART_SERVICE', ART)
+    vi.stubGlobal('devicePixelRatio', 1)
+
+    render(<IpfsImage uri={CID} alt="art" testId="art" width={ART_BOX.card} />)
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    expect(firstRequestedUrl()).toBe(`${ART}/art/QmArtOne?w=320`)
+  })
+
+  it('asks a PUBLIC GATEWAY when no width is given, service or not', async () => {
+    vi.stubEnv('VITE_ART_SERVICE', ART)
+
+    render(<IpfsImage uri={CID} alt="art" testId="art" />)
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    expect(firstRequestedUrl()).not.toContain(ART)
+  })
+
+  it('climbs a rung for a 2x screen, so a card is not soft on a phone', async () => {
+    vi.stubEnv('VITE_ART_SERVICE', ART)
+    vi.stubGlobal('devicePixelRatio', 2)
+
+    render(<IpfsImage uri={CID} alt="art" testId="art" width={ART_BOX.card} />)
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    expect(firstRequestedUrl()).toBe(`${ART}/art/QmArtOne?w=640`)
+  })
+
+  it('does NOT climb past 2x — a 3x screen mints no third variant nobody can see', async () => {
+    vi.stubEnv('VITE_ART_SERVICE', ART)
+    vi.stubGlobal('devicePixelRatio', 3)
+
+    render(<IpfsImage uri={CID} alt="art" testId="art" width={ART_BOX.card} />)
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    expect(firstRequestedUrl()).toBe(`${ART}/art/QmArtOne?w=640`)
+  })
+
+  it('keeps the roster behind it: a service that fails falls through to a gateway', async () => {
+    vi.stubEnv('VITE_ART_SERVICE', ART)
+    vi.stubGlobal('devicePixelRatio', 1)
+    fetchMock.mockImplementation((url: unknown) =>
+      String(url).startsWith(ART)
+        ? Promise.resolve({ ok: false, status: 502, headers: { get: () => null } })
+        : Promise.resolve({ ok: true, status: 200, blob: async () => new Blob(['art']) }),
+    )
+
+    render(<IpfsImage uri={CID} alt="art" testId="art" width={ART_BOX.card} />)
+
+    await waitFor(() => expect(screen.getByTestId('art')).toHaveAttribute('src', 'blob:art'))
+    const urls = fetchMock.mock.calls.map((c) => String(c[0]))
+    expect(urls[0]).toContain(ART)
+    expect(urls.some((u) => !u.startsWith(ART))).toBe(true)
+  })
+
+  it('spends ONE request for N cards sharing a CID at the same rung', async () => {
+    vi.stubEnv('VITE_ART_SERVICE', ART)
+    vi.stubGlobal('devicePixelRatio', 1)
+
+    render(
+      <>
+        {Array.from({ length: 9 }, (_, i) => (
+          <IpfsImage key={i} uri={CID} alt="art" testId={`art-${i}`} width={ART_BOX.card} />
+        ))}
+      </>,
+    )
+
+    await waitFor(() => expect(screen.getByTestId('art-8')).toHaveAttribute('src', 'blob:art'))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('a card and a detail view of one CID are DIFFERENT bytes, so both are fetched', async () => {
+    vi.stubEnv('VITE_ART_SERVICE', ART)
+    vi.stubGlobal('devicePixelRatio', 1)
+
+    render(
+      <>
+        <IpfsImage uri={CID} alt="card" testId="card" width={ART_BOX.card} />
+        <IpfsImage uri={CID} alt="full" testId="full" width={ART_BOX.full} />
+      </>,
+    )
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    const urls = fetchMock.mock.calls.map((c) => String(c[0])).sort()
+    expect(urls).toEqual([`${ART}/art/QmArtOne?w=320`, `${ART}/art/QmArtOne?w=1024`].sort())
+  })
+
+  it('with NO service the two roles share one request — widths cost nothing when unset', async () => {
+    render(
+      <>
+        <IpfsImage uri={CID} alt="card" testId="card" width={ART_BOX.card} />
+        <IpfsImage uri={CID} alt="full" testId="full" width={ART_BOX.full} />
+      </>,
+    )
+
+    await waitFor(() => expect(screen.getByTestId('full')).toHaveAttribute('src', 'blob:art'))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })

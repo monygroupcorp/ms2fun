@@ -1,3 +1,4 @@
+import { ART_BOX } from '../../lib/metadata'
 import { Link } from 'wouter'
 import { useEffect, useMemo, useState } from 'react'
 import { useAlignmentTargets } from '../../lib/vaults/useAlignmentTargets'
@@ -69,6 +70,7 @@ function TargetCard({
     <>
       <div className={styles.targetLogo}>
         <IpfsImage
+          width={ART_BOX.thumb}
           uri={meta?.image ?? ''}
           alt={`${target.title} logo`}
           className={styles.targetImg}

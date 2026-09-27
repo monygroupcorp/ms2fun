@@ -31,12 +31,24 @@ import {
 import {
   ART_SERVICE_KEY,
   type ArtWidth,
+  artServiceConfigured,
   contentKey,
   isImmutableUri,
   resolveCandidates,
   retryAtFor,
   snapArtWidth,
 } from './uri'
+
+/**
+ * The width to key this pointer's bytes by: the caller's rung when something is actually serving
+ * variants, and nothing at all otherwise. See {@link artServiceConfigured} — with no service the
+ * roster returns the same original whatever width was asked for, so the roles must share one entry
+ * or the app fetches identical bytes once per role.
+ */
+function variantWidth(wanted: number | undefined): ArtWidth | undefined {
+  if (wanted === undefined || !artServiceConfigured()) return undefined
+  return snapArtWidth(wanted)
+}
 
 /** Cache API bucket. Bump the suffix to discard every stored object (breaking format change). */
 export const ART_CACHE_NAME = 'noesis-art-v1'
@@ -291,7 +303,7 @@ async function fetchArt(uri: string, key: string, width?: ArtWidth): Promise<str
 export function peekArt(uri: string, wantedWidth?: number): string | undefined {
   const trimmed = uri.trim()
   if (trimmed.startsWith('data:')) return trimmed
-  const width = wantedWidth === undefined ? undefined : snapArtWidth(wantedWidth)
+  const width = variantWidth(wantedWidth)
   return resolved.get(contentKey(trimmed, width)) ?? resolved.get(contentKey(trimmed))
 }
 
@@ -311,7 +323,7 @@ export function loadArt(uri: string, wantedWidth?: number): Promise<string> {
 
   // Snapped here rather than at the call site, so a component may pass its own measured width
   // without minting a variant per viewport. See ART_WIDTHS.
-  const width = wantedWidth === undefined ? undefined : snapArtWidth(wantedWidth)
+  const width = variantWidth(wantedWidth)
   const key = contentKey(trimmed, width)
   const done = resolved.get(key)
   if (done) return Promise.resolve(done)

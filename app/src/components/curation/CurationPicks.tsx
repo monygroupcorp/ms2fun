@@ -6,7 +6,7 @@ import { StateBlock } from '../ui/StateBlock'
 import { useCollectionMetadata } from '../useCollectionMetadata'
 import { useProjectCards, type ProjectCard } from '../../lib/discovery'
 import { cardsByInstance, curationItemHref } from '../../lib/curation'
-import { curationItemKey, type CurationItem } from '../../lib/metadata'
+import { ART_BOX, curationItemKey, type CurationItem } from '../../lib/metadata'
 import { forkChainId } from '../../lib/addresses'
 import { truncateAddress } from '../../lib/format'
 import { activeNetworkName } from '../../lib/network'
@@ -79,6 +79,7 @@ function PiecePick({ card, tokenId, href }: { card: ProjectCard; tokenId: string
     >
       <div className={`art ${styles.art}`}>
         <IpfsImage
+          width={ART_BOX.card}
           uri={metadata?.image ?? ''}
           alt={title}
           className={styles.artImg}

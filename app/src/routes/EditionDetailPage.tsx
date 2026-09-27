@@ -15,7 +15,7 @@ import { useCollection } from '../components/useCollection'
 import { useEditions, type EditionView } from '../components/collection/useEditions'
 import { MintPanel } from '../components/collection/erc1155/MintPanel'
 import { editionThemeStyle, type EditionTheme } from '../components/collection/erc1155/editionTheme'
-import { fetchJson, isResolvableUri, jsonOrNull } from '../lib/metadata'
+import { ART_BOX, fetchJson, isResolvableUri, jsonOrNull } from '../lib/metadata'
 import { formatPrice, formatPriceTitle } from '../lib/format'
 import { IpfsImage } from '../components/ui/IpfsImage'
 import { StateBlock } from '../components/ui/StateBlock'
@@ -218,6 +218,7 @@ function EditionDetail({ instance, id }: EditionDetailProps) {
             <span className="noesis-tick br" />
             <div className={styles.artInner}>
               <IpfsImage
+                width={ART_BOX.full}
                 uri={meta?.image ?? ''}
                 alt={title}
                 className={styles.art}

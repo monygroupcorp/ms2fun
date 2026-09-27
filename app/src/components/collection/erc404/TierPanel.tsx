@@ -20,6 +20,7 @@
  * the ladder's single probe read is still in flight, so an untiered collection never renders anything
  * here, not even a flash of a loading state.
  */
+import { ART_BOX } from '../../../lib/metadata'
 import { useEffect, useState } from 'react'
 import { formatUnits } from 'viem'
 import { useAccount, useWaitForTransactionReceipt } from 'wagmi'
@@ -278,6 +279,7 @@ export function TierPanel({ instance }: { instance: `0x${string}` }) {
                     data-testid="tier-panel-sacrifice-tile"
                   >
                     <IpfsImage
+                      width={ART_BOX.thumb}
                       uri={piece?.image ?? ''}
                       alt={`#${id.toString()}`}
                       className={styles.thumb}

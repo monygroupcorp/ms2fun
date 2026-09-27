@@ -9,7 +9,7 @@ import { FreeMintClaimPanel } from './erc1155/FreeMintClaimPanel'
 import { MintPanel } from './erc1155/MintPanel'
 import { useEditions, type EditionView } from './useEditions'
 import { useCollectionChainId, useCollectionSlug } from './useCollectionChain'
-import { fetchJson, isResolvableUri, jsonOrNull } from '../../lib/metadata'
+import { ART_BOX, fetchJson, isResolvableUri, jsonOrNull } from '../../lib/metadata'
 import { isClosed, timeRemaining } from './erc1155/editionSchedule'
 import { formatPrice, formatPriceTitle } from '../../lib/format'
 import { IpfsImage } from '../ui/IpfsImage'
@@ -96,6 +96,7 @@ function EditionCard({ edition, instance, refetch }: EditionCardProps) {
       {/* M3: lead with the art — the edition cover, big, linking to its page (not just a text link). */}
       <Link href={editionHref} className={styles.artLink} aria-label={title}>
         <IpfsImage
+          width={ART_BOX.card}
           uri={image ?? ''}
           alt={title}
           className={styles.artImg}

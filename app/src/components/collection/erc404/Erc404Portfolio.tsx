@@ -14,6 +14,7 @@
  *
  * Self-hides when disconnected. Owned ids come from the mirror Transfer-log replay (useErc404OwnedPieces).
  */
+import { ART_BOX } from '../../../lib/metadata'
 import { useEffect, useMemo, useState } from 'react'
 import { formatUnits, parseUnits } from 'viem'
 import { useAccount, useWaitForTransactionReceipt } from 'wagmi'
@@ -103,6 +104,7 @@ export function Erc404Portfolio({ instance }: { instance: `0x${string}` }) {
               const art = (
                 <>
                   <IpfsImage
+                    width={ART_BOX.thumb}
                     uri={p.image ?? ''}
                     alt={`#${p.id.toString()}`}
                     className={styles.thumb}

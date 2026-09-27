@@ -19,7 +19,7 @@ import { useCollectionChainId } from '../useCollectionChain'
 import { txErrorReason, useTxAction } from '../../ui/useTxAction'
 import { TxButton } from '../../ui/TxButton'
 import { formatReceipt, type MoneyReceipt } from '../../ui/receipt'
-import { fetchJson, jsonOrNull } from '../../../lib/metadata'
+import { ART_BOX, fetchJson, jsonOrNull } from '../../../lib/metadata'
 import { IpfsImage } from '../../ui/IpfsImage'
 import { FiatAmount } from '../../ui/FiatAmount'
 import { truncateAddress } from '../../../lib/format'
@@ -95,6 +95,7 @@ export function AuctionCard({
     <li className={styles.card} data-testid="erc721-auction" data-state={state}>
       <div className={styles.cardHeader}>
         <IpfsImage
+          width={ART_BOX.card}
           uri={meta?.image ?? ''}
           alt={title}
           className={styles.thumb}

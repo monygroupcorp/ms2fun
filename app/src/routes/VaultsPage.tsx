@@ -10,6 +10,7 @@
  * (Uni/ZAMM) expose no principal read, so they show a family badge + accrued fees instead of
  * a fabricated number. The header total sums ONLY endowment principals, labelled as such.
  */
+import { ART_BOX } from '../lib/metadata'
 import { Link } from 'wouter'
 import { useAllVaults } from '../lib/vaults/useAllVaults'
 import { useVaultsSummary } from '../lib/vaults/useVaultsSummary'
@@ -54,6 +55,7 @@ function CommunityCard({
       <Link href={`/target/${target.id.toString()}`} className={styles.targetLink}>
         <div className={styles.targetLogo}>
           <IpfsImage
+            width={ART_BOX.thumb}
             uri={meta?.image ?? ''}
             alt={`${target.title} logo`}
             className={styles.targetImg}

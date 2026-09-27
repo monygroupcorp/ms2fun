@@ -33,7 +33,7 @@ import {
   useReadErc721AuctionInstanceNextTokenId,
 } from '../../../generated/contracts'
 import { useCollectionChainId, useCollectionSlug } from '../useCollectionChain'
-import { fetchJson, jsonOrNull } from '../../../lib/metadata'
+import { ART_BOX, fetchJson, jsonOrNull } from '../../../lib/metadata'
 import { mapWithConcurrency, METADATA_CONCURRENCY } from '../../../lib/metadata/pool'
 import { IpfsImage } from '../../ui/IpfsImage'
 import { deriveAuctionState } from './auctionState'
@@ -272,6 +272,7 @@ export function Erc721PieceGallery({ instance }: { instance: `0x${string}` }) {
                           className={styles.link}
                         >
                           <IpfsImage
+                            width={ART_BOX.thumb}
                             uri={piece.image ?? ''}
                             alt={`#${piece.id.toString()}`}
                             className={styles.thumb}

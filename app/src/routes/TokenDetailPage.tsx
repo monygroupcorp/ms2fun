@@ -25,7 +25,7 @@ import { deriveAuctionState } from '../components/collection/erc721/auctionState
 import { MetadataHolderPanel } from '../components/collection/erc404/MetadataHolderPanel'
 import { useOwnerGate } from '../components/ui/useOwnerGate'
 import { forkChainId } from '../lib/addresses'
-import { fetchJson, jsonOrNull } from '../lib/metadata'
+import { ART_BOX, fetchJson, jsonOrNull } from '../lib/metadata'
 import { IpfsImage } from '../components/ui/IpfsImage'
 import { formatPrice, formatPriceTitle, truncateAddress } from '../lib/format'
 import { StateBlock } from '../components/ui/StateBlock'
@@ -220,6 +220,7 @@ function FramedArt({ image, alt }: { image: string | undefined; alt: string }) {
         <span className="noesis-tick br" />
         <div className={styles.artInner}>
           <IpfsImage
+            width={ART_BOX.full}
             uri={image ?? ''}
             alt={alt}
             className={`noesis-art ${styles.art}`}
