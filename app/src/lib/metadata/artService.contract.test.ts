@@ -11,9 +11,19 @@
  * and it is why the rungs are READ from those files rather than repeated here.
  */
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-import { ART_WIDTHS, artServiceUrl, snapArtWidth } from './uri'
+import {
+  ART_SERVICE_KEY,
+  ART_WIDTHS,
+  artServiceUrl,
+  metaServiceUrl,
+  resolveMetaCandidates,
+  snapArtWidth,
+} from './uri'
+
+/** Any well-formed CID; these assertions are about routing and never about what is behind one. */
+const PROBE_CID = 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi'
 
 const SERVICE = import.meta.glob(
   '../../../../services/art/{wrangler.toml,README.md,src/worker.ts}',
@@ -66,13 +76,44 @@ describe('the art service contract', () => {
     expect(fallback).toEqual([...ART_WIDTHS])
   })
 
-  it('answers the path the app actually builds', () => {
-    // `artServiceUrl` is the only thing that constructs these, so its output is the specification.
-    expect(artServiceUrl('bafyreiabc123', snapArtWidth(300))).toBeNull() // unset is supported
+  it('answers both paths the app actually builds', () => {
+    // `artServiceUrl` and `metaServiceUrl` are the only things that construct these, so their output
+    // is the specification. Unset is supported and is what this test environment runs in.
+    expect(artServiceUrl('bafyreiabc123', snapArtWidth(300))).toBeNull()
+    expect(metaServiceUrl('bafyreiabc123')).toBeNull()
 
-    const prefix = read('worker.ts').match(/const prefix = '([^']+)'/)
-    expect(prefix, 'worker.ts declares no route prefix').not.toBeNull()
-    expect(prefix![1]).toBe('/art/')
+    const worker = read('worker.ts')
+    for (const [name, expected] of [
+      ['ART', '/art/'],
+      ['META', '/meta/'],
+    ] as const) {
+      const declared = worker.match(new RegExp(`const ${name} = '([^']+)'`))
+      expect(declared, `worker.ts declares no ${name} route`).not.toBeNull()
+      expect(declared![1]).toBe(expected)
+    }
+  })
+
+  it('asks the SERVICE for metadata before any public gateway, when one is configured', () => {
+    // The art half of this shipped first and on its own, which left the JSON that names the art's
+    // CID still coming from a metered third-party gateway — one request per card, before anything
+    // rendered. Asserted here rather than in a comment because it is the half that is easy to forget.
+    vi.stubEnv('VITE_ART_SERVICE', 'https://art.example')
+    try {
+      const candidates = resolveMetaCandidates(`ipfs://${PROBE_CID}`)
+      expect(candidates[0]).toEqual({
+        url: `https://art.example/meta/${PROBE_CID}`,
+        gatewayKey: ART_SERVICE_KEY,
+      })
+      expect(candidates.length).toBeGreaterThan(1) // the roster stays behind it
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('falls back to the roster alone when no service is configured', () => {
+    const candidates = resolveMetaCandidates(`ipfs://${PROBE_CID}`)
+    expect(candidates.every((c) => c.gatewayKey !== ART_SERVICE_KEY)).toBe(true)
+    expect(candidates.length).toBeGreaterThan(0)
   })
 
   it('carries no account identifier, credential or deployment hostname', () => {

@@ -187,10 +187,37 @@ export function resolveCandidates(uri: string, width?: ArtWidth): UriCandidate[]
   // Gateways stay underneath, and they serve the ORIGINAL rather than a variant. A viewer whose
   // art service is cold, over budget or gone therefore sees the right art at the wrong size, which
   // is a slower page and not a broken one.
+  candidates.push(...rosterCandidates(path))
+  return candidates
+}
+
+/** The public roster's candidates for a path, health-ordered, cooling entries dropped. */
+function rosterCandidates(path: string): UriCandidate[] {
+  const candidates: UriCandidate[] = []
   for (const gateway of orderGateways(usableGateways(path))) {
     const url = gatewayUrl(gateway, path)
     if (url) candidates.push({ url, gatewayKey: gatewayKey(gateway) })
   }
+  return candidates
+}
+
+/**
+ * Where to ask for a metadata DOCUMENT: the art service first when one is configured, then the same
+ * public roster in the same health order.
+ *
+ * Separate from {@link resolveCandidates} because the two differ in the one way that matters — a
+ * document has no width and no variants — and a shared function with a mode flag would read as
+ * though it did. The service reports against {@link ART_SERVICE_KEY} here exactly as it does for
+ * art, so one service that is down, over budget or switched off cools once and is skipped by both.
+ */
+export function resolveMetaCandidates(uri: string): UriCandidate[] {
+  const trimmed = uri.trim()
+  if (!trimmed.startsWith('ipfs://')) return [{ url: resolveUri(trimmed), gatewayKey: null }]
+  const path = ipfsPath(trimmed)
+  const candidates: UriCandidate[] = []
+  const url = metaServiceUrl(path)
+  if (url) candidates.push({ url, gatewayKey: ART_SERVICE_KEY })
+  candidates.push(...rosterCandidates(path))
   return candidates
 }
 
@@ -275,6 +302,19 @@ export function artServiceConfigured(): boolean {
 export function artServiceUrl(path: string, width: ArtWidth): string | null {
   const base = artServiceBase()
   return base === null ? null : `${base}/art/${path}?w=${width}`
+}
+
+/**
+ * The service URL for a metadata document, or null when no service is configured.
+ *
+ * No width, because there are no variants of a JSON document — one path, one answer. It exists at
+ * all because the JSON is the FIRST request a card makes and the one that names the art's CID: a
+ * grid that took art from the service and metadata from a public gateway still spent one metered
+ * third-party request per card, still before anything appeared on screen.
+ */
+export function metaServiceUrl(path: string): string | null {
+  const base = artServiceBase()
+  return base === null ? null : `${base}/meta/${path}`
 }
 
 /** One URL to try, and the gateway whose health an attempt at it reports to (null = not a gateway). */
@@ -424,7 +464,11 @@ export async function fetchJson<T = unknown>(
   const path = ipfsPath(trimmed)
   const addressable = usableGateways(path)
   if (addressable.length === 0) return NOT_FOUND
-  const candidates = resolveCandidates(trimmed)
+  const candidates = resolveMetaCandidates(trimmed)
+  // Counted apart from the candidate list, which may hold the art service as well. With every
+  // gateway cooling, the service is still worth asking — it answers on OUR quota, which is the whole
+  // point of it — but a request that only ever reached the service says NOTHING about the roster.
+  const rosterCandidateCount = candidates.filter((c) => c.gatewayKey !== ART_SERVICE_KEY).length
   if (candidates.length === 0) {
     // Every gateway that could serve this CID is in cooldown. Firing at them anyway is precisely
     // what keeps the window from clearing, so we report the state instead of spending the request.
@@ -471,8 +515,18 @@ export async function fetchJson<T = unknown>(
     // Every gateway tried faulted — no ok, no throttle, no missing anywhere in the roster. That is
     // the starvation signal `GatewayThrottleNotice` needs; anything else (a throttle or a missing
     // mixed in) means the roster is still answering, so the streak resets instead.
-    if (!sawThrottle && !sawMissing) noteRosterFault()
-    else noteRosterRecovered()
+    //
+    // ONLY WHEN A GATEWAY WAS ACTUALLY TRIED. With every gateway cooling and only the art service in
+    // the list, a service failure would otherwise be filed as roster starvation and could raise a
+    // banner telling the viewer that public gateways are slow when none of them was asked. The
+    // streak is left exactly as it was: nothing was learned about the roster either way.
+    if (rosterCandidateCount === 0) {
+      // nothing observed about the roster
+    } else if (!sawThrottle && !sawMissing) {
+      noteRosterFault()
+    } else {
+      noteRosterRecovered()
+    }
   } catch (err) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
     throw err

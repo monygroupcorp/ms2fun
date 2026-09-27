@@ -8,6 +8,7 @@ import {
   fetchJson,
   jsonOrNull,
   resolveCandidates,
+  resolveMetaCandidates,
   gatewayUrl,
   getIpfsGateways,
   IPFS_GATEWAYS,
@@ -766,6 +767,33 @@ describe('art service', () => {
   it('is not asked at all when no width is wanted — an original comes from a gateway', () => {
     vi.stubEnv('VITE_ART_SERVICE', ART)
     expect(resolveCandidates(`ipfs://${CID_V1}`).map((c) => c.url)).toEqual(publicUrls(CID_V1))
+  })
+
+  it('serves METADATA first too, which is the request a card makes before the art', () => {
+    vi.stubEnv('VITE_ART_SERVICE', ART)
+    const candidates = resolveMetaCandidates(`ipfs://${CID_V1}`)
+    expect(candidates[0]).toEqual({
+      url: `${ART}/meta/${CID_V1}`,
+      gatewayKey: ART_SERVICE_KEY,
+    })
+  })
+
+  it('keeps the roster behind the metadata route as well', () => {
+    vi.stubEnv('VITE_ART_SERVICE', ART)
+    expect(
+      resolveMetaCandidates(`ipfs://${CID_V1}`)
+        .slice(1)
+        .map((c) => c.url),
+    ).toEqual(publicUrls(CID_V1))
+  })
+
+  it('asks a metadata document for no width — there are no variants of a JSON document', () => {
+    vi.stubEnv('VITE_ART_SERVICE', ART)
+    expect(resolveMetaCandidates(`ipfs://${CID_V1}`)[0]?.url).not.toContain('?w=')
+  })
+
+  it('leaves the metadata roster untouched when no service is configured', () => {
+    expect(resolveMetaCandidates(`ipfs://${CID_V1}`).map((c) => c.url)).toEqual(publicUrls(CID_V1))
   })
 
   it('ignores a configured value that is not an http(s) origin', () => {

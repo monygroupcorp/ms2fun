@@ -3,15 +3,27 @@
 A read-through cache in front of the public IPFS gateway roster, so a visitor's first cold view of a
 collection grid does not spend a request on a third-party gateway that meters by client IP.
 
-It answers exactly one request:
+It answers two requests:
 
 ```
-GET /art/<ipfs-path>?w=<width>
+GET /art/<ipfs-path>?w=<width>    the image, at one of the rungs in ART_WIDTHS
+GET /meta/<ipfs-path>             the collection's metadata JSON, verbatim
 ```
 
-`<ipfs-path>` is `<cid>` or `<cid>/<file>`; `<width>` is one of the rungs in `ART_WIDTHS`. The shape
-is fixed by `artServiceUrl()` in `app/src/lib/metadata/uri.ts` — that function is the specification
-and this service answers it.
+`<ipfs-path>` is `<cid>` or `<cid>/<file>`. Both shapes are fixed by `artServiceUrl()` and
+`metaServiceUrl()` in `app/src/lib/metadata/uri.ts` — those functions are the specification and this
+service answers them.
+
+**Both, because one without the other does not achieve the thing.** A card cannot render art until it
+has read the JSON that names the art's CID, so a grid served art from here and metadata from a public
+gateway still spends one metered third-party request per card — and spends it FIRST, before anything
+appears on screen. The art half shipped alone to begin with, which is why this is spelled out.
+
+The metadata route has no width and no variants: one document, one key, prefixed so it can never
+collide with an image. It also refuses to STORE an answer that is not JSON. A public gateway that
+cannot serve a CID often replies `200` with an HTML error page, and that page cached under a metadata
+key and then served from our own origin is a worse bug than a cache miss — so the body is checked and
+parsed before it is stored, and an answer that fails either check moves to the next operator.
 
 ## A cache, not custody
 
