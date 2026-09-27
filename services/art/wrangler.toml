@@ -19,6 +19,13 @@ compatibility_date = "2026-09-01"
 [vars]
 ART_WIDTHS = "320,640,1024"
 
+# CIDs this deployment refuses to redistribute — the takedown path, see README.md. Empty here on
+# purpose: a denial is a decision about one piece of work on one deployment, not a value a public
+# repository carries. Set it at deploy time (`wrangler deploy --var ART_DENYLIST:"<cid>,<cid>"`) or
+# in the dashboard. An entry stops this service serving that CID and drops what it cached; it does
+# not remove anything from IPFS, and it does not touch the app's public gateway fallback.
+ART_DENYLIST = ""
+
 # The cache. `bucket_name` is a local name and not an identifier of ours; create it in your own
 # account and apply the lifecycle rule from README.md, which is what bounds the bill.
 [[r2_buckets]]

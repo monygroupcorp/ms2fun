@@ -74,13 +74,26 @@ This serves other people's content from our origin, which means there has to be 
 something and a person who answers.
 
 1. Requests go to the contact point published on the site's terms page.
-2. Removing a cached object is `wrangler r2 object delete <bucket>/<cid>@w<width>` for each rung, or
-   a prefix delete on the CID.
-3. **Deleting from this cache does not remove the content from IPFS**, which is not ours and not
-   addressable by us. What it removes is our redistribution of it. Say that plainly when answering;
-   a takedown that implies more than it did is worse than one that explains the limit.
-4. A CID that must not be re-cached needs a denylist entry, which this worker does not yet carry —
-   see the goal's open clause. Until it does, a re-request re-fetches it.
+2. Add the CID to `ART_DENYLIST` and redeploy:
+
+   ```sh
+   wrangler deploy --var ART_DENYLIST:"<cid>,<cid>"
+   ```
+
+   The list may be separated by commas, spaces or newlines, and an entry pasted as `ipfs://<cid>` or
+   as a path under the CID still denies the right work. From then on the service answers `410 Gone`
+   for that CID and every path under it, drops whatever it had cached at every rung, and — because
+   the check runs before the bucket read — never re-fetches or re-stores it. The 410 is sent
+   `no-store`, so removing an entry takes effect on the next request rather than whenever an edge
+   cache happens to expire.
+3. A manual delete without a denylist entry is a PAUSE, not a takedown: the next request re-fetches
+   the object and stores it again. Use the list. `wrangler r2 object delete <bucket>/<cid>@w<width>`
+   remains useful only for reclaiming space on something already denied.
+4. **Deleting from this cache does not remove the content from IPFS**, which is not ours and not
+   addressable by us, and it does not stop the app's public gateway roster from serving it — the
+   denylist is scoped to our own origin, deliberately, because the roster is what makes the app
+   walk-away-able. What the list removes is OUR redistribution. Say that plainly when answering; a
+   takedown that implies more than it did is worse than one that explains the limit.
 
 ## Spend
 

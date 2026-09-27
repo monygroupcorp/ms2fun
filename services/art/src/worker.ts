@@ -37,6 +37,18 @@ export interface Env {
    * unbounded number of variants by a caller that invents its own widths.
    */
   ART_WIDTHS?: string
+  /**
+   * CIDs this deployment will not redistribute, comma- or whitespace-separated.
+   *
+   * THE SCOPE IS OUR OWN DOMAIN AND NOTHING WIDER. An entry here stops this service serving the
+   * object and drops whatever it had cached; it does not remove the object from IPFS, which is not
+   * ours to remove, and it does not touch the public roster the app falls back to. A denied CID
+   * therefore still reaches a viewer through a gateway — what changes is that it no longer reaches
+   * them through us. Saying more than that in a takedown reply would be a promise nobody can keep.
+   *
+   * A path under a denied CID is denied too: a takedown is about the work, not one file of it.
+   */
+  ART_DENYLIST?: string
 }
 
 /** Mirrors `ART_WIDTHS` in app/src/lib/metadata/uri.ts. Kept in sync by the test in this package. */
@@ -68,6 +80,32 @@ function widthsOf(env: Env): readonly number[] {
     .map((part) => Number.parseInt(part.trim(), 10))
     .filter((n) => Number.isInteger(n) && n > 0 && n <= 8192)
   return parsed.length > 0 ? parsed : DEFAULT_WIDTHS
+}
+
+/**
+ * The CIDs this deployment refuses, as a set.
+ *
+ * Parsed per request rather than cached in module scope: an isolate can live for a long time, and a
+ * takedown that only takes effect after a redeploy or an eviction is not a takedown. Splitting a
+ * short string is cheaper than the R2 read it precedes.
+ */
+function denylistOf(env: Env): ReadonlySet<string> {
+  const raw = env.ART_DENYLIST?.trim()
+  if (!raw) return new Set()
+  return new Set(
+    raw
+      .split(/[\s,]+/)
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0)
+      // Only the CID is matched, so an operator who pastes a full path or an ipfs:// URL by mistake
+      // still denies the right work rather than nothing at all.
+      .map((entry) => entry.replace(/^ipfs:\/\//, '').replace(/^ipfs\//, '').split('/')[0]!),
+  )
+}
+
+/** The CID part of a request path — the unit a takedown names. */
+function cidOf(path: string): string {
+  return path.split('/')[0]!
 }
 
 function isSafePath(path: string): boolean {
@@ -141,6 +179,30 @@ export default {
     if (!isSafePath(path)) return new Response('bad request', { status: 400 })
 
     const widths = widthsOf(env)
+
+    // BEFORE the bucket read and before any gateway is asked, so a denied object costs nothing and
+    // cannot be re-cached by the next request for it — which is the difference between a takedown
+    // and a pause. 410 rather than 404: the app classifies both as missing, and Gone is the true
+    // one. Every rung is dropped, not just the one asked for, because a takedown is about the work.
+    if (denylistOf(env).has(cidOf(path))) {
+      ctx.waitUntil(
+        Promise.all(widths.map((w) => env.ART_CACHE.delete(cacheKey(path, w)))).then(
+          () => undefined,
+          () => undefined,
+        ),
+      )
+      return new Response('gone', {
+        status: 410,
+        headers: {
+          'content-type': 'text/plain',
+          // Never cached at the edge: the next request must re-read the denylist, so removing an
+          // entry takes effect immediately and a stale 410 cannot outlive the decision.
+          'cache-control': 'no-store',
+          'access-control-allow-origin': '*',
+        },
+      })
+    }
+
     const wanted = Number.parseInt(url.searchParams.get('w') ?? '', 10)
     // An unknown width is refused rather than snapped. Snapping here would let any caller mint a
     // new bucket object per width it invents, which is an unbounded bill dressed as a convenience.
