@@ -9,6 +9,7 @@
  * post/postBatch accept ANY address as a channel, so it's just MessageFeed + MessageComposer keyed on
  * the vault address.
  */
+import { ART_BOX } from '../lib/metadata'
 import { useMemo } from 'react'
 import { Link, useParams } from 'wouter'
 import { formatEther } from 'viem'
@@ -120,6 +121,7 @@ export function VaultPage() {
               <div className={styles.targetCard}>
                 <div className={styles.targetArt}>
                   <IpfsImage
+                    width={ART_BOX.thumb}
                     uri={targetMeta?.image ?? ''}
                     alt={`${overview.target.title} art`}
                     className={styles.targetImg}

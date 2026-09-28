@@ -1,3 +1,4 @@
+import { ART_BOX } from '../../lib/metadata'
 import type { ReactNode } from 'react'
 import { Link } from 'wouter'
 import { IpfsImage } from '../ui/IpfsImage'
@@ -154,6 +155,7 @@ export function CollectionHero({ instance, card, metadata, primary }: Collection
         <figure className={styles.coverFigure}>
           <div className={`noesis-piece ${styles.cover}`}>
             <IpfsImage
+              width={ART_BOX.full}
               uri={metadata?.image ?? ''}
               alt={`${title} cover`}
               className="noesis-art"

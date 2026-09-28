@@ -3,14 +3,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts/tsconfig.json",
     "test": "vitest run",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "spend": "node --experimental-strip-types scripts/spend.ts"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250109.0",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8",
-    "wrangler": "^3.99.0"
+    "wrangler": "^3.99.0",
+    "@types/node": "^22.10.2"
   }
 }

@@ -91,7 +91,11 @@ vi.mock('../useCollectionChain', () => ({
 
 vi.mock('./useNowSec', () => ({ useNowSec: () => 10n }))
 
-vi.mock('../../../lib/metadata', () => ({
+// Partial by construction: this file stands in only for the two JSON helpers it counts calls on.
+// ART_BOX comes from the real module rather than being restated here, so the rung vocabulary cannot
+// drift between what the component asks for and what a test thinks it asks for.
+vi.mock('../../../lib/metadata', async () => ({
+  ART_BOX: (await import('../../../lib/metadata/uri')).ART_BOX,
   fetchJson: async () => {
     metadata.calls += 1
     metadata.inFlight += 1

@@ -11,6 +11,7 @@
  * venues has two of those, and both must land here — `MS2` and `MS2-ZAMM` are one page. Styles are
  * the index's on purpose: this is the same wall, one level in.
  */
+import { ART_BOX } from '../lib/metadata'
 import { Link, useParams } from 'wouter'
 import { useAllVaults } from '../lib/vaults/useAllVaults'
 import { useVaultsSummary } from '../lib/vaults/useVaultsSummary'
@@ -117,6 +118,7 @@ export function TargetPage() {
       <header className={styles.head}>
         <div className={styles.targetLogo}>
           <IpfsImage
+            width={ART_BOX.thumb}
             uri={meta?.image ?? ''}
             alt={`${community.primary.title} logo`}
             className={styles.targetImg}

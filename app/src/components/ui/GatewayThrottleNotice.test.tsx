@@ -203,3 +203,45 @@ describe('GatewayThrottleNotice — fault starvation', () => {
     )
   })
 })
+
+/**
+ * Whose fault the notice says it is.
+ *
+ * The goal's clause asks for this notice to go, or for a reason it stays. It stays — it is the
+ * last-resort explanation and not the mitigation, and with no service deployed it is the ONLY
+ * explanation a rate-limited viewer gets. What could not stay is the claim: "not a problem with this
+ * app" was true while every byte came from a public gateway on the viewer's own quota, and is false
+ * the moment a cache we run and pay for is in the path and has failed to spare them.
+ */
+describe('GatewayThrottleNotice — whose fault it says it is', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('does not blame us when no service of ours is in the path', () => {
+    coolEveryGateway()
+    render(<GatewayThrottleNotice />)
+
+    const text = screen.getByTestId('gateway-throttle-notice').textContent ?? ''
+    expect(text).toMatch(/not a problem with this app/i)
+    expect(text).not.toMatch(/on us/i)
+  })
+
+  it('says plainly that some of it is on us once our own cache is in the path', () => {
+    vi.stubEnv('VITE_ART_SERVICE', 'https://art.example')
+    coolEveryGateway()
+    render(<GatewayThrottleNotice />)
+
+    const text = screen.getByTestId('gateway-throttle-notice').textContent ?? ''
+    expect(text).toMatch(/on us/i)
+    expect(text).not.toMatch(/not a problem with this app/i)
+  })
+
+  it('offers the door either way — an explanation with no action is worse than one with one', () => {
+    vi.stubEnv('VITE_ART_SERVICE', 'https://art.example')
+    coolEveryGateway()
+    render(<GatewayThrottleNotice />)
+
+    expect(screen.getByTestId('gateway-throttle-input')).toBeInTheDocument()
+  })
+})

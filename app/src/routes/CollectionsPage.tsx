@@ -1,3 +1,4 @@
+import { ART_BOX } from '../lib/metadata'
 import { useState } from 'react'
 import { Link } from 'wouter'
 import { formatGwei } from 'viem'
@@ -213,7 +214,14 @@ function RegistryRow({ card }: { card: ProjectCard }) {
     <Link href={`/${forkChainId}/${card.name.toLowerCase()}`} className="row">
       <span className={styles.regName}>
         <span className="sw">
-          {metadata?.image && <IpfsImage uri={metadata.image} alt="" className={styles.regThumb} />}
+          {metadata?.image && (
+            <IpfsImage
+              uri={metadata.image}
+              alt=""
+              className={styles.regThumb}
+              width={ART_BOX.thumb}
+            />
+          )}
         </span>
         <span className={styles.regNameText}>
           <span className="nm">{metadata?.name || card.name}</span>

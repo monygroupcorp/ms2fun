@@ -52,7 +52,9 @@ import {
   resolveUriCandidates,
   retryAtFor,
   sanitizeImageUri,
+  snapArtWidth,
   type ArtFailureReason,
+  type ArtWidth,
 } from '../../lib/metadata'
 import styles from './IpfsImage.module.css'
 
@@ -64,6 +66,29 @@ import styles from './IpfsImage.module.css'
  * (and revisits) skip straight to the known-good gateway (also a browser-cache hit).
  */
 const loadedSrc = new Map<string, string>()
+
+/**
+ * Key for {@link loadedSrc}. The WIDTH IS PART OF IT: with an art service configured the winning URL
+ * is width-specific, so pinning by pointer alone would hand a card's 320px variant to the detail
+ * view that asked for 1024. Without a width the key is the pointer, which is what it has always been.
+ */
+function pinKey(uri: string, width: ArtWidth | undefined): string {
+  return width === undefined ? uri : `${uri}|w${width}`
+}
+
+/**
+ * Ceiling on the device-pixel-ratio multiplier. A 3x phone gains nothing a human can see over 2x,
+ * and every distinct rung is a separate object stored and paid for, so the ladder is not climbed
+ * for pixels nobody resolves.
+ */
+const MAX_PIXEL_RATIO = 2
+
+/** The rung to ask the art service for, given the CSS width of the box this instance renders into. */
+function rungFor(cssWidth: number | undefined): ArtWidth | undefined {
+  if (cssWidth === undefined || !Number.isFinite(cssWidth) || cssWidth <= 0) return undefined
+  const ratio = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1
+  return snapArtWidth(cssWidth * Math.min(ratio, MAX_PIXEL_RATIO))
+}
 
 /** How far outside the viewport the shared path starts fetching: roughly a screen ahead. */
 const PREFETCH_MARGIN = '600px'
@@ -96,8 +121,8 @@ function ThrottledArt({
 }
 
 /** Best starting URL for `uri`: the cached known-good one if present, else the first candidate. */
-function startSrc(uri: string, candidates: string[]): number {
-  const cached = loadedSrc.get(uri)
+function startSrc(key: string, candidates: string[]): number {
+  const cached = loadedSrc.get(key)
   if (cached) {
     const i = candidates.indexOf(cached)
     if (i >= 0) return i
@@ -112,6 +137,7 @@ export function IpfsImage({
   fallback = null,
   loading = 'lazy',
   testId,
+  width,
 }: {
   uri: string
   alt: string
@@ -123,15 +149,29 @@ export function IpfsImage({
   loading?: 'lazy' | 'eager' | undefined
   /** data-testid for the <img> (the fallback node carries its own if the caller needs one). */
   testId?: string | undefined
+  /**
+   * Approximate CSS width of the box this renders into, in px — NOT a request for an exact size.
+   * It is multiplied by the device pixel ratio and snapped UP to a rung of {@link ART_WIDTHS}, so a
+   * caller states roughly how big the art appears and the ladder decides what to ask for.
+   *
+   * THIS PROP IS WHAT REACHES THE ART SERVICE. Omitted, the service is not a candidate at all and
+   * the roster serves the original: correct art at the wrong size, on the viewer's gateway quota.
+   * So every place art is shown SMALL should pass it — a grid of a thousand cards each pulling a
+   * multi-hundred-KB original is the cost this exists to remove.
+   */
+  width?: number | undefined
 }) {
   // Allowlist FIRST: everything below operates on the sanitized pointer, never the raw one.
   const safeUri = useMemo(() => sanitizeImageUri(uri), [uri])
+  // Snapped once here and passed to all three loaders, so the candidate list, the peek and the
+  // fetch all agree on which variant this instance is talking about.
+  const rung = useMemo(() => rungFor(width), [width])
   // EVERY URL this pointer could ever be served from — the test for "addressable at all".
   const addressable = useMemo(() => (safeUri ? resolveUriCandidates(safeUri) : []), [safeUri])
   // The URLs it is worth spending a request on right now: health-ordered, cooling gateways dropped.
   const candidates = useMemo(
-    () => (safeUri ? resolveCandidates(safeUri).map((c) => c.url) : []),
-    [safeUri],
+    () => (safeUri ? resolveCandidates(safeUri, rung).map((c) => c.url) : []),
+    [safeUri, rung],
   )
   // The shared cache is only correct for immutable pointers, and only schedules lazily when there
   // is an IntersectionObserver to schedule with; otherwise the browser's own lazy loading is used.
@@ -143,27 +183,27 @@ export function IpfsImage({
     [safeUri, loading],
   )
 
-  const [idx, setIdx] = useState(() => startSrc(safeUri, candidates))
+  const [idx, setIdx] = useState(() => startSrc(pinKey(safeUri, rung), candidates))
   // Seeded from the resolved-content cache so a second mount of a known CID renders with no request.
   const [artSrc, setArtSrc] = useState<string | undefined>(() =>
-    shared ? peekArt(safeUri) : undefined,
+    shared ? peekArt(safeUri, rung) : undefined,
   )
   const [artFailure, setArtFailure] = useState<ArtFailureReason | null>(null)
   const imgRef = useRef<HTMLImageElement | null>(null)
 
   // Re-seed from the caches whenever the pointer changes (component instances are reused).
   useEffect(() => {
-    setIdx(startSrc(safeUri, candidates))
-    setArtSrc(shared ? peekArt(safeUri) : undefined)
+    setIdx(startSrc(pinKey(safeUri, rung), candidates))
+    setArtSrc(shared ? peekArt(safeUri, rung) : undefined)
     setArtFailure(null)
-  }, [safeUri, candidates, shared])
+  }, [safeUri, candidates, shared, rung])
 
   useEffect(() => {
     if (!shared || artSrc !== undefined) return
     let cancelled = false
 
     const start = () => {
-      loadArt(safeUri).then(
+      loadArt(safeUri, rung).then(
         (url) => {
           if (!cancelled) setArtSrc(url)
         },
@@ -195,7 +235,7 @@ export function IpfsImage({
       cancelled = true
       observer.disconnect()
     }
-  }, [shared, artSrc, safeUri, loading])
+  }, [shared, artSrc, safeUri, loading, rung])
 
   // Unusable pointer: nothing addresses it, so there is nothing to wait for.
   if (addressable.length === 0) return <>{fallback}</>
@@ -241,7 +281,7 @@ export function IpfsImage({
       referrerPolicy="no-referrer"
       data-testid={testId}
       // Pin the gateway that actually loaded so every other instance skips straight to it.
-      onLoad={() => loadedSrc.set(safeUri, src)}
+      onLoad={() => loadedSrc.set(pinKey(safeUri, rung), src)}
       // Advance to the next gateway; when they're exhausted idx passes the end → fallback renders.
       onError={() => setIdx((i) => i + 1)}
     />

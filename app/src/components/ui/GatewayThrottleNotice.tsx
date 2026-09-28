@@ -23,9 +23,30 @@
  * limit (`throttled`) is a cooldown with a real deadline; a slow-but-alive roster that keeps
  * missing the request timeout (`starved`) never trips a cooldown at all, but leaves the wall just
  * as blank, so it gets the same door rather than no notice.
+ *
+ * ── Why this still exists once the art service is deployed ────────────────────────────────────
+ * The goal's clause asks for this notice to be REMOVED, or for a seat to write down why a visitor is
+ * still being asked to fix our infrastructure. This is that writing-down, and the answer has two
+ * parts.
+ *
+ * It stays because it is the honest last-resort signal, not the mitigation. It only ever appears
+ * when the roster has already failed; with the art service in front of that roster for BOTH art and
+ * metadata, reaching this state means our own cache did not cover the request either. A viewer
+ * looking at a blank wall is owed a sentence about why, and deleting the sentence does not fill the
+ * wall. Removing it before the service is deployed and proven would be strictly worse than leaving
+ * it: today `VITE_ART_SERVICE` is set nowhere, so this notice is the only explanation a
+ * rate-limited viewer gets.
+ *
+ * What DID have to change is the claim. The old copy told the viewer this was "not a problem with
+ * this app" — true when every byte came from a public gateway on their own quota, and false the
+ * moment a cache we run and pay for sits in the path and has failed to spare them. So the wording
+ * follows {@link artServiceConfigured}: with no service it is the old, accurate sentence; with one,
+ * it says plainly that our own cache did not cover this. The door is offered either way, because an
+ * explanation with no action in it is worse than one with a door.
  */
 import { useEffect, useState, type FormEvent } from 'react'
 import {
+  artServiceConfigured,
   CUSTOM_GATEWAY_PRIVACY_NOTICE,
   getIpfsGateways,
   probeGateway,
@@ -103,6 +124,10 @@ export function GatewayThrottleNotice() {
 
   if (!cooling || dismissedFor === retryAt) return null
 
+  // Whether infrastructure WE run is in the path that just failed. It decides one sentence: with a
+  // service configured, telling the viewer this is not our problem is no longer true.
+  const ours = artServiceConfigured()
+
   return (
     <div className={styles.notice} role="status" data-testid="gateway-throttle-notice">
       <div className={styles.row}>
@@ -112,16 +137,36 @@ export function GatewayThrottleNotice() {
             {reason === 'throttled' ? (
               <>
                 The public IPFS gateways are rate-limiting this browser, so new art and metadata
-                can&rsquo;t load for {describeWindow(retryAt, Date.now())}. This is a limit on your
-                connection, not a problem with this app or the collection, and it clears on its own.
+                can&rsquo;t load for {describeWindow(retryAt, Date.now())}.{' '}
+                {ours ? (
+                  <>
+                    Our own cache should have spared you that and didn&rsquo;t, so some of this is
+                    on us. It clears on its own.
+                  </>
+                ) : (
+                  <>
+                    This is a limit on your connection, not a problem with this app or the
+                    collection, and it clears on its own.
+                  </>
+                )}{' '}
                 Anything already loaded stays visible.
               </>
             ) : (
               <>
                 Public gateways are responding slowly right now, so new art and metadata can&rsquo;t
-                load for {describeWindow(retryAt, Date.now())}. This isn&rsquo;t a problem with this
-                app or the collection, and it should clear on its own. Anything already loaded stays
-                visible.
+                load for {describeWindow(retryAt, Date.now())}.{' '}
+                {ours ? (
+                  <>
+                    Our own cache didn&rsquo;t cover it either, so some of this is on us. It should
+                    clear on its own.
+                  </>
+                ) : (
+                  <>
+                    This isn&rsquo;t a problem with this app or the collection, and it should clear
+                    on its own.
+                  </>
+                )}{' '}
+                Anything already loaded stays visible.
               </>
             )}
           </span>

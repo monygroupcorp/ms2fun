@@ -1,3 +1,4 @@
+import { ART_BOX } from '../../lib/metadata'
 import { Link } from 'wouter'
 import { IpfsImage } from '../ui/IpfsImage'
 import { truncateAddress } from '../../lib/format'
@@ -31,6 +32,7 @@ export function CurationCard({
     >
       <div className={`art ${styles.art}`}>
         <IpfsImage
+          width={ART_BOX.card}
           uri={metadata?.image ?? ''}
           alt={title}
           className={styles.artImg}

@@ -1,5 +1,5 @@
 import type { ProfileMetadata } from '../lib/metadata'
-import { isResolvableUri } from '../lib/metadata'
+import { ART_BOX, isResolvableUri } from '../lib/metadata'
 import { IpfsImage } from './ui/IpfsImage'
 import { truncateAddress } from '../lib/format'
 import styles from './ProfileView.module.css'
@@ -35,7 +35,13 @@ export function ProfileView({ address, metadata, onEdit }: ProfileViewProps) {
       {/* Banner */}
       <div className={`${styles.banner} ${hasBanner ? styles.bannerImg : styles.bannerBlank}`}>
         {hasBanner && metadata != null && metadata.banner !== '' && (
-          <IpfsImage uri={metadata.banner} alt="" className={styles.bannerImage} loading="eager" />
+          <IpfsImage
+            uri={metadata.banner}
+            alt=""
+            className={styles.bannerImage}
+            loading="eager"
+            width={ART_BOX.full}
+          />
         )}
       </div>
 
@@ -45,6 +51,7 @@ export function ProfileView({ address, metadata, onEdit }: ProfileViewProps) {
         <div className={styles.avatarInner}>
           {hasAvatar && metadata != null && metadata.avatar !== '' ? (
             <IpfsImage
+              width={ART_BOX.thumb}
               uri={metadata.avatar}
               alt={displayName}
               className={styles.avatarImage}

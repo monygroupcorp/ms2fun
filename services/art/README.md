@@ -3,15 +3,27 @@
 A read-through cache in front of the public IPFS gateway roster, so a visitor's first cold view of a
 collection grid does not spend a request on a third-party gateway that meters by client IP.
 
-It answers exactly one request:
+It answers two requests:
 
 ```
-GET /art/<ipfs-path>?w=<width>
+GET /art/<ipfs-path>?w=<width>    the image, at one of the rungs in ART_WIDTHS
+GET /meta/<ipfs-path>             the collection's metadata JSON, verbatim
 ```
 
-`<ipfs-path>` is `<cid>` or `<cid>/<file>`; `<width>` is one of the rungs in `ART_WIDTHS`. The shape
-is fixed by `artServiceUrl()` in `app/src/lib/metadata/uri.ts` — that function is the specification
-and this service answers it.
+`<ipfs-path>` is `<cid>` or `<cid>/<file>`. Both shapes are fixed by `artServiceUrl()` and
+`metaServiceUrl()` in `app/src/lib/metadata/uri.ts` — those functions are the specification and this
+service answers them.
+
+**Both, because one without the other does not achieve the thing.** A card cannot render art until it
+has read the JSON that names the art's CID, so a grid served art from here and metadata from a public
+gateway still spends one metered third-party request per card — and spends it FIRST, before anything
+appears on screen. The art half shipped alone to begin with, which is why this is spelled out.
+
+The metadata route has no width and no variants: one document, one key, prefixed so it can never
+collide with an image. It also refuses to STORE an answer that is not JSON. A public gateway that
+cannot serve a CID often replies `200` with an HTML error page, and that page cached under a metadata
+key and then served from our own origin is a worse bug than a cache miss — so the body is checked and
+parsed before it is stored, and an answer that fails either check moves to the next operator.
 
 ## A cache, not custody
 
@@ -74,19 +86,51 @@ This serves other people's content from our origin, which means there has to be 
 something and a person who answers.
 
 1. Requests go to the contact point published on the site's terms page.
-2. Removing a cached object is `wrangler r2 object delete <bucket>/<cid>@w<width>` for each rung, or
-   a prefix delete on the CID.
-3. **Deleting from this cache does not remove the content from IPFS**, which is not ours and not
-   addressable by us. What it removes is our redistribution of it. Say that plainly when answering;
-   a takedown that implies more than it did is worse than one that explains the limit.
-4. A CID that must not be re-cached needs a denylist entry, which this worker does not yet carry —
-   see the goal's open clause. Until it does, a re-request re-fetches it.
+2. Add the CID to `ART_DENYLIST` and redeploy:
+
+   ```sh
+   wrangler deploy --var ART_DENYLIST:"<cid>,<cid>"
+   ```
+
+   The list may be separated by commas, spaces or newlines, and an entry pasted as `ipfs://<cid>` or
+   as a path under the CID still denies the right work. From then on the service answers `410 Gone`
+   for that CID and every path under it, drops whatever it had cached at every rung, and — because
+   the check runs before the bucket read — never re-fetches or re-stores it. The 410 is sent
+   `no-store`, so removing an entry takes effect on the next request rather than whenever an edge
+   cache happens to expire.
+3. A manual delete without a denylist entry is a PAUSE, not a takedown: the next request re-fetches
+   the object and stores it again. Use the list. `wrangler r2 object delete <bucket>/<cid>@w<width>`
+   remains useful only for reclaiming space on something already denied.
+4. **Deleting from this cache does not remove the content from IPFS**, which is not ours and not
+   addressable by us, and it does not stop the app's public gateway roster from serving it — the
+   denylist is scoped to our own origin, deliberately, because the roster is what makes the app
+   walk-away-able. What the list removes is OUR redistribution. Say that plainly when answering; a
+   takedown that implies more than it did is worse than one that explains the limit.
 
 ## Spend
 
-The bill has two parts: R2 storage and Class A/B operations. Both are visible in the Cloudflare
-dashboard, and neither is bounded by anything in this repository except the lifecycle rule above.
+```sh
+CLOUDFLARE_ACCOUNT_ID=... CLOUDFLARE_API_TOKEN=... ART_BUDGET_USD=25 pnpm spend
+```
 
-A command that prints the month's cost against a named budget is an open clause on this goal and is
-not built yet. Until it is, **the lifecycle rule is the only thing standing between this and an
-unbounded bill** — set it when you create the bucket, not later.
+Prints the month so far — R2 storage, Class A and Class B operations, Worker requests, each as
+billable-over-free — then the total against the budget, and exits 1 when it is over, so the same
+command works as a scheduled check and not only as something a person reads. The token needs
+Account Analytics:Read. `ART_BUCKET` and `ART_WORKER` override the names it asks about.
+
+Two things it does on purpose:
+
+- **It prints the prices it used, and the date and pages they were read from.** A cost is measured
+  usage times a published price, and the price is the half that goes stale: a table nobody notices
+  has moved prints a confident wrong number, which is worse than printing nothing. After
+  `STALE_AFTER_DAYS` every run says the table may have moved, and a test fails the day it does — so
+  re-read those two pages, update the table, move the date.
+- **It fails rather than under-reports.** A figure it cannot read, or an R2 operation it cannot put
+  on one side of the Class A/B split, is an error and never a zero. A spend report that quietly
+  omits a cost is the surprise this exists to remove.
+
+What it has NOT done is talk to the live API from this repository: the query's field names come from
+Cloudflare's documentation, not from a captured response, so the first real run is also the first
+proof the query is right. It will say so loudly if it is not.
+
+The lifecycle rule above is still the only thing that BOUNDS the bill. This measures it.

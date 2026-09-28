@@ -1,3 +1,4 @@
+import { ART_BOX } from '../lib/metadata'
 import type { ContractFunctionReturnType } from 'viem'
 import { Link } from 'wouter'
 import { queryAggregatorAbi } from '../generated/contracts'
@@ -46,6 +47,7 @@ export function CollectionCard({ card, variant = 'card' }: CollectionCardProps) 
     >
       <div className={`art ${styles.art}`}>
         <IpfsImage
+          width={ART_BOX.card}
           uri={metadata?.image ?? ''}
           alt={title}
           className={styles.artImg}

@@ -9,6 +9,40 @@ defaults:
     working-directory: app
 
 jobs:
+  # The art delivery service is its own deployable package and shares no build with the app, so it
+  # was read by nothing here but a grep for its width rungs. It answers a stranger's first request;
+  # it gets the same two gates as everything else.
+  art-service:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/art
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: app/.nvmrc
+          cache: pnpm
+          cache-dependency-path: services/art/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
   app:
     runs-on: ubuntu-latest
 

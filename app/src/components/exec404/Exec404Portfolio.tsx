@@ -7,6 +7,7 @@
  *   send piece → mirror.transferFrom(self, to, id)             (move one NFT)
  * Balances/holdings refetch after every confirmed action so the panel stays live.
  */
+import { ART_BOX } from '../../lib/metadata'
 import { useEffect, useMemo, useState } from 'react'
 import { isAddress } from 'viem'
 import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi'
@@ -388,6 +389,7 @@ function NftCard({ nft, onView }: { nft: Exec404Nft; onView: () => void }) {
         aria-label={`view EXEC #${nft.id.toString()}`}
       >
         <IpfsImage
+          width={ART_BOX.thumb}
           uri={nft.image ?? ''}
           alt={nft.name || `EXEC #${nft.id.toString()}`}
           className={styles.thumb}
@@ -449,6 +451,7 @@ function PieceModal({
           ✕
         </button>
         <IpfsImage
+          width={ART_BOX.full}
           uri={nft.image ?? ''}
           alt={nft.name || `EXEC #${nft.id.toString()}`}
           className={styles.modalArt}
