@@ -17,6 +17,7 @@ import { IAlignmentVault } from "../../src/interfaces/IAlignmentVault.sol";
 import { UniTitheHookFactory } from "../../src/factories/erc404/hooks/UniTitheHookFactory.sol";
 import { UniAlignmentV4Hook } from "../../src/factories/erc404/hooks/UniAlignmentV4Hook.sol";
 import { MockComponentModule } from "../mocks/MockComponentModule.sol";
+import { SepoliaRouteQuoter } from "../../script/SepoliaRouteQuoter.sol";
 
 /// @dev Test-only subclass exposing MigrateOwnership's env-driven categorization and its migration
 ///      body so both can be exercised as the real script code.
@@ -109,6 +110,13 @@ contract MigrateOwnershipTest is Test {
     address internal tokenTierBandResolver;
     address internal uniTitheHookFactory;
 
+    /// @dev The self-deployed best-route quoter (D7). Stood up here rather than by `DeployCore`,
+    ///      which takes `cfg.zQuoter` as OPERATOR INPUT — a network with a canonical quoter points at
+    ///      it and a network without one brings its own, exactly as `DeploySepolia` does. Created
+    ///      BEFORE the state-diff recording starts, so it stays out of `created` and the completeness
+    ///      gate keeps enumerating only what the deploy itself built.
+    SepoliaRouteQuoter internal routeQuoter;
+
     // UUPS implementation accounts — see `_isStatedExclusion`.
     address internal masterRegistryImpl;
     address internal treasuryImpl;
@@ -124,6 +132,7 @@ contract MigrateOwnershipTest is Test {
         vm.etch(STUB_LINK, RETURN_TRUE);
 
         s = new DeployCore();
+        routeQuoter = new SepoliaRouteQuoter(address(s)); // operator = the deployer, as DeploySepolia does
 
         // Record every account created by the deploy so the completeness gate can enumerate the
         // deployed set instead of trusting a hand-written mirror list.
@@ -531,6 +540,100 @@ contract MigrateOwnershipTest is Test {
         MigrateOwnershipHarness(deployer).verifyAs(timelock);
     }
 
+    // ── D7: the best-route quoter's route table ───────────────────────────────────────────────────
+    //
+    // The quoter is the last deployer capability in the deployment and the only one with NO owner at
+    // all: `setRoute`/`clearRoute` are gated on an `operator` stamped in at construction, so the
+    // contract appears in neither transfer list and in no `owner()` assertion anywhere in this file.
+    // Before D7 that made it invisible twice over — `transferOwnership` had nothing to move, and the
+    // read-back had nothing to check — so a migration could report `ownership verified` over a
+    // deployment whose route table the deployer EOA could still rewrite for the quoter's whole life.
+    //
+    // The power is small and bounded to the networks that self-deploy a quoter. That is the reason to
+    // close it rather than a reason not to: the whole design goal of the handover is that the answer
+    // to "does the deployer key still hold anything?" is a flat no, and one documented exception is
+    // the kind of thing that gets copied forward to a network where it is not small.
+
+    /// @dev The starting state the handover has to change, and the reason D7 needs no environment
+    ///      variable: the quoter's address is carried by the vault factory that uses it, as a public
+    ///      immutable, so the migration reads it off chain rather than being told.
+    function test_routeQuoter_startsOperatedByTheDeployerAndIsReachableFromTheFactory() public view {
+        assertEq(routeQuoter.operator(), deployer, "the quoter starts operated by the deployer");
+        (bool ok, bytes memory ret) = uniVaultFactory.staticcall(abi.encodeWithSignature("zQuoter()"));
+        assertTrue(ok && ret.length == 32, "the vault factory exposes the quoter it was wired with");
+        assertEq(abi.decode(ret, (address)), address(routeQuoter), "and it is the one under test");
+    }
+
+    /// @notice The clause this item exists for. After Phase 2 the deployer key cannot write the route
+    ///         table and the Timelock can — asserted through real `setRoute` calls, not just by
+    ///         reading `operator()` back.
+    function test_routeQuoter_operatorMovesToTheTimelock() public {
+        _requestHandovers();
+        _migrate();
+
+        assertEq(routeQuoter.operator(), timelock, "the route table is the Timelock's");
+
+        address vault = makeAddr("someVault");
+        address token = makeAddr("someToken");
+
+        vm.prank(deployer);
+        vm.expectRevert(SepoliaRouteQuoter.NotOperator.selector);
+        routeQuoter.setRoute(vault, token, SepoliaRouteQuoter.AMM.UNI_V4, 30);
+
+        vm.prank(deployer);
+        vm.expectRevert(SepoliaRouteQuoter.NotOperator.selector);
+        routeQuoter.clearRoute(vault, token);
+
+        vm.prank(timelock);
+        routeQuoter.setRoute(vault, token, SepoliaRouteQuoter.AMM.UNI_V4, 30);
+        (SepoliaRouteQuoter.AMM source,, bool set) = routeQuoter.routeOf(vault, token);
+        assertTrue(set, "the governed call lands from the new operator");
+        assertEq(uint256(source), uint256(SepoliaRouteQuoter.AMM.UNI_V4), "and stores what it was given");
+    }
+
+    /// @notice And the read-back refuses the half-done state — a migration that moved every owner but
+    ///         left the route table behind, which is exactly what every other assertion in this file
+    ///         calls clean.
+    function test_verify_refusesAQuoterStillOperatedByTheDeployer() public {
+        _requestHandovers();
+        _migrate();
+
+        vm.prank(timelock);
+        routeQuoter.setOperator(deployer);
+
+        vm.expectRevert(bytes("MigrateOwnership: route quoter operator is not the timelock"));
+        MigrateOwnershipHarness(deployer).verifyAs(timelock);
+    }
+
+    /// @dev Guard on the guard ([[vacuity-check]]): D7 is CONDITIONAL on the network having deployed a
+    ///      quoter of its own, and a step that simply always demanded one would break every network
+    ///      that points at a canonical upstream quoter — mainnet included, where `cfg.zQuoter` is
+    ///      `MainnetAddresses.ZQUOTER`, a stateless lens with no operator and no setter. The condition
+    ///      is read off the ABI rather than an address list: put code at the quoter that answers no
+    ///      `operator()` — `hex"00"` returns empty, the shape a foreign contract without the function
+    ///      presents — and both `_migrate` and the read-back correctly do nothing there.
+    function test_routeQuoterStepIsSkippedWhereTheQuoterIsNotOurs() public {
+        _requestHandovers();
+        _etchHarness();
+        vm.etch(address(routeQuoter), hex"00");
+
+        MigrateOwnershipHarness(deployer).migrate(timelock);
+        MigrateOwnershipHarness(deployer).verifyAs(timelock); // reverts if D7 were unconditional
+    }
+
+    /// @dev The other half of the same conditionality: a network that disables best-route acquisition
+    ///      outright (`cfg.zQuoter == address(0)`, the shape `DeployCore` warns about) has no quoter
+    ///      to migrate either, and the step must read that as nothing to do rather than as an error.
+    function test_routeQuoterStepIsSkippedWhereBestRouteIsDisabled() public {
+        _requestHandovers();
+        _etchHarness();
+        // The factory's `zQuoter` is immutable, so blank it where the migration reads it from.
+        vm.mockCall(uniVaultFactory, abi.encodeWithSignature("zQuoter()"), abi.encode(address(0)));
+
+        MigrateOwnershipHarness(deployer).migrate(timelock);
+        MigrateOwnershipHarness(deployer).verifyAs(timelock);
+    }
+
     // ── UNI_TITHE_HOOK_FACTORY is conditionally required, not silently optional ───────────────────
     //
     // The variable was read `envOr(..., address(0))` in all three places — the transfer list, the D6
@@ -620,6 +723,7 @@ contract MigrateOwnershipTest is Test {
         cfg.v2Factory = address(0);
         cfg.zamm = address(0);
         cfg.zrouter = address(0);
+        cfg.zQuoter = address(routeQuoter);
         cfg.safe = address(0);
         cfg.saltMasterRegistry = bytes32(uint256(1));
         cfg.saltTreasury = bytes32(uint256(2));

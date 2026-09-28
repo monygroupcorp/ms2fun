@@ -14,9 +14,14 @@ import { MainnetAddresses } from "./MainnetAddresses.sol";
 ///         than inherits: the salts, the governance Safe, the roster, and the oracle/pool params.
 ///
 /// TODO before mainnet launch:
-///   1. Mine vanity CREATE3 salts for the broadcasting address (script/salt-miner), and assert that
-///      address in run() the way DeploySepolia asserts SepoliaSalts.DEPLOYER — CreateX reverts
-///      `InvalidSalt` for any other sender, and a mismatch should surface in simulation.
+///   1. Do NOT mine a second salt set. ONE deployer and ONE set serve both chains: CreateX's guarded
+///      salt takes no chain id (byte 20 is 0x00), so the same salt under the same deployer yields the
+///      SAME address on every chain, and the CREATE2 proxy that collides is per-chain — so a set
+///      spent on Sepolia is still unspent here. Reuse the set in `SepoliaSalts.sol` and assert its
+///      DEPLOYER in run() the way DeploySepolia does; CreateX reverts `InvalidSalt` for any other
+///      sender, so a mismatch surfaces in simulation. Mining a fresh set here would hand mainnet
+///      different addresses than the ones Sepolia rehearsed, which is the one thing the dress
+///      rehearsal exists to prevent.
 ///   2. Set real alignment targets (token addresses, vault flags)
 ///   3. Set cfg.safe to the real Gnosis Safe address — address(0) deploys a MockSafe
 ///   4. Choose cfg.hookFeeBips and cfg.lpFeeRate — the perpetual post-graduation swap tithe. Both are

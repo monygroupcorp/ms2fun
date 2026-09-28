@@ -7,6 +7,16 @@ import { MasterRegistryV1 } from "../src/master/MasterRegistryV1.sol";
 import { ERC404Factory } from "../src/factories/erc404/ERC404Factory.sol";
 import { UniTitheHookFactory } from "../src/factories/erc404/hooks/UniTitheHookFactory.sol";
 
+/// @dev The write-permission surface of a self-deployed best-route quoter (`SepoliaRouteQuoter`).
+///      Declared as an interface rather than imported, because what this script migrates is any
+///      quoter that gates its route table on an operator — the networks that bring their own each
+///      name that contract differently, and a mainnet-facing migration should not take a build
+///      dependency on a contract named after one testnet.
+interface IOperatorGatedQuoter {
+    function operator() external view returns (address);
+    function setOperator(address newOperator) external;
+}
+
 /// @title MigrateOwnership
 /// @notice Hands every deployer-owned protocol contract to the governance Timelock/Safe and
 ///         re-points the emergency revoker off the deployer EOA.
@@ -32,6 +42,15 @@ import { UniTitheHookFactory } from "../src/factories/erc404/hooks/UniTitheHookF
 ///      `setHookOwner`, which `run()` calls (D6). Transferring the factory alone would hand governance
 ///      a factory that still stamps the deployer EOA onto every future hook.
 ///
+///      THE ROUTE QUOTER'S OPERATOR IS NOT OWNERSHIP. A network with no canonical best-route quoter
+///      deploys its own, and that contract gates `setRoute`/`clearRoute` on an `operator` set to the
+///      deployer at construction. It has no owner at all, so it appears in neither list above and in
+///      no `owner()` assertion — which makes it the quietest of these: a migration that ignores it
+///      reports success over a deployment whose route table the deployer EOA can still rewrite for
+///      the quoter's whole life. It moves via `setOperator`, which `run()` calls (D7), and the
+///      address is read off the vault factory that uses it rather than from an environment variable
+///      that could be left unset.
+///
 ///      PROTOCOL_ROLE IS NOT OWNERSHIP. `ERC404Factory` gates its fee / treasury / carve-bracket
 ///      parameters on `PROTOCOL_ROLE`, which the constructor grants to the deployer alongside
 ///      ownership. The role does not follow `transferOwnership`, and the factory deliberately blocks
@@ -46,7 +65,8 @@ import { UniTitheHookFactory } from "../src/factories/erc404/hooks/UniTitheHookF
 ///          each SafeOwnableUUPS contract. Run `printRequestBatch()` (below) to emit the exact
 ///          target/selector calldata batch for the Safe/Timelock to execute.
 ///        Phase 2 (deployer, `run()`): completes the handovers, performs the single-step transfers,
-///          transfers PROTOCOL_ROLE, and re-points the emergency revoker. Reverts `NoHandoverRequest()`
+///          transfers PROTOCOL_ROLE, and re-points the emergency revoker, the stamped hook owner and
+///          the route quoter's operator. Reverts `NoHandoverRequest()`
 ///          on the first SafeOwnableUUPS contract if Phase 1 has not been executed yet — this is a
 ///          safety interlock, not a bug.
 ///
@@ -121,6 +141,38 @@ contract MigrateOwnership is Script {
             factory != address(0) || !_uniRailConfigured(),
             "MigrateOwnership: UNI_TITHE_HOOK_FACTORY unset on a network with the Uni rail configured"
         );
+    }
+
+    /// @dev D7 — the best-route quoter, where this network deployed its OWN rather than pointing at a
+    ///      canonical one. Returns `address(0)` when there is nothing of ours to migrate.
+    ///
+    ///      IT TAKES NO ENVIRONMENT VARIABLE, on purpose. Every vault factory carries `cfg.zQuoter`
+    ///      as a public immutable, so the address is read off a contract that actually uses it — it
+    ///      cannot be mistyped, and it cannot be left unset the way `UNI_TITHE_HOOK_FACTORY` can.
+    ///      That is worth more here than anywhere else in this file, because the quoter's operator is
+    ///      invisible to every `owner()` assertion in `_verify`: a variable nobody set would read as
+    ///      "this network has no quoter" and the migration would report success over a route table
+    ///      still writable by the deployer EOA.
+    ///
+    ///      "OURS" IS DECIDED BY THE ABI, not by an address list. A network that points at the
+    ///      canonical upstream quoter (`MainnetAddresses.ZQUOTER`) is pointing at a stateless lens
+    ///      with no operator and no setter; the staticcall below simply fails there and the step is
+    ///      correctly skipped. A quoter that DOES answer `operator()` is one somebody deployed for
+    ///      this protocol, and its route-table permission is a deployer capability like any other.
+    function _operatorGatedQuoter() internal view returns (address) {
+        address[2] memory factories = [_optionalAddress("UNI_VAULT_FACTORY"), _optionalAddress("ZAMM_VAULT_FACTORY")];
+        for (uint256 i; i < factories.length; i++) {
+            if (factories[i] == address(0)) continue;
+            (bool ok, bytes memory ret) = factories[i].staticcall{ gas: 100_000 }(abi.encodeWithSignature("zQuoter()"));
+            if (!ok || ret.length != 32) continue;
+            address quoter = abi.decode(ret, (address));
+            if (quoter == address(0)) continue; // best-route acquisition disabled on this network
+            (bool gated, bytes memory op) = quoter.staticcall{ gas: 100_000 }(abi.encodeWithSignature("operator()"));
+            if (!gated || op.length != 32) continue; // canonical upstream lens — no operator to move
+            if (abi.decode(op, (address)) == address(0)) continue;
+            return quoter;
+        }
+        return address(0);
     }
 
     /// @dev Plain Solady Ownable contracts — single-step transferOwnership by the deployer.
@@ -205,8 +257,8 @@ contract MigrateOwnership is Script {
     }
 
     /// @notice Phase 2 (deployer). Completes the two-step handovers, performs the single-step
-    ///         transfers, transfers PROTOCOL_ROLE, and re-points the emergency revoker to the
-    ///         Timelock. Requires Phase 1 (Timelock requests) to have already executed for every
+    ///         transfers, transfers PROTOCOL_ROLE, and re-points the emergency revoker, the stamped
+    ///         hook owner and the route quoter's operator to the Timelock. Requires Phase 1 (Timelock requests) to have already executed for every
     ///         SafeOwnableUUPS contract.
     function run() external {
         address timelock = vm.envAddress("TIMELOCK_ADDRESS");
@@ -252,6 +304,25 @@ contract MigrateOwnership is Script {
         if (titheHookFactory != address(0)) {
             UniTitheHookFactory(titheHookFactory).setHookOwner(timelock);
             console.log("UniTitheHookFactory hookOwner re-pointed to timelock");
+        }
+
+        // D7 — the best-route quoter's route table. Not ownership: the quoter has no owner, and
+        // `setRoute`/`clearRoute` are gated on `operator`, which nothing above moves. Left on the
+        // deployer EOA it is the last deployer capability in the deployment, and the only one that
+        // survives `_verify`'s `owner()` sweep unnoticed. Skipped where the network points at a
+        // canonical upstream quoter, which has no operator to move.
+        address quoter = _operatorGatedQuoter();
+        if (quoter != address(0)) {
+            // Skip a step already taken, so a re-run after a partially-landed migration reaches the
+            // read-back instead of reverting here. Nothing checks that the CURRENT operator is the
+            // deployer, because this script cannot name the deployer: under `vm.startBroadcast()` the
+            // broadcasting account replaces the sender of onward calls only, so `msg.sender` here is
+            // whoever invoked `run()`. An operator that is neither surfaces as the quoter's own
+            // `NotOperator()` on the next line, which is the same outcome by a shorter route.
+            if (IOperatorGatedQuoter(quoter).operator() != timelock) {
+                IOperatorGatedQuoter(quoter).setOperator(timelock);
+                console.log("route quoter operator re-pointed to timelock ->", quoter);
+            }
         }
 
         // D1 — complete the two-step handover for each SafeOwnableUUPS contract. Reverts
@@ -335,6 +406,17 @@ contract MigrateOwnership is Script {
             require(
                 UniTitheHookFactory(titheHookFactory).hookOwner() == timelock,
                 "MigrateOwnership: UniTitheHookFactory hookOwner is not the timelock"
+            );
+        }
+
+        // D7 read-back — the route table's write permission. The fourth capability `transferOwnership`
+        // leaves behind, and the quietest: the quoter appears in no ownership list, so every
+        // assertion above passes over a deployment whose route table the deployer can still rewrite.
+        address quoter = _operatorGatedQuoter();
+        if (quoter != address(0)) {
+            require(
+                IOperatorGatedQuoter(quoter).operator() == timelock,
+                "MigrateOwnership: route quoter operator is not the timelock"
             );
         }
 
