@@ -1,0 +1,56 @@
+{
+  "chainId": 11155111,
+  "contracts": {
+    "AlignmentHookSwapRouter": "0xc40741a59d702837d8f0d801A63Ca33d619Ea0fA",
+    "AlignmentRegistry": "0x00000000005d8eB87DAb4fF3D6AA9b7c6381FEA3",
+    "AlignmentTargetRequestRegistry": "0xc18C80CBBF64364C87E4afC5b3CB80c997c6bD53",
+    "ComponentRegistry": "0x0000000000A0022A42827319bE7F3CD40b5fEF9c",
+    "CurationRegistry": "0x72E3DDec5a8741c9D6aAa480AE3b51d640febE1a",
+    "CurveParamsComputer": "0x9b0fBCdbE16f8bD9EA73454Ffea2a74a86aD0c53",
+    "DeployBondEscrow": "0x07758e251248130aeb50947E70aCD87B21AE40a4",
+    "DynamicPricingModule": "0xA52Ff6823202aC6Fb601F2E50050d47D96a992aD",
+    "ERC1155Instance": "0x82757A2283A6eE20d222886d30932a7a1b01A6E2",
+    "ERC404StakingModule": "0xF0B74070C13CEFAB15AA7b65547f6dda7491f81A",
+    "FeaturedQueueManager": "0x0000000000D63383941E33A38082FF446712B259",
+    "GlobalMessageRegistry": "0x000000000016f898e9A381d0638c215Df95D3259",
+    "LaunchManager": "0xbeC4FE0CDeD371E4000fe46f96942C6657A8ed38",
+    "MasterRegistry": "0x0000000000666868b0a9eC07fa495Da351718BcE",
+    "MetadataOverlayModule": "0x930b42DcA3cb10852B972D29c17e90Bf3E2A04B9",
+    "MetadataResolverRouter": "0x0199A3077354cBE875e8A4F30317406001b2C48b",
+    "ModuleMerkleGating": "0x4B133443C9b6bc2AC83857e63CD17b0cD966628c",
+    "ModuleUniV4Deployer": "0x367039E2E64c9405213Ab077C130a5Df9e78466C",
+    "ModuleZAMMDeployer": "0x4B7a7485D974013e9553f2dcFd2F544822B9DC46",
+    "ProfileRegistry": "0x51B12219962598E61593fc4c7F6BE873Ebf059B1",
+    "ProtocolTreasury": "0x00000000004C604d01a8A75106e62365B0CA6D18",
+    "QueryAggregator": "0x5b77376DE1020158b95Ef73d841365f0b71f8D18",
+    "SeedAaveVault": "0x0000000000000000000000000000000000000000",
+    "SeedUniVault": "0x0000000000000000000000000000000000000000",
+    "SeedZammVault": "0x0000000000000000000000000000000000000000",
+    "TokenTierBandResolver": "0x91E063Ad5e6830df3dc73359f36BaD8Eae13cba7",
+    "UniTitheHookFactory": "0x9778aAFA8F0430065a479CfB03537a8E66481626",
+    "UniswapVaultPriceValidator": "0x95E4A35f05559fb5D202319534d325c346693276",
+    "zQuoter": "0x652dfceedC3CaFab6D77Dc462BD74dD8C33702F6",
+    "zRouter": "0x1F74d0A829670e1C3Aa44d0352eb8E6b8d8387Bc"
+  },
+  "deployer": "0x000888695d3e361434f67D9dbd110f1A443822b9",
+  "factories": {
+    "AAVE": "0x9bcAe4d1c90b168f0C8A6653E3623aAD5F199162",
+    "ERC1155": "0xb581176C3adf68a7c4211e07C2098bBba09B35b8",
+    "ERC404": "0x883e1EB66d97CaE95D33a179b81B8a9427a8989c",
+    "ERC721": "0x38702be024Ee6CE378ca616d875729E89763AB9b",
+    "UNI": "0x738d890a9A25A7605c9eb7F2767Df4f46CD94ACf"
+  },
+  "instances": "[]",
+  "uniswap": {
+    "v2Factory": "0xF62c03E08ada871A0bEb309762E260a7a6a880E6",
+    "v3Factory": "0x0227628f3F023bb0B980b67D528571c95c6DaC1c",
+    "v4PoolManager": "0xE03A1074c86CFeDd5C142C4F04F1a1536e203543"
+  },
+  "vaults": "[]",
+  "forkRehearsal": {
+    "channel": "sepolia-fork",
+    "rpc": "http://127.0.0.1:8546",
+    "stampedAt": "2026-09-28T10:00:40.502Z",
+    "note": "Written against a local Sepolia FORK. These addresses do not exist on public Sepolia."
+  }
+}
