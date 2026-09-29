@@ -64,7 +64,24 @@ export function decentralizedTransport(chainId: number): Transport | undefined {
   if (!urls || urls.length === 0) return undefined
   const publicPool = fallback(
     urls.map((u) => http(u, { batch: true })),
-    { rank: true },
+    {
+      rank: {
+        // viem's default ping is `net_listening`, and it is the wrong question twice over. It asks
+        // whether a node has peers, not whether this endpoint will answer THIS app, and several
+        // public endpoints do not implement it at all — `0xrpc.io` replies -32601 "unsupported
+        // method" while serving every eth_call we make. viem reads that refusal as a failed sample,
+        // scores the endpoint 0 for stability and ranks it last forever. `eth_blockNumber` is
+        // universally implemented, and a wrong or stale answer to it is a real reason to demote.
+        ping: ({ transport }) => transport.request({ method: 'eth_blockNumber' }),
+        // The default is the client's 4s polling interval, which pings EVERY endpoint in the pool
+        // every 4 seconds, unbatched, for as long as the tab is open — measured 2026-09-29 at ~2
+        // requests/second across the two pools with the page idle and nothing reading. That is
+        // 7,200 requests an hour spent on ranking, which is how a free endpoint decides we are
+        // abusive and starts answering 403. Ranking exists to notice an endpoint going bad; 30s
+        // notices that perfectly well at an eighth of the cost.
+        interval: 30_000,
+      },
+    },
   )
   // Wallet first (preferred, when connected); else the ranked public pool.
   return fallback([unstable_connector(injected), publicPool])
