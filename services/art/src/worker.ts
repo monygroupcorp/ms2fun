@@ -57,6 +57,23 @@ export interface Env {
    * A path under a denied CID is denied too: a takedown is about the work, not one file of it.
    */
   ART_DENYLIST?: string
+  /**
+   * A gateway on an account WE control, tried before the public roster. A base URL
+   * (`https://<name>.mypinata.cloud`, with or without a trailing `/ipfs/`).
+   *
+   * The public roster meters by client IP, and the client here is a Cloudflare datacentre rather
+   * than a visitor: measured 2026-09-29, `ipfs.io` and `dweb.link` answer a plain request 429, and
+   * the roster as shipped returned this worker nothing at all while the same CID came back
+   * `200 image/png` to a laptop. Every card 502'd. A dedicated gateway answers an origin server
+   * because its quota belongs to the account that pins the art, not to whoever is asking.
+   *
+   * SET AT DEPLOY TIME AND NAMED NOWHERE IN THIS REPOSITORY (`wrangler deploy --var
+   * ART_GATEWAY_LEAD:...`), for the same reason no account identifier is: a fork stands up its own
+   * or runs without one. Unset is supported and is exactly today's behaviour, the public roster
+   * alone. It LEADS the roster, it does not replace it: a dedicated gateway that is down, over
+   * quota or misconfigured falls through to the public entries like any other operator.
+   */
+  ART_GATEWAY_LEAD?: string
 }
 
 /** Mirrors `ART_WIDTHS` in app/src/lib/metadata/uri.ts. Kept in sync by the test in this package. */
@@ -88,6 +105,35 @@ const MAX_META_BYTES = 512 * 1024
  * three do not have to agree.
  */
 const IPFS_PATH = /^[A-Za-z0-9]{46,}(?:\/[A-Za-z0-9._~+-]+)*$/
+
+/**
+ * The roster this deployment asks, lead gateway first.
+ *
+ * Returns `IPFS_GATEWAYS` unchanged when no lead is configured, so an unset deployment behaves
+ * exactly as it did before this existed — the same promise `ART_WIDTHS` and `ART_DENYLIST` make.
+ */
+function rosterOf(env: Env): readonly IpfsGateway[] {
+  const lead = leadGateway(env.ART_GATEWAY_LEAD)
+  return lead === null ? IPFS_GATEWAYS : [lead, ...IPFS_GATEWAYS]
+}
+
+/**
+ * Turns the configured value into a path-form gateway, or null when it names none.
+ *
+ * `https://x.mypinata.cloud` and `https://x.mypinata.cloud/ipfs/` mean the same deployment, so both
+ * are accepted and normalised to the second — an operator should not have to remember which half of
+ * the URL this variable wants.
+ *
+ * Anything that is not an https origin is IGNORED rather than prepended as a broken entry. A
+ * malformed lead left in the list would be a guaranteed timeout at the head of every single fetch,
+ * which is worse than not having one.
+ */
+export function leadGateway(raw: string | undefined): IpfsGateway | null {
+  const trimmed = raw?.trim().replace(/\/+$/, '')
+  if (!trimmed || !/^https:\/\//.test(trimmed)) return null
+  const base = trimmed.endsWith('/ipfs') ? `${trimmed}/` : `${trimmed}/ipfs/`
+  return { operator: 'lead', form: 'path', base }
+}
 
 function widthsOf(env: Env): readonly number[] {
   const raw = env.ART_WIDTHS?.trim()
@@ -300,7 +346,7 @@ async function serveMeta(
   const hit = await env.ART_CACHE.get(key)
   if (hit !== null) return servedJson(await hit.text(), 'hit')
 
-  const body = await fetchMetaFromRoster(path, IPFS_GATEWAYS)
+  const body = await fetchMetaFromRoster(path, rosterOf(env))
   if (body === null) return new Response('no gateway answered', { status: 502 })
 
   ctx.waitUntil(
@@ -351,7 +397,7 @@ export default {
       return served(hit.body, type, 'hit')
     }
 
-    const upstream = await fetchFromRoster(path, wanted, IPFS_GATEWAYS)
+    const upstream = await fetchFromRoster(path, wanted, rosterOf(env))
     if (upstream === null) {
       // Every operator failed. 502 so the app cools this service the way it cools a gateway and
       // falls back to asking the roster itself — the fallback is the point, not a last resort.
