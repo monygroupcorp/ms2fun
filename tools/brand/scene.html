@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --display:'Syne','Helvetica Neue',Arial,sans-serif;
+  --body:'Archivo',Helvetica,Arial,sans-serif;
+  --mono:'IBM Plex Mono','Courier New',monospace;
+  --warm:rgba(255,94,58,.85); --cool:rgba(0,200,180,.82);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1280px;height:720px;overflow:hidden}
+#stage{position:relative;width:1280px;height:720px;background:#fff;color:#000}
+#stage.inv{background:#000;color:#fff}
+.shot{position:absolute;inset:0;display:none;padding:96px;
+      flex-direction:column;justify-content:center;font-family:var(--body)}
+.shot.on{display:flex}
+.disp{font-family:var(--display);font-weight:800;line-height:.94;letter-spacing:-.025em;
+      font-size:104px}
+.mono{font-family:var(--mono);letter-spacing:.24em;text-transform:uppercase;font-size:21px}
+.line{display:block;overflow:hidden}
+.line i{display:block;font-style:normal;will-change:transform,opacity}
+/* split */
+.splitwrap{margin-top:8px}
+.split{display:flex;height:168px;border:3px solid currentColor;overflow:hidden}
+.seg{border-right:3px solid currentColor;padding:20px 22px;display:flex;flex-direction:column;
+     justify-content:space-between;overflow:hidden;white-space:nowrap;min-width:0}
+.seg:last-child{border-right:0}
+.pct{font-family:var(--mono);font-size:46px;font-weight:600;line-height:1}
+.lbl{font-family:var(--mono);font-size:13px;letter-spacing:.14em;text-transform:uppercase;opacity:.6}
+#seg19.ink{background:currentColor}
+#seg19.ink .pct,#seg19.ink .lbl{color:#fff;mix-blend-mode:normal}
+.caption{font-family:var(--mono);font-size:16px;letter-spacing:.14em;text-transform:uppercase;
+         opacity:.5;margin-bottom:26px}
+/* end lockup */
+.lock{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+.lock .word{font-family:var(--display);font-weight:800;font-size:62px;letter-spacing:-.02em}
+.url{font-family:var(--mono);font-size:26px;letter-spacing:.14em}
+.sub{font-family:var(--body);font-size:23px;color:#999;margin-top:14px}
+.flash{position:absolute;inset:0;background:#fff;display:none;pointer-events:none}
+.flash.on{display:block}
+</style></head>
+<body>
+<div id="stage">
+
+  <!-- 1 · the frame -->
+  <div class="shot" id="s1"><div class="mono" id="s1t"></div></div>
+
+  <!-- 2 · every derivative -->
+  <div class="shot" id="s2">
+    <div class="disp">
+      <span class="line"><i id="s2a">every derivative</i></span>
+      <span class="line"><i id="s2b">was built on</i></span>
+      <span class="line"><i id="s2c">someone else's work.</i></span>
+    </div>
+  </div>
+
+  <!-- 3 · nothing -->
+  <div class="shot" id="s3">
+    <div class="disp">
+      <span class="line"><i id="s3a">and paid them</i></span>
+      <span class="line"><i id="s3b" style="font-size:150px">nothing.</i></span>
+    </div>
+  </div>
+
+  <!-- 4 · the split -->
+  <div class="shot" id="s4">
+    <div class="caption" id="s4c">now it is taken in the contract</div>
+    <div class="splitwrap">
+      <div class="split" id="s4bar">
+        <div class="seg" id="seg1"  style="flex:1"><div class="pct">1</div><div class="lbl">protocol</div></div>
+        <div class="seg" id="seg19" style="flex:19"><div class="pct">19</div><div class="lbl">aligned community</div></div>
+        <div class="seg" id="seg80" style="flex:80"><div class="pct">80</div><div class="lbl">artist</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 · end -->
+  <div class="shot" id="s5">
+    <div class="lock">
+      <svg width="62" height="62" viewBox="0 0 48 48"><path fill-rule="evenodd" fill="currentColor"
+        d="M5,5 H43 V43 H5 Z M15,15 H33 V33 H15 Z"/></svg>
+      <span class="word">noesis</span>
+    </div>
+    <div class="url" id="s5u">noesis.gwei.domains</div>
+    <div class="sub" id="s5s">live on sepolia testnet · eleven collections up</div>
+  </div>
+
+  <div class="flash" id="flash"></div>
+</div>
+
+<script>
+const S1='onchain · sepolia · no grift';
+const el = id => document.getElementById(id);
+const cl=(v,a,b)=>Math.max(a,Math.min(b,v));
+// local progress of a window, 0..1
+const p=(t,a,b)=>cl((t-a)/(b-a),0,1);
+const outCubic=x=>1-Math.pow(1-x,3);
+const outExpo =x=>x>=1?1:1-Math.pow(2,-10*x);
+
+// A display line rises into its clipped box and settles. Nothing eases on the way out —
+// the cuts are hard, which is the house style, not a shortcut.
+function rise(node, prog){
+  const e=outCubic(prog);
+  node.style.transform=`translateY(${(1-e)*100}%)`;
+  node.style.opacity=prog<=0?0:1;
+}
+
+window.setT = function(t){
+  const stage=el('stage'), flash=el('flash');
+  for(const id of ['s1','s2','s3','s4','s5']) el(id).classList.remove('on');
+  flash.classList.remove('on');
+
+  // ── shot 1 · 0.0–1.6 · black, the label types itself in
+  if(t<1.6){
+    stage.classList.add('inv'); el('s1').classList.add('on');
+    const n=Math.floor(p(t,0.15,1.15)*S1.length);
+    el('s1t').textContent=S1.slice(0,n)+((t*6|0)%2&&t<1.25?'▌':'');
+  }
+  // ── shot 2 · 1.6–4.9 · white, three lines rise in sequence
+  else if(t<4.9){
+    stage.classList.remove('inv'); el('s2').classList.add('on');
+    rise(el('s2a'),p(t,1.70,2.40));
+    rise(el('s2b'),p(t,2.25,2.95));
+    rise(el('s2c'),p(t,2.80,3.55));
+  }
+  // ── shot 3 · 4.9–7.4 · hard cut to black; "nothing." lands, then the aberration snaps
+  else if(t<7.4){
+    stage.classList.add('inv'); el('s3').classList.add('on');
+    rise(el('s3a'),p(t,5.00,5.60));
+    rise(el('s3b'),p(t,5.45,6.15));
+    // the one chromatic moment: ±3px, reached fast and held (theme.css .text-chromatic-strong)
+    const k=outExpo(p(t,6.05,6.45))*3;
+    el('s3b').style.textShadow=k<0.05?'none':`${-k}px 0 0 var(--warm), ${k}px 0 0 var(--cool)`;
+    if(t>=4.90&&t<4.97) flash.classList.add('on');   // single-frame cut flash
+  }
+  // ── shot 4 · 7.4–10.2 · white; the bar draws, then 19 inks in
+  else if(t<10.2){
+    stage.classList.remove('inv'); el('s4').classList.add('on');
+    const draw=outCubic(p(t,7.55,8.55));
+    el('s4bar').style.width=(draw*100)+'%';
+    el('s4bar').style.opacity=draw<=0?0:1;
+    el('s4c').style.opacity=p(t,7.45,7.85);
+    const ink=p(t,8.75,8.82);                         // hard, not a fade
+    el('seg19').classList.toggle('ink', ink>=1);
+  }
+  // ── shot 5 · 10.2–12.4 · black; the lockup, the url, the ask
+  else{
+    stage.classList.add('inv'); el('s5').classList.add('on');
+    el('s5u').style.opacity=p(t,10.55,10.95);
+    el('s5s').style.opacity=p(t,10.85,11.30);
+  }
+};
+window.setT(0);
+document.fonts.ready.then(()=>{window.__fontsReady=true});
+</script>
+</body></html>

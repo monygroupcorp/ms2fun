@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* NOESIS brand tokens — read from app/src/styles/noesis/theme.css, not approximated. */
+:root{
+  --display:'Syne','Helvetica Neue',Arial,sans-serif;
+  --body:'Archivo','Helvetica Neue',Helvetica,Arial,sans-serif;
+  --mono:'IBM Plex Mono','Courier New',monospace;
+  --bg:#ffffff; --surface:#fafafa; --surface2:#f5f5f5;
+  --ink:#000000; --muted:#666666; --subtle:#999999;
+  --chroma-warm:rgba(255,94,58,.85); --chroma-cool:rgba(0,200,180,.82);
+  --radius:2px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#888;font-family:var(--body)}
+.card{position:relative;overflow:hidden;background:var(--bg);color:var(--ink);
+      display:flex;flex-direction:column;justify-content:center;font-family:var(--body)}
+.card.dark{background:#000;color:#fff}
+.card.dark .rule{background:#fff}
+/* one chromatic moment per surface, display only — theme.css */
+.chroma-med{text-shadow:-2px 0 0 var(--chroma-warm),2px 0 0 var(--chroma-cool)}
+.chroma-strong{text-shadow:-3px 0 0 var(--chroma-warm),3px 0 0 var(--chroma-cool)}
+.tag{position:absolute;font-family:var(--mono);letter-spacing:.2em;text-transform:uppercase;opacity:.5}
+.foot{position:absolute;font-family:var(--mono);letter-spacing:.12em;display:flex;
+      justify-content:space-between;align-items:flex-end;opacity:.55}
+.disp{font-family:var(--display);font-weight:800;line-height:.92;letter-spacing:-.025em}
+.lock{display:flex;align-items:center;gap:.5em}
+.lock svg{display:block}
+.lock .word{font-family:var(--display);font-weight:800;letter-spacing:-.02em}
+
+/* ── 1600x900 ─────────────────────────────────────── */
+.w16{width:1600px;height:900px;padding:80px}
+.w16 .tag{top:80px;left:80px;font-size:17px}
+.w16 .foot{bottom:80px;left:80px;right:80px;font-size:17px}
+.w16 .disp{font-size:130px}
+.w16 .sub{font-family:var(--body);font-size:25px;line-height:1.5;color:var(--muted);
+          max-width:800px;margin-top:34px;font-weight:400}
+.dark .sub{color:#999}
+
+/* split bar */
+.split{display:flex;border:3px solid currentColor;margin-top:50px;height:190px}
+.split>div{border-right:3px solid currentColor;padding:26px 24px;display:flex;
+           flex-direction:column;justify-content:space-between}
+.split>div:last-child{border-right:0}
+.b1{flex:1}.b19{flex:19;background:currentColor}.b80{flex:80}
+/* the 19 block is inked in currentColor, so its text takes the card's ground colour */
+.b19 .pct,.b19 .lbl{color:#fff}
+.dark .b19 .pct,.dark .b19 .lbl{color:#000}
+.pct{font-family:var(--mono);font-size:56px;font-weight:600;line-height:1}
+.lbl{font-family:var(--mono);font-size:15px;letter-spacing:.14em;text-transform:uppercase;opacity:.65}
+.b19 .lbl{opacity:.75}
+
+/* ── 1080x1080 ────────────────────────────────────── */
+.sq{width:1080px;height:1080px;padding:76px}
+.sq .tag{top:76px;left:76px;font-size:16px}
+.sq .foot{bottom:76px;left:76px;right:76px;font-size:16px}
+.sq .disp{font-size:112px}
+.sq .sub{font-size:23px;line-height:1.5;color:var(--muted);max-width:620px;margin-top:30px}
+
+/* ── 1500x500 header ──────────────────────────────── */
+.hdr{width:1500px;height:500px;padding:64px;justify-content:center}
+.hdr .disp{font-size:74px}
+.hdr .foot{bottom:64px;left:64px;right:64px;font-size:16px}
+.hdr .tag{top:64px;left:64px;font-size:16px}
+.rule{height:3px;background:#000;margin:30px 0}
+</style></head>
+<body>
+
+<!-- A · the claim — 1600x900 -->
+<div class="card w16" id="c-claim">
+  <div class="tag">onchain · sepolia · no grift</div>
+  <div class="disp">paid its parent<br><span class="chroma-strong">nothing.</span></div>
+  <div class="sub">Every derivative collection you love. noesis makes the tribute a contract
+  constant instead of a good intention.</div>
+  <div class="foot"><span>noesis</span><span>noesis.gwei.domains</span></div>
+</div>
+
+<!-- B · the split — 1600x900 dark -->
+<div class="card w16 dark" id="c-split">
+  <div class="tag">the alignment split</div>
+  <div class="disp" style="font-size:86px">A ratio nobody can change.</div>
+  <div class="split">
+    <div class="b1"><div class="pct">1</div><div class="lbl">protocol</div></div>
+    <div class="b19"><div class="pct">19</div><div class="lbl">aligned community</div></div>
+    <div class="b80"><div class="pct">80</div><div class="lbl">artist</div></div>
+  </div>
+  <div class="foot"><span>hardcoded · no setter · taken at settlement</span><span>noesis.gwei.domains</span></div>
+</div>
+
+<!-- C · live — 1600x900 -->
+<div class="card w16" id="c-live">
+  <div class="tag">now live</div>
+  <div class="disp"><span class="chroma-med">alignment</span><br>launchpad.</div>
+  <div class="sub">Onchain releases that are forced to align. Eleven collections up on Sepolia
+  testnet right now — go click around and try to break something.</div>
+  <div class="foot"><span>sepolia · testnet</span><span>noesis.gwei.domains</span></div>
+</div>
+
+<!-- D · square claim — 1080x1080 -->
+<div class="card sq" id="c-square">
+  <div class="tag">onchain · sepolia · no grift</div>
+  <div class="disp">paid its<br>parent<br><span class="chroma-strong">nothing.</span></div>
+  <div class="sub">noesis makes the tribute a contract constant instead of a good intention.</div>
+  <div class="foot"><span>noesis</span><span>noesis.gwei.domains</span></div>
+</div>
+
+<!-- E · square live — 1080x1080 dark -->
+<div class="card sq dark" id="c-square-live">
+  <div class="tag">now live</div>
+  <div class="disp"><span class="chroma-med">alignment</span><br>launchpad.</div>
+  <div class="sub">Eleven collections on Sepolia testnet. Every one paying 19% to the community it
+  came from.</div>
+  <div class="foot"><span>sepolia · testnet</span><span>noesis.gwei.domains</span></div>
+</div>
+
+<!-- F · profile header — 1500x500 -->
+<div class="card hdr" id="c-header">
+  <div class="tag">onchain alignment launchpad</div>
+  <div class="lock" style="margin-bottom:6px">
+    <svg width="54" height="54" viewBox="0 0 48 48"><path fill-rule="evenodd" fill="currentColor"
+      d="M5,5 H43 V43 H5 Z M15,15 H33 V33 H15 Z"/></svg>
+    <span class="word" style="font-size:54px">noesis</span>
+  </div>
+  <div class="rule"></div>
+  <div class="disp" style="font-size:52px">Onchain releases that are <span class="chroma-med">forced to align.</span></div>
+  <div class="foot"><span>19% to the community you drew from · at settlement</span><span>noesis.gwei.domains</span></div>
+</div>
+
+</body></html>
