@@ -775,8 +775,21 @@ Full detail in `app/scripts/ipfs-dist/RUNBOOK.md`. The deployment-specific parts
 
 ### 7.1 Build
 
+**Run the preflight first, and run it with `--probe`.** It is the only step that reads the two
+build-time variables the way the app will, and the probe is the only one that asks whether the art
+service is actually answering — a hostname pointed at a CDN with no worker route bound resolves,
+answers, and serves no art:
+
 ```
 cd app
+export VITE_CHAIN_ID=11155111
+export VITE_ART_SERVICE=https://<art-service-origin>   # §7.1.1
+pnpm publish:preflight --probe                          # exits 0 silently, or names every reason
+```
+
+Then build with **the same two variables in the same shell**:
+
+```
 VITE_CHAIN_ID=11155111 pnpm build        # ms2.fun target
 VITE_CHAIN_ID=11155111 pnpm build:ipfs   # noesis.gwei.domains target, prints the release CID
 ```
@@ -785,6 +798,29 @@ VITE_CHAIN_ID=11155111 pnpm build:ipfs   # noesis.gwei.domains target, prints th
 falls back to the local anvil deployment. It is read from the environment the bundle is built with,
 and an id with no deployment config throws at app load rather than at build — so an omission here
 surfaces as a dead site, not as a failed build.
+
+### 7.1.1 The art service is part of the bundle
+
+`VITE_ART_SERVICE` is inlined at build time exactly as `VITE_CHAIN_ID` is, so **the release CID is a
+function of the commit and both values**. A bundle built without it has art delivery switched off:
+every card falls back to the public gateway roster and spends one metered third-party request, which
+is the condition the art service exists to end. A pin cannot be edited, so the repair is another
+build, another pin and another `contenthash` transaction.
+
+Two values pass a careless eye and fail silently, which is why the preflight refuses them rather
+than trusting the operator to notice:
+
+| value | what the app does | preflight |
+| --- | --- | --- |
+| unset | roster only | refused, unless `PUBLISH_WITHOUT_ART_SERVICE=1` |
+| `art.example` (no scheme) | roster only — `artServiceBase()` returns null | refused |
+| `http://art.example` | every request blocked as mixed content | refused |
+| `https://art.example`, nothing bound | roster only, after a timeout per card | refused **by `--probe` only** |
+
+The service must be deployed and routed before this step; see `services/art/README.md` for the
+bucket, the lifecycle rule and the deploy. Publishing roster-only is a legitimate choice — the app
+supports it and always has — but it is made out loud with `PUBLISH_WITHOUT_ART_SERVICE=1`, not by
+forgetting a variable.
 
 Build from the commit that carries the §5.3 address record. Both targets stamp their commit into the
 footer, so the running site names the build a bug report was found on. Record the CID next to the

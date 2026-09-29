@@ -33,11 +33,16 @@ entirely. `scripts/ipfs-dist/smoke.ts` asserts both against the emitted bytes on
 
 ```
 cd app
-VITE_ART_SERVICE=https://<your-art-service> pnpm build:ipfs
+export VITE_CHAIN_ID=<chain>  VITE_ART_SERVICE=https://<your-art-service>
+pnpm publish:preflight --probe        # refuses a build that would ship art delivery off
+pnpm build:ipfs
 ```
 
 **`VITE_ART_SERVICE` is part of the build, not of the running site**, and forgetting it is a silent
-downgrade rather than an error. Vite inlines the value, so a bundle built without it has no art
+downgrade rather than an error — which is why the preflight above refuses it rather than leaving
+this paragraph to be remembered. `--probe` goes further and asks the origin itself, because a
+hostname whose DNS resolves but whose worker route was never bound answers every request with the
+provider's own 404 and looks entirely healthy. Vite inlines the value, so a bundle built without it has no art
 service at all: every card fetches its metadata and then its full-size art from a public IPFS gateway
 on each visitor's own metered IP, which is the grey-grid first impression `services/art/` exists to
 remove. Nothing breaks, nothing warns, and the only symptom is that the site is slow for strangers.

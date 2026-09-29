@@ -13,6 +13,7 @@
  * store (W-A3/A4) and the gateway-health module that owns the ordering.
  */
 import { customGatewayStore } from '../storage/keys'
+import { normaliseArtServiceBase } from './artServiceBase'
 import {
   attemptTimeoutMs,
   classifyStatus,
@@ -280,10 +281,7 @@ export const ART_SERVICE_KEY = 'art-service'
  * roster then behaves exactly as it did before this existed.
  */
 function artServiceBase(): string | null {
-  const raw = import.meta.env.VITE_ART_SERVICE
-  if (typeof raw !== 'string') return null
-  const trimmed = raw.trim().replace(/\/+$/, '')
-  return /^https:\/\/|^http:\/\//.test(trimmed) ? trimmed : null
+  return normaliseArtServiceBase(import.meta.env.VITE_ART_SERVICE)
 }
 
 /**

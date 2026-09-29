@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { assertPublishable, CONFIG_BY_CHAIN_ID, resolvePublishChainId } from './assert-publishable'
+import {
+  assertArtServicePublishable,
+  assertPublishable,
+  CONFIG_BY_CHAIN_ID,
+  probeArtService,
+  resolvePublishChainId,
+} from './assert-publishable'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const committedConfig = JSON.parse(
@@ -114,5 +120,111 @@ describe('the shipped configs, read through the map the CLI uses', () => {
     const reasons = assertPublishable(shipped(1337), { allowChainIds: [1337] })
     expect(reasons.some((r) => r.includes('zero address'))).toBe(true)
     expect(reasons.some((r) => r.includes('epoch sentinel'))).toBe(true)
+  })
+})
+
+describe('assertArtServicePublishable', () => {
+  it('refuses an unset value, naming the opt-out rather than just complaining', () => {
+    const reasons = assertArtServicePublishable(undefined)
+    expect(reasons).toHaveLength(1)
+    expect(reasons[0]).toContain('PUBLISH_WITHOUT_ART_SERVICE=1')
+  })
+
+  it('refuses a blank value the same way', () => {
+    expect(assertArtServicePublishable('   ')).toHaveLength(1)
+  })
+
+  it('allows unset when a roster-only publish is asked for out loud', () => {
+    expect(assertArtServicePublishable(undefined, { allowNone: true })).toEqual([])
+    expect(assertArtServicePublishable('', { allowNone: true })).toEqual([])
+  })
+
+  it('accepts an https origin, with or without a trailing slash', () => {
+    expect(assertArtServicePublishable('https://art.example')).toEqual([])
+    expect(assertArtServicePublishable('https://art.example/')).toEqual([])
+  })
+
+  // The value the app silently ignores is the dangerous one: a scheme-less hostname reads as "no
+  // service" to artServiceBase(), so the build is roster-only and nothing says so.
+  it('refuses a hostname with no scheme, which the app would read as no service at all', () => {
+    const reasons = assertArtServicePublishable('art.example')
+    expect(reasons).toHaveLength(1)
+    expect(reasons[0]).toContain('not an http(s) origin')
+  })
+
+  it('refuses http://, which a pinned bundle cannot load over https', () => {
+    const reasons = assertArtServicePublishable('http://art.example')
+    expect(reasons).toHaveLength(1)
+    expect(reasons[0]).toContain('mixed content')
+  })
+
+  it('refuses an address that only resolves on the build machine', () => {
+    expect(assertArtServicePublishable('https://localhost:8787')).toHaveLength(1)
+    expect(assertArtServicePublishable('https://127.0.0.1:8787')).toHaveLength(1)
+    expect(assertArtServicePublishable('https://art.local')).toHaveLength(1)
+  })
+
+  it('allows the opt-out to be overtaken by a value that is present but wrong', () => {
+    // allowNone is about publishing with NO service, not about publishing with a broken one.
+    const reasons = assertArtServicePublishable('art.example', { allowNone: true })
+    expect(reasons).toHaveLength(1)
+  })
+})
+
+describe('probeArtService', () => {
+  const ok = async () => new Response('unsupported width', { status: 400 })
+
+  it('passes on the 400 only the worker gives a request with no width', async () => {
+    expect(await probeArtService('https://art.example', ok as unknown as typeof fetch)).toEqual([])
+  })
+
+  it('asks for the width-less path, which reaches no gateway', async () => {
+    let asked = ''
+    const spy = (async (url: string | URL) => {
+      asked = String(url)
+      return new Response('unsupported width', { status: 400 })
+    }) as unknown as typeof fetch
+    await probeArtService('https://art.example', spy)
+    expect(asked).toMatch(/^https:\/\/art\.example\/art\/[A-Za-z0-9]{46,}$/)
+    expect(asked).not.toContain('?w=')
+  })
+
+  // The failure this exists to catch: a hostname on a CDN with no worker route bound. It answers,
+  // it looks healthy, and it serves no art.
+  it("refuses a CDN's own 404, which is what an unbound hostname returns", async () => {
+    const cdn = (async () =>
+      new Response('<html><title>Not Found</title></html>', {
+        status: 404,
+        headers: { 'content-type': 'text/html' },
+      })) as unknown as typeof fetch
+    const reasons = await probeArtService('https://art.example', cdn)
+    expect(reasons).toHaveLength(1)
+    expect(reasons[0]).toContain('404')
+    expect(reasons[0]).toContain('services/art')
+  })
+
+  it('reports a 410 as the route being proven and nothing else', async () => {
+    const denied = (async () => new Response('gone', { status: 410 })) as unknown as typeof fetch
+    const reasons = await probeArtService('https://art.example', denied)
+    expect(reasons[0]).toContain('ART_DENYLIST')
+  })
+
+  it('reports an origin that cannot be reached at all', async () => {
+    const dead = (async () => {
+      throw new Error('getaddrinfo ENOTFOUND art.example')
+    }) as unknown as typeof fetch
+    const reasons = await probeArtService('https://art.example', dead)
+    expect(reasons).toHaveLength(1)
+    expect(reasons[0]).toContain('could not be reached')
+  })
+
+  it('gives up rather than hanging when an origin accepts and never answers', async () => {
+    const silent = ((_url: string, init?: { signal?: AbortSignal }) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('aborted')))
+      })) as unknown as typeof fetch
+    const reasons = await probeArtService('https://art.example', silent, 10)
+    expect(reasons).toHaveLength(1)
+    expect(reasons[0]).toContain('could not be reached')
   })
 })
