@@ -55,16 +55,28 @@ export const IPFS_GATEWAYS: readonly IpfsGateway[] = [
   // endpoint, metered against the viewer's own address; it shares an operator with the account that
   // pins our art but none of that account's quota.
   { operator: 'Pinata', form: 'path', base: 'https://gateway.pinata.cloud/ipfs/' },
-  // 4EVERLAND. Subdomain form: the path endpoint 301s here, and the subdomain host lower-cases the
-  // label, so a CIDv0 sent here comes back as a client error. See `isSubdomainSafeCid` — CIDv0
-  // pointers skip this entry rather than emitting a URL that 400s.
-  //
-  // MEASURED DEAD 2026-09-25 and kept only until its replacement is ruled on: it answers 410 Gone
-  // for the canonical zero-byte file and accepts-then-never-answers for our art (3/3 runs past the
-  // 12 s timeout, both forms). It is last, so a healthy load never reaches it, and `gatewayHealth`
-  // demotes a silent gateway rather than spending the full timeout on it every load.
-  { operator: '4EVERLAND', form: 'subdomain', base: '4everland.io' },
 ] as const
+
+/**
+ * WHY THIS LIST IS SHORT, and why it is not padded.
+ *
+ * 4EVERLAND was carried here as a third operator and is gone: measured dead 2026-09-25, and again
+ * 2026-09-29 — it accepts a connection for our art and never answers, so a load that reaches it
+ * spends the whole timeout to learn nothing. A dead entry in this list is worse than a missing one,
+ * because this list ships INSIDE the pinned bundle and cannot be edited afterwards.
+ *
+ * Replacements were measured on 2026-09-29 against a live CID rather than assumed from
+ * documentation, and none of them earned a place: ipfs.io, dweb.link, w3s.link and nftstorage.link
+ * all rate-limit a plain request, trustless-gateway.link answers 406 to one (it speaks the trustless
+ * CAR protocol, not this one), and storry.tv, flk-ipfs.xyz and hardbin answered 500, nothing and
+ * nothing. The public gateway commons is thin, and two operators that answer is a more honest list
+ * than three where one is a corpse.
+ *
+ * This is the FALLBACK path. The read path a visitor normally takes is the art service, which keeps
+ * its own roster and can be repointed without republishing anything. Keep this list to gateways that
+ * are genuinely public: a fallback propped up by infrastructure that dies with us would describe a
+ * resilience the bundle does not have.
+ */
 
 /**
  * True when a CID can be carried in a DNS label without changing meaning.
