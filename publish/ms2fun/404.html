@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>noesis — ms2.fun has moved</title>
+
+<!-- The redirect itself, in three layers, because this page's only job is to not strand anyone.
+     1. `location.replace` so the dead build never enters the visitor's history and Back works.
+     2. `<meta refresh>` for a client that ran no script.
+     3. The visible link below, for a client that honoured neither. -->
+<script>window.location.replace("https://noesis.gwei.domains/")</script>
+<meta http-equiv="refresh" content="0; url=https://noesis.gwei.domains/">
+<link rel="canonical" href="https://noesis.gwei.domains/">
+
+<meta name="robots" content="noindex, follow">
+<meta property="og:title" content="noesis">
+<meta property="og:description" content="Launch a collection, align it, and let the work trade. Live on Sepolia.">
+<meta property="og:url" content="https://noesis.gwei.domains/">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+
+<style>
+/* Gallery Brutalism (docs/DESIGN_SYSTEM_V2.md): pure monochrome, hierarchy through
+   typography, 8px grid, 2px radius ceiling, no gradients. */
+:root { --bg:#ffffff; --fg:#000000; --muted:#666666; --rule:#e0e0e0;
+        --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,'Courier New',monospace; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#000000; --fg:#ffffff; --muted:#999999; --rule:#333333; }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin:0; background:var(--bg); color:var(--fg); font-family:var(--mono);
+       display:flex; align-items:center; justify-content:center; padding:24px; }
+main { max-width: 440px; width:100%; }
+.lockup { display:flex; align-items:center; gap:12px; margin-bottom:32px; }
+.mark { width:32px; height:32px; flex:none; }
+.word { font-family:var(--mono); font-size:20px; font-weight:500; letter-spacing:.02em; }
+h1 { font-size:15px; font-weight:500; letter-spacing:.04em; margin:0 0 8px;
+     text-transform:uppercase; }
+p { font-size:13px; line-height:1.7; color:var(--muted); margin:0 0 24px; }
+a.go { display:inline-block; border:2px solid var(--fg); padding:12px 20px; border-radius:2px;
+       color:var(--bg); background:var(--fg); text-decoration:none;
+       font-size:13px; letter-spacing:.08em; text-transform:uppercase; }
+a.go:hover { background:var(--bg); color:var(--fg); }
+hr { border:0; border-top:1px solid var(--rule); margin:32px 0 16px; }
+small { font-size:11px; color:var(--muted); letter-spacing:.06em; }
+</style>
+</head>
+<body>
+<main>
+  <div class="lockup">
+    <svg class="mark" viewBox="0 0 48 48" aria-hidden="true">
+      <path fill-rule="evenodd" fill="currentColor" d="M5,5 H43 V43 H5 Z M15,15 H33 V33 H15 Z"/>
+    </svg>
+    <span class="word">noesis</span>
+  </div>
+
+  <h1>This address has moved</h1>
+  <p>
+    ms2.fun served an earlier build against contracts that are no longer live.
+    noesis now runs at the address below.
+  </p>
+  <p><a class="go" href="https://noesis.gwei.domains/">Go to noesis &rarr;</a></p>
+
+  <hr>
+  <small>noesis.gwei.domains</small>
+</main>
+</body>
+</html>
