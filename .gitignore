@@ -128,3 +128,6 @@ contracts/lib
 # the leading slash is what says so. tools/check-no-local-paths.mjs matches the same prefix and pins
 # it in --self-test.
 /projects/
+
+# Rendered posting queue — regenerate with tools/posts/render.mjs
+tools/posts/out/

@@ -1,0 +1,60 @@
+{
+  "_note": "The posting queue. `status`: posted | ready | drafted | blocked. `body` is an array — one entry is a single post, several is a thread in order. `asset` names a file in tools/brand/assets. `link` must be hash-form; tools/check-campaign-links.sh enforces that.",
+  "_asof": "2026-09-29",
+  "campaigns": [
+    {
+      "id": "testnet-invite",
+      "name": "Testnet invite",
+      "posts": [
+        { "id": "invite-a", "status": "posted", "asset": "noesis-mainliner.mp4", "link": "https://noesis.gwei.domains/",
+          "note": "Variant A, the one sent.",
+          "body": ["noesis is up on sepolia testnet.\n\nit's a launchpad where a derivative collection pays the community it came from — 19% of every sale, taken at settlement, hardcoded with no setter on it.\n\neleven collections are on it already. go click around, try to break something, tell me what's wrong.\n\nnoesis.gwei.domains"] },
+
+        { "id": "invite-grid", "status": "ready", "asset": "noesis-live-1600x900.png", "link": "https://noesis.gwei.domains/#/collections",
+          "note": "Follow-up. Post a screenshot of the real grid rather than the card if you have one.",
+          "body": ["what's on it right now:\n\ncolombilady · mewlady · ghibladita · sonoraecho\nmiladysubstaction · mferlady · gladbrowebring · shrimpsters\n\nall live, all bound to a vault, all paying 19% back.\n\nnoesis.gwei.domains/#/collections"] }
+      ]
+    },
+    {
+      "id": "primitives",
+      "name": "The primitives thread",
+      "note": "showcase-threads-per-primitive clause 2: every beat points at something exercisable on the live site, not at a description of it.",
+      "posts": [
+        { "id": "primitives-thread", "status": "drafted", "asset": "noesis-split-1600x900.png", "link": "https://noesis.gwei.domains/#/launch",
+          "note": "Card B on post 1. Eleven posts.",
+          "body": [
+            "noesis gives you three ways to put a collection onchain, and every one of them pays the community your work came from.\n\nhere's the whole surface, what each one is for, and where the 19% comes out.",
+
+            "ERC-404 — a bonding curve.\n\npeople buy along the curve, price rises as supply sells, and when it fills the collection graduates into a real pool and starts trading.\n\nbuying along the curve is fee-free. the 19% comes out at graduation, on the whole raise, before a wei reaches the pool.",
+
+            "ERC-1155 — editions.\n\nopen or capped, at a price you set.\n\nthe 19% comes out of each withdrawal of mint proceeds. nothing is taken after that — an edition pays on the way out of the primary sale and never again.",
+
+            "ERC-721 — auctions.\n\none piece, one auction, your reserve.\n\nthe 19% comes out at settlement, on the winning bid, after your reserve is refunded to you. nothing after that either.",
+
+            "alignment vaults — the thing all three hang off.\n\nyou pick the community your work draws from, then one of its vaults. the vault holds or LPs that community's token and your share is converted into it.\n\nthe capital is never custodial to us. it lives in the vault contract.",
+
+            "the ratio is 1% protocol / 19% community / 80% you, and it is a constant in the contract with no setter.\n\ni cannot change it. that is the point of putting it there instead of in a blog post.",
+
+            "the alignment hook.\n\nan ERC-404 that graduates onto uniswap v4 can carry a hook that taxes the ETH side of every swap — buys and sells alike — straight into the vault.\n\nthe tithe doesn't stop when the mint does.",
+
+            "free mints and allowlists.\n\ngive away as much of the supply as you want. gate it with a merkle allowlist if it should be a specific list of people — proved by a root onchain, not by a server holding a spreadsheet.",
+
+            "token tiers.\n\nhold more, get different art. the tier resolves onchain, so nobody is deciding after the fact what you are owed.",
+
+            "your art, your resolver.\n\nhost it where you like, put it onchain, or launch with no art at all and add it later. none of those is second-class — the contract, the alignment and the mint work identically.",
+
+            "and a collection isn't an island: there's a board, profiles, and curations — the one discovery surface you reach without paying for a slot.\n\nall of it is on sepolia right now. eleven collections up.\n\ngo launch one and tell me where it breaks.\nnoesis.gwei.domains"
+          ] }
+      ]
+    },
+    {
+      "id": "census",
+      "name": "The derivative census",
+      "posts": [
+        { "id": "census-post", "status": "blocked", "asset": null, "link": "https://noesis.gwei.domains/",
+          "note": "BLOCKED: the catalog holds 2 records, both free mints, so the number is 0.00 ETH. A harvest run has to land before this can be posted — posting it now argues the opposite case.",
+          "body": ["we measured what the derivative collections in this ecosystem actually took in, on chain, from mint transactions only.\n\nthen we computed what their parent communities would have received if they had launched aligned.\n\n[N] collections. [X] ETH minted. [Y] ETH that would have gone back.\n\nit went back to nobody. every figure is re-derivable — addresses and block ranges published."] }
+      ]
+    }
+  ]
+}

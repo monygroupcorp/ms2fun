@@ -1,0 +1,80 @@
+{
+  "_note": "Every primitive the launchpad offers, with the evidence for each status. `deployed` is read off app/src/config/sepolia-deployment.json; `route` off the <Route path=> lines in app/src/App.tsx. `thread` is the showcase-threads-per-primitive status and is the only hand-maintained field: written | drafted | not-started.",
+  "_asof": "2026-09-29",
+  "primitives": [
+    { "id": "erc404", "name": "ERC-404 bonding curve", "group": "launch",
+      "what": "Buyers move along a curve; price rises as supply sells; the collection graduates into a real pool and trades.",
+      "contracts": ["ERC404Factory", "DeployBondEscrow", "ModuleUniV4Deployer", "ModuleZAMMDeployer"],
+      "deployed": true, "route": "/#/launch", "thread": "drafted",
+      "tithe": "19% at graduation, on the whole raise, before a wei reaches the pool. The curve itself is fee-free." },
+
+    { "id": "erc1155", "name": "ERC-1155 editions", "group": "launch",
+      "what": "Open or capped editions at a price you set.",
+      "contracts": ["ERC1155Factory", "DynamicPricingModule"],
+      "deployed": true, "route": "/#/launch", "thread": "drafted",
+      "tithe": "19% on every withdrawal of mint proceeds. Nothing is taken after that." },
+
+    { "id": "erc721", "name": "ERC-721 auctions", "group": "launch",
+      "what": "One piece, one auction, your reserve.",
+      "contracts": ["ERC721AuctionFactory"],
+      "deployed": true, "route": "/#/launch", "thread": "drafted",
+      "tithe": "19% at settlement of each auction, on the winning bid, after your reserve returns to you." },
+
+    { "id": "alignment-vault", "name": "Alignment vaults", "group": "alignment",
+      "what": "You pick the community your work draws from and one of its vaults. The vault holds or LPs that community's token; your share is converted into it. Never custodial to the protocol.",
+      "contracts": ["AlignmentRegistryV1", "AaveEndowmentVaultFactory"],
+      "deployed": true, "route": "/#/vaults", "thread": "drafted",
+      "tithe": "The 19% itself. RevenueSplitLib fixes 1/19/80 with no setter." },
+
+    { "id": "alignment-target-request", "name": "Requesting a target", "group": "alignment",
+      "what": "If the community you want to align to is not listed, you can ask for it onchain.",
+      "contracts": ["AlignmentTargetRequestRegistry"],
+      "deployed": true, "route": "/#/request-target", "thread": "not-started", "tithe": null },
+
+    { "id": "alignment-hook", "name": "The alignment hook", "group": "alignment",
+      "what": "A graduated ERC-404 pool on Uniswap V4 can carry a hook that taxes the ETH side of every swap — buys and sells alike — into the vault. A protocol switch, not a creator setting.",
+      "contracts": ["AlignmentHookSwapRouter", "UniAlignmentV4Hook", "UniTitheHookFactory"],
+      "deployed": true, "route": "/#/vaults", "thread": "drafted",
+      "tithe": "Perpetual. The tithe does not stop when the mint does." },
+
+    { "id": "free-mint", "name": "Free-mint allocation", "group": "mechanics",
+      "what": "Give away part of the supply.",
+      "contracts": ["ERC404Factory"], "deployed": true, "route": "/#/learn/free-mint", "thread": "not-started", "tithe": null },
+
+    { "id": "gating", "name": "Merkle allowlists", "group": "mechanics",
+      "what": "Restrict a mint to a specific list of addresses, proved by a merkle root rather than a server.",
+      "contracts": ["MerkleGatingModule"], "deployed": false, "route": "/#/learn/merkle-allowlist", "thread": "not-started",
+      "note": "Deployed per collection that opts in, not as a protocol singleton — so it is not in the deployment record.", "tithe": null },
+
+    { "id": "token-tiers", "name": "Token tiers", "group": "mechanics",
+      "what": "Hold more, get different art. Tiers resolve onchain rather than a server deciding what you are owed.",
+      "contracts": ["TokenTierBandResolver", "TierRevealModule"],
+      "deployed": true, "route": "/#/learn/token-tiers", "thread": "not-started", "tithe": null },
+
+    { "id": "metadata-overlay", "name": "Artist overlay", "group": "mechanics",
+      "what": "Your metadata, your resolver. Host the art where you like, put it onchain, or launch with none and add it later.",
+      "contracts": ["MetadataResolverRouter", "MetadataOverlayModule"],
+      "deployed": true, "route": "/#/learn/artist-overlay", "thread": "not-started", "tithe": null },
+
+    { "id": "board", "name": "The board", "group": "social",
+      "what": "An onchain message board. A collection is not an island.",
+      "contracts": ["GlobalMessageRegistry"], "deployed": true, "route": "/#/board", "thread": "not-started", "tithe": null },
+
+    { "id": "profiles", "name": "Profiles", "group": "social",
+      "what": "An onchain profile per address, readable by anything.",
+      "contracts": ["ProfileRegistry"], "deployed": true, "route": "/#/portfolio", "thread": "not-started", "tithe": null },
+
+    { "id": "curations", "name": "Curations", "group": "social",
+      "what": "The one discovery surface a visitor reaches without anyone paying for a slot.",
+      "contracts": ["CurationRegistry"], "deployed": true, "route": "/#/curations", "thread": "not-started", "tithe": null },
+
+    { "id": "featured", "name": "The featured queue", "group": "social",
+      "what": "Paid promotion, priced onchain and visible as a queue rather than an arrangement.",
+      "contracts": ["FeaturedQueueManager"], "deployed": true, "route": "/#/collections", "thread": "not-started", "tithe": null },
+
+    { "id": "census", "name": "The derivative census", "group": "argument",
+      "what": "Real derivative collections measured on chain, against what their parent community would have received had they launched aligned.",
+      "contracts": [], "deployed": false, "route": null, "thread": "not-started",
+      "note": "BLOCKED: data/alignment/collections holds 2 records, both free mints, so the counterfactual computes to 0.00 ETH. Needs a harvest run before any post can carry it.", "tithe": null }
+  ]
+}
