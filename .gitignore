@@ -129,5 +129,7 @@ contracts/lib
 # it in --self-test.
 /projects/
 
-# Rendered brand assets — the sources and the render script are tracked, the output is not.
-tools/brand/out/
+# Rendered brand assets: the frames are not tracked (372 PNGs, regenerable), but the finished
+# assets ARE — they have to be reachable at a plain URL from a phone, which a build artifact
+# sitting on somebody's laptop is not.
+tools/brand/out/frames/
