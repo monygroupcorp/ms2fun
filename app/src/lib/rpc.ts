@@ -11,6 +11,26 @@
  *
  * Extend PUBLIC_RPCS with each further deploy target's chain; the local anvil fork keeps a single
  * localhost transport (no fallback to make).
+ *
+ * HOW AN ENTRY EARNS ITS PLACE, and why this list is checked rather than remembered. These URLs
+ * are inlined into a pinned bundle that cannot be edited, and a dead entry is not free: viem's
+ * `rank: true` re-probes every endpoint on a timer and each call burns its retries on the corpses
+ * before reaching a live one, which is how a pool with one healthy member gets that member
+ * rate-limited. Measured 2026-09-29 against the deployed site, three of the four Sepolia entries
+ * were dead — `rpc.sepolia.org` 404 with no CORS headers at all, `sepolia.drpc.org` 400 "chain is
+ * not available on free plan", `1rpc.io/sepolia` HTTP 200 carrying a JSON-RPC "usage limit"
+ * error — and the survivor answered 403 under the retry storm. `eth.llamarpc.com` was the same
+ * story on mainnet: 525, and the comment above this one already said its 521s happen.
+ *
+ * So an entry is checked three ways before it is listed, because two of those failures pass a
+ * check that only looks at one of them:
+ *
+ *   1. a CORS preflight from the published origin returns `access-control-allow-origin`
+ *   2. a BATCHED POST (what `batch: true` actually sends) returns 200
+ *   3. the BODY carries a result and not a JSON-RPC error — `1rpc.io` returned 200 while every
+ *      call inside it failed, which is the shape a health ranker scores as perfectly healthy
+ *
+ * `pnpm rpc:check` runs all three against this list and exits non-zero on any entry that fails.
  */
 import { fallback, http, unstable_connector, type Transport } from 'wagmi'
 import { injected } from 'wagmi/connectors'
@@ -21,18 +41,17 @@ const PUBLIC_RPCS: Record<number, string[]> = {
   1: [
     'https://ethereum-rpc.publicnode.com',
     'https://eth.drpc.org',
-    'https://rpc.ankr.com/eth',
-    'https://cloudflare-eth.com',
-    'https://eth.llamarpc.com',
+    'https://mainnet.gateway.tenderly.co',
+    'https://0xrpc.io/eth',
   ],
   // Sepolia (chain 11155111) — the showcase testnet. Same discipline as the mainnet pool: public,
   // key-less, multi-provider, health-ranked. Testnet endpoints rate-limit harder than mainnet ones,
   // which is what the ranked fallback is for.
   11155111: [
     'https://ethereum-sepolia-rpc.publicnode.com',
-    'https://sepolia.drpc.org',
-    'https://1rpc.io/sepolia',
-    'https://rpc.sepolia.org',
+    'https://sepolia.gateway.tenderly.co',
+    'https://0xrpc.io/sep',
+    'https://sepolia.rpc.thirdweb.com',
   ],
 }
 
