@@ -1,19 +1,24 @@
 /**
- * Publish preflight: refuses to let a build carrying the placeholder deployment config reach a
+ * Publish preflight: refuses to let a build carrying a placeholder deployment config reach a
  * publish workflow.
  *
- * `src/config/local-deployment.json` is regenerated locally by `pnpm chain:deploy` against the dev
- * chain and is never committed with real values (see `src/lib/addresses.ts`). `pnpm build` reads it
- * as a build-time static and succeeds either way — a build of the committed placeholder is
- * indistinguishable, from `pnpm build`'s exit code alone, from a build of a real deployment. This
- * script is the loud check a publish step runs before shipping an artifact anywhere: it does not
- * change what `build` accepts, only what a human or CI decides to publish.
+ * A deployment config is a build-time static, so `pnpm build` succeeds whatever it holds — a build
+ * of a committed placeholder is indistinguishable, from `pnpm build`'s exit code alone, from a build
+ * of a real deployment. This script is the loud check a publish step runs before shipping an
+ * artifact anywhere: it does not change what `build` accepts, only what a human or CI decides to
+ * publish.
+ *
+ * WHICH config it checks is the whole question, because the app carries one per chain and
+ * `VITE_CHAIN_ID` is what selects between them at build time. This reads the same variable, so the
+ * config it judges is the config the bundle was built against. Unset is itself a refusal: an unset
+ * `VITE_CHAIN_ID` falls back to the local anvil deployment, which is the placeholder publish this
+ * script exists to stop.
  *
  * `assertPublishable` is a pure function so it can be unit-tested without touching the filesystem;
  * the CLI below is the thin wrapper that reads the real config and exits non-zero on any reason.
  *
- * Run: `pnpm publish:preflight` (tsx). Exits 1 and prints every reason found; exits 0 (silently) when
- * the artifact is clear to publish.
+ * Run: `VITE_CHAIN_ID=<id> pnpm publish:preflight` (tsx). Exits 1 and prints every reason found;
+ * exits 0 (silently) when the artifact is clear to publish.
  */
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
@@ -26,6 +31,19 @@ const LOCAL_CHAIN_ID = 1337
 const EPOCH_SENTINEL = '1970-01-01T00:00:00.000Z'
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+
+/**
+ * Chain id -> the config `src/lib/addresses.ts` imports for that chain, relative to the app root.
+ *
+ * This repeats that module's import list, which is the one way it can drift. It cannot drift
+ * SILENTLY: the CLI passes the requested chain as the only allowed id, so a config reached through a
+ * wrong entry here is refused for carrying the wrong `chainId` rather than published against another
+ * chain's addresses.
+ */
+export const CONFIG_BY_CHAIN_ID: Readonly<Record<number, string>> = {
+  1337: 'src/config/local-deployment.json',
+  11155111: 'src/config/sepolia-deployment.json',
+}
 
 export interface AssertPublishableOptions {
   /** Chain ids treated as legitimate publish targets. `chainId` must be one of these. */
@@ -78,20 +96,51 @@ export function assertPublishable(
   return reasons
 }
 
-async function main() {
+/**
+ * Resolves `VITE_CHAIN_ID` to the chain whose config a publish would ship. Returns a reason string
+ * instead of a chain id when the variable cannot name one, so the CLI reports it the same way it
+ * reports every other refusal.
+ */
+export function resolvePublishChainId(value: string | undefined): number | string {
+  if (value === undefined || value.trim() === '') {
+    return (
+      'VITE_CHAIN_ID is unset, so a build falls back to the local anvil deployment. Set it to the ' +
+      'chain being published — the same value the build is given.'
+    )
+  }
+  const chainId = Number(value)
+  if (!Number.isInteger(chainId)) {
+    return `VITE_CHAIN_ID is ${JSON.stringify(value)}, which is not a chain id`
+  }
+  if (CONFIG_BY_CHAIN_ID[chainId] === undefined) {
+    const known = Object.keys(CONFIG_BY_CHAIN_ID).join(', ')
+    return `VITE_CHAIN_ID is ${chainId}, which the app carries no deployment config for (has: ${known})`
+  }
+  return chainId
+}
+
+function main() {
   const here = dirname(fileURLToPath(import.meta.url))
   const appDir = resolve(here, '..')
-  const configPath = resolve(appDir, 'src/config/local-deployment.json')
 
+  const chainId = resolvePublishChainId(process.env.VITE_CHAIN_ID)
+  if (typeof chainId === 'string') {
+    console.error(`Refusing to publish: ${chainId}`)
+    process.exit(1)
+  }
+
+  const configPath = resolve(appDir, CONFIG_BY_CHAIN_ID[chainId])
   const raw = readFileSync(configPath, 'utf-8')
   const deployment = JSON.parse(raw)
 
-  const reasons = assertPublishable(deployment)
+  // The requested chain is the ONLY allowed id: a config reached for chain X that describes chain Y
+  // is a mis-wired map or a mis-copied file, and either way not a thing to publish.
+  const reasons = assertPublishable(deployment, { allowChainIds: [chainId] })
   if (reasons.length === 0) {
     process.exit(0)
   }
 
-  console.error(`Refusing to publish ${configPath}:`)
+  console.error(`Refusing to publish ${configPath} (chain ${chainId}):`)
   for (const reason of reasons) {
     console.error(`  - ${reason}`)
   }

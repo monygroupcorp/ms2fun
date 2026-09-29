@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { assertPublishable } from './assert-publishable'
+import { assertPublishable, CONFIG_BY_CHAIN_ID, resolvePublishChainId } from './assert-publishable'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const committedConfig = JSON.parse(
@@ -64,5 +64,55 @@ describe('assertPublishable', () => {
       [],
     )
     expect(assertPublishable(realFixture({ chainId: 1337 }), { allowChainIds: [1337] })).toEqual([])
+  })
+})
+
+describe('resolvePublishChainId', () => {
+  it('refuses an unset or empty VITE_CHAIN_ID, naming the fallback that makes it dangerous', () => {
+    for (const value of [undefined, '', '   ']) {
+      const result = resolvePublishChainId(value)
+      expect(typeof result).toBe('string')
+      expect(result).toContain('VITE_CHAIN_ID')
+      expect(result).toContain('anvil')
+    }
+  })
+
+  it('refuses a value that is not a chain id', () => {
+    expect(resolvePublishChainId('mainnet')).toContain('not a chain id')
+    expect(resolvePublishChainId('11155111.5')).toContain('not a chain id')
+  })
+
+  it('refuses a chain the app carries no config for, and lists the ones it does', () => {
+    const result = resolvePublishChainId('8453')
+    expect(result).toContain('8453')
+    expect(result).toContain('11155111')
+  })
+
+  it('resolves the chains the app ships a config for', () => {
+    expect(resolvePublishChainId('1337')).toBe(1337)
+    expect(resolvePublishChainId('11155111')).toBe(11155111)
+  })
+})
+
+describe('the shipped configs, read through the map the CLI uses', () => {
+  function shipped(chainId: number) {
+    return JSON.parse(readFileSync(resolve(here, '..', CONFIG_BY_CHAIN_ID[chainId]), 'utf-8'))
+  }
+
+  it('every mapped config describes the chain it is mapped under', () => {
+    for (const key of Object.keys(CONFIG_BY_CHAIN_ID)) {
+      const chainId = Number(key)
+      expect(shipped(chainId).chainId).toBe(chainId)
+    }
+  })
+
+  it('clears the committed Sepolia record for publishing', () => {
+    expect(assertPublishable(shipped(11155111), { allowChainIds: [11155111] })).toEqual([])
+  })
+
+  it('still refuses the anvil placeholder, which is never committed with real values', () => {
+    const reasons = assertPublishable(shipped(1337), { allowChainIds: [1337] })
+    expect(reasons.some((r) => r.includes('zero address'))).toBe(true)
+    expect(reasons.some((r) => r.includes('epoch sentinel'))).toBe(true)
   })
 })
