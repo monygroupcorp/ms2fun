@@ -359,66 +359,93 @@ async function serveMeta(
   return servedJson(body, 'miss')
 }
 
+/**
+ * Every response leaves here readable cross-origin, the failures included.
+ *
+ * The success helpers already set this header. The refusals did not, and a refusal a browser
+ * cannot READ is worse than the refusal itself: the app asks this service for art, the 502 comes
+ * back without the header, and the browser replaces a perfectly clear "no gateway answered" with
+ * an opaque network error. The app's health tracking then cannot tell a service that is refusing
+ * from one that is unreachable, and the console fills with CORS errors that name no cause.
+ *
+ * Applied at the edge of the handler rather than per response, so no refusal added later can
+ * forget it.
+ */
+function readableCrossOrigin(response: Response): Response {
+  if (response.headers.has('access-control-allow-origin')) return response
+  const headers = new Headers(response.headers)
+  headers.set('access-control-allow-origin', '*')
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  })
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    if (request.method !== 'GET' && request.method !== 'HEAD') {
-      return new Response('method not allowed', { status: 405 })
-    }
-
-    const url = new URL(request.url)
-    const ART = '/art/'
-    const META = '/meta/'
-    const prefix = url.pathname.startsWith(META) ? META : ART
-    if (!url.pathname.startsWith(prefix)) return new Response('not found', { status: 404 })
-
-    const path = decodeURIComponent(url.pathname.slice(prefix.length))
-    if (!isSafePath(path)) return new Response('bad request', { status: 400 })
-
-    const widths = widthsOf(env)
-
-    if (prefix === META) return serveMeta(path, env, ctx, widths)
-
-    // BEFORE the bucket read and before any gateway is asked, so a denied object costs nothing and
-    // cannot be re-cached by the request that asks for it — the difference between a takedown and a
-    // pause. Every rung goes and so does the metadata, because a takedown is about the work and not
-    // about one representation of it.
-    if (denylistOf(env).has(cidOf(path))) return gone(env, ctx, path, widths)
-
-    const wanted = Number.parseInt(url.searchParams.get('w') ?? '', 10)
-    // An unknown width is refused rather than snapped. Snapping here would let any caller mint a
-    // new bucket object per width it invents, which is an unbounded bill dressed as a convenience.
-    if (!widths.includes(wanted)) return new Response('unsupported width', { status: 400 })
-
-    const key = cacheKey(path, wanted)
-
-    const hit = await env.ART_CACHE.get(key)
-    if (hit !== null) {
-      const type = hit.httpMetadata?.contentType ?? 'application/octet-stream'
-      return served(hit.body, type, 'hit')
-    }
-
-    const upstream = await fetchFromRoster(path, wanted, rosterOf(env))
-    if (upstream === null) {
-      // Every operator failed. 502 so the app cools this service the way it cools a gateway and
-      // falls back to asking the roster itself — the fallback is the point, not a last resort.
-      return new Response('no gateway answered', { status: 502 })
-    }
-
-    const type = upstream.headers.get('content-type') ?? 'application/octet-stream'
-    const length = Number.parseInt(upstream.headers.get('content-length') ?? '', 10)
-
-    if (Number.isInteger(length) && length > MAX_CACHEABLE_BYTES) {
-      return served(upstream.body!, type, 'miss')
-    }
-
-    // Tee: one copy to the visitor now, one to the bucket after the response is on its way, so a
-    // slow write never delays the render this service exists to speed up.
-    const [toClient, toCache] = upstream.body!.tee()
-    ctx.waitUntil(
-      env.ART_CACHE.put(key, toCache, { httpMetadata: { contentType: type } }).catch(() => {
-        // A failed write is a miss next time. It is not a reason to fail this request.
-      }),
-    )
-    return served(toClient, type, 'miss')
+    return readableCrossOrigin(await handle(request, env, ctx))
   },
+}
+
+async function handle(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return new Response('method not allowed', { status: 405 })
+  }
+
+  const url = new URL(request.url)
+  const ART = '/art/'
+  const META = '/meta/'
+  const prefix = url.pathname.startsWith(META) ? META : ART
+  if (!url.pathname.startsWith(prefix)) return new Response('not found', { status: 404 })
+
+  const path = decodeURIComponent(url.pathname.slice(prefix.length))
+  if (!isSafePath(path)) return new Response('bad request', { status: 400 })
+
+  const widths = widthsOf(env)
+
+  if (prefix === META) return serveMeta(path, env, ctx, widths)
+
+  // BEFORE the bucket read and before any gateway is asked, so a denied object costs nothing and
+  // cannot be re-cached by the request that asks for it — the difference between a takedown and a
+  // pause. Every rung goes and so does the metadata, because a takedown is about the work and not
+  // about one representation of it.
+  if (denylistOf(env).has(cidOf(path))) return gone(env, ctx, path, widths)
+
+  const wanted = Number.parseInt(url.searchParams.get('w') ?? '', 10)
+  // An unknown width is refused rather than snapped. Snapping here would let any caller mint a
+  // new bucket object per width it invents, which is an unbounded bill dressed as a convenience.
+  if (!widths.includes(wanted)) return new Response('unsupported width', { status: 400 })
+
+  const key = cacheKey(path, wanted)
+
+  const hit = await env.ART_CACHE.get(key)
+  if (hit !== null) {
+    const type = hit.httpMetadata?.contentType ?? 'application/octet-stream'
+    return served(hit.body, type, 'hit')
+  }
+
+  const upstream = await fetchFromRoster(path, wanted, rosterOf(env))
+  if (upstream === null) {
+    // Every operator failed. 502 so the app cools this service the way it cools a gateway and
+    // falls back to asking the roster itself — the fallback is the point, not a last resort.
+    return new Response('no gateway answered', { status: 502 })
+  }
+
+  const type = upstream.headers.get('content-type') ?? 'application/octet-stream'
+  const length = Number.parseInt(upstream.headers.get('content-length') ?? '', 10)
+
+  if (Number.isInteger(length) && length > MAX_CACHEABLE_BYTES) {
+    return served(upstream.body!, type, 'miss')
+  }
+
+  // Tee: one copy to the visitor now, one to the bucket after the response is on its way, so a
+  // slow write never delays the render this service exists to speed up.
+  const [toClient, toCache] = upstream.body!.tee()
+  ctx.waitUntil(
+    env.ART_CACHE.put(key, toCache, { httpMetadata: { contentType: type } }).catch(() => {
+      // A failed write is a miss next time. It is not a reason to fail this request.
+    }),
+  )
+  return served(toClient, type, 'miss')
 }

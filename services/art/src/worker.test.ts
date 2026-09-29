@@ -461,3 +461,45 @@ describe('the lead gateway in the roster', () => {
     expect(String(fetchMock.mock.calls[0]![0])).not.toContain('mypinata.cloud')
   })
 })
+
+// curl does not enforce CORS, so every by-hand check of this service passed while a real browser
+// was being handed an opaque failure. These assertions are the part a terminal cannot see.
+describe('every response is readable cross-origin', () => {
+  it('sets the header on a served hit', async () => {
+    const b = bucket({ [`${CID}@w320`]: 'cached' })
+    const res = await worker.fetch(req(CID), env({ ART_CACHE: b }), ctx())
+    expect(res.headers.get('access-control-allow-origin')).toBe('*')
+  })
+
+  it('sets it on a 502 when no gateway answered — the case that broke the live site', async () => {
+    fetchMock.mockImplementation(async () => new Response('nope', { status: 504 }))
+    const res = await worker.fetch(req(CID), env(), ctx())
+    expect(res.status).toBe(502)
+    expect(res.headers.get('access-control-allow-origin')).toBe('*')
+  })
+
+  it('sets it on a refused width', async () => {
+    const r = new Request(`https://art.example/art/${CID}`)
+    const res = await worker.fetch(r, env(), ctx())
+    expect(res.status).toBe(400)
+    expect(res.headers.get('access-control-allow-origin')).toBe('*')
+  })
+
+  it('sets it on an unknown path', async () => {
+    const res = await worker.fetch(new Request('https://art.example/nope'), env(), ctx())
+    expect(res.status).toBe(404)
+    expect(res.headers.get('access-control-allow-origin')).toBe('*')
+  })
+
+  it('sets it on a refused method', async () => {
+    const res = await worker.fetch(req(CID, 320, 'POST'), env(), ctx())
+    expect(res.status).toBe(405)
+    expect(res.headers.get('access-control-allow-origin')).toBe('*')
+  })
+
+  it('sets it on a denylisted CID', async () => {
+    const res = await worker.fetch(req(CID), env({ ART_DENYLIST: CID }), ctx())
+    expect(res.status).toBe(410)
+    expect(res.headers.get('access-control-allow-origin')).toBe('*')
+  })
+})
