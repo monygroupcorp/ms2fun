@@ -1,0 +1,705 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The noesis testnet walk</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* ── Gallery Brutalism (docs/DESIGN_SYSTEM_V2.md) ────────────────────────────
+   Pure monochrome. Hierarchy through typography, not colour. 8px grid.
+   2px radius ceiling. No gradients, no glows. The only chroma permitted is
+   chromatic aberration, and it is spent in exactly two places. */
+
+:root {
+  --bg-primary:#ffffff; --bg-secondary:#fafafa; --bg-tertiary:#f5f5f5;
+  --text-primary:#000000; --text-secondary:#666666; --text-tertiary:#999999;
+  --text-disabled:#cccccc;
+  --border-primary:#000000; --border-secondary:#e0e0e0; --border-tertiary:#f0f0f0;
+  --state-hover-bg:#f5f5f5; --state-active-bg:#e0e0e0;
+  --invert-bg:#000000; --invert-fg:#ffffff;
+
+  --font-primary:'Helvetica Neue',Helvetica,Arial,'Liberation Sans',sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,'Courier New',Courier,monospace;
+
+  --fs-display:3rem; --fs-h1:2.25rem; --fs-h2:1.5rem; --fs-h3:1.125rem;
+  --fs-body:1rem; --fs-sm:.875rem; --fs-cap:.75rem;
+
+  --s1:8px; --s2:16px; --s3:24px; --s4:32px; --s5:48px; --s6:64px;
+  --rail:248px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-primary:#000000; --bg-secondary:#0a0a0a; --bg-tertiary:#141414;
+    --text-primary:#ffffff; --text-secondary:#999999; --text-tertiary:#666666;
+    --text-disabled:#333333;
+    --border-primary:#ffffff; --border-secondary:#1a1a1a; --border-tertiary:#0f0f0f;
+    --state-hover-bg:#1a1a1a; --state-active-bg:#2a2a2a;
+    --invert-bg:#ffffff; --invert-fg:#000000;
+  }
+}
+:root[data-theme="dark"] {
+  --bg-primary:#000000; --bg-secondary:#0a0a0a; --bg-tertiary:#141414;
+  --text-primary:#ffffff; --text-secondary:#999999; --text-tertiary:#666666;
+  --text-disabled:#333333;
+  --border-primary:#ffffff; --border-secondary:#1a1a1a; --border-tertiary:#0f0f0f;
+  --state-hover-bg:#1a1a1a; --state-active-bg:#2a2a2a;
+  --invert-bg:#ffffff; --invert-fg:#000000;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{color-scheme:light dark}
+img{max-width:100%}
+[hidden]{display:none !important}
+body{
+  margin:0; background:var(--bg-primary); color:var(--text-primary);
+  font-family:var(--font-primary); font-size:var(--fs-body); line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+:focus-visible{outline:2px solid var(--border-primary); outline-offset:2px}
+h1,h2,h3{margin:0; text-wrap:balance; font-weight:700}
+p{margin:0}
+button{font:inherit; color:inherit; background:none; border:none; cursor:pointer}
+code,.mono{font-family:var(--font-mono); font-variant-numeric:tabular-nums}
+
+/* ── masthead ─────────────────────────────────────────────────────────────── */
+.masthead{
+  border-bottom:2px solid var(--border-primary);
+  padding:var(--s5) var(--s4) var(--s3);
+}
+.masthead-inner{max-width:1320px; margin:0 auto}
+.eyebrow{
+  font-family:var(--font-mono); font-size:var(--fs-cap);
+  letter-spacing:.14em; text-transform:uppercase; color:var(--text-secondary);
+}
+h1.display{
+  font-size:var(--fs-display); line-height:1.02; letter-spacing:-.02em;
+  margin:var(--s2) 0 0;
+  /* THE ONE FLOURISH: chromatic aberration on display text (system-sanctioned,
+     large text only — never on body copy). */
+  text-shadow:-4px 0 0 rgba(255,0,128,.72), 4px 0 0 rgba(0,255,255,.72);
+}
+.purpose{
+  max-width:62ch; margin-top:var(--s3); font-size:var(--fs-sm);
+  color:var(--text-secondary);
+}
+
+/* run identity strip */
+.run{
+  margin-top:var(--s4); border:1px solid var(--border-primary);
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(168px,1fr));
+}
+.run-cell{padding:var(--s2); border-right:1px solid var(--border-secondary)}
+.run-cell:last-child{border-right:none}
+.run-k{
+  font-family:var(--font-mono); font-size:10px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--text-tertiary);
+}
+.run-v{
+  font-family:var(--font-mono); font-size:var(--fs-cap); margin-top:6px;
+  word-break:break-all; color:var(--text-primary);
+}
+
+/* ── shell ────────────────────────────────────────────────────────────────── */
+.shell{
+  max-width:1320px; margin:0 auto; padding:var(--s4);
+  display:grid; grid-template-columns:var(--rail) minmax(0,1fr); gap:var(--s5);
+  align-items:start;
+}
+@media (max-width:900px){
+  .shell{grid-template-columns:minmax(0,1fr); gap:var(--s4)}
+  .rail{position:static !important}
+}
+
+/* ── rail ─────────────────────────────────────────────────────────────────── */
+.rail{position:sticky; top:var(--s2); display:flex; flex-direction:column; gap:var(--s4)}
+.rail-block{display:flex; flex-direction:column; gap:var(--s1)}
+.rail-h{
+  font-family:var(--font-mono); font-size:10px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--text-tertiary);
+  padding-bottom:var(--s1); border-bottom:1px solid var(--border-secondary);
+}
+.total{display:flex; align-items:baseline; gap:var(--s1); margin-top:var(--s1)}
+.total-n{
+  font-family:var(--font-mono); font-size:var(--fs-h1); font-weight:600;
+  line-height:1; letter-spacing:-.02em;
+  text-shadow:-2px 0 0 rgba(255,0,128,.6), 2px 0 0 rgba(0,255,255,.6);
+}
+.total-d{font-family:var(--font-mono); font-size:var(--fs-sm); color:var(--text-secondary)}
+.meter{height:6px; border:1px solid var(--border-primary); margin-top:var(--s1); display:flex}
+.meter-pass{background:var(--invert-bg)}
+.meter-fail{
+  background:var(--bg-primary);
+  border-left:1px solid var(--border-primary); border-right:1px solid var(--border-primary);
+}
+.tally{
+  display:flex; flex-wrap:wrap; gap:var(--s2); margin-top:var(--s1);
+  font-family:var(--font-mono); font-size:var(--fs-cap); color:var(--text-secondary);
+}
+.tally b{color:var(--text-primary); font-weight:600}
+
+.actnav{display:flex; flex-direction:column}
+.actnav a{
+  display:grid; grid-template-columns:22px minmax(0,1fr) auto; gap:var(--s1);
+  align-items:center; padding:10px var(--s1); text-decoration:none;
+  color:var(--text-primary); border-bottom:1px solid var(--border-tertiary);
+}
+.actnav a:hover{background:var(--state-hover-bg)}
+.actnav .ax{
+  font-family:var(--font-mono); font-size:var(--fs-cap); font-weight:600;
+  border:1px solid var(--border-primary); text-align:center; line-height:20px;
+}
+.actnav .an{font-size:var(--fs-cap); line-height:1.25}
+.actnav .ac{font-family:var(--font-mono); font-size:10px; color:var(--text-tertiary)}
+
+.filters{display:flex; flex-direction:column; gap:4px}
+.filters button{
+  text-align:left; padding:7px var(--s1); font-size:var(--fs-cap);
+  border:1px solid var(--border-secondary); border-radius:2px;
+  font-family:var(--font-mono); letter-spacing:.02em;
+}
+.filters button:hover{background:var(--state-hover-bg)}
+.filters button[aria-pressed="true"]{
+  background:var(--invert-bg); color:var(--invert-fg); border-color:var(--border-primary);
+}
+.rail-act{
+  padding:7px var(--s1); font-size:var(--fs-cap); font-family:var(--font-mono);
+  border:1px solid var(--border-secondary); border-radius:2px; text-align:left;
+}
+.rail-act:hover{background:var(--state-hover-bg)}
+
+/* ── acts + steps ─────────────────────────────────────────────────────────── */
+.act{margin-bottom:var(--s6); scroll-margin-top:var(--s2)}
+.act-head{border-bottom:2px solid var(--border-primary); padding-bottom:var(--s2)}
+.act-id{
+  font-family:var(--font-mono); font-size:var(--fs-cap); letter-spacing:.14em;
+  text-transform:uppercase; color:var(--text-secondary);
+}
+.act-title{font-size:var(--fs-h1); letter-spacing:-.015em; margin-top:6px}
+.act-meta{
+  display:flex; flex-wrap:wrap; gap:var(--s3); margin-top:var(--s2);
+  font-family:var(--font-mono); font-size:var(--fs-cap); color:var(--text-secondary);
+}
+.act-note{
+  max-width:64ch; margin-top:var(--s2); font-size:var(--fs-sm);
+  color:var(--text-secondary); border-left:2px solid var(--border-secondary);
+  padding-left:var(--s2);
+}
+.prereq{margin-top:var(--s3); border:1px solid var(--border-secondary); padding:var(--s2)}
+.prereq-h{
+  font-family:var(--font-mono); font-size:10px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--text-tertiary);
+}
+.prereq ul{margin:var(--s1) 0 0; padding-left:18px; font-size:var(--fs-sm); color:var(--text-secondary)}
+.prereq li{margin-top:4px}
+
+.steps{margin-top:var(--s3); border-top:1px solid var(--border-secondary)}
+.step{border-bottom:1px solid var(--border-secondary); border-left:3px solid transparent}
+.step.blocking{border-left-color:var(--border-primary)}
+.step.is-pass{background:var(--bg-secondary)}
+.step.is-fail{background:var(--bg-tertiary)}
+
+.step-bar{
+  width:100%; display:grid;
+  grid-template-columns:60px minmax(0,1fr) auto; gap:var(--s2);
+  align-items:center; padding:14px var(--s2); text-align:left;
+}
+.step-bar:hover{background:var(--state-hover-bg)}
+.sid{
+  font-family:var(--font-mono); font-size:var(--fs-cap); font-weight:600;
+  border:1px solid var(--border-primary); text-align:center; line-height:22px;
+}
+.step.is-pass .sid{background:var(--invert-bg); color:var(--invert-fg)}
+.step.is-fail .sid{
+  box-shadow:0 0 0 2px var(--bg-primary), 0 0 0 3px var(--border-primary);
+}
+.step.is-fail{border-left-color:var(--border-primary)}
+.tag-fail{color:var(--text-primary); font-weight:600}
+.sline{min-width:0}
+.stitle{font-size:var(--fs-body); line-height:1.3}
+.step.is-pass .stitle{text-decoration:line-through; text-decoration-thickness:1px; color:var(--text-secondary)}
+.stags{
+  display:flex; flex-wrap:wrap; gap:var(--s2); margin-top:5px;
+  font-family:var(--font-mono); font-size:10px; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--text-tertiary);
+}
+.tag-block{color:var(--text-primary); font-weight:600}
+.chev{font-family:var(--font-mono); font-size:var(--fs-cap); color:var(--text-tertiary)}
+
+.step-body{padding:0 var(--s2) var(--s3) calc(60px + var(--s2) + var(--s2))}
+@media (max-width:640px){ .step-body{padding-left:var(--s2)} }
+.field{margin-top:var(--s2)}
+.field-k{
+  font-family:var(--font-mono); font-size:10px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--text-tertiary);
+}
+.field-v{margin-top:5px; font-size:var(--fs-sm); max-width:70ch}
+.field-v.expect{border-left:2px solid var(--border-primary); padding-left:var(--s2)}
+.calls{
+  margin-top:5px; display:flex; flex-wrap:wrap; gap:6px;
+  font-family:var(--font-mono); font-size:var(--fs-cap);
+}
+.calls span{border:1px solid var(--border-secondary); padding:2px 6px; color:var(--text-secondary)}
+
+.verdict{display:flex; flex-wrap:wrap; gap:var(--s1); margin-top:var(--s3); align-items:center}
+.verdict button{
+  font-family:var(--font-mono); font-size:var(--fs-cap); letter-spacing:.06em;
+  text-transform:uppercase; padding:7px 14px;
+  border:1px solid var(--border-primary); border-radius:2px;
+}
+.verdict button:hover{background:var(--state-hover-bg)}
+.verdict button[aria-pressed="true"]{background:var(--invert-bg); color:var(--invert-fg)}
+.verdict .ghost{border-color:var(--border-secondary); color:var(--text-secondary)}
+
+.note{margin-top:var(--s2)}
+.note textarea{
+  width:100%; min-height:104px; padding:var(--s2); resize:vertical;
+  font-family:var(--font-mono); font-size:var(--fs-cap); line-height:1.6;
+  background:var(--bg-primary); color:var(--text-primary);
+  border:1px solid var(--border-primary); border-radius:2px;
+}
+.note textarea::placeholder{color:var(--text-tertiary)}
+.note-help{margin-top:6px; font-size:var(--fs-cap); color:var(--text-tertiary); max-width:70ch}
+
+/* ── closing sections ─────────────────────────────────────────────────────── */
+.section{margin-bottom:var(--s5)}
+.section-h{
+  font-size:var(--fs-h2); letter-spacing:-.01em;
+  border-bottom:1px solid var(--border-primary); padding-bottom:var(--s1);
+}
+.section-lede{margin-top:var(--s2); font-size:var(--fs-sm); color:var(--text-secondary); max-width:66ch}
+.rows{margin-top:var(--s3); display:flex; flex-direction:column}
+.row{padding:var(--s2) 0; border-bottom:1px solid var(--border-tertiary)}
+.row-k{font-family:var(--font-mono); font-size:var(--fs-cap); font-weight:500; word-break:break-all}
+.row-v{margin-top:6px; font-size:var(--fs-sm); color:var(--text-secondary); max-width:74ch}
+.include{margin:var(--s3) 0 0; padding-left:20px; font-size:var(--fs-sm); color:var(--text-secondary)}
+.include li{margin-top:var(--s1); max-width:72ch}
+
+.trap{border:1px solid var(--border-primary); padding:var(--s2); margin-top:var(--s3)}
+.trap-h{
+  font-family:var(--font-mono); font-size:10px; letter-spacing:.14em;
+  text-transform:uppercase;
+}
+.trap p{margin-top:var(--s1); font-size:var(--fs-sm); color:var(--text-secondary); max-width:70ch}
+
+footer{
+  border-top:2px solid var(--border-primary); margin-top:var(--s5);
+  padding:var(--s3) var(--s4) var(--s6);
+}
+footer .in{
+  max-width:1320px; margin:0 auto; font-family:var(--font-mono);
+  font-size:var(--fs-cap); color:var(--text-tertiary);
+  display:flex; flex-wrap:wrap; gap:var(--s3); justify-content:space-between;
+}
+
+.hidden{display:none !important}
+@media (prefers-reduced-motion:reduce){*{transition:none !important; animation:none !important}}
+@media print{
+  .rail,.verdict,.filters{display:none}
+  .shell{grid-template-columns:1fr}
+  .step-body{display:block !important}
+}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="eyebrow">Pre-launch dress rehearsal &middot; act O–H &middot; 61 steps</div>
+    <h1 class="display">The noesis testnet walk</h1>
+    <p class="purpose" id="purpose"></p>
+    <div class="run" id="run"></div>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="rail">
+    <div class="rail-block">
+      <div class="rail-h">Filed</div>
+      <div class="total"><span class="total-n" id="tn">0</span><span class="total-d" id="td">/ 61</span></div>
+      <div class="meter"><div class="meter-pass" id="mp"></div><div class="meter-fail" id="mf"></div></div>
+      <div class="tally">
+        <span>pass <b id="cp">0</b></span><span>fail <b id="cf">0</b></span>
+        <span>blocking open <b id="cb">47</b></span>
+      </div>
+    </div>
+    <div class="rail-block">
+      <div class="rail-h">Acts</div>
+      <nav class="actnav" id="actnav"></nav>
+    </div>
+    <div class="rail-block">
+      <div class="rail-h">Show</div>
+      <div class="filters" id="filters">
+        <button data-f="all" aria-pressed="true">all steps</button>
+        <button data-f="blocking" aria-pressed="false">blocking only</button>
+        <button data-f="open" aria-pressed="false">not yet filed</button>
+        <button data-f="fail" aria-pressed="false">failures</button>
+      </div>
+    </div>
+    <div class="rail-block">
+      <div class="rail-h">All steps</div>
+      <button class="rail-act" id="expand">expand every step</button>
+      <button class="rail-act" id="collapse">collapse every step</button>
+      <button class="rail-act" id="reset">clear my progress</button>
+    </div>
+  </aside>
+
+  <main>
+    <div id="acts"></div>
+
+    <section class="section">
+      <h2 class="section-h">Filing what you find</h2>
+      <p class="section-lede" id="dest"></p>
+      <div class="trap">
+        <div class="trap-h">Two traps on /board, and both lose a report silently</div>
+        <p id="secondary"></p>
+      </div>
+      <div class="rail-h" style="margin-top:var(--s3)">Every finding carries</div>
+      <ol class="include" id="include"></ol>
+    </section>
+
+    <section class="section">
+      <h2 class="section-h">Out of the walk</h2>
+      <p class="section-lede">Writes the app can send that this walk deliberately does not cover, each with the reason it is unreachable on a testnet. The claim is checked against the app's own source on every change, so the walk cannot quietly stop describing the app.</p>
+      <div class="rows" id="outofwalk"></div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-h">Blind spots</h2>
+      <p class="section-lede">Call sites the coverage scan cannot pair to a step, and why each one is accounted for anyway.</p>
+      <div class="rows" id="blindspots"></div>
+    </section>
+  </main>
+</div>
+
+<footer><div class="in">
+  <span id="f1"></span>
+  <span>Progress is kept in this browser only &middot; nothing is sent anywhere</span>
+</div></footer>
+
+<script id="walkdata" type="application/json">{"manifest": {"version": 1, "title": "The noesis testnet walk", "purpose": "Two testers who follow this walk exercise the same protocol. Every write the app can send is either a numbered step here or is one this walk names as unreachable on a testnet, with the reason why — and that claim is checked against the app's own source on every change, so the walk cannot quietly stop describing the app.", "roles": {"operator": "holds the protocol owner key. On a fresh testnet this is whoever ran the deploy; the act-O steps are the only ones that need it.", "creator": "launches a collection. Needs testnet ETH, an image, and nothing else — no allowlist and no prior standing.", "collector": "buys, mints, bids, stakes. Needs testnet ETH only. This is the role most testers should walk first.", "artist": "holds the overlay-module role on a collection whose art is published in waves. Reached on a collection whose overlay module was wired at launch in C-1."}, "blockingRule": "A step marked [blocking] is one whose failure stops a launch — money moves wrongly, or a person cannot complete a thing the app offered them. A failure on any step is filed as a row either way; blocking says whether the row is allowed to stay open when the launch button is pressed.", "prerequisites": {"operator": ["the wallet that owns the protocol on the chain you are walking — the address that ran the deploy", "enough test ETH for about twenty transactions", "the deployed addresses, which the app already carries for the chain it was built against"], "creator": ["a wallet with test ETH — enough to seed a pool, so ask for more than a faucet's default drip", "one image file to launch with, under a few megabytes", "nothing else: no allowlist, no approval, no prior standing"], "collector": ["a wallet with test ETH — a single faucet drip is enough for act B", "a collection that is already live, which act C produces; if nobody has walked C yet, walk it first or ask for the address of one that has"], "artist": ["a wallet with test ETH", "the overlay-module role on a live collection, which the creator grants during act C"]}, "report": {"destination": "Reply to the post you were invited from. That is the channel the invite came down, and it is where a reply is read.", "secondary": "The app's own /board is public, permissionless and on-chain, so a report posted there is one anybody can read back. Two traps, and both of them lose a report silently. Posting is batched: the composer's Post button only queues your report into the board cart, and nothing reaches the chain until you press \"finalize N on-chain\" on the cart bar at the foot of the page — a report left in the cart was never filed. And the feed shows only posts whose attached value clears the registry's postThreshold; the in-app composer defaults the amount to the live threshold, so post through the composer rather than by hand and your report will be visible.", "secondaryRoute": "/board", "include": ["the step id — every finding is filed against one, and a finding with no step id is a finding nobody can walk back to", "what you did, in the words you would use to do it again", "what you expected, which is the step's own expect line, not your guess at it", "what happened instead, with the screen you were on", "the transaction hash if the wallet got as far as sending one, and the wallet's own error if it did not", "the chain id and the address of MasterRegistryV1 the invite printed, so the run can be told from any other run"]}, "acts": [{"id": "O", "title": "the operator arms the protocol", "role": "operator", "note": "Most of these are executed by the deploy script rather than by hand. Walk them anyway: the panel is the surface an operator will actually use six months from now, when the script is gone and the state is live.", "steps": [{"id": "O-1", "title": "register the factories and the vault kinds", "route": "/admin", "calls": ["masterRegistryV1Abi.registerFactory", "masterRegistryV1Abi.registerVault"], "given": "a fresh deploy, connected as the protocol owner", "do": "in the master-registry panel, register each deployed factory address and each vault implementation", "expect": "each one appears in the panel's own list afterwards, and /launch offers the newly registered kind", "blocking": true}, {"id": "O-2", "title": "set the launch economics", "route": "/admin", "calls": ["erc404FactoryAbi.setMinPoolEth", "erc404FactoryAbi.setCarveBrackets", "erc404FactoryAbi.setBondingFeeBps", "deployBondEscrowAbi.setBondAmount", "deployBondEscrowAbi.setGraceDays", "deployBondEscrowAbi.setMaxBondDuration", "globalMessageRegistryAbi.setPostThreshold"], "given": "the factories are registered", "do": "in the platform-config panel, set each value, then reload the page. The bonding fee is in basis points and the contract refuses anything above 300 — try 400 first and the button stays disabled with the ceiling named, rather than sending a transaction that reverts", "expect": "every value reads back the number that was set — not a default, and not the previous value", "blocking": true}, {"id": "O-3", "title": "price the featured queue", "route": "/admin", "calls": ["featuredQueueManagerAbi.setDailyRate", "featuredQueueManagerAbi.setDailyDecayRate", "featuredQueueManagerAbi.setDurationBounds", "featuredQueueManagerAbi.setMaxFeaturedSize"], "given": "the featured queue manager is deployed", "do": "set the daily rate, the decay, the min/max duration and the queue size", "expect": "the price a collector is quoted in B-12 matches the rate set here", "blocking": false}, {"id": "O-4", "title": "curate an alignment target", "route": "/admin", "calls": ["alignmentRegistryV1Abi.registerAlignmentTarget", "alignmentRegistryV1Abi.updateAlignmentTarget", "alignmentRegistryV1Abi.setCommunityPayout"], "given": "a token address to align to — on a testnet, any ERC-20 the operator can mint", "do": "register the target, then edit it, then point its community payout at an address you control", "expect": "the target appears at /target/:id with the payout address it was given, and /launch offers it as an alignment choice", "blocking": true}, {"id": "O-5", "title": "judge a target request", "route": "/admin", "calls": ["alignmentTargetRequestRegistryAbi.approveRequest", "alignmentTargetRequestRegistryAbi.rejectRequest"], "given": "B-15 has been walked, so at least two requests are pending", "do": "approve one and reject the other", "expect": "the approved token becomes an alignment choice; the rejected one does not, and its requester can take the deposit back in B-15", "blocking": true}, {"id": "O-6", "title": "approve a component, then revoke it", "route": "/admin", "calls": ["componentRegistryAbi.approveComponent", "componentRegistryAbi.revokeComponent"], "given": "a deployed module address (the merkle gating module will do)", "do": "approve it, confirm a creator can select it in C-6, then revoke it", "expect": "after revocation the module is no longer offered to a creator, and a collection already using it keeps working", "blocking": false}, {"id": "O-7", "title": "delegate an agent, then take it back", "route": "/admin", "calls": ["masterRegistryV1Abi.setAgent", "masterRegistryV1Abi.revokeAgent", "masterRegistryV1Abi.setEmergencyRevoker"], "given": "a second address to act as the agent", "do": "set the agent, name an emergency revoker, then revoke the agent", "expect": "the agent address can act while set and cannot after revocation", "blocking": false}, {"id": "O-8", "title": "revoke a collection, and correct one that is wrong", "route": "/admin", "calls": ["masterRegistryV1Abi.revokeInstance", "masterRegistryV1Abi.updateInstanceMetadata"], "given": "at least two launched collections from act C", "do": "correct one collection's metadata pointer, then revoke the other", "expect": "the corrected collection renders its new art; the revoked one disappears from /collections and from every listing, and its own page says why", "blocking": true}, {"id": "O-9", "title": "retire a factory and a vault kind", "route": "/admin", "calls": ["masterRegistryV1Abi.deactivateFactory", "masterRegistryV1Abi.deactivateVault"], "given": "collections already launched from that factory", "do": "deactivate one factory and one vault kind", "expect": "/launch stops offering them, and every collection already launched from them still loads and still trades", "blocking": true}, {"id": "O-10", "title": "de-curate a target that is already carrying money", "route": "/admin", "calls": ["alignmentRegistryV1Abi.deactivateAlignmentTarget"], "given": "a target with at least one aligned collection that has taken fees", "do": "deactivate the target", "expect": "no new collection can align to it, and the money already accrued to it can still be sent to its community payout", "blocking": true}, {"id": "O-11", "title": "sweep the treasury", "route": "/admin", "calls": ["protocolTreasuryV1Abi.withdrawETH", "protocolTreasuryV1Abi.withdrawERC20", "protocolTreasuryV1Abi.withdrawERC721"], "given": "the treasury holds a protocol cut from act B, and (for the token legs) any ERC-20/ERC-721 sent to it", "do": "withdraw each of the three", "expect": "the destination balance rises by the amount the panel said, to the wei", "blocking": true}, {"id": "O-12", "title": "price the target-request queue", "route": "/admin", "calls": ["alignmentTargetRequestRegistryAbi.setRequestDeposit", "alignmentTargetRequestRegistryAbi.setMaxPending", "alignmentTargetRequestRegistryAbi.setRequestTTL"], "given": "the alignment panel is reachable, and at least one request has been submitted in B-15 so the queue is not empty", "do": "in the alignment panel's request-queue rows, set the deposit, the maximum number of pending requests, and the TTL in days. Then reload, and submit a request as the collector in B-15 against the new numbers", "expect": "each row reads back what was set — the deposit in ETH, the count, and the TTL rendered in days rather than seconds. A submission escrows the new deposit, and one past the new maximum is refused by the contract rather than accepted and stranded", "blocking": true}, {"id": "O-13", "title": "appoint an ambassador, then take the seat back", "route": "/admin", "calls": ["alignmentRegistryV1Abi.addAmbassador", "alignmentRegistryV1Abi.removeAmbassador"], "given": "a curated alignment target from O-4, and a second wallet address to appoint", "do": "in the alignment panel's ambassador row, add the address against the target id. Have that wallet walk H-2. Then remove it and have the same wallet try H-2 again", "expect": "the appointed wallet can edit the target in H-2 and the removed one cannot — the edit is refused by the contract rather than accepted and ignored. The seat survives de-curation: after O-10 the ambassador can still edit the description, and only the spending is frozen", "blocking": true}]}, {"id": "C", "title": "a creator launches and runs a collection", "role": "creator", "note": "Walk C-1 at minimum. C-2 and C-3 are the other two families and each one changes what acts B and H can reach.", "steps": [{"id": "C-1", "title": "launch an ERC-404 bonding collection", "route": "/launch", "calls": ["erc404FactoryAbi.createInstance"], "given": "testnet ETH and an image", "do": "walk the wizard end to end and send the deploy", "expect": "the wizard's quoted cost is what the wallet asks for; on success it lands on the collection's own page, reachable again from /collections", "blocking": true}, {"id": "C-2", "title": "launch an ERC-1155 edition collection", "route": "/launch", "calls": ["erc1155FactoryAbi.createInstance"], "given": "testnet ETH and an image, as in C-1", "do": "pick the edition family and deploy with at least one edition", "expect": "the collection page shows the edition, and its mint button is offered only once the edition has opened", "blocking": true}, {"id": "C-3", "title": "launch an ERC-721 auction collection", "route": "/launch", "calls": ["erc721AuctionFactoryAbi.createInstance"], "given": "testnet ETH and an image, as in C-1", "do": "pick the auction family and deploy", "expect": "the collection page shows an empty auction queue, and C-9 is offered", "blocking": true}, {"id": "C-4", "title": "ask for a yield vault at launch", "route": "/launch", "calls": ["alignmentRegistryV1Abi.requestVault"], "given": "an alignment target from O-4 with no vault of the kind you want", "do": "request the vault from the wizard's alignment step", "expect": "the wizard says the vault is pending rather than pretending it exists, and the launch can still complete", "blocking": false}, {"id": "C-5", "title": "schedule the curve, then arm it", "route": "/:chainId/:slug", "calls": ["erc404BondingInstanceAbi.setBondingOpenTime", "erc404BondingInstanceAbi.setBondingMaturityTime", "erc404BondingInstanceAbi.setBondingActive"], "given": "your own ERC-404 collection from C-1", "do": "set an open time a few minutes out and a maturity after it, arm bonding, and try to buy before the open time", "expect": "the buy is not offered before the open time — the app refuses it rather than letting the chain revert it — and becomes available on its own once the time passes; a maturity at or before the open time is refused in the form, not on-chain", "blocking": true}, {"id": "C-6", "title": "gate a mint behind an allowlist", "route": "/:chainId/:slug", "calls": ["merkleGatingModuleAbi.configureFor"], "given": "a collection of yours and a list of addresses, one of them the collector's", "do": "configure the gate from the creator panel", "expect": "the listed address can mint and an unlisted one is told it is not on the list before it spends gas", "blocking": false}, {"id": "C-7", "title": "dress the collection and fix its art pointer", "route": "/:chainId/:slug", "calls": ["erc404BondingInstanceAbi.setStyle", "erc1155InstanceAbi.setStyle", "erc404BondingInstanceAbi.setMetadataURI", "masterRegistryV1Abi.updateInstanceMetadata"], "given": "a launched collection", "do": "change the style, then repoint the metadata URI to a different image", "expect": "both changes render on the collection page and on its card in /collections without a hard reload", "blocking": false}, {"id": "C-8", "title": "add an edition, schedule it, give it a free allocation, then correct it", "route": "/:chainId/:slug", "calls": ["erc1155InstanceAbi.addEdition", "erc1155InstanceAbi.setEditionSchedule", "erc1155InstanceAbi.setEditionFreeMintAllocation", "erc1155InstanceAbi.updateEditionMetadata"], "given": "your ERC-1155 collection from C-2", "do": "add a second edition with a close time about ten minutes out and a per-wallet limit of 1, correct that close time to about three minutes out before anyone mints it, set a free allocation on it, then edit its metadata", "expect": "the new edition is listed and mintable at its own /:chainId/:slug/edition/:id, its card counts down to the corrected close time, one wallet can take only the single token the limit allows, and once the close time passes the mint button is refused rather than failing at the wallet. The free allocation is what B-8 draws from. After the first mint the schedule form reports the edition has sold instead of offering inputs", "blocking": true}, {"id": "C-9", "title": "queue a piece for auction", "route": "/:chainId/:slug", "calls": ["erc721AuctionInstanceAbi.queuePiece"], "given": "your ERC-721 collection from C-3", "do": "queue a piece with a reserve", "expect": "the auction starts and the page shows a running clock a bidder can act against", "blocking": true}, {"id": "C-10", "title": "take the creator's share out", "route": "/:chainId/:slug", "calls": ["erc1155InstanceAbi.withdraw"], "given": "editions have been minted in B-7", "do": "withdraw from the creator panel", "expect": "the wallet receives what the panel said was withdrawable, and the panel then reads zero", "blocking": true}, {"id": "C-11", "title": "claim every fee stream a creator has", "route": "/:chainId/:slug", "calls": ["erc1155InstanceAbi.claimVaultFees", "erc1155InstanceAbi.claimAllFees", "erc721AuctionInstanceAbi.claimVaultFees", "erc721AuctionInstanceAbi.claimAllFees", "erc404BondingInstanceAbi.claimAllFees"], "given": "trading and minting have happened on each family", "do": "claim from each family's creator panel", "expect": "the amount claimed matches what was displayed, and a second claim with nothing owed is refused with a reason rather than burning gas", "blocking": true}, {"id": "C-12", "title": "retry a vault contribution that failed", "route": "/:chainId/:slug", "calls": ["erc1155InstanceAbi.retryVaultContribution"], "given": "a collection whose alignment vault was unreachable when a sale settled — reachable by aligning to a target whose vault is deactivated in O-9", "do": "retry from the creator panel", "expect": "the pending figure falls to zero and the vault receives it; the retry is reconcilable from the events, not only from the number on screen", "blocking": true}, {"id": "C-13", "title": "move a collection to a different vault", "route": "/:chainId/:slug", "calls": ["erc1155InstanceAbi.migrateVault", "erc404BondingInstanceAbi.migrateVault", "erc721AuctionInstanceAbi.migrateVault"], "given": "two registered vaults for the same target", "do": "migrate on each family", "expect": "fees accrued before the migration are not stranded — they reach one of the two vaults and the page says which", "blocking": true}, {"id": "C-14", "title": "hand a collection to an agent", "route": "/:chainId/:slug", "calls": ["erc1155InstanceAbi.setAgentDelegation", "erc404BondingInstanceAbi.setAgentDelegation", "erc721AuctionInstanceAbi.setAgentDelegation"], "given": "the agent address from O-7", "do": "delegate on each family, then act as the agent", "expect": "the agent reaches exactly the controls the panel said it would, and nothing that moves the creator's money", "blocking": true}, {"id": "C-15", "title": "graduate the curve", "route": "/:chainId/:slug", "calls": ["erc404BondingInstanceAbi.deployLiquidity", "erc404BondingInstanceAbi.activateStaking"], "given": "the curve from C-1 bought out to its graduation point in B-1", "do": "deploy liquidity, then activate staking", "expect": "the collection page swaps the curve panel for the graduated-venue panel of B-6, names the venue it deployed to, and staking becomes available in B-5", "blocking": true}, {"id": "C-16", "title": "get the deploy bond back", "route": "/:chainId/:slug", "calls": ["deployBondEscrowAbi.refund"], "given": "a bonded launch that met its condition", "do": "claim the refund from the creator panel", "expect": "the bond returns in full, and the panel is honest about the deadline it was measured against", "blocking": true}, {"id": "C-17", "title": "sweep the surplus a fee claim leaves behind", "route": "/:chainId/:slug", "calls": ["erc404BondingInstanceAbi.withdrawDust"], "given": "an ERC-404 collection from C-1 that has been traded in B-1 and whose fees were claimed in C-11", "do": "in the creator admin panel, read the sweep-surplus row and press it", "expect": "the row names the amount that backs neither a sell refund nor a staker, and the sweep pays exactly that. With nothing above those two reserves the button is disabled and says so, instead of sending a transaction the contract reverts. Selling back in B-1 after the sweep still pays out in full — the sweep must never have touched the sell reserve", "blocking": true}, {"id": "C-18", "title": "re-send a vault cut that never landed, on both families that strand one", "route": "/:chainId/:slug", "calls": ["erc721AuctionInstanceAbi.flushPendingVaultCut"], "given": "an ERC-721 auction collection from C-3 with an auction settled in B-9, and a graduated ERC-404 collection from C-15 — both aligned to a vault", "do": "in the auction collection's creator admin panel, read the stranded-tithe row and press flush if it names an amount. Then do the same on the ERC-404 collection, whose row sends the same call against the liquidity module it graduated through rather than against the instance. If either says nothing is stranded, say so in the row — that is the expected reading when every settlement delivered", "expect": "a stranded amount leaves for the vault and the row falls to nothing stranded, on whichever family had one. With nothing stranded the button is disabled rather than reverting. The call is permissionless on both, so it works from a wallet that owns nothing — walk it once from the creator and once from the collector wallet", "blocking": true}, {"id": "C-19", "title": "pull the endowment yield and deliver the community share", "route": "/:chainId/:slug", "calls": ["alignmentEndowmentVaultAbi.claimYieldPurse", "alignmentEndowmentVaultAbi.flushTargetFees"], "given": "a collection on an endowment vault — C-4 asked for one at launch — with yield harvested into it in B-11", "do": "on the collection page, open the community-endowment panel. Press claim yield as the collection owner, then look at it again from a wallet that is not the owner. Press deliver community share when one is shown as undelivered. There is no vest control and no maturity date, and the panel states no split at all: what it shows is this collection's principal, marked permanent — leaves only when the target withdraws it, the harvestable yield, the community payout address, and the total endowment across every aligned collection. The 19% here is a share of the YIELD that principal earns, never of a fee — the split itself is watched in B-11 — and the principal is the target's to deploy from the block it arrives", "expect": "the claim pays the owner and the accrued figure falls to zero; from any other wallet the claim button is not on the page at all, rather than present and reverting. The delivery is disabled while no community payout is wired, and names that as the reason", "blocking": true}]}, {"id": "B", "title": "a collector uses the thing", "role": "collector", "note": "This act is the one a stranger walks. It needs no key and no standing — only testnet ETH and the link.", "steps": [{"id": "B-1", "title": "buy on the curve, then sell back", "route": "/:chainId/:slug", "calls": ["erc404BondingInstanceAbi.buyBonding", "erc404BondingInstanceAbi.sellBonding"], "given": "an armed, open ERC-404 collection from C-5", "do": "buy for a small amount, watch the holdings panel, then sell part of it back", "expect": "the coin balance and the NFTs both move in the same transaction; the quote shown before signing is what settles, within the slippage stated on screen", "blocking": true}, {"id": "B-2", "title": "claim a free mint on the curve", "route": "/:chainId/:slug", "calls": ["erc404BondingInstanceAbi.claimFreeMint"], "given": "a collection launched with a free allocation", "do": "claim it, then try to claim a second time", "expect": "the first claim lands; the second is refused before it is signed, and an exhausted pool says it is claimed out rather than offering a claim", "blocking": true}, {"id": "B-3", "title": "trade up and down the tiers", "route": "/:chainId/:slug", "calls": ["erc404BondingInstanceAbi.mintUp", "erc404BondingInstanceAbi.mintDown", "erc404BondingInstanceAbi.claimReleasedEscrow"], "given": "enough coin from B-1 to reach a tier above the base", "do": "mint up a tier, mint back down, then claim what the down-trade released", "expect": "the escrow released is claimable and arrives; the tier art changes on both moves", "blocking": true}, {"id": "B-4", "title": "reroll a piece, and stop receiving them", "route": "/:chainId/:slug", "calls": ["erc404BondingInstanceAbi.rerollSelectedNFTs", "erc404BondingInstanceAbi.setSkipNFT"], "given": "at least two NFTs from B-1", "do": "reroll one, then turn skip-NFT on and buy again", "expect": "the rerolled piece changes; with skip on, a buy moves coin and mints no NFT", "blocking": false}, {"id": "B-5", "title": "stake, earn, unstake", "route": "/:chainId/:slug", "calls": ["erc404BondingInstanceAbi.stake", "erc404BondingInstanceAbi.claimStakingRewards", "erc404BondingInstanceAbi.unstake"], "given": "staking activated in C-15", "do": "stake, wait for a reward to accrue, claim it, then unstake everything", "expect": "the reward claimed matches what was displayed; unstaking returns the full stake", "blocking": true}, {"id": "B-6", "title": "trade the graduated token without leaving the site", "route": "/:chainId/:slug", "calls": ["erc404BondingInstanceAbi.approve", "zRouterAbi.swapV4", "zRouterAbi.swapVZ", "alignmentHookSwapRouterAbi.swap"], "given": "a graduated collection from C-15. A ZAMM graduation and a Uni-V4 graduation taken while the alignment hook was off both trade through zRouter; a Uni-V4 graduation taken after the hook was switched on has that hook in its pool key and trades through AlignmentHookSwapRouter instead. Walk this once per pool shape you can reach and record which one you actually traded.", "do": "buy with ETH, then approve and sell back to ETH", "expect": "the sell settles in native ETH, not in a wrapped token; the min-out shown before signing is a separate figure from the amount you receive, and the receipt lands between them. On a hooked pool the amount received is already net of the alignment tithe, so the quote and the receipt agree with each other and both sit below the untithed pool price", "blocking": true}, {"id": "B-7", "title": "mint an edition", "route": "/:chainId/:slug/edition/:id", "calls": ["erc1155InstanceAbi.mint"], "given": "an open edition from C-2", "do": "mint one, then mint several in one transaction, with a message attached", "expect": "the cost quoted is what is charged; the message appears in the collection's feed", "blocking": true}, {"id": "B-8", "title": "claim a free edition", "route": "/:chainId/:slug/edition/:id", "calls": ["erc1155InstanceAbi.claimFreeMint"], "given": "the free allocation set in C-8", "do": "claim, then attempt a second claim", "expect": "as B-2 — the second is refused before signing, and an exhausted allocation says so", "blocking": true}, {"id": "B-9", "title": "bid, win, settle — and lose", "route": "/:chainId/:slug", "calls": ["erc721AuctionInstanceAbi.createBid", "erc721AuctionInstanceAbi.settleAuction", "erc721AuctionInstanceAbi.reclaimUnsold"], "given": "a running auction from C-9, and a second wallet to bid against", "do": "bid, be outbid, bid again near the end to trigger the time extension, let it end, settle it. Separately, let an auction with no bids expire and reclaim the piece.", "expect": "the outbid wallet gets its ETH back without asking; the extension is visible on the clock; settlement delivers the piece and pays the creator; the unsold piece returns to the creator", "blocking": true}, {"id": "B-10", "title": "unlock the art overlay on a piece you hold", "route": "/:chainId/:slug/token/:id", "calls": ["metadataOverlayModuleAbi.unlock", "metadataOverlayModuleAbi.unlockWave", "metadataOverlayModuleAbi.select"], "given": "a piece from B-1 on a collection with an overlay module and a published wave from H-1", "do": "unlock the commission, unlock a specific wave, then select which wave the piece wears", "expect": "the price paid is the one the panel quoted; the piece renders the selected wave everywhere it appears, not only on this page", "blocking": false}, {"id": "B-11", "title": "harvest the alignment vault", "route": "/:chainId/:slug", "calls": ["alignmentEndowmentVaultAbi.harvest"], "given": "an aligned collection whose vault has accrued yield", "do": "harvest from the vault panel", "expect": "the harvested yield is split once, the same way on every harvest — 80% accrues to the collection owner's claimable yield, 19% to the community share delivered in B-16, 1% to the protocol — and the panel's accrued figures move by those shares. A principal figure that reads zero means the target deployed it, not that anything matured", "blocking": true}, {"id": "B-12", "title": "rent the featured slot", "route": "/:chainId/:slug", "calls": ["featuredQueueManagerAbi.rentFeatured", "featuredQueueManagerAbi.boostRank", "featuredQueueManagerAbi.renewDuration", "featuredQueueManagerAbi.pruneExpired"], "given": "the queue priced in O-3", "do": "rent a slot, boost it above another, renew it, then let one expire and prune it", "expect": "the price charged is the price quoted; the home page's featured row reflects each move; an expired slot leaves the row", "blocking": false}, {"id": "B-13", "title": "post to the board", "route": "*", "calls": ["globalMessageRegistryAbi.postBatch"], "given": "the post threshold set in O-2", "do": "on /board, add several posts to the cart, then send them together from the cart bar", "expect": "the fee charged matches the number of posts; every post appears in the feed it was addressed to", "blocking": false}, {"id": "B-14", "title": "set a profile, then clear it", "route": "/profile", "calls": ["profileRegistryAbi.setProfile", "profileRegistryAbi.clearProfile"], "given": "a connected wallet", "do": "set a name and avatar, check it renders on a collection you touched, then clear it", "expect": "the name replaces the raw address everywhere it was showing, and clearing puts the address back", "blocking": false}, {"id": "B-15", "title": "ask for an alignment target, and take the deposit back", "route": "/request-target", "calls": ["alignmentTargetRequestRegistryAbi.submitRequest", "alignmentTargetRequestRegistryAbi.withdrawRefund"], "given": "the deposit amount set at deploy, and a token address to propose", "do": "submit two requests, have O-5 approve one and reject the other, then withdraw the refund on the rejected one", "expect": "the deposit is taken at submit and returned in full on the rejected request; the approved one's deposit is accounted for where the page says it goes", "blocking": true}, {"id": "B-16", "title": "deliver the community's accrued fees", "route": "/vault/:address", "calls": ["communityPayoutAbi.withdrawTargetFees", "communityPayoutAbi.flushTargetFees"], "given": "a vault whose target carries the community payout address set in O-4, with fees accrued to it by the trading in B-1", "do": "open the vault from /vaults and press deliver — the button sends flushTargetFees on an endowment vault and withdrawTargetFees on a ZAMM or Uni one, so walk whichever kind the deploy has and say which in the row", "expect": "the waiting amount falls to zero and the payout address receives it; with no payout address set the button is disabled and says the delivery is waiting on one, rather than sending a transaction that reverts", "blocking": true}, {"id": "B-17", "title": "deliver a closed funding round's residue", "route": "/vault/:address", "calls": ["communityPayoutAbi.flushRoundResidue"], "given": "an endowment vault reached in B-16 whose target is still curated, after its ambassador has deployed the corpus down to a sliver — the deploy is sent from the ambassador's own wallet, the app has no control for it — which closes the funding round and parks what was left as round residue", "do": "read the round-residue row, press deliver the residue, then press it again with none waiting", "expect": "the residue leaves for the payout address and the row falls to zero; the second press is refused by a disabled button that says no round residue is waiting. With no payout address set the button is disabled and says the residue waits on one. The call is permissionless, so walk it from a wallet that owns nothing. Once the target is de-curated this control stops working and the residue goes out with the release in B-18 instead", "blocking": true}, {"id": "B-18", "title": "release the frozen principal to the community", "route": "/vault/:address", "calls": ["communityPayoutAbi.releaseCorpusToCommunity"], "given": "an endowment vault reached in B-16 whose target was de-curated in O-10 — the ZAMM and Uni families do not offer this and their panel does not show the control. The frozen-principal figure is the corpus still in the position plus any round residue parked in B-17 and not yet delivered", "do": "press release, then press it a second time with nothing left to release", "expect": "the first release sends the frozen principal to the payout address in one call — corpus and parked residue together; the second is refused by a disabled button that says no principal is left to release, not by a revert", "blocking": true}, {"id": "B-19", "title": "deliver the protocol's accrued cut", "route": "/vault/:address", "calls": ["lpVaultAbi.withdrawProtocolFees"], "given": "a Uni or ZAMM vault that has taken trading fees — the same vault B-16 delivers the community share from", "do": "open the vault from /vaults and press deliver on the protocol-cut section", "expect": "the undelivered figure falls to zero and the treasury the vault was wired with receives it. The call takes no destination, so pressing it from a stranger's wallet sends the money to the same place — walk it from a wallet that owns nothing and check the treasury balance, not the sender's. With nothing accrued the section is not on the page at all", "blocking": true}, {"id": "B-20", "title": "expire your own stale target request and get the deposit back", "route": "/request-target", "calls": ["alignmentTargetRequestRegistryAbi.pruneExpired"], "given": "a request submitted in B-15 that the operator has neither approved nor rejected, and a TTL set in O-12 short enough to elapse during the walk", "do": "on /request-target, find the request under your own requests and press expire & refund. Then claim the refund with the row B-15 already walks", "expect": "the button appears only once the TTL has elapsed on a still-pending request — before that there is no button, not a disabled one. After it, the request leaves the pending queue and the deposit is claimable. It is permissionless, so a second wallet can expire the same request and the refund still goes to whoever submitted it", "blocking": false}, {"id": "B-21", "title": "see your own stake in a vault, and claim it", "route": "/vault/:address", "calls": ["benefactorPositionAbi.claimFees"], "given": "a Uni or ZAMM vault reached from /vaults that has taken trading fees from the graduated pool in B-1, and a wallet that has sent that vault at least 0.001 ETH directly. That send is a plain wallet transfer and not an app button — the app offers no way to contribute to a vault, and Uni and ZAMM credit whoever sends them ETH. Walk it once before the vault's pending ETH has been converted into shares and once after; conversion is a keeper's call, not a page's", "do": "open the vault with that wallet connected and read the Your position section, then press claim in both states. Also open the same vault from a wallet that has never contributed", "expect": "the section states this wallet's own contribution, shares, delegate and claimable, none of which are the vault-wide figures above it. Before conversion the shares read zero and claim is disabled saying a contribution becomes shares at the next conversion, rather than sending a transaction that reverts NoShares. After conversion the claim pays this wallet, and pays at least the claimable figure — it is labelled a minimum rather than a quote because the claim sweeps fresh fees first, so a payout larger than the figure is correct and a smaller one is a finding. A wallet that never contributed is told the figures are its own and not the vault's, instead of reading the vault's totals as if they were its position", "blocking": true}, {"id": "B-22", "title": "send your claims to another wallet, then take them back", "route": "/vault/:address", "calls": ["benefactorPositionAbi.delegateBenefactor"], "given": "the position walked in B-21, with shares and something claimable, plus a second address to hand the payout to", "do": "type the second address into pay this wallet's claims to and set it. Then press claim from the benefactor's own wallet. Then clear the box, press revoke delegate, and claim again", "expect": "before the transaction is sent the panel says plainly that this redirects the money and not merely the button, because the word delegate does not say so. Claims paid to then shows the delegate. The claim pressed afterwards from the benefactor's OWN wallet pays the delegate — check the delegate's balance and the benefactor's, and treat money arriving at the caller as the finding. Clearing the box revokes, the row returns to this wallet — no delegate set, and the next claim pays the benefactor again", "blocking": true}, {"id": "B-23", "title": "claim for the benefactors who named you", "route": "/vault/:address", "calls": ["benefactorPositionAbi.claimFeesAsDelegate"], "given": "the delegate address named in B-22, still set, connected as the wallet doing the walking, and a second benefactor address that has NOT named it", "do": "on the same vault, paste the delegating benefactor's address into claim for benefactors who delegated to you and press claim for them. Then repeat with the address that never delegated, and once with the box empty", "expect": "the whole sum arrives in the delegate's own wallet, which is what being a delegate means here, and the benefactor's balance does not move. The empty box leaves the button disabled asking for an address rather than sending nothing. The address that never delegated reverts, and the panel reports a failed claim — a success state on a transaction that reverted is the finding. The app builds no list of who delegated to whom because the vault publishes no such index, so the addresses being typed rather than offered is correct", "blocking": true}, {"id": "B-24", "title": "publish a curation without having deployed anything", "route": "/curations", "calls": ["curationRegistryAbi.createCuration"], "given": "connected as an address that has launched no collection and holds only testnet ETH for gas", "do": "open CURATIONS from the nav, name a set, put a few works in it, and publish it", "expect": "the set is published without paying anything beyond gas — there is no fee field and no approval step — and it appears in the public list with a page of its own at /curation/<id>", "blocking": true}, {"id": "B-25", "title": "edit a set you published, and take it off view", "route": "/curation/:id", "calls": ["curationRegistryAbi.setCurationURI", "curationRegistryAbi.setRetired"], "given": "the curation published in B-24, connected as the address that published it", "do": "edit the set — change its name or its works — save, then press Take off view, then Put back on view", "expect": "the edit shows on the page; off view the header reads 'off view' and the set drops out of the public list in B-24 while staying on your own shelf; putting it back restores it to the list. Retiring hides, it does not delete", "blocking": true}, {"id": "B-26", "title": "hand a collaborator edit rights on your set, and take them back", "route": "/curation/:id", "calls": ["curationRegistryAbi.setCollaborator"], "given": "the curation from B-24 and a second testnet address that did not publish it", "do": "add the second address as a collaborator, edit the set from that address, then revoke it from the first", "expect": "the collaborator can edit while allowed and cannot once revoked; the curator cannot add or revoke itself — the app refuses with 'you are the curator' rather than sending the call", "blocking": false}]}, {"id": "H", "title": "the roles a collection hands out", "role": "artist", "note": "These are reachable only after act C has created the standing they need. They are the surfaces most likely to be walked by nobody, which is why they are numbered.", "steps": [{"id": "H-1", "title": "publish a wave of art, price it, and let it auto-apply", "route": "/:chainId/:slug", "calls": ["metadataOverlayModuleAbi.publishWave", "metadataOverlayModuleAbi.setCommission", "metadataOverlayModuleAbi.setAutoLatest"], "given": "an ERC-404 collection with an overlay module wired, connected as its artist", "do": "publish a wave, set the unlock commission, then turn auto-latest on and publish a second wave", "expect": "holders can reach the wave in B-10; with auto-latest on, a piece that has not chosen a wave shows the newest one", "blocking": false}, {"id": "H-2", "title": "an ambassador edits the target they were given", "route": "/target/:id", "calls": ["alignmentRegistryV1Abi.updateAlignmentTarget"], "given": "an ambassador address added to a target by the operator", "do": "connect as the ambassador and edit the target from its own page", "expect": "the ambassador reaches the edit form and no owner-only control; after the target is de-curated in O-10, the ambassador can still operate what exists and cannot deploy anything new", "blocking": true}, {"id": "H-3", "title": "a community moves its own payout", "route": "/vault/:address", "calls": ["alignmentRegistryV1Abi.rotateCommunityPayout"], "given": "the address O-4 pointed the community payout at, connected as that address, on a vault bound to that target", "do": "open the vault, find the move-payout row under the payout address, enter a second address you control and send it; then connect as the FIRST address again and confirm the row is gone, and as the operator confirm /admin offers no way to move it either", "expect": "the payout moves to the second address and the deliver button in B-16 then pays there; the row shows only to whoever is currently receiving the payout, so the first address loses it the moment it moves and the operator never had it. This is the one authority in the walk the protocol cannot exercise on a community's behalf: the operator pins a payout once in O-4 and can never move it, which is why the row lives here and not on /admin.", "blocking": true}]}], "outOfWalk": [{"call": "zRouterAbi.swapV2", "why": "/exec404 trades CULT EXECUTIVES, a mainnet contract this protocol did not deploy. There is no testnet counterpart to trade, so nothing on that page can be walked on a deployed testnet."}, {"call": "erc20Abi.approve", "why": "the allowance leg of the same /exec404 trade — see zRouterAbi.swapV2."}, {"call": "exec404Abi.balanceMint", "why": "an EXEC404 contract call on /exec404 — see zRouterAbi.swapV2."}, {"call": "exec404Abi.transfer", "why": "an EXEC404 contract call on /exec404 — see zRouterAbi.swapV2."}, {"call": "exec404MirrorAbi.transferFrom", "why": "an EXEC404 mirror call on /exec404 — see zRouterAbi.swapV2."}], "blindSpots": [{"site": "app/src/components/wizard/useDeployGasEstimate.ts:63", "why": "the abi is picked at runtime from a FACTORY table, so the scan cannot pair it. It is an estimateContractGas read, not a write, and the write it estimates is covered by C-1/C-2/C-3."}, {"site": "app/src/components/collection/erc404/useStrandedTithe.ts:81", "why": "the abi is picked at runtime from the venue the collection graduated to — one of two liquidity deployer modules — so the scan cannot pair it. The write is flushPendingVaultCut on whichever module holds the stranded cut; it is walked as C-18 on the auction family, and the ERC-404 row beside it sends the same call against the module instead of the instance."}, {"site": "app/src/lib/useEthUsd.ts:76", "why": "the abi is viem's own multicall3Abi, not a project artifact, so the scan has nothing to pair it against. It is a read and not a write — getCurrentBlockTimestamp is how the ETH/USD round's age is measured against the chain's own clock in the same batch that fetches the round — so there is no tester action behind it. A failed or stale read renders the ETH figure alone, which is the degraded state a walker sees rather than a step they perform."}]}, "run": {"chainId": 11155111, "masterRegistry": "0x0000000000666868b0a9eC07fa495Da351718BcE", "deployer": "0x000888695d3e361434f67D9dbd110f1A443822b9", "deployBlock": 11799756, "commit": "70864997", "rpc": "http://localhost:8546", "app": "http://localhost:5173", "network": "Sepolia fork (local anvil)"}}</script>
+<script>
+(function(){
+  "use strict";
+  var D = JSON.parse(document.getElementById('walkdata').textContent);
+  var M = D.manifest, RUN = D.run;
+  var KEY = 'noesis-walk:' + RUN.chainId + ':' + RUN.masterRegistry;
+
+  /* ── state (per viewer, best-effort) ──────────────────────────────────── */
+  var state = {};
+  try { state = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { state = {}; }
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+
+  var ALL = [];
+  M.acts.forEach(function(a){ a.steps.forEach(function(s){ ALL.push({ act:a, step:s }); }); });
+
+  function txt(el, s){ el.textContent = s == null ? '' : String(s); }
+  function el(tag, cls, text){
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  /* ── masthead ─────────────────────────────────────────────────────────── */
+  txt(document.getElementById('purpose'), M.purpose);
+  txt(document.getElementById('f1'),
+      M.title + ' · manifest v' + M.version + ' · build ' + RUN.commit);
+
+  var runRows = [
+    ['network', RUN.network],
+    ['chain id', RUN.chainId],
+    ['MasterRegistryV1', RUN.masterRegistry],
+    ['deployer / owner', RUN.deployer],
+    ['deploy block', RUN.deployBlock],
+    ['wallet rpc', RUN.rpc],
+    ['app', RUN.app],
+    ['build', RUN.commit]
+  ];
+  var runEl = document.getElementById('run');
+  runRows.forEach(function(r){
+    var c = el('div','run-cell');
+    c.appendChild(el('div','run-k', r[0]));
+    c.appendChild(el('div','run-v', r[1]));
+    runEl.appendChild(c);
+  });
+
+  /* ── acts ─────────────────────────────────────────────────────────────── */
+  var actsEl = document.getElementById('acts');
+  var navEl  = document.getElementById('actnav');
+
+  M.acts.forEach(function(a){
+    var blocking = a.steps.filter(function(s){ return s.blocking; }).length;
+
+    var link = document.createElement('a');
+    link.href = '#act-' + a.id;
+    link.appendChild(el('span','ax', a.id));
+    link.appendChild(el('span','an', a.title));
+    var cnt = el('span','ac','');
+    cnt.dataset.actcount = a.id;
+    link.appendChild(cnt);
+    navEl.appendChild(link);
+
+    var sec = el('section','act');
+    sec.id = 'act-' + a.id;
+
+    var head = el('div','act-head');
+    head.appendChild(el('div','act-id','Act ' + a.id + ' · walked as the ' + a.role));
+    head.appendChild(el('h2','act-title', a.title));
+    var meta = el('div','act-meta');
+    meta.appendChild(el('span', null, a.steps.length + ' steps'));
+    meta.appendChild(el('span', null, blocking + ' blocking'));
+    head.appendChild(meta);
+    if (a.note) head.appendChild(el('p','act-note', a.note));
+
+    var pre = M.prerequisites && M.prerequisites[a.role];
+    if (pre) {
+      var box = el('div','prereq');
+      box.appendChild(el('div','prereq-h','What the ' + a.role + ' needs before starting'));
+      var ul = document.createElement('ul');
+      (Array.isArray(pre) ? pre : [pre]).forEach(function(p){ ul.appendChild(el('li',null,p)); });
+      box.appendChild(ul);
+      head.appendChild(box);
+    }
+    sec.appendChild(head);
+
+    var list = el('div','steps');
+    a.steps.forEach(function(s){ list.appendChild(buildStep(s)); });
+    sec.appendChild(list);
+    actsEl.appendChild(sec);
+  });
+
+  /* ── one step ─────────────────────────────────────────────────────────── */
+  function buildStep(s){
+    var wrap = el('div','step' + (s.blocking ? ' blocking' : ''));
+    wrap.dataset.id = s.id;
+    wrap.dataset.blocking = s.blocking ? '1' : '0';
+
+    var bar = el('button','step-bar');
+    bar.setAttribute('aria-expanded','false');
+    bar.appendChild(el('span','sid', s.id));
+
+    var line = el('span','sline');
+    line.appendChild(el('span','stitle', s.title));
+    var tags = el('span','stags');
+    if (s.route) tags.appendChild(el('span','mono', s.route));
+    if (s.blocking) tags.appendChild(el('span','tag-block','blocking'));
+    var failTag = el('span','tag-fail hidden','failed');
+    tags.appendChild(failTag);
+    if (s.calls && s.calls.length) {
+      tags.appendChild(el('span', null, s.calls.length + (s.calls.length === 1 ? ' call' : ' calls')));
+    }
+    line.appendChild(tags);
+    bar.appendChild(line);
+
+    var chev = el('span','chev','+');
+    bar.appendChild(chev);
+    wrap.appendChild(bar);
+
+    var body = el('div','step-body hidden');
+
+    if (s.given)  body.appendChild(field('Given', s.given));
+    if (s.do)     body.appendChild(field('Do', s.do));
+    if (s.expect) body.appendChild(field('Expect', s.expect, 'expect'));
+
+    if (s.calls && s.calls.length) {
+      var f = el('div','field');
+      f.appendChild(el('div','field-k','Writes it sends'));
+      var cs = el('div','calls');
+      s.calls.forEach(function(c){ cs.appendChild(el('span',null,c)); });
+      f.appendChild(cs);
+      body.appendChild(f);
+    }
+
+    /* verdict */
+    var v = el('div','verdict');
+    var bPass = el('button', null, 'pass');
+    var bFail = el('button', null, 'fail');
+    var bCopy = el('button','ghost','copy finding');
+    v.appendChild(bPass); v.appendChild(bFail); v.appendChild(bCopy);
+    body.appendChild(v);
+
+    /* note */
+    var noteWrap = el('div','note hidden');
+    var ta = document.createElement('textarea');
+    ta.placeholder =
+      'What you did, in the words you would use to do it again.\n' +
+      'What happened instead, and the screen you were on.\n' +
+      'The transaction hash, or the wallet’s own error if it never sent.';
+    ta.setAttribute('aria-label','What happened on ' + s.id);
+    noteWrap.appendChild(ta);
+    noteWrap.appendChild(el('div','note-help',
+      'Expected is this step’s own Expect line above — a finding quotes it rather than guessing at it.'));
+    body.appendChild(noteWrap);
+
+    wrap.appendChild(body);
+
+    function paint(){
+      var st = state[s.id] || {};
+      wrap.classList.toggle('is-pass', st.v === 'pass');
+      wrap.classList.toggle('is-fail', st.v === 'fail');
+      bPass.setAttribute('aria-pressed', st.v === 'pass' ? 'true' : 'false');
+      bFail.setAttribute('aria-pressed', st.v === 'fail' ? 'true' : 'false');
+      noteWrap.classList.toggle('hidden', st.v !== 'fail');
+      failTag.classList.toggle('hidden', st.v !== 'fail');
+      if (ta.value !== (st.note || '')) ta.value = st.note || '';
+    }
+
+    function set(v){
+      var st = state[s.id] || {};
+      st.v = (st.v === v) ? null : v;
+      if (!st.v) delete st.v;
+      state[s.id] = st;
+      if (st.v === 'fail') { open(true); }
+      save(); paint(); tally();
+    }
+
+    function open(force){
+      var want = force === true ? true : body.classList.contains('hidden');
+      body.classList.toggle('hidden', !want);
+      bar.setAttribute('aria-expanded', want ? 'true' : 'false');
+      chev.textContent = want ? '−' : '+';
+    }
+
+    bar.addEventListener('click', function(){ open(); });
+    bPass.addEventListener('click', function(e){ e.stopPropagation(); set('pass'); });
+    bFail.addEventListener('click', function(e){ e.stopPropagation(); set('fail'); });
+    ta.addEventListener('input', function(){
+      var st = state[s.id] || {}; st.note = ta.value; state[s.id] = st; save();
+    });
+    bCopy.addEventListener('click', function(e){
+      e.stopPropagation();
+      var st = state[s.id] || {};
+      var lines = [
+        'step: ' + s.id + ' — ' + s.title,
+        'route: ' + (s.route || '—'),
+        'chain id: ' + RUN.chainId,
+        'MasterRegistryV1: ' + RUN.masterRegistry,
+        'build: ' + RUN.commit,
+        '',
+        'expected: ' + (s.expect || '—'),
+        '',
+        'what happened: ' + (st.note ? st.note : '(fill this in)')
+      ];
+      var text = lines.join('\n');
+      var done = function(){
+        var was = bCopy.textContent; bCopy.textContent = 'copied';
+        setTimeout(function(){ bCopy.textContent = was; }, 1400);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function(){ open(true); });
+      } else { open(true); }
+    });
+
+    wrap._paint = paint;
+    paint();
+    return wrap;
+  }
+
+  function field(k, v, extra){
+    var f = el('div','field');
+    f.appendChild(el('div','field-k', k));
+    f.appendChild(el('div','field-v' + (extra ? ' ' + extra : ''), v));
+    return f;
+  }
+
+  /* ── tally + filters ──────────────────────────────────────────────────── */
+  var filter = 'all';
+
+  function tally(){
+    var pass = 0, fail = 0, blockOpen = 0;
+    ALL.forEach(function(r){
+      var st = state[r.step.id] || {};
+      if (st.v === 'pass') pass++;
+      else if (st.v === 'fail') fail++;
+      if (r.step.blocking && st.v !== 'pass') blockOpen++;
+    });
+    var n = ALL.length, filed = pass + fail;
+    txt(document.getElementById('tn'), filed);
+    txt(document.getElementById('td'), '/ ' + n);
+    txt(document.getElementById('cp'), pass);
+    txt(document.getElementById('cf'), fail);
+    txt(document.getElementById('cb'), blockOpen);
+    document.getElementById('mp').style.width = (pass / n * 100) + '%';
+    document.getElementById('mf').style.width = (fail / n * 100) + '%';
+
+    M.acts.forEach(function(a){
+      var p = a.steps.filter(function(s){ return (state[s.id] || {}).v === 'pass'; }).length;
+      var c = navEl.querySelector('[data-actcount="' + a.id + '"]');
+      if (c) c.textContent = p + '/' + a.steps.length;
+    });
+    applyFilter();
+  }
+
+  function applyFilter(){
+    document.querySelectorAll('.step').forEach(function(node){
+      var st = state[node.dataset.id] || {};
+      var show = true;
+      if (filter === 'blocking') show = node.dataset.blocking === '1';
+      else if (filter === 'open') show = !st.v;
+      else if (filter === 'fail') show = st.v === 'fail';
+      node.classList.toggle('hidden', !show);
+    });
+    document.querySelectorAll('.act').forEach(function(sec){
+      var any = sec.querySelectorAll('.step:not(.hidden)').length > 0;
+      sec.classList.toggle('hidden', !any);
+    });
+  }
+
+  document.getElementById('filters').addEventListener('click', function(e){
+    var b = e.target.closest('button[data-f]');
+    if (!b) return;
+    filter = b.dataset.f;
+    this.querySelectorAll('button').forEach(function(x){
+      x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
+    });
+    applyFilter();
+  });
+
+  function setAll(open){
+    document.querySelectorAll('.step').forEach(function(node){
+      var body = node.querySelector('.step-body');
+      var bar  = node.querySelector('.step-bar');
+      var chev = node.querySelector('.chev');
+      body.classList.toggle('hidden', !open);
+      bar.setAttribute('aria-expanded', open ? 'true' : 'false');
+      chev.textContent = open ? '−' : '+';
+    });
+  }
+  document.getElementById('expand').addEventListener('click', function(){ setAll(true); });
+  document.getElementById('collapse').addEventListener('click', function(){ setAll(false); });
+  document.getElementById('reset').addEventListener('click', function(){
+    if (!confirm('Clear every pass, fail and note you have recorded on this walk?')) return;
+    state = {}; save();
+    document.querySelectorAll('.step').forEach(function(n){ if (n._paint) n._paint(); });
+    tally();
+  });
+
+  /* ── closing sections ─────────────────────────────────────────────────── */
+  txt(document.getElementById('dest'), M.report.destination);
+  txt(document.getElementById('secondary'), M.report.secondary);
+  var inc = document.getElementById('include');
+  M.report.include.forEach(function(i){ inc.appendChild(el('li',null,i)); });
+
+  var oow = document.getElementById('outofwalk');
+  M.outOfWalk.forEach(function(o){
+    var r = el('div','row');
+    r.appendChild(el('div','row-k', o.call));
+    r.appendChild(el('div','row-v', o.why));
+    oow.appendChild(r);
+  });
+
+  var bs = document.getElementById('blindspots');
+  M.blindSpots.forEach(function(o){
+    var r = el('div','row');
+    r.appendChild(el('div','row-k', o.site));
+    r.appendChild(el('div','row-v', o.why));
+    bs.appendChild(r);
+  });
+
+  tally();
+})();
+</script>
+</body>
+</html>

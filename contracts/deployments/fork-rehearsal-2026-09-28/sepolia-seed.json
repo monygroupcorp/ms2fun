@@ -1,0 +1,80 @@
+{
+  "all": [
+    "0x74fFC71F91703d5bF9D88ab5e22b1a15C3cEc722",
+    "0x2290b9EaC7e4d60DF71f7FE1c93f7b488e567D32",
+    "0xF3467125eF7e752dfE96921b68585111f1403712",
+    "0x72AAbA76645c0bCD25DE5D84ab3e53C99b4C5701"
+  ],
+  "armWindowSeconds": 1200,
+  "auctionLive": "0x5cB8504c7c297DFDB2818422c84692cB0dDE8C0A",
+  "auctionTimed": "0x7a2A3a751ebe5967446Af10Ac4A0F296AcD6aa30",
+  "carve404": "0x8B2d77c00cDe7134DA6B517f01e2DF2722F1137C",
+  "chainId": 11155111,
+  "cultReferencePool": "0xf27B607dA3bC5a71CCd9bE403bA8213BF5129c5b",
+  "cultTargetId": 1,
+  "cultToken": "0xb6d4426a4a8Aa02d284A0Af8e2F382c42A43fe04",
+  "cultVault": "0xdCcA54bB94a7A68d19e0D96cE42C986231434bEf",
+  "editions": "0xA2Bb2839741660e8C09549Bb03784E39047f647A",
+  "endowmentVaults": [
+    "0xA8ED506884aC65033ff8BaE7C8696A6ed5b86cfD",
+    "0x561c44E0f4f8337ac4Ff6292405fCa54d78ac6c3",
+    "0x0000000000000000000000000000000000000000",
+    "0x0000000000000000000000000000000000000000",
+    "0x0000000000000000000000000000000000000000"
+  ],
+  "featured": [
+    "0x72AAbA76645c0bCD25DE5D84ab3e53C99b4C5701",
+    "0x2290b9EaC7e4d60DF71f7FE1c93f7b488e567D32",
+    "0xA2Bb2839741660e8C09549Bb03784E39047f647A",
+    "0x5cB8504c7c297DFDB2818422c84692cB0dDE8C0A"
+  ],
+  "featuredDuration": 2592000,
+  "featuredSpendWei": 121000000000000000,
+  "gatedEditions": "0x2C8c0E01322A6F6a889645EA6AD049488B504606",
+  "instances": {
+    "cinder-ready": "0xF3467125eF7e752dfE96921b68585111f1403712",
+    "ember-preopen": "0x74fFC71F91703d5bF9D88ab5e22b1a15C3cEc722",
+    "flare-graduated": "0x72AAbA76645c0bCD25DE5D84ab3e53C99b4C5701",
+    "vapor-mid": "0x2290b9EaC7e4d60DF71f7FE1c93f7b488e567D32"
+  },
+  "liveLotId": 1,
+  "ms2ReferencePool": "0xbDBAc48e204c462d76F3d9a6ff6B6a29481ce070",
+  "ms2TargetId": 2,
+  "ms2Token": "0x7dA4F72Cfab372f387Ba567b634D5EFe8cB60B5a",
+  "ms2Vault": "0xfb0B342882df2Ee96AF69cd2ABa1503fc22E4390",
+  "ms2ZammTargetId": 6,
+  "ms2ZammVault": "0x259C3d4e1AfcD35093C754D0537aac2b54c62a01",
+  "phase2NotBefore": 1790591386,
+  "referenceReadyAt": 1790591266,
+  "soldLotId": 1,
+  "staking404": "0x0FC411162cB6018856c2fa678A4f176A04beEEf4",
+  "targetIds": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "targetTokens": [
+    "0xb6d4426a4a8Aa02d284A0Af8e2F382c42A43fe04",
+    "0x7dA4F72Cfab372f387Ba567b634D5EFe8cB60B5a",
+    "0xE825b0e5402a26c325E743e139F31557c55B6Bb3",
+    "0x6B1Bcc07A3dF635A603C3727c98dE1683be43c68",
+    "0x2264378D64F59d1189Add0beFD0442D0CB323aba"
+  ],
+  "targetVaults": [
+    "0xdCcA54bB94a7A68d19e0D96cE42C986231434bEf",
+    "0xfb0B342882df2Ee96AF69cd2ABa1503fc22E4390",
+    "0xF905358506565d1Ad8ddEb15e46D4EF7D900c0e6",
+    "0xFBeE14acFcF3E34EE364009b45dB8cAABa06173E",
+    "0xD9194F14696b9B6e7878292Ce531a6e6E9B01917"
+  ],
+  "tiers404": "0xdC3215f92c5cab153A0D46ec57B41dfE17FF9C9C",
+  "unsoldLotId": 2,
+  "forkRehearsal": {
+    "channel": "sepolia-fork",
+    "rpc": "http://127.0.0.1:8546",
+    "stampedAt": "2026-09-28T10:00:40.502Z",
+    "note": "Written against a local Sepolia FORK. These addresses do not exist on public Sepolia."
+  }
+}

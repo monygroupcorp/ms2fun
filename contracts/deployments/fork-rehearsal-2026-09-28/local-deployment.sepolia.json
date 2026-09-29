@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-09-28T21:04:04.142Z",
+  "generatedAt": "2026-09-28T10:00:40.917Z",
   "chainId": 11155111,
-  "deployBlock": 11802006,
+  "deployBlock": 11799756,
   "deployer": "0x000888695d3e361434f67D9dbd110f1A443822b9",
   "contracts": {
     "MasterRegistryV1": "0x0000000000666868b0a9eC07fa495Da351718BcE",

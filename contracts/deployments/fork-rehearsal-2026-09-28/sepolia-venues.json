@@ -1,0 +1,13 @@
+{
+  "chainId": 11155111,
+  "v3Factory": "0x0227628f3F023bb0B980b67D528571c95c6DaC1c",
+  "zamm": "0x000000000000040470635EB91b7CE4D132D616eD",
+  "zammFeeOrHook": 30,
+  "zammVaultFactory": "0xE34EB706499DD33608783a729e904d796507A017",
+  "forkRehearsal": {
+    "channel": "sepolia-fork",
+    "rpc": "http://127.0.0.1:8546",
+    "stampedAt": "2026-09-28T10:00:40.502Z",
+    "note": "Written against a local Sepolia FORK. These addresses do not exist on public Sepolia."
+  }
+}
