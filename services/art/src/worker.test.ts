@@ -9,7 +9,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import worker, { type Env } from './worker'
+import worker, { leadGateway, type Env } from './worker'
 
 const CID = 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi'
 const OTHER = 'bafybeiczsscdsbs7ffqz55asqdf3smv6klcw3gofszvwlyarci47bgf354'
@@ -54,6 +54,9 @@ function env(over: Omit<Partial<Env>, 'ART_CACHE'> & { ART_CACHE?: unknown } = {
     ART_CACHE: (over.ART_CACHE ?? bucket()) as Env['ART_CACHE'],
     ...(over.ART_WIDTHS === undefined ? {} : { ART_WIDTHS: over.ART_WIDTHS }),
     ...(over.ART_DENYLIST === undefined ? {} : { ART_DENYLIST: over.ART_DENYLIST }),
+    ...(over.ART_GATEWAY_LEAD === undefined
+      ? {}
+      : { ART_GATEWAY_LEAD: over.ART_GATEWAY_LEAD }),
   }
 }
 
@@ -387,5 +390,74 @@ describe('the metadata route', () => {
   it('leaves an unknown route alone', async () => {
     const res = await worker.fetch(new Request('https://art.example/nope'), env(), ctx())
     expect(res.status).toBe(404)
+  })
+})
+
+describe('leadGateway', () => {
+  it('accepts an origin and supplies the /ipfs/ path itself', () => {
+    expect(leadGateway('https://x.mypinata.cloud')).toEqual({
+      operator: 'lead',
+      form: 'path',
+      base: 'https://x.mypinata.cloud/ipfs/',
+    })
+  })
+
+  it('accepts the same value written as a full base, however it is punctuated', () => {
+    const want = 'https://x.mypinata.cloud/ipfs/'
+    expect(leadGateway('https://x.mypinata.cloud/ipfs')?.base).toBe(want)
+    expect(leadGateway('https://x.mypinata.cloud/ipfs/')?.base).toBe(want)
+    expect(leadGateway('  https://x.mypinata.cloud//  ')?.base).toBe(want)
+  })
+
+  it('names no gateway when unset, which is the supported default', () => {
+    expect(leadGateway(undefined)).toBeNull()
+    expect(leadGateway('')).toBeNull()
+    expect(leadGateway('   ')).toBeNull()
+  })
+
+  // A broken lead kept in the list would be a guaranteed timeout at the head of every fetch, which
+  // is strictly worse than having no lead at all.
+  it('ignores a value that is not an https origin rather than prepending a broken entry', () => {
+    expect(leadGateway('x.mypinata.cloud')).toBeNull()
+    expect(leadGateway('http://x.mypinata.cloud')).toBeNull()
+    expect(leadGateway('javascript:alert(1)')).toBeNull()
+  })
+})
+
+describe('the lead gateway in the roster', () => {
+  const LEAD = 'https://x.mypinata.cloud'
+
+  it('is asked before any public gateway', async () => {
+    await worker.fetch(req(CID), env({ ART_GATEWAY_LEAD: LEAD }), ctx())
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(String(fetchMock.mock.calls[0]![0])).toBe(`${LEAD}/ipfs/${CID}`)
+  })
+
+  it('is asked first on the metadata path too, which is the request a card makes FIRST', async () => {
+    fetchMock.mockImplementation(async () => new Response('{"name":"x"}', { status: 200 }))
+    const r = new Request(`https://art.example/meta/${CID}`)
+    await worker.fetch(r, env({ ART_GATEWAY_LEAD: LEAD }), ctx())
+    expect(String(fetchMock.mock.calls[0]![0])).toBe(`${LEAD}/ipfs/${CID}`)
+  })
+
+  // It LEADS the roster, it does not replace it.
+  it('falls through to the public roster when the lead does not answer', async () => {
+    fetchMock.mockImplementationOnce(async () => new Response('nope', { status: 504 }))
+    const res = await worker.fetch(req(CID), env({ ART_GATEWAY_LEAD: LEAD }), ctx())
+
+    expect(res.status).toBe(200)
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(1)
+    expect(String(fetchMock.mock.calls[0]![0])).toContain('mypinata.cloud')
+    expect(String(fetchMock.mock.calls[1]![0])).not.toContain('mypinata.cloud')
+  })
+
+  it('asks only the public roster when no lead is configured, exactly as before', async () => {
+    await worker.fetch(req(CID), env(), ctx())
+    expect(String(fetchMock.mock.calls[0]![0])).not.toContain('mypinata.cloud')
+  })
+
+  it('does not let a malformed lead cost a request', async () => {
+    await worker.fetch(req(CID), env({ ART_GATEWAY_LEAD: 'x.mypinata.cloud' }), ctx())
+    expect(String(fetchMock.mock.calls[0]![0])).not.toContain('mypinata.cloud')
   })
 })

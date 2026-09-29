@@ -26,6 +26,17 @@ ART_WIDTHS = "320,640,1024"
 # not remove anything from IPFS, and it does not touch the app's public gateway fallback.
 ART_DENYLIST = ""
 
+# A gateway on an account YOU control, tried ahead of the public roster. Empty here for the same
+# reason nothing else names a host: set it at deploy time
+# (`wrangler deploy --var ART_GATEWAY_LEAD:https://<name>.mypinata.cloud`) or in the dashboard.
+#
+# Empty is supported and means the public roster alone. It is worth setting: the roster meters by
+# client IP and the client here is a datacentre, not a visitor — measured 2026-09-29, the public
+# gateways answered this worker nothing at all while serving the same CID to a laptop, so every
+# card 502'd. A dedicated gateway answers because its quota belongs to the account that pins the
+# art. It LEADS the roster and does not replace it; if it is down the public entries still run.
+ART_GATEWAY_LEAD = ""
+
 # The cache. `bucket_name` is a local name and not an identifier of ours; create it in your own
 # account and apply the lifecycle rule from README.md, which is what bounds the bill.
 [[r2_buckets]]

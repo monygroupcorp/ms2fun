@@ -42,6 +42,29 @@ wrangler r2 bucket lifecycle add <your-bucket> --prefix "" --expire-days 30
 Thirty days is a starting point, not a law. The rule is what bounds the bill; without one this
 becomes storage that only grows.
 
+## Lead with a gateway you control
+
+**Set `ART_GATEWAY_LEAD`, or this service answers 502.** The public roster meters by client IP, and
+the client here is a Cloudflare datacentre rather than a visitor. Measured 2026-09-29 against a
+deployed worker: the shipped roster returned it nothing at all and every card 502'd, while the same
+CID came back `200 image/png` to a laptop on a home connection seconds later. `ipfs.io` and
+`dweb.link` answer a plain request `429`.
+
+A dedicated gateway answers because its quota belongs to the account that pins the art instead of
+to whoever happens to be asking:
+
+```
+wrangler deploy --var ART_GATEWAY_LEAD:https://<name>.mypinata.cloud
+```
+
+Either spelling works — the origin alone, or the full `/ipfs/` base. A value that is not an https
+origin is ignored rather than prepended, because a broken entry at the head of the roster is a
+guaranteed timeout on every fetch and is worse than having no lead at all.
+
+**It leads the roster; it does not replace it.** A dedicated gateway that is down, over quota or
+misconfigured falls through to the public entries exactly as any operator does, and a deployment
+that sets nothing behaves precisely as it did before this existed.
+
 ## The roster stays underneath
 
 The app addresses this service only when `VITE_ART_SERVICE` names one, and it reports failures
