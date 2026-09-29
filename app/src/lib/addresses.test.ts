@@ -85,10 +85,11 @@ test('a placeholder deployment is not reported as deployed', () => {
 })
 
 test('the log-scan floor is per chain', () => {
+  // The anvil file is a committed placeholder, so its floor stays 0; Sepolia's carries the block its
+  // deployment landed at, which is what keeps the app from scanning a public chain from genesis.
+  // The two differing is what makes the lookup testable: an unknown chain gets 0, not Sepolia's floor.
   expect(deployBlockForChain(anvilChainId)).toBe(BigInt(0))
-  expect(deployBlockForChain(sepoliaChainId)).toBe(BigInt(0))
-  // Both shipped files are committed placeholders, so both floors are 0 until a deploy writes them.
-  // The per-chain lookup itself is what this pins: an unknown chain gets 0, not another chain's floor.
+  expect(deployBlockForChain(sepoliaChainId)).toBe(BigInt(11_802_006))
   expect(deployBlockForChain(999)).toBe(BigInt(0))
 })
 
@@ -100,8 +101,11 @@ test('the shipped map carries both chains, and no others', () => {
   ).toEqual([anvilChainId, sepoliaChainId])
   expect(addressesForChain(sepoliaChainId)).toBeDefined()
   expect(addressesForChain(1)).toBeUndefined()
-  // Neither chain has been deployed to from a committed file — Sepolia's entry is config-to-be-filled.
-  expect(isChainDeployed(sepoliaChainId)).toBe(false)
+  // Sepolia's file carries a live deployment; the anvil one is the all-zero placeholder a local chain
+  // overwrites at start. Being in the map and being deployed to are separate questions, and the two
+  // chains answering them differently is what keeps this case from passing vacuously.
+  expect(isChainDeployed(sepoliaChainId)).toBe(true)
+  expect(isChainDeployed(anvilChainId)).toBe(false)
 })
 
 test('chain selection defaults to the local fork and refuses an unknown id', () => {
