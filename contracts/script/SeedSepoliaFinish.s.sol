@@ -48,9 +48,7 @@ contract SeedSepoliaFinish is Script {
         uint256[] memory value = vm.parseJsonUintArray(raw, ".value");
         bytes[] memory data = vm.parseJsonBytesArray(raw, ".data");
         uint256[] memory clock = vm.parseJsonUintArray(raw, ".clock");
-        require(
-            to.length == value.length && to.length == data.length && to.length == clock.length, "manifest: ragged"
-        );
+        require(to.length == value.length && to.length == data.length && to.length == clock.length, "manifest: ragged");
 
         uint256 window = vm.envOr("SEPOLIA_ARM_WINDOW_SECONDS", DEFAULT_WINDOW);
         uint256 openAt = block.timestamp + window;
