@@ -1,23 +1,25 @@
 name: Deploy to GitHub Pages
 
-# NOTE: the push trigger is intentionally disabled. This workflow still builds the RETIRED root
-# stack (root `index.html` -> `/src/index.js`, root `vite.config.js`), and root `src/` no longer
-# exists: a8ca295 moved it to `legacy/` and did not update the entry point. The build therefore
-# fails at `Failed to resolve /src/index.js` on every run and has never once succeeded, so firing
-# it on every push to main only produced a permanent red with nothing behind it.
+# What ms2.fun serves.
 #
-# The frontend that should actually ship is `app/`, which app-ci already typechecks, tests and
-# builds (gate G5) on every commit. Rewriting this workflow to publish `app/dist` is deliberately
-# NOT part of this change: ms2.fun currently serves the old pre-quarantine artifact wired to the
-# old contracts, and swapping what the brand domain serves is gated on the testnet deploy landing.
-# Until then this stays manual-only via workflow_dispatch.
+# It serves a redirect to the live site, and nothing else. The history matters for anyone
+# reading this later: this workflow used to build the root stack (root `index.html` ->
+# `/src/index.js`), and `a8ca295` moved root `src/` to `legacy/` without updating the entry
+# point. Every run after that failed at `Failed to resolve /src/index.js`, so the last artifact
+# Pages actually published was 2026-05-15 — a build wired to contracts that are no longer live.
+# A visitor typing the brand name reached it for four and a half months.
 #
-# This deferral is tracked, not just described: it is entry 1 of
-# `contracts/docs/PRE-MAINNET-CHECKLIST.md`, which must be read before any mainnet deploy.
-# It discharges only when a pipeline has actually published at least once. noesis-449 owns
-# that work and is blocked on the Sepolia testnet deploy landing.
+# The frontend that ships is `app/`, and it is distributed as a pinned bundle rather than from
+# here. Pointing the brand domain at that distribution is what this workflow now does: there is
+# no build step, because a redirect has nothing to compile, which is also why it cannot rot back
+# into a permanent red.
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'publish/ms2fun/**'
+      - '.github/workflows/deploy.yml'
 
 permissions:
   contents: read
@@ -29,42 +31,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Clean install dependencies
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install
-
-      - name: Build
-        run: npm run build
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
   deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    needs: build
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The redirect target is asserted here rather than trusted, so a bad edit to the page
+      # fails the deploy instead of silently stranding every visitor on a blank document.
+      - name: Assert the redirect names the live site
+        run: |
+          grep -q 'noesis.gwei.domains' publish/ms2fun/index.html
+          grep -q 'noesis.gwei.domains' publish/ms2fun/404.html
+          grep -qx 'ms2.fun' publish/ms2fun/CNAME
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: publish/ms2fun
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
