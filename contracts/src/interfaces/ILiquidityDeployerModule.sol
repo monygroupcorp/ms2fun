@@ -21,25 +21,24 @@ interface ILiquidityDeployerModule is IComponentModule {
 
     /// @notice Deploy AMM liquidity. Caller must pre-transfer tokenReserve to this address.
     ///         ETH must equal p.ethReserve exactly via msg.value.
-    /// @dev TWO LEGS, ONE RAIL. `carveEth` and `excessEth` are both diverted out of the LP 80 and are
-    ///      both tithed 80/19/1 by the module — the arithmetic sees their sum and nothing else. They
-    ///      are carried apart so the module can REPORT them apart: `carveEth` is what the creator
-    ///      asked for and is the figure measured against the creator's declared allowance, while
-    ///      `excessEth` is an output of the caller's own pool sizing and says nothing about the
-    ///      creator. A caller with no clamp of its own passes `excessEth = 0`.
+    /// @dev `carveEth` and `excessEth` are both diverted out of the LP 80 and both split 80/19/1 by the
+    ///      module; the arithmetic sees only their sum. They are carried apart so the module can report
+    ///      them apart: `carveEth` is what the creator asked for and is measured against the creator's
+    ///      declared allowance, while `excessEth` is an output of the caller's own pool sizing and says
+    ///      nothing about the creator. A caller with no clamp of its own passes `excessEth = 0`.
     function deployLiquidity(DeployParams calldata p) external payable;
 }
 
 /// @notice The graduating instance's side of the deployer handshake: a deployer module names its
 ///         venue's coin counterparties so the instance can flag them NFT-skipping before any coin
 ///         reaches them.
-/// @dev WHY A CALLBACK AND NOT AN ACCESSOR. An ERC404 bonding instance mints one NFT id per `unit`
+/// @dev A callback rather than an accessor: an ERC404 bonding instance mints one NFT id per `unit`
 ///      to any recipient that has not set the skip flag, so a graduation pool takes delivery of one
 ///      id per unit of the pool's coin side and the deployer module takes delivery of the same count
 ///      on the way through. Only the module knows which address that is, and a venue may create its
 ///      pool DURING graduation — there is then no address to read before the call, so no getter on the
-///      module can name it. The module therefore tells the instance, at the moment it knows, and every
-///      venue is covered by the same mechanism rather than by a per-venue getter.
+///      module can name it. The module therefore tells the instance at the moment it knows, which covers
+///      every venue with one mechanism.
 /// @dev The instance IMPLEMENTS this interface rather than being probed for it: a rename is then a
 ///      compile error instead of a silently unflagged pool. Implementations must authorize the call
 ///      to the wired deployer module and nothing else, and must NOT take a reentrancy guard — the

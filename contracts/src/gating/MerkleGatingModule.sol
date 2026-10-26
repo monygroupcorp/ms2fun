@@ -13,27 +13,25 @@ import { MerkleProofLib } from "solady/utils/MerkleProofLib.sol";
 ///         by the calling instance address (msg.sender), then by editionId — ERC1155 forwards the real
 ///         edition, ERC404 forwards 0 (single curve).
 ///
-/// @dev  Leaf construction (MUST stay byte-identical to app/src/lib/merkle.ts, extended from
-///       address-only to (address, maxQty)):
+/// @dev  Leaf construction (byte-identical to app/src/lib/merkle.ts, which keys leaves on
+///       (address, maxQty)):
 ///
 ///           inner = keccak256(abi.encode(address user, uint256 maxQty))   // 64-byte ABI preimage
 ///           leaf  = keccak256(bytes.concat(inner))                        // double-hash (32-byte domain)
 ///
 ///       Internal nodes use Solady's commutative / sorted-pair keccak (MerkleProofLib). The off-chain
-///       builder sorts leaves and pairs; only the 32-byte root is stored on-chain. Phase 2's merkle.ts
-///       MUST match this exactly.
+///       builder sorts leaves and pairs; only the 32-byte root is stored on-chain.
 ///
-///       Proof is delivered inside `IGatingModule.canMint`'s `bytes calldata data` and therefore decodes
-///       to MEMORY, so verification uses `MerkleProofLib.verify` (the memory variant) rather than
-///       `verifyCalldata` — same algorithm, same roots; a calldata proof array cannot be recovered from
-///       an abi-encoded `bytes` blob.
+///       The proof arrives inside `IGatingModule.canMint`'s `bytes calldata data` and decodes to
+///       memory, so verification uses `MerkleProofLib.verify` (the memory variant) rather than
+///       `verifyCalldata`: same algorithm and roots, and a calldata proof array cannot be recovered
+///       from an abi-encoded `bytes` blob.
 ///
 ///       Tier model: `roots[instance][editionId]` holds one root per tier and `tierOpenTimes` the
 ///       matching absolute open timestamps. A single-gate allowlist is one tier. A user provable in
 ///       multiple tiers submits the proof for whichever tier grants the most generous maxQty; raising a
-///       user's maxQty via a new root lets a previously-capped user claim the delta (intended
-///       re-allocation lever). Cumulative claims per (instance, edition, user) are capped at the proven
-///       maxQty.
+///       user's maxQty via a new root lets a previously-capped user claim the delta. Cumulative claims
+///       per (instance, edition, user) are capped at the proven maxQty.
 contract MerkleGatingModule is IGatingModule, IMerkleGatingModule, Ownable {
     // ── Errors ─────────────────────────────────────────────────────────────────
 
@@ -73,10 +71,10 @@ contract MerkleGatingModule is IGatingModule, IMerkleGatingModule, Ownable {
 
     /// @notice Configure or update the merkle allowlist for ONE edition of `instance`.
     /// @dev Initial configuration (first edition ever configured for the instance) may be authored by
-    ///      the factory that registered this specific instance OR by the instance owner. Post-create
-    ///      by the owner is the expected path: factories attach a gating module without threading its
-    ///      config, so the owner configures it in a follow-up tx. Every subsequent call (further
-    ///      editions, or updates) must come from the instance owner.
+    ///      the factory that registered this specific instance or by the instance owner. The owner
+    ///      path is the usual one: factories attach a gating module without threading its config, so
+    ///      the owner configures it in a follow-up tx. Every later call (further editions, or updates)
+    ///      must come from the instance owner.
     function configureFor(address instance, MerkleConfig calldata config) external override {
         if (!configured[instance]) {
             if (
@@ -104,7 +102,7 @@ contract MerkleGatingModule is IGatingModule, IMerkleGatingModule, Ownable {
 
     /// @dev msg.sender is the calling instance. `openTime` (the edition/bonding open timestamp) is
     ///      unused here: tier phasing uses absolute `tierOpenTimes` configured directly. The parameter
-    ///      is part of the shared IGatingModule interface (the password module consumes it).
+    ///      belongs to the shared IGatingModule interface.
     /// @param data abi.encode(uint256 tierId, uint256 maxQty, bytes32[] proof)
     ///             tierId: which tier's root to prove against · maxQty: the per-user cap encoded in the
     ///             leaf · proof: merkle proof for leaf(user, maxQty) against roots[.. ][tierId].

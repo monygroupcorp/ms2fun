@@ -44,22 +44,20 @@ import { Currency } from "v4-core/types/Currency.sol";
 import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
 import { IHooks } from "v4-core/interfaces/IHooks.sol";
 
-/// @notice Sepolia showcase seed, PHASE 1: alignment wiring, then CREATE + ARM every ERC404 row.
+/// @notice Sepolia showcase seed, phase 1: alignment wiring, then create + arm every ERC404 row.
 ///         Buys nothing.
 ///
 ///         Run against the deployment `DeploySepolia` wrote (`deployments/sepolia.json`); every
 ///         address is read from that file rather than declared here.
 ///
-///         ── WHY THIS BUYS NOTHING ──
-///         `setBondingOpenTime` rejects a non-future timestamp and `buyBonding` reverts `TooEarly`
-///         before it, and forge simulates an entire script at ONE timestamp before broadcasting any
-///         of it. One script therefore cannot both arm a curve and buy into it. Phase 2
-///         (`SeedSepoliaBuys.s.sol`) runs after the arm window has actually elapsed in wall-clock
-///         time — see `app/scripts/sepolia-seed/` for the orchestrator that waits it out.
+///         Buys nothing because `setBondingOpenTime` rejects a non-future timestamp, `buyBonding`
+///         reverts `TooEarly` before it, and forge simulates an entire script at one timestamp
+///         before broadcasting any of it, so one script cannot both arm a curve and buy into it.
+///         Phase 2 (`SeedSepoliaBuys.s.sol`) runs after the arm window has elapsed in wall-clock
+///         time; `app/scripts/sepolia-seed/` is the orchestrator that waits it out.
 ///
-///         ── WHAT IT COSTS ──
-///         Creating and arming a curve moves no ETH: the create call carries no value (the deploy
-///         bond lever ships off) and every other call here is a write. Phase 1's cost is gas.
+///         Cost: creating and arming a curve moves no ETH (the create call carries no value, as the
+///         deploy bond lever is off) and every other call here is a write, so phase 1 costs gas.
 ///
 ///         Run with:
 ///           forge script script/SeedSepolia.s.sol --account <keystore> --sender <deployer> \
@@ -68,9 +66,9 @@ contract SeedSepolia is SeedSepoliaShared {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
 
-    /// @dev How many slots the wall rents. Stated as a constant because the projection is printed
-    ///      BEFORE the rows exist — `_seedFeaturedWall` asserts it renders exactly this many, so the
-    ///      number the operator was shown and the number that was spent cannot diverge.
+    /// @dev How many slots the wall rents. A constant because the projection is printed before the
+    ///      rows exist; `_seedFeaturedWall` asserts it renders exactly this many, so the number the
+    ///      operator was shown and the number spent cannot diverge.
     uint256 internal constant FEATURED_SLOTS = 4;
 
     function run() public {
@@ -79,9 +77,9 @@ contract SeedSepolia is SeedSepoliaShared {
         Deployed memory d = _readDeployed();
         require(block.chainid == SEPOLIA_CHAIN_ID, "SeedSepolia: not running against Sepolia (or a fork of it)");
 
-        // The featured wall is the only ETH this phase spends that is priced by TIME rather than by
-        // depth, so its total is quoted off the deployed queue and printed with the rest — before
-        // `--broadcast` sends anything, which is the only moment the number can still change a mind.
+        // The featured wall is the only ETH this phase spends that is priced by time rather than by
+        // depth, so its total is quoted off the deployed queue and printed with the rest, before
+        // `--broadcast` sends anything.
         _reportSpend("phase 1 (create + arm)", 0, _quoteFeaturedSpend(d, FEATURED_SLOTS), deployer.balance);
 
         // ── Alignment wiring: fixture tokens, targets, vaults, pools ──
@@ -91,7 +89,7 @@ contract SeedSepolia is SeedSepoliaShared {
         _seedZammVenue(d, h);
 
         // The instant every pool seeded above can first answer the deployment's TWAP window. Phase 2
-        // pins the reference pools, and `setReferencePool` refuses a pool that cannot yet serve one.
+        // pins the reference pools, and `setReferencePool` refuses a pool that cannot serve one.
         h.referenceReadyAt = block.timestamp + _twapWindow(d);
 
         // ── The ERC404 roster: create + arm, nothing bought ──
@@ -111,25 +109,24 @@ contract SeedSepolia is SeedSepoliaShared {
 
         // ── The breadth rows: every other project type and mechanism ──
         //
-        // Runs AFTER the curve roster because two of its rows bind to the alignment vaults the wiring
-        // above stood up, and because its own clock (the timed auction) has to join the same wait.
+        // Runs after the curve roster because two of its rows bind to the alignment vaults the wiring
+        // above created, and because its own clock (the timed auction) joins the same wait.
         uint256 breadthClock = _seedBreadth(d, h);
         if (breadthClock > latestArm) latestArm = breadthClock;
 
         // ── The front door: rent the wall the home page renders ──
         //
-        // LAST in the phase, because every slot names an instance and an instance has to be created
-        // and registered before the queue will accept it.
+        // Last in the phase: every slot names an instance, and an instance has to be created and
+        // registered before the queue accepts it.
         _seedFeaturedWall(d, h, legs, instances);
 
-        // Phase 2 becomes legal only once the LAST clock phase 1 set has passed, plus slack for the
-        // wall-clock the broadcast itself consumed. Recorded rather than recomputed later, so the
-        // orchestrator waits for the same instant the chain will judge the buys against.
+        // Phase 2 becomes legal only once the last clock phase 1 set has passed, plus slack for the
+        // wall-clock the broadcast itself consumed. Recorded so the orchestrator waits for the same
+        // instant the chain will judge the buys against.
         //
-        // THE TWAP WINDOW IS ONE OF THOSE CLOCKS. Phase 2 pins the reference pools this phase created,
-        // and a pool cannot answer a window-long TWAP until a window has passed. On a chain that
-        // cannot be fast-forwarded that is wall-clock time, so it joins the same wait rather than
-        // becoming a second one somebody has to know about.
+        // The TWAP window is one of those clocks: phase 2 pins the reference pools this phase
+        // created, and a pool cannot answer a window-long TWAP until a window has passed. On a chain
+        // that cannot be fast-forwarded that is wall-clock time, so it joins the same wait.
         if (h.referenceReadyAt > latestArm) latestArm = h.referenceReadyAt;
         h.phase2NotBefore = latestArm + _phase2Slack();
 
@@ -150,25 +147,19 @@ contract SeedSepolia is SeedSepoliaShared {
 
     // ─────────────────────── Alignment targets, vaults, pools ───────────────────────
 
-    /// @dev Two fixture alignment assets, and one alignment TARGET per (asset, venue).
+    /// @dev Two fixture alignment assets, and one alignment target per (asset, venue).
     ///
-    ///      ── WHY THE TOKENS ARE FIXTURES, AND WHY THAT IS THE DEMONSTRATION ──
+    ///      The tokens are `MockERC20`s this seed mints: the showcase shows a collection's alignment
+    ///      tithe, the acquisition of the target's asset on a curated venue, and the LP of the pair.
+    ///      Aligning to a real third-party testnet token would read as a claim about that token.
+    ///      Every target's on-chain description says the asset is a fixture.
     ///
-    ///      The tokens are `MockERC20`s this seed mints. That is the showcase: a testnet exists to
-    ///      show what the product does, and what it does is take a collection's alignment tithe,
-    ///      acquire the target's asset on a curated venue, and LP the pair. Aligning to a real
-    ///      third-party testnet token would demonstrate none of that better and would read as a claim
-    ///      about that token. Every target's on-chain description says the asset is a fixture.
-    ///
-    ///      ── WHY ONE ASSET CARRIES MORE THAN ONE TARGET ──
-    ///
-    ///      The registry stores ONE acquire route per (targetId, token), and a vault refuses to
-    ///      convert unless the route it reads names its own venue. So a single target cannot carry a
-    ///      live convert on two venues for the same asset — and pointing a vault at a
-    ///      venue the registry curates as something else is precisely the divergence the acquire route
-    ///      exists to close. Each venue therefore gets its own target, each internally coherent: its
-    ///      route, its reference pool and its vault all name the same venue. Presenting two targets
-    ///      over one asset as ONE row with a venue choice is the picker's job, not the registry's.
+    ///      One asset can carry more than one target. The registry stores one acquire route per
+    ///      (targetId, token), and a vault refuses to convert unless the route it reads names its own
+    ///      venue, so a single target cannot carry a live convert on two venues for the same asset.
+    ///      Each venue gets its own target, internally coherent: its route, its reference pool and
+    ///      its vault all name the same venue. Presenting two targets over one asset as one row with
+    ///      a venue choice is the picker's job, not the registry's.
     function _seedAlignment(Deployed memory d) internal returns (SeedHandoff memory h) {
         AlignmentRegistryV1 registry = AlignmentRegistryV1(d.alignmentRegistry);
         UniAlignmentVaultFactory factory = UniAlignmentVaultFactory(d.uniVaultFactory);
@@ -180,7 +171,7 @@ contract SeedSepolia is SeedSepoliaShared {
         h.endowmentVaults = new address[](roster.length);
 
         // The curated venue for every Uni target, set as each row is created so the registry and the
-        // vault agree before anything is deposited. `feeOrHook` stays zero — a ZAMM-only field on a
+        // vault agree before anything is deposited. `feeOrHook` is zero: a ZAMM-only field on a
         // UNI_V4 leg is refused.
         IAlignmentRegistry.AcquireRoute memory uniRoute = IAlignmentRegistry.AcquireRoute({
             venue: IAlignmentRegistry.Venue.UNI_V4, fee: POOL_FEE, tickSpacing: POOL_TICK_SPACING, feeOrHook: 0
@@ -198,18 +189,17 @@ contract SeedSepolia is SeedSepoliaShared {
                 a.symbol,
                 a.title,
                 a.description,
-                // The row's own metadata, which is where its LOGO comes from. Inline JSON pointing at
-                // a content-addressed image: the registry carries the pointer, not the picture.
+                // The row's own metadata, which is where its logo comes from: inline JSON pointing at
+                // a content-addressed image. The registry carries the pointer, not the picture.
                 _collectionMeta(a.title, a.description, string.concat(ART_IMG_TARGETS, a.logo))
             );
             address vault = _deployAndWireVault(d, factory, token, a.symbol, targetId);
             reg.setAcquireRoute(targetId, token, uniRoute);
 
-            // The ENDOWMENT family, on the rows that carry one. It is a different promise from the LP
-            // vault beside it — a principal held and a community paid from the yield, rather than the
-            // tithe put to work as liquidity — so the two are shown on the same wall rather than
-            // described. The community payout is deliberately left unset: it names a real recipient
-            // and that is a decision, not a seed constant.
+            // The endowment family, on the rows that carry one. It differs from the LP vault beside it:
+            // principal is held and a community is paid from the yield, rather than the tithe put to
+            // work as liquidity. The community payout is left unset because it names a real
+            // recipient, which is not a seed constant.
             if (a.endowment && d.aaveVaultFactory != address(0)) {
                 h.endowmentVaults[i] = AlignmentEndowmentVaultFactory(d.aaveVaultFactory)
                     .deployVault(
@@ -248,9 +238,9 @@ contract SeedSepolia is SeedSepoliaShared {
             }
         }
 
-        // The price authorities, CREATED here and PINNED a TWAP window later — see `_referenceReadyAt`.
-        // Every row gets one, because a row a creator can PICK is a row whose tithe must be able to
-        // acquire; a target with a vault and no venue behind it is a trap the picker sets for them.
+        // The price authorities, created here and pinned a TWAP window later (see `referenceReadyAt`).
+        // Every row gets one, because a row a creator can pick is a row whose tithe must be able to
+        // acquire.
         h.cultReferencePool = _seedReferencePool(d, h.cultToken, "CULT");
         h.ms2ReferencePool = _seedReferencePool(d, h.ms2Token, "MS2");
         for (uint256 i = 0; i < roster.length; i++) {
@@ -258,7 +248,7 @@ contract SeedSepolia is SeedSepoliaShared {
             _seedReferencePool(d, h.targetTokens[i], roster[i].symbol);
         }
 
-        // The depth the curated route already claims, in the pool the acquire leg swaps through.
+        // The depth the curated route claims, in the pool the acquire leg swaps through.
         for (uint256 i = 0; i < roster.length; i++) {
             _seedV4Depth(d, h.targetTokens[i], h.targetVaults[i], roster[i].symbol);
         }
@@ -268,10 +258,10 @@ contract SeedSepolia is SeedSepoliaShared {
 
     /// @dev Stand up the {token, WETH} Uniswap V3 pool this asset's oracle floor will read.
     ///
-    ///      It is created and seeded HERE and pinned in phase 2, because `setReferencePool` probes
+    ///      It is created and seeded here and pinned in phase 2, because `setReferencePool` probes
     ///      `observe([window, 0])` and a pool initialized moments ago has no observation old enough to
-    ///      answer that. The wait is real wall-clock time on a public testnet, which is why it is
-    ///      folded into the same gate the arm window already uses.
+    ///      answer that. The wait is wall-clock time on a public testnet, so it shares the gate the
+    ///      arm window uses.
     function _seedReferencePool(Deployed memory d, address token, string memory symbol)
         internal
         returns (address pool)
@@ -286,7 +276,7 @@ contract SeedSepolia is SeedSepoliaShared {
         vm.stopBroadcast();
 
         require(minted > 0, string.concat("reference: ", symbol, " pool minted no liquidity"));
-        // Read the pool's ACTIVE liquidity back rather than trusting the mint's return: a position
+        // Read the pool's active liquidity back rather than trusting the mint's return: a position
         // minted outside the current tick range reports units while pricing nothing.
         require(
             IUniswapV3PoolMinimal(pool).liquidity() > 0,
@@ -298,9 +288,8 @@ contract SeedSepolia is SeedSepoliaShared {
     // ─────────────────────── Uniswap V4 venue depth ───────────────────────
 
     /// @dev Give the V4 pool the vault acquires through the depth to serve a convert inside the -5%
-    ///      floor. Sepolia analog of the mainnet-fork depth seed; the difference is where the token
-    ///      leg comes from, and it is a property of the network rather than of the pattern — there is
-    ///      no deep pool here to buy a fixture asset on, so the leg is minted. The floor is untouched.
+    ///      floor. Sepolia analog of the mainnet-fork depth seed; there is no deep pool to buy a
+    ///      fixture asset on, so the token leg is minted. The floor is untouched.
     function _seedV4Depth(Deployed memory d, address token, address vault, string memory symbol) internal {
         PoolKey memory key = _uniVenueKey(token);
         uint128 activeBefore = IPoolManager(d.v4PoolManager).getLiquidity(key.toId());
@@ -323,15 +312,14 @@ contract SeedSepolia is SeedSepoliaShared {
             string.concat("venue: ", symbol, " V4 pool is still too thin to serve a convert")
         );
 
-        // The route is registered HERE, and only here, because this is the first line at which it
-        // is true: the pool the quoter will name is `key`, and the three `require`s above have just
-        // established that `key` holds enough active liquidity to serve a convert. Registering at
-        // deploy time would have pointed the acquire leg at an empty pool; registering anywhere else
-        // would let the two drift apart.
+        // The route is registered here, and only here, because this is the first line at which it
+        // is true: the pool the quoter names is `key`, and the three `require`s above establish that
+        // `key` holds enough active liquidity to serve a convert. Registering earlier would point the
+        // acquire leg at an empty pool.
         //
-        // The row names THIS VAULT and no other. `token` alone would also answer the venue vaults
-        // that share the asset — the ZAMM vault on MS2 — and send their
-        // converts to this Uniswap pool instead of the venue they LP into and floor against.
+        // The row names this vault and no other. `token` alone would also answer the venue vaults
+        // that share the asset (the ZAMM vault on MS2) and send their converts to this Uniswap pool
+        // instead of the venue they LP into and floor against.
         vm.startBroadcast();
         SepoliaRouteQuoter(d.zQuoter).setRoute(vault, token, SepoliaRouteQuoter.AMM.UNI_V4, POOL_FEE_BPS);
         vm.stopBroadcast();
@@ -345,9 +333,8 @@ contract SeedSepolia is SeedSepoliaShared {
     // ─────────────────────── The ZAMM venue ───────────────────────
 
     /// @dev MS2's ZAMM leg: its own alignment target, a vault bound to the real ETH/MS2 pool key, and
-    ///      the POOL ITSELF. Flipping a vault on without standing its pool up produces a vault that
-    ///      reports as liquidity-ready and reverts on its first convert, which is a dead vault rather
-    ///      than a venue — so the pool and its depth are created in the same breath as the vault.
+    ///      the pool itself. A vault without its pool reports as liquidity-ready and reverts on its
+    ///      first convert, so the pool and its depth are created together with the vault.
     ///
     ///      The pool needs no create call: ZAMM's `addLiquidity` opens it on first use, and a pool is
     ///      identified by its key rather than by an address.
@@ -415,12 +402,10 @@ contract SeedSepolia is SeedSepoliaShared {
         require(liquidity > 0, "venue: the ZAMM pool minted no liquidity");
         require(pool.reserve0 > 0 && pool.reserve1 > 0, "venue: the ZAMM pool holds a one-sided reserve");
 
-        // This vault's own best-route row, registered once the pool holds two-sided reserves — the
-        // same discipline as the V4 rows, for the same reason. It names the pool the vault already
-        // LPs into and already falls back to, so it changes WHERE nothing trades; what it changes is
-        // WHICH CODE gets there — `BestRouteAcquirer`'s typed `swapVZ` leg instead of the fallback
-        // around it. That leg is one of the two this showcase exists to rehearse, and without a row
-        // the only thing Sepolia would establish about it is that it compiles.
+        // This vault's own best-route row, registered once the pool holds two-sided reserves, as for
+        // the V4 rows. It names the pool the vault LPs into and falls back to, so it changes which
+        // code reaches that pool, not where anything trades: `BestRouteAcquirer`'s typed `swapVZ`
+        // leg instead of the fallback around it. That leg is one of the two this showcase exercises.
         vm.startBroadcast();
         SepoliaRouteQuoter(d.zQuoter).setRoute(h.ms2ZammVault, h.ms2Token, SepoliaRouteQuoter.AMM.ZAMM, d.zammFeeOrHook);
         vm.stopBroadcast();
@@ -446,9 +431,9 @@ contract SeedSepolia is SeedSepoliaShared {
     }
 
     /// @dev Deploy the target's vault, initialize its V4 pool, point the vault at that pool, and
-    ///      register it. All four, because leaving any one undone produces a vault that looks wired
-    ///      and cannot LP: the pool key lives on the vault (not in the registry), the pool has to
-    ///      exist before it can be named, and an unregistered vault is refused at instance-create.
+    ///      register it. All four are needed: the pool key lives on the vault (not in the registry),
+    ///      the pool has to exist before it can be named, and an unregistered vault is refused at
+    ///      instance-create.
     function _deployAndWireVault(
         Deployed memory d,
         UniAlignmentVaultFactory factory,
@@ -456,8 +441,8 @@ contract SeedSepolia is SeedSepoliaShared {
         string memory symbol,
         uint256 targetId
     ) internal returns (address vault) {
-        // Keyed on the TOKEN, not on the target's ordinal: an ordinal renumbers whenever the roster
-        // changes and drags every derived address with it. See `_vaultSaltNonce` for the escape hatch.
+        // Keyed on the token, not on the target's ordinal: an ordinal renumbers whenever the roster
+        // changes and drags every derived address with it. `_vaultSaltNonce` steps the address past a CREATE3 collision.
         bytes32 salt = keccak256(abi.encode(block.chainid, token, symbol, "UNIv4-SHOWCASE", _vaultSaltNonce()));
         vault = factory.deployVault(salt, token, targetId, IVaultPriceValidator(address(0)));
 
@@ -492,10 +477,9 @@ contract SeedSepolia is SeedSepoliaShared {
     /// @dev Create one roster row and set its clocks. Returns the latest timestamp the row's state
     ///      depends on, which is what phase 2 must wait past.
     ///
-    ///      THE PRE-OPEN ROW IS ARMED ON A DIFFERENT CLOCK, DELIBERATELY. Every other row opens after
-    ///      the short arm window because a human is waiting on it. The pre-open row must still be
-    ///      pre-open when a stranger arrives days later — that state IS its whole demonstration — so
-    ///      it takes `SEPOLIA_PREOPEN_DELAY_SECONDS` (default 30 days) and is excluded from the wait
+    ///      The pre-open row is armed on a different clock. Every other row opens after the short arm
+    ///      window; the pre-open row must still be pre-open when a stranger arrives days later, so it
+    ///      takes `SEPOLIA_PREOPEN_DELAY_SECONDS` (default 30 days) and is excluded from the wait
     ///      phase 2 computes.
     function _createAndArm(
         Deployed memory d,
@@ -508,11 +492,11 @@ contract SeedSepolia is SeedSepoliaShared {
         inst = _createShowcaseInstance(d, leg, vault);
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
 
-        // The artist's WAVE, published here because publishing is an ARTIST write that needs no
-        // holdings. Opting IN is a holder write and cannot happen until phase 2 has bought into this
-        // row. `WaveCond.NONE` at price 0: the upgraded edition is offered to EVERY holder, free —
-        // which is why it rides the fully-recovered directory. Whoever buys a piece on this row can
-        // opt in and have it resolve, whatever id they were minted.
+        // The artist's wave, published here because publishing is an artist write that needs no
+        // holdings. Opting in is a holder write and cannot happen until phase 2 has bought into this
+        // row. `WaveCond.NONE` at price 0 offers the upgraded edition to every holder, free, which is
+        // why it rides the fully-recovered directory: whoever buys a piece on this row can opt in and
+        // have it resolve, whatever id they were minted.
         if (leg.metadataOverlay) {
             MetadataOverlayModule(d.overlay)
                 .publishWave(
@@ -535,9 +519,9 @@ contract SeedSepolia is SeedSepoliaShared {
             b.setBondingOpenTime(openAt);
             armedUntil = openAt;
             if (leg.state == STATE_READY) {
-                // Maturity is what makes the graduate action live, and the setter requires it to be
-                // strictly after the open time — so it is the open time plus a small offset, and it,
-                // not the open time, is this row's real wait.
+                // Maturity makes the graduate action live, and the setter requires it strictly after
+                // the open time, so it is the open time plus a small offset; it, not the open time,
+                // is this row's wait.
                 uint256 matureAt = openAt + maturityOffset;
                 b.setBondingMaturityTime(matureAt);
                 armedUntil = matureAt;
@@ -550,7 +534,7 @@ contract SeedSepolia is SeedSepoliaShared {
     // ─────────────────────── Phase 1 post-conditions ───────────────────────
 
     /// @dev Everything phase 1 claims, checked before the hand-off file is written. `require`s, not
-    ///      logs: forge simulates the whole script first, so a failure here leaves no partial seed and
+    ///      logs: forge simulates the whole script first, so a failure leaves no partial seed and
     ///      names the row that failed.
     function _assertPhase1(ShowcaseLeg[] memory legs, address[] memory instances) internal view {
         for (uint256 i = 0; i < legs.length; i++) {
@@ -571,22 +555,22 @@ contract SeedSepolia is SeedSepoliaShared {
     }
 
     // ══════════════════════════════════════════════════════════════════════════════════════════
-    //                    WAVE 2 — EVERY OTHER PROJECT TYPE, ON THE SAME TWO-PHASE SPINE
+    //                    BREADTH — EVERY OTHER PROJECT TYPE, ON THE SAME TWO-PHASE SPINE
     // ══════════════════════════════════════════════════════════════════════════════════════════
     //
-    // Phase 1 CREATES and ARMS. It still buys nothing: the ERC404 rows below are armed on the same
-    // clock as the curve roster, and the two auctions are listed here so their lots END inside the
-    // same wall-clock wait the orchestrator already performs. Phase 2 is what fills them.
+    // Phase 1 creates and arms and buys nothing: the ERC404 rows below are armed on the same clock
+    // as the curve roster, and the two auctions are listed here so their lots end inside the same
+    // wall-clock wait the orchestrator performs. Phase 2 fills them.
     //
-    // COST: the auction lots carry a queue deposit (returned at settle, less a 1% cut at reclaim);
+    // Cost: the auction lots carry a queue deposit (returned at settle, less a 1% cut at reclaim);
     // everything else in this phase is gas.
 
     /// @dev Seed every non-curve mechanism and record it in the hand-off. Returns the latest clock
-    ///      phase 2 must wait past — the timed auction's end. The LIVE auction is excluded from that,
-    ///      exactly as the pre-open curve row is: it exists to still be running afterwards.
+    ///      phase 2 must wait past: the timed auction's end. The live auction is excluded, as the
+    ///      pre-open curve row is, because it exists to still be running afterwards.
     function _seedBreadth(Deployed memory d, SeedHandoff memory h) internal returns (uint256 latestClock) {
-        // The art these rows will wear, checked before the first of them is created — the same
-        // pre-condition the roster performs on itself, over the directories the breadth rows name.
+        // The art these rows wear, checked before the first of them is created: the pre-condition
+        // the roster performs on itself, over the directories the breadth rows name.
         _assertBreadthArt();
         h.editions = _seedEditions(d, h.cultVault);
         h.gatedEditions = _seedGatedEditions(d, h.cultVault);
@@ -601,8 +585,8 @@ contract SeedSepolia is SeedSepoliaShared {
     // ─────────────────────── 1. ERC-1155: three pricing regimes ───────────────────────
 
     /// @dev One collection carrying all three edition regimes, because they are properties of an
-    ///      EDITION rather than of a collection and splitting them across three instances would say
-    ///      the opposite. A visitor comparing the three rows on one page is the demonstration.
+    ///      edition rather than of a collection. A visitor comparing the three rows on one page is
+    ///      the demonstration.
     function _seedEditions(Deployed memory d, address vault) internal returns (address instance) {
         vm.startBroadcast();
         instance = d.erc1155
@@ -675,10 +659,9 @@ contract SeedSepolia is SeedSepoliaShared {
 
     // ─────────────────────── 2. The Merkle allowlist ───────────────────────
 
-    /// @dev A gated edition, with the deviation stated ON-CHAIN rather than only in the pull request.
-    ///      The seeded tier is address-bound — that is what a Merkle allowlist IS — so a cold visitor
-    ///      cannot enter it, and the collection's own description says so. Everything else about the
-    ///      gate is real: the list is published as a `data:` URI the mint page can rebuild a proof
+    /// @dev A gated edition. The seeded tier is address-bound, as a Merkle allowlist is, so a cold
+    ///      visitor cannot enter it, and the collection's own description says so. The gate is
+    ///      otherwise real: the list is published as a `data:` URI the mint page can rebuild a proof
     ///      from, the cap is committed inside each leaf, and the seed proves both the acceptance and
     ///      the refusal against the root before it installs it.
     function _seedGatedEditions(Deployed memory d, address vault) internal returns (address instance) {
@@ -727,8 +710,8 @@ contract SeedSepolia is SeedSepoliaShared {
                 0
             );
 
-        // Post-create, by the instance owner: the factory threads no gating CONFIG (the generic slot
-        // bakes in no module's config shape), so this second call is the intended path.
+        // Post-create, by the instance owner: the factory threads no gating config (the generic slot
+        // bakes in no module's config shape), so configuration is a second call.
         IMerkleGatingModule(d.merkleGating)
             .configureFor(
                 instance, MerkleConfig({ editionId: GATED_EDITION, roots: roots, tierOpenTimes: tierOpenTimes })
@@ -743,17 +726,14 @@ contract SeedSepolia is SeedSepoliaShared {
 
     // ─────────────────────── 3. Staking ───────────────────────
 
-    /// @dev An ERC404 row with the approved staking module wired and ACTIVATED. Activation is
-    ///      irreversible and is the creator's call, so it happens here rather than being left as a
-    ///      button nobody presses.
+    /// @dev An ERC404 row with the approved staking module wired and activated. Activation is
+    ///      irreversible and is the creator's call, so it happens here.
     ///
-    ///      WHAT MAKES THE STREAM RUN, AND WHY THIS ROW GRADUATES. The module's only funding path is a
-    ///      real LP-fee delta arriving through `claimAllFees`, and `claimFees` pays a vault's
-    ///      BENEFACTORS — the collections that actually tithed to it. So the row is armed to be
-    ///      graduated in phase 2: graduating is what makes it a benefactor with real shares, and its
-    ///      share of a fee its vault's position actually earned is what starts the stream. Pushing ETH
-    ///      at the module from a fixture would fabricate the reward source instead of demonstrating
-    ///      it, and is still refused.
+    ///      The module's only funding path is a real LP-fee delta arriving through `claimAllFees`,
+    ///      and `claimFees` pays a vault's benefactors, the collections that tithed to it. The row is
+    ///      armed to graduate in phase 2: graduating makes it a benefactor with real shares, and its
+    ///      share of a fee its vault's position earned starts the stream. Pushing ETH at the module
+    ///      from a fixture would fabricate the reward source, so the seed does not.
     ///
     /// @return instance   the row
     /// @return maturedAt  the clock phase 2 must wait past before it can graduate the row
@@ -776,8 +756,8 @@ contract SeedSepolia is SeedSepoliaShared {
         b.activateStaking();
         uint256 openAt = block.timestamp + _armWindow();
         b.setBondingOpenTime(openAt);
-        // Maturity, because the graduation this row's stream depends on is gated on it and the setter
-        // requires it strictly after the open time.
+        // Maturity gates the graduation this row's stream depends on; the setter requires it
+        // strictly after the open time.
         maturedAt = openAt + _maturityOffset();
         b.setBondingMaturityTime(maturedAt);
         b.setBondingActive(true);
@@ -788,23 +768,21 @@ contract SeedSepolia is SeedSepoliaShared {
 
     // ─────────────────────── 4/5. Metadata stack + Token Tiers ───────────────────────
 
-    /// @dev An ERC404 created through the factory's METADATA overload, wiring
+    /// @dev An ERC404 created through the factory's metadata overload, wiring
     ///      resolver(router) -> [overlay, tier] and sealing a two-rung Token Tiers ladder in the same
-    ///      transaction. Both the economic ladder and the band art table are derived from the SAME id
+    ///      transaction. The economic ladder and the band art table are derived from the same id
     ///      ranges, so the two tables cannot describe different ids.
     ///
-    ///      THE LADDER IS TWO RUNGS ON PURPOSE. The open rung (denomination 2, three ids) is minted up
-    ///      into and back down out of in phase 2, so the reversible half of the feature is walkable
-    ///      afterwards. The scarce rung (denomination 3, ONE id against a supply that could back
-    ///      twenty) is taken by the seed and left taken, which is what makes `BandExhausted` a state a
-    ///      visitor can observe rather than a revert in a test.
+    ///      The open rung (denomination 2, three ids) is minted up into and back down out of in
+    ///      phase 2, so the reversible half of the feature is walkable. The scarce rung
+    ///      (denomination 3, one id against a supply that could back twenty) is taken by the seed and
+    ///      left taken, so `BandExhausted` is a state a visitor can observe.
     ///
-    ///      THE ART IS ONE FAMILY'S OWN LINEAGE, read bottom to top. Ordinary pieces resolve to the
-    ///      parent collection; the open band to the derivative that succeeded it; and the scarce band
-    ///      to the derivative after that. Band art over base is only demonstrated if the layers can be
-    ///      told apart by eye, and reading one lineage says what a rung MEANS as well as that it
-    ///      differs. The overlay's own layers - waves and paid commissions - are the ARTIST METADATA
-    ///      row's demonstration and are deliberately not wired here: one row, one thing to learn.
+    ///      The art is one family's lineage, read bottom to top: ordinary pieces resolve to the
+    ///      parent collection, the open band to the derivative that succeeded it, and the scarce band
+    ///      to the derivative after that. Band art over base is demonstrated only if the layers can
+    ///      be told apart by eye. The overlay's own layers (waves and paid commissions) belong to the
+    ///      artist-metadata row and are not wired here.
     function _seedTierRow(Deployed memory d, address vault) internal returns (address instance) {
         ERC404Factory.TierSpec[] memory tiers = new ERC404Factory.TierSpec[](2);
         tiers[0] =
@@ -812,9 +790,9 @@ contract SeedSepolia is SeedSepoliaShared {
         tiers[1] =
             ERC404Factory.TierSpec({ weight: TIER_SCARCE_WEIGHT, count: TIER_SCARCE_COUNT, baseURI: ART_BASE_SCHIZO });
 
-        // ONE child. The overlay - waves and paid commissions - is the METADATA row's demonstration
-        // now (see the roster's `metadataOverlay` flag), so this row wires only what TOKEN TIERS
-        // itself resolves through: static band art over the collection base.
+        // One child. The overlay (waves and paid commissions) belongs to the metadata row (see the
+        // roster's `metadataOverlay` flag), so this row wires only what Token Tiers resolves
+        // through: static band art over the collection base.
         address[] memory children = new address[](1);
         children[0] = d.tierResolver;
 
@@ -848,7 +826,7 @@ contract SeedSepolia is SeedSepoliaShared {
                     overlay: address(0), // no overlay on this row: `address(0)` is the factory's documented skip
                     tier: d.tierResolver,
                     tiers: tiers,
-                    autoLatest: false, // unread with no overlay wired; left explicit rather than implied
+                    autoLatest: false, // unread with no overlay wired
                     defaultPayout: MetadataOverlayModule.Payout.ARTIST
                 })
             );
@@ -866,10 +844,9 @@ contract SeedSepolia is SeedSepoliaShared {
 
     // ─────────────────────── 7. The carve ───────────────────────
 
-    /// @dev The carve row declares its allowance UP FRONT and graduates with the carve requested in
+    /// @dev The carve row declares its allowance up front and graduates with the carve requested in
     ///      phase 2. `declaredMaxAllowanceBps` is immutable per instance and readable before the first
-    ///      buy — that immutability is the disclosure, and it is why the declaration is made here at
-    ///      create rather than at graduation.
+    ///      buy; that immutability is the disclosure, so the declaration is made at create.
     function _seedCarveRow(Deployed memory d, address vault) internal returns (address instance) {
         vm.startBroadcast();
         instance = _createBreadthCurve(
@@ -896,8 +873,8 @@ contract SeedSepolia is SeedSepoliaShared {
         console.log("  declared max allowance (bps):", uint256(CARVE_DECLARED_MAX_BPS));
     }
 
-    /// @dev Create + register one breadth curve row. Kept beside its callers so the parameters a row
-    ///      does NOT vary (owner, preset, LP venue, gating, free mint) are stated exactly once.
+    /// @dev Create one breadth curve row. The parameters a row does not vary (owner, preset, LP
+    ///      venue, gating, free mint) are stated once here.
     function _createBreadthCurve(
         Deployed memory d,
         address vault,
@@ -936,17 +913,16 @@ contract SeedSepolia is SeedSepoliaShared {
 
     // ─────────────────────── 6. ERC-721 auctions in three states ───────────────────────
 
-    /// @dev Two auction houses, because a single instance carries ONE base duration and the three
+    /// @dev Two auction houses, because a single instance carries one base duration and the three
     ///      states this must hold do not share one.
     ///
-    ///        · the TIMED house runs for exactly the arm window over two lines. One lot takes a bid
-    ///          and is SETTLED in phase 2; the other takes none and is RECLAIMED. Both need real time
-    ///          to end, which is the wait the orchestrator is already performing — no fast-forward
-    ///          exists on a public testnet, so the two phases are what make these states reachable.
-    ///        · the LIVE house runs long and keeps counting down, so a visitor arriving later finds a
+    ///        · the timed house runs for exactly the arm window over two lines. One lot takes a bid
+    ///          and is settled in phase 2; the other takes none and is reclaimed. Both need real time
+    ///          to end, which is the orchestrator's wait; a public testnet has no fast-forward.
+    ///        · the live house runs long and keeps counting down, so a visitor arriving later finds a
     ///          lot that is still open to bid on.
     ///
-    ///      The lot ids are READ BACK off each line rather than assumed from the queue order.
+    ///      The lot ids are read back off each line rather than assumed from the queue order.
     function _seedAuctions(Deployed memory d, SeedHandoff memory h) internal returns (uint256 timedEnd) {
         uint256 deposit = _auctionDeposit();
         uint256 bid = _auctionBid();
@@ -972,8 +948,8 @@ contract SeedSepolia is SeedSepoliaShared {
                 })
             );
         ERC721AuctionInstance t = ERC721AuctionInstance(payable(timed));
-        // One lot per LINE, so both start immediately: a second lot on the same line would sit in the
-        // queue behind the first and never reach an end state inside this seed.
+        // One lot per line, so both start immediately: a second lot on the same line would queue
+        // behind the first and never reach an end state inside this seed.
         t.queuePiece{ value: deposit }(_pieceMeta("Mewlady I", ART_PIECE_RELIC_I, "relic-line"));
         t.queuePiece{ value: deposit }(_pieceMeta("Mewlady II", ART_PIECE_RELIC_II, "relic-line"));
 
@@ -981,9 +957,9 @@ contract SeedSepolia is SeedSepoliaShared {
         uint256 unsoldLot = t.getActiveAuction(1);
         require(soldLot != 0 && unsoldLot != 0, "auctions: a timed line did not start its lot");
 
-        // The bid is the seed's own. A public testnet showcase has exactly one funded account, so the
-        // winner of the settled lot is that account — the STATE is real, the counterparty is not a
-        // second person, and the post-conditions say so by asserting the token lands with the bidder.
+        // The bid is the seed's own. The showcase has one funded account, so the winner of the
+        // settled lot is that account: the state is real, the counterparty is not a second person,
+        // and the post-conditions assert the token lands with the bidder.
         t.createBid{ value: bid }(uint24(soldLot), "");
 
         address live = d.erc721
@@ -1040,28 +1016,28 @@ contract SeedSepolia is SeedSepoliaShared {
         _assertEditionShowcase(_readEditionFacts(h.editions));
         _assertGatingShowcase(_readGatingFacts(d, h.gatedEditions), block.timestamp);
 
-        // The three breadth curves must be armed and still unopened, exactly like the spine's rows —
-        // a row that opened during phase 1 cannot be bought by phase 2 at a price phase 2 projected.
+        // The three breadth curves must be armed and unopened, like the spine's rows: a row that
+        // opened during phase 1 cannot be bought by phase 2 at the price phase 2 projected.
         _assertBreadthCurveArmed(h.staking404, "quarry-staking");
         _assertBreadthCurveArmed(h.tiers404, "prism-tiers");
         _assertBreadthCurveArmed(h.carve404, "carve-demo");
 
-        // Staking is ACTIVATED here and staked in phase 2, so only the wiring half is asserted now.
+        // Staking is activated here and staked in phase 2, so only the wiring half is asserted.
         ERC404BondingInstance quarry = ERC404BondingInstance(payable(h.staking404));
         require(
             address(quarry.stakingModule()) == d.stakingModule, "phase1: quarry-staking has the wrong staking module"
         );
         require(quarry.stakingActive(), "phase1: quarry-staking did not activate staking");
 
-        // The carve row's DISCLOSURE is a phase-1 fact: it is sealed at create and is what a buyer
-        // reads before the first buy, so it must be right before anything is bought.
+        // The carve row's disclosure is a phase-1 fact: it is sealed at create and is what a buyer
+        // reads before the first buy.
         require(
             ERC404BondingInstance(payable(h.carve404)).declaredMaxAllowanceBps() == CARVE_DECLARED_MAX_BPS,
             "phase1: carve-demo did not seal its declared allowance"
         );
 
-        // The tier ladder is sealed at create and can never be supplied afterwards, so an empty or
-        // mis-sized band here is unrecoverable — check it before the deployment is handed on.
+        // The tier ladder is sealed at create and cannot be supplied afterwards, so an empty or
+        // mis-sized band is unrecoverable.
         IShowcaseTierState tiers = IShowcaseTierState(h.tiers404);
         (uint32 openStart, uint32 openEnd, uint32 openWeight) = tiers.tierBands(0);
         (uint32 scarceStart, uint32 scarceEnd, uint32 scarceWeight) = tiers.tierBands(1);
@@ -1078,8 +1054,8 @@ contract SeedSepolia is SeedSepoliaShared {
             "phase1: a band overlaps the ordinary id space"
         );
 
-        // The auctions: both timed lots must actually be able to END inside the wait, and the live lot
-        // must outlast it — otherwise phase 2 settles nothing and the live row is not live.
+        // The auctions: both timed lots must be able to end inside the wait, and the live lot must
+        // outlast it; otherwise phase 2 settles nothing and the live row is not live.
         ERC721AuctionInstance timed = ERC721AuctionInstance(payable(h.auctionTimed));
         require(timed.getAuction(uint24(h.soldLotId)).highBidder == deployer, "phase1: the settle lot carries no bid");
         require(
@@ -1096,13 +1072,12 @@ contract SeedSepolia is SeedSepoliaShared {
 
     // ─────────────────────── Venue phase-1 post-conditions ───────────────────────
 
-    /// @dev What phase 1 alone is responsible for on the venue legs: each target is CURATED at the
-    ///      venue its vault actually LPs on, each vault is bound to the right asset and target and
-    ///      carries a price validator, and every pool a convert will swap through already holds depth.
+    /// @dev What phase 1 alone is responsible for on the venue legs: each target is curated at the
+    ///      venue its vault LPs on, each vault is bound to the right asset and target and carries a
+    ///      price validator, and every pool a convert swaps through holds depth.
     ///
-    ///      What is deliberately NOT asserted here is the reference pin — that is phase 2's, because
-    ///      the pools this phase created cannot serve a window-long TWAP until a window has passed.
-    ///      Asserting it here would only be assertable by not creating the pools here.
+    ///      The reference pin is phase 2's assertion: the pools this phase created cannot serve a
+    ///      window-long TWAP until a window has passed.
     function _assertVenuesPhase1(Deployed memory d, SeedHandoff memory h) internal view {
         IAlignmentRouteAdmin reg = IAlignmentRouteAdmin(d.alignmentRegistry);
 
@@ -1159,12 +1134,11 @@ contract SeedSepolia is SeedSepoliaShared {
             IPoolManager(d.v4PoolManager).getLiquidity(_uniVenueKey(token).toId()) >= MIN_VENUE_ACTIVE_LIQUIDITY,
             string.concat("venue: ", label, " acquire pool is too thin to serve a convert")
         );
-        // The best-route table has to agree with the pool the two checks above just vouched for.
-        // A row registered at another tier sends its convert to a pool nothing seeded; a row missing
-        // from the table silently drops to the fallback, which is the same pool here but would stop
-        // being so the moment a second tier exists — and either way the showcase would no longer be
-        // rehearsing the acquire path it claims to. The row is read against THIS VAULT, which is how
-        // the table keeps the Uni leg off the vaults that share the asset on another venue.
+        // The best-route table has to agree with the pool the checks above vouch for. A row
+        // registered at another tier sends its convert to a pool nothing seeded; a missing row drops
+        // to the fallback, which is the same pool only while a single tier exists. Either way the
+        // showcase would not rehearse the acquire path it claims to. The row is read against this
+        // vault, which keeps the Uni leg off the vaults that share the asset on another venue.
         require(d.zQuoter != address(0), string.concat("venue: ", label, " deployment wired no quoter"));
         (SepoliaRouteQuoter.AMM source, uint256 feeOrHook, bool routed) =
             SepoliaRouteQuoter(d.zQuoter).routeOf(vault, token);
@@ -1181,9 +1155,8 @@ contract SeedSepolia is SeedSepoliaShared {
     }
 
     /// @dev A vault is bound to exactly one (asset, target) and prices through a validator. The
-    ///      validator read is the one worth stating: the factory substitutes its default when a vault
-    ///      is deployed with a zero, and a vault that ended up with a genuine zero cannot price its
-    ///      own floor at all.
+    ///      factory substitutes its default validator when a vault is deployed with zero, and a vault
+    ///      left with a zero validator cannot price its own floor.
     function _assertVaultBinding(address vault, address token, uint256 targetId, string memory label) internal view {
         IVenueVaultView v = IVenueVaultView(vault);
         require(v.alignmentToken() == token, string.concat("venue: ", label, " vault holds another asset"));
@@ -1202,26 +1175,23 @@ contract SeedSepolia is SeedSepoliaShared {
 
     /// @dev Rent the placements the home page renders. `QueryAggregator.getHomePageData` is a read
     ///      over the featured queue, so a deployment with no placements answers with an empty grid
-    ///      however much it holds — the showcase's front door is the one surface that is not seeded
-    ///      by creating collections.
+    ///      however much it holds; it is the one surface not seeded by creating collections.
     ///
-    ///      WHICH ROWS, AND WHY THESE FOUR. The wall is the tour's first page, so it carries the
-    ///      product's ARC rather than its inventory: the graduated curve (the arc completed, trading
-    ///      on a real pool), the mid-curve row (the arc in motion, and the one thing a visitor can act
-    ///      on immediately), the edition set (a second project family, priced three ways on one page)
-    ///      and the live auction (a third family, with a clock running). One per mechanism family,
-    ///      with the two curve states leading because the curve is the product's spine.
+    ///      The wall is the tour's first page, so it carries the product's arc rather than its
+    ///      inventory: the graduated curve (the arc completed, trading on a real pool), the
+    ///      mid-curve row (the arc in motion, and the one thing a visitor can act on immediately),
+    ///      the edition set (a second project family, priced three ways on one page) and the live
+    ///      auction (a third family, with a clock running). One per mechanism family, with the two
+    ///      curve states leading because the curve is the product's spine.
     ///
-    ///      WHY THE ORDER IS PAID FOR. The queue returns active slots sorted by effective rank, so
-    ///      without distinct boosts the wall's order is whatever the sort makes of equal keys. Each
-    ///      slot is rented with a boost one step above the next, which is also the demonstration:
-    ///      placement is bought and contestable, and every wei of it is 100% protocol revenue by
-    ///      design rather than a split.
+    ///      The queue returns active slots sorted by effective rank, so without distinct boosts the
+    ///      wall's order is whatever the sort makes of equal keys. Each slot is rented with a boost
+    ///      one step above the next. Placement is bought and contestable, and every wei of it is
+    ///      protocol revenue rather than a split.
     ///
-    ///      WHY PHASE 1. The rent rides the phase that already holds the payer's purse for the venue
-    ///      depth and the auction deposits, and it has to: `rentFeatured` refuses an unregistered
-    ///      instance, and phase 1 is where every instance is created and registered. Phase 2 buys
-    ///      into curves and graduates them — it changes no row's eligibility for a slot.
+    ///      The rent happens in phase 1 because `rentFeatured` refuses an unregistered instance and
+    ///      phase 1 is where every instance is created and registered; phase 2 changes no row's
+    ///      eligibility for a slot.
     function _seedFeaturedWall(
         Deployed memory d,
         SeedHandoff memory h,
@@ -1235,9 +1205,9 @@ contract SeedSepolia is SeedSepoliaShared {
         wall[3] = h.auctionLive;
 
         uint256 duration = _featuredDuration();
-        // The bounds are the QUEUE's, and they are owner-tunable: a duration outside them reverts
-        // `InvalidDuration` at the first rent. Refused here instead, at simulation time, with the
-        // ceiling that refused it named — the knob to turn is an environment variable.
+        // The bounds are the queue's and owner-tunable: a duration outside them reverts
+        // `InvalidDuration` at the first rent. The require refuses it at simulation time and names
+        // the environment variable that sets it.
         require(
             duration >= d.queue.minDuration() && duration <= d.queue.maxDuration(),
             "featured: SEPOLIA_FEATURED_DURATION_SECONDS is outside the queue's own duration bounds"
@@ -1248,9 +1218,8 @@ contract SeedSepolia is SeedSepoliaShared {
         for (uint256 i = 0; i < wall.length; i++) {
             require(wall[i] != address(0), "featured: the wall names a row this seed did not create");
             uint256 rankBoost = _featuredRankBoost(i, wall.length);
-            // Exactly what is due, rather than a generous value and a refund: the refund path hands
-            // the excess back through the WETH fallback, which is a second mechanism to be right
-            // about for no gain on a seed that already knows the price.
+            // Exactly what is due, since the refund path returns the excess through the WETH fallback
+            // and the seed knows the price.
             d.queue.rentFeatured{ value: durationCost + rankBoost }(wall[i], duration, rankBoost);
             h.featuredSpendWei += durationCost + rankBoost;
             console.log("FEATURED slot / instance:", i + 1, wall[i]);
@@ -1265,9 +1234,8 @@ contract SeedSepolia is SeedSepoliaShared {
         console.log("  slot expiry (unix):", block.timestamp + duration);
     }
 
-    /// @dev Resolve one roster row BY NAME. The wall names the rows it features rather than indexing
-    ///      them, for the same reason phase 2 does: the roster grows, and a positional reference
-    ///      silently re-targets when it does.
+    /// @dev Resolve one roster row by name. The wall names the rows it features rather than indexing
+    ///      them, since a positional reference re-targets when the roster changes.
     function _instanceForSlug(ShowcaseLeg[] memory legs, address[] memory instances, string memory slug)
         internal
         pure
@@ -1281,15 +1249,15 @@ contract SeedSepolia is SeedSepoliaShared {
 
     // ─────────────────────── Featured phase-1 post-conditions ───────────────────────
 
-    /// @dev The wall as the HOME PAGE will read it, not as the seed remembers renting it. Read back
-    ///      through `getFeaturedInstances` — the same call `QueryAggregator.getHomePageData` makes —
-    ///      because a slot that was paid for and is not visible (an unregistered instance, a slot the
-    ///      cap pruned) renders an empty front door exactly like never having rented it.
+    /// @dev The wall as the home page reads it, not as the seed remembers renting it. Read back
+    ///      through `getFeaturedInstances`, the call `QueryAggregator.getHomePageData` makes, because
+    ///      a paid slot that is not visible (an unregistered instance, a slot the cap pruned) renders
+    ///      an empty front door.
     function _assertFeaturedPhase1(Deployed memory d, SeedHandoff memory h) internal view {
         require(h.featured.length == FEATURED_SLOTS, "featured: the wall is not the size that was quoted");
 
-        // The whole visible wall, not only this seed's window of it: a deployment may already carry
-        // placements somebody else rented, and they sort among these by rank like any other.
+        // The whole visible wall, not only this seed's window of it: a deployment may carry
+        // placements somebody else rented, and they sort among these by rank.
         (address[] memory rendered, uint256 total) = d.queue.getFeaturedInstances(0, d.queue.maxFeaturedSize());
         require(total >= FEATURED_SLOTS, "featured: the queue reports fewer active slots than were rented");
 
@@ -1297,9 +1265,9 @@ contract SeedSepolia is SeedSepoliaShared {
         for (uint256 i = 0; i < FEATURED_SLOTS; i++) {
             uint256 position = _positionInWall(rendered, h.featured[i]);
             require(position != type(uint256).max, "featured: a rented slot is not on the wall the home page reads");
-            // The RELATIVE order of this seed's own slots is what the descending rank steps bought.
-            // Stated as relative rather than absolute because the seed does not own the whole wall:
-            // an existing placement may outrank all of these and still leave the tour in its order.
+            // The relative order of this seed's own slots is what the descending rank steps buy; it
+            // is relative because the seed does not own the whole wall, and another placement may
+            // outrank all of these without disturbing the tour's order.
             if (i > 0) {
                 require(position > previousPosition, "featured: the wall renders this seed's rows out of order");
             }
@@ -1341,8 +1309,8 @@ contract SeedSepolia is SeedSepoliaShared {
         f.dynamicBasePrice = dynBase;
         f.dynamicRate = dynRate;
         f.dynamicModule = address(ed.dynamicPricingModule());
-        // Asked of the module the instance will actually charge through, not recomputed here — a
-        // second copy of the pricing curve beside the first is how the two drift.
+        // Asked of the module the instance charges through, not recomputed here, so a second copy
+        // of the pricing curve cannot drift.
         if (f.dynamicModule != address(0)) {
             f.dynamicPriceAfterProbe =
                 IDynamicPricingModule(f.dynamicModule).calculatePrice(dynBase, dynRate, DYNAMIC_PROBE_MINTS);
@@ -1372,9 +1340,8 @@ contract SeedSepolia is SeedSepoliaShared {
         (bytes32 root, bytes32[] memory proofOperator,) =
             _buildAllowlistTier(deployer, GATED_OPERATOR_QTY, member, GATED_MEMBER_QTY, stranger);
         f.provenRoot = root;
-        // Re-verified against the root that is actually INSTALLED, through the same library the module
-        // calls. Verifying against the locally rebuilt root would only prove the seed agrees with
-        // itself.
+        // Verified against the root that is installed, through the library the module calls;
+        // verifying against the locally rebuilt root would only prove the seed agrees with itself.
         f.listedMemberVerifies =
             MerkleProofLib.verify(proofOperator, f.installedRoot, _leaf(deployer, GATED_OPERATOR_QTY));
         f.unlistedAddressRejected =

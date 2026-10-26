@@ -65,10 +65,10 @@ interface IERC1155EditionReader {
     function getCurrentPrice(uint256 editionId) external view returns (uint256);
     function nextEditionId() external view returns (uint256);
     /// @notice Unix timestamp at which an edition stops minting; 0 = never closes.
-    /// @dev Deliberately NOT a field on `Edition`: that struct is decoded out of `getEdition` for
-    ///      every instance this aggregator reads, instances deployed before the close time existed
-    ///      included, and a field added to it would break those decodes. Read on its own, guarded,
-    ///      so an older instance that does not answer reads as "never closes".
+    /// @dev Deliberately not a field on `Edition`: that struct is decoded out of `getEdition` for every
+    ///      instance this aggregator reads, including those without the close time, and a field added
+    ///      to it would break those decodes. Read on its own, guarded, so an instance that does not
+    ///      answer reads as "never closes".
     function editionCloseTime(uint256 editionId) external view returns (uint256);
     /// @notice Most tokens of an edition one wallet may mint; 0 = no ceiling. Guarded like the above.
     function editionMaxPerWallet(uint256 editionId) external view returns (uint256);
@@ -91,8 +91,8 @@ interface IERC404Staking {
     function calculatePendingRewards(address instance, address staker) external view returns (uint256);
 }
 
-/// @notice ERC404 bonding-card reads (existing getters; the lens computes price/active from these,
-///         so no `getCardData()` is needed on the instance — keeps the size-locked ERC404 untouched).
+/// @notice ERC404 bonding-card reads; the lens computes price/active from these existing getters,
+///         so the size-locked ERC404 instance carries no `getCardData()`.
 interface IERC404Card {
     function totalBondingSupply() external view returns (uint256);
     function maxSupply() external view returns (uint256);
@@ -182,18 +182,14 @@ contract QueryAggregator is SafeOwnableUUPS {
         uint256 totalSupply;
         uint256 maxSupply;
         bool isActive;
-        // The moment this collection's buy path OPENS, when that moment is still ahead of the block the
-        // card was read at; 0 otherwise. It is the second half of a status a buyer can act on: `isActive`
-        // false answers "can I buy it now?" but not "will I ever be able to?", and the two states it
-        // conflates want opposite things said about them — a curve that has graduated or an edition run
-        // that has sold out is over, while a drop scheduled for Friday is worth coming back for. Read
-        // together: active => now, `opensAt` non-zero => then, neither => nothing to wait for.
-        // Compared against `block.timestamp` HERE rather than handed to the caller as a raw schedule, so
-        // a client with a skewed clock cannot disagree with the chain about which of the three it is in.
+        // The moment this collection's buy path opens, when that moment is still ahead of the block the
+        // card was read at; 0 otherwise. `isActive` false answers "can I buy it now?" but not "will I
+        // ever be able to?": a graduated curve or sold-out edition run is over, while a scheduled drop
+        // is worth coming back for. Read together: active => now, `opensAt` non-zero => then, neither
+        // => nothing to wait for. Compared against `block.timestamp` here so a client with a skewed
+        // clock cannot disagree with the chain.
         uint256 opensAt;
-        // F-F.4: currently unused — no card hydration path (ERC404/ERC721/ERC1155) assigns extraData,
-        // so it is always empty bytes. Vestige of the removed getCardData() 5-tuple. The frontend must
-        // NOT decode it. Kept as a reserved forward-compat field; do not populate without a spec update.
+        // Always empty bytes: no card hydration path assigns it. Reserved; the frontend must not decode it.
         bytes extraData;
         // From FeaturedQueueManager
         uint256 featuredRank;
@@ -272,21 +268,17 @@ contract QueryAggregator is SafeOwnableUUPS {
     IMasterRegistry public masterRegistry;
     IFeaturedQueueManager public featuredQueueManager;
 
-    /// @dev DEPRECATED (noesis-067): formerly `IGlobalMessageRegistry public globalMessageRegistry`.
-    ///      The social feed is emit-only and read client-side via event logs (EventIndexer); this
-    ///      aggregator serves contract-state snapshots, so the pointer was never read. Removed from the
-    ///      read path but the STORAGE SLOT is retained as a layout-safe placeholder. The aggregator is
-    ///      deployed directly (`new QueryAggregator()` in DeployCore), not behind a proxy today, but it is
-    ///      UUPS-upgradeable and the upgrade path preserves storage, so the slot must not be reordered or
-    ///      removed (doing so would shift `_initialized` and every appended slot). Do not repurpose
-    ///      without a slot-map review.
+    /// @dev Retired pointer, never read: the social feed is emit-only and read client-side via event
+    ///      logs, and this aggregator serves contract-state snapshots. The slot stays as a layout
+    ///      placeholder: the aggregator is UUPS-upgradeable and upgrades preserve storage, so removing or
+    ///      reordering it would shift `_initialized` and every appended slot.
     // slither-disable-next-line constable-states,unused-state
     address private __deprecated_globalMessageRegistry;
 
     uint256 public constant MAX_QUERY_LIMIT = 50;
 
     /// @notice Hard cap on editions scanned per ERC1155 card. Bounds the per-card loop so a malicious
-    ///         instance reporting a huge `nextEditionId` cannot OOG-revert the whole batch (spec F-D).
+    ///         instance reporting a huge `nextEditionId` cannot OOG-revert the whole batch.
     uint256 public constant MAX_EDITIONS_PER_CARD = 100;
 
     /// @notice Hard cap on auction lines scanned per ERC721 instance. `ERC721AuctionInstance` bounds its
@@ -321,8 +313,8 @@ contract QueryAggregator is SafeOwnableUUPS {
      * @param _masterRegistry MasterRegistry contract address
      * @param _featuredQueueManager FeaturedQueueManager contract address
      * @param _owner Owner address
-     * @dev The third positional argument is the DEPRECATED globalMessageRegistry pointer (noesis-067).
-     *      It is ignored — accepted only to preserve the deployment call ABI — and never stored.
+     * @dev The third positional argument is a retired pointer: ignored, accepted so the deployment call
+     *      ABI is stable, and never stored.
      * @dev Restricted to the owner. The constructor makes the deploying account the owner from the moment
      *      the CREATE lands, so the deployer's own `new` + `initialize` pair is unaffected, while a third
      *      party cannot claim the uninitialized instance in the gap between the two transactions and set
@@ -369,12 +361,10 @@ contract QueryAggregator is SafeOwnableUUPS {
 
         // Get active featured instances — getFeaturedInstances handles filtering,
         // pagination clamping, and returns the true active total in one call.
-        // NOTE: the second argument is a COUNT (limit), not an end index. Passing `offset + limit`
-        // (the prior bug) made FQM over-fetch by `offset` on page 2+, potentially exceeding
-        // MAX_QUERY_LIMIT; pass `limit` so the returned window is exactly `limit` wide.
-        // F-F.1: the FQM call is the one entry-path external read that must not be able to revert the
-        // whole homepage. A broken/upgraded FeaturedQueueManager yields an empty grid, not a revert —
-        // this read lens has no server to paper over a revert, so it degrades to an empty result set.
+        // The second argument is a COUNT (limit), not an end index, so the returned window is exactly
+        // `limit` wide. The FQM call must not be able to revert the whole homepage: a broken or
+        // upgraded FeaturedQueueManager yields an empty grid, since this read lens has no server to
+        // paper over a revert.
         address[] memory featuredAddresses;
         try this.readFeaturedInstances(offset, limit) returns (address[] memory addrs, uint256 total_) {
             featuredAddresses = addrs;
@@ -477,12 +467,10 @@ contract QueryAggregator is SafeOwnableUUPS {
             try this.readInstanceInfo(instance) returns (IMasterRegistry.InstanceInfo memory info) {
                 if (typeHash == TYPE_ERC404) {
                     ERC404Holding memory holding = _getERC404Holding(instance, user, info.name);
-                    // A holding is anything the user owns here, and since noesis-316 that includes coin
-                    // they cannot transfer. `tokenBalance` alone is the wrong test: DN404 burns the band
-                    // NFT the moment a debit takes the holder below its unit, so a holder whose whole
-                    // position is released escrow reads balanceOf == 0 while the instance still owes them
-                    // `pendingEscrowRelease` — under the old test their row was dropped and the lens
-                    // showed them nothing at all. Both new terms are ORed in so that row survives.
+                    // A holding is anything the user owns here, including coin they cannot transfer.
+                    // `tokenBalance` alone is the wrong test: DN404 burns the band NFT the moment a debit
+                    // takes the holder below its unit, so a holder whose whole position is released escrow
+                    // reads balanceOf == 0 while the instance still owes them `pendingEscrowRelease`.
                     if (
                         holding.tokenBalance > 0 || holding.stakedBalance > 0 || holding.coinBalance > 0
                             || holding.pendingEscrowRelease > 0
@@ -529,10 +517,8 @@ contract QueryAggregator is SafeOwnableUUPS {
             card.vault = info.vaults.length > 0 ? info.vaults[info.vaults.length - 1] : address(0);
         } catch { }
 
-        // §6 anti-drift (noesis-084, completed by noesis-085): ALL THREE instance types now expose an
-        // ERC-7572 contractURI(), so the INSTANCE is the single source of truth for the collection
-        // metadata URI — read it through and stop trusting the possibly-drifted registry copy. The read
-        // is uniform: no type is exempt any more.
+        // The instance is the single source of truth for the collection metadata URI (ERC-7572
+        // contractURI(), exposed by all three instance types); the registry copy can drift.
         _hydrateContractURI(card);
 
         // 2–5 don't depend on step 1 succeeding — they use card fields or instance directly
@@ -542,18 +528,16 @@ contract QueryAggregator is SafeOwnableUUPS {
         _hydrateFeatured(card);
     }
 
-    /// @dev §6 read-through: override card.metadataURI with the instance's own contractURI(). Uniform
-    ///      across all three known instance types since noesis-085 — ERC404 got its ERC-7572 getter, so
-    ///      there is no longer a type that has to be trusted to the registry.
-    /// @dev Two ways the registry copy SURVIVES, both deliberate:
-    ///      1. The read does not produce a decodable answer — an unknown type, a non-contract address, a
-    ///         getter that is not there, a return value that does not decode. All of these arrive as a
-    ///         reverted `readInstanceType` / `readContractURI` child call and are caught here, matching
-    ///         this file's never-brick read contract (see the contract-level note on the self-call idiom).
-    ///      2. The instance returns an EMPTY string. Every ERC404 instance deployed BEFORE noesis-085 —
-    ///         and any instance created with an empty collection URI — reads back "". Overwriting
-    ///         unconditionally would BLANK a card that the registry could still describe, which is a
-    ///         regression, not anti-drift. Empty is "I have nothing to say", not "the URI is nothing".
+    /// @dev Overrides card.metadataURI with the instance's own contractURI() (ERC-7572), which every
+    ///      known instance type exposes, so the instance is the single source of truth.
+    /// @dev The registry copy survives in two cases:
+    ///      1. The read yields no decodable answer: an unknown type, a non-contract address, a missing
+    ///         getter, an undecodable return. Each arrives as a reverted `readInstanceType` /
+    ///         `readContractURI` child call and is caught here (see the contract-level note on the
+    ///         self-call idiom).
+    ///      2. The instance returns an empty string, as one created with an empty collection URI does.
+    ///         Overwriting would blank a card the registry can still describe; empty means "nothing to
+    ///         say", not "the URI is nothing".
     // slither-disable-next-line calls-loop
     function _hydrateContractURI(ProjectCard memory card) private view {
         bytes32 typeHash;
@@ -590,16 +574,14 @@ contract QueryAggregator is SafeOwnableUUPS {
 
     // slither-disable-next-line calls-loop
     function _hydrateCardData(ProjectCard memory card) private view {
-        // Dispatch on the instance's own type discriminator and read its EXISTING public getters.
-        // (The old design called IInstance.getCardData(), which NO instance implements — so ERC404 and
-        //  ERC721 cards silently fell through to the ERC1155 path and rendered as blank/"Ended". Fixed by
-        //  computing each type's card data lens-side, adding no code to the size-locked instances.)
+        // Dispatch on the instance's own type discriminator and read its existing public getters;
+        // each type's card data is computed lens-side, so the size-locked instances carry no card getter.
         bytes32 typeHash;
         try this.readInstanceType(card.instance) returns (bytes32 t) {
             typeHash = t;
         } catch {
-            // No discriminator → fall through to the ERC1155 path below, which is itself fully guarded
-            // (a non-ERC1155 instance yields a zero card there). Preserves the pre-dispatch fallback.
+            // No discriminator: fall through to the ERC1155 path below, which is fully guarded (a
+            // non-ERC1155 instance yields a zero card there).
         }
 
         if (typeHash == TYPE_ERC404) {
@@ -620,12 +602,10 @@ contract QueryAggregator is SafeOwnableUUPS {
                 card.totalSupply = supply;
                 card.maxSupply = max;
                 card.isActive = active;
-                // `opensAt` stays 0 for the auction family, and there is nothing to compute: an auction
-                // has no scheduled start. `_startAuction` stamps `startTime` with `block.timestamp` the
-                // moment a piece reaches the head of its line (on queueing into an empty line, or when
-                // the piece ahead of it settles), so a future start time never exists to be read. A
-                // collection with pieces queued behind a live head is Live already; one with nothing
-                // running is waiting on a creator, not on a clock, and 0 says exactly that.
+                // `opensAt` stays 0 for the auction family: an auction has no scheduled start.
+                // `_startAuction` stamps `startTime` with `block.timestamp` the moment a piece reaches the
+                // head of its line, so a future start time never exists to be read. A collection with
+                // nothing running is waiting on a creator, not on a clock, and 0 says that.
             } catch { }
         } else {
             // ERC1155: compute from edition storage directly.
@@ -637,13 +617,9 @@ contract QueryAggregator is SafeOwnableUUPS {
     ///         (`calculateCost(params, supply, unit)`, matching how buys are priced); `active` = a buy
     ///         placed at this block would succeed; `opensAt` = when one first could, if that is still
     ///         ahead. External so the caller can try/catch the whole group as one unit. Not for direct use.
-    /// @dev `max` is the BUYABLE ceiling, not `maxSupply`. The buy path caps at
-    ///      `maxSupply - liquidityReserve - freeMintAllocation * unit` (ERC404BondingInstance:520) and
-    ///      reverts `ExceedsBonding()` past it, so reporting raw `maxSupply` here advertised coin that
-    ///      no buy could ever reach: a curve bought to exhaustion showed a partly-full meter and a
-    ///      non-zero remainder while every further buy reverted. The reserve is non-zero for every
-    ///      creatable instance, so the gap was never hypothetical. Same expression the frontend already
-    ///      calls the buyable ceiling in `costInverse.ts`.
+    /// @dev `max` is the buyable ceiling, not `maxSupply`. The buy path caps at
+    ///      `maxSupply - liquidityReserve - freeMintAllocation * unit` and reverts `ExceedsBonding()`
+    ///      past it, so reporting raw `maxSupply` would advertise coin no buy can reach.
     function erc404CardData(address instance)
         external
         view
@@ -655,22 +631,19 @@ contract QueryAggregator is SafeOwnableUUPS {
         uint256 maxSupply_ = c.maxSupply();
         uint256 reserved = c.liquidityReserve() + c.freeMintAllocation() * unit_;
         // Clamped rather than left to underflow: a configuration that reserves the whole supply has a
-        // buyable ceiling of zero, which is the truth, and a revert here would blank the card instead.
+        // buyable ceiling of zero, and a revert here would blank the card.
         max = reserved >= maxSupply_ ? 0 : maxSupply_ - reserved;
-        // `bondingOpenTime` is the buy path's own gate (ERC404BondingInstance:518 reverts TooEarly()
-        // below it), and arming is what turns a bare timestamp into a promise: `setBondingActive`
-        // refuses until an open time is set, and graduation clears the flag. So an armed, ungraduated
-        // curve whose open time has not arrived is a real Soon; anything else is not one, whatever
-        // `bondingOpenTime` happens to hold.
+        // `bondingOpenTime` is the buy path's own gate (it reverts TooEarly() below it). Arming turns
+        // a bare timestamp into a promise: `setBondingActive` refuses until an open time is set, and
+        // graduation clears the flag. So an armed, ungraduated curve whose open time has not arrived
+        // is a real Soon; anything else is not, whatever `bondingOpenTime` holds.
         bool armed = c.bondingActive();
         bool graduated_ = c.graduated();
         uint256 openTime_ = c.bondingOpenTime();
-        // `supply < max` completes the predicate against the ceiling computed just above. A curve
-        // bought out to that ceiling is not graduated and stays armed — nothing on chain flips for it —
-        // yet every further buy reverts ExceedsBonding(). Without this term such a curve advertised
-        // itself as buyable forever, which is the one thing "active" is supposed to promise. It also
-        // brings the family into line with its siblings, which have always required a reachable buy:
-        // the ERC-1155 leg wants `minted < supply` on an open edition, the ERC-721 leg a live auction.
+        // `supply < max` completes the predicate against the buyable ceiling: a curve bought out to it
+        // is not graduated and stays armed, yet every further buy reverts ExceedsBonding(). Like its
+        // siblings (the ERC-1155 leg wants `minted < supply` on an open edition, the ERC-721 leg a
+        // live auction), `active` requires a reachable buy.
         active = armed && !graduated_ && block.timestamp >= openTime_ && supply < max;
         if (armed && !graduated_ && block.timestamp < openTime_) opensAt = openTime_;
         if (unit_ > 0) {
@@ -713,10 +686,8 @@ contract QueryAggregator is SafeOwnableUUPS {
     ///      auction on that line that can hold a bid, and `getActiveAuction` returns it whether it is
     ///      live or ended-unsettled (it returns 0 once settled). Cost is at most
     ///      `MAX_AUCTION_LINES_PER_INSTANCE` head reads per instance rather than a queue walk.
-    ///      Creator deposits on pieces still QUEUED BEHIND a head are escrowed but not yet actionable —
-    ///      those auctions have not started, so nothing can be settled or reclaimed on them. Surfacing
-    ///      them would require an unbounded queue walk; a follow-on can add a paged queue reader if the
-    ///      pre-start deposit needs its own line in the portfolio.
+    ///      Creator deposits on pieces still queued behind a head are escrowed but not actionable, and
+    ///      are not enumerated: surfacing them would need an unbounded queue walk.
     ///      `tokenId` 0 is the "no live auction" sentinel and is never a real piece — `nextTokenId`
     ///      starts at 1 — so a 0 is skipped rather than passed to `getAuction` (which reverts on it).
     // slither-disable-next-line calls-loop,timestamp
@@ -738,7 +709,7 @@ contract QueryAggregator is SafeOwnableUUPS {
             uint24 tokenId = c.getActiveAuction(i);
             if (tokenId == 0) continue; // no unsettled auction at this line's head
             IERC721Card.Auction memory a = c.getAuction(tokenId);
-            if (a.settled || a.startTime == 0) continue; // settled, or queued and not yet running
+            if (a.settled || a.startTime == 0) continue; // settled, or queued and not running
 
             bool ended = block.timestamp >= a.endTime;
             bool hasBids = a.highBidder != address(0);
@@ -933,17 +904,14 @@ contract QueryAggregator is SafeOwnableUUPS {
     // slither-disable-next-line calls-loop
     function _hydrateERC1155CardData(ProjectCard memory card) private view {
         try this.readNextEditionId(card.instance) returns (uint256 nextId) {
-            // noesis-320: `catch` traps errors raised in the external CALL, not panics raised here in
-            // the parent frame afterwards. A target answering 0 to nextEditionId() would underflow
-            // `nextId - 1` inside this success block, raising panic 0x11 in QueryAggregator itself and
-            // reverting all of getProjectCardsBatch — taking every healthy sibling card with it. This
-            // is the leg the file's own comments designate as the guarded fallback for instances the
-            // lens does not understand, and getProjectCardsBatch takes a caller-supplied address array.
-            // Guard the subtraction so the zero answer yields a zero card, like every other bad read.
+            // `catch` traps errors raised in the external call, not panics raised here in the parent
+            // frame. A target answering 0 to nextEditionId() would underflow `nextId - 1`, panicking in
+            // QueryAggregator itself and reverting all of getProjectCardsBatch, which takes a
+            // caller-supplied address array. The zero answer yields a zero card, like every other bad read.
             if (nextId == 0) return;
             uint256 count = nextId - 1;
             if (count == 0) return;
-            if (count > MAX_EDITIONS_PER_CARD) count = MAX_EDITIONS_PER_CARD; // F-D: bound the loop, never OOG the batch
+            if (count > MAX_EDITIONS_PER_CARD) count = MAX_EDITIONS_PER_CARD; // bound the loop, never OOG the batch
             uint256 floorPrice = type(uint256).max; // floor over editions that are OPEN
             uint256 nextOpenTime = type(uint256).max; // earliest openTime among editions still shut
             uint256 nextOpenPrice; // that edition's price, quoted when nothing is open yet
@@ -954,25 +922,19 @@ contract QueryAggregator is SafeOwnableUUPS {
             bool hasOpenUnlimited;
             for (uint256 i = 1; i <= count; i++) {
                 try this.readEdition(card.instance, i) returns (IERC1155EditionReader.Edition memory ed) {
-                    // F-F.3: card price is the floor of the LIVE per-edition prices, not the floor of
-                    // static basePrice. A partway-minted LIMITED_DYNAMIC edition's live getCurrentPrice
-                    // exceeds basePrice, so a basePrice floor understated the real buy price. Read the
-                    // live price per edition (own try/catch, falling back to basePrice on revert to
-                    // preserve the failure-tolerance doctrine) and take the min of that.
+                    // Card price is the floor of the live per-edition prices, not of static basePrice: a
+                    // partway-minted LIMITED_DYNAMIC edition's live price exceeds basePrice. The live read has
+                    // its own try/catch and falls back to basePrice on revert.
                     uint256 edPrice = ed.basePrice; // fallback = static floor if the live read reverts
                     try this.readEditionPrice(card.instance, i) returns (uint256 p) {
                         edPrice = p;
                     } catch { }
-                    // An edition whose openTime has not arrived reverts EditionNotOpen() at both mint
-                    // entry points (ERC1155Instance:284 and :501), so it can contribute neither a
-                    // buyable price nor an active flag. `openTime == 0` is the ungated case and every
-                    // timestamp clears it. Both siblings already gate on time and only this leg did
-                    // not: ERC404 ANDs in bondingOpenTime, ERC721 requires block.timestamp < endTime.
-                    // The close time is the same gate on the far side, and it has the same
-                    // consequence: past it both mint entry points revert EditionClosed(), so a
-                    // finished drop must stop quoting a price and stop reporting itself buyable.
-                    // Read on its own and guarded — an instance deployed before the schedule existed
-                    // has no such function, and a revert there means "never closes", not "closed".
+                    // An edition whose openTime has not arrived reverts EditionNotOpen() at both mint entry
+                    // points, so it contributes neither a buyable price nor an active flag; `openTime == 0`
+                    // is ungated. Past the close time both entry points revert EditionClosed(), so a finished
+                    // drop stops quoting a price and stops reporting itself buyable. The close time is read
+                    // on its own and guarded: an instance without the schedule has no such function, and a
+                    // revert means "never closes", not "closed".
                     uint256 edCloseTime;
                     // slither-disable-next-line calls-loop
                     try this.readEditionCloseTime(card.instance, i) returns (uint256 t) {
@@ -987,14 +949,11 @@ contract QueryAggregator is SafeOwnableUUPS {
                         nextOpenTime = ed.openTime;
                         nextOpenPrice = edPrice;
                     }
-                    // noesis-320, the second leg: these two folds run in THIS frame, exactly like the
-                    // `nextId - 1` decrement guarded above, so neither `catch {}` covers them either.
-                    // `getEdition` is the instance's own answer and may be any uint256 it likes: two
-                    // editions reporting 2**255 minted overflow the sum and raise panic 0x11 here,
-                    // reverting all of getProjectCardsBatch and taking every healthy sibling card with
-                    // it. Fold checked and answer an overflow the way the zero counter is answered —
-                    // abandon this card, leaving it zero like every other bad read, and let the batch
-                    // carry on. A real collection cannot reach either ceiling; only a hostile one can.
+                    // These two folds run in this frame, so neither `catch {}` covers them. `getEdition` is
+                    // the instance's own answer and may be any uint256: two editions reporting 2**255 minted
+                    // would overflow the sum and panic, reverting all of getProjectCardsBatch. Fold checked and
+                    // abandon this card (left zero like every other bad read) on overflow. A real collection
+                    // cannot reach either ceiling.
                     if (ed.minted > type(uint256).max - totalMinted) return;
                     totalMinted += ed.minted;
                     if (ed.supply == 0) {
@@ -1008,22 +967,19 @@ contract QueryAggregator is SafeOwnableUUPS {
                 } catch { }
             }
             if (hasUnlimited) maxSupply = 0; // unbounded whether or not it has opened yet
-            // Honest active flag: active iff some edition is OPEN and mintable — any open UNLIMITED
-            // edition, or any open LIMITED edition still holding minted < supply. A collection whose
-            // every edition is scheduled for a future date correctly reports inactive; before this
-            // gate it advertised as buyable a collection whose every buy reverted.
-            // Price when nothing is open yet: the earliest opener's price, not 0 — a scheduled drop
-            // that has not started is not a free one.
+            // Active iff some edition is open and mintable: any open unlimited edition, or any open
+            // limited edition with minted < supply. A collection whose every edition is scheduled for a
+            // future date is inactive. With nothing open, the price is the earliest opener's, not 0: a
+            // scheduled drop is not a free one.
             card.currentPrice =
                 floorPrice != type(uint256).max ? floorPrice : (nextOpenTime != type(uint256).max ? nextOpenPrice : 0);
             card.totalSupply = totalMinted;
             card.maxSupply = maxSupply;
             card.isActive = isActive || hasOpenUnlimited;
-            // The earliest edition still shut, if any — the loop already found it to quote its price.
-            // Reported whether or not another edition is open, because it is a fact about the
-            // collection rather than a display flag; a reader that wants one status resolves `isActive`
-            // first. Bounded by MAX_EDITIONS_PER_CARD like every other figure on this card: an edition
-            // past the loop's window opens without being announced here.
+            // The earliest edition still shut, if any; the loop already found it to quote its price.
+            // Reported whether or not another edition is open, as a fact about the collection rather
+            // than a display flag; a reader that wants one status resolves `isActive` first. Bounded by
+            // MAX_EDITIONS_PER_CARD like every other figure on the card.
             if (nextOpenTime != type(uint256).max) card.opensAt = nextOpenTime;
         } catch { }
     }
@@ -1047,14 +1003,13 @@ contract QueryAggregator is SafeOwnableUUPS {
         } catch { }
     }
 
-    /// @dev Registry liveness for the badge gate, and it must never revert — this lens's read contract
-    ///      is that a hostile or upgraded dependency degrades a field rather than bricking a card. Raw
-    ///      `staticcall` + a returndata-size guard + an assembly word read, because a high-level call
-    ///      (even inside `try`/`catch`) reverts on a malformed return frame rather than yielding control
-    ///      back, and because a guarded external reader would widen this contract's ABI.
-    ///      Fallback is FAIL-OPEN — treat the instance as live — which preserves the prior badge
-    ///      behaviour when the registry cannot answer, a strictly narrower failure than stripping the
-    ///      badge from every card at once. Mirrors the queue manager's predicate of the same name.
+    /// @dev Registry liveness for the badge gate; never reverts, so a hostile or upgraded dependency
+    ///      degrades a field rather than bricking a card. Raw `staticcall` + a returndata-size guard +
+    ///      an assembly word read, because a high-level call (even inside `try`/`catch`) reverts on a
+    ///      malformed return frame rather than yielding control back, and a guarded external reader
+    ///      would widen this contract's ABI. Fails open (treats the instance as live) when the registry
+    ///      cannot answer, a narrower failure than stripping the badge from every card at once. Mirrors
+    ///      the queue manager's predicate of the same name.
     // slither-disable-next-line calls-loop
     function _registrySaysLive(address instance) private view returns (bool) {
         address registry = address(masterRegistry);
@@ -1087,10 +1042,9 @@ contract QueryAggregator is SafeOwnableUUPS {
         // Get token balance
         try this.readErc404Balance(instance, user) returns (uint256 balance) {
             holding.tokenBalance = balance;
-            // NFT balance = tokenBalance / unit. Live-read the instance's actual units-per-NFT rather
-            // than hardcoding 1e24 (1M tokens/NFT): the shared lens must not bake one instance's ratio,
-            // and a per-instance override would silently mis-count NFTs. Guard against a zero/failed read
-            // (leaves nftBalance = 0) so a broken instance never reverts the batch.
+            // NFT balance = tokenBalance / unit. The units-per-NFT is read live because the shared lens
+            // must not bake in one instance's ratio; a zero/failed read leaves nftBalance = 0 so a broken
+            // instance never reverts the batch.
             try this.readErc404Unit(instance) returns (uint256 unit_) {
                 if (unit_ > 0) {
                     holding.nftBalance = balance / unit_; // round down: standard integer NFT count
@@ -1098,13 +1052,11 @@ contract QueryAggregator is SafeOwnableUUPS {
             } catch { }
         } catch { }
 
-        // Escrowed coin (noesis-316 option A). Two more guarded siblings rather than arithmetic on
-        // `tokenBalance`: the band denomination lives in the instance's own band walk, and a lens that
-        // re-derived it would be a second implementation free to disagree with the escrow accounting.
-        // `tokenBalance` is deliberately left as the plain `balanceOf` it has always been, so a caller
-        // reading only the old fields sees exactly the numbers it saw before. An instance with no ladder
-        // sealed answers `coinBalanceOf` with its plain balance, and a pre-noesis-316 instance that has
-        // neither symbol leaves both at zero rather than failing the batch.
+        // Escrowed coin. Two guarded siblings rather than arithmetic on `tokenBalance`: the band
+        // denomination lives in the instance's own band walk, and a lens that re-derived it could
+        // disagree with the escrow accounting. `tokenBalance` stays the plain `balanceOf`. An instance
+        // with no ladder sealed answers `coinBalanceOf` with its plain balance, and one with neither
+        // symbol leaves both at zero rather than failing the batch.
         try this.readErc404CoinBalance(instance, user) returns (uint256 coin) {
             holding.coinBalance = coin;
         } catch { }
@@ -1275,9 +1227,8 @@ contract QueryAggregator is SafeOwnableUUPS {
                 try this.readEditionPrice(instance, editionId) returns (uint256 price) {
                     currentPrice = price;
                 } catch { }
-                // Both guarded the same way and for the same reason as the close time on the card
-                // path: an instance predating the edition schedule answers neither, and a zero there
-                // is the truth about it — no close, no ceiling.
+                // Guarded like the close time on the card path: an instance without the edition schedule
+                // answers neither, and zero is the truth there (no close, no ceiling).
                 uint256 closeTime;
                 // slither-disable-next-line calls-loop
                 try this.readEditionCloseTime(instance, editionId) returns (uint256 t) {
@@ -1314,8 +1265,8 @@ contract QueryAggregator is SafeOwnableUUPS {
      * @notice Update registry addresses
      * @param _masterRegistry New MasterRegistry address (ignored if zero)
      * @param _featuredQueueManager New FeaturedQueueManager address (ignored if zero)
-     * @dev The third positional argument is the DEPRECATED globalMessageRegistry pointer (noesis-067).
-     *      It is ignored — accepted only to preserve the admin call ABI — and never stored.
+     * @dev The third positional argument is a retired pointer: ignored, accepted so the admin call ABI
+     *      is stable, and never stored.
      */
     function setRegistries(
         address _masterRegistry,

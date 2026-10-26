@@ -19,7 +19,7 @@ interface IOwnable {
     function transferOwnership(address newOwner) external payable;
 }
 
-/// @notice Anvil-only ADDITIVE seed. Runs AFTER DeployAnvil + SeedAnvil; creates its OWN rich
+/// @notice Anvil-only additive seed. Runs after DeployAnvil + SeedAnvil; creates its own rich
 ///         collections/activity (does not touch SeedAnvil's instances), then hands its instances to
 ///         ADMIN. Only "open now" / far-future states (no vm.warp, no time-advance dependency).
 contract SeedRich is Script {
@@ -81,7 +81,7 @@ contract SeedRich is Script {
         d.messages = GlobalMessageRegistry(vm.parseJsonAddress(j, ".contracts.GlobalMessageRegistry"));
         d.stakingModule = vm.parseJsonAddress(j, ".contracts.ERC404StakingModule");
         d.zammDeployer = vm.parseJsonAddress(j, ".contracts.ModuleZAMMDeployer");
-        // Password-tier gating was removed (dead security module); interim gating slot = open.
+        // No gating module is wired: the gating slot is open.
         d.gatingModule = address(0);
         string memory vaultsJson = vm.parseJsonString(j, ".vaults");
         d.vault = vm.parseJsonAddress(vaultsJson, "[0].address");
@@ -166,7 +166,7 @@ contract SeedRich is Script {
         vm.startBroadcast(deployerKey);
         ERC1155Factory.CreateParams memory p = ERC1155Factory.CreateParams({
             name: "vault-club",
-            symbol: "", // optional collection symbol (noesis-084)
+            symbol: "", // optional collection symbol
             metadataURI: _collMeta("Vault Club", "Members-only.", _svg("K")),
             creator: deployer,
             vault: d.vault,
@@ -222,8 +222,8 @@ contract SeedRich is Script {
     }
 
     function _phase4Gated(Deployed memory d) internal {
-        // Interim: gating slot open (password-tier module removed). Instance attaches d.gatingModule
-        // (address(0) = open) with no create-time config; gating is authored post-create by the owner.
+        // The instance attaches d.gatingModule (address(0) = open) with no create-time config; the
+        // owner authors gating after creation.
         vm.startBroadcast(deployerKey);
         address gated = _create404(d, "haze404", "Haze404", "HAZE", address(0), d.gatingModule);
         ERC404BondingInstance g = ERC404BondingInstance(payable(gated));
@@ -259,7 +259,7 @@ contract SeedRich is Script {
         vm.stopBroadcast();
     }
 
-    // ── Helpers (used by later batches) ──────────────────────────────────────
+    // ── Helpers ──────────────────────────────────────────────────────────────
     function _create1155(
         Deployed memory d,
         string memory slug,
@@ -269,7 +269,7 @@ contract SeedRich is Script {
     ) internal returns (address inst) {
         ERC1155Factory.CreateParams memory p = ERC1155Factory.CreateParams({
             name: slug,
-            symbol: "", // optional collection symbol (noesis-084)
+            symbol: "", // optional collection symbol
             metadataURI: _collMeta(name, desc, img),
             creator: deployer,
             vault: d.vault,

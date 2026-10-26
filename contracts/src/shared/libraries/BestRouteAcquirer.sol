@@ -9,10 +9,9 @@ pragma solidity ^0.8.20;
 ///         ever dispatched through the generic `snwap`/`snwapMulti` executor (arbitrary-target +
 ///         arbitrary-calldata = drain surface).
 ///
-///         MIRRORING AN UPSTREAM ENUM IS NOT ENOUGH ON ITS OWN, which is why `_tryBestRoute` range-
-///         checks the source word before it ever becomes an `AMM`. See the note there: upstream
-///         ships new immutable versions rather than editing in place, so a member we have never
-///         seen is a routine event and must not be able to revert an acquisition.
+///         Mirroring an upstream enum is not enough on its own, so `_tryBestRoute` range-checks the
+///         source word before it becomes an `AMM`: upstream ships new immutable versions rather than
+///         editing in place, so an unseen member is routine and must not revert an acquisition.
 ///
 ///         The declared return type below is the shape documentation and the selector source. It is
 ///         NOT what the reply is decoded through — `_tryBestRoute` decodes the head by hand.
@@ -99,23 +98,21 @@ interface IBestRouteRouter {
 }
 
 /// @title BestRouteAcquirer
-/// @notice Shared ETH -> alignment-token *acquisition* helper for the alignment vaults (Front 2 of
-///         the unified router). Picks the deepest single-hop pool via an on-chain `zQuoter.getQuotes`
+/// @notice Shared ETH -> alignment-token *acquisition* helper for the alignment vaults. Picks the deepest single-hop pool via an on-chain `zQuoter.getQuotes`
 ///         and dispatches to the matching TYPED zRouter leg (`swapV2/V3/V4/VZ`). The LP-add step
 ///         stays venue-native per family and is NOT handled here.
-/// @dev Design invariants (locked, rth 2026-07-09):
+/// @dev Design invariants:
 ///      - TYPED dispatch only. A quoted source with no typed leg the vault can call is treated as
 ///        "no usable route" and degrades to the caller's fixed-pool fallback — it is NEVER routed
 ///        through the generic `snwap` executor.
 ///      - `minOut` is the vault's own oracle-derived floor, passed in and enforced as the router
 ///        `amountLimit` (the router reverts on `received < minOut`). The helper never widens it.
-///      - Fixed-pool fallback (the vault's pre-existing `swapV4`/`swapVZ` leg) is preserved as a
-///        floor: engaged when the quoter is unset, reverts, is not a contract, answers too short,
-///        returns an empty route, or reports a source this library does not map. This keeps today's
-///        behavior intact when best-route is unavailable, and NOTHING a quoter returns can revert
-///        the quote read — see `_tryBestRoute` on why that needed a hand decode.
+///      - The vault's fixed-pool `swapV4`/`swapVZ` leg is the fallback: engaged when the quoter is
+///        unset, reverts, is not a contract, answers too short, returns an empty route, or reports a
+///        source this library does not map. Nothing a quoter returns can revert the quote read; see
+///        `_tryBestRoute` for the hand decode.
 ///      Called as an `internal` (inlined) library, so `address(this)`, `msg.value`/balance, and the
-///      swap recipient are the *vault's* — identical execution context to the direct call it replaces.
+///      swap recipient are the *vault's*.
 library BestRouteAcquirer {
     /// @notice Acquire `tokenOut` with `ethAmount` for a Uni-family vault: best-route typed dispatch,
     ///         falling back to the vault's fixed `swapV4(fallbackFee, fallbackTickSpacing)` pool.
@@ -187,27 +184,23 @@ library BestRouteAcquirer {
     ///      short, unrecognised source word, empty route, or a source with no safe typed leg.
     ///      `getQuotes` runs against ETH (`address(0)`) in.
     ///
-    ///      WHY THIS IS A `staticcall` AND A HAND DECODE, NOT `try`/`catch`. A Solidity
+    ///      This is a `staticcall` with a hand decode, not `try`/`catch`. A Solidity
     ///      `try C(a).f() returns (T) { } catch { }` does NOT catch a failure to decode the REPLY:
-    ///      the callee returns successfully and the decode then runs in OUR frame, after the catch
-    ///      has stopped applying. Measured in `BestRouteAcquirer.t.sol` — with the reply decoded
-    ///      through a typed five-member `AMM`, a quoter answering `source == 5` and a quoter with no
-    ///      code at all BOTH propagate a revert past the catch, and the designed "unmappable source
-    ///      -> fallback" branch below is never reached. That is not a hypothetical drift: the
-    ///      mainnet `zQuoter.AMM` carries nine members, upstream ships new immutable versions rather
-    ///      than editing in place, and the operator wires the address by hand via `setZQuoter`. The
-    ///      blast radius of getting it wrong is every acquisition on every family at once, with
-    ///      `setZQuoter(0)` on each factory as the only recovery.
+    ///      the callee returns successfully and the decode then runs in the caller's frame, after the
+    ///      catch has stopped applying. `BestRouteAcquirer.t.sol` pins this: with the reply decoded
+    ///      through a typed `AMM`, a quoter answering an out-of-range source and a quoter with no
+    ///      code both propagate a revert past the catch. The mainnet `zQuoter.AMM` can gain members
+    ///      and the operator wires the address by hand via `setZQuoter`; a revert here would block
+    ///      every acquisition on every family, with `setZQuoter(0)` on each factory as the only
+    ///      recovery.
     ///
-    ///      So the reply is taken as raw bytes and the source word is RANGE-CHECKED BEFORE it is
-    ///      cast to `AMM`. A member we have never seen — a tenth one, after this enum was widened to
-    ///      upstream's nine — degrades to the fallback like any other unmappable source. Nothing the
-    ///      quoter can return reverts here.
+    ///      So the reply is taken as raw bytes and the source word is range-checked before it is
+    ///      cast to `AMM`; an unseen member degrades to the fallback like any other unmappable
+    ///      source. Nothing the quoter can return reverts here.
     ///
-    ///      The typed swap below is deliberately OUTSIDE all of this so a swap revert — most
-    ///      importantly a `received < minOut` breach on the chosen best route — propagates and
-    ///      reverts the convert, exactly as the fixed leg does today. A best route is NEVER silently
-    ///      re-routed to a different pool on swap failure.
+    ///      The typed swap is deliberately outside the guarded region so a swap revert, notably a
+    ///      `received < minOut` breach on the chosen route, propagates and reverts the convert, as
+    ///      the fixed leg does. A best route is never silently re-routed to a different pool.
     function _tryBestRoute(address zRouter, address zQuoter, address tokenOut, uint256 ethAmount, uint256 minOut)
         private
         returns (bool ok, uint256 amountReceived)
@@ -228,7 +221,7 @@ library BestRouteAcquirer {
             abi.decode(reply, (uint256, uint256, uint256, uint256));
 
         if (amountOut == 0) return (false, 0); // no viable route -> fallback
-        // The range check the typed decode could not do for us. Unknown member -> fallback.
+        // Unknown member -> fallback.
         if (rawSource > uint256(type(IBestRouteQuoter.AMM).max)) return (false, 0);
 
         IBestRouteQuoter.AMM source = IBestRouteQuoter.AMM(rawSource);
@@ -296,8 +289,7 @@ library BestRouteAcquirer {
                 type(uint256).max // sentinel -> SushiSwap factory (zRouter.swapV2 convention)
             );
         } else {
-            // CURVE / LIDO / WETH_WRAP / V4_HOOKED: quoted by upstream, no typed leg here. Reached,
-            // not unreachable — this is the branch the old typed decode reverted before ever getting to.
+            // CURVE / LIDO / WETH_WRAP / V4_HOOKED: quoted by upstream, no typed leg here.
             return (false, 0);
         }
 

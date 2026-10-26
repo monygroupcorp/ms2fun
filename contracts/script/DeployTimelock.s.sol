@@ -5,29 +5,25 @@ import { Script, console } from "forge-std/Script.sol";
 import { Timelock } from "solady/accounts/Timelock.sol";
 
 contract DeployTimelock is Script {
-    /// @dev The mainnet delay, and the default everywhere. A timelock's delay is the whole of what it
-    ///      buys: it is the window in which a proposal that should not land can be seen and cancelled.
+    /// @dev The mainnet delay and the default. The delay is the window in which a proposal that
+    ///      should not land can be seen and cancelled.
     uint256 public constant MIN_DELAY = 24 hours; // 86400 seconds
 
     function run() external {
         address safe = vm.envAddress("SAFE_ADDRESS");
-        // TIMELOCK_MIN_DELAY exists for testnet, where a 24h wait between proposing the ownership
-        // handover and executing it makes the rehearsal a two-day operation for no safety gained —
-        // nothing on Sepolia is worth cancelling a proposal over. Unset, this is the mainnet delay
-        // unchanged, so a mainnet deploy that forgets the variable gets the safe value rather than
-        // whatever the last testnet run used.
+        // TIMELOCK_MIN_DELAY shortens the delay on testnet, where a 24h wait between proposing the
+        // ownership handover and executing it adds no safety. Unset, it is the mainnet delay, so a
+        // mainnet deploy that omits the variable gets the safe value.
         uint256 minDelay = vm.envOr("TIMELOCK_MIN_DELAY", MIN_DELAY);
 
         // No argument: forge supplies the signer from `--account <keystore>` (or `--ledger`), so the
-        // deployer key is never put in this process's environment. See DeploySepolia, which has always
-        // broadcast this way, and the runbook's signing section.
+        // deployer key is never in this process's environment. DeploySepolia broadcasts the same way.
         vm.startBroadcast();
 
-        // Deploy Timelock directly (not behind a proxy — timelocks should be immutable)
+        // Not behind a proxy: a timelock is immutable.
         Timelock timelock = new Timelock();
         console.log("Timelock deployed at:", address(timelock));
 
-        // Configure roles
         address[] memory proposers = new address[](1);
         proposers[0] = safe;
 
@@ -37,7 +33,7 @@ contract DeployTimelock is Script {
         address[] memory cancellers = new address[](1);
         cancellers[0] = safe;
 
-        // Initialize: 24h delay, Safe as admin/proposer/canceller, open executor
+        // Safe is admin/proposer/canceller; the executor role is open.
         timelock.initialize(minDelay, safe, proposers, executors, cancellers);
         console.log("Timelock initialized with min delay:", minDelay);
         console.log("Safe (admin/proposer/canceller):", safe);

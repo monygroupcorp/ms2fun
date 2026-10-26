@@ -17,8 +17,8 @@ interface IAlignmentRegistryDup {
 /// @notice Permissionless intake for proposing a new alignment target (a community + its token), with
 ///         admin-only approval. A standalone escrow/queue that sits IN FRONT of AlignmentRegistryV1 —
 ///         it never registers a target itself. On approval the owner reads the request and calls
-///         `AlignmentRegistryV1.registerAlignmentTarget` with the proposed data (two-tx, by design:
-///         see docs/phases/alignment-target-requests.md, D5/D7). Anti-spam is a refundable ETH deposit
+///         `AlignmentRegistryV1.registerAlignmentTarget` with the proposed data (two transactions; see
+///         docs/phases/alignment-target-requests.md). Anti-spam is a refundable ETH deposit
 ///         (refunded on approve/expiry, forfeitable to the treasury on spam-reject), mirroring the
 ///         FeaturedQueueManager pay-to-enter idiom.
 /// @dev Non-upgradeable + Ownable (owner = Safe/Timelock). Deposits are escrowed here while Pending.
@@ -118,7 +118,7 @@ contract AlignmentTargetRequestRegistry is Ownable, ReentrancyGuard {
 
     /// @notice Propose a new alignment target. Escrows exactly `requestDeposit` ETH.
     /// @dev Mirrors AlignmentRegistryV1's own validation (non-empty title, ≥1 asset, nonzero asset
-    ///      tokens) so a later approve→registerAlignmentTarget can't revert on the proposed data.
+    ///      tokens) so registerAlignmentTarget cannot revert on the proposed data at approval.
     /// @param token Primary alignment token (used by the admin pool scout + the dup guard)
     /// @param title Human title of the community/target
     /// @param description Longer description
@@ -174,8 +174,7 @@ contract AlignmentTargetRequestRegistry is Ownable, ReentrancyGuard {
     /// @notice Approve a request against the target that was registered for it, and refund its deposit.
     ///         Does NOT register the target — the owner first calls
     ///         AlignmentRegistryV1.registerAlignmentTarget with this request's data (prefilled by the
-    ///         admin UI from getRequest/getRequestAssets), then passes the id it produced here. Two-tx
-    ///         by design (D7).
+    ///         admin UI from getRequest/getRequestAssets), then passes the id it produced here.
     /// @param id The request being approved
     /// @param targetId The alignment target registered for it — recorded on the request and emitted
     /// @dev Approval names the target it was granted for. A token-level check cannot do that: several
@@ -185,13 +184,11 @@ contract AlignmentTargetRequestRegistry is Ownable, ReentrancyGuard {
     function approveRequest(uint256 id, uint256 targetId) external onlyOwner nonReentrant {
         Request storage r = _requests[id];
         if (r.status != Status.Pending) revert NotPending();
-        // Enforce the two-tx order (register THEN approve, D7): approve is the "you made this a target,
-        // here's your deposit back" step, so the target must actually exist first. Without this an admin
-        // could silently refund + delist a request without ever registering it, leaving the requester
-        // "approved" with no target. (Reject — declining to make a target — has no such requirement.)
+        // Register-then-approve order: approve means "this became a target, deposit back", so the target
+        // must exist first; otherwise an admin could refund and delist a request without registering it.
+        // Reject has no such requirement.
         if (!alignmentRegistry.isAlignmentTargetActive(targetId)) revert TargetNotRegistered();
-        // ...and the target must be one this request could have produced: its asset set has to carry the
-        // requested token.
+        // The target must be one this request could have produced: its asset set carries the requested token.
         if (!alignmentRegistry.isTokenInTarget(targetId, r.token)) revert TokenNotInTarget();
         r.status = Status.Approved;
         r.targetId = targetId;

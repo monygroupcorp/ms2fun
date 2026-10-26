@@ -181,13 +181,16 @@ contract PromotionBadges is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Update protocol treasury address
+     * @notice Set the WETH address used by the smart ETH refund in `purchaseBadge`
      */
     function setWeth(address _weth) external onlyOwner {
         if (_weth == address(0)) revert InvalidAddress();
         weth = _weth;
     }
 
+    /**
+     * @notice Update protocol treasury address
+     */
     function setProtocolTreasury(address _treasury) external onlyOwner {
         if (_treasury == address(0)) revert InvalidAddress();
         address old = protocolTreasury;

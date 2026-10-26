@@ -10,12 +10,10 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
  * @dev Lean revenue sink: `deposit(Source)` / `receive()` in, owner-gated `withdraw*` out, plus
  *      revenue-by-source views. Tracks per-source receipts and an aggregate withdrawn total.
  *
- *      This is a LIVE-deployed UUPS proxy. Protocol-owned-liquidity (V4) was carved out into the
- *      standalone `ProtocolOwnedLiquidityV1` and the retired-DAO revenue conductor was stripped
- *      (noesis-066). To preserve the deployed proxy's storage layout on upgrade, the removed slots
- *      are held in place as `deprecated_*` placeholders rather than deleted — do NOT reorder or
- *      collapse them. Slot 2 co-hosts `_initialized` (packed at byte 20); its address placeholder
- *      MUST stay a same-size `address` so `_initialized` does not shift.
+ *      The storage layout is slot-locked to the deployed UUPS proxy: unused slots are held as
+ *      `deprecated_*` placeholders and must not be reordered or removed. Slot 2 co-hosts
+ *      `_initialized` (packed at byte 20); its address placeholder must stay a same-size `address`
+ *      so `_initialized` does not shift. Protocol-owned liquidity lives in `ProtocolOwnedLiquidityV1`.
  */
 contract ProtocolTreasuryV1 is SafeOwnableUUPS {
     // ============ Custom Errors ============
@@ -29,9 +27,8 @@ contract ProtocolTreasuryV1 is SafeOwnableUUPS {
 
     // ============ Revenue Tracking ============
 
-    // Enum kept as-is (a prune is a separate follow-up). POL_FEES is no longer produced here — it
-    // moved with the POL carve-out to ProtocolOwnedLiquidityV1 — but the ordinals are preserved so
-    // existing producers (e.g. DeployBondEscrow => BOND_FORFEIT) keep their on-chain source tags.
+    // Ordinals are fixed so existing producers (e.g. DeployBondEscrow => BOND_FORFEIT) keep their
+    // on-chain source tags. POL_FEES is produced by ProtocolOwnedLiquidityV1, not here.
     enum Source {
         BONDING_FEE,
         CREATION_FEE,
@@ -44,31 +41,28 @@ contract ProtocolTreasuryV1 is SafeOwnableUUPS {
     // -- Storage layout (slot-locked to the deployed proxy — see contract NatSpec) --
     // slot 0
     mapping(Source => uint256) public totalReceived;
-    // slot 1 — was `mapping(Source => uint256) totalWithdrawn` (never written). Held as a placeholder;
-    // the honest aggregate withdrawn total is the appended `totalWithdrawn` below.
+    // slot 1 — placeholder for the unwritten per-source withdrawn mapping; the aggregate is `totalWithdrawn` below.
     uint256 private deprecated_totalWithdrawn_slot1;
-    // slot 2 (bytes 0-19) — was `address revenueConductor`. MUST remain a same-size `address` so the
+    // slot 2 (bytes 0-19) — placeholder for `address revenueConductor`. Must remain a same-size `address` so the
     // packed `_initialized` bool at byte 20 keeps its position.
     address private deprecated_revenueConductor;
-    // slot 2 (byte 20) — live `true` on the deployed proxy; packed with the placeholder above.
+    // slot 2 (byte 20) — packed with the placeholder above.
     bool private _initialized;
-    // slot 3 — was `address v4PoolManager` (moved to ProtocolOwnedLiquidityV1).
+    // slot 3 — placeholder for `address v4PoolManager`.
     address private deprecated_v4PoolManager;
-    // slot 4 — was `address weth` (moved to ProtocolOwnedLiquidityV1).
+    // slot 4 — placeholder for `address weth`.
     address private deprecated_weth;
-    // slot 5 — was `IMasterRegistry masterRegistry`; its only consumer was the receivePOL gate, which
-    // moved to ProtocolOwnedLiquidityV1, so it is deprecated here.
+    // slot 5 — placeholder for `IMasterRegistry masterRegistry`.
     address private deprecated_masterRegistry;
-    // slot 6 — was `mapping(address => POLPosition) _polPositions` (moved).
+    // slot 6 — placeholder for `mapping(address => POLPosition) _polPositions`.
     uint256 private deprecated_polPositions_slot6;
-    // slot 7 — was `address[] polInstances` (moved).
+    // slot 7 — placeholder for `address[] polInstances`.
     uint256 private deprecated_polInstances_slot7;
 
-    // slot 8 — appended after the deprecated tail: honest aggregate of ETH withdrawn via withdrawETH.
-    // ETH is fungible once pooled, so a single aggregate (not per-source) is the honest accounting.
+    // slot 8 — aggregate ETH withdrawn via withdrawETH. ETH is fungible once pooled, so it is not per-source.
     uint256 public totalWithdrawn;
 
-    // Reserved storage for future upgrades (append-only growth below slot 8).
+    // Reserved storage; growth is append-only below slot 8.
     uint256[50] private __gap;
 
     // ============ Events ============
@@ -143,8 +137,7 @@ contract ProtocolTreasuryV1 is SafeOwnableUUPS {
     }
 
     /// @notice Revenue accounting for a source. `received` is per-source; `withdrawn` is the protocol
-    ///         aggregate of ETH withdrawn (ETH is fungible once pooled — there is no honest per-source
-    ///         withdrawn figure, and the withdrawal path is not source-tagged).
+    ///         aggregate of ETH withdrawn (the withdrawal path is not source-tagged).
     function getRevenueBySource(Source source) external view returns (uint256 received, uint256 withdrawn) {
         return (totalReceived[source], totalWithdrawn);
     }

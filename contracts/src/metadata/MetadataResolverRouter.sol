@@ -13,22 +13,20 @@ import { FeatureUtils } from "../master/libraries/FeatureUtils.sol";
 ///         pointer (ADR-0007). `resolve` returns the first non-empty child result (precedence =
 ///         list order), defensively try/catch'ing each child so a misbehaving resolver degrades
 ///         to the next rather than reverting.
-/// @dev Singleton keyed by instance, holds no custody. The per-instance resolver list is SEALED
-///      at construction: the factory that registered THIS instance wires it once via `initResolvers`,
-///      then it is frozen — no owner mutation of the mechanism (ADR-0006 mutability principle). Auth is
-///      `masterRegistry.getInstanceInfo(inst).factory == msg.sender` — ONLY the instance's own
-///      registering factory, not any registered factory (least privilege, D1). This survives factory
-///      upgrades/multiple factory types AND blocks the seal-front-run on deterministic CREATE3 instance
-///      addresses. `initResolvers` additionally self-validates each child against the ComponentRegistry
-///      (resolver-family tag) so the trust invariant — every sealed child is an approved resolver — is
-///      enforced HERE at the trust anchor, not only out-of-band in the caller (R2). `setMetadataURI`
-///      (IComponentModule self-description for the wizard) is the only owner power and touches no
-///      per-instance state.
+/// @dev Singleton keyed by instance, holds no custody. The per-instance resolver list is sealed: the
+///      factory that registered this instance wires it once via `initResolvers`, then it is frozen
+///      (ADR-0006 mutability principle). Auth is `masterRegistry.getInstanceInfo(inst).factory ==
+///      msg.sender`, so only the instance's own registering factory can seal, not any registered factory.
+///      That survives factory upgrades and multiple factory types, and blocks a front-run of the seal on
+///      deterministic CREATE3 instance addresses. `initResolvers` validates each child against the
+///      ComponentRegistry (resolver-family tag), so the invariant that every sealed child is an approved
+///      resolver is enforced here at the trust anchor. `setMetadataURI` (IComponentModule
+///      self-description for the wizard) is the only owner power and touches no per-instance state.
 contract MetadataResolverRouter is IMetadataResolver, Ownable {
     error NotRegisteredFactory();
     error AlreadySealed();
     error InvalidAddress();
-    error UnapprovedResolver(); // a child is not an approved resolver-family component (R2)
+    error UnapprovedResolver(); // a child is not an approved resolver-family component
 
     IMasterRegistry public immutable masterRegistry;
 
@@ -47,14 +45,11 @@ contract MetadataResolverRouter is IMetadataResolver, Ownable {
 
     /// @notice Wire the ordered child-resolver list for `inst`. Registered-factory-only, set-once.
     function initResolvers(address inst, address[] calldata rs) external {
-        // Least privilege (D1): only the factory that registered THIS instance may seal its router
-        // list, not any registered factory.
         if (masterRegistry.getInstanceInfo(inst).factory != msg.sender) revert NotRegisteredFactory();
         if (sealed_[inst]) revert AlreadySealed();
-        // R2: enforce the trust invariant at the anchor. Each child must be an approved resolver-family
-        // component in the ComponentRegistry BEFORE it is sealed, so an alternate/future factory that
-        // skips its own pre-check cannot seal arbitrary children whose `resolve` returns attacker-chosen
-        // strings. Defense-in-depth: the honest factory still pre-validates out-of-band.
+        // Each child must be an approved resolver-family component in the ComponentRegistry before it is
+        // sealed, so a factory that skips its own pre-check cannot seal children whose `resolve` returns
+        // attacker-chosen strings.
         IComponentRegistry cr = masterRegistry.componentRegistry();
         uint256 len = rs.length;
         for (uint256 i; i < len; ++i) {
@@ -78,10 +73,9 @@ contract MetadataResolverRouter is IMetadataResolver, Ownable {
         address[] storage rs = resolvers[inst];
         uint256 len = rs.length;
         for (uint256 i; i < len; ++i) {
-            // SafeResolverLib.tryResolve degrades EVERY hostile child class to `""`: a revert, a gas-bomb,
-            // an ABI-undecodable success (the escape a plain try/catch misses — noesis-107), and a
-            // code-less (revoked/self-destructed) child — so a bad child falls through to the next, never
-            // bricks the read.
+            // SafeResolverLib.tryResolve degrades every hostile child class to `""`: a revert, a gas-bomb,
+            // an ABI-undecodable success (which a plain try/catch misses), and a code-less child. A bad
+            // child falls through to the next and never bricks the read.
             (, string memory u) = SafeResolverLib.tryResolve(rs[i], inst, id, holder);
             if (bytes(u).length != 0) return u; // first non-empty wins
         }

@@ -60,9 +60,9 @@ library BondingCurveMath {
      */
     function _calculateIntegralFromZero(Params memory params, uint256 supply) private pure returns (uint256) {
         if (params.normalizationFactor == 0) revert NormalizationFactorZero();
-        // Scale down by normalization factor — rounds down (floor), loses sub-normFactor
-        // base units. Consequence: purchases smaller than `normalizationFactor` BASE UNITS
-        // cost 0, which is guarded by ERC404BondingInstance (revert PurchaseTooSmall).
+        // Scaling by the normalization factor floors, dropping sub-normFactor base units, so
+        // purchases smaller than `normalizationFactor` base units cost 0; ERC404BondingInstance
+        // guards that (revert PurchaseTooSmall).
         uint256 scaledSupplyWad = supply / params.normalizationFactor;
 
         // The price function has a vertical asymptote at `poleWad`. On the shipped call path the
@@ -72,9 +72,8 @@ library BondingCurveMath {
         if (scaledSupplyWad >= params.poleWad) revert SupplyAtOrBeyondPole();
 
         // Cancellation form: 1 - s/poleWad, evaluated once.
-        // `divWad` floors, so `arg` rounds UP, so ln(arg) rounds up (toward zero), so the integral
-        // rounds DOWN. Net effect, as before: buyers pay slightly less than the theoretical curve,
-        // which keeps the reserve on the safe side.
+        // `divWad` floors, so `arg` rounds up, so ln(arg) rounds up (toward zero), so the integral
+        // rounds down: buyers pay slightly less than the theoretical curve.
         // `scaledSupplyWad < poleWad` above puts `arg` in [1, 1e18] — always strictly positive, so
         // `lnWad` is never called in its revert domain.
         uint256 arg = 1e18 - scaledSupplyWad.divWad(params.poleWad);

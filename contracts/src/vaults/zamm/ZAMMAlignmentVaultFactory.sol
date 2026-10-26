@@ -16,16 +16,16 @@ contract ZAMMAlignmentVaultFactory is SafeOwnable {
     address public immutable zamm;
     address public immutable zRouter;
     /// @notice Canonical WETH threaded into every deployed vault as the ETH-transfer fallback rail
-    ///         (adoption-gap F1); the same house WETH the other vault factories receive.
+    ///         the same house WETH the other vault factories receive.
     address public immutable weth;
     address public immutable protocolTreasury;
-    /// @notice Oracle/TWAP validator wired into every deployed vault (F5). The vault's swap floor is
-    ///         inert when this is address(0), so production must pass the shared validator.
+    /// @notice Oracle/TWAP validator wired into every deployed vault. The vault's swap floor is
+    ///         inert when this is address(0), so a live deployment passes the shared validator.
     IVaultPriceValidator public immutable defaultPriceValidator;
     /// @notice Registry wired into every deployed vault; source of the DAO-pinned canonical
     ///         ReferencePool the vault's anti-sandwich floor reads (mirrors UniAlignmentVaultFactory).
     IAlignmentRegistry public immutable alignmentRegistry;
-    /// @notice zQuoter wired into every deployed vault for best-route acquisition (Front 2). When
+    /// @notice zQuoter wired into every deployed vault for best-route acquisition. When
     ///         address(0), vaults acquire via the fixed _poolKey.feeOrHook pool only.
     address public immutable zQuoter;
 
@@ -86,18 +86,17 @@ contract ZAMMAlignmentVaultFactory is SafeOwnable {
                 alignmentTargetId
             );
 
-        // Wire best-route acquisition post-init (factory is the vault owner). address(0) leaves the
-        // vault on fixed-pool acquisition, so this is a no-op change to today's behavior until set.
+        // The factory is the vault owner, so it wires zQuoter after initialize. address(0) leaves the
+        // vault on fixed-pool acquisition.
         if (zQuoter != address(0)) ZAMMAlignmentVault(payable(vault)).setZQuoter(zQuoter);
 
         emit VaultDeployed(vault, alignmentToken);
     }
 
     /// @notice Set the ZAMM pool key on a vault deployed by this factory.
-    /// @dev The factory is the owner of every vault it deploys, so post-deploy pool-key wiring must
-    ///      route through the factory. onlyOwner (the deployer/protocol) to prevent a front-runner
-    ///      from wiring a manipulated pool before the real key is set. Mirrors
-    ///      UniAlignmentVaultFactory.setVaultPoolKey.
+    /// @dev The factory is the owner of every vault it deploys, so pool-key wiring routes through
+    ///      the factory. onlyOwner (the deployer/protocol) prevents a front-runner from wiring a
+    ///      manipulated pool before the real key is set.
     /// @param vault Address of the vault (must have been deployed by this factory)
     /// @param poolKey The ZAMM pool key to configure on the vault
     function setVaultPoolKey(address vault, IZAMM.PoolKey calldata poolKey) external onlyOwner {
@@ -106,8 +105,7 @@ contract ZAMMAlignmentVaultFactory is SafeOwnable {
 
     /// @notice Rotate the price validator on a vault deployed by this factory.
     /// @dev The factory owns every vault it deploys, so the vault's onlyOwner setPriceValidator is
-    ///      only reachable here. onlyOwner so the anti-manipulation validator can be rotated if it is
-    ///      ever broken. Mirrors setVaultPoolKey.
+    ///      only reachable here. onlyOwner, so a compromised anti-manipulation validator can be rotated.
     /// @param vault Address of the vault (must have been deployed by this factory)
     /// @param validator The price validator to set on the vault
     function setVaultPriceValidator(address vault, address validator) external onlyOwner {
@@ -115,11 +113,10 @@ contract ZAMMAlignmentVaultFactory is SafeOwnable {
     }
 
     /// @notice Re-point the 1% protocol-cut destination on a vault deployed by this factory.
-    /// @dev The vault's `setProtocolTreasury` is onlyOwner and the factory is the owner, so without
-    ///      this passthrough no address could call it — while the vault's own docstring promised that
-    ///      "only `setProtocolTreasury` moves the destination". onlyOwner, like every other
-    ///      passthrough here: the destination is the protocol's own treasury, never a community's
-    ///      sink, which is read live from the alignment registry and has no setter anywhere.
+    /// @dev The vault's `setProtocolTreasury` is onlyOwner and the factory is the owner, so this
+    ///      passthrough is the only way to call it. The destination is the protocol's own treasury,
+    ///      never a community's sink, which is read live from the alignment registry and has no
+    ///      setter anywhere.
     /// @param vault Address of the vault (must have been deployed by this factory)
     /// @param treasury The protocol treasury to set on the vault
     function setVaultProtocolTreasury(address vault, address treasury) external onlyOwner {

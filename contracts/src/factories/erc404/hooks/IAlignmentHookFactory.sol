@@ -13,8 +13,8 @@ import { IAlignmentVault } from "../../../interfaces/IAlignmentVault.sol";
  *      required Uniswap v4 permission bits (and no others), then CREATE2-deploys the hook. The hook's
  *      constructor `validateHookPermissions()` is the on-chain guard: a mis-mined address reverts the
  *      deploy. Environment/governance parameters a hook needs beyond the per-graduation set
- *      (PoolManager, WETH, the hook owner) are held as factory immutables, set when the factory is
- *      deployed and registered (117b / DeployCore) — so `deployHook`'s surface is exactly the
+ *      (PoolManager, WETH, the master registry, the hook owner) are held by the factory, set when it
+ *      is deployed and registered (DeployCore), so `deployHook`'s surface is exactly the
  *      per-graduation data. That data includes the pool the hook will serve (`poolToken`,
  *      `poolTickSpacing`): a hook binds its whole `PoolKey`, so the pool is part of the hook's identity
  *      and therefore of the address it is mined to, not something set on it afterwards.
@@ -31,7 +31,7 @@ interface IAlignmentHookFactory {
      * @param hookFeeBips The hook fee in basis points (taken on the ETH side of swaps).
      * @param lpFeeRate The initial dynamic LP fee rate the hook overrides pools with.
      * @param poolToken The alignment token the graduation pool is paired against native ETH, i.e. the
-     *        pool's `currency1`. The hook binds it and serves no other pool (audit L-6).
+     *        pool's `currency1`. The hook binds it and serves no other pool.
      * @param poolTickSpacing The graduation pool's tick spacing, bound for the same reason.
      * @return hook The deployed hook address (carries the required permission bits).
      */

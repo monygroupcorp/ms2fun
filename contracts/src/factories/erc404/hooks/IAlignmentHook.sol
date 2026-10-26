@@ -10,9 +10,9 @@ import { IAlignmentVault } from "../../../interfaces/IAlignmentVault.sol";
  *         graduated pool as a swappable addon. It is a Uniswap v4 hook (`is IHooks`) that additionally
  *         surfaces the three immutables a graduation needs to inspect: the fee it takes, the benefactor
  *         it credits, and the vault it forwards to.
- * @dev Type #1 is `UniAlignmentV4Hook` (deployed by `UniTitheHookFactory`). The interface is
- *      structural — the hook already exposes these as public immutables; declaring `is IAlignmentHook`
- *      binds the type to the marker without any logic change.
+ * @dev `UniAlignmentV4Hook` (deployed by `UniTitheHookFactory`) implements it. The interface is
+ *      structural: the hook exposes these as public immutables, and `is IAlignmentHook` binds the
+ *      type to the marker.
  */
 interface IAlignmentHook is IHooks {
     /// @notice Hook fee in basis points taken on the ETH side of swaps (immutable, set at deploy).

@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 /// @title IInstance
 /// @notice Common interface for instance card data across all factory types
-/// @dev Implemented by ERC404BondingInstance, ERC1155Instance, and future instance types
+/// @dev Implemented by ERC404BondingInstance and ERC1155Instance
 interface IInstance {
     /// @notice Returns data needed for project card display
     /// @dev The meaning of each field may vary by factory type:

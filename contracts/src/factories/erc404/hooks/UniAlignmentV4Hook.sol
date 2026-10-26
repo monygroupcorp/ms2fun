@@ -26,18 +26,17 @@ import { IAlignmentHook } from "./IAlignmentHook.sol";
  *      ETH-specified shapes (exact-input ETH buy, exact-output ETH-out sell), and afterSwap carries the
  *      tithe on the two ETH-unspecified shapes (exact-output ETH buy, exact-input token sell).
  *
- *      ON EVERY SHAPE THE TITHE IS PRICED ON ETH THE SWAP ACTUALLY MOVED, NEVER ON ETH IT DID NOT. The two
- *      shapes afterSwap taxes get that for free: `hookFeeBips` of the realised `BalanceDelta`. The two shapes
- *      beforeSwap taxes cannot — v4 fixes a hook's credit on the SPECIFIED currency before the swap runs,
- *      and the pool may then fill only part of the leg (`Pool.swap` stops at `sqrtPriceLimitX96` and
- *      returns what it moved) — so those take `hookFeeBips` of the leg the swapper NAMED, and afterSwap
- *      re-reads the realised delta and REVERTS unless the pool moved that leg whole. The two bases agree to
- *      within the fee itself and are not interchangeable to the wei: shapes 2 and 3 tithe `hookFeeBips` of
- *      the POOL's ETH leg, shapes 1 and 4 of the SWAPPER's, which is the pool's leg plus or minus the fee.
- *      The revert is not belt-and-braces: a part-filled ETH-out sell charged on its name has taken 18% of a
- *      swapper's proceeds, and on a larger name has turned the sale into a net ETH outflow for the seller.
- *      See `afterSwap` for why a refund is not available instead.
- *      Hook fee (hookFeeBips) is immutable — set once at deploy, no governance risk.
+ *      On every shape the tithe is priced on ETH the swap actually moved. The two shapes afterSwap taxes
+ *      get that directly: `hookFeeBips` of the realised `BalanceDelta`. The two shapes beforeSwap taxes
+ *      cannot, because v4 fixes a hook's credit on the SPECIFIED currency before the swap runs and the
+ *      pool may then fill only part of the leg (`Pool.swap` stops at `sqrtPriceLimitX96`). Those take
+ *      `hookFeeBips` of the leg the swapper NAMED, and afterSwap re-reads the realised delta and reverts
+ *      unless the pool moved that leg whole. The two bases differ by the fee itself: shapes 2 and 3
+ *      tithe `hookFeeBips` of the pool's ETH leg, shapes 1 and 4 of the swapper's, which is the pool's
+ *      leg plus or minus the fee. A part-filled ETH-out sell charged on its name would take a large
+ *      share of the swapper's proceeds, or turn the sale into a net ETH outflow for the seller. See
+ *      `afterSwap` for why a refund is not available instead.
+ *      Hook fee (hookFeeBips) is immutable, set once at deploy.
  *      LP fee (lpFeeRate) is owner-adjustable via setLpFeeRate(), and is capped by the contract itself
  *      at {MAX_CONFIGURABLE_LP_FEE} rather than at v4's 100% ceiling, so no key can price the pool shut.
  */
@@ -54,7 +53,7 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
     /// @notice The `PoolKey` this hook was called for is not the pool it was deployed to serve.
     /// @dev The hook address is the only field of a v4 `PoolKey` that cannot be chosen freely, so every
     ///      other field has to be bound by the hook itself or anyone may `initialize` a SECOND pool on
-    ///      this launch's hook and have its swaps taxed and credited here (audit L-6).
+    ///      this launch's hook and have its swaps taxed and credited here.
     error PoolNotBound();
     error InvalidTickSpacing();
     /// @notice `setLpFeeRate` was given a rate above {MAX_CONFIGURABLE_LP_FEE}.
@@ -71,44 +70,34 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
     /// @notice The highest LP fee this hook will ever charge, in v4 fee units (hundredths of a basis
     ///         point, so 1_000_000 = 100%). 10_000 = 1%.
     ///
-    /// @dev WHY A CEILING AT ALL. `beforeSwap` returns `lpFeeRate | OVERRIDE_FEE_FLAG`, so whoever holds
-    ///      `setLpFeeRate` decides what the NEXT swap in this pool costs. v4's own bound is
-    ///      `LPFeeLibrary.MAX_LP_FEE` = 100%, which is not a fee — it is a pool nobody can trade. The
-    ///      ceiling belongs in the code so that "this pool stays tradeable" is a property of the contract
-    ///      rather than a promise about who holds the key.
+    /// @dev `beforeSwap` returns `lpFeeRate | OVERRIDE_FEE_FLAG`, so whoever holds `setLpFeeRate`
+    ///      decides what the next swap in this pool costs. v4's own bound, `LPFeeLibrary.MAX_LP_FEE`
+    ///      (100%), is a pool nobody can trade. The ceiling makes "this pool stays tradeable" a
+    ///      property of the contract rather than of who holds the key.
     ///
-    ///      WHY 10_000, from this repository rather than from taste:
-    ///        * The pool this hook serves trades at 3000 (0.3%). That is `zrouterFee` in every network
-    ///          config, it is the static pool fee the graduation module is constructed with, and the
-    ///          deploy sets the hook's own initial `lpFeeRate` to the same 3000 so that switching the
-    ///          tithe on changes what the pool TAKES and not what it CHARGES.
-    ///        * 10_000 is the top of Uniswap's standard fee ladder (100 / 500 / 3000 / 10_000, in these
-    ///          same units). A ceiling there leaves the entire ladder open as a retune — 3.33x the rate
-    ///          the pool ships with — and refuses everything above it, where a number stops being a fee
-    ///          tier and starts being a toll.
-    ///        * It bounds the total a swapper can be charged here. `hookFeeBips` is the SEPARATE and
-    ///          immutable tithe on the ETH leg (100 bips = 1% on the testnet config); it is quoted in
-    ///          bips out of 10_000 while this is quoted out of 1_000_000, so the two are different
-    ///          numbers taken at different points and must not be conflated. With both at their maximum
-    ///          a swap costs roughly 2%: a fee, not a fence.
-    ///        * No headroom is owed to a volatility response, because there is none to make room for.
-    ///          `lpFeeRate` is a stored value moved only by an owner call, not a per-swap computation.
+    ///      Why 10_000:
+    ///        * The pool trades at 3000 (0.3%): `zrouterFee` in every network config, the static pool
+    ///          fee the graduation module is constructed with, and the hook's initial `lpFeeRate`, so
+    ///          switching the tithe on changes what the pool takes and not what it charges.
+    ///        * 10_000 is the top of Uniswap's standard fee ladder (100 / 500 / 3000 / 10_000, in
+    ///          these units), leaving the whole ladder open as a retune.
+    ///        * It bounds the total a swapper can be charged here. `hookFeeBips` is the separate,
+    ///          immutable tithe on the ETH leg, quoted in bips out of 10_000 while this is quoted out
+    ///          of 1_000_000; the two must not be conflated. With both at their maximum a swap costs
+    ///          roughly 2%.
+    ///        * `lpFeeRate` is a stored value moved only by an owner call, not a per-swap computation,
+    ///          so no headroom is needed for a volatility response.
     ///
-    ///      A CONSTANT, NOT A CONSTRUCTOR BOUND. The hook factory mines each hook's address from an
-    ///      init-code hash over the creation code and every constructor argument. A per-hook bound would
-    ///      be one more argument threaded through the factory interface and its callers, and — the reason
-    ///      that matters — it would hand the ceiling back to whoever calls the factory, which is the
-    ///      failure this closes. As a constant the number is identical on every hook the factory will
-    ///      ever produce and is readable from the source without decoding a deployment's arguments.
+    ///      A constant, not a constructor bound: the hook factory mines each hook's address from an
+    ///      init-code hash over every constructor argument, and a per-hook bound would hand the
+    ///      ceiling to whoever calls the factory. As a constant it is identical on every hook and
+    ///      readable from source.
     ///
-    ///      NOT AN EMERGENCY STOP, DELIBERATELY. A punitive fee is a trading halt in all but name, and
-    ///      this protocol does not hold one: `MasterRegistryV1.revokeInstance` says so in terms — a
-    ///      revocation "is not a trading halt, and this contract has no mechanism that is". The emergency
-    ///      this hook does have is a vault that can no longer accept, and that has its own purpose-built
-    ///      levers: `haltTithe` / `resumeTithe` stop and restart the tithe (permissionless, gated on the
-    ///      registry, so they follow `deactivateVault` rather than anyone's opinion), and
-    ///      `rescueQueuedFees` moves what queued up to another curated vault. Those are the levers, not
-    ///      this one.
+    ///      Not an emergency stop: a punitive fee is a trading halt in all but name, and this protocol
+    ///      holds none (`MasterRegistryV1.revokeInstance`: a revocation "is not a trading halt, and
+    ///      this contract has no mechanism that is"). The emergency this hook has is a vault that can
+    ///      no longer accept, handled by `haltTithe` / `resumeTithe` (permissionless, gated on the
+    ///      registry, so they follow `deactivateVault`) and `rescueQueuedFees`.
     uint24 public constant MAX_CONFIGURABLE_LP_FEE = 10_000;
 
     IPoolManager public immutable poolManager;
@@ -117,37 +106,35 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
 
     /// @notice The registry that says whether `vault` is still a vault the protocol curates.
     /// @dev The hook's only oracle for "this vault is gone for good". `vault` is immutable and the
-    ///      vault flavors have no shared "can you still accept?" call, so a failed forward on its own
-    ///      cannot tell a transient revert from a permanent one — which is exactly the ambiguity that
-    ///      let `queuedFees` grow without an exit (audit M-4). `deactivateVault` is the protocol
-    ///      owner's existing lever for retiring a vault, and it is the same signal
-    ///      `LiquidityDeployerModule.flushPendingVaultCut` already reads before returning a stashed
-    ///      graduation cut, so the hook now answers to the same runbook step the rest of the system does.
+    ///      vault flavors have no shared "can you still accept?" call, so a failed forward cannot tell
+    ///      a transient revert from a permanent one. `deactivateVault` is the protocol owner's lever
+    ///      for retiring a vault, and the same signal `LiquidityDeployerModule.flushPendingVaultCut`
+    ///      reads before returning a stashed graduation cut.
     IMasterRegistry public immutable masterRegistry;
 
-    /// @notice The project instance credited for this pool's swap-fee contributions — immutable, set
-    ///         at deploy. NOT the per-swap `sender`: in Uniswap v4 `afterSwap`'s `sender` is whoever
-    ///         called `poolManager.swap()` inside the unlock callback (the router/periphery locker),
-    ///         never the end trader. Attributing fees to that address misroutes (and can strand) the
-    ///         vault yield and would let a self-routing swapper farm benefactor credit. A hook serves
-    ///         exactly one pool, so its benefactor is a fixed identity, not a per-swap value.
+    /// @notice The project instance credited for this pool's swap-fee contributions; immutable. Not the
+    ///         per-swap `sender`: in Uniswap v4 `afterSwap`'s `sender` is whoever called
+    ///         `poolManager.swap()` inside the unlock callback (the router/periphery locker), never
+    ///         the end trader. Attributing fees to that address would misroute the vault yield and let
+    ///         a self-routing swapper farm benefactor credit. A hook serves one pool, so its
+    ///         benefactor is a fixed identity.
     address public immutable benefactor;
 
-    /// @notice Hook fee in basis points — immutable, set at deploy (e.g., 100 = 1%)
+    /// @notice Hook fee in basis points; immutable (100 = 1%)
     uint256 public immutable hookFeeBips;
 
     /// @notice The alignment token that must be `currency1` of the pool this hook serves.
     /// @dev Together with the native-ETH `currency0` check, `poolTickSpacing`, the dynamic-fee
     ///      requirement and this hook's own address (which v4 reads out of the key to route the call at
     ///      all), this pins every field of the `PoolKey`. Supplied by the graduation that deploys the
-    ///      hook, and part of the hook's init-code hash — so a hook bound to a different pool is a
-    ///      different hook at a different address, never this one serving two pools.
+    ///      hook, and part of the hook's init-code hash, so a hook bound to a different pool is a
+    ///      different hook at a different address.
     address public immutable poolToken;
 
     /// @notice The tick spacing of the pool this hook serves. See {poolToken}.
     int24 public immutable poolTickSpacing;
 
-    /// @notice LP fee rate — owner-configurable, overrides pool's static fee via beforeSwap
+    /// @notice LP fee rate; owner-configurable, overrides the pool's fee via beforeSwap
     uint24 public lpFeeRate;
 
     event AlignmentFeeCollected(uint256 ethAmount, address indexed benefactor);
@@ -161,11 +148,10 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
     /// @notice ETH held in hook pending retry after a failed vault.receiveContribution call
     uint256 public queuedFees;
 
-    /// @notice While true the swap tithe is not charged at all — no take, no fee delta, nothing queued.
+    /// @notice While true the swap tithe is not charged at all: no take, no fee delta, nothing queued.
     /// @dev Set only while the registry says `vault` is no longer registered, and cleared only while it
-    ///      says it is, so this tracks the registry rather than anyone's opinion. It is read on the swap
-    ///      hot path, which is why it is a stored bool and not a registry call: one warm SLOAD per swap
-    ///      instead of a cross-contract read on every trade in the pool.
+    ///      says it is. It is a stored bool rather than a registry call so the swap hot path costs one
+    ///      warm SLOAD instead of a cross-contract read.
     bool public titheHalted;
 
     constructor(
@@ -187,17 +173,16 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
         if (_benefactor == address(0)) revert InvalidAddress();
         if (address(_masterRegistry) == address(0)) revert InvalidAddress();
         // `currency0` is native ETH, so the alignment token is `currency1` and must sort above
-        // `address(0)` — which every address but zero does. A zero here would name a pool whose two
-        // currencies are the same, and would leave `_requireBoundPool` binding nothing.
+        // `address(0)`. A zero here would name a pool whose two currencies are the same, and leave
+        // `_requireBoundPool` binding nothing.
         if (_poolToken == address(0)) revert InvalidAddress();
-        // v4 requires 1 <= tickSpacing <= 32767; a key outside that cannot be initialized, so a hook
-        // bound to it could never serve any pool at all.
+        // v4 requires 1 <= tickSpacing <= 32767; a hook bound to a key outside that could never serve
+        // any pool.
         if (_poolTickSpacing <= 0 || _poolTickSpacing > 32767) revert InvalidTickSpacing();
         if (_hookFeeBips > 10000) revert HookFeeTooHigh();
-        // The same ceiling `setLpFeeRate` enforces, applied at birth. Capping only the setter would leave
-        // the lever intact one step upstream: the rate a hook is CONSTRUCTED with is chosen by whoever
-        // configures the graduation module, so an uncapped constructor could mint a pool that is
-        // untradeable from its first block and never charged anyone a legitimate fee at all.
+        // The same ceiling `setLpFeeRate` enforces. The constructed rate is chosen by whoever
+        // configures the graduation module, so an uncapped constructor could mint a pool untradeable
+        // from its first block.
         if (_initialLpFeeRate > MAX_CONFIGURABLE_LP_FEE) revert LpFeeTooHigh();
 
         _initializeOwner(_owner);
@@ -238,29 +223,26 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
         _;
     }
 
-    /// @dev Binds every field of the `PoolKey` to the pool this hook was deployed to serve (audit L-6).
+    /// @dev Binds every field of the `PoolKey` to the pool this hook was deployed to serve.
     ///
     ///      A v4 hook is reached through the key it is named in, and the caller of `initialize` chooses
-    ///      that key. Checking `currency0 == address(0)` alone said only "some ETH-paired pool", so anyone
-    ///      could stand up a second pool — a worthless token of their own against ETH — on this launch's
-    ///      hook, and its swaps would be taxed here and credited to this launch's benefactor. It drained
-    ///      nothing (the `take` is charged back to that pool's own swapper through the returned delta, and
-    ///      the credit goes to the immutable benefactor either way), which is why the finding is a Low —
-    ///      but an unbound hook is a surface with no reason to exist.
+    ///      that key. Without the binding anyone could stand up a second pool (a worthless token
+    ///      against ETH) on this launch's hook, with its swaps taxed here and credited to this launch's
+    ///      benefactor. That drains nothing, since the `take` is charged back to that pool's own
+    ///      swapper through the returned delta, but an unbound hook is a surface with no reason to
+    ///      exist.
     ///
     ///      The five fields, and how each is pinned:
-    ///        * `hooks`   — by v4 itself: the PoolManager only calls the hook the key names, so a key
-    ///                      naming a different hook never reaches this code.
-    ///        * `currency0` — native ETH, the invariant the fee maths already depended on.
+    ///        * `hooks`   — by v4 itself: the PoolManager only calls the hook the key names.
+    ///        * `currency0` — native ETH, the invariant the fee maths depends on.
     ///        * `currency1` — `poolToken`, the graduating launch's own coin.
     ///        * `fee`       — the dynamic-fee flag. `beforeSwap` returns an LP-fee override, which v4
-    ///                      honors only on a dynamic-fee pool; a static-fee key would silently discard it.
+    ///                      honors only on a dynamic-fee pool; a static-fee key would discard it.
     ///        * `tickSpacing` — `poolTickSpacing`, the graduation module's own immutable.
     ///
     ///      The last two immutables are constructor arguments, so they are part of the init-code hash the
-    ///      factory mines and keys adoption on. A hook for a different pool is therefore a DIFFERENT hook
-    ///      at a different address: there is no window in which a rogue pool binds first, and nothing an
-    ///      early `deployHook` caller can pre-empt.
+    ///      factory mines and keys adoption on. A hook for a different pool is a different hook at a
+    ///      different address, so no rogue pool can bind first.
     function _requireBoundPool(PoolKey calldata key) private view {
         if (Currency.unwrap(key.currency0) != address(0)) revert PoolCurrency0MustBeNativeETH();
         if (Currency.unwrap(key.currency1) != poolToken) revert PoolNotBound();
@@ -272,33 +254,31 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
      * @notice Dynamic LP fee override + alignment fee collection on the ETH-SPECIFIED swap shapes
      * @dev Two jobs, on every swap:
      *      1. Return the owner-configurable `lpFeeRate` as the dynamic LP-fee override.
-     *      2. Tax the ETH side HERE — and only here — when ETH (currency0) is the SPECIFIED currency.
+     *      2. Tax the ETH side here, and only here, when ETH (currency0) is the SPECIFIED currency.
      *         In v4 that is exactly `(amountSpecified < 0) == zeroForOne`: the exact-input ETH->token buy
      *         (shape 1) and the exact-output token->ETH sell (shape 4). An `afterSwap` return delta is
      *         applied to the UNSPECIFIED currency (`Hooks.afterSwap` adds it to `hookDeltaUnspecified`),
-     *         so for these two shapes it would land on the token and fail to settle against a
-     *         `take(currency0)`. `beforeSwap` is the callback that can act on the SPECIFIED currency, so
-     *         the fee is taken up front in ETH and returned as a positive BeforeSwapDelta on the
-     *         specified side, which v4 credits back to the hook on currency0 — cancelling the take's debt
-     *         so the swap settles.
+     *         so for these shapes it would land on the token and fail to settle against a
+     *         `take(currency0)`. `beforeSwap` can act on the SPECIFIED currency, so the fee is taken up
+     *         front in ETH and returned as a positive BeforeSwapDelta on the specified side, which v4
+     *         credits back to the hook on currency0, cancelling the take's debt.
      *
-     *         The base is `|amountSpecified|` — the ETH leg the swapper NAMED — at the same `hookFeeBips`
-     *         the ETH-unspecified shapes pay, and the sign of the adjustment falls out of v4's own
+     *         The base is `|amountSpecified|`, the ETH leg the swapper named, at the same `hookFeeBips`
+     *         the ETH-unspecified shapes pay. The sign of the adjustment follows v4's
      *         `amountToSwap += hookDeltaSpecified`, so one branch serves both shapes:
-     *           * shape 1 (`amountSpecified < 0`): the swapped-in amount SHRINKS by `feeAmount`. The
+     *           * shape 1 (`amountSpecified < 0`): the swapped-in amount shrinks by `feeAmount`. The
      *             swapper pays exactly the ETH they specified and receives proportionally fewer tokens.
-     *           * shape 4 (`amountSpecified > 0`): the swapped-out amount GROWS by `feeAmount`. The
-     *             swapper receives exactly the ETH they specified — the exact-output guarantee is intact
-     *             — and pays the extra tokens the larger output costs. This is the mirror of shape 2,
-     *             where the exact-output buyer likewise pays the tithe on top of what the pool required.
+     *           * shape 4 (`amountSpecified > 0`): the swapped-out amount grows by `feeAmount`. The
+     *             swapper receives exactly the ETH they specified and pays the extra tokens the larger
+     *             output costs, as the exact-output buyer of shape 2 pays the tithe on top.
      *
      *         Neither adjustment can flip the swap's exact-input/exact-output type, so v4's
      *         `HookDeltaExceedsSwapAmount` guard cannot trip: a positive specified delta moves an
      *         exact-input amount toward zero from below and an exact-output amount further above it.
      *
-     *         A NAME IS NOT A FILL. `Pool.swap` stops at `sqrtPriceLimitX96` and returns what it moved,
-     *         so the leg named here may be filled only in part — and this fee is already spent by then.
-     *         `afterSwap` is where that is caught; it reads the realised delta and reverts.
+     *         A name is not a fill: `Pool.swap` stops at `sqrtPriceLimitX96` and returns what it moved,
+     *         so the named leg may be filled only in part after this fee is spent. `afterSwap` catches
+     *         that by reading the realised delta and reverting.
      */
     // slither-disable-next-line reentrancy-events
     function beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata params, bytes calldata)
@@ -306,26 +286,23 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
         onlyPoolManager
         returns (bytes4, BeforeSwapDelta, uint24)
     {
-        // This must be the pool this hook was deployed for, whole key (same check afterSwap makes).
+        // Must be the pool this hook was deployed for, whole key (afterSwap makes the same check).
         _requireBoundPool(key);
 
         uint24 feeOverride = lpFeeRate | LPFeeLibrary.OVERRIDE_FEE_FLAG;
 
-        // ETH (currency0) is the specified currency exactly when (amountSpecified < 0) == zeroForOne —
-        // shapes 1 and 4. The complementary shapes 2 and 3 are taxed in afterSwap, so this is a no-op for
-        // them and there is no double-tax either way.
-        // `titheHalted` skips the tax entirely rather than taking it and queueing it: once the vault is
-        // off the registry there is nothing for a take to settle into, so charging the swapper would be
-        // taking their ETH for a destination that no longer exists (audit M-4).
+        // ETH (currency0) is the specified currency exactly when (amountSpecified < 0) == zeroForOne,
+        // shapes 1 and 4. Shapes 2 and 3 are taxed in afterSwap, so there is no double-tax.
+        // `titheHalted` skips the tax rather than taking and queueing it: once the vault is off the
+        // registry there is no destination, and charging the swapper would take ETH for nothing.
         if (!titheHalted && (params.amountSpecified < 0) == params.zeroForOne) {
             uint256 ethSpecified =
                 params.amountSpecified < 0 ? uint256(-params.amountSpecified) : uint256(params.amountSpecified);
             uint256 feeAmount = (ethSpecified * hookFeeBips) / 10000; // round down: favors swapper
             if (feeAmount > 0) {
                 _collectAndForward(key.currency0, feeAmount);
-                // Positive specified delta: v4 moves the swapped amount by feeAmount (in by less on an
-                // exact input, out by more on an exact output) and credits the hook feeAmount on the
-                // specified currency (currency0 = ETH), cancelling the take's debt so the swap settles.
+                // Positive specified delta: v4 moves the swapped amount by feeAmount and credits the
+                // hook feeAmount on currency0, cancelling the take's debt.
                 return (IHooks.beforeSwap.selector, toBeforeSwapDelta(feeAmount.toInt128(), int128(0)), feeOverride);
             }
         }
@@ -336,36 +313,32 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
     /**
      * @notice Collect the alignment fee on the ETH side when ETH is the UNSPECIFIED currency, and hold
      *         the other two shapes to the fill their tithe was priced against
-     * @dev Takes the fee ONLY for the two shapes where ETH (currency0) is unspecified — exact-output ETH
-     *      buy (shape 2) and exact-input token->ETH sell (shape 3) — so the afterSwap return-delta (which
-     *      v4 applies to the unspecified currency) lands on ETH and settles against `take(currency0)`.
-     *      Those two are charged on `delta`, the ETH the swap actually moved, and so are right by
-     *      construction whether the pool filled the whole swap or stopped short of it.
+     * @dev Takes the fee only for the two shapes where ETH (currency0) is unspecified: exact-output ETH
+     *      buy (shape 2) and exact-input token->ETH sell (shape 3). The afterSwap return-delta (which
+     *      v4 applies to the unspecified currency) then lands on ETH and settles against
+     *      `take(currency0)`. Those two are charged on `delta`, the ETH the swap actually moved, so they
+     *      are right whether the pool filled the whole swap or stopped short.
      *
      *      When ETH is the SPECIFIED currency (shapes 1 and 4) beforeSwap has already taken the tithe, so
-     *      this takes nothing and returns 0 — no double-tax — but it is NOT a bare no-op: it re-reads the
-     *      realised delta and reverts unless the pool moved the whole ETH leg beforeSwap priced the fee
-     *      against. `Pool.swap` exits at `sqrtPriceLimitX96` and returns `amountSpecified` minus whatever
-     *      it could not fill, so a leg that names more ETH than the pool holds in range comes back short
-     *      while the fee charged against the name does not. On this hook's own fixture, naming 400 ETH out
-     *      of a pool holding 25.917 ETH in range credited the swapper 21.917 ETH and handed the vault
-     *      4 ETH — an 18% tithe on the proceeds — and naming 5000 ETH out turned the sale into a NET ETH
-     *      OUTFLOW: the seller paid 35.089 token AND 24.083 ETH and received none.
+     *      this takes nothing and returns 0, but it re-reads the realised delta and reverts unless the
+     *      pool moved the whole ETH leg beforeSwap priced the fee against. `Pool.swap` exits at
+     *      `sqrtPriceLimitX96` and returns `amountSpecified` minus whatever it could not fill, so a leg
+     *      naming more ETH than the pool holds in range comes back short while the fee charged against
+     *      the name does not.
      *
-     *      REVERTING, NOT RECONCILING, because v4 leaves no room to reconcile. A hook's credit on the
-     *      SPECIFIED currency is `beforeSwapDelta`'s, fixed before the swap runs; `Hooks.afterSwap` adds
-     *      this callback's return to `hookDeltaUnspecified` only, which on these two shapes is the TOKEN.
-     *      So nothing here can hand the swapper back ETH: the swapper's `amount0` is already
-     *      `realised - feeAmount` whatever this returns. Settling the excess to the manager, or taking it
-     *      out to the caller, would credit an address whose router settles the delta `swap()` handed it
-     *      and would leave the unlock unbalanced. Reverting is also the honest answer for shape 4 on its
-     *      own terms — an exact-OUTPUT request that cannot be honoured in full is not the trade that was
-     *      asked for — and for shape 1 it is the lesser of the two available answers: as the realised
-     *      spend falls toward zero the fee stays at `hookFeeBips` of the NAME, so the effective rate is
-     *      bounded only by 100% of what the buyer parted with. It cost the fixture's buyer 10.2%.
+     *      Reverting rather than reconciling, because v4 leaves no room to reconcile. A hook's credit on
+     *      the SPECIFIED currency is `beforeSwapDelta`'s, fixed before the swap runs; `Hooks.afterSwap`
+     *      adds this callback's return to `hookDeltaUnspecified` only, which on these two shapes is the
+     *      token. Nothing here can hand the swapper back ETH: the swapper's `amount0` is already
+     *      `realised - feeAmount` whatever this returns. Settling the excess to the manager, or taking
+     *      it out to the caller, would credit an address whose router settles the delta `swap()` handed
+     *      it and leave the unlock unbalanced. Reverting is right for shape 4 (an exact-output request
+     *      that cannot be honoured in full is not the trade asked for) and the lesser evil for shape 1
+     *      (as the realised spend falls toward zero the fee stays at `hookFeeBips` of the name, so the
+     *      effective rate is bounded only by 100% of what the buyer parted with).
      *
-     *      The check is tied to the charge, not to the shape: no charge, nothing to mis-charge. A halted
-     *      tithe and a fee that rounds to zero both leave the swap exactly as v4 would have run it.
+     *      The check is tied to the charge, not the shape: a halted tithe and a fee that rounds to zero
+     *      both leave the swap exactly as v4 would have run it.
      */
     // slither-disable-next-line reentrancy-events
     function afterSwap(
@@ -378,8 +351,8 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
         _requireBoundPool(key);
 
         // ETH (currency0) is the specified currency exactly when (amountSpecified < 0) == zeroForOne.
-        // For those shapes (1 and 4) beforeSwap has already taken the tithe on the specified side, so
-        // afterSwap takes nothing here — no double-tax — and only holds that tithe to its fill.
+        // For those shapes (1 and 4) beforeSwap has already taken the tithe, so this only holds that
+        // tithe to its fill.
         bool ethIsSpecified = (params.amountSpecified < 0) == params.zeroForOne;
         if (ethIsSpecified) {
             if (!titheHalted) _requireNamedEthLegFilled(params, delta);
@@ -403,22 +376,21 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
 
     /**
      * @notice Require that the pool moved the whole ETH leg `beforeSwap` priced this swap's tithe against
-     * @dev Only meaningful on the two ETH-SPECIFIED shapes, and only once a fee has actually been taken;
+     * @dev Meaningful only on the two ETH-SPECIFIED shapes, and only once a fee has been taken;
      *      `afterSwap` calls it under both conditions. `Hooks.beforeSwap` hands the pool
-     *      `amountToSwap = amountSpecified + feeAmount`, which SHRINKS an exact input and GROWS an exact
+     *      `amountToSwap = amountSpecified + feeAmount`, which shrinks an exact input and grows an exact
      *      output, so the leg to fill is `|amountSpecified| -/+ feeAmount` on the respective sign. `delta`
      *      is the pool's own realised delta, handed to `afterSwap` before v4 folds the hook's credit into
-     *      the swapper's — so `|delta.amount0()|` is exactly what the pool moved, and anything short of
-     *      the leg means the swapper is carrying a fee priced on ETH that never moved.
+     *      the swapper's, so `|delta.amount0()|` is what the pool moved, and anything short of the leg
+     *      means the swapper carries a fee priced on ETH that never moved.
      * @param params The swap's original parameters, as v4 passes them to both callbacks.
      * @param delta  The pool's realised balance delta for this swap.
      */
     function _requireNamedEthLegFilled(IPoolManager.SwapParams calldata params, BalanceDelta delta) private view {
         uint256 ethNamed =
             params.amountSpecified < 0 ? uint256(-params.amountSpecified) : uint256(params.amountSpecified);
-        // Recomputed rather than carried across the two callbacks: the inputs are `params` (v4 passes the
-        // same struct to both) and an immutable, so the answer is identical without a transient slot that
-        // one swap of a nested pair could read from the other.
+        // Recomputed rather than carried across the two callbacks: the inputs are `params` (the same
+        // struct in both) and an immutable, so no transient slot is needed that a nested swap could read.
         uint256 feeAmount = (ethNamed * hookFeeBips) / 10000;
         if (feeAmount == 0) return; // nothing was charged, so nothing can have been over-charged
 
@@ -434,7 +406,7 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
      *      every shape's tithe queues, emits and credits the benefactor the same way. The `take` pulls ETH
      *      to this hook (creating a currency0 debt the caller cancels via the returned delta), then the
      *      ETH is forwarded to the vault as a contribution credited to the fixed benefactor. If the vault
-     *      call reverts, the ETH is queued in the hook for a later flushQueuedFees() retry.
+     *      call reverts, the ETH is queued in the hook for a flushQueuedFees() retry.
      */
     function _collectAndForward(Currency currency0, uint256 feeAmount) internal {
         poolManager.take(currency0, address(this), feeAmount);
@@ -455,26 +427,24 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
      *
      *      Also refuses once the registry has retired `vault`, which makes this and `rescueQueuedFees`
      *      disjoint: while the vault is curated this is the only exit, and once it is not, the rescue is.
-     *      Without the guard a de-curated-but-healthy vault would still accept a flush, which is exactly
-     *      what `LiquidityDeployerModule.flushPendingVaultCut` refuses to do with a stashed graduation
-     *      cut — de-curation is supposed to stop the money reaching that vault, not just slow it down.
+     *      De-curation stops money reaching the vault, as in
+     *      `LiquidityDeployerModule.flushPendingVaultCut`.
      */
     function flushQueuedFees() external nonReentrant {
         uint256 amount = queuedFees;
         if (amount == 0) revert NoQueuedFees();
         if (!masterRegistry.isVaultRegistered(address(vault))) revert VaultNotRegistered();
         queuedFees = 0;
-        // Credit the same fixed benefactor the live afterSwap path would have — not the hook itself.
+        // Credit the same fixed benefactor the live afterSwap path credits, not the hook itself.
         vault.receiveContribution{ value: amount }(Currency.wrap(address(0)), amount, benefactor);
         emit QueuedFeesForwarded(amount);
     }
 
     /**
      * @notice Stop charging the swap tithe, once the registry says `vault` is no longer registered
-     * @dev Permissionless, and gated on the registry rather than on anyone's judgement: the only way
-     *      this succeeds is if the protocol owner has already retired `vault` with `deactivateVault`.
-     *      Before this existed the hook kept taxing every swap into a vault that could never accept
-     *      again, and 100% of the take fell into `queuedFees` with no exit (audit M-4).
+     * @dev Permissionless, and gated on the registry: it succeeds only if the protocol owner has
+     *      retired `vault` with `deactivateVault`. Otherwise every swap would be taxed into a vault
+     *      that can never accept, and the take would fall into `queuedFees`.
      */
     function haltTithe() external {
         if (masterRegistry.isVaultRegistered(address(vault))) revert VaultStillRegistered();
@@ -484,9 +454,8 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
 
     /**
      * @notice Resume the swap tithe once `vault` is a registered vault again
-     * @dev The mirror of `haltTithe`, and permissionless for the same reason. A de-registration that is
-     *      reversed — a mis-click, or a vault retired and restored — must not leave the tithe off with
-     *      only an owner able to turn it back on.
+     * @dev The mirror of `haltTithe`, permissionless for the same reason: a reversed de-registration
+     *      must not leave the tithe off with only an owner able to turn it back on.
      */
     function resumeTithe() external {
         if (!masterRegistry.isVaultRegistered(address(vault))) revert VaultNotRegistered();
@@ -496,19 +465,18 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
 
     /**
      * @notice Forward queued fees to another registered vault, after `vault` has been retired
-     * @dev The exit `queuedFees` never had. `vault` is immutable, so ETH queued against a vault whose
-     *      intake closed for good — `AlignmentEndowmentVault.migratePosition` is the documented way that
-     *      happens — could only ever be retried into the same dead address.
+     * @dev The exit for fees queued against a dead vault. `vault` is immutable, so ETH queued against
+     *      a vault whose intake closed for good (`AlignmentEndowmentVault.migratePosition` is the
+     *      documented way) could otherwise only be retried into the same dead address.
      *
-     *      Deliberately NOT a sweep. The destination is not an address the owner picks freely: it must
-     *      be a vault the registry currently curates, and the contribution is credited to the hook's own
-     *      immutable `benefactor`, exactly as the live path credits it. So this moves the community's
-     *      ETH between curated vaults and cannot move it to the owner, to the protocol treasury, or to
-     *      anywhere else — the owner's discretion here is which curated vault, never whether to take it.
+     *      Not a sweep. The destination must be a vault the registry currently curates, and the
+     *      contribution is credited to the hook's immutable `benefactor`, as on the live path. It
+     *      moves the community's ETH between curated vaults and cannot move it to the owner, the
+     *      protocol treasury, or anywhere else; the owner chooses which curated vault, never whether
+     *      to take it.
      *
-     *      Reachable only once the protocol owner has retired `vault` and the tithe is halted, so it can
-     *      never divert the tithe of a live vault, and never races a `flushQueuedFees` that would still
-     *      have worked.
+     *      Reachable only once the protocol owner has retired `vault` and the tithe is halted, so it
+     *      never diverts the tithe of a live vault and never races a `flushQueuedFees` that would work.
      * @param destinationVault The registered vault to credit instead.
      */
     function rescueQueuedFees(address destinationVault) external onlyOwner nonReentrant {
@@ -526,9 +494,8 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
 
     /**
      * @notice Set the dynamic LP fee this hook overrides its pool with (owner only)
-     * @dev Bounded by {MAX_CONFIGURABLE_LP_FEE}, not by v4's `LPFeeLibrary.MAX_LP_FEE` — see that
-     *      constant for the number, the evidence behind it, and why the owner is not trusted with the
-     *      range above it even though the owner is the protocol's own governance.
+     * @dev Bounded by {MAX_CONFIGURABLE_LP_FEE}, not by v4's `LPFeeLibrary.MAX_LP_FEE`; see that
+     *      constant for the number and the reasoning.
      * @param _rate New LP fee rate in v4 fee units; at most MAX_CONFIGURABLE_LP_FEE (10_000 = 1%)
      */
     function setLpFeeRate(uint24 _rate) external onlyOwner {

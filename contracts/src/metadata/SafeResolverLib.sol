@@ -4,25 +4,21 @@ pragma solidity ^0.8.24;
 import { IMetadataResolver } from "./IMetadataResolver.sol";
 
 /// @title SafeResolverLib
-/// @notice Shared defensive seam for calling a wired metadata resolver (ADR-0006/0007). Guarantees the
-///         "tokenURI can never be bricked" promise for EVERY resolver-return class — including the one a
-///         plain `try IMetadataResolver(m).resolve(...) returns (string) {} catch {}` does NOT cover: a
-///         call that SUCCEEDS but returns ABI-undecodable bytes. Solidity routes only a *reverting* call
-///         to `catch`; a return-data decode failure escapes the `catch` and reverts the read. This lib
-///         replaces the naive try/catch with a low-level `staticcall` + a guarded, pre-validated
-///         `abi.decode`, so a malformed success degrades to the caller's base EXACTLY like a revert or a
-///         gas-bomb already does (both surface here as `ok == false`).
-/// @dev Used by BOTH `ERC404BondingInstance._tokenURI` and `MetadataResolverRouter.resolve` (dedup +
-///      keeps the EIP-170-tight instance small). `tryResolve` is `public` (a DEPLOYED library): the
-///      guard+decode logic inlined into the instance overflows EIP-170 by ~1.46KB (measured, noesis-107),
-///      so callers reach it via `delegatecall` to the linked library instead — the code lives once, off
-///      the instance. It is `view` and touches no storage, so the delegatecall is safe under a `tokenURI`
-///      staticcall. No explicit gas cap: a runaway (gas-bomb) resolver OOGs the child, the `staticcall`
-///      returns
-///      `false`, and the caller survives on the 1/64 gas EIP-150 retains — identical to the prior
-///      try/catch resilience. A low-level `staticcall` to a code-less address returns `success == true`
-///      with empty returndata, which `_isDecodableString` rejects → degrades to base; so the caller no
-///      longer needs an explicit `code.length` guard to survive a self-destructed/revoked resolver.
+/// @notice Shared defensive seam for calling a wired metadata resolver (ADR-0006/0007). Guarantees
+///         tokenURI cannot be bricked by any resolver-return class, including the one a plain
+///         `try IMetadataResolver(m).resolve(...) returns (string) {} catch {}` does not cover: a call that
+///         succeeds but returns ABI-undecodable bytes. Solidity routes only a reverting call to `catch`; a
+///         return-data decode failure escapes it and reverts the read. This lib uses a low-level
+///         `staticcall` and a guarded, pre-validated `abi.decode`, so a malformed success degrades to the
+///         caller's base exactly like a revert or a gas-bomb (both surface as `ok == false`).
+/// @dev Used by both `ERC404BondingInstance._tokenURI` and `MetadataResolverRouter.resolve`. `tryResolve`
+///      is `public` (a deployed library): inlining the guard and decode into the instance overflows
+///      EIP-170 by ~1.46KB, so callers `delegatecall` the linked library. It is `view` and touches no
+///      storage, so the delegatecall is safe under a `tokenURI` staticcall. There is no explicit gas cap:
+///      a gas-bomb resolver runs the child out of gas, the `staticcall` returns `false`, and the caller
+///      survives on the 1/64 gas EIP-150 retains. A `staticcall` to a code-less address succeeds with
+///      empty returndata, which `_isDecodableString` rejects, so a self-destructed or revoked resolver
+///      degrades to base without an explicit `code.length` guard.
 library SafeResolverLib {
     /// @notice Call `resolver.resolve(inst, id, holder)` defensively.
     /// @return ok  True iff the call succeeded AND its return data is a well-framed ABI `string`.
@@ -34,7 +30,7 @@ library SafeResolverLib {
     {
         (bool success, bytes memory ret) =
             resolver.staticcall(abi.encodeCall(IMetadataResolver.resolve, (inst, id, holder)));
-        // Guard the framing BEFORE decoding so `abi.decode` can never revert on malformed bytes.
+        // Guard the framing before decoding so `abi.decode` cannot revert on malformed bytes.
         if (success && _isDecodableString(ret)) {
             aug = abi.decode(ret, (string));
             ok = true;

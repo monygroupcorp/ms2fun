@@ -66,7 +66,7 @@ contract DeployCore is Script {
         string description;
         bool deployUniVault;
         bool deployZAMMVault;
-        address communityPayout; // endowment community destination; address(0) = set later, off-chain
+        address communityPayout; // endowment community destination; address(0) = pinned on the registry after deploy
     }
 
     struct NetworkConfig {
@@ -82,47 +82,38 @@ contract DeployCore is Script {
         address zamm;
         address aaveStataToken; // Aave WETH StaticATokenV2 (waEthWETH); address(0) = no endowment vault
         // WETH the Aave endowment family wraps into before supplying `aaveStataToken`. The vault wraps
-        // ETH with this token and the stataToken then pulls its OWN `asset()`, so the two must be the
+        // ETH with this token and the stataToken then pulls its own `asset()`, so the two must be the
         // same ERC-20 or every contribution reverts inside `stataToken.deposit`.
         //
-        // address(0) = DEFAULT TO `weth`, which is the mainnet and anvil-fork shape: Aave's mainnet
-        // waEthWETH `asset()` IS canonical WETH, so the field is a no-op there and no network config
-        // needs to carry it. It exists for a network whose Aave market is fronted by its own test WETH
-        // (Sepolia), where the endowment family alone must use that token while the rest of the
-        // deployment keeps the network's canonical WETH.
+        // address(0) defaults to `weth`: on mainnet and the anvil fork Aave's waEthWETH `asset()` is
+        // canonical WETH. A network whose Aave market is fronted by its own test WETH (Sepolia) sets
+        // it so the endowment family alone uses that token.
         //
-        // Set ONCE here, at deploy, and read into the factory's immutable — there is no per-vault
-        // caller input and no setter, so the trust surface is this config and nothing else.
+        // Read into the factory's immutable at deploy: no per-vault caller input and no setter.
         // `deploy()` asserts `IStataToken(aaveStataToken).asset() == aaveWeth` before wiring it.
         address aaveWeth;
 
         // Pre-existing contracts — address(0) = deploy fresh
         address zrouter;
-        // Chain bindings for a SELF-DEPLOYED zRouter (only read when `zrouter` is address(0)).
-        // Left entirely zero — the mainnet and anvil-fork shape — the router is deployed with
-        // `mainnetChainConfig()`, i.e. exactly the addresses it carried as compile-time constants.
-        // A network that self-deploys the router off mainnet fills this in: every venue it has, and
-        // address(0) for every venue it does not, so an absent leg reverts instead of routing at a
-        // mainnet address that means nothing there. `weth` != 0 is what marks the field as supplied.
+        // Chain bindings for a self-deployed zRouter (only read when `zrouter` is address(0)).
+        // All zero (the mainnet and anvil-fork shape) deploys the router with `mainnetChainConfig()`.
+        // A network that self-deploys the router off mainnet fills in every venue it has and leaves
+        // address(0) for every venue it lacks, so an absent leg reverts instead of routing at a
+        // mainnet address. `weth` != 0 marks the field as supplied.
         ChainConfig zrouterChain;
         address safe;
 
         // On-chain best-route quoter (`zQuoter.getQuotes`) wired into every vault factory so deployed
-        // vaults acquire from the deepest venue instead of their fixed family pool. address(0) = best-route
-        // DISABLED (fixed-pool fallback only) — the pre-noesis-063 default that silently shipped the
-        // multi-venue purchase capability off.
+        // vaults acquire from the deepest venue instead of their fixed family pool. address(0) disables
+        // best-route (fixed-pool fallback only).
         //
-        // EVERY DEPLOYMENT WIRES A QUOTER. address(0) IS A TEST SHAPE, NOT A DEPLOYMENT OPTION. A network
-        // that has a canonical quoter points at it (`DeployMainnet.ZQUOTER`); a network that has none
-        // brings its own, as `DeploySepolia` does with `SepoliaRouteQuoter` and `DeployAnvil` with
-        // `AnvilFixedRouteQuoter`. Fixed-pool-only acquisition was weighed as a production shape and is
-        // not one: where a venue can be quoted, it is quoted. The only callers that legitimately leave
-        // this 0 are the tests pinning the fallback leg (`test/vaults/BestRouteFallbackPin.t.sol`).
+        // Every deployment wires a quoter; address(0) is a test shape. A network with a canonical
+        // quoter points at it (`DeployMainnet.ZQUOTER`); a network with none brings its own
+        // (`SepoliaRouteQuoter`, `AnvilFixedRouteQuoter`). Only the tests pinning the fallback leg
+        // (`test/vaults/BestRouteFallbackPin.t.sol`) leave it 0.
         //
-        // Do NOT bake an address here: which quoter is right is a property of the network, and this
-        // struct serves all of them. Getting it wrong is not repairable after the fact — see the note
-        // on the `cfg.zQuoter == address(0)` check in `deploy()`.
-        // OPERATOR INPUT.
+        // No address is baked in here: the right quoter is a property of the network. It cannot be
+        // changed after deploy; see the `cfg.zQuoter == address(0)` check in `deploy()`. Operator input.
         address zQuoter;
 
         // CREATE3 salts for UUPS proxies
@@ -132,9 +123,9 @@ contract DeployCore is Script {
         bytes32 saltGlobalMsgReg;
         bytes32 saltAlignmentReg;
         bytes32 saltComponentReg;
-        // Mixed into the per-target VAULT salts so repeated local re-deploys onto the same fork
-        // don't CreateCollision. Production callers leave it 0 → deterministic vault addresses;
-        // DeployAnvil sets it to block.timestamp (matching the UUPS-proxy salt pattern above).
+        // Mixed into the per-target vault salts so repeated local re-deploys onto the same fork
+        // don't CreateCollision. 0 gives deterministic vault addresses (production); DeployAnvil
+        // sets block.timestamp.
         uint256 saltNonce;
 
         // Price validator params
@@ -148,13 +139,12 @@ contract DeployCore is Script {
         // ETH/alignmentToken ZAMM pool is wired (matches the feeOrHook the vault swaps/LPs against).
         uint256 zammFeeOrHook;
 
-        // Uni-V4 alignment-tithe hook parameters (117b). Seeded onto the singleton LiquidityDeployerModule
-        // at deploy but INERT until a governed op turns the hook ON (setAlignmentHookFactory) — the module
-        // ships with `alignmentHookFactory == address(0)` (no hook, untaxed pool). When later enabled, every
+        // Uni-V4 alignment-tithe hook parameters. Seeded onto the singleton LiquidityDeployerModule
+        // at deploy and inert until a governed `setAlignmentHookFactory` selects a hook; the module
+        // starts with `alignmentHookFactory == address(0)` (no hook, untaxed pool). Once enabled, every
         // graduation Uni pool bakes in a hook taking `hookFeeBips` of the ETH swap leg as the perpetual
-        // alignment tithe, with `lpFeeRate` as the dynamic LP fee. `hookFeeBips` is the IMMUTABLE tithe rate
-        // per deployed hook. Leave 0 to defer (the safe inert default, mirroring `zQuoter`); set the real
-        // rate before enabling the tithe. OPERATOR INPUT.
+        // alignment tithe, with `lpFeeRate` as the dynamic LP fee. `hookFeeBips` is immutable per
+        // deployed hook. 0 leaves the tithe inert. Operator input.
         uint256 hookFeeBips;
         uint24 lpFeeRate;
 
@@ -222,58 +212,48 @@ contract DeployCore is Script {
     // MockComponentModule stub, chosen per-network by whether that AMM's config is present.
     address public moduleUniV4Deployer;
     address public moduleZAMMDeployer;
-    /// @notice The Uni-V4 alignment-tithe hook factory (117a), registered under ALIGNMENT_HOOK but NOT
-    ///         selected on the module (default OFF). address(0) where Uni isn't configured on this network.
+    /// @notice The Uni-V4 alignment-tithe hook factory, registered under ALIGNMENT_HOOK but not
+    ///         selected on the module. address(0) where Uni isn't configured on this network.
     address public uniTitheHookFactory;
     /// @notice Swap periphery for graduation pools whose key carries an alignment hook. address(0)
     ///         where Uni isn't configured on this network.
-    /// @dev DEPLOYED FROM SOURCE ON EVERY NETWORK, and that is the point of it rather than an
-    ///      incidental choice. The aggregator at `zrouter` above is reused from a canonical address
-    ///      on mainnet and self-deployed on a testnet, and its V4 entry point cannot name a hook at
-    ///      all; a hooked pool is therefore untradeable through it on both, and unfixable on the one
-    ///      this project does not own. This router is ours on every chain, so the trade a testnet
-    ///      rehearses is the trade mainnet will run.
+    /// @dev Deployed from source on every network. The aggregator at `zrouter` is a canonical
+    ///      address on mainnet and self-deployed on a testnet, and its V4 entry point cannot name a
+    ///      hook, so a hooked pool is untradeable through it. This router is ours on every chain, so
+    ///      the trade a testnet rehearses is the trade mainnet runs.
     address public alignmentHookSwapRouter;
 
-    // ── DEFERRAL NOTE: PromotionBadges is intentionally NOT deployed ──────────
-    // `src/promotion/PromotionBadges.sol` is PARKED pre-testnet and has NO slot above and NO
-    // deploy call below on purpose. Its open `purchaseBadge` lets anyone self-assign a `VERIFIED`
-    // badge (an unresolved trust hole), so shipping it would let users mint their own verified
-    // status. Do NOT add it to the deployed set — no state slot, no `new PromotionBadges(...)`, no
-    // funding — without explicit rth sign-off on the trust-architecture decision. The un-deployed
-    // guard in `test/script/PromotionBadgesNotDeployed.t.sol` trips if a future edit wires it in.
+    // ── PromotionBadges is intentionally not deployed ─────────────────────────
+    // `src/promotion/PromotionBadges.sol` has no slot above and no deploy call below. Its open
+    // `purchaseBadge` lets anyone self-assign a `VERIFIED` badge, so deploying it would let users
+    // mint their own verified status. `test/script/PromotionBadgesNotDeployed.t.sol` fails if it is
+    // wired in.
 
     // ───────────────────────────── Entry Point ──────────────────────────────
 
     /// @notice Deploy all protocol contracts for the given network config.
     ///         Callable from forge scripts (with broadcast) or tests (without).
     function deploy(address deployer, NetworkConfig memory cfg) public {
-        // ── D4: deploy-time security-param asserts ───────────────────────────
+        // ── Deploy-time security-param asserts ───────────────────────────────
         // weth==0 silently disables the smartTransferETH WETH fallback system-wide: queueManager.setWeth
-        // is unconditional and every vault/factory below takes cfg.weth raw. Hard-assert non-zero here so
-        // a mis-filled config fails loudly at deploy instead of shipping a broken ETH path.
+        // is unconditional and every vault/factory below takes cfg.weth raw.
         require(cfg.weth != address(0), "DeployCore: cfg.weth unset (disables WETH fallback)");
-        // zQuoter==0 ships every vault factory with best-route acquisition DISABLED: every acquire
-        // takes the fixed cfg.zrouterFee / cfg.zrouterTickSpacing pool. Trading works; a target whose
-        // depth is on another tier is simply bought on the wrong one, because that tier is a
-        // network-wide factory immutable with no setter.
+        // zQuoter==0 ships every vault factory with best-route acquisition disabled: every acquire
+        // takes the fixed cfg.zrouterFee / cfg.zrouterTickSpacing pool, so a target whose depth is on
+        // another tier is bought on the wrong one (the tier is a network-wide factory immutable).
         //
-        // EVERY NETWORK THIS REPO DEPLOYS BRINGS A QUOTER. Ethereum mainnet points at the canonical
-        // one. Sepolia has none to point at, so `DeploySepolia` deploys `SepoliaRouteQuoter` and
-        // passes it here; a local fork does the same with `AnvilFixedRouteQuoter`. Fixed-pool-only
-        // acquisition was weighed as a production shape and is not one: where a venue can be quoted,
-        // it is quoted. Do NOT bake an address into this file — which quoter is right is a property
-        // of the network, and this function serves all of them.
+        // Every network this repo deploys supplies a quoter: mainnet the canonical one, Sepolia
+        // `SepoliaRouteQuoter`, a local fork `AnvilFixedRouteQuoter`. No address is baked in here;
+        // the right quoter is a property of the network.
         //
-        // This stays a WARNING rather than an assert for one reason: the fallback is a supported,
-        // tested path, and the tests that exercise it deploy through here
-        // (`test/vaults/BestRouteFallbackPin.t.sol` pins that a vault with no quoter still converts).
-        // On a real network, reaching this branch means the config is wrong.
+        // This warns rather than asserts because the fallback is a supported, tested path that deploys
+        // through here (`test/vaults/BestRouteFallbackPin.t.sol` pins that a vault with no quoter still
+        // converts). On a real network, reaching this branch means the config is wrong.
         //
-        // And it cannot be repaired after the fact. A factory takes `zQuoter` as a CONSTRUCTOR
-        // immutable and threads it into each vault at deployVault time; the vault's own
-        // `setZQuoter` is onlyOwner, and that owner is the factory, which exposes no passthrough.
-        // Deploying with the quoter unset means redeploying the factories, not calling a setter.
+        // It cannot be repaired after deploy. A factory takes `zQuoter` as a constructor immutable and
+        // threads it into each vault at deployVault time; the vault's `setZQuoter` is onlyOwner, that
+        // owner is the factory, and the factory exposes no passthrough. Fixing it means redeploying
+        // the factories.
         if (cfg.zQuoter == address(0)) {
             console.log("WARNING: cfg.zQuoter == address(0) -> best-route acquisition DISABLED on all vault");
             console.log("         factories; every acquire uses the fixed zrouterFee/zrouterTickSpacing pool.");
@@ -299,9 +279,6 @@ contract DeployCore is Script {
                     address(treasuryImpl), cfg.saltTreasury, abi.encodeWithSignature("initialize(address)", deployer)
                 ))
         );
-        // POL/V4 config moved out of the treasury with the POL carve-out (noesis-066): the treasury
-        // no longer exposes setV4PoolManager/setWETH. POL now lives in ProtocolOwnedLiquidityV1, whose
-        // deployment + V4 wiring at graduation is a separate follow-up (relocate-only here).
 
         queueManagerImpl = new FeaturedQueueManager();
         queueManager = FeaturedQueueManager(
@@ -346,14 +323,13 @@ contract DeployCore is Script {
         // Ownerless, non-upgradeable account profile registry (ADR-0004) — no proxy, no init.
         profileRegistry = new ProfileRegistry();
 
-        // Ownerless, non-upgradeable curation registry — same shape, and for the same reason: a
-        // curation is published by anyone, for nothing, so there is no owner to gate it and no fee
-        // to raise later.
+        // Ownerless, non-upgradeable curation registry: a curation is published by anyone, for
+        // nothing, so there is no owner to gate it and no fee to raise.
         curationRegistry = new CurationRegistry();
 
-        // Alignment-target request intake (docs/phases/alignment-target-requests.md) — standalone,
-        // Ownable, escrows a refundable deposit while Pending. Owner = deployer (handed to ADMIN via
-        // the 2-step handover in deploy.ts). Defaults are owner-tunable post-deploy.
+        // Alignment-target request intake (docs/phases/alignment-target-requests.md): standalone,
+        // Ownable, escrows a refundable deposit while Pending. Owner is the deployer, handed to ADMIN
+        // via the 2-step handover in deploy.ts. The parameters are owner-tunable.
         targetRequestRegistry = new AlignmentTargetRequestRegistry(
             deployer,
             IAlignmentRegistry(address(alignmentRegistry)),
@@ -375,7 +351,7 @@ contract DeployCore is Script {
 
         // ── Phase 4: Vault infrastructure ───────────────────────────────────
 
-        // Always deploy — self-guards with code.length checks when pools don't exist
+        // Self-guards with code.length checks when pools don't exist.
         priceValidator = new UniswapVaultPriceValidator(
             cfg.weth, cfg.v3Factory, cfg.v4PoolManager, cfg.priceDeviationBps, cfg.twapSeconds
         );
@@ -404,15 +380,13 @@ contract DeployCore is Script {
             );
         }
 
-        // Aave endowment vault factory (ADR-0003) — only where Aave's WETH stataToken exists.
+        // Aave endowment vault factory (ADR-0003), only where Aave's WETH stataToken exists.
         if (cfg.aaveStataToken != address(0)) {
-            // The endowment family's WETH: `cfg.aaveWeth` when set, otherwise `cfg.weth`. Unset is the
-            // mainnet/anvil-fork shape and resolves to exactly the token every other family uses.
+            // The endowment family's WETH: `cfg.aaveWeth` when set, otherwise `cfg.weth`.
             address aaveWeth = cfg.aaveWeth == address(0) ? cfg.weth : cfg.aaveWeth;
-            // Deploy-time invariant: the vault wraps ETH into `aaveWeth` and then calls
-            // `stataToken.deposit`, which pulls the stataToken's own `asset()`. If those differ, every
-            // contribution reverts and the vault holds the wrong token — so bind them here and fail the
-            // deploy loudly instead of shipping a vault that cannot take a deposit.
+            // The vault wraps ETH into `aaveWeth` and then calls `stataToken.deposit`, which pulls the
+            // stataToken's own `asset()`. If those differ every contribution reverts, so the deploy
+            // fails here instead.
             address stataAsset = IStataToken(cfg.aaveStataToken).asset();
             require(
                 stataAsset == aaveWeth,
@@ -421,11 +395,10 @@ contract DeployCore is Script {
             aaveVaultFactory = new AlignmentEndowmentVaultFactory(
                 aaveWeth, cfg.aaveStataToken, address(treasury), masterRegistry, alignmentRegistry
             );
-            // Permissionless creation (noesis-077): register + activate the Aave factory as a first-class
-            // IFactory BEFORE the Phase-5 seed loop. The factory self-registers each vault it deploys
-            // (owner-side registerVault is dropped below), so it must be an active registrar at the moment
-            // it deploys the seed vaults. `title` must pass MetadataUtils.isValidName (alphanumeric +
-            // hyphen/underscore, no spaces) → hyphenated, mirroring the token factories.
+            // Registered and activated as an IFactory before the Phase-5 seed loop: the factory
+            // self-registers each vault it deploys, so it must be an active registrar when it deploys
+            // the seed vaults. `title` must pass MetadataUtils.isValidName (alphanumeric +
+            // hyphen/underscore, no spaces), hence the hyphens.
             MasterRegistryV1(masterRegistry)
                 .registerFactory(
                     address(aaveVaultFactory),
@@ -451,14 +424,12 @@ contract DeployCore is Script {
             uint256 targetId = alignmentRegistry.registerAlignmentTarget(t.name, t.description, "", assets);
             alignmentTargetIds.push(targetId);
 
-            // Aave endowment vault (ADR-0003): pin the target's community payout (from config — no
-            // placeholder baked into this cross-network script), then deploy a per-target endowment vault
-            // clone. A zero payout is left unset and pinned on the REGISTRY later: the vault reads its sink
-            // live from there, so a sink pinned after this deploy needs no vault-side wiring, and the pin
-            // is write-once — the deployer cannot come back and redirect it. The factory SELF-REGISTERS
-            // the vault (noesis-077) with an on-chain-derived name + hardcoded metadataURI, crediting the
-            // deployer — so there is no owner-side registerVault here (a duplicate would revert
-            // AlreadyRegistered).
+            // Aave endowment vault (ADR-0003): pin the target's community payout from config, then
+            // deploy a per-target endowment vault clone. A zero payout is left unset and pinned on the
+            // registry afterwards: the vault reads its sink live from there, so a pin made after deploy needs no
+            // vault-side wiring, and the pin is write-once, so the deployer cannot redirect it. The
+            // factory self-registers the vault with an on-chain-derived name and a hardcoded
+            // metadataURI, crediting the deployer; a second registerVault would revert AlreadyRegistered.
             if (cfg.aaveStataToken != address(0)) {
                 if (t.communityPayout != address(0)) {
                     alignmentRegistry.setCommunityPayout(targetId, t.communityPayout);
@@ -472,11 +443,10 @@ contract DeployCore is Script {
             if (t.deployUniVault) {
                 bytes32 salt = _vaultSalt(cfg.chainId, i, "UNIv4", cfg.saltNonce);
                 address vault = uniVaultFactory.deployVault(salt, t.token, targetId, IVaultPriceValidator(address(0)));
-                // Operational LP wiring (T2): set the V4 pool key so the vault can actually LP.
-                // The factory owns the vault, so the key routes through the factory. Native ETH is
-                // currency0 (address(0) < any token → ordering holds); the alignment token is
-                // currency1; fee/tickSpacing come from the network's V4 config. This flips the
-                // vault's isLiquidityReady() → true so the wizard offers the Uni venue.
+                // The V4 pool key makes the vault liquidity-ready (isLiquidityReady() true), so the
+                // wizard offers the Uni venue. The factory owns the vault, so the key routes through
+                // it. Native ETH is currency0 (address(0) sorts below any token), the alignment token
+                // is currency1, and fee/tickSpacing come from the network's V4 config.
                 uniVaultFactory.setVaultPoolKey(
                     vault,
                     PoolKey({
@@ -496,10 +466,9 @@ contract DeployCore is Script {
 
             if (t.deployZAMMVault && address(zammVaultFactory) != address(0)) {
                 bytes32 salt = _vaultSalt(cfg.chainId, i, "ZAMM", cfg.saltNonce);
-                // Operational LP wiring (T2): bake the real ETH/alignmentToken ZAMM pool key at
-                // deploy (token0 = native ETH = address(0), token1 = alignment token, feeOrHook from
-                // config) so the vault is liquidity-ready immediately. (Post-deploy re-wiring is also
-                // available via ZAMMAlignmentVaultFactory.setVaultPoolKey while no liquidity exists.)
+                // The ETH/alignmentToken ZAMM pool key is baked in at deploy (token0 = native ETH,
+                // token1 = alignment token, feeOrHook from config) so the vault is liquidity-ready.
+                // `ZAMMAlignmentVaultFactory.setVaultPoolKey` can rewire it while no liquidity exists.
                 IZAMM.PoolKey memory poolKey = IZAMM.PoolKey({
                     id0: 0, id1: 0, token0: address(0), token1: t.token, feeOrHook: cfg.zammFeeOrHook
                 });
@@ -529,28 +498,26 @@ contract DeployCore is Script {
         );
         erc404Factory.setProtocolTreasury(address(treasury));
 
-        // Deploy-bond escrow (N12) — standalone, holds the bond ETH so the factory keeps its
-        // "holds no ETH" invariant. Owner = deployer (handed to ADMIN via the deploy.ts handover).
-        // Lever ships OFF (bondAmount defaults 0) → create is byte-identical to today.
+        // Deploy-bond escrow: standalone, holds the bond ETH so the factory keeps its "holds no ETH"
+        // invariant. Owner is the deployer, handed to ADMIN via the deploy.ts handover. The bond
+        // defaults to 0 (off).
         deployBondEscrow = new DeployBondEscrow(deployer, address(erc404Factory), address(treasury), cfg.weth);
         erc404Factory.setDeployBondEscrow(address(deployBondEscrow));
 
-        // CurveParamsComputer must be approved — _deployAndInitialize checks isApprovedComponent(preset.curveComputer)
+        // _deployAndInitialize checks isApprovedComponent(preset.curveComputer).
         componentRegistry.approveComponent(
             address(curveParamsComputer), bytes32("curve_computer"), "CurveParamsComputer"
         );
 
-        // The protocol presets — NICHE / STANDARD / HYPE. The ladder itself, and why its rungs
-        // are spaced a decade apart, is stated once in `LaunchPresets`; this only writes it.
+        // The protocol presets (NICHE / STANDARD / HYPE); the ladder is defined in `LaunchPresets`.
         for (uint256 i = 0; i < LaunchPresets.COUNT; i++) {
             launchManager.setPreset(i, LaunchPresets.preset(i, address(curveParamsComputer)));
         }
 
         // ── Phase 7: ERC1155Factory + DynamicPricingModule ───────────────────
 
-        // Every collection is an EIP-1167 clone of this one implementation, so it is deployed once
-        // here and fixed in the factory's constructor. It is locked on deploy (its own constructor
-        // sets the initialized flag), so nobody can claim the implementation itself.
+        // Every collection is an EIP-1167 clone of this one implementation, fixed in the factory's
+        // constructor. Its own constructor sets the initialized flag, so nobody can claim it.
         erc1155Impl = new ERC1155Instance();
         erc1155Factory = new ERC1155Factory(
             masterRegistry, address(globalMessageRegistry), address(componentRegistry), cfg.weth, address(erc1155Impl)
@@ -564,13 +531,12 @@ contract DeployCore is Script {
         erc1155Factory.setDynamicPricingModule(address(dynamicPricingModule));
 
         // ── Phase 7b: ComponentRegistry seeding — wizard-facing metadata stubs ─────
-        // These MockComponentModules give the frontend creation wizard metadata to
-        // display for each selectable component. Users pass these addresses to
-        // createInstance; the real functional modules are wired into factory internals.
-        // EXCEPTION: gating is a per-instance module the wizard passes through verbatim
-        // (createInstance attaches it, mint calls canMint, the owner calls configureFor
-        // post-create), so the REAL gating module carries its own metadata directly —
-        // there is no mock stand-in for it.
+        // These MockComponentModules give the creation wizard metadata to display for each
+        // selectable component. Users pass these addresses to createInstance; the real functional
+        // modules are wired into factory internals.
+        // Gating is the exception: a per-instance module the wizard passes through verbatim
+        // (createInstance attaches it, mint calls canMint, the owner calls configureFor after
+        // create), so the real gating module carries its own metadata.
 
         string memory merkleGatingMeta =
             "data:application/json,{\"name\":\"Merkle Allowlist Gating\",\"subtitle\":\"Allowlist \\u00b7 Merkle Tree\",\"description\":\"Upload a list of wallet addresses to restrict minting to an allowlist.\",\"configType\":\"merkle-allowlist-gating\"}";
@@ -579,43 +545,37 @@ contract DeployCore is Script {
         string memory zammMeta =
             "data:application/json,{\"name\":\"ZAMM Deployer\",\"subtitle\":\"ZAMM \\u00b7 Constant Product\",\"description\":\"Deploy liquidity to ZAMM on graduation.\",\"configType\":\"launch-profile\"}";
 
-        // Real merkle-allowlist gating module: per-instance, per-edition, quantity-capped allowlists.
-        // The wizard passes its address to createInstance verbatim; the owner calls configureFor
-        // post-create with the merkle roots. Carries its own configType metadata ("merkle-allowlist-gating").
+        // Merkle-allowlist gating module: per-instance, per-edition, quantity-capped allowlists.
+        // The owner calls configureFor after create with the merkle roots.
         moduleMerkleGating = new MerkleGatingModule(masterRegistry);
         componentRegistry.approveComponent(address(moduleMerkleGating), FeatureUtils.GATING, "Merkle Allowlist Gating");
         moduleMerkleGating.setMetadataURI(merkleGatingMeta);
 
-        // Uni-V4 + ZAMM: deploy the REAL LP deployer modules where the AMM's config is present (the
-        // mainnet fork + live networks), so graduation actually stands up a pool and the modules
-        // answer their pool-param getters (poolFee/tickSpacing, feeOrHook) the embedded swap reads.
-        // Fall back to the metadata-only stub where the AMM isn't configured (keeps the component
-        // approved for the wizard without a live venue). Real modules carry their own metadataURI().
+        // Uni-V4 + ZAMM: the real LP deployer modules are deployed where the AMM's config is present,
+        // so graduation stands up a pool and the modules answer the pool-param getters (poolFee/
+        // tickSpacing, feeOrHook) the embedded swap reads. Where the AMM isn't configured, a
+        // metadata-only stub keeps the component approved for the wizard.
         if (cfg.v4PoolManager != address(0) && cfg.weth != address(0)) {
             LiquidityDeployerModule uniMod = new LiquidityDeployerModule(
                 cfg.v4PoolManager, cfg.weth, cfg.zrouterFee, cfg.zrouterTickSpacing, masterRegistry
             );
             uniMod.setMetadataURI(uniV4Meta);
-            // 117b: seed the module's alignment-hook fee config from the (HUMAN_GATE) NetworkConfig values,
-            // but LEAVE the hook selection OFF — `alignmentHookFactory` stays address(0). Turning the tithe
-            // on is a later deliberate governed `setAlignmentHookFactory` call, NOT part of this deploy
-            // (rth: default OFF, register-only). With the default cfg values (0) these setters are no-ops.
+            // Seeds the module's alignment-hook fee config from NetworkConfig. `alignmentHookFactory`
+            // stays address(0); selecting a hook is a governed `setAlignmentHookFactory` call.
             uniMod.setHookFeeBips(cfg.hookFeeBips);
             uniMod.setLpFeeRate(cfg.lpFeeRate);
             moduleUniV4Deployer = address(uniMod);
 
-            // Register alignment-hook TYPE #1 — the Uni-V4 swap-tithe hook (117a's UniTitheHookFactory) —
-            // under the ALIGNMENT_HOOK component tag so a future governed op can point the module's
-            // alignmentHookFactory at it. Registered, NOT selected (module stays OFF). PoolManager/WETH/
-            // masterRegistry are the factory's immutables; the per-graduation fee data comes from the module at
-            // deployHook time. Mirrors the moduleUniV4Deployer approveComponent registration.
+            // The Uni-V4 swap-tithe hook factory is registered under the ALIGNMENT_HOOK component tag
+            // so a governed op can point the module's alignmentHookFactory at it; it is not selected.
+            // PoolManager/WETH/masterRegistry are the factory's immutables; the per-graduation fee
+            // data comes from the module at deployHook time.
             //
-            // `deployer` is the factory's OWNER and its initial `hookOwner` — the address stamped into every
-            // hook it deploys — because the governance Timelock does not exist yet at this point in the
-            // sequence: `DeployTimelock.s.sol` is a separate, later script, and DeployCore has no Timelock
-            // address to be given. Both are moved to the Timelock by `MigrateOwnership` (D2 and D6), which is
-            // why `hookOwner` is settable state and not an immutable: an immutable here would leave the
-            // deployer key on `setLpFeeRate` and `rescueQueuedFees` of every hook ever produced.
+            // `deployer` is the factory's owner and its initial `hookOwner` (stamped into every hook
+            // it deploys) because the governance Timelock is deployed by the separate
+            // `DeployTimelock.s.sol`. `MigrateOwnership` moves both to the Timelock. `hookOwner` is
+            // settable state, not an immutable, so the deployer key does not stay on `setLpFeeRate`
+            // and `rescueQueuedFees` of every hook ever produced.
             UniTitheHookFactory titheFactory =
                 new UniTitheHookFactory(IPoolManager(cfg.v4PoolManager), cfg.weth, deployer, masterRegistry);
             uniTitheHookFactory = address(titheFactory);
@@ -623,10 +583,9 @@ contract DeployCore is Script {
                 uniTitheHookFactory, FeatureUtils.ALIGNMENT_HOOK, "Uniswap V4 Alignment Tithe Hook"
             );
 
-            // Deployed unconditionally alongside the module, not behind the hook switch. The switch is
-            // a later governed call and the router has to already exist when it is thrown, or the
-            // first collection to graduate after it is untradeable until a second deploy catches up.
-            // It holds no funds and grants no allowances, so shipping it inert costs nothing.
+            // Deployed alongside the module, not behind the hook switch: the router must already exist
+            // when the switch is thrown, or the first collection to graduate after it is untradeable.
+            // It holds no funds and grants no allowances.
             alignmentHookSwapRouter = address(new AlignmentHookSwapRouter(cfg.v4PoolManager));
         } else {
             moduleUniV4Deployer = address(new MockComponentModule(deployer, uniV4Meta));
@@ -643,18 +602,18 @@ contract DeployCore is Script {
         }
         componentRegistry.approveComponent(moduleZAMMDeployer, FeatureUtils.LIQUIDITY_DEPLOYER, "ZAMM Deployer");
 
-        // ERC404 staking module (functional, not a stub) — the ERC404 factory wires this into
-        // instances created with staking enabled; ValidateSepolia expects it approved as STAKING.
+        // ERC404 staking module: the ERC404 factory wires it into instances created with staking
+        // enabled; ValidateSepolia expects it approved as STAKING.
         erc404StakingModule = new ERC404StakingModule(masterRegistry);
         componentRegistry.approveComponent(address(erc404StakingModule), FeatureUtils.STAKING, "ERC404 Staking");
-        // Configless module (no configType) — the wizard auto-advances on selection.
+        // No configType, so the wizard auto-advances on selection.
         string memory stakingMeta =
             "data:application/json,{\"name\":\"Staking\",\"subtitle\":\"Stake \\u00b7 Earn Fees\",\"description\":\"Stake your tokens to earn a pro-rata share of trading fees.\"}";
         erc404StakingModule.setMetadataURI(stakingMeta);
 
-        // ── Metadata-resolution stack (ADR-0006/0007) — functional modules, not stubs ─────
+        // ── Metadata-resolution stack (ADR-0006/0007) ─────────────────────────
         // Router (resolver slot), overlay (augmentation), tier (static band art). Each carries
-        // its own wizard metadata; the ERC404 factory's metadata overload wires + seals them per instance.
+        // its own wizard metadata; the ERC404 factory's metadata overload wires and seals them per instance.
         metadataResolverRouter = new MetadataResolverRouter(masterRegistry);
         metadataOverlayModule = new MetadataOverlayModule(masterRegistry);
         tokenTierBandResolver = new TokenTierBandResolver(masterRegistry);
@@ -740,25 +699,21 @@ contract DeployCore is Script {
         vm.serializeAddress(c, "AlignmentTargetRequestRegistry", address(targetRequestRegistry));
         vm.serializeAddress(c, "QueryAggregator", address(queryAggregator));
         vm.serializeAddress(c, "zRouter", address(zrouter));
-        // address(0) where this network has no best-route quoter — the vaults are then on their
-        // fixed tier, which is a real deployment shape and not a missing field.
+        // address(0) where this network has no best-route quoter: the vaults use their fixed tier.
         vm.serializeAddress(c, "zQuoter", cfg.zQuoter);
         vm.serializeAddress(c, "LaunchManager", address(launchManager));
         vm.serializeAddress(c, "CurveParamsComputer", address(curveParamsComputer));
         // The shared ERC-1155 collection implementation. Every collection is an EIP-1167 clone of
-        // it, so a block explorer resolves each one's read/write surface from THIS contract's
-        // verified source; without the address here a verification pass has nothing to point at.
+        // it, so a block explorer resolves each one's read/write surface from this contract's
+        // verified source.
         vm.serializeAddress(c, "ERC1155Instance", address(erc1155Impl));
         vm.serializeAddress(c, "DynamicPricingModule", address(dynamicPricingModule));
         vm.serializeAddress(c, "ModuleMerkleGating", address(moduleMerkleGating));
         vm.serializeAddress(c, "ModuleUniV4Deployer", address(moduleUniV4Deployer));
         vm.serializeAddress(c, "AlignmentHookSwapRouter", alignmentHookSwapRouter);
-        // The Uni-V4 swap-tithe hook factory. Exported because the handover needs it BY ADDRESS and
-        // nothing else publishes one: `MigrateOwnership` reads it as `UNI_TITHE_HOOK_FACTORY` to move
-        // both the factory and — via `setHookOwner` — the owner stamped into every hook it goes on to
-        // deploy, and a migration run that cannot name it leaves a deployer key on `setLpFeeRate` and
-        // `rescueQueuedFees` of every future graduation hook. address(0) on a network with no Uni rail,
-        // the same legitimate zero `AlignmentHookSwapRouter` carries and for the same reason.
+        // The Uni-V4 swap-tithe hook factory. `MigrateOwnership` reads it as `UNI_TITHE_HOOK_FACTORY`
+        // to move the factory and, via `setHookOwner`, the owner stamped into every hook it deploys.
+        // address(0) on a network with no Uni rail, as for `AlignmentHookSwapRouter`.
         vm.serializeAddress(c, "UniTitheHookFactory", uniTitheHookFactory);
         vm.serializeAddress(c, "ModuleZAMMDeployer", address(moduleZAMMDeployer));
         vm.serializeAddress(c, "ERC404StakingModule", address(erc404StakingModule));
@@ -766,13 +721,11 @@ contract DeployCore is Script {
         vm.serializeAddress(c, "MetadataOverlayModule", address(metadataOverlayModule));
         vm.serializeAddress(c, "TokenTierBandResolver", address(tokenTierBandResolver));
         vm.serializeAddress(c, "DeployBondEscrow", address(deployBondEscrow));
-        // Convenience pointers for the seed script — the first Uni LP vault and the first Aave
-        // endowment vault, resolved by family rather than by a fragile index into the `vaults`
-        // array (whose ordering shifts as LP families are enabled/disabled per network).
+        // Seed-script pointers to the first Uni LP vault and the first Aave endowment vault, resolved
+        // by family because the `vaults` array order shifts as LP families are enabled per network.
         vm.serializeAddress(c, "SeedUniVault", uniVaults.length > 0 ? uniVaults[0] : address(0));
         vm.serializeAddress(c, "SeedAaveVault", aaveVaults.length > 0 ? aaveVaults[0] : address(0));
-        // The ZAMM LP family — same family-resolved convenience pointer so the seed can bind instances
-        // across all three vault flavors (the wizard offers all three; the seed demonstrates them).
+        // The ZAMM LP family pointer, so the seed can bind instances across all three vault flavors.
         vm.serializeAddress(c, "SeedZammVault", zammVaults.length > 0 ? zammVaults[0] : address(0));
         string memory contracts = vm.serializeAddress(c, "UniswapVaultPriceValidator", address(priceValidator));
 
@@ -781,13 +734,11 @@ contract DeployCore is Script {
         vm.serializeAddress(f, "ERC404", address(erc404Factory));
         vm.serializeAddress(f, "ERC1155", address(erc1155Factory));
         vm.serializeAddress(f, "ERC721", address(erc721Factory));
-        // Uniswap V4 alignment-vault factory — exported because it OWNS every vault it deploys, so the
-        // per-vault owner-only setters (`setVaultPoolKey`, `setVaultPriceValidator`) are reachable only
-        // through it. Without this address in the deployment file, retuning ONE vault's pool key is not
-        // expressible and the network-wide `zrouterFee`/`zrouterTickSpacing` becomes the only lever.
+        // Uniswap V4 alignment-vault factory: it owns every vault it deploys, so the per-vault
+        // owner-only setters (`setVaultPoolKey`, `setVaultPriceValidator`) are reachable only through it.
         vm.serializeAddress(f, "UNI", address(uniVaultFactory));
-        // Aave endowment vault factory (noesis-077) — exported so the app can offer permissionless
-        // Yield-vault creation. Zero when this network has no Aave stataToken (factory not deployed).
+        // Aave endowment vault factory, for the app's permissionless Yield-vault creation. Zero when
+        // this network has no Aave stataToken.
         string memory factories = vm.serializeAddress(f, "AAVE", address(aaveVaultFactory));
 
         // uniswap sub-object
@@ -865,10 +816,9 @@ contract DeployCore is Script {
         return ICreateX(CREATEX).deployCreate3(salt, proxyInitCode);
     }
 
-    /// @dev Per-target vault CREATE3 salt. `nonce == 0` reproduces the original
-    ///      `keccak256(chainId, i, tag)` EXACTLY (production addresses unchanged); a non-zero nonce
-    ///      (DeployAnvil passes block.timestamp) yields a fresh salt so local re-deploys onto the
-    ///      same fork don't CreateCollision.
+    /// @dev Per-target vault CREATE3 salt. `nonce == 0` gives `keccak256(chainId, i, tag)`
+    ///      (deterministic production addresses); a non-zero nonce (DeployAnvil passes
+    ///      block.timestamp) gives a fresh salt so local re-deploys onto the same fork don't CreateCollision.
     function _vaultSalt(uint256 chainId, uint256 i, string memory tag, uint256 nonce) private pure returns (bytes32) {
         return nonce == 0 ? keccak256(abi.encode(chainId, i, tag)) : keccak256(abi.encode(chainId, i, tag, nonce));
     }

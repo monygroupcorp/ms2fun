@@ -14,57 +14,45 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
  * @title AlignmentHookSwapRouter
  * @notice Trades a graduated Uniswap-V4 pool whose key carries an alignment hook.
  *
- * @dev WHY THIS CONTRACT EXISTS.
- *      `LiquidityDeployerModule` graduates a collection into an ETH/token V4 pool. While
- *      `alignmentHookFactory` is unset that pool is hookless and static-fee, and the aggregator the
- *      app already routes through trades it. The moment the factory is set, the same graduation
- *      produces a DIFFERENT pool: the key carries the freshly-mined hook and its `fee` becomes
- *      `LPFeeLibrary.DYNAMIC_FEE_FLAG`, because the hook's `beforeSwap` returns an LP-fee override
- *      that V4 honors on dynamic-fee pools only. A `PoolKey` is identified by all five of its
- *      members, so a router that cannot name the hook and the dynamic fee names a different pool —
- *      one that was never initialized — and the trade cannot settle.
+ * @dev `LiquidityDeployerModule` graduates a collection into an ETH/token V4 pool. While
+ *      `alignmentHookFactory` is unset that pool is hookless and static-fee, and the aggregator the app
+ *      routes through trades it. Once the factory is set, graduation produces a different pool: the key
+ *      carries the freshly-mined hook and its `fee` is `LPFeeLibrary.DYNAMIC_FEE_FLAG`, because the
+ *      hook's `beforeSwap` returns an LP-fee override that V4 honors on dynamic-fee pools only. A
+ *      `PoolKey` is identified by all five members, so a router that cannot name the hook and the dynamic
+ *      fee names a pool that was never initialized.
  *
- *      The aggregator cannot be taught to name it. Its V4 entry point takes a fee and a tick
- *      spacing and builds its key with `hooks: address(0)`; there is no hook argument to pass, and
- *      on mainnet that contract is a third party's deployment which this project does not own and
- *      cannot redeploy. Patching this repo's vendored copy would light the path on the network that
- *      self-deploys it and leave it dark on the network that does not — the inverse of what a
- *      rehearsal is for. This router is therefore deployed from this repo's own source on EVERY
- *      network, next to the hook factory and the deployer module that are already deployed that
- *      way, so the path the testnet exercises is the path mainnet runs.
+ *      The aggregator cannot name it: its V4 entry point takes a fee and a tick spacing and builds its
+ *      key with `hooks: address(0)`, and on mainnet it is a third party's deployment. This router is
+ *      therefore deployed from this repo's source on every network, next to the hook factory and the
+ *      deployer module, so the path a testnet exercises is the path mainnet runs.
  *
- *      SCOPE IS DELIBERATELY NARROW. It trades one pool per call, holds no approvals of its own
- *      beyond the transfer it makes inside the callback, keeps no balance between calls, and serves
- *      only the pool shape the alignment hook binds itself to: `currency0` native ETH, `currency1`
- *      the graduated token. That shape is enforced here rather than assumed, so a key the hook
- *      would reject is refused before any value moves. Hookless pools are not this contract's
- *      business and keep using the aggregator.
+ *      Scope is narrow. It trades one pool per call, holds no approvals beyond the transfer it makes
+ *      inside the callback, keeps no balance between calls, and serves only the pool shape the alignment
+ *      hook binds itself to: `currency0` native ETH, `currency1` the graduated token. That shape is
+ *      enforced here, so a key the hook would reject is refused before any value moves. Hookless pools
+ *      belong to the aggregator.
  *
- *      SETTLEMENT IS DELTA-DRIVEN, and that is the substantive difference from a hookless router.
- *      A hookless swap owes exactly the amount it specified, so a router may settle the number it
- *      was given. This hook carries `beforeSwapReturnDelta` and `afterSwapReturnDelta`: it takes
- *      its tithe by moving the caller's own deltas, so on an exact-output buy the ETH actually owed
- *      is MORE than the swap's own input, and on an exact-input buy part of the input never reaches
- *      the pool. `IPoolManager.swap` returns the caller's total delta with those hook deltas
- *      already folded in, so this contract settles what the delta says and nothing else. Settling
- *      the requested amount instead would leave the unlock unbalanced and revert the trade.
+ *      Settlement is delta-driven. A hookless swap owes exactly the amount it specified. This hook
+ *      carries `beforeSwapReturnDelta` and `afterSwapReturnDelta` and takes its tithe by moving the
+ *      caller's own deltas, so on an exact-output buy the ETH owed is more than the swap's own input, and
+ *      on an exact-input buy part of the input never reaches the pool. `IPoolManager.swap` returns the
+ *      caller's total delta with the hook deltas folded in, so this contract settles what the delta says;
+ *      settling the requested amount would leave the unlock unbalanced and revert.
  *
- *      THE PRICE LIMIT IS NOT THE CALLER'S TO CHOOSE, and anything that builds its own `SwapParams`
- *      against one of these pools has to know why. Every swap this router sends names the extreme
- *      sentinel for its direction — `TickMath.MIN_SQRT_PRICE + 1` when `zeroForOne`,
- *      `TickMath.MAX_SQRT_PRICE - 1` otherwise — so that nothing but exhausted liquidity can stop
- *      it short. That is the pool's requirement, not this contract's preference. On the two shapes
- *      the hook charges in `beforeSwap` — an exact-input ETH buy and an exact-output ETH sell — the
- *      tithe is priced on the ETH the caller NAMED, because V4 fixes a hook's credit on the
- *      specified currency before the swap runs. A binding `sqrtPriceLimitX96`, or one order split
- *      across several pools, would therefore leave the caller paying a fee priced on ETH the pool
- *      never moved, and no later callback can hand that ETH back. The hook refuses the trade
- *      instead: it reverts `NamedEthLegNotFilled` RATHER THAN FILLING IN PART. That is a deliberate
- *      difference from an unhooked V4 pool, where the very same swap comes back part-filled and the
- *      caller keeps whatever did not trade. To cap price impact here, use `amountLimit`: it is
- *      denominated in a currency the caller can reason about and is checked against the tithed
- *      result. The two shapes charged in `afterSwap` are priced on the realised delta and part-fill
- *      as usual, as does any swap the hook takes no fee on.
+ *      The price limit is not the caller's to choose; anything that builds its own `SwapParams` against
+ *      one of these pools needs to know why. Every swap names the extreme sentinel for its direction,
+ *      `TickMath.MIN_SQRT_PRICE + 1` when `zeroForOne` and `TickMath.MAX_SQRT_PRICE - 1` otherwise, so
+ *      only exhausted liquidity can stop it short. On the two shapes the hook charges in `beforeSwap`,
+ *      an exact-input ETH buy and an exact-output ETH sell, the tithe is priced on the ETH the caller
+ *      named, because V4 fixes a hook's credit on the specified currency before the swap runs. A binding
+ *      `sqrtPriceLimitX96`, or one order split across several pools, would leave the caller paying a fee
+ *      priced on ETH the pool never moved, and no later callback can hand that ETH back. The hook
+ *      therefore reverts `NamedEthLegNotFilled` rather than fill in part, unlike an unhooked V4 pool,
+ *      where the same swap part-fills. To cap price impact here, use `amountLimit`: it is denominated in
+ *      a currency the caller can reason about and is checked against the tithed result. The two shapes
+ *      charged in `afterSwap` are priced on the realised delta and part-fill as usual, as does any swap
+ *      the hook takes no fee on.
  */
 contract AlignmentHookSwapRouter is IUnlockCallback {
     using CurrencySettler for Currency;
@@ -72,10 +60,9 @@ contract AlignmentHookSwapRouter is IUnlockCallback {
     /// @notice The V4 singleton this router settles against. Fixed at construction.
     IPoolManager public immutable poolManager;
 
-    /// @dev Transient latch proving the callback below belongs to an unlock THIS contract opened.
-    ///      `msg.sender == poolManager` already implies that today, because V4 calls back only the
-    ///      address that called `unlock`; the latch is the belt to that brace and costs two gas.
-    ///      The slot is `uint256(keccak256("AlignmentHookSwapRouter.swapping")) - 1`, written as a
+    /// @dev Transient latch proving the callback below belongs to an unlock this contract opened.
+    ///      `msg.sender == poolManager` already implies it, because V4 calls back only the address that
+    ///      called `unlock`; the latch is a second check costing two gas. The slot is `uint256(keccak256("AlignmentHookSwapRouter.swapping")) - 1`, written as a
     ///      literal because inline assembly cannot read a computed constant, and namespaced so it
     ///      cannot collide with a transient slot another contract in the same frame reserves.
     uint256 private constant SWAPPING_SLOT = 0x9b3a1f0e2c5d47a8b6e0d31f8c7a25b4e91d6038fa4c72e5d80b1a3c6f9e4d20;
@@ -140,34 +127,25 @@ contract AlignmentHookSwapRouter is IUnlockCallback {
         if (block.timestamp > deadline) revert Expired();
         if (amount == 0) revert ZeroAmount();
 
-        // What was already sitting here before this call, so the refund below can be bounded to THIS
-        // trade's own change. Nothing this router does leaves ETH here: the manager pays a sell's
-        // ETH leg STRAIGHT to `to` (`take` transfers to the recipient, never via this contract), and
-        // with no `receive()` an ordinary send here reverts. ETH can still ARRIVE unbidden, though —
-        // `selfdestruct` and a block reward reach an address whether it accepts payment or not — so a
-        // bare `address(this).balance` refund would hand whoever trades next whatever had collected
-        // that way. Same reasoning, and the same fix, as the aggregator's `_restingEth` (audit L-9):
-        // a refund is change, not a sweep.
+        // ETH already here before this call, so the refund below is bounded to this trade's own change.
+        // Nothing this router does leaves ETH here: the manager pays a sell's ETH leg straight to `to`,
+        // and with no `receive()` an ordinary send reverts. ETH can still arrive unbidden (`selfdestruct`,
+        // a block reward), so a bare `address(this).balance` refund would hand the next trader whatever
+        // collected that way. Same as the aggregator's `_restingEth`: a refund is change, not a sweep.
         uint256 resting = address(this).balance - msg.value;
-        // The hook refuses any key whose currency0 is not native ETH or whose currency1 is not the
-        // token it was mined for, so a key failing the first half here would revert deeper in with
-        // a hook error. Checking it up front keeps the failure legible and costs one comparison.
+        // The hook refuses a key whose currency0 is not native ETH; checking here keeps the failure
+        // legible rather than a hook error deeper in.
         if (!key.currency0.isAddressZero()) revert PoolNotNativeEth();
-        // Only the ZERO hook is refused, deliberately, rather than a whitelist of alignment hooks:
-        // `payer` is hardcoded to `msg.sender`, this router holds no balance and no standing
-        // approval of anyone else's, and a non-zero `amountLimit` bounds both directions. Naming a
-        // hostile hook here can therefore spend only the caller's own funds, within the bound the
-        // caller set — the same exposure as naming a hostile pool on any router. A whitelist would
-        // buy nothing and would need a registry this periphery deliberately does not carry.
+        // Only the zero hook is refused, with no whitelist of alignment hooks: `payer` is
+        // `msg.sender`, this router holds no balance and no standing approval of anyone else's, and a
+        // non-zero `amountLimit` bounds both directions. A hostile hook can spend only the caller's own
+        // funds within the caller's bound, the same exposure as naming a hostile pool on any router.
         if (address(key.hooks) == address(0)) revert PoolHasNoHook();
 
-        // `amountSpecified` is V4's sign convention, not this router's: negative is an exact input,
-        // positive an exact output. `amount` is unsigned at this surface so callers never have to
-        // carry the convention, and `exactOut` says which it is. The range check is not ceremony: an
-        // unchecked cast of an `amount` at or above 2**255 wraps NEGATIVE, which silently turns an
-        // exact-output request into an exact-input one — a different trade from the one asked for.
-        // V4's own SafeCast would reject the result further in, but only after the meaning had
-        // already changed, and with an error naming neither this argument nor this contract.
+        // `amountSpecified` is V4's sign convention: negative is an exact input, positive an exact
+        // output. `amount` is unsigned here and `exactOut` says which. An unchecked cast of an `amount`
+        // at or above 2**255 wraps negative and silently turns an exact-output request into an
+        // exact-input one, so the range is checked here.
         if (amount > uint256(type(int256).max)) revert AmountTooLarge();
         int256 amountSpecified = exactOut ? int256(amount) : -int256(amount);
 
@@ -194,17 +172,15 @@ contract AlignmentHookSwapRouter is IUnlockCallback {
             if (exactOut ? amountIn > amountLimit : amountOut < amountLimit) revert Slippage();
         }
 
-        // Whatever ETH the caller sent beyond what the swap owed. On a token sell this is the whole
-        // of `msg.value` (which should be zero), and on an exact-output buy it is the overpayment
-        // the caller could not size in advance because the hook's cut is priced inside the swap.
+        // ETH the caller sent beyond what the swap owed: the whole of `msg.value` on a token sell, and on
+        // an exact-output buy the overpayment the caller could not size because the hook's cut is priced
+        // inside the swap.
         //
-        // This subtraction is DELIBERATELY left to revert on underflow, and it is the one place this
-        // router is STRICTER than the aggregator: `zRouter._changeOver` clamps the same figure at
-        // zero, which lets a trade that drew on resting ETH succeed and simply pay its caller
-        // nothing back. Here, a swap that settled more ETH than `msg.value` can only have taken the
-        // difference from ETH that was already sitting here — which is somebody else's — so the
-        // whole transaction is unwound instead. Do not "fix" this into a clamp: the revert IS the
-        // bound, and `test_drawingOnStrandedEthRevertsTheWholeTrade` pins it.
+        // The subtraction reverts on underflow, which is stricter than the aggregator's
+        // `zRouter._changeOver` (clamps at zero, so a trade drawing on resting ETH succeeds and pays its
+        // caller nothing back). A swap that settled more ETH than `msg.value` can only have taken the
+        // difference from resting ETH that is somebody else's, so the whole transaction unwinds.
+        // `test_drawingOnStrandedEthRevertsTheWholeTrade` pins it.
         uint256 change = address(this).balance - resting;
         if (change != 0) SafeTransferLib.safeTransferETH(msg.sender, change);
     }
@@ -220,9 +196,8 @@ contract AlignmentHookSwapRouter is IUnlockCallback {
 
         SwapCallbackData memory data = abi.decode(rawData, (SwapCallbackData));
 
-        // No price limit of its own: the bound this router enforces is `amountLimit`, denominated in
-        // tokens the caller can reason about, and a sqrt-price bound on top of it would silently
-        // return a PARTIAL fill instead of reverting. The extremes are the "no limit" sentinels.
+        // No price limit of its own: the bound is `amountLimit`, and a sqrt-price bound on top of it
+        // would return a partial fill instead of reverting. The extremes are the "no limit" sentinels.
         BalanceDelta delta = poolManager.swap(
             data.key,
             IPoolManager.SwapParams({
@@ -233,9 +208,8 @@ contract AlignmentHookSwapRouter is IUnlockCallback {
             ""
         );
 
-        // Each leg is settled on its own sign rather than on which direction was requested. A hook
-        // holding both `beforeSwapReturnDelta` and `afterSwapReturnDelta` can move either side, so
-        // "the input currency is the one we owe" is an assumption this contract does not make.
+        // Each leg is settled on its own sign, not the requested direction: a hook holding both return
+        // deltas can move either side, so which currency is owed is not assumed.
         (uint256 paid0, uint256 got0) = _settleLeg(data.key.currency0, delta.amount0(), data.payer, data.to);
         (uint256 paid1, uint256 got1) = _settleLeg(data.key.currency1, delta.amount1(), data.payer, data.to);
 

@@ -24,8 +24,7 @@ struct ChainConfig {
     address nameNft;
 }
 
-/// @notice The canonical Ethereum mainnet binding set — the addresses this router carried as
-///         compile-time constants before they became deploy-time immutables.
+/// @notice The canonical Ethereum mainnet binding set.
 function mainnetChainConfig() pure returns (ChainConfig memory c) {
     c.weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     c.v4PoolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
@@ -103,10 +102,8 @@ contract zRouter {
         // burn ETH rather than revert. It is the one binding this router cannot be deployed without.
         require(c.weth != address(0), LegUnavailable());
 
-        // Ownership is an explicit constructor input, not `tx.origin`. `tx.origin` binds the owner to
-        // whichever EOA happened to broadcast — a relay, a multisig executor or a bundler under an
-        // account-abstraction or factory deploy — rather than to the intended owner, and it silently
-        // differs from `msg.sender` on any deploy path that is not a plain EOA `new`.
+        // Ownership is an explicit constructor input, not `tx.origin`, which names whichever EOA
+        // broadcast (a relay, multisig executor or bundler) rather than the intended owner.
         require(owner_ != address(0), Unauthorized());
 
         WETH = c.weth;
@@ -222,9 +219,9 @@ contract zRouter {
         (address pool, bool zeroForOne) = _v3PoolFor(tokenIn, tokenOut, swapFee);
         uint160 sqrtPriceLimitX96 = zeroForOne ? MIN_SQRT_RATIO_PLUS_ONE : MAX_SQRT_RATIO_MINUS_ONE;
 
-        // The refund at the end of this leg is measured against what was here first (audit L-9, second
-        // pass); see {_restingEth}. Drawn before the callback settles, because the callback pays the
-        // pool out of the router's ETH balance and would otherwise be inside its own baseline.
+        // The refund at the end of this leg is measured against what was here first; see {_restingEth}.
+        // Drawn before the callback settles, because the callback pays the pool out of the router's ETH
+        // balance and would otherwise be inside its own baseline.
         uint256 restingEth = _restingEth();
 
         unchecked {
@@ -252,8 +249,7 @@ contract zRouter {
             amountIn = dIn >= 0 ? uint256(dIn) : uint256(-dIn);
             amountOut = dOut <= 0 ? uint256(-dOut) : uint256(dOut);
 
-            // Handle ETH input refund (separate from output tracking). Only this leg's own change:
-            // `address(this).balance` here was the whole resting balance, handed to whoever called.
+            // ETH input refund: only this leg's own change, never the resting balance.
             if (ethIn) {
                 if ((swapAmount = _changeOver(restingEth, address(0))) != 0 && to != address(this)) {
                     _safeTransferETH(msg.sender, swapAmount);
@@ -328,7 +324,7 @@ contract zRouter {
             if (swapAmount == 0) revert BadSwap();
         }
         // The refund is made inside the callback, where `msg.sender` is the PoolManager and `msg.value`
-        // is zero, so the baseline has to be taken here and carried across (audit L-9, second pass).
+        // is zero, so the baseline is taken here and carried across.
         (amountIn, amountOut) = abi.decode(
             IV4PoolManager(V4_POOL_MANAGER)
                 .unlock(
@@ -417,8 +413,7 @@ contract zRouter {
             result = abi.encode(amountIn, amountOut);
 
             if (ethIn) {
-                // This leg's change, not the router's resting balance: the read here was
-                // `address(this).balance`, and `payer` is whoever called `swapV4`.
+                // This leg's change, not the router's resting balance; `payer` is whoever called `swapV4`.
                 uint256 ethRefund = _changeOver(restingEth, address(0));
                 if (ethRefund != 0 && to != address(this)) {
                     _safeTransferETH(payer, ethRefund);
@@ -514,13 +509,11 @@ contract zRouter {
         (amountIn, amountOut) = exactOut ? (swapResult, swapAmount) : (swapAmount, swapResult);
 
         if (exactOut && to != address(this)) {
-            // The leg's own change, from the leg's own arithmetic (audit L-9, second pass): an exact-out
-            // hop takes `amountLimit` in and the venue consumes `amountIn`, so `amountLimit - amountIn`
-            // is what is owed back, whichever way the input arrived — `msg.value`, a `transferFrom`, or
-            // a credit staged earlier in a multicall. Each read here used to be the router's WHOLE
-            // balance, which is the hatch `sweep` was closed for, reached through a swap instead: an
-            // attacker refused by `sweep` bought a one-wei fill and was handed the resting balance as
-            // "change". Arithmetic cannot reach past what the hop took in; a balance read can.
+            // The leg's own change, from the leg's own arithmetic: an exact-out hop takes `amountLimit`
+            // in and the venue consumes `amountIn`, so `amountLimit - amountIn` is owed back however the
+            // input arrived (`msg.value`, a `transferFrom`, or a credit staged earlier in a multicall).
+            // A balance read could hand back the router's resting balance as "change"; arithmetic cannot
+            // reach past what the hop took in.
             uint256 refund;
             unchecked {
                 refund = amountLimit > amountIn ? amountLimit - amountIn : 0;
@@ -560,9 +553,9 @@ contract zRouter {
             }
         }
         bool ethIn = _isETH(inputToken);
-        // Baselines for the leftover-input refund at the bottom (audit L-9, second pass): what was
-        // already here before this leg pulled or wrapped anything. Both sides are needed on the ETH
-        // path, because the pre-fund below wraps the input and the route can hand dust back as either.
+        // Baselines for the leftover-input refund at the bottom: what was here before this leg pulled
+        // or wrapped anything. Both sides are needed on the ETH path, because the pre-fund below wraps
+        // the input and the route can hand dust back as either.
         uint256 restingEth = _restingEth();
         uint256 restingIn = ethIn ? balanceOf(WETH) : balanceOf(inputToken);
 
@@ -578,10 +571,9 @@ contract zRouter {
                     uint256 st = p[2];
                     uint256 pt = p[3];
 
-                    // Every Curve quote below rounds DOWN, so the input it names buys one wei less
-                    // than the leg asked for and the forward pass then reverts Slippage(). The `+ 1`
-                    // is the rounding buffer that makes an exact-out route executable; upstream
-                    // carries it on each of these eight lines and this fork had dropped all of them.
+                    // Every Curve quote below rounds DOWN, so the input it names buys one wei less than
+                    // the leg asked for and the forward pass would revert Slippage(). The `+ 1` is the
+                    // rounding buffer that keeps an exact-out route executable.
                     if (st == 8) {
                         // ETH<->WETH is 1:1
                     } else if (st == 1) {
@@ -777,8 +769,8 @@ contract zRouter {
 
         // ---- leftover input refund (exactOut only, not chaining) ----
         if (exactOut && to != address(this)) {
-            // Each read below was the router's WHOLE balance and is now this leg's change over the
-            // baseline taken at the top — the resting balance is not the caller's to be given back.
+            // This leg's change over the baseline taken at the top; the resting balance is not the
+            // caller's to be given back.
             if (ethIn) {
                 // refund any ETH dust first:
                 uint256 e = _changeOver(restingEth, address(0));
@@ -884,7 +876,7 @@ contract zRouter {
 
     function multicall(bytes[] calldata data) public payable returns (bytes[] memory results) {
         // Ahead of the loop: the sub-calls are `delegatecall`s that each see the original `msg.value`,
-        // so the resting-ETH line has to be drawn while the balance still holds all of it (audit L-9).
+        // so the resting-ETH line is drawn while the balance still holds all of it.
         _restingEth();
         results = new bytes[](data.length);
         for (uint256 i; i != data.length; ++i) {
@@ -901,10 +893,9 @@ contract zRouter {
     // ** TRANSIENT STORAGE
 
     function deposit(address token, uint256 id, uint256 amount) public payable {
-        // A native deposit must be paid for. Without this the `msg.value == 0` path fell through both
-        // blocks below and still tstored an `amount` ETH credit nobody sent, spendable in the same
-        // transaction out of the router's own balance. A zero-value, zero-amount native call stays
-        // legal and credits nothing, which is what the multicall no-op shapes rely on.
+        // A native deposit must be paid for, or the `msg.value == 0` path would credit an `amount` of
+        // ETH nobody sent, spendable out of the router's own balance. A zero-value, zero-amount native
+        // call is legal and credits nothing, which the multicall no-op shapes rely on.
         if (token == address(0)) require(msg.value == amount, InvalidMsgVal());
         if (msg.value != 0) {
             require(id == 0, InvalidId());
@@ -928,19 +919,18 @@ contract zRouter {
     ///      nor on a `_useTransientBalance` slot, which are hashes of a three-word credit key.
     uint256 private constant _RESTING_ETH_SLOT = 0xfb9ac048ee8062dc38eb2edfbb186eddeabb869d768997f90835358990c1e2c8;
 
-    /// @dev The ETH that was already sitting here before this TRANSACTION put anything in — the line a
-    ///      leg's refund is measured against (audit L-9, second pass).
+    /// @dev The ETH that was already sitting here before this transaction put anything in; the line a
+    ///      leg's refund is measured against.
     ///
     ///      Recorded once and reused, because `multicall` reaches the legs by `delegatecall` and every
-    ///      sub-call therefore sees the ORIGINAL `msg.value`. Recomputing `balance - msg.value` per leg
-    ///      would subtract the same wei once per hop: it reads a chained multicall's own staged ETH as
-    ///      resting on one leg and, once an earlier hop has spent below `msg.value`, underflows on the
-    ///      next. Recorded once, it is what it claims to be — a property of the transaction, not of the
-    ///      call. Transient storage clears at the end of the transaction, which is exactly its lifetime.
+    ///      sub-call sees the original `msg.value`. Recomputing `balance - msg.value` per leg would
+    ///      subtract the same wei once per hop, reading a chained multicall's own staged ETH as resting
+    ///      and underflowing once an earlier hop has spent below `msg.value`. Transient storage clears
+    ///      at the end of the transaction, which is exactly the baseline's lifetime.
     ///
     ///      Every entry point that can spend ETH records it before spending, `multicall` ahead of its
-    ///      loop, so the first writer always sees a balance that still holds the whole of `msg.value`.
-    ///      The clamp is belt-and-braces for any future caller that does not.
+    ///      loop, so the first writer sees a balance that still holds the whole of `msg.value`. The
+    ///      clamp covers a caller that does not.
     function _restingEth() internal returns (uint256 resting) {
         assembly ("memory-safe") {
             resting := tload(_RESTING_ETH_SLOT)
@@ -964,10 +954,9 @@ contract zRouter {
     ///      on the router's whole ETH balance, not on `msg.value` alone) lands below its own baseline,
     ///      and that is a debt to the router, never change owed to the caller.
     ///
-    ///      Paired with {_restingEth}, this is the second half of the L-9 guard. `_requireOwnBalance`
-    ///      stops a caller MOVING a balance that is not theirs; these stop a leg HANDING one back as
-    ///      change. Both say the same thing — the router's resting balance belongs to nobody who asks —
-    ///      and a leg that refunded `address(this).balance` said the opposite.
+    ///      Paired with {_restingEth}. `_requireOwnBalance` stops a caller moving a balance that is not
+    ///      theirs; this stops a leg handing one back as change. The router's resting balance belongs to
+    ///      nobody who asks.
     function _changeOver(uint256 resting, address token) internal view returns (uint256) {
         uint256 held = token == address(0) ? address(this).balance : balanceOf(token);
         unchecked {
@@ -975,19 +964,17 @@ contract zRouter {
         }
     }
 
-    /// @dev The authentication the value-moving hatches share (audit L-9): a caller may move the
-    ///      router's balance only to the extent THIS transaction credited it to the router, and the owner
-    ///      may move it regardless.
+    /// @dev The authentication the value-moving hatches share: a caller may move the router's balance
+    ///      only to the extent this transaction credited it to the router, and the owner may move it
+    ///      regardless.
     ///
-    ///      The credit is the router's own model of whose money is here — `depositFor` writes it on every
-    ///      deposit and on every leg that ships its output back to the router, and every swap leg already
-    ///      spends against it. The hatches were the functions that moved the balance without consulting
-    ///      it. Transient storage is cleared at the end of the transaction, so the credit can only ever
-    ///      describe money that arrived in the same transaction as the call spending it.
+    ///      The credit is the router's own model of whose money is here: `depositFor` writes it on every
+    ///      deposit and on every leg that ships its output back to the router, and every swap leg spends
+    ///      against it. Transient storage is cleared at the end of the transaction, so the credit only
+    ///      describes money that arrived in the same transaction as the call spending it.
     ///
-    ///      The owner branch does NOT consume credit: it is the recovery path for a balance no credit
-    ///      describes (a donation, a rebase, a token sent here by mistake), which would otherwise have no
-    ///      exit at all once the hatches are closed.
+    ///      The owner branch does not consume credit: it is the recovery path for a balance no credit
+    ///      describes (a donation, a rebase, a token sent here by mistake).
     function _requireOwnBalance(address token, uint256 id, uint256 amount) internal {
         if (msg.sender == _owner) return;
         require(_useTransientBalance(address(this), token, id, amount), Unauthorized());
@@ -1030,14 +1017,9 @@ contract zRouter {
     receive() external payable { }
 
     /// @notice Move the router's own resting balance of `token` (`id` for ERC-6909) to `to`.
-    /// @dev Authenticated (audit L-9). `sweep` sends the ROUTER's balance, not the caller's, to an
-    ///      address the caller picks, and it used to do so for anybody. Nothing rests here — every leg
-    ///      ships its output to `to` in the same transaction, no protocol contract holds a standing
-    ///      approval, and the router's balances are transient-tracked — so the surface has never had
-    ///      anything to take. That is a property of what happens to be lying around, not a guard.
-    ///      `_requireOwnBalance` makes it one: the caller may sweep what THIS transaction credited to
-    ///      the router, and the owner may sweep anything, which is what keeps a stray donation
-    ///      recoverable instead of stranded.
+    /// @dev `sweep` sends the router's balance, not the caller's, to an address the caller picks.
+    ///      `_requireOwnBalance` gates it: the caller may sweep what this transaction credited to the
+    ///      router, and the owner may sweep anything, which keeps a stray donation recoverable.
     function sweep(address token, uint256 id, uint256 amount, address to) public payable {
         if (token == address(0)) {
             uint256 amt = amount == 0 ? address(this).balance : amount;
@@ -1140,12 +1122,8 @@ contract zRouter {
     address _owner;
 
     /// @notice The address that passes `onlyOwner` — the sweep capability and the trusted-target map.
-    /// @dev    Upstream keeps this private, and a router whose owner cannot be read is a router whose
-    ///         ownership handover cannot be verified: `transferOwnership` emits `OwnershipTransferred`
-    ///         and then the current holder is knowable only by replaying every log ever emitted, or by
-    ///         reading storage by slot index. This deployment is migrated to a Timelock along with the
-    ///         rest of the protocol, and that migration is asserted by reading each contract's owner
-    ///         back, so the getter is what makes this contract checkable at all.
+    /// @dev    Public so an ownership handover can be verified by reading the owner back, rather than by
+    ///         replaying `OwnershipTransferred` logs or reading storage by slot.
     function owner() public view returns (address) {
         return _owner;
     }
@@ -1166,11 +1144,10 @@ contract zRouter {
     }
 
     /// @notice Call `target` with `value` of the router's ETH and arbitrary calldata.
-    /// @dev Authenticated on BOTH halves (audit L-9). The trusted-target map was the only gate, and
-    ///      `trust()` — the one writer — is called nowhere in this repository, so as deployed the map is
-    ///      empty and this function is inert. Inert is not the same as closed: one `trust()` call opens an
-    ///      arbitrary-call surface to every caller at once. `onlyOwner` means the owner chooses WHEN as
-    ///      well as WHICH, and an accidental or premature `trust()` no longer hands the surface out.
+    /// @dev Owner only, and only to a target in the trusted map. `trust()` is the map's one writer and
+    ///      nothing in this repository calls it, so as deployed the map is empty and this function is
+    ///      inert. `onlyOwner` means the owner chooses when as well as which, so a `trust()` call does
+    ///      not open an arbitrary-call surface to every caller.
     function execute(address target, uint256 value, bytes calldata data)
         public
         payable
@@ -1211,10 +1188,9 @@ contract zRouter {
             if (amountIn != 0) {
                 safeTransferFrom(tokenIn, msg.sender, executor, amountIn);
             } else {
-                // `amountIn == 0` means "send the executor what is already here", which is the router's
-                // OWN balance and not the caller's — the same hatch `sweep` carried, with the executor
-                // as the destination (audit L-9). The pull-from-sender branch above needs no guard: it
-                // moves the caller's tokens under the caller's own allowance.
+                // `amountIn == 0` sends the executor what is already here, the router's own balance
+                // and not the caller's. The pull-from-sender branch above needs no guard: it moves the
+                // caller's tokens under the caller's own allowance.
                 unchecked {
                     uint256 bal = balanceOf(tokenIn);
                     if (bal > 1) {
@@ -1252,10 +1228,9 @@ contract zRouter {
             if (amountIn != 0) {
                 safeTransferFrom(tokenIn, msg.sender, executor, amountIn);
             } else {
-                // `amountIn == 0` means "send the executor what is already here", which is the router's
-                // OWN balance and not the caller's — the same hatch `sweep` carried, with the executor
-                // as the destination (audit L-9). The pull-from-sender branch above needs no guard: it
-                // moves the caller's tokens under the caller's own allowance.
+                // `amountIn == 0` sends the executor what is already here, the router's own balance
+                // and not the caller's. The pull-from-sender branch above needs no guard: it moves the
+                // caller's tokens under the caller's own allowance.
                 unchecked {
                     uint256 bal = balanceOf(tokenIn);
                     if (bal > 1) {
@@ -1433,9 +1408,9 @@ contract zRouter {
     /// @dev User must first commit on NameNFT using `makeCommitment(label, routerAddress, derivedSecret)`.
     ///      The derived secret is `keccak256(abi.encode(innerSecret, to))`, binding the commitment
     ///      to the intended recipient. This prevents mempool front-running of the reveal tx.
-    ///      Chain with swap via multicall for atomic swap-to-reveal. Excess ETH stays in
-    ///      router for sweep, and since audit L-9 that sweep is authenticated the same way this
-    ///      function is: the transaction that put the ETH here is the one that may take it back.
+    ///      Chain with swap via multicall for atomic swap-to-reveal. Excess ETH stays in the router
+    ///      for sweep, which is authenticated the same way: the transaction that put the ETH here is
+    ///      the one that may take it back.
     function revealName(string calldata label, bytes32 innerSecret, address to)
         public
         payable
@@ -1443,10 +1418,8 @@ contract zRouter {
     {
         bytes32 secret = keccak256(abi.encode(innerSecret, to));
         uint256 val = address(this).balance;
-        // The credit was computed and thrown away: the reveal spent the router's whole ETH balance for
-        // whoever asked, and the name landed on their `to` (audit L-9). Requiring it is what makes the
-        // "chain with swap via multicall" pattern above the ONLY way in — the ETH spent is the ETH this
-        // transaction put here.
+        // Requiring the credit makes the "chain with swap via multicall" pattern above the only way in:
+        // the ETH spent is the ETH this transaction put here.
         _requireOwnBalance(address(0), 0, val);
         tokenId = INameNFT(NAME_NFT).reveal{ value: val }(label, secret);
         INameNFT(NAME_NFT).transferFrom(address(this), to, tokenId);

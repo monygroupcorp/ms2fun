@@ -103,8 +103,8 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     error HarvestSameBlock();
     error PoolKeyLocked();
     error NoReferencePool();
-    /// @dev withdrawTargetFees: the registry has no per-target alignment sink pinned yet
-    ///      (`getCommunityPayout == address(0)`). Accrual still happens; only the push is gated.
+    /// @dev withdrawTargetFees: the registry has no per-target alignment sink pinned
+    ///      (`getCommunityPayout == address(0)`). Accrual continues; only the push is gated.
     error TargetSinkNotSet();
 
     // ── Anti-DoS constants ────────────────────────────────────────────────
@@ -133,11 +133,11 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     IZAMM.PoolKey internal _poolKey;
     uint256 public poolId;
 
-    // zQuoter for on-chain best-route acquisition (owner-set, address(0) = fixed-pool fallback only).
-    // Wired post-deploy by the factory; the fixed _poolKey.feeOrHook ZAMM pool stays the fallback.
+    // zQuoter for on-chain best-route acquisition (owner-set, address(0) = fixed-pool only).
+    // The factory wires it after deploy; the fixed _poolKey.feeOrHook ZAMM pool is the fallback.
     address public zQuoter;
 
-    // ── Protocol economics — the 80/19/1 alignment law (hard immutable, noesis-051) ──
+    // ── Protocol economics — the 80/19/1 alignment split ──
     address public protocolTreasury;
     /// @notice Protocol treasury cut of LP yield: 1%. Compile-time constant — there is deliberately
     ///         NO owner setter (the ratio is locked; only `setProtocolTreasury` moves the destination).
@@ -147,13 +147,13 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     // Benefactors take the remainder (8000 bps = 80%), computed as fees - protocol - target so the
     // three legs can never exceed the harvested fees (rounding dust favors benefactors).
 
-    // ── Price-manipulation guard (F5) ─────────────────────────────────────
+    // ── Price-manipulation guard ─────────────────────────────────────
     /// @notice Independent price source (Uniswap TWAP) used to floor swap slippage on the
     ///         permissionless convert/harvest paths. address(0) = no floor (caller minOut only).
     IVaultPriceValidator public priceValidator;
     uint256 public maxPriceDeviationBps; // default 500 (5%)
 
-    // ── Alignment target binding (set once at init; mirrors Uni) ──────────
+    // ── Alignment target binding (set once at init) ──────────
     /// @notice Registry holding the DAO-pinned canonical {ReferencePool} the anti-sandwich floor reads.
     IAlignmentRegistry public alignmentRegistry;
     /// @notice ID of the alignment target this vault serves; keys the reference-pool lookup.
@@ -197,21 +197,17 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
     // ── WETH fallback rail ────────────────────────────────────────────────
     /// @notice Canonical WETH used as the ETH-transfer fallback when a benefactor/delegate is a smart
-    ///         wallet that rejects plain ETH (adoption-gap F1). Set once at init, zero-checked. Appended
-    ///         at the end of storage so the addition is slot-append-only (layout-safe for these fresh,
-    ///         non-upgradeable CREATE3 clones — each clone owns its storage against a fixed impl).
+    ///         wallet that rejects plain ETH. Set once at init, zero-checked.
     address public weth;
 
     // ── Unclaimed benefactor entitlement ─────────────────────────────────
     /// @notice The benefactor share of harvested fees that has been crystallized into
-    ///         `accRewardPerContribution` but not yet claimed. Rises by `benefactorFees` on every
+    ///         `accRewardPerContribution` but unclaimed. Rises by `benefactorFees` on every
     ///         harvest that credits the accumulator, falls by each claim's payout, so it is the ETH
     ///         this vault still owes benefactors — which is what `accumulatedFees()` reports.
-    /// @dev    It exists because a balance-derived figure
-    ///         cannot answer the question: the vault's raw balance also holds the protocol and
-    ///         target cuts awaiting their push, and (since the residual re-credit) ETH carried
-    ///         forward for the next conversion. Appended at the end of storage so the addition is
-    ///         slot-append-only, matching the WETH rail above.
+    /// @dev    A balance-derived figure cannot answer the question: the vault's raw balance also
+    ///         holds the protocol and target cuts awaiting their push, and ETH carried forward for
+    ///         the next conversion.
     ///         It is an aggregate booking, not a per-benefactor one, so it does not agree with the
     ///         sum of the per-benefactor claims to the wei, and cannot be made to: a claim is
     ///         `floor(contribution * acc / 1e18)` net of `rewardDebt`, which itself telescopes a
@@ -239,8 +235,8 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     ) external {
         if (_initialized) revert VaultAlreadyInitialized();
         if (_protocolTreasury == address(0)) revert TreasuryNotSet();
-        // WETH is the fallback rail for benefactor yield when a smart-wallet recipient rejects plain ETH
-        // (adoption-gap F1). A zero WETH would silently disable the fallback, so reject it at init.
+        // WETH is the fallback rail for benefactor yield when a smart-wallet recipient rejects plain ETH.
+        // A zero WETH would silently disable the fallback, so reject it at init.
         if (_weth == address(0)) revert InvalidAddress();
         _initialized = true;
 
@@ -253,11 +249,11 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
         protocolTreasury = _protocolTreasury;
         maxPriceDeviationBps = 500;
-        // F5: wire the oracle floor at init (mirrors Uni). address(0) → floor inert (back-compat);
-        // production deploys pass the shared UniswapVaultPriceValidator so swaps are TWAP-floored.
+        // address(0) leaves the oracle floor inert; a live deployment passes the shared
+        // UniswapVaultPriceValidator so swaps are TWAP-floored.
         priceValidator = IVaultPriceValidator(_priceValidator);
 
-        // Alignment target binding (mirrors Uni): the anti-sandwich floor resolves the DAO-pinned
+        // Alignment target binding: the anti-sandwich floor resolves the DAO-pinned
         // canonical ReferencePool from this registry keyed by (alignmentTargetId, alignmentToken).
         alignmentRegistry = _alignmentRegistry;
         alignmentTargetId = _alignmentTargetId;
@@ -285,8 +281,8 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         nonReentrant
     {
         if (Currency.unwrap(currency) != address(0)) revert ETHOnly();
-        // Defense-in-depth (Uni parity): enforce the declared amount equals the ETH sent so no caller
-        // can under/over-declare its contribution vs the value transferred.
+        // The declared amount must equal the ETH sent, so no caller can under/over-declare its
+        // contribution against the value transferred.
         if (msg.value != amount) revert AmountMismatch();
         _trackPending(benefactor, msg.value);
     }
@@ -308,19 +304,19 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         return _poolKey;
     }
 
-    /// @notice Whether this vault is operationally wired for liquidity provision (O2 gate).
+    /// @notice Whether this vault is operationally wired for liquidity provision.
     /// @dev True once the ZAMM pool key (token1 side set) AND a price validator are configured, so
     ///      the wizard can safely offer the ZAMM venue. A vault deployed with a zero pool key
-    ///      (pre-wiring) reports false and is hidden/disabled in the picker.
+    ///      reports false.
     function isLiquidityReady() external view returns (bool) {
         return _poolKey.token1 != address(0) && address(priceValidator) != address(0);
     }
 
     /// @notice Set the ZAMM pool key for liquidity operations (owner = deploying factory).
-    /// @dev Fills the post-init wiring gap: the vault can be deployed against a zero pool key and
-    ///      wired once the ETH/token ZAMM pool is chosen. Only allowed while no liquidity has been
-    ///      deployed yet (principalInvariant == 0) so an active position's key can never be swapped
-    ///      out from under it. `poolId` is re-derived to stay consistent with the key.
+    /// @dev The vault can be deployed against a zero pool key and wired once the ETH/token ZAMM
+    ///      pool is chosen. Allowed only while no liquidity is deployed (principalInvariant == 0), so
+    ///      an active position's key can never be swapped out from under it. `poolId` is re-derived
+    ///      to stay consistent with the key.
     /// @param key ZAMM pool key for the ETH/alignmentToken pool
     function setPoolKey(IZAMM.PoolKey calldata key) external onlyOwner {
         if (principalInvariant != 0) revert PoolKeyLocked();
@@ -351,7 +347,7 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         // Crystallize any accrued LP fees into the accumulator at the CURRENT totalContributions BEFORE
         // this convert enlarges it below, so a benefactor arriving in this batch cannot claim a share of
         // fees earned before they joined (mirrors AlignmentEndowmentVault's crystallize-first ordering).
-        // A no-op until incumbents exist; `_harvestAccruedFees` self-returns when no fees have accrued.
+        // Does nothing until incumbents exist; `_harvestAccruedFees` self-returns when no fees have accrued.
         if (totalContributions > 0) {
             _harvestAccruedFees(0);
         }
@@ -373,7 +369,7 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         uint256 ethForLP = deployETH - ethToSwap;
 
         // Floor the caller's slippage bound to an oracle-derived minimum so a permissionless caller
-        // cannot pass loose minTokenOut and sandwich the vault's own ETH->token swap (F5).
+        // cannot pass loose minTokenOut and sandwich the vault's own ETH->token swap.
         uint256 effMinTokenOut = _floorTokenOut(ethToSwap, minTokenOut);
         SwapLPResult memory r = _swapAndAddLiquidity(ethToSwap, ethForLP, effMinTokenOut, minEth, minToken);
 
@@ -448,10 +444,9 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         uint256 minEth,
         uint256 minToken
     ) private returns (SwapLPResult memory r) {
-        // Unified acquire (Front 2): pick the deepest pool via on-chain zQuoter and dispatch to the
-        // matching TYPED zRouter leg; degrade to the fixed _poolKey.feeOrHook swapVZ pool when zQuoter
-        // is unset/empty. minTokenOut (the oracle floor) is enforced by the router. The ZAMM LP-add
-        // below is unchanged (venue-native).
+        // Picks the deepest pool via on-chain zQuoter and dispatches to the matching typed zRouter
+        // leg; uses the fixed _poolKey.feeOrHook swapVZ pool when zQuoter is unset/empty. minTokenOut
+        // (the oracle floor) is enforced by the router.
         r.tokenBought = BestRouteAcquirer.acquireViaVZ(
             zRouter, zQuoter, alignmentToken, ethToSwap, minTokenOut, _poolKey.feeOrHook, block.timestamp + 15 minutes
         );
@@ -475,12 +470,11 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     }
 
     /// @dev Crystallize accrued LP fees into `accRewardPerContribution` at the CURRENT
-    ///      `totalContributions`. Extracted from `harvest` so `convertAndAddLiquidity` can invoke it as
-    ///      its first effect — before it grows `totalContributions` — mirroring
-    ///      `AlignmentEndowmentVault`'s crystallize-first ordering so an arriving benefactor cannot
-    ///      dilute incumbents' already-earned fees. The external `harvest` keeps the same-block and
-    ///      zero-contribution guards; this body carries none, so the ordering call from convert is never
-    ///      suppressed. The token→ETH leg is still floored to the canonical reference inside
+    ///      `totalContributions`. `convertAndAddLiquidity` calls it as its first effect, before it
+    ///      grows `totalContributions` (`AlignmentEndowmentVault` orders a deposit the same way), so an arriving benefactor
+    ///      cannot dilute incumbents' already-earned fees. The external `harvest` carries the
+    ///      same-block and zero-contribution guards; this body carries none, so the call from convert
+    ///      is never suppressed. The token→ETH leg is floored to the canonical reference inside
     ///      `_removeFeeLP`, so a zero `minEthOut` from convert cannot widen slippage.
     function _harvestAccruedFees(uint256 minEthOut) internal returns (uint256 feesCollected) {
         uint256 lpHeld = IZAMM(zamm).balanceOf(address(this), poolId);
@@ -502,11 +496,9 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         // round down: slightly fewer LP tokens burned
         uint256 feeLP = invFees == 0 ? 0 : lpHeld * invFees / currentInvariant;
 
-        // Deliberately NOT an early return on `feeLP == 0`. `_removeFeeLP` also sells the token-side
-        // residual the LP add left behind (L-10), and that residue has no other reader: gating the
-        // whole leg on fee growth is what let it accrete across batches with no path out. With no fee
-        // LP to burn the call becomes "sell whatever token is sitting here", and returns zero when
-        // there is none.
+        // Not an early return on `feeLP == 0`: `_removeFeeLP` also sells the token-side residual the
+        // LP add leaves behind, and that residue has no other reader. With no fee LP to burn the call
+        // sells whatever token is sitting here, and returns zero when there is none.
         feesCollected = _removeFeeLP(feeLP, minEthOut);
         if (feesCollected == 0) return 0;
 
@@ -525,15 +517,14 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
             accRewardPerContribution += benefactorFees * 1e18 / totalContributions; // round down: dust stays in vault
             // Booked beside the accumulator, and only inside this guard: fees that were not
             // crystallized into a per-contribution reward are not claimable by anyone, so counting
-            // them would reintroduce the over-report this counter replaces.
+            // them would over-report what the vault owes.
             _totalAccumulatedFees += benefactorFees;
         }
 
-        // Deliberately do NOT touch principal here. feeLP is exactly the LP whose invariant value
-        // exceeds the baseline, so removing it pulls currentInvariant back down to principalInvariant;
-        // reducing the baseline would make the next harvest see phantom fees and bleed principal —
-        // the very flaw this invariant rework closes. principalETH/principalToken stay as the nominal
-        // cumulative-deposit record for reporting.
+        // Principal is not touched here. feeLP is exactly the LP whose invariant value exceeds the
+        // baseline, so removing it pulls currentInvariant back down to principalInvariant; reducing
+        // the baseline would make the next harvest see phantom fees and bleed principal.
+        // principalETH/principalToken stay as the nominal cumulative-deposit record for reporting.
 
         emit Harvested(feesCollected, benefactorFees, protocolCut, targetCut);
         emit FeesAccumulated(benefactorFees);
@@ -548,15 +539,14 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         // Sell the vault's WHOLE alignment-token balance, not just what this removal returned.
         // `_swapAndAddLiquidity` buys `tokenBought` and ZAMM's `addLiquidity` takes only `tokenUsed`
         // at the pool's ratio; the difference stays here. The ETH side of that same rounding is
-        // re-credited through `ethResidual`, but the token side had no reader at all, so it accreted
-        // monotonically with no path out. The vault holds no alignment token in flight at either call
-        // site — this runs before `_swapAndAddLiquidity` inside `convertAndAddLiquidity` and outside
-        // it on `harvest` — so the balance here is exactly fee token plus residue, and both belong to
-        // the same 80/19/1 split.
+        // re-credited through `ethResidual`. The vault holds no alignment token in flight at either
+        // call site — this runs before `_swapAndAddLiquidity` inside `convertAndAddLiquidity` and
+        // outside it on `harvest` — so the balance here is exactly fee token plus residue, and both
+        // belong to the same 80/19/1 split.
         uint256 tokRemoved = IERC20(alignmentToken).balanceOf(address(this));
         uint256 swappedEth;
         if (tokRemoved > 0) {
-            // Floor the caller's slippage bound to an oracle-derived minimum (F5).
+            // Floor the caller's slippage bound to an oracle-derived minimum.
             uint256 effMinEthOut = _floorEthOut(tokRemoved, minEthOut);
             IERC20(alignmentToken).forceApprove(zRouter, tokRemoved);
             (, swappedEth) = IzRouterV2(zRouter)
@@ -627,7 +617,7 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         uint256 booked = _totalAccumulatedFees;
         _totalAccumulatedFees = pending < booked ? booked - pending : 0;
         // WETH-fallback transfer: a smart-wallet recipient rejecting plain ETH still receives its yield
-        // as WETH instead of bricking the claim (adoption-gap F1). Covers both claimFees and delegate.
+        // as WETH instead of bricking the claim. Covers both claimFees and delegate.
         SmartTransferLib.smartTransferETH(recipient, pending, weth);
         ethClaimed = pending;
         emit FeesClaimed(benefactor, pending);
@@ -642,7 +632,7 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         emit ProtocolTreasuryUpdated(old, treasury_);
     }
 
-    /// @notice Wire the independent price validator used to floor convert/harvest swap slippage (F5).
+    /// @notice Wire the independent price validator used to floor convert/harvest swap slippage.
     ///         Pass address(0) to disable the floor (caller-supplied minimums only).
     function setPriceValidator(address validator) external onlyOwner {
         priceValidator = IVaultPriceValidator(validator);
@@ -651,8 +641,8 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
     /// @notice Set the on-chain zQuoter used for best-route acquisition (owner = deploying factory).
     /// @dev address(0) disables best-route selection, leaving only the fixed _poolKey.feeOrHook swapVZ
-    ///      fallback (mirrors the priceValidator "inert when zero" pattern). Only the acquire
-    ///      (ETH->alignment token) leg consults it; the harvest token->ETH swap is unchanged.
+    ///      pool. Only the acquire (ETH->alignment token) leg consults it; the harvest token->ETH swap
+    ///      always uses the fixed pool.
     ///      minTokenOut is always the vault's own oracle floor, so a mis-set quoter can never widen
     ///      slippage — the worst case is degrading to the fixed pool.
     /// @param newZQuoter zQuoter address, or address(0) to use fixed-pool acquisition only
@@ -749,11 +739,9 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     }
 
     /// @inheritdoc IAlignmentVault
-    /// @dev Reports the unclaimed benefactor entitlement from its own counter. The previous
-    ///      `address(this).balance - pendingETH` counted every other use of the vault's balance as
-    ///      benefactor yield — the accrued protocol and target cuts that are owed elsewhere, and any
-    ///      bare ETH sent to `receive()` — so it over-reported, and it never fell when fees were
-    ///      claimed, as the interface says it must.
+    /// @dev Reports the unclaimed benefactor entitlement from its own counter, not the vault balance,
+    ///      which also holds the accrued protocol and target cuts and any bare ETH sent to `receive()`.
+    ///      It falls as fees are claimed.
     function accumulatedFees() external view override returns (uint256) {
         return _totalAccumulatedFees;
     }

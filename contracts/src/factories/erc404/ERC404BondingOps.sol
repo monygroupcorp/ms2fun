@@ -66,46 +66,44 @@ import { GatingScope } from "../../gating/IGatingModule.sol";
 
 /**
  * @title ERC404BondingOps
- * @notice Externalized bodies for `ERC404BondingInstance` (EIP-170 diet — noesis-091 for reroll,
- *         noesis-142 for the tier ops, noesis-148 for the six value-path functions, noesis-149 for the
- *         thirteen init/admin/setter config functions). This contract is
- *         NEVER deployed as a token nor called directly: the master instance reaches every function here
+ * @notice Externalized bodies for `ERC404BondingInstance` (EIP-170 headroom): reroll, tier ops, the
+ *         value-path functions and the init/admin/setter config functions. This contract is never
+ *         deployed as a token nor called directly: the master instance reaches every function here
  *         via a discard-returndata `delegatecall`, so each body executes in the instance's own storage
  *         context. It inherits the identical `ERC404BondingStorage` base as the instance, so the
  *         storage layout is byte-identical (CI-gated) and the shared DN404 `$` / Ownable owner /
  *         ReentrancyGuard slots resolve to the same fixed hashed slots across the delegatecall boundary.
- * @dev    HARD CONSTRAINT: Ops declares ZERO storage of its own outside the inherited base. Adding any
- *         state variable here is a storage-collision bug — put new state in `ERC404BondingStorage`.
- *         `_ops` immutable is deliberately NOT here: immutables live in code, not storage.
+ * @dev    Ops declares no storage of its own outside the inherited base; a state variable here would
+ *         collide with the instance's layout. New state goes in `ERC404BondingStorage`. The instance's
+ *         `_ops` is immutable, so it lives in code, not storage.
  * @dev    `msg.sender` and `msg.value` are preserved across `delegatecall`, so `onlyOwner` (Ownable's
- *         shared slot) and every staker-keyed module call resolve exactly as they did in the instance.
+ *         shared slot) and every staker-keyed module call resolve against the instance's caller.
  */
 contract ERC404BondingOps is ERC404BondingStorage {
     // ┌─────────────────────────┐
     // │   Reroll (delegatecall) │
     // └─────────────────────────┘
 
-    /// @notice Reroll body, moved verbatim from the instance. Keeps `nonReentrant`: the guard uses the
-    ///         shared fixed slot, so it engages in the instance's context under delegatecall. No owner
-    ///         gate (matches the instance's historic access exactly).
-    /// @dev    REROLL NEVER DISSOLVES A TIER NFT. The coin round trip below is a debit like any other,
-    ///         so an unexempted band id sitting in the burned range of the outward leg is destroyed and
-    ///         its denomination converted to a `pendingEscrowRelease` claim by the T3 hook. That is the
-    ///         one destruction the holder did not aim at — every other one (spend, sell, stake) is a
-    ///         deliberate move of coin — so the protection is in the contract rather than in a caller:
+    /// @notice Reroll the caller's NFTs, keeping any exempted ids and every owned band NFT. Guarded by
+    ///         `nonReentrant` (shared fixed slot, engages in the instance's context under delegatecall);
+    ///         no owner gate.
+    /// @dev    Reroll never dissolves a tier NFT. The coin round trip below is a debit like any other,
+    ///         so an unexempted band id sitting in the burned range of the outward leg would be
+    ///         destroyed and its denomination converted to a `pendingEscrowRelease` claim by the
+    ///         burn-safety hook. Every other destruction (spend, sell, stake) is a deliberate move of
+    ///         coin, so the protection is in the contract rather than in a caller:
     ///         `_effectiveExemptions` appends every band id the caller owns to the supplied list, and
-    ///         the whole body reads that combined list. No caller — this project's app, a third party,
-    ///         or a direct contract call — can reroll a band away. Deliberate dissolution remains
-    ///         available through `mintDown`, which returns the escrow as spendable coin first.
+    ///         the whole body reads that combined list. Deliberate dissolution is available through
+    ///         `mintDown`, which returns the escrow as spendable coin first.
     /// @param  tokenAmount How much of the caller's position goes through the shuffle. A protected band
-    ///         NFT is one unit of that position and consumes one unit of this budget, exactly as an
-    ///         explicitly exempted id always has: a holder of one band plus three ordinary ids passing
+    ///         NFT is one unit of that position and consumes one unit of this budget, as an
+    ///         explicitly exempted id does: a holder of one band plus three ordinary ids passing
     ///         `3 * unit` rerolls two ordinary ids and keeps the band.
     function rerollSelectedNFTs(uint256 tokenAmount, uint256[] calldata exemptedNFTIds) external nonReentrant {
         if (tokenAmount == 0) revert TokenAmountMustBePositive();
         if (balanceOf(msg.sender) < tokenAmount) revert InsufficientTokenBalance();
 
-        // The effective list, used at EVERY site below. A single site left reading calldata would
+        // The effective list is used at every site below; reading calldata at any one site would
         // exempt an id on one leg and burn it on the other.
         uint256[] memory exempted = _effectiveExemptions(exemptedNFTIds);
 
@@ -117,8 +115,8 @@ contract ERC404BondingOps is ERC404BondingStorage {
         if (tokenAmount < exemptCount * unitSize) revert TokenAmountMustRepresentNFT();
 
         uint256 rerollAmount = tokenAmount - (exemptCount * unit);
-        // Round down: standard integer NFT count. A holder whose ENTIRE position is band NFTs lands
-        // here — auto-exemption leaves no rerollable remainder — and reverts with their NFTs intact.
+        // Round down: integer NFT count. A holder whose entire position is band NFTs lands here —
+        // auto-exemption leaves no rerollable remainder — and reverts with their NFTs intact.
         if (rerollAmount / unit == 0) revert TokenAmountMustRepresentNFT();
 
         uint256 balanceBefore = addressData.balance;
@@ -149,24 +147,22 @@ contract ERC404BondingOps is ERC404BondingStorage {
 
     /// @dev The caller's `exemptedNFTIds` plus every band id the caller owns that is not already in it.
     ///
-    ///      PLACEMENT IS DELIBERATE: this lives in `ERC404BondingOps`, NOT in the shared
-    ///      `ERC404BondingStorage` base. The base compiles into BOTH contracts, so a helper declared
-    ///      there would spend `ERC404BondingInstance`'s scarce EIP-170 headroom on code the instance can
-    ///      never reach — reroll's body is here and the instance only trampolines to it.
+    ///      It lives here, not in the shared `ERC404BondingStorage` base: the base compiles into both
+    ///      contracts, so a helper there would spend `ERC404BondingInstance`'s scarce EIP-170 headroom
+    ///      on code the instance never reaches.
     ///
-    ///      COST. On a tiered whole-position reroll this is CHEAPER than the path it replaces: routing
-    ///      a band through `_initiateTransferFromNFT` (a re-home) costs less than burn -> escrow-release
-    ///      hook -> fresh mint. Untiered instances pay one `tierBands.length` SLOAD and a calldata copy.
-    ///      The scan is O(owned) with an O(supplied) inner dedupe, and it is self-inflicted: the caller
-    ///      pays for the size of their own position. See the PR body for measured numbers.
+    ///      Cost: routing a band through `_initiateTransferFromNFT` (a re-home) costs less than burn ->
+    ///      escrow-release hook -> fresh mint. Untiered instances pay one `tierBands.length` SLOAD and
+    ///      a calldata copy. The scan is O(owned) with an O(supplied) inner dedupe; the caller pays
+    ///      for the size of their own position.
     ///
-    ///      DEDUPE is load-bearing, not tidiness. An id present twice in the effective list would be
-    ///      transferred to the instance twice on the outward leg — the second transfer reverts, since
-    ///      the caller no longer owns it — and would inflate `exemptCount`, which feeds the
-    ///      `tokenAmount < exemptCount * unitSize` guard. The scan compares against EVERY entry the
-    ///      caller supplied, so a caller who already named their band gets a byte-identical result.
-    ///      A caller who names the same id twice themselves reverts exactly as it does today; this
-    ///      helper neither creates nor repairs that case.
+    ///      Dedupe is load-bearing. An id present twice in the effective list would be transferred to
+    ///      the instance twice on the outward leg — the second transfer reverts, since the caller no
+    ///      longer owns it — and would inflate `exemptCount`, which feeds the
+    ///      `tokenAmount < exemptCount * unitSize` guard. The scan compares against every entry the
+    ///      caller supplied, so a caller who already named their band gets the supplied list back.
+    ///      A caller who names the same id twice reverts; this helper neither creates nor repairs
+    ///      that case.
     /// @param  supplied The caller's calldata exemption list, passed through unchanged and first.
     /// @return effective `supplied` for an untiered instance; otherwise `supplied` followed by the
     ///         caller's un-named band ids in `owned` order.
@@ -175,14 +171,14 @@ contract ERC404BondingOps is ERC404BondingStorage {
         if (tierBands.length == 0) return supplied;
 
         DN404Storage storage $ = _getDN404Storage();
-        // Band ids live STRICTLY above `idLimit`: `initTierBands` seeds its ascending-band check with
+        // Band ids live strictly above `idLimit`: `initTierBands` seeds its ascending-band check with
         // `prevEnd = idLimit` and reverts `InvalidBand` on `idStart <= prevEnd`, and DN404 bounds every
         // auto-minted id with `_wrapNFTId(.., idLimit)`. So `id <= idLimit` proves "ordinary" and the
-        // band walk can be skipped for it. The ceiling is SEALED at create against `maxSupply / unit` —
-        // the same expression `initTierBands` validated the ladder against. Graduation burns
-        // instance-held coin and so lowers live `totalSupply`, but it does NOT lower this ceiling: an
-        // ordinary id up to `maxSupply / unit` can be outstanding for the instance's whole life, so the
-        // sealed bound is read here, never `$.totalSupply`.
+        // band walk can be skipped for it. The ceiling is sealed at create against `maxSupply / unit`,
+        // the expression `initTierBands` validated the ladder against. Graduation burns instance-held
+        // coin and lowers live `totalSupply` but not this ceiling: an ordinary id up to
+        // `maxSupply / unit` can be outstanding for the instance's whole life, so the sealed bound is
+        // read here, never `$.totalSupply`.
         uint256 idLimit = maxSupply / _unit();
 
         uint256[] memory owned = _ownedIds(msg.sender, 0, type(uint256).max);
@@ -199,7 +195,7 @@ contract ERC404BondingOps is ERC404BondingStorage {
         for (uint256 i = 0; i < ownedLen; i++) {
             uint256 id = owned[i];
             if (id <= idLimit) continue; // ordinary id space — the O(1) early-out
-            (bool isBand,,) = _bandOf(id); // the shared band walk (noesis-143); one source of truth
+            (bool isBand,,) = _bandOf(id); // the shared band walk
             if (!isBand) continue;
             bool alreadyNamed;
             for (uint256 j = 0; j < suppliedLen; j++) {
@@ -225,18 +221,18 @@ contract ERC404BondingOps is ERC404BondingStorage {
     // ┌──────────────────────────────┐
     // │  Token Tiers (delegatecall)  │
     // └──────────────────────────────┘
-    // Denominations, not sacrifice. A tier-N NFT is ONE DN404 unit of balance (DN404 auto-reconciles
-    // `ownedLength == balance / unit` on every transfer, so an NFT can never natively be worth more)
-    // PLUS `(w_N - 1) * unit` of the holder's own coin escrowed in the instance. Both ops are therefore
-    // an in-place ID SWAP (which changes neither `ownedLength` nor `balance`) plus an escrow transfer.
-    // Nothing is minted, burned, or taken from the curve: `reserve` and `totalBondingSupply` are never
-    // touched, and the buy cap is counter-based (`ERC404BondingInstance.buyBonding`), so escrow sitting
-    // in the instance's own balance cannot inflate the buyable pool.
+    // Denominations, not sacrifice. A tier-N NFT is one DN404 unit of balance (DN404 reconciles
+    // `ownedLength == balance / unit` on every transfer, so an NFT is never natively worth more) plus
+    // `(w_N - 1) * unit` of the holder's own coin escrowed in the instance. Both ops are an in-place
+    // id swap (which changes neither `ownedLength` nor `balance`) plus an escrow transfer. Nothing is
+    // minted, burned, or taken from the curve: `reserve` and `totalBondingSupply` are untouched, and
+    // the buy cap is counter-based (`ERC404BondingInstance.buyBonding`), so escrow sitting in the
+    // instance's own balance cannot inflate the buyable pool.
 
     /// @notice Convert `w_N` units' worth of holdings into a single tier-N band NFT: `tierZeroId` is
     ///         swapped for a band id and `(w_N - 1) * unit` of the caller's coin is escrowed here.
-    /// @dev    Fully reversible by `mintDown`. Keeps `nonReentrant` (shared fixed slot, engages in the
-    ///         instance's context under delegatecall) — the instance trampoline must NOT also guard.
+    /// @dev    Reversible by `mintDown`. `nonReentrant` (shared fixed slot, engages in the instance's
+    ///         context under delegatecall); the instance trampoline must not also guard.
     /// @param  tierN 1-based tier (tier 0 is the implicit ordinary id space; `tierBands[tierN - 1]`).
     /// @param  tierZeroId An ordinary id (`<= idLimit`) the caller owns. Prefer a LOW index in the
     ///         caller's `owned` array: the escrow leg burns the caller's NFTs LIFO from the END of that
@@ -246,20 +242,20 @@ contract ERC404BondingOps is ERC404BondingStorage {
         DN404Storage storage $ = _getDN404Storage();
         uint256 unitSize = _unit();
 
-        // (a) `tierZeroId` must be in the ORDINARY id space — never another band's id. The ceiling is
+        // (a) `tierZeroId` must be in the ordinary id space, never another band's id. The ceiling is
         //     the sealed `maxSupply / unit` (what `initTierBands` packed the bands strictly above), not
         //     live `totalSupply`: graduation burns instance-held coin and lowers live supply, but every
-        //     ordinary id the instance ever minted stays `<= maxSupply / unit` and must remain usable.
+        //     ordinary id the instance ever minted stays `<= maxSupply / unit` and remains usable.
         if (tierZeroId == 0 || tierZeroId > maxSupply / unitSize) revert NotTierZeroId();
 
         uint256 escrowAmount = (uint256(band.weight) - 1) * unitSize;
 
-        // (b) ESCROW LEG FIRST, then re-read ownership. DN404 reconciles this transfer by burning the
+        // (b) Escrow leg first, then re-read ownership. DN404 reconciles this transfer by burning the
         //     caller's NFTs LIFO off the tail of `owned[caller]` until `ownedLength == balance / unit`,
-        //     and `tierZeroId` may itself be in that tail. Of the two orderings the plan allows, this
-        //     one is chosen because the alternative (swap first, transfer second) is strictly WORSE:
-        //     the freshly installed BAND id would then be the LIFO burn candidate, and a burned band id
-        //     leaves its escrow orphaned. Here the worst case is a clean revert with no state change.
+        //     and `tierZeroId` may itself be in that tail. Swapping first and transferring second
+        //     would make the freshly installed band id the LIFO burn candidate, and a burned band id
+        //     leaves its escrow orphaned. In this order the worst case is a clean revert with no state
+        //     change.
         //     The instance's own skipNFT is set at `_initializeDN404`, so the escrow mints it no NFTs.
         _transfer(msg.sender, address(this), escrowAmount);
 
@@ -270,20 +266,20 @@ contract ERC404BondingOps is ERC404BondingStorage {
         // (c) Pop a band id: LIFO of returned ids first, then the never-issued high-water cursor.
         uint256 bandId = _popBandId(idx, band);
 
-        // (d) Swap the ids IN PLACE, mirroring `DN404._transferFromNFT`'s map writes. `ownedLength`,
-        //     `balance` and `totalNFTSupply` are all unchanged — one id leaves, one arrives.
+        // (d) Swap the ids in place, mirroring `DN404._transferFromNFT`'s map writes. `ownedLength`,
+        //     `balance` and `totalNFTSupply` are unchanged — one id leaves, one arrives.
         _swapOwnedId($, oo, msg.sender, holderAlias, tierZeroId, bandId);
 
-        // (d2) SWAP the band id into owned index 0, so a later debit's LIFO tail burn reaches it LAST.
-        //      This is a swap, not an insert: `_moveOwnedIdToFront` writes whatever id already sat at
-        //      index 0 into the slot the band id vacated. So the "reached LAST" protection covers the
-        //      MOST RECENTLY MOVED band only. With two or more bands, the earlier one is displaced to an
-        //      arbitrary interior slot and is burnable by a partial spend that never touches index 0.
+        // (d2) Swap the band id into owned index 0, so a later debit's LIFO tail burn reaches it last.
+        //      This is a swap, not an insert: `_moveOwnedIdToFront` writes whatever id sat at index 0
+        //      into the slot the band id vacated. So the protection covers the most recently moved
+        //      band only. With two or more bands, the earlier one is displaced to an arbitrary
+        //      interior slot and is burnable by a partial spend that never touches index 0.
         //      No escrow value is lost when that happens — the burn-safety hook credits escrow off
         //      `_bandOf` — but the band NFT itself is gone. Hence the naming contract: exact count
-        //      always, exact naming at one band, honest worst case at two or more.
-        //      Must run AFTER the swap: the band id has to be installed in `owned` before it can move.
-        //      Purely a reorder — no balance, `ownedLength` or escrow effect (see `_moveOwnedIdToFront`).
+        //      always, exact naming at one band, worst case at two or more.
+        //      Runs after the swap: the band id must be installed in `owned` before it can move.
+        //      A pure reorder — no balance, `ownedLength` or escrow effect (see `_moveOwnedIdToFront`).
         _moveOwnedIdToFront($, oo, msg.sender, holderAlias, bandId);
 
         // (e) Escrow accounting.
@@ -301,9 +297,9 @@ contract ERC404BondingOps is ERC404BondingStorage {
     ///         loop (subject to the caller's skipNFT setting) — nothing is hand-minted here.
     function mintDown(uint256 bandId) external nonReentrant {
         if (!_tiersSealed) revert TiersNotConfigured();
-        // `_bandOf` is the shared, non-reverting range walk in `ERC404BondingStorage` (noesis-143): the
-        // burn-safety hook and `coinBalanceOf` resolve escrow with the exact same code, so the amount
-        // credited on a burn can never drift from the amount charged on a `mintUp`.
+        // `_bandOf` is the shared, non-reverting range walk in `ERC404BondingStorage`: the burn-safety
+        // hook and `coinBalanceOf` resolve escrow with the same code, so the amount credited on a
+        // burn cannot drift from the amount charged on a `mintUp`.
         (bool isBand, uint256 idx, uint256 weight) = _bandOf(bandId);
         if (!isBand) revert NotBandId();
 
@@ -431,8 +427,8 @@ contract ERC404BondingOps is ERC404BondingStorage {
         _setOwnerAliasAndOwnedIndex(oo, displacedId, holderAlias, slot);
     }
 
-    /// @dev The next free ORDINARY id, found exactly the way DN404's mint loop finds one (the `exists`
-    ///      bitmap scan, bounded by `idLimit`, so band ids are never seen). `idLimit` here is the SEALED
+    /// @dev The next free ordinary id, found the way DN404's mint loop finds one (the `exists`
+    ///      bitmap scan, bounded by `idLimit`, so band ids are never seen). `idLimit` is the sealed
     ///      `maxSupply / unit`, the ceiling the whole ordinary id space was carved from. Termination is
     ///      guaranteed while a band NFT is outstanding: every NFT in existence is backed by one unit of
     ///      some holder's balance, total balance is at most `idLimit` units (graduation only lowers it),
@@ -464,14 +460,12 @@ contract ERC404BondingOps is ERC404BondingStorage {
     }
 
     // ┌────────────────────────────────────────┐
-    // │  Value paths (delegatecall) — 148 D3   │
+    // │      Value paths (delegatecall)        │
     // └────────────────────────────────────────┘
-    // The six bodies below were MOVED VERBATIM out of `ERC404BondingInstance` by noesis-148 to buy back
-    // EIP-170 headroom. Nothing about them changed: same order, same checks, same guards. Every
-    // dependency they have is shared STORAGE in the base (`masterRegistry`, `stakingModule`,
-    // `stakingActive`, `reserve`, `stakingReserve`, `weth`, the free-mint counters) — Ops has no
-    // constructor and no immutables, so there is nothing that could read differently on this side.
-    // `nonReentrant` and `onlyOwner` live HERE ONLY: the reentrancy guard engages through the shared
+    // Every dependency of the bodies below is shared storage in the base (`masterRegistry`,
+    // `stakingModule`, `stakingActive`, `reserve`, `stakingReserve`, `weth`, the free-mint counters);
+    // Ops has no constructor and no immutables, so nothing reads differently on this side.
+    // `nonReentrant` and `onlyOwner` live here only: the reentrancy guard engages through the shared
     // fixed slot under delegatecall, and guarding both ends would self-revert.
 
     /// @notice Claim one free mint (= 1 NFT worth of tokens) at zero ETH cost.
@@ -479,18 +473,18 @@ contract ERC404BondingOps is ERC404BondingStorage {
     // slither-disable-next-line reentrancy-no-eth
     function claimFreeMint(bytes calldata gatingData) external nonReentrant {
         if (freeMintAllocation == 0) revert FreeMintDisabled();
-        // Free mints are part of the bonding curve: once graduated the curve is closed, so a late
-        // claim would mint tokens against a drained curve / already-deployed pool (noesis-061 F2).
+        // Free mints are part of the bonding curve: once graduated the curve is closed, so a claim
+        // would mint tokens against a drained curve / already-deployed pool.
         if (graduated) revert BondingEnded();
-        // Free mints are part of the curve, not a pre-sale — they cannot be claimed before it opens
-        // (same open reference the buy/graduation paths use).
+        // Free mints are part of the curve, not a pre-sale: no claim before it opens (the same open
+        // reference the buy/graduation paths use).
         if (bondingOpenTime == 0) revert BondingNotConfigured();
         if (block.timestamp < bondingOpenTime) revert TooEarly();
         if (freeMintClaimed[msg.sender]) revert FreeMintAlreadyClaimed();
         if (freeMintsClaimed >= freeMintAllocation) revert FreeMintExhausted();
 
         if (address(gatingModule) != address(0) && gatingActive && gatingScope != GatingScope.PAID_ONLY) {
-            // Single curve → editionId 0; bondingOpenTime is the authoritative open reference.
+            // Single curve → editionId 0.
             (bool allowed, bool permanent) = gatingModule.canMint(msg.sender, 0, unit, bondingOpenTime, gatingData);
             if (!allowed) revert GatingNotAllowed();
             if (permanent) gatingActive = false;
@@ -517,35 +511,33 @@ contract ERC404BondingOps is ERC404BondingStorage {
         if (stakingActive) {
             address sm = address(stakingModule); // cache: one SLOAD for the module calls below
             uint256 delta = address(this).balance - before;
-            // Stop-crediting on revocation (noesis-259). The staking module gates `recordFeesReceived`
-            // behind `onlyRegisteredInstance`, so once this instance's registration is revoked a bare
-            // call reverts and takes the WHOLE sweep down with it — the vault pull above is undone and
-            // `settleAndReleaseLeak` below never runs, permanently stranding both the swept fees and any
-            // released stream leak. A revoked instance simply stops being credited: the delta is not
-            // streamed to stakers and, just below, not added to `stakingReserve` either, which leaves it
-            // as ordinary surplus the owner can recover through `withdrawDust`. Crediting the reserve
-            // without a matching stream would lock ETH nobody can ever accrue and nobody can sweep.
+            // Revocation stops crediting. The staking module gates `recordFeesReceived` behind
+            // `onlyRegisteredInstance`, so once this instance's registration is revoked a bare call
+            // reverts and takes the whole sweep down with it — the vault pull above is undone and
+            // `settleAndReleaseLeak` below never runs, stranding both the swept fees and any released
+            // stream leak. A revoked instance is not credited: the delta is not streamed to stakers and
+            // not added to `stakingReserve`, which leaves it as ordinary surplus the owner recovers
+            // through `withdrawDust`. Crediting the reserve without a matching stream would lock ETH
+            // nobody can accrue and nobody can sweep.
             bool credited = delta != 0 && masterRegistry.isRegisteredInstance(address(this));
             if (credited) {
                 IERC404StakingModule(sm).recordFeesReceived(delta);
             }
-            // Single round-trip (noesis-127): settle the stream, read totalStaked for the noesis-061
-            // credit guard, and release any un-accruable stream leak (ETH a prior stream scheduled during
-            // a zero-stake gap that no staker can ever accrue). Folding the guard-read and the release
-            // into one call keeps the instance under EIP-170.
+            // Single round-trip: settle the stream, read totalStaked for the credit guard, and release
+            // any un-accruable stream leak (ETH a prior stream scheduled during a zero-stake gap that
+            // no staker can accrue). One call keeps the instance under EIP-170.
             (uint256 totalStaked, uint256 leaked) = IStakingTotals(sm).settleAndReleaseLeak();
-            // Credit the staker-owed reserve ONLY when the delta was actually streamed (`credited`) AND
-            // the module can distribute (totalStaked > 0), mirroring recordFeesReceived's own guard.
-            // When either fails the delta is genuine undistributable dust the module cannot pay out —
-            // leave it recoverable by withdrawDust.
+            // Credit the staker-owed reserve only when the delta was streamed (`credited`) and the
+            // module can distribute (totalStaked > 0), mirroring recordFeesReceived's own guard.
+            // Otherwise the delta is undistributable dust the module cannot pay out; it stays
+            // recoverable by withdrawDust.
             // `delta` is a conservative over-estimate of the true liability (the module truncates
             // rewardPerToken), the safe direction for a sweep guard.
             if (credited && totalStaked != 0) {
                 stakingReserve += delta;
             }
-            // Debit the released leak so it drops out of `stakingReserve` and withdrawDust can sweep it
-            // (a grief-locked remainder is thus always clearable by the owner). `_debitStakingReserve`
-            // clamps, so a 0 leak — the case while a live staker is still accruing — is a safe no-op.
+            // Debit the released leak so it drops out of `stakingReserve` and withdrawDust can sweep it.
+            // `_debitStakingReserve` clamps, so a 0 leak (a live staker still accruing) is a no-op.
             _debitStakingReserve(leaked);
         }
     }
@@ -553,12 +545,11 @@ contract ERC404BondingOps is ERC404BondingStorage {
     /// @notice Recover ETH held by the instance that is NOT part of the bonding `reserve`.
     /// @dev Surplus ETH can accumulate here — e.g. staking fees pushed by a vault while
     ///      totalStaked == 0 (the staking module can't distribute them, so they sit in the
-    ///      instance balance). Only the balance ABOVE the tracked `reserve` AND the tracked
-    ///      `stakingReserve` is withdrawable; `reserve` backs sellBonding refunds and
-    ///      `stakingReserve` is ETH owed to stakers — neither is ever sweepable (noesis-061 F1).
-    /// @dev `claimAllFees` first releases any un-accruable stream leak out of `stakingReserve`
-    ///      (noesis-127), so by the time this runs `stakingReserve` holds only genuinely-owed ETH and
-    ///      the previously-locked gap remainder has become recoverable surplus here.
+    ///      instance balance). Only the balance above the tracked `reserve` and `stakingReserve` is
+    ///      withdrawable; `reserve` backs sellBonding refunds and `stakingReserve` is ETH owed to
+    ///      stakers — neither is sweepable.
+    /// @dev `claimAllFees` first releases any un-accruable stream leak out of `stakingReserve`, so
+    ///      `stakingReserve` holds only owed ETH and the gap remainder is recoverable surplus here.
     function withdrawDust() external onlyOwner nonReentrant {
         uint256 bal = address(this).balance;
         uint256 locked = reserve + stakingReserve;
@@ -599,58 +590,55 @@ contract ERC404BondingOps is ERC404BondingStorage {
     }
 
     // ┌────────────────────────────────────────┐
-    // │  Graduation (delegatecall) — 188       │
+    // │       Graduation (delegatecall)        │
     // └────────────────────────────────────────┘
-    // `deployLiquidity` moved here from `ERC404BondingInstance` on the same discard-returndata
-    // trampoline the other value paths use. It carries the guards (`_requireOwnerOrAgent`, the bonding
-    // clock, `graduated`, `reserve != 0`) and `nonReentrant` on THIS side only, resolving against the
-    // same `msg.sender`, the same Ownable slot and the same shared reentrancy slot under delegatecall.
+    // `deployLiquidity` carries the guards (`_requireOwnerOrAgent`, the bonding clock, `graduated`,
+    // `reserve != 0`) and `nonReentrant` on this side only, resolving against the same `msg.sender`,
+    // Ownable slot and shared reentrancy slot under delegatecall.
 
     /**
      * @notice Graduate the collection: open the venue pool at the curve's marginal price, settle the
      *         raise, and burn whatever coin the pool did not take.
-     * @dev SIZING (noesis-188). The pool's coin side is no longer the create-time `liquidityReserve`.
-     *      `liquidityReserve` was sized on the assumption that the curve sold out; graduation is
-     *      permitted at any point past the bonding open time with a non-zero raise, and at a partial
-     *      raise a fixed coin side against a smaller ETH side opens the pool beneath the price the last
-     *      curve buyer paid. The coin side is therefore derived at graduation from the price the curve
-     *      actually reached:
+     * @dev Sizing. The pool's coin side is derived at graduation, not taken from the create-time
+     *      `liquidityReserve`, which assumes the curve sold out. Graduation is permitted at any point
+     *      past the bonding open time with a non-zero raise, and at a partial raise a fixed coin side
+     *      against a smaller ETH side opens the pool beneath the price the last curve buyer paid. The
+     *      coin side comes from the price the curve actually reached:
      *
      *        p(S) = kCoeff / ((poleWad - s) * normalizationFactor),  s = totalBondingSupply / normFactor
      *        tokensForPool = ethForPool / p(S)
      *
      *      which is the hyperbolic family's own marginal price at the supply the curve stopped at. At a
-     *      full sale this reproduces `liquidityReserve` exactly, because the pole is solved at create so
-     *      the curve's end price IS the pool's opening price (`CurveParamsComputer`).
-     * @dev THE CLAMP. Parity is not always affordable in coin: above roughly 85% sold (at the shipping
-     *      reserve preset) the coin the parity price calls for exceeds every coin the instance still
-     *      holds — LP reserve, unsold bonding supply and unclaimed free-mint allocation combined. The
-     *      ETH is clamped, never the parity: the pool takes `min(availableCoin, ethForPool / p)` coin
-     *      and exactly that coin valued at `p`. Parity therefore holds at EVERY stopping point on every
-     *      preset, and the pool never opens below the curve.
-     * @dev THE EXCESS. LP-share ETH the clamp could not place rides the module's existing 80/19/1 tithe
+     *      full sale this reproduces `liquidityReserve`, because the pole is solved at create so the
+     *      curve's end price is the pool's opening price (`CurveParamsComputer`).
+     * @dev The clamp. Parity is not always affordable in coin: when the curve is nearly sold, the
+     *      coin the parity price calls for exceeds every coin the instance still holds — LP reserve,
+     *      unsold bonding supply and unclaimed free-mint allocation combined. The ETH is clamped,
+     *      never the parity: the pool takes `min(availableCoin, ethForPool / p)` coin and exactly that
+     *      coin valued at `p`. Parity holds at every stopping point on every preset, and the pool
+     *      never opens below the curve.
+     * @dev The excess. LP-share ETH the clamp could not place rides the module's 80/19/1 tithe
      *      rail (`RevenueSplitLib.splitGraduation`) alongside the creator carve — 1% protocol, 19%
-     *      alignment vault, 80% creator — rather than being held here, where it would be a second
-     *      unowned overhang. The two legs travel to the module as separate `DeployParams` fields and
-     *      `GraduationEthDiverted` reports them separately here, so the creator's declared carve stays
-     *      distinguishable on-chain from the clamp's output on both sides of the call.
-     * @dev THE BURN. Coin the pool did not take is burned, not stranded and not returned: after
+     *      alignment vault, 80% creator — rather than being held here as unowned overhang. The two
+     *      legs travel to the module as separate `DeployParams` fields and `GraduationEthDiverted`
+     *      reports them separately, so the creator's declared carve stays distinguishable on-chain
+     *      from the clamp's output on both sides of the call.
+     * @dev The burn. Coin the pool did not take is burned, not stranded and not returned: after
      *      `graduated` no path can move instance-held coin (`buyBonding`, `sellBonding` and
      *      `claimFreeMint` all revert `BondingEnded`, and no deployer module has a withdrawal path), so
      *      stranding it leaves a permanent unowned overhang in circulating supply; returning it to the
      *      creator would pay them in proportion to how early they cut the sale. `availableCoin` is read
-     *      from live balances net of custodial liabilities, never from create-time arithmetic — a
-     *      create-time constant ceasing to describe reality is the defect this sizing removes.
-     * @dev THE AGENT CANNOT CHOOSE THE AMOUNT. Graduation is one-shot and this argument is supplied by
+     *      from live balances net of custodial liabilities, never from create-time arithmetic.
+     * @dev The agent cannot choose the amount. Graduation is one-shot and this argument is supplied by
      *      the caller, so an agent calling `deployLiquidity(0)` would forfeit the creator's entire carve
-     *      into the pool with no way back. The request is therefore floored at `declaredMaxAllowanceBps`
-     *      for every caller that is not the owner: an agent takes the full declared carve or it does not
+     *      into the pool with no way back. The request is floored at `declaredMaxAllowanceBps` for
+     *      every caller that is not the owner: an agent takes the full declared carve or it does not
      *      graduate. Flooring rather than rejecting a zero is what makes it hold — a rejected zero is
      *      defeated by requesting one bps, which forfeits 99.99% of the carve just as permanently. The
-     *      owner's own path is untouched and still waives down to nothing, which is a choice only the
-     *      party losing the money gets to make. The upper clamp, the split and `creator: owner()` are
-     *      unchanged, so this can only ever move ETH toward the creator.
-     * @param carveRequestBps Fraction (bps) of the protocol carve allowance the creator takes NOW, on
+     *      owner's own path waives down to nothing, a choice only the party losing the money makes.
+     *      The upper clamp, the split and `creator: owner()` are unaffected, so the floor can only
+     *      move ETH toward the creator.
+     * @param carveRequestBps Fraction (bps) of the protocol carve allowance the creator takes, on
      *        the same axis as `declaredMaxAllowanceBps`. Effective carve ETH = min(request,
      *        allowance(raise) × declaredMaxAllowanceBps / 10000, headroom above the pool floor).
      *        From an agent the request is first raised to `declaredMaxAllowanceBps`.
@@ -668,15 +656,15 @@ contract ERC404BondingOps is ERC404BondingStorage {
         reserve = 0;
         bondingActive = false;
 
-        // The LP share of the raise, from the SAME primitive the deployer module recomputes it with, so
-        // the two can never disagree about the pool's ETH. `splitGraduation(raise, carve, 0)` is this
-        // `split` plus the carve clamp on the next line — reproduced here rather than called so the
-        // clamp can be re-run against the combined carve below.
+        // The LP share of the raise, from the same primitive the deployer module recomputes it with,
+        // so the two agree on the pool's ETH. `splitGraduation(raise, carve, 0)` is this `split` plus
+        // the carve clamp on the next line; it is reproduced here so the clamp can be re-run against
+        // the combined carve below.
         uint256 lp = RevenueSplitLib.split(ethToSend).remainder;
-        // Floor an agent's request at the creator's declared allowance (see THE AGENT CANNOT CHOOSE THE
-        // AMOUNT above). `_requireOwnerOrAgent` has already run, so a caller that is not the owner is an
+        // Floor an agent's request at the creator's declared allowance (see "The agent cannot choose
+        // the amount" above). `_requireOwnerOrAgent` has run, so a caller that is not the owner is an
         // agent; `msg.sender` survives the instance trampoline's delegatecall, so this reads the caller
-        // the gate itself read.
+        // the gate read.
         uint256 carveBps = carveRequestBps;
         if (msg.sender != owner()) {
             uint256 declaredBps = declaredMaxAllowanceBps;
@@ -685,22 +673,20 @@ contract ERC404BondingOps is ERC404BondingStorage {
         // A renounced launch has no creator to pay, and the deployer module knows it: with
         // `creator == address(0)` it zeroes the whole diverted leg and puts the full LP share in the
         // pool (`LiquidityDeployerModule._computeAmounts`). Sizing the coin side against a carve the
-        // module will not take opens the pool ABOVE the curve's last price — the one thing graduation
-        // is supposed to guarantee it never does — and makes `GraduationEthDiverted` report a carve
-        // nobody received. Take the module's own rule here so the two agree on the pool's ETH.
-        // Graduation is still reachable in that state through a pre-configured agent, which is what
-        // makes this a live path rather than a hypothetical one.
+        // module will not take opens the pool above the curve's last price — graduation guarantees
+        // it never does — and makes `GraduationEthDiverted` report a carve nobody received. The
+        // module's own rule is applied here so the two agree on the pool's ETH. Graduation is
+        // reachable in that state through a pre-configured agent.
         uint256 carveEth = owner() == address(0) ? 0 : _effectiveCarve(ethToSend, carveBps);
         if (carveEth > lp) carveEth = lp;
 
         (uint256 tokensForPool, uint256 ethForPool) = _sizePoolAtCurvePrice(lp - carveEth);
 
         // Excess LP-share ETH the clamp could not place at the parity price joins the carve on the
-        // module's 80/19/1 rail. It travels as its OWN `DeployParams` leg rather than folded into
+        // module's 80/19/1 rail. It travels as its own `DeployParams` leg rather than folded into
         // `carveEth`, so the module tithes the sum but reports the two apart — `CreatorCarvePaid`
-        // then states the creator's request alone, which is the figure `declaredMaxAllowanceBps`
-        // measures. The invariant the module's headroom clamp relies on is unchanged and is now a
-        // statement about the two fields: `carveEth + excessEth == lp - ethForPool <= lp`, so
+        // states the creator's request alone, the figure `declaredMaxAllowanceBps` measures. The
+        // module's headroom clamp relies on `carveEth + excessEth == lp - ethForPool <= lp`, so
         // `splitGraduation`'s defensive re-clamp never engages on their sum.
         uint256 excessEth = lp - carveEth - ethForPool;
 
@@ -721,14 +707,13 @@ contract ERC404BondingOps is ERC404BondingStorage {
             })
         );
 
-        // THE BURN, SECOND PASS. `_sizePoolAtCurvePrice` burned the coin the pool was never going to
-        // be offered; this burns the coin it was offered and DECLINED. A venue that finds its pool
+        // Second burn pass. `_sizePoolAtCurvePrice` burned the coin the pool was never going to be
+        // offered; this burns the coin it was offered and declined. A venue that finds its pool
         // already initialized away from the graduation price takes only one side in full and hands the
-        // rest of the other back — the deployer modules now return it here rather than stranding it in
-        // a singleton (audit M-1, 2026-09-17). The destination has to be the burn for the same reason
-        // the first pass does: after `graduated` no path can move instance-held coin, so leaving it
-        // here is the same permanent unowned overhang under a different address. `_placeableCoin` nets
-        // out custodial coin, so this can only ever reach what just came back.
+        // rest of the other back; the deployer modules return it here rather than stranding it in a
+        // singleton. It is burned for the same reason as the first pass: after `graduated` no path can
+        // move instance-held coin, so leaving it here is a permanent unowned overhang.
+        // `_placeableCoin` nets out custodial coin, so this reaches only what just came back.
         uint256 declined = _placeableCoin();
         if (declined != 0) {
             _burn(address(this), declined);
@@ -744,10 +729,9 @@ contract ERC404BondingOps is ERC404BondingStorage {
     /// @dev The coin side of the pool and the ETH that buys it, both at the curve's marginal price at
     ///      `totalBondingSupply`. Returns `(tokensForPool, ethToPool)` with
     ///      `ethToPool / tokensForPool == p(S)` to within one wei of rounding, and `ethToPool <=
-    ///      ethForPool` always. Burns the residue as a side effect — it is the same walk, and splitting
-    ///      it costs the caller a second read of every term.
+    ///      ethForPool` always. Burns the residue as a side effect, sharing the same walk.
     ///
-    ///      Rounding is deliberately asymmetric so neither branch can open the pool UNDER the curve:
+    ///      Rounding is asymmetric so neither branch can open the pool under the curve:
     ///      the token count rounds down (`fullMulDiv`) and, when the clamp engages, the ETH rounds up
     ///      (`fullMulDivUp`). `ethToPool <= ethForPool` survives the round-up because the clamp branch
     ///      only runs when `tokensForPool` is strictly the floor of `ethForPool / p`.
@@ -781,13 +765,13 @@ contract ERC404BondingOps is ERC404BondingStorage {
         emit GraduationSupplyBurned(available, tokensForPool, burned);
     }
 
-    /// @dev Every coin this instance holds and is FREE to place at graduation: the LP reserve, the
+    /// @dev Every coin this instance holds and is free to place at graduation: the LP reserve, the
     ///      unsold bonding supply and the unclaimed free-mint allocation, together, read off the live
     ///      balance rather than reconstructed from create-time constants.
     ///
-    ///      Three parts of the balance are custodial and are NOT placeable: coin staked through the
+    ///      Three parts of the balance are custodial and not placeable: coin staked through the
     ///      staking module, coin escrowed behind outstanding tier-band NFTs, and escrow already
-    ///      released by a band burn but not yet pulled. Each is owed to a holder and each remains
+    ///      released by a band burn but unpulled. Each is owed to a holder and each remains
     ///      claimable after graduation, so placing or burning it would raid a holder's position.
     function _placeableCoin() private view returns (uint256) {
         uint256 custodial = totalTierEscrow + totalPendingEscrowRelease;
@@ -798,7 +782,7 @@ contract ERC404BondingOps is ERC404BondingStorage {
 
     /// @dev Mark the deployer module NFT-skipping before the pool's coin side moves.
     ///
-    ///      This instance overrides `_skipNFTDefault` to `false` for EVERY address, so a recipient that
+    ///      This instance overrides `_skipNFTDefault` to `false` for every address, so a recipient that
     ///      has never set the flag — including a contract — takes delivery of one NFT id per `unit` it
     ///      receives. Graduation routes the coin through two contracts in a single call: the instance
     ///      sends it to the deployer module, and the module settles it on to the venue's counterparties.
@@ -807,8 +791,7 @@ contract ERC404BondingOps is ERC404BondingStorage {
     ///      graduation transaction. The module is not a collector and has no use for an id.
     ///
     ///      The flag is set permanently rather than saved and restored (the `buyBonding` idiom): the
-    ///      module keeps custody of nothing, but the same permanence rule applies to the venue-side
-    ///      counterparties it flags, which go on receiving coin for the life of the market.
+    ///      venue-side counterparties the module flags go on receiving coin for the life of the market.
     ///
     ///      This leg is venue-independent — the deployer module is the one counterparty the instance
     ///      always knows. The venue's own counterparties are named by the module through
@@ -819,8 +802,8 @@ contract ERC404BondingOps is ERC404BondingStorage {
     }
 
     /// @dev Effective carve ETH for a raise + request. Zero-request / zero-declared short-circuits
-    ///      BEFORE touching the factory, so a plain `deployLiquidity(0)` never depends on the factory
-    ///      exposing carve math. Mirrors the instance's `previewCarve` seam exactly.
+    ///      before touching the factory, so a plain `deployLiquidity(0)` never depends on the factory
+    ///      exposing carve math. Mirrors the instance's `previewCarve`.
     function _effectiveCarve(uint256 raise, uint256 carveRequestBps) private view returns (uint256) {
         uint256 declared = declaredMaxAllowanceBps;
         if (carveRequestBps == 0 || declared == 0 || raise == 0) return 0;
@@ -828,35 +811,28 @@ contract ERC404BondingOps is ERC404BondingStorage {
     }
 
     // ┌────────────────────────────────────────┐
-    // │  Config paths (delegatecall) — 149 D2  │
+    // │      Config paths (delegatecall)       │
     // └────────────────────────────────────────┘
-    // The thirteen init/admin/setter bodies below were MOVED VERBATIM out of `ERC404BondingInstance` by
-    // noesis-149 to buy back EIP-170 headroom. Nothing about them changed: same order, same checks, same
-    // gates. NO VALUE MOVES on any of these paths — no ETH transfer, no coin transfer, no curve
-    // arithmetic, no staking liability — which is exactly why D2 was taken before any further value-path
-    // move. Every dependency is shared STORAGE in the base (`factory`, `masterRegistry`, `modules`, the
-    // tier ladder, the bonding clock), and `msg.sender` is preserved across `delegatecall`, so the
-    // factory-only gates (`msg.sender != factory`), the owner gate in `setAgentDelegation`, and the
-    // shared `_requireOwnerOrAgent` all resolve against exactly the caller they did in-instance.
-    // Guards live HERE ONLY — the instance trampolines carry none.
+    // No value moves on any of these paths: no ETH transfer, no coin transfer, no curve arithmetic,
+    // no staking liability. Every dependency is shared storage in the base (`factory`,
+    // `masterRegistry`, `modules`, the tier ladder, the bonding clock), and `msg.sender` is preserved
+    // across `delegatecall`, so the factory-only gates (`msg.sender != factory`), the owner gate in
+    // `setAgentDelegation`, and the shared `_requireOwnerOrAgent` resolve against the instance's
+    // caller. Guards live here only; the instance trampolines carry none.
     //
-    // `setContractURI` (noesis-085) is the one body here that was never in the instance: it was AUTHORED
-    // on this side, on the same contract as the thirteen, because the instance is the EIP-170 subject and
-    // a new setter belongs where the other setters already live.
-    //
-    // `migrateVault` is deliberately NOT here: it is value-extracting (bare `onlyOwner`, alongside
-    // `withdrawDust`/`claimAllFees`) and is noesis-148's CONTROL proving the trampoline error-collapse is
-    // an artifact rather than a weakened gate. `initialize` and `initializeMetadata` also stay.
+    // `migrateVault` stays in the instance: it is value-extracting (bare `onlyOwner`, alongside
+    // `withdrawDust`/`claimAllFees`) and keeps its specific revert there. `initialize` and
+    // `initializeMetadata` also stay.
 
     /// @dev Structural mirror of `ERC404BondingInstance.ProtocolParams`, field-for-field. Ops needs the
     ///      identical calldata tuple to decode `initializeProtocol`'s argument, and the ABI selector is
-    ///      STRUCTURAL — `initializeProtocol((address,address,address,uint256,address))` either way — so
-    ///      the two declarations are interchangeable at the wire and the ABI does not change.
-    ///      Deliberately NOT hoisted into the shared `ERC404BondingStorage` base: Solidity does not
-    ///      expose an inherited struct through the derived contract's name, so hoisting would break every
-    ///      `ERC404BondingInstance.ProtocolParams` reference — including `ERC404Factory` and the bonding
-    ///      invariant suite, both outside this item's scope. `ERC404BondingOpsSelectorParity.t.sol`
-    ///      asserts the two selectors stay equal, so the mirror cannot silently drift.
+    ///      structural — `initializeProtocol((address,address,address,uint256,address))` either way — so
+    ///      the two declarations are interchangeable at the wire.
+    ///      It is not hoisted into the shared `ERC404BondingStorage` base: Solidity does not expose an
+    ///      inherited struct through the derived contract's name, so hoisting would break every
+    ///      `ERC404BondingInstance.ProtocolParams` reference, including `ERC404Factory` and the bonding
+    ///      invariant suite. `ERC404BondingOpsSelectorParity.t.sol` asserts the two selectors stay
+    ///      equal.
     struct ProtocolParams {
         address globalMessageRegistry;
         address protocolTreasury;
@@ -881,17 +857,16 @@ contract ERC404BondingOps is ERC404BondingStorage {
         bondingFeeBps = protocol.bondingFeeBps;
     }
 
-    /// @notice Update the PER-TOKEN base URI consumed by `tokenURI(tokenId)`.
+    /// @notice Update the per-token base URI consumed by `tokenURI(tokenId)`.
     function setMetadataURI(string calldata uri) external {
         _requireOwnerOrAgent();
         metadataURI = uri;
     }
 
-    /// @notice Update the COLLECTION-level ERC-7572 `contractURI` (noesis-085). Exact mirror of
-    ///         `setMetadataURI` above — same owner-or-agent gate, same shape — but a different slot:
-    ///         `contractURI` is the project document marketplaces and `QueryAggregator`'s §6
-    ///         read-through consume, while `metadataURI` is the per-token base for `tokenURI`. Never
-    ///         conflate the two.
+    /// @notice Update the collection-level ERC-7572 `contractURI`. Same owner-or-agent gate as
+    ///         `setMetadataURI`, a different slot: `contractURI` is the project document marketplaces
+    ///         and `QueryAggregator`'s §6 read-through consume, while `metadataURI` is the per-token
+    ///         base for `tokenURI`.
     function setContractURI(string calldata uri) external {
         _requireOwnerOrAgent();
         contractURI = uri;
@@ -911,27 +886,27 @@ contract ERC404BondingOps is ERC404BondingStorage {
     /// @notice Seal this instance's Token Tiers ladder. Factory-only, set-once — mutable weights would
     ///         retroactively reprice every outstanding band NFT, so there is no owner setter.
     /// @dev    `bands[i]` describes tier `i + 1`; tier 0 is the implicit ordinary id space `[1..idLimit]`
-    ///         with `w_0 = 1` and is never stored. Every band must sit ABOVE `idLimit` — that is what
-    ///         makes band ids unreachable by ordinary minting (DN404 bounds every auto-minted id with
+    ///         with `w_0 = 1` and is never stored. Every band sits above `idLimit` — that makes band
+    ///         ids unreachable by ordinary minting (DN404 bounds every auto-minted id with
     ///         `_wrapNFTId(.., idLimit)` where its live idLimit is `totalSupply / unit`; at create
     ///         `totalSupply == maxSupply`, so no ordinary id above `maxSupply / unit` is ever minted, and
-    ///         a later graduation burn only lowers live `totalSupply` — it never raises that ceiling),
-    ///         so a reserved band carves NOTHING out of the sellable supply. Band size is a
-    ///         PRODUCT CHOICE bounded above by `band_N <= S / w_N` (S = the tier-0 id count), rounded
-    ///         DOWN — an uncapped band at exactly `S / w_N` can hold the entire supply if it all
-    ///         concentrated there, and a band deliberately capped BELOW that is a scarce tier: it can
-    ///         sell out while coin remains, so `BandExhausted` is reachable by design on such a band
-    ///         (and reopens as holders `mintDown`). The ceiling is what the bound protects — a band
-    ///         larger than `S / w_N` would promise ids the coin supply can never back.
-    /// @dev    THE LADDER SEAL. Every check below is load-bearing for T2/T3: the burn-safety hook's
-    ///         `id < tierBands[0].idStart` early-out assumes ASCENDING bands strictly above `idLimit`,
+    ///         a graduation burn only lowers live `totalSupply`, never that ceiling), so a reserved
+    ///         band carves nothing out of the sellable supply. Band size is a product choice bounded
+    ///         above by `band_N <= S / w_N` (S = the tier-0 id count), rounded down — an uncapped band
+    ///         at exactly `S / w_N` can hold the entire supply if it all concentrated there, and a
+    ///         band capped below that is a scarce tier: it can sell out while coin remains, so
+    ///         `BandExhausted` is reachable by design on such a band (and reopens as holders
+    ///         `mintDown`). A band larger than `S / w_N` would promise ids the coin supply can never
+    ///         back.
+    /// @dev    Every check below is load-bearing for the burn-safety hook: its
+    ///         `id < tierBands[0].idStart` early-out assumes ascending bands strictly above `idLimit`,
     ///         and its `(weight - 1)` escrow arithmetic assumes `weight >= 2`.
     /// @dev    The caller supplies `idEnd` through `TierBand`'s `uint32` field, so a sealed band id is
     ///         bounded by `type(uint32).max` structurally — DN404's `_restrictNFTId` ceiling is met by
-    ///         the field width, and a check for it here could never fire. The live uint32 rejection is
-    ///         in `ERC404Factory._wireMetadata`, where ranges are derived in `uint256` and packed ABOVE
-    ///         `idLimit`: DN404 permits an `idLimit` up to `0xfffffffe`, so a derived `idEnd` genuinely
-    ///         exceeds `uint32` on a large supply and must be rejected before it is narrowed.
+    ///         the field width, and a check for it here could never fire. The uint32 rejection is
+    ///         in `ERC404Factory._wireMetadata`, where ranges are derived in `uint256` and packed above
+    ///         `idLimit`: DN404 permits an `idLimit` up to `0xfffffffe`, so a derived `idEnd` can
+    ///         exceed `uint32` on a large supply and is rejected before it is narrowed.
     /// @param  bands Ascending, non-overlapping bands with strictly increasing weights (`w >= 2`).
     function initTierBands(TierBand[] calldata bands) external {
         if (msg.sender != factory) revert OnlyFactory();
@@ -941,8 +916,8 @@ contract ERC404BondingOps is ERC404BondingStorage {
 
         uint256 n = bands.length;
         if (n == 0) revert InvalidBand();
-        uint256 idLimit = maxSupply / unit; // the SEALED ceiling: DN404's idLimit at create, when
-        // totalSupply == maxSupply. This is the one number the tier paths must also read at runtime —
+        uint256 idLimit = maxSupply / unit; // the sealed ceiling: DN404's idLimit at create, when
+        // totalSupply == maxSupply. The tier paths read this number at runtime too —
         // graduation lowers live totalSupply but never this ceiling.
         uint256 prevEnd = idLimit; // bands start strictly above the ordinary id space
         uint256 prevWeight = 1; // w_0
@@ -995,18 +970,16 @@ contract ERC404BondingOps is ERC404BondingStorage {
         agentDelegationEnabled = true;
     }
 
-    /// @dev The window bound is a property of the PAIR, so both writers owe it. `setBondingMaturityTime`
-    ///      below caps `maturity - open` at `MAX_BONDING_DURATION`, but that check reads the open time
-    ///      that is stored at the moment it runs; moving the open time afterwards moves the same window
-    ///      without re-testing it. Open far, set maturity at the cap, then walk the open time back and
-    ///      the stored pair spans an arbitrarily long bonding period that neither setter ever accepted
-    ///      in one call. Re-checking here closes it: the invariant is on the pair, not on either call.
+    /// @dev The window bound is a property of the pair, so both writers enforce it.
+    ///      `setBondingMaturityTime` caps `maturity - open` at `MAX_BONDING_DURATION` against the open
+    ///      time stored when it runs; moving the open time afterwards moves the same window, so this
+    ///      setter re-checks it. Without that, setting open far out, maturity at the cap, then walking
+    ///      the open time back would store a pair spanning an arbitrarily long bonding period.
     ///
-    ///      A violation is REFUSED rather than repaired by clearing `bondingMaturityTime`. Clearing
-    ///      would turn a mistyped open time into the silent loss of a date the creator set and other
-    ///      consumers read as real, and it would do so on the success path, where nothing tells the
-    ///      caller it happened. A refusal costs the owner one extra call — move maturity first, then
-    ///      the open time — and destroys nothing.
+    ///      A violation is refused rather than repaired by clearing `bondingMaturityTime`: clearing
+    ///      would silently lose a date the creator set and other consumers read as real, on the
+    ///      success path where nothing tells the caller. The owner moves maturity first, then the
+    ///      open time.
     // slither-disable-next-line timestamp
     function setBondingOpenTime(uint256 timestamp) external {
         _requireOwnerOrAgent();
@@ -1021,24 +994,16 @@ contract ERC404BondingOps is ERC404BondingStorage {
         emit BondingOpenTimeSet(timestamp);
     }
 
-    /// @dev Bounded on BOTH sides. The lower bound alone let an owner-or-agent park maturity
-    ///      arbitrarily far out; `MAX_BONDING_DURATION` closes that, capping the bonding period at
-    ///      the protocol's own outer horizon for a creator bond (see the constant's derivation in
-    ///      `ERC404BondingStorage`). The cap is measured from `bondingOpenTime`, not from `now`, so
-    ///      the legal window is the same regardless of when within the pre-open period it is set.
+    /// @dev Bounded on both sides. `MAX_BONDING_DURATION` caps the bonding period at the protocol's
+    ///      outer horizon for a creator bond (see the constant's derivation in `ERC404BondingStorage`).
+    ///      The cap is measured from `bondingOpenTime`, not from `now`, so the legal window is the
+    ///      same whenever within the pre-open period it is set.
     ///
-    ///      WHY THE CEILING IS OWED HERE AND NOT ONLY IN THE ESCROW. This setter once reached real
-    ///      money: `DeployBondEscrow.forfeit` anchored its deadline on
-    ///      `max(bondingMaturityTime, hardCap)`, so a creator could set maturity to the year 3000 and
-    ///      make the forfeit of their own escrowed bond unreachable forever. That path was closed at
-    ///      the escrow on 2026-09-04 by fixing the deadline at the terms the bond was posted under,
-    ///      and `forfeit` no longer reads this value at all.
-    ///
-    ///      What that fix removed was one consumer; what it did not remove is an owner-or-agent
-    ///      setter accepting any `uint256` on a field every other consumer — the app's bonding-phase
-    ///      logic today, anything on chain tomorrow — reads as a real date. A bound at the writer is
-    ///      what makes that safe for readers that do not exist yet, which matters because the deploy
-    ///      bond ships at 0 as an owner-tunable lever and turning it on is a one-line call.
+    ///      The ceiling lives at the writer, not only in the escrow: `DeployBondEscrow.forfeit` fixes
+    ///      its deadline at the terms the bond was posted under and does not read this value, but the
+    ///      field is an owner-or-agent setter that other consumers (the app's bonding-phase logic,
+    ///      any on-chain reader) take as a real date. A bound at the writer keeps it safe for all
+    ///      of them.
     // slither-disable-next-line timestamp
     function setBondingMaturityTime(uint256 timestamp) external {
         _requireOwnerOrAgent();
@@ -1050,11 +1015,10 @@ contract ERC404BondingOps is ERC404BondingStorage {
         emit BondingMaturityTimeSet(timestamp);
     }
 
-    /// @dev `StateChanged` is declared on `IInstanceLifecycle`, which the INSTANCE implements and Ops
-    ///      deliberately does not (inheriting it would drag `instanceType()` onto Ops for no reason).
-    ///      The qualified `emit IInstanceLifecycle.StateChanged(...)` form (legal since solc 0.8.21;
-    ///      this tree is pinned at 0.8.28) emits the byte-identical topic0 from the instance's address
-    ///      under delegatecall — same event, same log, no interface inheritance.
+    /// @dev `StateChanged` is declared on `IInstanceLifecycle`, which the instance implements and Ops
+    ///      does not (inheriting it would add `instanceType()` to Ops). The qualified
+    ///      `emit IInstanceLifecycle.StateChanged(...)` form (solc 0.8.21+) emits the same topic0 from
+    ///      the instance's address under delegatecall without interface inheritance.
     function setBondingActive(bool _active) external {
         _requireOwnerOrAgent();
         if (bondingOpenTime == 0) revert OpenTimeNotSet();
@@ -1065,29 +1029,24 @@ contract ERC404BondingOps is ERC404BondingStorage {
     }
 
     /// @notice Activate staking for this instance. Irreversible. Requires stakingModule to be set.
-    /// @dev Refused when NO vault registered to this instance has a pull-claim model, because the
-    ///      staking stream has exactly one source and that source is a pull. `claimAllFees` above
-    ///      credits stakers with the ETH BALANCE DELTA its `claimFees()` sweep produces; a vault with
-    ///      no pull-claim model reverts that call by design (`AlignmentEndowmentVault.claimFees` is
+    /// @dev Refused when no vault registered to this instance has a pull-claim model, because the
+    ///      staking stream has one source and that source is a pull. `claimAllFees` above credits
+    ///      stakers with the ETH balance delta its `claimFees()` sweep produces; a vault with no
+    ///      pull-claim model reverts that call by design (`AlignmentEndowmentVault.claimFees` is
     ///      `revert NotSupported()`) and the sweep skips it. An instance whose whole vault set is of
-    ///      that kind therefore has a delta that is structurally zero: `rewardRate` never leaves 0,
-    ///      and every staker who locks tokens accrues nothing, for as long as staking stays on — and
-    ///      activation is irreversible, so "for as long" is forever. A refusal at the one irreversible
-    ///      moment is the only place this can be said; afterwards there is nothing to say it to.
+    ///      that kind has a structurally zero delta: `rewardRate` never leaves 0 and stakers accrue
+    ///      nothing, and activation is irreversible. The refusal at that irreversible moment is the
+    ///      only place this can be said.
     ///
-    ///      This does NOT refuse the pairing itself. Creating an endowment-aligned ERC404 collection
-    ///      stays legal and the wizard still offers it; only turning on a rewards stream that has no
-    ///      way to be fed is refused, and only while that is true — registering a fee-pushing vault
-    ///      alongside the endowment makes the same call succeed.
+    ///      The pairing itself is allowed: an endowment-aligned ERC404 collection can be created;
+    ///      only turning on a rewards stream that cannot be fed is refused, and only while that is
+    ///      true — registering a fee-pushing vault alongside the endowment makes the call succeed.
     ///
-    ///      The condition is read off the vaults themselves rather than off a list of type names, so
-    ///      a vault type written after this line answers for itself; `_vaultSetCannotFundStaking`
-    ///      below explains how it is asked. An instance with NO registered vault set is not refused:
-    ///      the finding is about a vault set that exists and cannot feed the stream, and an empty set
-    ///      is not that — it is an instance the registry does not know, which `ERC404Factory` never
-    ///      creates and which `claimAllFees` already declines to credit through its
-    ///      `isRegisteredInstance` gate. Turning that into a refusal here would be a second, unrelated
-    ///      rule wearing this one's error.
+    ///      The condition is read off the vaults themselves rather than a list of type names, so a
+    ///      new vault type answers for itself; `_vaultSetCannotFundStaking` explains how it is asked.
+    ///      An instance with no registered vault set is not refused: that is an instance the registry
+    ///      does not know, which `ERC404Factory` never creates and which `claimAllFees` declines to
+    ///      credit through its `isRegisteredInstance` gate.
     function activateStaking() external {
         _requireOwnerOrAgent();
         if (address(stakingModule) == address(0)) revert StakingModuleNotSet();
@@ -1098,45 +1057,40 @@ contract ERC404BondingOps is ERC404BondingStorage {
         emit StakingActivated(address(stakingModule));
     }
 
-    /// @dev The instance's registered vault set. One accessor for the two callers that need it —
-    ///      `claimAllFees`, which pulls on the set, and the guard below, which asks whether pulling on
-    ///      it could ever yield anything. Shared because the ABI decode of a returned `address[]` is
-    ///      not free on a contract this close to EIP-170, and because the two must never disagree
-    ///      about which set they mean.
+    /// @dev The instance's registered vault set. One accessor for `claimAllFees`, which pulls on the
+    ///      set, and the guard below, which asks whether pulling on it could yield anything: the ABI
+    ///      decode of a returned `address[]` costs bytes on a contract this close to EIP-170, and the
+    ///      two must mean the same set.
     function _instanceVaults() internal view returns (address[] memory) {
         return masterRegistry.getInstanceVaults(address(this));
     }
 
     /// @dev Gas handed to one vault's `claimFees()` probe. Sized for a refusal, not for a claim: a
-    ///      clone hop plus an unconditional revert is on the order of a few thousand gas, and nothing
-    ///      this walk needs to observe costs more. See `_vaultSetCannotFundStaking` for why an
-    ///      under-budgeted probe is safe.
+    ///      clone hop plus an unconditional revert costs a few thousand gas. See
+    ///      `_vaultSetCannotFundStaking` for why an under-budgeted probe is safe.
     uint256 private constant _PROBE_GAS = 50_000;
 
-    /// @dev True when the instance has a registered vault set and EVERY member of it answers
+    /// @dev True when the instance has a registered vault set and every member of it answers
     ///      `claimFees()` with "I have no pull-claim model". See `activateStaking` for why that, and
     ///      not the empty set, is the condition.
     ///
-    ///      The probe asks each vault the QUESTION THE SWEEP WILL ASK, through a `staticcall` so the
+    ///      The probe asks each vault the question the sweep asks, through a `staticcall` so the
     ///      asking cannot move anything. A vault that would really deliver fees fails that staticcall
-    ///      — paying out writes storage and moves ETH, neither of which a static context allows — so
-    ///      failure alone says nothing. What separates the two is the answer's CONTENT: a vault with
-    ///      no pull-claim model refuses by design, with `NotSupported()`, and that is the only reply
+    ///      — paying out writes storage and moves ETH, which a static context disallows — so failure
+    ///      alone says nothing. What separates the two is the answer's content: a vault with no
+    ///      pull-claim model refuses by design, with `NotSupported()`, and that is the only reply
     ///      counted as "not a source". Everything else — success, an empty revert from the write the
-    ///      staticcall blocked, `NothingToClaim`, a vault type this contract has never seen — counts
-    ///      as a source. The asymmetry is deliberate: refusing to activate is the disruptive outcome,
-    ///      so only the tree's own explicit "there is nothing to pull here" signal earns it.
+    ///      staticcall blocked, `NothingToClaim`, an unknown vault type — counts as a source.
+    ///      Refusing to activate is the disruptive outcome, so only the explicit "there is nothing
+    ///      to pull here" signal earns it.
     ///
-    ///      THE GAS CAP IS LOAD-BEARING, and it is not a micro-optimization. A vault that really has
-    ///      fees to deliver tries to MOVE ETH, and a value-bearing call inside a static context is an
-    ///      exceptional halt, not an ordinary revert: it consumes every unit of gas forwarded to that
-    ///      frame. Uncapped, one funded vault burns 63/64 of the gas in the transaction, and an owner
-    ///      would have to send roughly sixty-four times what this call needs for it to complete at
-    ///      all. The cap bounds the whole walk at `_PROBE_GAS` per vault. It cannot cause a wrong
-    ///      answer in the dangerous direction, because running out of gas is not `NotSupported` — a
-    ///      probe that dies early reads as a source, which is the outcome that lets activation
-    ///      proceed. And it cannot plausibly cut a real refusal short: `NotSupported` is an
-    ///      unconditional first-statement revert, which is what "no pull-claim model" means.
+    ///      The gas cap is load-bearing. A vault that really has fees to deliver tries to move ETH,
+    ///      and a value-bearing call inside a static context is an exceptional halt, not an ordinary
+    ///      revert: it consumes every unit of gas forwarded to that frame. Uncapped, one funded vault
+    ///      burns 63/64 of the gas in the transaction. The cap bounds the walk at `_PROBE_GAS` per
+    ///      vault. Running out of gas is not `NotSupported`, so a probe that dies early reads as a
+    ///      source, the outcome that lets activation proceed. `NotSupported` is an unconditional
+    ///      first-statement revert, so the cap cannot cut a real refusal short.
     // slither-disable-next-line calls-loop,low-level-calls
     function _vaultSetCannotFundStaking() internal view returns (bool) {
         address[] memory allVaults = _instanceVaults();
@@ -1152,8 +1106,8 @@ contract ERC404BondingOps is ERC404BondingStorage {
     // │  DN404 concrete stubs   │
     // └─────────────────────────┘
     // DN404 leaves name()/symbol()/_tokenURI() abstract. Ops must be concrete (it is deployed as the
-    // shared delegatecall target), so it provides trivial stubs. Ops is never used as a token surface,
-    // so these are never observed; they add code only, no storage, preserving layout equality.
+    // shared delegatecall target), so it provides trivial stubs. Ops is never a token surface, so
+    // these are never observed; they add code only, no storage.
 
     function name() public view virtual override returns (string memory) {
         return "";
@@ -1167,11 +1121,11 @@ contract ERC404BondingOps is ERC404BondingStorage {
         return "";
     }
 
-    /// @dev Parity with `ERC404BondingInstance`'s override. Ops runs under delegatecall in the
-    ///      instance's storage, so `getSkipNFT` must resolve the SAME default here as it does there for
-    ///      an address that has never set the flag — otherwise `mintDown`'s escrow release would skip
-    ///      NFT materialization for contract holders that the instance itself would have minted for
-    ///      (DN404's base default is `extcodesize(owner) != 0`). Code only; no storage, layout intact.
+    /// @dev Matches `ERC404BondingInstance`'s override. Ops runs under delegatecall in the
+    ///      instance's storage, so `getSkipNFT` must resolve the same default here as there for an
+    ///      address that has never set the flag — otherwise `mintDown`'s escrow release would skip
+    ///      NFT materialization for contract holders the instance itself mints for (DN404's base
+    ///      default is `extcodesize(owner) != 0`).
     function _skipNFTDefault(address) internal pure virtual override returns (bool) {
         return false;
     }

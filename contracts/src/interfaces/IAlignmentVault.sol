@@ -124,7 +124,7 @@ interface IAlignmentVault {
     /**
      * @notice Get vault implementation type identifier
      * @dev Used by governance for classification and risk assessment
-     *      Examples: "UniswapV4LP", "AaveYield", "CurveStable", "UniswapV5LP"
+     *      Examples: "UniswapV4LP", "AaveYield", "CurveStable"
      *      Must be non-empty string
      *
      * @return Vault type identifier (human-readable string)

@@ -44,23 +44,19 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
 
     error SwapProportionDeviationTooHigh();
     /// @notice The caller's spot price is further from the V3 TWAP than `maxPriceDeviationBps` allows.
-    /// @dev The guard that binds on the shape the vaults actually use. Both shipping vaults open
-    ///      FULL-RANGE positions, and a full-range position is 50/50 by value at every price — so the
-    ///      proportion the two guards below are computed on is a constant, and neither of them can ever
-    ///      see the manipulation they were written for (audit L-7). This one is measured on PRICE, which
-    ///      moves whatever the position's shape is.
+    /// @dev Both shipping vaults open full-range positions, which are 50/50 by value at every price, so
+    ///      the proportion guards never move on them. This guard is measured on price, which moves
+    ///      whatever the position's shape is.
     error SpotTwapPriceDeviationTooHigh();
-    /// @notice The pinned canonical pool could not produce a usable TWAP. Thrown by
-    ///         {quoteEthForTokensVia} INSTEAD OF returning 0 — this is the anti-fail-open guarantee.
+    /// @notice The pinned canonical pool could not produce a usable TWAP.
+    /// @dev Thrown by {quoteEthForTokensVia} instead of returning 0, so a missing reference never fails open.
     error ReferenceTwapUnavailable();
     /// @notice `kind` passed to {quoteEthForTokensVia} is not a supported pool family (only 0 is).
     error UnsupportedPoolKind(uint8 kind);
-    /// @notice `v3Factory` is codeless — a misconfigured validator, never a legitimate per-token
-    ///         state. Thrown by {_getTwapSqrtPriceX96} INSTEAD OF returning 0, so a wrong/absent
-    ///         factory address surfaces immediately rather than silently degrading every vault using
-    ///         this validator to the clamp-only floor. Distinct from the legitimate "no pool exists
-    ///         yet for this token" case, which still returns 0 (a real factory with no pool is an
-    ///         expected per-token condition, not a config error).
+    /// @notice `v3Factory` is codeless, or `maxPriceDeviationBps` is outside (0, 10_000].
+    /// @dev A codeless factory is a misconfiguration, never a per-token state; {_getTwapSqrtPriceX96}
+    ///      reverts rather than degrade every vault to the clamp-only floor. A real factory with no pool
+    ///      for a token is an expected condition and returns 0.
     error PriceValidatorMisconfigured();
 
     address public immutable weth;
@@ -72,17 +68,13 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
 
     /// @notice Minimum in-range liquidity a V3 pool must hold to be eligible as the TWAP deviation
     ///         reference in {_getTwapSqrtPriceX96}. A pool below this floor is skipped and the scan
-    ///         continues to the next fee tier, so the deviation cross-check is never anchored to a
-    ///         pool whose reported cumulatives an attacker can set for the cost of a single wei of
-    ///         liquidity.
+    ///         continues to the next fee tier, so the cross-check is never anchored to a pool whose
+    ///         cumulatives an attacker can set for the cost of a single wei of liquidity.
     ///
-    ///         Uniswap V3 `liquidity()` is the in-range depth measure (`L ≈ sqrt(x·y)` scaled), so
-    ///         for a WETH-paired pool any economically meaningful reserve puts `L` many orders of
-    ///         magnitude above this floor, while a capture pool minted with dust sits far below it.
-    ///         `1e15` is a conservative single value with no on-chain anchor: high enough to reject
-    ///         dust reference pools decisively, low enough to admit any real pool without narrowing
-    ///         legitimate TWAP coverage. When no pool clears the floor, selection falls through to the
-    ///         existing no-reference path (unchanged here).
+    ///         V3 `liquidity()` is the in-range depth (`L ≈ sqrt(x·y)` scaled): any economically
+    ///         meaningful WETH-paired pool sits many orders of magnitude above `1e15`, a dust pool far
+    ///         below. The value has no on-chain anchor. When no pool clears the floor the TWAP is
+    ///         treated as absent.
     uint128 private constant MIN_REFERENCE_LIQUIDITY = 1e15;
 
     constructor(
@@ -95,12 +87,9 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         uint256 _maxPriceDeviationBps,
         uint32 _twapSecondsAgo
     ) {
-        // `maxPriceDeviationBps` is the band of the spot-vs-TWAP price guard, so its two degenerate
-        // values are both unusable and both are refused at deploy rather than at the first conversion.
-        // Zero admits no deviation at all and would revert every conversion against a live pool; above
-        // 100% the band is wider than the early `sqrtDiff > refSqrt` reject can express, so the number
-        // would no longer describe what is enforced. Neither is narrowing: the shipped configs are 500
-        // (mainnet) and 1000 (sepolia, anvil).
+        // `maxPriceDeviationBps` is the band of the spot-vs-TWAP price guard. Zero admits no deviation
+        // and would revert every conversion against a live pool; above 100% the band is wider than the
+        // `sqrtDiff > refSqrt` reject can express, so the number would not describe what is enforced.
         if (_maxPriceDeviationBps == 0 || _maxPriceDeviationBps > 10_000) revert PriceValidatorMisconfigured();
         weth = _weth;
         v3Factory = _v3Factory;
@@ -118,7 +107,6 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         override
         returns (uint256)
     {
-        // Invalid pool family is a caller/config error — reject before doing anything else.
         if (kind != 0) revert UnsupportedPoolKind(kind);
         if (amount == 0) return 0;
 
@@ -131,16 +119,15 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         // iff `weth < token` — no token0() call needed.
         (bool ok, uint256 ethPerToken) = _ethPerTokenFromTwapDelta(tickCumulativeDelta, win, weth < token);
 
-        // NO fail-open: a zero / unusable price means the pinned pool cannot serve as a reference.
+        // A zero / unusable price means the pinned pool cannot serve as a reference; never return 0.
         if (!ok) revert ReferenceTwapUnavailable();
 
         return (amount * ethPerToken) / 1e18;
     }
 
     /// @dev Reads the tick-cumulative delta over `window` from the pinned `pool` via the Uniswap V3
-    ///      `observe`. ANY failure to obtain the delta (pool has no code, insufficient observation history)
-    ///      reverts `ReferenceTwapUnavailable` — never a silent 0. `kind` is carried so a second oracle
-    ///      family can be added without moving this signature; callers must have already rejected `kind != 0`.
+    ///      `observe`. Any failure to obtain the delta (pool has no code, insufficient observation history)
+    ///      reverts `ReferenceTwapUnavailable`, never a silent 0. Callers must have already rejected `kind != 0`.
     function _pinnedTwapTickDelta(
         address pool,
         uint8,
@@ -191,9 +178,8 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     }
 
     /// @dev Derives a 1e18-scaled ETH-per-token price from a Q64.96 sqrt price using the canonical 512-bit
-    ///      FullMath split — the same overflow-safe path as {_tokenValueInEth}. This REPLACES the former
-    ///      `(sqrtPriceX96 >> 48)**2` derivation, which discarded up to 48 low bits before squaring (material
-    ///      precision loss) and overflow-reverted for extreme-priced tokens, bricking the live oracle floor.
+    ///      FullMath split, the same overflow-safe path as {_tokenValueInEth}; no low bits are discarded
+    ///      before squaring and extreme prices do not overflow.
     ///      `rawPrice` is the pool's token1/token0 price (1e18-scaled); when WETH is token0 the pool price is
     ///      token-per-ETH, so it is inverted to ETH-per-token. Returns ok=false when the price rounds to zero.
     function _priceFromSqrtPriceX96(uint160 sqrtPriceX96, bool token0IsWeth)
@@ -224,23 +210,20 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         address _poolManager,
         bytes32 poolId
     ) external view override returns (uint256 proportionToSwap) {
-        // If no LP position yet (zero ticks), use balanced 50:50 entry
+        // No LP position yet (zero ticks): balanced 50:50 entry.
         if (tickLower == 0 && tickUpper == 0) {
             return 5e17; // 50%
         }
 
-        // Skip calculation if poolManager has no code (mock address)
+        // A poolManager without code (mock address) gets the balanced entry.
         if (_poolManager.code.length == 0) {
             return 5e17;
         }
 
-        // Get current V4 pool spot price and delegate to the venue-agnostic core so the numeraire +
-        // direction fix cannot drift between the V4 and non-V4 entry points.
         (uint160 sqrtPriceX96,,,) = StateLibrary.getSlot0(IPoolManager(_poolManager), PoolId.wrap(poolId));
 
-        // A V4 alignment pool is native-ETH-paired: ETH = address(0) sorts first, so ETH is ALWAYS
-        // currency0. Pass ethIsCurrency0 = true to preserve the pre-refactor V4 numeraire exactly. This
-        // is the SPOT ordering only — the TWAP cross-check inside the core reads its own ordering off the
+        // A V4 alignment pool is native-ETH-paired: ETH = address(0) sorts first, so ETH is always
+        // currency0. This is the spot ordering only; the TWAP cross-check reads its own ordering off the
         // V3 pool it queries, which for a token sorting below WETH is not this one.
         return _swapProportionFromSqrtPrice(token, tickLower, tickUpper, sqrtPriceX96, true);
     }
@@ -260,8 +243,7 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     ///      {calculateSwapProportionFromSqrtPrice} (caller-supplied spot). Computes the proportion at
     ///      `sqrtPriceX96`, requires that price to sit within `maxPriceDeviationBps` of the V3 TWAP,
     ///      cross-checks the proportion against a V3 TWAP proportion, and applies the absolute [35%,65%]
-    ///      clamp. A zero / out-of-range spot degrades to the balanced 50:50 entry (5e17), identical to
-    ///      the pre-refactor V4 behavior.
+    ///      clamp. A zero / out-of-range spot degrades to the balanced 50:50 entry (5e17).
     function _swapProportionFromSqrtPrice(
         address token,
         int24 tickLower,
@@ -281,42 +263,32 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
 
         // Cross-check the spot proportion against a V3 TWAP proportion, then apply the absolute clamp.
         // A slot0/globalState spot price is manipulable within a block; the TWAP deviation guard catches
-        // manipulation between the spot and the 30-min TWAP. The clamp is a SEPARATE backstop against
-        // absolute mis-sizing (see _applyProportionGuards) — it must apply whether or not a TWAP exists.
+        // manipulation between the spot and the TWAP. The clamp is a separate backstop against absolute
+        // mis-sizing (see _applyProportionGuards) and applies whether or not a TWAP exists.
         //
         // Each proportion is computed on the ordering of the pool it came from. The spot uses the
-        // caller's `ethIsCurrency0`; the TWAP uses the ordering of the V3 WETH/`token` pool the TWAP was
-        // actually read out of, which `_getTwapSqrtPriceX96` returns alongside the price.
-        //
-        // Reusing the caller's flag for both looked sound because an ERC20/ERC20 caller derives its flag
-        // from the same `weth < token` comparison the V3 pool is ordered by. The V4 caller does not: a V4
-        // alignment pool is native-ETH-paired, so its flag is unconditionally `true`, while the V3 pool
-        // it is cross-checked against orders WETH second for any token sorting below WETH. For those
-        // tokens the two proportions were derived on opposite numeraires and were not comparable — on a
-        // bounded range that surfaces either as a spurious `SwapProportionDeviationTooHigh` against an
-        // honest pool, or, when the inverted proportion falls outside the tick range, as `twapValid`
-        // staying false and the deviation guard being skipped altogether.
+        // caller's `ethIsCurrency0`; the TWAP uses the ordering of the V3 WETH/`token` pool it was read
+        // from, which `_getTwapSqrtPriceX96` returns alongside the price. The two can differ: a V4
+        // alignment pool is native-ETH-paired (flag always `true`) while the V3 pool orders WETH second
+        // for any token sorting below WETH. Proportions on opposite numeraires are not comparable and
+        // would either trip `SwapProportionDeviationTooHigh` against an honest pool or leave `twapValid`
+        // false and skip the deviation guard.
         (uint160 twapSqrtPrice, bool twapEthIsCurrency0) = _getTwapSqrtPriceX96(token);
         bool twapValid = false;
         uint256 twapProportion = 0;
         if (twapSqrtPrice != 0) {
-            // PRICE guard first, and deliberately not conditioned on `twapValid` (audit L-7). The two
-            // guards below are computed on the PROPORTION, and both shipping vaults open full-range
-            // positions whose proportion is 5e17 at every price — so on the live path neither of them can
-            // observe a manipulated spot at all. A price this far from the TWAP is a pushed pool whatever
-            // the position's shape is, and `twapValid` going false is itself one of the ways a wrong price
-            // shows up, so gating on it would switch the guard off in part of the case it is for.
+            // The price guard runs first and is not conditioned on `twapValid`. The guards below work on
+            // the proportion, which is 5e17 at every price for the full-range positions both shipping
+            // vaults open, so they cannot observe a manipulated spot there. A price this far from the TWAP
+            // is a pushed pool whatever the position's shape, and `twapValid` going false is itself one
+            // way a wrong price shows up.
             _requireSpotWithinTwapBand(sqrtPriceX96, twapSqrtPrice, twapEthIsCurrency0 == ethIsCurrency0);
 
-            // A flag is half of an ordering; the range is the other half. `tickLower`/`tickUpper` are
-            // stated in the CALLER's pool, so when the TWAP pool orders the pair the other way round the
-            // range has to be carried across with the price or the two halves describe different
-            // positions. Inverting a price maps tick `t` to `-t`, so the interval becomes
-            // `[-tickUpper, -tickLower]` — exact in tick space, where inverting `sqrtPriceX96` instead
-            // would round. Carrying only the flag leaves the check right on a range symmetric about tick
-            // 0 and wrong on every other: at [0, 13863] with the price a factor of two below the range,
-            // the position is entirely ETH and the proportion is 0, while the un-mapped range reads the
-            // inverted price as sitting mid-range and returns a nonzero one.
+            // `tickLower`/`tickUpper` are stated in the CALLER's pool, so when the TWAP pool orders the
+            // pair the other way round the range is carried across with the price. Inverting a price maps
+            // tick `t` to `-t`, so the interval becomes `[-tickUpper, -tickLower]`, exact in tick space
+            // (inverting `sqrtPriceX96` would round). Carrying only the flag is right solely for a range
+            // symmetric about tick 0.
             (int24 twapLower, int24 twapUpper) =
                 twapEthIsCurrency0 == ethIsCurrency0 ? (tickLower, tickUpper) : (-tickUpper, -tickLower);
             (twapValid, twapProportion) =
@@ -327,18 +299,14 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     }
 
     /// @dev Applies the two independent swap-proportion guards and returns the guarded proportion.
-    ///      Both are computed on the PROPORTION and are therefore blind on a full-range position, whose
-    ///      proportion is 5e17 at every price; `_requireSpotWithinTwapBand` has already run on the PRICE
-    ///      by the time control reaches here, and it is the guard that binds on the shipping path. These
-    ///      two remain the guards for the bounded ranges this shared validator must also serve.
-    ///      (1) Spot-vs-TWAP deviation check — catches price manipulation between the manipulable V4
-    ///          spot price and the V3 TWAP. Kept, but it is COMMON-MODE BLIND to absolute error:
-    ///          both operands come from the same computation, so a systematic bias cancels and can
-    ///          never trip this check. It is therefore NOT sufficient on its own.
-    ///      (2) Absolute clamp to [35%, 65%] — applied UNCONDITIONALLY (previously it lived only in
-    ///          the no-TWAP branch, leaving TWAP-covered targets with no backstop against absolute
-    ///          mis-sizing, which is exactly the failure mode that shipped). Full-range positions are
-    ///          50/50 BY VALUE at every price; this band bounds worst-case swap mis-sizing.
+    ///      Both work on the proportion and are blind on a full-range position, whose proportion is 5e17
+    ///      at every price; `_requireSpotWithinTwapBand` has already run on the price and is the guard
+    ///      that binds on that path. These two serve the bounded ranges this shared validator also handles.
+    ///      (1) Spot-vs-TWAP deviation check: catches manipulation between the V4 spot and the V3 TWAP.
+    ///          Both operands come from the same computation, so a systematic bias cancels and never
+    ///          trips it; it is not sufficient alone.
+    ///      (2) Absolute clamp to [35%, 65%], applied unconditionally (with or without a TWAP). Full-range
+    ///          positions are 50/50 by value at every price; the band bounds worst-case swap mis-sizing.
     function _applyProportionGuards(uint256 spotProportion, bool twapValid, uint256 twapProportion)
         internal
         pure
@@ -358,25 +326,21 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
 
     /// @dev Requires the caller's spot price to sit within `maxPriceDeviationBps` of the V3 TWAP.
     ///
-    ///      This is the guard that survives the vaults' position shape. `_applyProportionGuards` works on
-    ///      the swap PROPORTION, which for a full-range position is 5e17 at every price by construction —
-    ///      a theorem the proportion maths states at the bottom of this file — so on the shipping path its
-    ///      deviation check sees two identical operands and its clamp sees a number already inside the
-    ///      band. Measuring the same divergence on price instead makes it visible for every shape, the
-    ///      full-range one included, and leaves the proportion guards doing what they were written for on
-    ///      the bounded ranges this shared validator must also serve.
+    ///      This guard holds for every position shape. `_applyProportionGuards` works on the swap
+    ///      proportion, which for a full-range position is 5e17 at every price (see
+    ///      {_computeProportionFromSqrtPrice}), so there its deviation check sees two identical operands
+    ///      and its clamp sees a number already inside the band. Measuring the divergence on price
+    ///      makes it visible for every shape.
     ///
-    ///      `sameOrdering` carries the numeraire across, the way the proportion path already does for the
-    ///      range. A V4 native-ETH pool always has ETH as currency0; the V3 pool the TWAP came out of
-    ///      orders the pair by address, so its WETH leg can be currency1, and comparing the two prices
-    ///      as-is would compare a price against its own reciprocal. The reciprocal of a Q64.96 sqrt price
-    ///      is `2**192 / s`, exact to within one ulp of a 96-bit fraction — nine orders of magnitude below
-    ///      the tightest band this contract can be configured with, so the mapping cannot move a decision.
+    ///      `sameOrdering` carries the numeraire across, as the proportion path does for the range. A V4
+    ///      native-ETH pool always has ETH as currency0; the V3 pool orders the pair by address, so its
+    ///      WETH leg can be currency1, and comparing the prices as-is would compare a price against its
+    ///      reciprocal. The reciprocal of a Q64.96 sqrt price is `2**192 / s`, exact to within one ulp of
+    ///      a 96-bit fraction, far below the tightest configurable band.
     ///
-    ///      The deviation is measured on PRICE, matching the scale `maxPriceDeviationBps` carries at every
-    ///      other reader in this tree (`_floorTokenOut`).
-    ///      Comparing sqrt deltas directly would spend a price-space bound in sqrt space and admit a band
-    ///      roughly twice as wide as its label.
+    ///      The deviation is measured on price, the scale `maxPriceDeviationBps` carries elsewhere in this
+    ///      tree (`_floorTokenOut`). Comparing sqrt deltas directly would admit a band roughly twice as
+    ///      wide as its label.
     function _requireSpotWithinTwapBand(uint160 spotSqrtPriceX96, uint160 twapSqrtPriceX96, bool sameOrdering)
         private
         view
@@ -403,9 +367,8 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     ///      [tickLower, tickUpper] position at the given price. Returns (false, 0) when the price is
     ///      outside the tick range (both position amounts zero).
     ///
-    ///      Both position legs are valued in ONE numeraire (ETH) before ratioing. The ORIGINAL bug
-    ///      summed amount0 (wei of ETH) and amount1 (alignment-token units) — dimensionally invalid —
-    ///      which returned 1/(1+P) instead of the correct proportion and silently stranded ETH.
+    ///      Both position legs are valued in one numeraire (ETH) before ratioing; amount0 (wei of ETH) and
+    ///      amount1 (token units) cannot be summed directly.
     ///
     ///      Derivation. Let E = pending ETH, s = ETH swapped, P = tokens per ETH. Post-swap the vault
     ///      holds (E - s) ETH and s*P tokens, which must match the position's required amount0:amount1
@@ -415,13 +378,12 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     ///      i.e. the TOKEN side over the total. At the LOWER tick the position is ~all ETH
     ///      (amount1 ≈ 0) ⇒ proportion → 0 (swap ~nothing); at the UPPER tick ~all token ⇒ → 1e18.
     ///      For a FULL-RANGE position this reduces to exactly 5e17 at every price — but that is a
-    ///      theorem about the vault's configuration, NOT hardcoded here: this validator is a shared
-    ///      IVaultPriceValidator and must be correct for bounded ranges too.
-    ///      The numeraire ordering is supplied by the caller (`ethIsCurrency0`), NOT derived from the
+    ///      theorem about the vault's configuration, not hardcoded here: this validator is shared and must
+    ///      be correct for bounded ranges too.
+    ///      The numeraire ordering is supplied by the caller (`ethIsCurrency0`), not derived from the
     ///      token address: a V4 native-ETH pool always has ETH = currency0, but an ERC20/ERC20 pool is
-    ///      ordered by WNativeToken-vs-token address, so its WETH leg can be currency1. A
-    ///      hardcoded `address(0) < token` (always true) would invert the direction for a token0-token pool
-    ///      and strand ETH or token in the vault.
+    ///      ordered by WNativeToken-vs-token address, so its WETH leg can be currency1. Assuming
+    ///      `address(0) < token` would invert the direction and strand ETH or token in the vault.
     function _computeProportionFromSqrtPrice(
         uint160 sqrtPriceX96,
         bool ethIsCurrency0,
@@ -476,18 +438,15 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     /// @dev Queries V3 pools (across standard fee tiers) for a TWAP-derived sqrtPriceX96. A pool must
     ///      clear the {MIN_REFERENCE_LIQUIDITY} depth floor to be eligible; sub-floor pools are skipped
     ///      so the deviation reference cannot be captured by a dust-liquidity pool. Returns 0 if no
-    ///      pool clears the floor with sufficient observation history — a legitimate, expected result
-    ///      for a token with no deep V3 pool yet, and the caller falls back to the clamp-only floor.
-    ///      A codeless `v3Factory`, in contrast, is NEVER legitimate — a real factory always has code,
-    ///      so this can only mean the validator was deployed with a wrong or absent factory address.
-    ///      That reverts instead of returning 0: silently degrading every vault behind a misconfigured
-    ///      validator to the weaker clamp-only floor is the fail-open this function must not repeat.
+    ///      pool clears the floor with sufficient observation history, an expected result for a token
+    ///      with no deep V3 pool; the caller then applies the clamp-only floor.
+    ///      A codeless `v3Factory` is never legitimate (a real factory always has code) and reverts
+    ///      rather than silently degrading every vault behind the validator to the clamp-only floor.
     ///
     ///      Returns the pool's numeraire ordering alongside the price. Every pool this scan can pick is a
-    ///      V3 `weth`/`token` pair, ordered by address, so `weth < token` IS that ordering and it is a
-    ///      property of the pool the price came from — never of the caller's own venue. Returning it here
-    ///      is what keeps a caller from cross-checking its spot against a TWAP on the opposite numeraire;
-    ///      `ethIsCurrency0` is meaningless when the price is 0, and the caller ignores it in that case.
+    ///      V3 `weth`/`token` pair ordered by address, so `weth < token` is a property of the pool the
+    ///      price came from, never of the caller's venue. `ethIsCurrency0` is meaningless when the price
+    ///      is 0 and the caller ignores it then.
     function _getTwapSqrtPriceX96(address token) private view returns (uint160, bool ethIsCurrency0) {
         if (v3Factory.code.length == 0) revert PriceValidatorMisconfigured();
         ethIsCurrency0 = weth < token;
@@ -501,8 +460,7 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
             address pool = IUniswapV3Factory(v3Factory).getPool(weth, token, feeTiers[i]);
             if (pool == address(0)) continue;
 
-            // Depth gate: a pool below the minimum reference liquidity (a dust / single-wei pool whose
-            // `observe` cumulatives an attacker controls) is not eligible as the deviation reference.
+            // Depth gate: a dust pool's `observe` cumulatives are attacker-controlled.
             try IUniswapV3Pool(pool).liquidity() returns (uint128 liq) {
                 if (liq < MIN_REFERENCE_LIQUIDITY) continue;
             } catch {

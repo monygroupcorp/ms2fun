@@ -9,8 +9,7 @@ import { MainnetAddresses } from "./MainnetAddresses.sol";
 import { AnvilFixedRouteQuoter, ArtistEndowments } from "./SeedAnvilShared.sol";
 // Registry paperwork, not an asset: an endowment vault's `alignmentToken` exists only to satisfy
 // `registerVault`'s check (the vault holds Aave-supplied WETH and never touches this token), and
-// `initialize` refuses address(0). The Sepolia seed already stands its alignment tokens up the same
-// way. Every surface that names one says FIXTURE, so nobody reads it as a real fan token.
+// `initialize` refuses address(0). Every surface that names one says FIXTURE.
 import { MockERC20 } from "../test/mocks/MockERC20.sol";
 
 /// @notice Deploys the full protocol to a local Anvil chain.
@@ -18,12 +17,11 @@ import { MockERC20 } from "../test/mocks/MockERC20.sol";
 ///         Writes deployments/anvil.json which deploy.mjs copies to
 ///         src/config/contracts.local.json for the frontend.
 contract DeployAnvil is DeployCore {
-    // The protocol rails this fork inherits from mainnet are read from the one file that states
-    // them, which `DeployMainnet` reads too — a rehearsal that disagrees with the deploy it
-    // rehearses is worse than none. See `script/MainnetAddresses.sol`.
+    // The protocol rails this fork inherits from mainnet come from `script/MainnetAddresses.sol`,
+    // the same file `DeployMainnet` reads, so the rehearsal and the deploy agree.
     //
-    // The two token addresses below stay here: they are this fork's alignment ROSTER, a curation
-    // choice about what to demonstrate, not a fact about the network.
+    // The two token addresses below are this fork's alignment roster, a curation choice about what
+    // to demonstrate, not a fact about the network.
     address constant MS2_TOKEN = 0x98Ed411B8cf8536657c660Db8aA55D9D4bAAf820;
     address constant CULT_TOKEN = 0x0000000000c5dc95539589fbD24BE07c6C14eCa4;
 
@@ -31,29 +29,25 @@ contract DeployAnvil is DeployCore {
         uint256 pk = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(pk);
         vm.startBroadcast(pk);
-        // The two artist targets' fixture tokens. Deployed here rather than pinned as constants
-        // because there is nothing on mainnet to point at — an artist endowment is permanent principal
-        // streaming yield to a payout address, and the token is the one field the registry insists on.
+        // The two artist targets' fixture tokens: deployed rather than pinned because there is no
+        // mainnet token to point at, and the registry requires the field.
         address paradilfToken = address(new MockERC20("Paradilf Fan Club Fixture", "PDLF"));
         address petravoiceToken = address(new MockERC20("Petravoice Fixture", "PTRA"));
-        // The best-route quoter is OPERATOR INPUT and there is no canonical one on a local fork, so the
-        // fork supplies its own. It must exist before `deploy` runs: every vault factory takes the
-        // quoter as a CONSTRUCTOR immutable and threads it into each vault at deployVault time, and the
-        // vault's own `setZQuoter` is owned by the factory, which exposes no passthrough — so this is
-        // the only point in the lifecycle at which the acquisition venue is settable at all.
+        // The best-route quoter is operator input and a local fork has no canonical one, so the fork
+        // supplies its own. It must exist before `deploy` runs: every vault factory takes the quoter
+        // as a constructor immutable and threads it into each vault at deployVault time, and the
+        // vault's `setZQuoter` is owned by the factory, which exposes no passthrough.
         address quoter = address(new AnvilFixedRouteQuoter(CULT_TOKEN));
         deploy(deployer, _anvilConfig(quoter, paradilfToken, petravoiceToken));
         vm.stopBroadcast();
     }
 
-    /// @dev FOUR alignment targets, and the last two are the argument. One is a large community
-    ///      token; two are individual artists, each carrying an Aave endowment vault and nothing else.
-    ///      A reviewer should be able to read "this platform is for artist exaltation, and the large
-    ///      community is one instance of that" off the target list alone, before opening a collection.
+    /// @dev Four alignment targets: two community tokens (MS2, CULT) and two individual artists,
+    ///      each carrying an Aave endowment vault and nothing else.
     ///
-    ///      The artist targets deploy NO LP vault, on purpose. An endowment has no liquidity leg: it
-    ///      supplies WETH to Aave and splits the yield between the benefactor's claimable purse and the
-    ///      target's payout. Deploying a liquidity vault beside it would offer a venue nothing routes to.
+    ///      The artist targets deploy no LP vault. An endowment has no liquidity leg: it supplies
+    ///      WETH to Aave and splits the yield between the benefactor's claimable purse and the
+    ///      target's payout, so a liquidity vault beside it would be a venue nothing routes to.
     function _anvilConfig(address quoter, address paradilfToken, address petravoiceToken)
         internal
         view
@@ -73,10 +67,9 @@ contract DeployAnvil is DeployCore {
         targets[1] = AlignmentTargetConfig({
             token: CULT_TOKEN,
             symbol: "CULT",
-            // CULT_TOKEN answers `name()` with "Milady Cult Coin" and `symbol()` with "CULT" — the
-            // token is Remilia Corporation's own ERC20, not the unrelated token that shares the
-            // symbol. `registerAlignmentTarget` seals the title at registration (`updateAlignmentTarget`
-            // can change only the description and the metadata URI), so the label has to be right here.
+            // CULT_TOKEN answers `name()` with "Milady Cult Coin" and `symbol()` with "CULT". The title
+            // is sealed at registration (`updateAlignmentTarget` changes only the description and the
+            // metadata URI).
             name: "Milady Cult Coin",
             description: "Remilia / Milady community alignment target",
             deployUniVault: true,
@@ -84,9 +77,8 @@ contract DeployAnvil is DeployCore {
             communityPayout: address(uint160(uint256(keccak256(abi.encode("ms2.community", CULT_TOKEN)))))
         });
         // ── The artist endowments ────────────────────────────────────────────────────────────────
-        // The payout on each is a DERIVED FIXTURE keyed off the artist's slug — reproducible across
-        // reseeds, owned by nobody, and never a real person's address. The token beside it is a
-        // fixture too, and is described as one.
+        // Each payout is a fixture derived from the artist's slug: reproducible across reseeds,
+        // owned by nobody, never a real person's address. The token is a fixture too.
         targets[2] = AlignmentTargetConfig({
             token: paradilfToken,
             symbol: ArtistEndowments.PARADILF_SYMBOL,
@@ -116,8 +108,7 @@ contract DeployAnvil is DeployCore {
         cfg.aaveStataToken = MainnetAddresses.WETH_STATA_TOKEN; // waEthWETH (mainnet fork)
         cfg.zrouter = address(0);
         // Best-route acquisition, pinned to the alignment token's deepest native-ETH V4 pool. Scoped to
-        // that one token (see AnvilFixedRouteQuoter) — every other vault keeps the fixed-tier fallback
-        // it has today, so this addition is inert for them.
+        // that one token (see AnvilFixedRouteQuoter); every other vault uses the fixed-tier fallback.
         cfg.zQuoter = quoter;
         cfg.safe = address(0);
         // Sequential salts — unguarded so any address can call CreateX on local chain
@@ -133,7 +124,7 @@ contract DeployAnvil is DeployCore {
         cfg.twapSeconds = 1800;
         cfg.zrouterFee = 3000;
         cfg.zrouterTickSpacing = 60;
-        cfg.zammFeeOrHook = 100; // ZAMM standard 1% pool fee selector (mainnet-shaped value confirmed pre-Phase-4)
+        cfg.zammFeeOrHook = 100; // ZAMM standard 1% pool fee selector
         cfg.alignmentTargets = targets;
         cfg.jsonOutputPath = "./deployments/anvil.json";
     }

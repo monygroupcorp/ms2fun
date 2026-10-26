@@ -7,7 +7,7 @@ import { SmartTransferLib } from "../../libraries/SmartTransferLib.sol";
 import { ProtocolTreasuryV1 } from "../../treasury/ProtocolTreasuryV1.sol";
 
 /// @dev Minimal read surface the escrow needs from a bonding instance: a public state getter on
-///      ERC404BondingInstance — no new graduation trigger is introduced here.
+///      ERC404BondingInstance; the escrow has no graduation trigger of its own.
 interface IBondInstance {
     function graduated() external view returns (bool);
 }
@@ -19,10 +19,10 @@ interface IBondInstance {
  *         treasury (tagged `BOND_FORFEIT`) if it never graduates within the deadline. The bond
  *         is a neutral anti-spam deposit, not a punishment — hence `forfeit` (unclaimed-deposit
  *         semantics) and the owner `release` escape hatch.
- * @dev Non-upgradeable + `Ownable` (owner = Safe/Timelock), deliberately SEPARATE from the factory
- *      and the instance: it holds the ETH so the factory keeps its "holds no ETH" invariant and
- *      nothing lands in the EIP-170-constrained instance. Lever defaults OFF (`bondAmount == 0`),
- *      so a factory with no escrow wired — or an escrow with a zero bond — behaves exactly as today.
+ * @dev Non-upgradeable + `Ownable` (owner = Safe/Timelock), separate from the factory and the
+ *      instance: it holds the ETH so the factory holds no ETH and nothing lands in the
+ *      EIP-170-constrained instance. `bondAmount == 0` turns the lever off, so a factory with no
+ *      escrow wired, or an escrow with a zero bond, takes no bond.
  */
 contract DeployBondEscrow is Ownable, ReentrancyGuard {
     // ── Errors ──────────────────────────────────────────────────────────────
@@ -45,8 +45,7 @@ contract DeployBondEscrow is Ownable, ReentrancyGuard {
         uint40 createdAt; // post timestamp; also the sentinel (0 == no bond)
         bool settled; // refunded / forfeited / released — terminal, blocks double-spend
         // The forfeit terms in force at `createdAt`, recorded so that neither party can move this
-        // bond's deadline afterwards. Appended last and narrowed so all four pack into the slot
-        // `createdAt` already opens — the snapshot costs no extra storage word at post time.
+        // bond's deadline afterwards. Narrowed so all four fields pack into one slot.
         uint40 maxBondDuration; // seconds, as `maxBondDuration` read at post
         uint32 graceDays; // days, as `graceDays` read at post
     }
@@ -58,22 +57,20 @@ contract DeployBondEscrow is Ownable, ReentrancyGuard {
     /// @notice Canonical WETH used as the ETH-transfer fallback wrapper on the creator-paying legs
     ///         (`refund`/`release`). If the recorded creator rejects plain ETH (e.g. a smart-wallet
     ///         whose `receive()` reverts), the bond is wrapped to WETH and delivered to the SAME
-    ///         creator as an ERC20 — so a rejecting recipient can never strand its bond. Immutable on
-    ///         a non-upgradeable contract → no storage-layout concern.
+    ///         creator as an ERC20 — so a rejecting recipient can never strand its bond.
     address public immutable weth;
 
     // ── Storage ───────────────────────────────────────────────────────────────
     /// @notice Protocol treasury; forfeited bonds are deposited here tagged `BOND_FORFEIT`.
     address public protocolTreasury;
 
-    /// @notice Bond required per create. **Default 0 = lever OFF** (byte-identical to today's
-    ///         create path). Owner-tuned; sized against MINNOW raises when turned on.
+    /// @notice Bond required per create. 0 means no bond is taken. Owner-tuned.
     uint256 public bondAmount;
     /// @notice Grace window (in days) added on top of the forfeit deadline. Owner-tuned; recorded
-    ///         onto each bond at post, so a change here governs FUTURE bonds only.
+    ///         onto each bond at post, so a change here governs later bonds only.
     uint256 public graceDays = 30;
     /// @notice How long a bond may sit before it becomes forfeitable. Owner-tuned; recorded onto
-    ///         each bond at post, so a change here governs FUTURE bonds only.
+    ///         each bond at post, so a change here governs later bonds only.
     uint256 public maxBondDuration = 180 days;
 
     /// @notice instance => escrowed bond record.
@@ -147,10 +144,10 @@ contract DeployBondEscrow is Ownable, ReentrancyGuard {
     ///         Permissionless. Deadline = `createdAt` plus the `maxBondDuration` and `graceDays`
     ///         recorded on the bond when it was posted.
     /// @dev The forfeit deadline is fixed by the protocol-owned parameters in force at bond
-    ///      creation. No instance-side, creator-settable value may extend it, and no later
-    ///      protocol action may move it. In particular the instance's `bondingMaturityTime` — an
-    ///      owner-or-agent setter with no upper bound — is deliberately not read here: anchoring
-    ///      on it let a creator push the deadline past any protocol cap and strand the escrow.
+    ///      creation. No instance-side, creator-settable value extends it, and no later protocol
+    ///      action moves it. The instance's `bondingMaturityTime` (an owner-or-agent setter with no
+    ///      upper bound) is not read: anchoring on it would let a creator push the deadline past any
+    ///      protocol cap and strand the escrow.
     function forfeit(address instance) external nonReentrant {
         Bond storage b = bonds[instance];
         if (b.createdAt == 0) revert NoBond();

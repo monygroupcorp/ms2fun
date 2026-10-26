@@ -9,7 +9,7 @@ import { ICurveComputer } from "../../interfaces/ICurveComputer.sol";
 /**
  * @title CurveParamsComputer
  * @notice Computes bonding curve parameters from a graduation profile and NFT count
- * @dev Extracted from ERC404Factory to reduce bytecode size. Owns all curve weight state and computation.
+ * @dev Separate from ERC404Factory for bytecode size. Owns all curve weight state and computation.
  *      The factory looks up the profile and passes it in; this contract has no storage dependency on the factory.
  *
  *      The curve shape is the pole gap `poleWad - 1e18`. It is SOLVED per collection from that
@@ -33,17 +33,16 @@ contract CurveParamsComputer is Ownable, ICurveComputer {
     /// @notice LP share of the raise (`RevenueSplitLib`: 1% protocol / 19% vault / 80% LP), WAD.
     uint256 internal constant LP_SHARE_WAD = 0.8e18;
 
-    /// @notice Hard band on the pole. A bare `> 1e18` check is not sufficient: at `1e18 + 1e6` the
-    ///         library is still numerically well-behaved and nothing reverts, while the graduation
-    ///         price is six orders of magnitude above anything reachable, so the bond can never
-    ///         complete. The band, not the library, is what refuses such a value.
+    /// @notice Hard band on the pole. A bare `> 1e18` check is not enough: at `1e18 + 1e6` the
+    ///         library does not revert, yet the graduation price is six orders of magnitude above
+    ///         anything reachable, so the bond could never complete. The band refuses such a value.
     uint256 public constant MIN_POLE_WAD = 1.02e18;
     uint256 public constant MAX_POLE_WAD = 2e18;
 
     /// @notice Maximum relative deviation of the achieved graduation multiple from the target, WAD.
     uint256 public constant PARITY_TOLERANCE_WAD = 1e12; // 1e-6 relative
 
-    /// @notice Maximum bisection steps. Bounded by construction — never an unbounded loop.
+    /// @notice Maximum bisection steps.
     uint256 internal constant MAX_SOLVE_ITERATIONS = 128;
 
     /// @notice Amplitude weight. Cancels out of the result (the params are rescaled to hit
@@ -133,14 +132,11 @@ contract CurveParamsComputer is Ownable, ICurveComputer {
      *      the pole, so a reserve is admissible exactly when its parity target lands within the
      *      multiples the pole band [MIN_POLE_WAD, MAX_POLE_WAD] can reach. This is the same
      *      predicate `solvePole` reverts on, expressed as a question rather than an assertion, so a
-     *      caller can refuse an unusable reserve at STORE time rather than at every create.
-     *      Retuning either pole constant moves this answer with it, which is the point: the band has
-     *      one definition and cannot drift out of agreement with a second copy. Measured, that band
-     *      is 592..3567 bps at today's constants — deliberately NOT written down here, because a
-     *      hardcoded copy would go quietly wrong the moment those constants move.
+     *      caller can refuse an unusable reserve at store time rather than at every create.
+     *      The band follows the pole constants, so it has a single definition; no bps range is
+     *      hardcoded.
      *
-     *      Total by construction: the degenerate reserves are rejected by the first line rather than
-     *      reaching the division, so there is no input for which this reverts instead of answering.
+     *      Total: degenerate reserves return false before the division, so it never reverts.
      * @param liquidityReserveBps Bps of total supply reserved for liquidity
      * @return admissible True if `computeCurveParams` can return params for this reserve
      */
@@ -219,8 +215,7 @@ contract CurveParamsComputer is Ownable, ICurveComputer {
      *      (ERC404Factory) owns the definition of the bonding cap — full supply, less the liquidity
      *      reserve, less the free-mint allocation — and passes exactly that value here, so the curve's
      *      designed endpoint is byte-identical to the cap the instance enforces at buy/sell. The pole is
-     *      still solved from `liquidityReserveBps` (the reserve fraction sets the graduation multiple),
-     *      which is why that argument is retained even though the span is now explicit.
+     *      solved from `liquidityReserveBps`, since the reserve fraction sets the graduation multiple.
      * @param maxBondingSupply Token span (wei) the curve must raise `targetETH` over.
      * @param targetETH Target ETH to raise through the bonding curve.
      * @param liquidityReserveBps Bps of total supply reserved for liquidity (sets the graduation multiple).
@@ -253,7 +248,7 @@ contract CurveParamsComputer is Ownable, ICurveComputer {
         if (solvedPole < MIN_POLE_WAD || solvedPole > MAX_POLE_WAD) revert PoleOutOfBand();
         if (!_withinTolerance(graduationMultipleAt(solvedPole), targetG)) revert ParityToleranceExceeded();
 
-        // Compute reference integral with the unit amplitude weight
+        // Reference integral at the unit amplitude weight.
         BondingCurveMath.Params memory refParams =
             BondingCurveMath.Params({ kCoeff: kWeight, poleWad: solvedPole, normalizationFactor: normFactor });
 

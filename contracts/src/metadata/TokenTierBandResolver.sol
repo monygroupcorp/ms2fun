@@ -10,20 +10,19 @@ import { IMasterRegistry } from "../master/interfaces/IMasterRegistry.sol";
 /// @notice Static band→art metadata resolver for Token Tiers. A tier NFT is a coin DENOMINATION:
 ///         an id that sits in band N shows band N's art, unconditionally and forever. No threshold,
 ///         no balance read, no reveal — art does not move when holdings move.
-/// @dev Singleton keyed by instance. Bands are SEALED at create: the factory that registered THIS
+/// @dev Singleton keyed by instance. Bands are sealed at create: the factory that registered this
 ///      instance wires the whole band table once via `initBands` (validating non-overlapping ascending
-///      ranges), then it is frozen — no owner add/edit. Mutable rarity = rug.
-///      Auth = `masterRegistry.getInstanceInfo(inst).factory == msg.sender` — ONLY the instance's own
-///      registering factory, not any registered factory (least privilege, D1; blocks the seal-front-run
-///      on deterministic CREATE3 addresses).
+///      ranges), then it is frozen with no owner add/edit, since mutable rarity is a rug vector.
+///      Auth is `masterRegistry.getInstanceInfo(inst).factory == msg.sender`: only the instance's own
+///      registering factory, not any registered factory, which blocks a front-run of the seal on
+///      deterministic CREATE3 addresses.
 ///
-///      Band ids live ABOVE the instance's id ceiling (`idLimit`): DN404's auto-mint bounds emitted ids
-///      to `[1..idLimit]`, so band ids are never handed out by an ordinary buy. That is exactly what
-///      reserves them for the tier mint path (T2) — the resolver itself does not enforce it, it only
-///      maps id ranges to art.
+///      Band ids live above the instance's id ceiling (`idLimit`): DN404's auto-mint bounds emitted ids
+///      to `[1..idLimit]`, so an ordinary buy never hands out a band id, which reserves them for the tier
+///      mint path. The resolver does not enforce this; it only maps id ranges to art.
 ///
-///      Deliberately holds NO tier weights. The escrow math `(w_N − 1)·unit` lives on the instance,
-///      where the coin accounting is; duplicating a weight here would let the two drift.
+///      Holds no tier weights. The escrow math `(w_N − 1)·unit` lives on the instance, where the coin
+///      accounting is; a copy here could drift.
 contract TokenTierBandResolver is IMetadataResolver, Ownable {
     error NotRegisteredFactory();
     error AlreadySealed();
@@ -56,8 +55,6 @@ contract TokenTierBandResolver is IMetadataResolver, Ownable {
     /// @dev Ranges must be ascending and non-overlapping: bands[i].idEnd >= idStart and
     ///      bands[i+1].idStart > bands[i].idEnd.
     function initBands(address inst, Band[] calldata bs) external {
-        // Least privilege (D1): only the factory that registered THIS instance may seal its bands,
-        // not any registered factory.
         if (masterRegistry.getInstanceInfo(inst).factory != msg.sender) revert NotRegisteredFactory();
         if (sealed_[inst]) revert AlreadySealed();
 
@@ -72,8 +69,8 @@ contract TokenTierBandResolver is IMetadataResolver, Ownable {
     }
 
     /// @inheritdoc IMetadataResolver
-    /// @dev `holder` is IGNORED — that is the whole point. Band art is a property of the id, not of
-    ///      who happens to hold it, so the same id serves the same URI at any balance.
+    /// @dev `holder` is ignored: band art is a property of the id, so the same id serves the same URI at
+    ///      any balance.
     function resolve(
         address inst,
         uint256 id,
@@ -86,8 +83,8 @@ contract TokenTierBandResolver is IMetadataResolver, Ownable {
     {
         (bool found, Band memory b) = _bandForId(inst, id);
         if (!found) return ""; // common id → collection base
-        // Blank band baseURI → fall through to collection base. Without this, string.concat("", id)
-        // would serve a bare "123" — a broken non-URI (noesis-136).
+        // Blank band baseURI falls through to collection base; otherwise string.concat("", id) would
+        // serve a bare "123", which is not a URI.
         if (bytes(b.baseURI).length == 0) return "";
         return string.concat(b.baseURI, LibString.toString(id));
     }
@@ -99,7 +96,7 @@ contract TokenTierBandResolver is IMetadataResolver, Ownable {
 
     // ── Internal ────────────────────────────────────────────────────────────────
 
-    /// @dev Explicit (found, Band) — no idEnd==0 sentinel (H6). O(bands); ranges capped at config.
+    /// @dev Explicit (found, Band) with no idEnd==0 sentinel. O(bands).
     function _bandForId(address inst, uint256 id) internal view returns (bool, Band memory) {
         Band[] storage bs = bands[inst];
         uint256 len = bs.length;

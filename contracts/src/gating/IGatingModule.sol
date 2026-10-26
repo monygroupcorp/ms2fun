@@ -21,15 +21,14 @@ interface IGatingModule is IComponentModule {
     /// @param user      The buyer address.
     /// @param editionId Authoritative edition/curve id supplied by the calling instance. ERC1155
     ///                  instances pass the real edition; ERC404 (single curve) passes 0. Per-edition
-    ///                  modules key their roots and claim accounting on this — the instance is the
+    ///                  modules key their roots and claim accounting on this; the instance is the
     ///                  source of truth, so a proof for edition A cannot be replayed on edition B.
     /// @param amount    Token amount (not NFT count).
     /// @param openTime  Authoritative open timestamp for this entry point (edition.openTime for
-    ///                  ERC1155, bondingOpenTime for ERC404). De-wrapped from `data` so `data` carries
-    ///                  only the module payload — a bytes32[] merkle proof cannot be smuggled through the
-    ///                  old abi.encode(payload, openTime) wrap.
-    /// @param data      Module-specific payload — e.g. merkle (tierId, maxQty, proof), or a future
-    ///                  ZK proof + public signals. Empty (`0x`) when the module needs no payload.
+    ///                  ERC1155, bondingOpenTime for ERC404). Passed apart from `data` so `data`
+    ///                  carries only the module payload.
+    /// @param data      Module-specific payload, e.g. merkle (tierId, maxQty, proof). Empty (`0x`)
+    ///                  when the module needs no payload.
     function canMint(address user, uint256 editionId, uint256 amount, uint256 openTime, bytes calldata data)
         external
         returns (bool allowed, bool permanent);

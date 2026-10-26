@@ -25,14 +25,13 @@ interface IUniV3Pool {
 }
 
 /// @title ScanAlignmentPools
-/// @notice **Admin tool** — scan the on-chain LP pools an alignment target's token can be wired into,
+/// @notice Admin tool: scan the on-chain LP pools an alignment target's token can be wired into,
 ///         per venue, and recommend the deepest (which becomes the vault's pool key). Run per token
 ///         when bringing a new alignment target online, on a mainnet archive fork. Read-only.
 ///
-///         Answers "which fee tier / venue has the liquidity?" with measurement instead of the
-///         hardcoded tier the deploy scripts currently bake (resolves vault-flavors O3). The Uni V4
-///         native-ETH pools are the wireable target for the UniswapV4LP vault; V3 and ZAMM are
-///         reported so the admin sees the full LP-family picture across venues.
+///         Answers "which fee tier / venue has the liquidity?" by measurement rather than the fixed
+///         tier the deploy scripts bake. The Uni V4 native-ETH pools are the wireable target for the
+///         UniswapV4LP vault; V3 and ZAMM are reported for the full LP-family picture.
 ///
 ///         Run:
 ///           forge script script/ScanAlignmentPools.s.sol \
@@ -49,7 +48,7 @@ contract ScanAlignmentPools is Script {
 
     uint24[4] FEES = [uint24(100), 500, 3000, 10000];
     int24[4] SPACINGS = [int24(1), 10, 60, 200];
-    // Best-effort ZAMM fee/hook selectors to probe (ZAMM's fee scale is pool-defined; extend as needed).
+    // ZAMM fee/hook selectors probed; ZAMM's fee scale is pool-defined, so the list is best-effort.
     uint256[4] ZAMM_FEES = [uint256(1), 30, 100, 3000];
 
     struct Best {
@@ -86,7 +85,7 @@ contract ScanAlignmentPools is Script {
         console.log("");
     }
 
-    // ── Uni V4 (native ETH) — the wireable target ────────────────────────────
+    // ── Uni V4 (native ETH): the wireable target ─────────────────────────────
     function _scanUniV4Native(address token) internal view returns (Best memory best) {
         console.log("-- Uniswap V4 (native ETH / token) [WIREABLE] --");
         IPoolManager pm = IPoolManager(V4_PM);
@@ -108,15 +107,15 @@ contract ScanAlignmentPools is Script {
             console.log("   fee", FEES[i], _bps(FEES[i]));
             console.log("      liquidity L:", liq);
             console.log("      sqrtPriceX96:", sqrtP);
-            // Strict `>` from an initial `best.liq == 0` is deliberate: a tier that is initialized
-            // but holds zero active liquidity is reported above and must NOT win the recommendation,
-            // because wiring the vault to it would LP into an empty pool. Do not relax this to `>=`.
+            // Strict `>` from an initial `best.liq == 0`: a tier that is initialized but holds zero
+            // active liquidity is reported above and must not win the recommendation, because wiring
+            // the vault to it would LP into an empty pool.
             if (liq > best.liq) best = Best(FEES[i], SPACINGS[i], liq, true);
         }
         if (!best.found) console.log("   (none initialized)");
     }
 
-    // ── Uni V3 (WETH/token) — reference only (the vault LPs into V4, not V3) ──
+    // ── Uni V3 (WETH/token): reference only (the vault LPs into V4) ──────────
     function _scanUniV3(address token) internal view {
         console.log("-- Uniswap V3 (WETH / token) [reference] --");
         for (uint256 i = 0; i < FEES.length; i++) {
@@ -132,7 +131,7 @@ contract ScanAlignmentPools is Script {
         }
     }
 
-    // ── ZAMM — best-effort (fee/hook selector is pool-defined) ────────────────
+    // ── ZAMM: best-effort (fee/hook selector is pool-defined) ─────────────────
     function _scanZamm(address token) internal view {
         console.log("-- ZAMM (ETH / token) [ZAMMLP vault] --");
         bool any;

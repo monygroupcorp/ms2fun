@@ -38,10 +38,10 @@ import { SmartTransferLib } from "../libraries/SmartTransferLib.sol";
  * (500 = 5%/day). getFeaturedInstances returns active slots sorted by effective rank — position 1
  * first.
  *
- * Featured ETH is DELIBERATELY 100% protocol: every rentFeatured/boostRank/renewDuration payment
- * forwards whole to protocolTreasury, skipping the 80/19/1 alignment split. Featured placement is
- * an advertising surface with no bound alignment target to split to — kept whole to the protocol by
- * design (Mony, 2026-07-16), not an unsplit oversight. Mirrors GlobalMessageRegistry.withdrawETH.
+ * Featured ETH is 100% protocol: every rentFeatured/boostRank/renewDuration payment forwards whole
+ * to protocolTreasury, skipping the 80/19/1 alignment split, because featured placement is an
+ * advertising surface with no bound alignment target to split to. Mirrors
+ * GlobalMessageRegistry.withdrawETH.
  */
 // slither-disable-next-line missing-inheritance
 contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
@@ -160,9 +160,8 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
         _addToList(instance);
 
         // Carry decayed rank forward, add new boost.
-        // INTENDED: rank is instance-bound, not wallet-bound. A re-renter of an expired slot inherits
-        // the project's accumulated (geometrically decayed) rank — rank belongs to the project, not the
-        // renter (Mony, 2026-07-16). Not an oversight; do not reset-on-new-renter.
+        // Rank is instance-bound, not wallet-bound: a re-renter of an expired slot inherits the project's
+        // accumulated (decayed) rank.
         uint256 newRank = _effectiveRank(slots[instance]) + rankBoost;
 
         slots[instance] = FeaturedSlot({
@@ -172,10 +171,8 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
             expiresAt: block.timestamp + duration
         });
 
-        // Forward payment directly to treasury
         SafeTransferLib.safeTransferETH(protocolTreasury, totalDue);
 
-        // Refund excess
         if (msg.value > totalDue) {
             SmartTransferLib.smartTransferETH(msg.sender, msg.value - totalDue, weth);
         }
@@ -215,16 +212,14 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
      *         `getFeaturedInstances`, so its placement cannot be extended.
      * @dev    `maxDuration` is a ceiling on total occupancy, not only on a single increment: a renewal
      *         is refused when the resulting `expiresAt` would sit further than `maxDuration` ahead of
-     *         the current block. `DurationTooLong` covers BOTH refusals — the increment being larger
-     *         than `maxDuration` ("ask for less"), and the result running past the ceiling ("not yet,
-     *         whatever you ask for"). A caller that needs to tell the two apart compares
-     *         `additionalDuration` and `expiresAt` against `maxDuration` before calling.
+     *         the current block. `DurationTooLong` covers both refusals: the increment larger than
+     *         `maxDuration`, and the result running past the ceiling. A caller that needs to tell them
+     *         apart compares `additionalDuration` and `expiresAt` against `maxDuration` before calling.
      *
-     *         Because increments also have a floor (`minDuration`), a slot whose remaining life is
-     *         within `minDuration` of the ceiling cannot be renewed at all: the smallest legal
-     *         increment already overshoots. Such a slot becomes renewable again once its remaining
-     *         life decays below `maxDuration - minDuration`. This is intended — it is what keeps a
-     *         capped slot from being prepaid out indefinitely at the current `dailyRate`.
+     *         Because increments also have a floor (`minDuration`), a slot whose remaining life is within
+     *         `minDuration` of the ceiling cannot be renewed: the smallest legal increment overshoots. It
+     *         becomes renewable once its remaining life falls below `maxDuration - minDuration`, which
+     *         keeps a capped slot from being prepaid indefinitely at the current `dailyRate`.
      * @param instance           Active featured instance
      * @param additionalDuration Extra seconds to add to expiresAt
      */
@@ -359,27 +354,24 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
      *      elapsed seconds. 500 bps = 5%/day, so a day multiplies rank by 0.95, half a day by
      *      sqrt(0.95), and so on.
      *
-     *      The curve is CADENCE-INDEPENDENT: because the retention factor is exponential in elapsed
-     *      time, decaying over `a + b` seconds equals decaying over `a`, crystallising, and decaying
-     *      over `b`. A slot left alone and a slot recrystallised daily therefore read the same value
-     *      after the same elapsed time, up to per-write rounding dust. Every rank write
-     *      (`rentFeatured`, `boostRank`) crystallises through this same function and restamps
-     *      `lastBoostTime`, so the write path and the read path take the identical step.
+     *      The curve is cadence-independent: the retention factor is exponential in elapsed time, so
+     *      decaying over `a + b` seconds equals decaying over `a`, crystallising, and decaying over `b`.
+     *      A slot left alone and one recrystallised daily read the same value after the same elapsed
+     *      time, up to per-write rounding dust. Every rank write (`rentFeatured`, `boostRank`)
+     *      crystallises through this function and restamps `lastBoostTime`, so the write path and the
+     *      read path take the identical step.
      *
-     *      Rank asymptotes toward zero rather than crossing it at a fixed horizon: percentage decay
-     *      has no finite wipe point, so placement always costs new ETH to hold but is never granted a
-     *      guaranteed expiry date by the curve alone. Rank reaches exactly 0 only once the retained
-     *      fraction underflows the wei resolution of the stored rank (`mulWad` truncation), or once
-     *      the exponent leaves `expWad`'s representable range — both far beyond the slot durations
-     *      `maxDuration` permits.
+     *      Rank asymptotes toward zero: percentage decay has no finite wipe point. It reaches exactly 0
+     *      only once the retained fraction underflows the wei resolution of the stored rank (`mulWad`
+     *      truncation), or the exponent leaves `expWad`'s representable range; both are far beyond the
+     *      slot durations `maxDuration` permits.
      *
      *      Boundary rates: `dailyDecayRate == 0` retains rank indefinitely, and `>= 10000` (100%/day
      *      or more) has a retention factor of zero, so any non-zero elapsed time reads 0.
      *
-     *      Cost: one `lnWad` + one `expWad` + one `mulWad` per evaluation, measured at ~1,030 gas
-     *      over the earlier multiply-and-subtract. `getFeaturedInstances` pays it once per visible
-     *      slot in its collect pass (it is not in the sort loop), so the read scales with
-     *      `maxFeaturedSize` exactly as before.
+     *      Cost: one `lnWad`, one `expWad` and one `mulWad` per evaluation. `getFeaturedInstances` pays it
+     *      once per visible slot in its collect pass (not in the sort loop), so the read scales with
+     *      `maxFeaturedSize`.
      *      Precision: `powWad` is accurate to within a few wei per 1e18 of retained fraction; the
      *      per-write dust is a truncation of at most 1 wei of rank per crystallisation.
      */
@@ -411,8 +403,8 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
      * @dev The single occupancy count. A slot occupies capacity exactly while it is visible —
      *      unexpired AND live in the master registry — so `queueLength()` and the `total` returned by
      *      `getFeaturedInstances` are the same number, and the `maxFeaturedSize` cap is spent only on
-     *      slots that can actually render. A registry revocation therefore frees the seat as well as
-     *      the badge: the revoked slot stops being counted, and a live instance can rent in its place.
+     *      slots that can render. A registry revocation frees the seat: the revoked slot stops being
+     *      counted and a live instance can rent in its place.
      */
     // slither-disable-next-line timestamp
     function _activeCount() internal view returns (uint256) {
@@ -425,12 +417,10 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
 
     function _addToList(address instance) internal {
         if (!_inList[instance]) {
-            // Prune one non-visible entry to bound list growth before inserting.
-            // The cap is on the VISIBLE count, so `_featuredList` may also hold entries that are
-            // expired or revoked. Whenever the list has reached maxFeaturedSize, the caller has
-            // already passed the cap check, so visible < maxFeaturedSize <= list length — at least one
-            // list entry is non-visible and `_pruneOneInvisible` is guaranteed to find it. The list
-            // therefore cannot grow past the cap, one insert at a time.
+            // The cap is on the visible count, so the list may also hold expired or revoked entries. When
+            // the list has reached maxFeaturedSize the caller has already passed the cap check, so
+            // visible < maxFeaturedSize <= list length: at least one entry is non-visible and
+            // `_pruneOneInvisible` finds it, so the list cannot grow past the cap.
             if (_featuredList.length >= maxFeaturedSize) _pruneOneInvisible();
             _featuredListIndex[instance] = _featuredList.length;
             _featuredList.push(instance);
@@ -497,8 +487,8 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
      *      does not decode must not take the whole grid down. Raw `staticcall` + a returndata-size guard
      *      + an assembly word read, because a high-level call (even inside `try`/`catch`) reverts on a
      *      malformed return frame rather than yielding control back.
-     *      Fallback is FAIL-OPEN — treat the slot as live — which is the pre-existing visibility
-     *      behaviour, strictly narrower a failure than hiding every featured instance at once.
+     *      Fail-open: an unreadable registry treats the slot as live, a narrower failure than hiding
+     *      every featured instance at once.
      */
     function _registrySaysLive(address instance) internal view returns (bool) {
         address registry = address(masterRegistry);
@@ -550,10 +540,9 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
         dailyRate = _dailyRate;
     }
 
-    /// @dev `_dailyDecayRate` is in BASIS POINTS of REMAINING rank per day (bps), NOT absolute ETH.
-    ///      500 = 5%/day, compounded geometrically: two days retain 0.95 * 0.95. 0 disables decay;
-    ///      10000 or more wipes rank at any non-zero elapsed time. Owner-tunable; see _effectiveRank
-    ///      for the decay curve.
+    /// @dev `_dailyDecayRate` is in basis points of remaining rank per day, not ETH. 500 = 5%/day,
+    ///      compounded geometrically: two days retain 0.95 * 0.95. 0 disables decay; 10000 or more wipes
+    ///      rank at any non-zero elapsed time. See _effectiveRank for the curve.
     // slither-disable-next-line events-maths
     function setDailyDecayRate(uint256 _dailyDecayRate) external onlyOwner {
         dailyDecayRate = _dailyDecayRate;
