@@ -18,7 +18,7 @@ import { CreateXSalt, ICreateX, CREATEX } from "../../shared/CreateXConstants.so
  * @notice Deploys and registers ERC1155 edition instances.
  *         Single responsibility: validate → deploy via CREATE3 → register.
  *         Protocol fees flow directly to treasury — no custody.
- *         Promotion (featured placements, badges) is handled externally.
+ *         Promotion (featured placements) is handled externally.
  */
 contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
     error InvalidAddress();
