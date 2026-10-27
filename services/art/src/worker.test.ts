@@ -129,6 +129,11 @@ describe('the request it answers', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('asks the gateway without cf.image, so the worker timeout and not the resizer ceiling governs', async () => {
+    await worker.fetch(req(CID), env(), ctx())
+    expect(fetchMock.mock.calls[0]![1]).not.toHaveProperty('cf')
+  })
+
   it('answers 502 when every operator fails, so the app cools it and falls back', async () => {
     fetchMock.mockReset()
     fetchMock.mockImplementation(async () => new Response('no', { status: 504 }))

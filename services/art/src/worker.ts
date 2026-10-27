@@ -241,7 +241,6 @@ function served(body: BodyInit, contentType: string, cacheStatus: 'hit' | 'miss'
  */
 async function fetchFromRoster(
   path: string,
-  width: number,
   gateways: readonly IpfsGateway[],
 ): Promise<Response | null> {
   for (const gateway of gateways) {
@@ -249,12 +248,12 @@ async function fetchFromRoster(
     if (url === null) continue
     try {
       const res = await fetch(url, {
+        // No `cf.image`: Cloudflare's resizer caps the subrequest at ~6.5 s whatever this signal
+        // says (measured 2026-09-29: the same roster walk took 6.7 s with it, 28.9 s without), which
+        // made GATEWAY_TIMEOUT_MS dead code. The original comes back at every width, which is why
+        // the width is part of the cache key rather than assumed to have been applied.
         signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
-        // Cloudflare resizes at the edge when the zone has Image Resizing enabled. Where it is not
-        // enabled the option is ignored and the original comes back, which is why the width is also
-        // part of the cache key rather than assumed to have been applied.
-        cf: { image: { width, fit: 'scale-down' } },
-      } as RequestInit)
+      })
       if (res.ok && res.body !== null) return res
     } catch {
       // Timed out, refused, DNS — all the same thing here: try the next operator.
@@ -425,7 +424,7 @@ async function handle(request: Request, env: Env, ctx: ExecutionContext): Promis
     return served(hit.body, type, 'hit')
   }
 
-  const upstream = await fetchFromRoster(path, wanted, rosterOf(env))
+  const upstream = await fetchFromRoster(path, rosterOf(env))
   if (upstream === null) {
     // Every operator failed. 502 so the app cools this service the way it cools a gateway and
     // falls back to asking the roster itself — the fallback is the point, not a last resort.
