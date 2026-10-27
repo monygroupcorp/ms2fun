@@ -177,7 +177,7 @@ export default defineConfig({
               name: 'noesis',
               short_name: 'noesis',
               description:
-                'noesis — onchain alignment launchpad. Curated art/token releases route a fixed share of every fee to the communities that inspired them, at a ratio set in the contract.',
+                'noesis — onchain alignment launchpad. Every curated release is bound to the community that inspired it and pays it 19%, at a ratio nobody can change.',
               theme_color: '#0a0a0a',
               background_color: '#0a0a0a',
               display: 'standalone',
