@@ -581,12 +581,12 @@ graduated.**
 
 1. **The rate is immutable per hook.** It is baked into the hook's init code at graduation, so
    changing `hookFeeBips` later changes only pools that graduate after the change.
-2. **The in-app swap panel cannot trade a hooked pool.** `zRouter.swapV4` builds its pool key with
-   `hooks: address(0)` — the router is hookless by construction — and the panel passes the module's
-   *static* fee tier, so for a collection graduated after this step the app would name a pool that
-   does not exist. Trading such a collection needs a router that carries the hook and the dynamic-fee
-   flag in its key. That is a real limitation of this deployment and not a misconfiguration; it is why
-   §6.7 observes the tithe with `cast` against the PoolManager rather than through the app.
+2. **`zRouter.swapV4` cannot trade a hooked pool, so the in-app panel routes through `AlignmentHookSwapRouter`.**
+   `zRouter.swapV4` builds its pool key with `hooks: address(0)` — that router is hookless by
+   construction — so for a collection graduated after this step it would name a pool that does not
+   exist. The panel instead swaps through `AlignmentHookSwapRouter`, which carries the hook and the
+   dynamic-fee flag in its key, so a hooked pool is tradeable in the app. §6.7 still observes the
+   tithe with `cast` against the PoolManager, as an independent check.
 
 **Turning it back off** is the same call with `address(0)`, and it is not a rollback: pools that
 graduated while it was on keep their hooks and keep tithing. It stops the next graduation from
