@@ -10,8 +10,8 @@ import { ICurationRegistry } from "./interfaces/ICurationRegistry.sol";
  *         collections and pieces that any address can assemble.
  * @dev Same shape as `ProfileRegistry`: no owner, no upgrade path, no admin surface, no fee. Every
  *      other way onto a noesis discovery surface needs something the caller must first have or buy
- *      (a deployed instance, a `PromotionBadges.purchaseBadge` payment); selection needs neither, so
- *      `createCuration` takes no value, checks no registry, and admits any address.
+ *      (a deployed instance, a featured-queue rental); selection needs neither, so `createCuration`
+ *      takes no value, checks no registry, and admits any address.
  *
  *      The chain holds the minimum selection needs: curator, last write, on-view flag, and one
  *      pointer at the JSON carrying the name, the note and the set (ADR-0004). The set stays off-chain

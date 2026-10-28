@@ -223,12 +223,6 @@ contract DeployCore is Script {
     ///      the trade a testnet rehearses is the trade mainnet runs.
     address public alignmentHookSwapRouter;
 
-    // ── PromotionBadges is intentionally not deployed ─────────────────────────
-    // `src/promotion/PromotionBadges.sol` has no slot above and no deploy call below. Its open
-    // `purchaseBadge` lets anyone self-assign a `VERIFIED` badge, so deploying it would let users
-    // mint their own verified status. `test/script/PromotionBadgesNotDeployed.t.sol` fails if it is
-    // wired in.
-
     // ───────────────────────────── Entry Point ──────────────────────────────
 
     /// @notice Deploy all protocol contracts for the given network config.
@@ -707,6 +701,9 @@ contract DeployCore is Script {
         // it, so a block explorer resolves each one's read/write surface from this contract's
         // verified source.
         vm.serializeAddress(c, "ERC1155Instance", address(erc1155Impl));
+        // The ERC-404 counterpart: every bonding collection is an EIP-1167 clone of this contract, so
+        // the explorer resolves its read/write surface from this one's verified source.
+        vm.serializeAddress(c, "ERC404BondingInstance", address(erc404Impl));
         vm.serializeAddress(c, "DynamicPricingModule", address(dynamicPricingModule));
         vm.serializeAddress(c, "ModuleMerkleGating", address(moduleMerkleGating));
         vm.serializeAddress(c, "ModuleUniV4Deployer", address(moduleUniV4Deployer));

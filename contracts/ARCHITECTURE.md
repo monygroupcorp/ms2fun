@@ -292,7 +292,7 @@ Every factory follows the same pattern:
 
 **Agents call instances directly.** Factory relay functions do not exist. When a caller is not the declared owner, the factory checks `masterRegistry.isAgent(msg.sender)`. If the check passes, agent delegation is enabled on the deployed instance via `setAgentDelegationFromFactory()`.
 
-**Promotion is external.** FeaturedQueueManager and PromotionBadges are not wired to factories in any way.
+**Promotion is external.** FeaturedQueueManager is not wired to factories in any way.
 
 **Factory registers the instance.** After deploying via CreateX CREATE3, the factory calls `masterRegistry.registerInstance()`. That is the factory's final act.
 
@@ -790,9 +790,6 @@ src/
 ├── treasury/
 │   └── ProtocolTreasuryV1.sol              # Protocol funds
 │
-├── promotion/
-│   └── PromotionBadges.sol                 # Achievement system
-│
 ├── query/
 │   └── QueryAggregator.sol                 # Data aggregation
 │
@@ -868,7 +865,7 @@ Used in: ZAMMAlignmentVault, ERC404StakingModule
 | `hookFee = ethMoved * hookFeeBips / 10000` | Swapper | Swapper pays slightly less |
 | `reserveAmount = available * reserveBps / 10000` | Routable pool | Slightly more stays in the pool |
 
-### Time-Based Pricing (FeaturedQueueManager, PromotionBadges)
+### Time-Based Pricing (FeaturedQueueManager)
 
 | Expression | Favors | Rationale |
 |---|---|---|

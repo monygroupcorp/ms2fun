@@ -11,7 +11,7 @@ ERC404Factory (12.6KB)
   |
   |-- delegates to:
        |-- CurveParamsComputer    (2.5KB)  - bonding curve math + weight config
-       |-- LaunchManager          (2.3KB)  - tier pricing + promotion badges
+       |-- LaunchManager          (2.3KB)  - tier pricing
        |-- ERC404StakingModule    (3.6KB)  - Synthetix-style yield accounting
        |-- LiquidityDeployerModule (7.0KB) - V4 pool init + liquidity deployment
 ```
@@ -41,7 +41,7 @@ Key design decisions:
 Owns bonding curve weight configuration and the `computeCurveParams()` function. Also exposes `calculateCost()` and `calculateRefund()` for external callers (frontend, QueryAggregator). The instance calls out to this contract for buy/sell pricing instead of inlining the math library.
 
 ### LaunchManager
-Owns tier configuration (STANDARD/PREMIUM/LAUNCH), promotion badge assignment, and featured queue placement. Called by the factory after instance creation to apply tier perks.
+Owns tier configuration (STANDARD/PREMIUM/LAUNCH) and featured queue placement. Called by the factory after instance creation to apply tier perks.
 
 ### ERC404StakingModule
 Factory-scoped singleton for staking yield distribution. Pure accounting -- holds no funds. Tracks `rewardPerTokenStored` per instance using the Synthetix reward model. Instances delegate `stake/unstake/claimRewards` calls here. Authorization: only registered instances (via `MasterRegistry.isRegisteredInstance`).

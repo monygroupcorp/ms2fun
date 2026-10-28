@@ -2,7 +2,7 @@
  * The home page's unpaid wall.
  *
  * Until this existed, the landing page had exactly one grid and one way onto it:
- * `PromotionBadges.purchaseBadge` / the featured queue, ordered by `featuredRank` — a wei score of
+ * the featured queue, ordered by `featuredRank` — a wei score of
  * what the slot paid. This suite is the standing proof that a second way exists and that it is not
  * the first way wearing a different label: the curations rendered here carry no rank, no badge and
  * no payment of any kind, and the wall still hangs them.

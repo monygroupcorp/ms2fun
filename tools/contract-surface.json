@@ -8,7 +8,7 @@
   ],
   "contracts": [
     {
-      "$comment": "Deployed once by contracts/script/DeployCore.sol. PromotionBadges is excluded on purpose: DeployCore parks it pre-testnet and never constructs it, so it has no surface a wallet can reach."
+      "$comment": "Deployed once by contracts/script/DeployCore.sol."
     },
     {
       "name": "MasterRegistryV1",
