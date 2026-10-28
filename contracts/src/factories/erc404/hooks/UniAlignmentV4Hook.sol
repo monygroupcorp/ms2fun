@@ -295,9 +295,8 @@ contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
      *         Neither adjustment can flip the swap's exact-input/exact-output type, so v4's
      *         `HookDeltaExceedsSwapAmount` guard cannot trip: a positive specified delta moves an
      *         exact-input amount toward zero from below and an exact-output amount further above it.
-     *         The constructor admits `hookFeeBips == 10000`, and there `feeAmount` equals the whole
-     *         named leg: the shape-1 swapped-in amount shrinks all the way to zero, so the swap degenerates
-     *         (it can no longer cross the pool) rather than flipping type.
+     *         At exactly 10000 bips the fee equals the named amount and an exact-input swap degenerates to
+     *         zero swapped, but the guard still holds: the delta lands on zero, never past it.
      *
      *         A NAME IS NOT A FILL. `Pool.swap` stops at `sqrtPriceLimitX96` and returns what it moved,
      *         so the leg named here may be filled only in part — and this fee is already spent by then.

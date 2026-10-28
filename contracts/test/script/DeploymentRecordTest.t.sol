@@ -72,6 +72,95 @@ contract DeploymentRecordTest is Test {
         );
     }
 
+    /// @notice The clone implementations are what a block explorer needs to resolve a collection's
+    ///         surface, so each must be in the record and name the contract `DeployCore` built.
+    function test_recordCarriesTheCloneImplementations() public view {
+        assertTrue(address(s.erc404Impl()) != address(0), "this config builds the ERC-404 implementation");
+        assertEq(
+            vm.parseJsonAddress(record, ".contracts.ERC404BondingInstance"),
+            address(s.erc404Impl()),
+            "ERC404BondingInstance"
+        );
+        assertEq(vm.parseJsonAddress(record, ".contracts.ERC1155Instance"), address(s.erc1155Impl()), "ERC1155Instance");
+    }
+
+    /// @notice The record's shape. Pins every key at every level, exactly, so a key that silently stops
+    ///         being written is red here instead of surfacing at verification time — and so is one
+    ///         added without being declared. Adding a key to `_writeDeploymentJson` means adding it here.
+    function test_recordKeySetIsExactlyTheDeclaredShape() public view {
+        string[] memory root = new string[](7);
+        root[0] = "chainId";
+        root[1] = "deployer";
+        root[2] = "contracts";
+        root[3] = "factories";
+        root[4] = "uniswap";
+        root[5] = "instances";
+        root[6] = "vaults";
+        _assertKeys(".", root, "root");
+
+        string[] memory contracts_ = new string[](31);
+        contracts_[0] = "MasterRegistry";
+        contracts_[1] = "ProtocolTreasury";
+        contracts_[2] = "FeaturedQueueManager";
+        contracts_[3] = "GlobalMessageRegistry";
+        contracts_[4] = "AlignmentRegistry";
+        contracts_[5] = "ComponentRegistry";
+        contracts_[6] = "ProfileRegistry";
+        contracts_[7] = "CurationRegistry";
+        contracts_[8] = "AlignmentTargetRequestRegistry";
+        contracts_[9] = "QueryAggregator";
+        contracts_[10] = "zRouter";
+        contracts_[11] = "zQuoter";
+        contracts_[12] = "LaunchManager";
+        contracts_[13] = "CurveParamsComputer";
+        contracts_[14] = "ERC1155Instance";
+        contracts_[15] = "ERC404BondingInstance";
+        contracts_[16] = "DynamicPricingModule";
+        contracts_[17] = "ModuleMerkleGating";
+        contracts_[18] = "ModuleUniV4Deployer";
+        contracts_[19] = "AlignmentHookSwapRouter";
+        contracts_[20] = "UniTitheHookFactory";
+        contracts_[21] = "ModuleZAMMDeployer";
+        contracts_[22] = "ERC404StakingModule";
+        contracts_[23] = "MetadataResolverRouter";
+        contracts_[24] = "MetadataOverlayModule";
+        contracts_[25] = "TokenTierBandResolver";
+        contracts_[26] = "DeployBondEscrow";
+        contracts_[27] = "SeedUniVault";
+        contracts_[28] = "SeedAaveVault";
+        contracts_[29] = "SeedZammVault";
+        contracts_[30] = "UniswapVaultPriceValidator";
+        _assertKeys(".contracts", contracts_, "contracts");
+
+        string[] memory factories = new string[](5);
+        factories[0] = "ERC404";
+        factories[1] = "ERC1155";
+        factories[2] = "ERC721";
+        factories[3] = "UNI";
+        factories[4] = "AAVE";
+        _assertKeys(".factories", factories, "factories");
+
+        string[] memory uniswap = new string[](3);
+        uniswap[0] = "v4PoolManager";
+        uniswap[1] = "v3Factory";
+        uniswap[2] = "v2Factory";
+        _assertKeys(".uniswap", uniswap, "uniswap");
+    }
+
+    /// @dev Set equality, order-free: same count, and every expected key present. `object` is the
+    ///      JSON path of the object.
+    function _assertKeys(string memory object, string[] memory expected, string memory label) internal view {
+        string[] memory actual = vm.parseJsonKeys(record, object);
+        assertEq(actual.length, expected.length, string.concat(label, ": key count"));
+        for (uint256 i = 0; i < expected.length; i++) {
+            bool found;
+            for (uint256 j = 0; j < actual.length; j++) {
+                if (keccak256(bytes(actual[j])) == keccak256(bytes(expected[i]))) found = true;
+            }
+            assertTrue(found, string.concat(label, ": missing key ", expected[i]));
+        }
+    }
+
     function _testConfig() internal returns (DeployCore.NetworkConfig memory cfg) {
         DeployCore.AlignmentTargetConfig[] memory targets = new DeployCore.AlignmentTargetConfig[](1);
         targets[0] = DeployCore.AlignmentTargetConfig({
