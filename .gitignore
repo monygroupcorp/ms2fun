@@ -54,6 +54,7 @@ docs/*
 !docs/ALIGNMENT-CATALOG.md
 !docs/RISK_REGISTER.md
 !docs/SEPOLIA-DEPLOY-RUNBOOK.md
+!docs/MAINNET-DEPLOY-RUNBOOK.md
 
 # docs/phases/ is published by allowlist, not wholesale: the directory is
 # re-included, its contents re-excluded, and only the files that source code
