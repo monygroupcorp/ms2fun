@@ -783,8 +783,8 @@ export function WizardPage() {
               </p>
               {secondaryEarn && <p className={styles.lede}>{secondaryEarn}</p>}
               {/*
-                ERC-404 has no fixed answer here: the pool pays the community forever, or not at
-                all, depending on the deployer chosen a step earlier. `useSwapTithe` asks it, and
+                ERC-404 has no fixed answer here: the pool pays the community for as long as the vault
+                stays curated, or not at all, depending on the deployer chosen a step earlier. `useSwapTithe` asks it, and
                 renders nothing while the read is in flight or when it does not come back — a step
                 that flashes "untaxed" and then corrects itself has already misled the creator.
               */}
