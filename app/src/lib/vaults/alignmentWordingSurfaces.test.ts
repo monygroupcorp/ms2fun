@@ -36,14 +36,15 @@ const SOURCE_FILES = import.meta.glob('/src/**/*.{ts,tsx}', {
 /**
  * The surfaces that are not TypeScript.
  *
- * `index.html` is the social preview — the meta, og: and twitter: descriptions, which are the first
+ * `vite.config.ts` carries the PWA manifest description, shipped to every installed copy and missed
+ * by the same blindness. `index.html` is the social preview — the meta, og: and twitter: descriptions, which are the first
  * sentence a stranger reads about noesis and the only copy a scraper ever sees, since this is a
  * serverless SPA and no route renders its own card. It shipped "a fixed share of every fee" on all
  * three tags, a base that is a fee on no family, and every ratchet in this file was blind to it:
  * they glob `/src/**` and the defect was one directory up. A ban that can only see the language it
  * was written in is not a ban on what a person reads.
  */
-const MARKUP_FILES = import.meta.glob('/index.html', {
+const MARKUP_FILES = import.meta.glob(['/index.html', '/vite.config.ts'], {
   query: '?raw',
   import: 'default',
   eager: true,
