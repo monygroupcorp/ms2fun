@@ -749,6 +749,9 @@ contract DeployCore is Script {
         // it, so a block explorer resolves each one's read/write surface from THIS contract's
         // verified source; without the address here a verification pass has nothing to point at.
         vm.serializeAddress(c, "ERC1155Instance", address(erc1155Impl));
+        // The ERC-404 counterpart: every bonding collection is an EIP-1167 clone of this contract, so
+        // the explorer resolves its read/write surface from this one's verified source.
+        vm.serializeAddress(c, "ERC404BondingInstance", address(erc404Impl));
         vm.serializeAddress(c, "DynamicPricingModule", address(dynamicPricingModule));
         vm.serializeAddress(c, "ModuleMerkleGating", address(moduleMerkleGating));
         vm.serializeAddress(c, "ModuleUniV4Deployer", address(moduleUniV4Deployer));
