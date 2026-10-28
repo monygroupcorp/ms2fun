@@ -128,3 +128,12 @@ contracts/lib
 # the leading slash is what says so. tools/check-no-local-paths.mjs matches the same prefix and pins
 # it in --self-test.
 /projects/
+
+# Rendered posting queue — regenerate with tools/posts/render.mjs
+tools/posts/out/
+
+# Campaign material is internal and does not belong in a public repository: unposted copy, what has
+# and has not gone out, and the brand assets pipeline. Kept on disk, never committed.
+content/
+tools/posts/
+tools/brand/
