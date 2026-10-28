@@ -11,7 +11,7 @@ import { ICurationRegistry } from "./interfaces/ICurationRegistry.sol";
  * @dev Sibling of `ProfileRegistry`, and deliberately the same shape: no owner, no upgrade path, no
  *      admin surface, no fee. The reason is the whole point of the contract. Every other way onto
  *      a noesis discovery surface runs through something the caller must first have or buy — a
- *      deployed instance to be listed at all, a `PromotionBadges.purchaseBadge` payment to be
+ *      deployed instance to be listed at all, a featured-queue rental to be
  *      ranked in the featured grid. Selection is the one creative act on this platform that needs
  *      neither, so nothing here gates it: `createCuration` takes no value, checks no registry, and
  *      admits any address.

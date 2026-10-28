@@ -191,11 +191,6 @@ contract SeedModuleCoverageHarness is SeedAnvil {
 ///         hand-maintained restatement of it: change what a phase function passes as a module
 ///         address and the corresponding assertion here moves with it, because both read the same
 ///         instance state.
-///
-///         PromotionBadges is a deliberate exclusion, not a coverage gap: it is PARKED pre-testnet
-///         (`DeployCore.sol`'s "DEFERRAL NOTE"), carries no `CreateParams` slot in any factory, and
-///         is guarded separately by `test/script/PromotionBadgesNotDeployed.t.sol`. It has no slot
-///         here because the seed has no slot for it.
 contract SeedModuleCoverageTest is Test {
     address constant STUB_ZAMM = address(0xADD0);
     uint256 constant DEPLOYER_KEY = 0xD59;

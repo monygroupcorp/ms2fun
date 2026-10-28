@@ -38,14 +38,14 @@ contract SlitherSuppressionCensusTest is Test {
 
     /// @dev Number of `.sol` files discovered under `src`. Asserted so that a file — and therefore a
     ///      possible suppression — cannot be added or moved outside the census unnoticed.
-    uint256 internal constant EXPECTED_SOL_FILES = 89;
+    uint256 internal constant EXPECTED_SOL_FILES = 88;
 
     /// @dev Total `missing-zero-check` directives across `src`.
-    uint256 internal constant EXPECTED_TOTAL = 15;
+    uint256 internal constant EXPECTED_TOTAL = 14;
 
     function _expected() internal pure returns (string[] memory paths, uint256[] memory counts) {
-        paths = new string[](7);
-        counts = new uint256[](7);
+        paths = new string[](6);
+        counts = new uint256[](6);
 
         paths[0] = "src/factories/erc404/LiquidityDeployerModule.sol";
         counts[0] = 1;
@@ -53,14 +53,12 @@ contract SlitherSuppressionCensusTest is Test {
         counts[1] = 1;
         paths[2] = "src/peripherals/UniswapVaultPriceValidator.sol";
         counts[2] = 3;
-        paths[3] = "src/promotion/PromotionBadges.sol";
+        paths[3] = "src/treasury/ProtocolTreasuryV1.sol";
         counts[3] = 1;
-        paths[4] = "src/treasury/ProtocolTreasuryV1.sol";
-        counts[4] = 1;
-        paths[5] = "src/vaults/aave/AlignmentEndowmentVaultFactory.sol";
+        paths[4] = "src/vaults/aave/AlignmentEndowmentVaultFactory.sol";
+        counts[4] = 4;
+        paths[5] = "src/vaults/uni/UniAlignmentVaultFactory.sol";
         counts[5] = 4;
-        paths[6] = "src/vaults/uni/UniAlignmentVaultFactory.sol";
-        counts[6] = 4;
     }
 
     // ── The census ────────────────────────────────────────────────────────
