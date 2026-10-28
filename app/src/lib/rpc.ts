@@ -6,8 +6,9 @@
  * batches (JSON-RPC batching).
  *
  * NO keyed / referrer-restricted endpoints (Alchemy/Infura/dRPC keys) — rejected on centralization
- * grounds. If the wallet-first hop ever proves slow for a given wallet, drop the `unstable_connector`
- * line and it becomes pure ranked-public.
+ * grounds. The wallet-first hop is bounded by WALLET_HOP_TIMEOUT_MS so a wallet that never answers
+ * falls through to the public pool; to drop the hop entirely, remove the `unstable_connector` line
+ * and it becomes pure ranked-public.
  *
  * Extend PUBLIC_RPCS with each further deploy target's chain; the local anvil fork keeps a single
  * localhost transport (no fallback to make).
@@ -34,6 +35,42 @@
  */
 import { fallback, http, unstable_connector, type Transport } from 'wagmi'
 import { injected } from 'wagmi/connectors'
+import { TimeoutError } from 'viem'
+
+/**
+ * How long the connected wallet's own node gets to answer one read before the call falls through
+ * to the public pool. A wallet that is locked, mid-prompt or simply wedged never rejects, and
+ * viem's `fallback` only moves on when a transport throws, so without a bound one silent wallet
+ * leaves every page that reads chain state loading forever. Long enough for a healthy wallet
+ * node on a slow link, short enough that the public pool answers before a visitor gives up.
+ */
+export const WALLET_HOP_TIMEOUT_MS = 3_500
+
+/** Make `transport`'s requests throw a `TimeoutError` when they take longer than `ms`. */
+export function withRequestTimeout(transport: Transport, ms: number): Transport {
+  return (params) => {
+    const inner = transport(params)
+    return {
+      ...inner,
+      request: ((args: Parameters<typeof inner.request>[0]) => {
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const deadline = new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () =>
+              reject(
+                new TimeoutError({
+                  body: args as unknown as Record<string, unknown>,
+                  url: 'injected-wallet',
+                }),
+              ),
+            ms,
+          )
+        })
+        return Promise.race([inner.request(args), deadline]).finally(() => clearTimeout(timer))
+      }) as typeof inner.request,
+    }
+  }
+}
 
 /** Public, key-less RPC pools per chain id. */
 const PUBLIC_RPCS: Record<number, string[]> = {
@@ -83,6 +120,10 @@ export function decentralizedTransport(chainId: number): Transport | undefined {
       },
     },
   )
-  // Wallet first (preferred, when connected); else the ranked public pool.
-  return fallback([unstable_connector(injected), publicPool])
+  // Wallet first (preferred, when connected, bounded so a silent wallet cannot stall reads); else
+  // the ranked public pool.
+  return fallback([
+    withRequestTimeout(unstable_connector(injected), WALLET_HOP_TIMEOUT_MS),
+    publicPool,
+  ])
 }
