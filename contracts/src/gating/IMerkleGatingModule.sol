@@ -12,7 +12,7 @@ struct MerkleConfig {
     /// @notice One merkle root per tier (tier index = position). A single-gate allowlist is length 1.
     ///         Each root is built off-chain over leaves `keccak256(bytes.concat(keccak256(abi.encode(
     ///         address user, uint256 maxQty))))` with Solady commutative sorted-pair internal nodes —
-    ///         byte-identical to app/src/lib/merkle.ts (extended from address-only to (address, maxQty)).
+    ///         byte-identical to app/src/lib/merkle.ts.
     bytes32[] roots;
     /// @notice Absolute unix open timestamp per tier (parallel to `roots`). A tier is claimable once
     ///         block.timestamp >= tierOpenTimes[tier]. Use 0 for "open immediately". Absolute (not

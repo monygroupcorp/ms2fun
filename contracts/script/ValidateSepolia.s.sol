@@ -16,31 +16,27 @@ import { FeatureUtils } from "../src/master/libraries/FeatureUtils.sol";
 ///         forge script script/ValidateSepolia.s.sol --rpc-url $SEPOLIA_RPC_URL
 contract ValidateSepolia is Script {
     // ── Addresses ─────────────────────────────────────────────────────────
-    // Every protocol address this script interrogates is read from the deployment record — the file
-    // the deploy run itself wrote. None is pinned here.
-    //
-    // The CREATE3 proxies (MasterRegistry, ComponentRegistry) are address-stable only for a FIXED
-    // salt set, and a salt is single-use per deployer: CreateX reverts `CreateCollision` once the
-    // guarded salt's proxy address carries code. A redeploy therefore runs a fresh salt set and
-    // lands on fresh addresses, so a pinned proxy address points the validator at the previous
-    // deployment rather than the current one. LaunchManager and ERC404Factory are deployed with
-    // plain `new` in `DeployCore` and have always been nonce-derived. All four come from the record.
+    // Every protocol address this script interrogates is read from the deployment record the deploy
+    // run wrote; none is pinned. The CREATE3 proxies (MasterRegistry, ComponentRegistry) are
+    // stable only for a fixed salt set, and a salt is single-use per deployer (CreateX reverts
+    // `CreateCollision` once the proxy address carries code), so a redeploy lands on fresh
+    // addresses. LaunchManager and ERC404Factory are deployed with plain `new` in `DeployCore` and
+    // are nonce-derived.
     string constant DEPLOYMENT_PATH = "./deployments/sepolia.json";
 
     /// @dev Sepolia. The external-dependency block below asserts against addresses that only exist
     ///      on this chain, so it runs only when the script is pointed at a Sepolia RPC.
     uint256 constant SEPOLIA_CHAIN_ID = 11155111;
 
-    /// @dev ZAMM V1. A CREATE2 singleton, so the address is chain-independent BY CONVENTION — which
-    ///      is a claim about the deployer's intent, not a guarantee that the deploy happened on any
-    ///      given chain. Single source: `DeploySepolia.s.sol` (`cfg.zamm`); `DeployCore` consumes it
-    ///      directly and does not write it to the deployment record, so it is mirrored here. zRouter
-    ///      IS written to the record (`.contracts.zRouter`) and is read from there instead.
+    /// @dev ZAMM V1. A CREATE2 singleton whose address is chain-independent by convention, which
+    ///      does not guarantee it is deployed on a given chain. Source: `DeploySepolia.s.sol`
+    ///      (`cfg.zamm`); `DeployCore` does not write it to the deployment record, so it is mirrored
+    ///      here. zRouter is in the record (`.contracts.zRouter`) and is read from there.
     address constant ZAMM_V1 = 0x000000000000040470635EB91b7CE4D132D616eD;
 
-    /// @dev The tag `ERC404Factory` requires of a preset's curve computer: the RAW literal bytes
-    ///      `bytes32("curve_computer")`, not a keccak hash. Mirrors `ERC404Factory` and the
-    ///      `approveComponent` call in `DeployCore` exactly.
+    /// @dev The tag `ERC404Factory` requires of a preset's curve computer: the raw literal bytes
+    ///      `bytes32("curve_computer")`, not a keccak hash. Matches `ERC404Factory` and the
+    ///      `approveComponent` call in `DeployCore`.
     bytes32 constant CURVE_COMPUTER_TAG = bytes32("curve_computer");
 
     /// @dev One `vaults` entry as emitted by DeployCore. Foundry maps JSON keys to struct fields in
@@ -52,9 +48,8 @@ contract ValidateSepolia is Script {
         string vaultType;
     }
 
-    /// @notice Every check below that gates `ERC404Factory.createInstance` is an assertion, not a
-    ///         log line: a misconfigured deployment must make this script exit non-zero. The logs
-    ///         stay because they are what an operator reads on deploy day.
+    /// @notice Asserts every condition that gates `ERC404Factory.createInstance`, so a misconfigured
+    ///         deployment exits non-zero; the logs are the operator-facing report.
     function run() public view {
         console.log("\n=== Sepolia Protocol Validation ===\n");
 
@@ -72,10 +67,10 @@ contract ValidateSepolia is Script {
     }
 
     // ── Resolution seams ──────────────────────────────────────────────────
-    // `virtual` so a test can point the validator at a locally deployed protocol and at an
-    // in-memory deployment record. Production behaviour is the default implementation.
+    // `virtual` so a test can point the validator at a locally deployed protocol and an in-memory
+    // deployment record.
 
-    /// @dev The deployment record the nonce-derived addresses and the vault list are read from.
+    /// @dev The deployment record the addresses and the vault list are read from.
     function _deploymentJson() internal view virtual returns (string memory) {
         return vm.readFile(DEPLOYMENT_PATH);
     }
@@ -89,8 +84,8 @@ contract ValidateSepolia is Script {
     }
 
     /// @dev Read one address out of the deployment record. A missing key reverts inside
-    ///      `parseJsonAddress`; a zero or codeless entry is rejected here. All three are loud —
-    ///      a record that cannot supply an address must stop the run, not degrade it to a log line.
+    ///      `parseJsonAddress`; a zero or codeless entry is rejected here. A record that cannot
+    ///      supply an address stops the run.
     function _recordAddress(string memory json, string memory key, string memory label)
         internal
         view
@@ -101,13 +96,12 @@ contract ValidateSepolia is Script {
         require(addr.code.length > 0, string.concat(label, ": no code at the address in the deployment record"));
     }
 
-    /// @notice Assert every deployed alignment vault is registered, self-reports the expected
-    ///         `vaultType()` discriminator, and — for the LP families — is operationally
-    ///         liquidity-ready (pool key + validator wired, O2). Reads the `vaults` array from the
-    ///         deployment JSON, so it covers whichever families the network config enabled: Uni-only
-    ///         today, and all three (Yield + Uni/ZAMM LP) once Sepolia's config promotes them.
-    /// @dev Targets the current DeployCore output where `.vaults` is a JSON-encoded STRING (mirrors
-    ///      SeedAnvil). Run against a fresh `deployments/sepolia.json` from the current DeployCore.
+    /// @notice Assert every deployed alignment vault is registered, reports the expected
+    ///         `vaultType()`, and, for the LP families, is liquidity-ready (pool key + validator
+    ///         wired).
+    /// @dev Reads the `vaults` array from the deployment JSON, so it covers whichever families the
+    ///      network config enabled. `.vaults` is a JSON-encoded string in the DeployCore output
+    ///      (as in SeedAnvil).
     function _checkVaults(string memory json) internal view {
         console.log("-- Alignment vaults --");
         string memory vaultsJson = vm.parseJsonString(json, ".vaults");
@@ -133,17 +127,15 @@ contract ValidateSepolia is Script {
 
     /// @notice Assert the two external singletons the deployment routes through — ZAMM and zRouter —
     ///         actually carry code on the chain being validated.
-    /// @dev Everything else this script checks is protocol we deployed, so its existence is implied by
-    ///      the deployment record. ZAMM and zRouter are not: they are third-party CREATE2 singletons
-    ///      pinned by address. If either is codeless on the target chain, the call sites decode empty
-    ///      returndata and revert — every `BestRouteAcquirer` leg and the fixed-pool fallback for an
-    ///      alignment-vault acquisition, and every graduated ERC-404 swap. Fork tests inherit mainnet
-    ///      state, where both are populated by construction, so the condition is only observable
-    ///      against the live chain. Asserting it here turns it into a deploy-time refusal.
+    /// @dev ZAMM and zRouter are third-party CREATE2 singletons pinned by address, unlike the
+    ///      protocol contracts the deployment record implies. If either is codeless on the target
+    ///      chain, call sites decode empty returndata and revert: every `BestRouteAcquirer` leg, the
+    ///      fixed-pool fallback for an alignment-vault acquisition, and every graduated ERC-404
+    ///      swap. Fork tests inherit mainnet state, where both exist, so only the live chain
+    ///      exposes it.
     ///
     ///      Chain-gated: these are Sepolia addresses, and this block is the only part of the script
-    ///      that reads state outside the deployment record. Off Sepolia (local EVM, unit tests) it
-    ///      logs that it did not run rather than asserting against addresses that cannot be there.
+    ///      that reads state outside the deployment record. Off Sepolia it logs that it was skipped.
     function _checkExternalDependencies(string memory json) internal view {
         console.log("-- External dependencies --");
         if (block.chainid != SEPOLIA_CHAIN_ID) {
@@ -152,20 +144,17 @@ contract ValidateSepolia is Script {
             return;
         }
 
-        // zRouter comes from the record, so the check cannot drift from the address the deployment
-        // actually wired into the launch deployers and vault factories.
+        // zRouter comes from the record, so the check matches the address wired into the launch
+        // deployers and vault factories.
         _checkExternalDep(_recordAddress(json, ".contracts.zRouter", "zRouter"), "zRouter");
         _checkExternalDep(ZAMM_V1, "ZAMM V1");
-        // NOT a third-party singleton — `SepoliaRouteQuoter` is deployed by `DeploySepolia`, because
-        // this network has no canonical quoter to point at. It is checked here anyway, and by code
-        // rather than by record: a codeless address in this slot does not fail loudly, it makes
-        // `BestRouteAcquirer` degrade every acquire to the fixed pool, which looks like a working
-        // deployment until someone asks why the best-route path never runs.
+        // `SepoliaRouteQuoter` is deployed by `DeploySepolia`, not a third-party singleton. A
+        // codeless address here does not fail loudly: `BestRouteAcquirer` degrades every acquire
+        // to the fixed pool and the best-route path silently never runs.
         _checkExternalDep(_recordAddress(json, ".contracts.zQuoter", "zQuoter"), "zQuoter (best-route)");
         console.log("");
     }
 
-    /// @dev States what it checked: a passing run prints the address and its code size.
     function _checkExternalDep(address dep, string memory label) internal view {
         console.log(string.concat("  ", label, ":"), dep);
         console.log("    code size:", dep.code.length);
@@ -177,7 +166,7 @@ contract ValidateSepolia is Script {
         bytes32 h = keccak256(bytes(tag));
         if (h == keccak256("UNIv4")) return "UniswapV4LP";
         if (h == keccak256("ZAMM")) return "ZAMMLP";
-        return "AaveEndowment"; // "AaveEndowment" tag passes through unchanged
+        return "AaveEndowment"; // the "AaveEndowment" tag is the on-chain string
     }
 
     function _endsWithLP(string memory s) internal pure returns (bool) {
@@ -197,9 +186,9 @@ contract ValidateSepolia is Script {
         return abi.decode(ret, (bool));
     }
 
-    /// @dev True when `target` exposes `bandCount(address)` returning a uint256 — the
-    ///      TokenTierBandResolver fingerprint. Guarded decode (not try/catch): a return-data decode
-    ///      failure is NOT catchable by try/catch, so check the length before decoding.
+    /// @dev True when `target` exposes `bandCount(address)` returning a uint256, the
+    ///      TokenTierBandResolver fingerprint. The length is checked before decoding because a
+    ///      return-data decode failure is not catchable by try/catch.
     function _isBandResolver(address target) internal view returns (bool) {
         (bool ok, bytes memory ret) = target.staticcall(abi.encodeWithSignature("bandCount(address)", address(0)));
         return ok && ret.length == 32;
@@ -262,7 +251,7 @@ contract ValidateSepolia is Script {
             console.log("    ", stakingModules[i]);
         }
 
-        // Metadata-resolution stack (ADR-0006/0007) — resolver router + overlay + tier bands
+        // Metadata-resolution stack: resolver router, overlay, tier bands
         address[] memory resolvers = cr.getApprovedComponentsByTag(FeatureUtils.RESOLVER);
         console.log("  metadata resolvers:", resolvers.length);
         for (uint256 i = 0; i < resolvers.length; i++) {
@@ -273,9 +262,8 @@ contract ValidateSepolia is Script {
         for (uint256 i = 0; i < overlays.length; i++) {
             console.log("    ", overlays[i]);
         }
-        // The TIER tag must carry the STATIC band resolver (TokenTierBandResolver), never the
-        // retired TierRevealModule — a balance-conditional reveal is the wrong product. Probe for
-        // `bandCount(address)`: TierRevealModule has no such selector, so this discriminates them.
+        // The TIER tag must carry the static band resolver (TokenTierBandResolver), not a
+        // balance-conditional reveal module. `bandCount(address)` discriminates them.
         address[] memory tiers = cr.getApprovedComponentsByTag(FeatureUtils.TIER);
         console.log("  tier modules:", tiers.length);
         for (uint256 i = 0; i < tiers.length; i++) {
@@ -288,20 +276,16 @@ contract ValidateSepolia is Script {
         console.log("");
     }
 
-    /// @dev `getPreset` reverts `PresetNotActive` on an inactive preset, so preset activity is already
-    ///      asserted by the read itself. What is asserted here is the curve-computer binding, and it
-    ///      uses `isApprovedForTag` — the predicate the factory actually gates on. `isApprovedComponent`
-    ///      is strictly weaker (`isApproved[c]` alone, without `componentTag[c] == tag`), so a component
-    ///      approved under some other tag satisfies it while every `createInstance` reverts
+    /// @dev `getPreset` reverts `PresetNotActive` on an inactive preset, so the read asserts
+    ///      activity. The curve-computer binding uses `isApprovedForTag`, the predicate the factory
+    ///      gates on; `isApprovedComponent` is weaker (no `componentTag[c] == tag`), so a component
+    ///      approved under another tag passes it while every `createInstance` reverts
     ///      `UnapprovedCurveComputer`.
     ///
-    ///      The economics are asserted against `LaunchPresets` — the ladder this repo ships — and not
-    ///      merely logged. A preset is read ONCE, at create, and written into the instance's stored
-    ///      bonding params, so a chain left on a superseded rung does not announce itself: every
-    ///      `createInstance` succeeds and mints a collection permanently capped by the old
-    ///      `unitPerNFT`, with no later `setPreset` able to reach it. That is the failure this
-    ///      script exists to catch, and it is invisible to a check that only reads the curve
-    ///      computer back.
+    ///      The economics are asserted against `LaunchPresets`, the ladder this repo ships. A preset
+    ///      is read once at create and written into the instance's bonding params, so a chain on a
+    ///      different rung still creates collections, permanently capped by that rung's
+    ///      `unitPerNFT`, and `setPreset` cannot reach them afterwards.
     function _checkLaunchManager(address launchManagerAddr) internal view {
         console.log("-- LaunchManager presets --");
         console.log("  address:", launchManagerAddr);

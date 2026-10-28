@@ -3,41 +3,31 @@ pragma solidity ^0.8.24;
 
 import { Script, console } from "forge-std/Script.sol";
 
-/// @notice Completes a phase-1 seed broadcast that stopped partway, by replaying the calls it never
-///         sent — with every timestamp recomputed against the clock the chain will actually judge
-///         them by.
+/// @notice Replays the unsent calls of a phase-1 seed broadcast, with every timestamp recomputed
+///         against the current clock.
 ///
-///         ── WHY THIS EXISTS ──
-///         `SeedSepolia` arms each curve at `block.timestamp + armWindow`. Forge evaluates a whole
-///         script at ONE timestamp and only then broadcasts it, so that instant is fixed before the
-///         first transaction is sent. Phase 1 is 113 sequential `--slow` transactions, which at one
-///         block apiece takes longer than a 20-minute window: the later `setBondingOpenTime` calls
-///         arrive quoting an instant that has already passed, and `TimeMustBeInFuture()` refuses
-///         them. The window has to outlast the broadcast that sets it. The default below is sized
-///         for that, not for how long a curve should stay shut.
+///         `SeedSepolia` arms each curve at `block.timestamp + armWindow`, and forge fixes that
+///         instant before the first transaction is sent. Phase 1 is 113 sequential `--slow`
+///         transactions, so a window shorter than the broadcast makes the later
+///         `setBondingOpenTime` calls quote a past instant and revert `TimeMustBeInFuture()`. The
+///         window has to outlast the broadcast that sets it.
 ///
-///         ── WHAT IT REPLAYS ──
-///         `deployments/sepolia-seed-finish.json`: the target, value and calldata of each unsent
-///         call, in the order phase 1 would have sent them. Taken verbatim from the broadcast
-///         artifact forge itself wrote, so the calls are the ones the seed composed rather than a
-///         reconstruction of them. A call whose `clock` marker is set carries its selector only and
-///         is completed here against a live timestamp.
+///         Input is `deployments/sepolia-seed-finish.json`: target, value and calldata of each
+///         unsent call, taken verbatim from the forge broadcast artifact, in the order phase 1
+///         would have sent them. A call whose `clock` marker is set carries its selector only and
+///         is completed here against a live timestamp (1 = open time, otherwise maturity).
 ///
-///         Replay is only sound because ORDER is preserved: instance addresses are deterministic in
-///         the sequence that creates them, and the featured wall rents by address.
-///
-///         ── WHAT IT DOES NOT DO ──
-///         It does not re-run the alignment wiring, the vaults or the pools. Those landed, they hold
-///         real liquidity, and running them again would deploy over live state.
+///         Order is preserved because instance addresses are deterministic in the sequence that
+///         creates them and the featured wall rents by address. The alignment wiring, vaults and
+///         pools are not replayed: they hold live state.
 contract SeedSepoliaFinish is Script {
     uint256 internal constant SEPOLIA_CHAIN_ID = 11155111;
 
-    /// @dev Seconds from now until every replayed curve opens. Deliberately far longer than the
-    ///      20 minutes phase 1 used: this value must outlast the broadcast that writes it, and the
-    ///      original did not. Phase 2 waits it out, so raising it costs wall-clock, not money.
+    /// @dev Seconds from now until every replayed curve opens. It must outlast the broadcast that
+    ///      writes it; raising it costs wall-clock time, not money.
     uint256 internal constant DEFAULT_WINDOW = 3600;
 
-    /// @dev Gap between a row's open time and its maturity, preserved from phase 1's own spacing.
+    /// @dev Gap between a row's open time and its maturity, as spaced in phase 1.
     uint256 internal constant MATURITY_GAP = 120;
 
     function run() public {

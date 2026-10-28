@@ -27,22 +27,18 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
     error VaultMustBeContract();
     error NameAlreadyTaken();
     error NotAuthorizedAgent();
-    /// @dev `FreeMintParams.allocation` has no meaning for an ERC1155 collection: free-mint allocation
-    ///      is per edition and editions are added after create, so there is no edition id a create-time
-    ///      allocation could key to. Pass 0 and set the allocation on each edition instead, via
-    ///      `ERC1155Instance.addEdition`'s `freeMintAlloc` argument or `setEditionFreeMintAllocation`.
+    /// @dev Free-mint allocation is per edition and editions are added after create, so no edition id
+    ///      exists for a create-time `FreeMintParams.allocation` to key to. Set it per edition via
+    ///      `ERC1155Instance.addEdition`'s `freeMintAlloc` or `setEditionFreeMintAllocation`.
     error FreeMintAllocationIsPerEdition();
 
     IMasterRegistry public masterRegistry;
     /// @notice The ERC1155Instance every collection is an EIP-1167 clone of.
-    /// @dev Fixed at construction with no setter. A zero here would let `create` appear to succeed
-    ///      while every clone delegatecalls into nothing, and ETH paid to a clone would be
-    ///      unrecoverable — no repair is possible after deploy, so it is refused in the constructor.
-    /// @dev Immutable with no setter, and that is deliberate — do not add one. Every collection this
-    ///      factory has ever deployed delegatecalls into this address, so a setter would be one switch
-    ///      that rewrites the code of all of them at once, including collections whose creators are
-    ///      long gone. An implementation defect is repaired by deploying a NEW factory over a fixed
-    ///      implementation; collections already created stay on the code they were created with.
+    /// @dev Immutable with no setter: every collection delegatecalls into this address, so a setter
+    ///      would rewrite the code of all of them at once. A zero is refused in the constructor
+    ///      because clones would delegatecall into nothing and ETH paid to one would be
+    ///      unrecoverable. An implementation defect is repaired by deploying a new factory;
+    ///      existing collections keep the code they were created with.
     address public immutable instanceImplementation;
     address public immutable globalMessageRegistry;
     IComponentRegistry public immutable componentRegistry;
@@ -52,8 +48,7 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
 
     bytes32[] internal _features;
 
-    /// @notice Parameters for instance creation. Defined here — not in shared IFactoryTypes —
-    ///         because CreateParams is specific to this factory type.
+    /// @notice Parameters for instance creation, specific to this factory type.
     struct CreateParams {
         string name;
         string symbol; // OPTIONAL collection symbol (empty allowed)
@@ -88,9 +83,9 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
     }
 
     /// @notice Deploy a new ERC1155 instance. Any ETH forwarded directly to treasury.
-    /// @dev The gating module is attached (params.gatingModule; address(0) = open); its config is
-    ///      authored post-create by the owner via the module's own typed setter — the factory does not
-    ///      thread module config at create (the generic gating slot bakes in no module's config shape).
+    /// @dev The gating module is attached (params.gatingModule; address(0) = open). Its config is
+    ///      set after create by the owner via the module's own typed setter, since the generic
+    ///      gating slot carries no module's config shape.
     function createInstance(bytes32 salt, CreateParams calldata params)
         external
         payable
@@ -116,9 +111,8 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
         if (params.creator == address(0)) revert InvalidAddress();
         if (params.vault == address(0)) revert InvalidAddress();
         if (params.vault.code.length == 0) revert VaultMustBeContract();
-        // Free-mint allocation is per edition for ERC1155 and editions are added after create, so a
-        // create-time allocation cannot be applied. Refuse it instead of accepting and discarding it;
-        // 0 stays valid, and `params.freeMint.scope` is still threaded to the instance below.
+        // A create-time allocation cannot be applied (editions are added after create), so it is
+        // refused rather than discarded; `params.freeMint.scope` is still passed to the instance.
         if (params.freeMint.allocation != 0) revert FreeMintAllocationIsPerEdition();
 
         bool agentCreated = false;
@@ -132,10 +126,6 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
         instance = _deployAndRegister(salt, params, agentCreated);
         ERC1155Instance(payable(instance)).initializeFreeMint(params.freeMint.scope);
 
-        // Gating module is attached to the instance at deploy (params.gatingModule; address(0) = open).
-        // Its config is authored post-create by the owner via the module's own typed setter — the
-        // factory threads no gating config here (the generic slot bakes in no module's config shape).
-
         emit InstanceCreated(instance, params.creator, params.name, params.vault);
     }
 
@@ -143,15 +133,13 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
         private
         returns (address instance)
     {
-        // CreateX reads its front-run guard off the SHAPE of this salt: first 20 bytes the caller,
-        // 21st byte 0x00, and the guard becomes keccak256(msg.sender, salt), which no third party can
+        // CreateX reads its front-run guard off the shape of this salt: first 20 bytes the caller,
+        // 21st byte 0x00; the guard is keccak256(msg.sender, salt), which no third party can
         // reproduce. See CreateXSalt.
         bytes32 create3Salt = CreateXSalt.permissioned(address(this), msg.sender, salt);
-        // The EIP-1167 minimal proxy, 45 bytes, in place of the instance's whole 19,183-byte
-        // creation code. CREATE3 reaches an address derived from the caller and the salt ALONE —
-        // `computeCreate3Address` takes no initcode argument, because CreateX deploys a CREATE2
-        // proxy and lets that proxy CREATE at nonce 1 — so swapping what is deployed here moves no
-        // address that this factory has ever handed out or ever will.
+        // The EIP-1167 minimal proxy (45 bytes) pointing at `instanceImplementation`. A CREATE3
+        // address derives from the caller and salt alone (`computeCreate3Address` takes no
+        // initcode), so the deployed bytecode does not affect the address.
         instance = ICreateX(CREATEX)
             .deployCreate3(
                 create3Salt,
@@ -222,8 +210,7 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
         return owner();
     }
 
-    /// @notice Returns supported component feature tags.
-    ///         DYNAMIC_PRICING included lazily when a module is set.
+    /// @notice Returns supported component feature tags; DYNAMIC_PRICING is included while a module is set.
     function features() external view returns (bytes32[] memory) {
         if (dynamicPricingModule != address(0)) {
             bytes32[] memory f = new bytes32[](_features.length + 1);

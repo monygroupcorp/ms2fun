@@ -74,8 +74,8 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
     mapping(address => bool) public revokedInstances;
 
     /// @notice nameHash => instance. The reverse of `nameHashes`, for slug resolution.
-    /// @dev Storage-append only: this is the last state var so the layout stays proxy-safe.
-    ///      Kept alongside `nameHashes` (not replacing it) — `nameHashes` is public/ABI-visible.
+    /// @dev Storage is append-only behind the proxy, so this stays the last state var. Kept alongside
+    ///      the public `nameHashes`.
     mapping(bytes32 => address) public instanceByNameHash;
 
     // Events
@@ -205,28 +205,22 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
         emit InstanceMetadataUpdated(instance, uri);
     }
 
-    /// @notice Revoke a registered instance. Owner only, and PERMANENT: this is the protocol's only
-    ///         instance kill-switch, and there is no un-revoke path anywhere in this contract.
-    /// @dev    What the flag reaches, exactly:
-    ///         - HONORED: `getInstanceInfo` reverts `NotRegistered`; `isRegisteredInstance` and
+    /// @notice Revoke a registered instance. Owner only, and permanent: there is no un-revoke path.
+    /// @dev    What the flag reaches:
+    ///         - Honored: `getInstanceInfo` reverts `NotRegistered`; `isRegisteredInstance` and
     ///           `isInstanceFromApprovedFactory` both return false. Those are the existence and
     ///           legitimacy reads, so anything gating on them stops seeing the instance.
-    ///         - DELIBERATELY NOT HONORED: name resolution. `resolveName` still returns the instance's
-    ///           address so its slug stays reserved and cannot be squatted — see that function's own
-    ///           docstring, which is the authority on the exclusion. Resolution and display are
-    ///           separate concerns.
-    ///         - DELIBERATELY NOT HONORED: trade execution. Every ERC-404 / ERC-1155 / ERC-721 instance
-    ///           forwards a user's comment to `GlobalMessageRegistry.postForAction` on its buy / sell /
-    ///           mint / bid path, and that call gates on `isInstanceFromApprovedFactory`. The instances
-    ///           pre-check the same read and SKIP the post rather than letting it revert, so revocation
-    ///           silences a revoked instance's comments without stopping its trades — a buy behaves the
-    ///           same whether or not the buyer attached one. Revocation is a listing decision, not a
-    ///           freeze: it is not a trading halt, and this contract has no mechanism that is.
-    ///           `GlobalMessageRegistry.post` is permissionless in any case, so the coupling never
-    ///           silenced the instance's social surface — it only broke the commented trade.
-    ///         Because the flag is a one-way storage write, revocation is not a reversible moderation
-    ///         action: recovery means registering a NEW instance, not reviving this one, and it needs a
-    ///         new name — the revoked instance's `nameHash` stays claimed in `nameHashes`.
+    ///         - Not honored: name resolution. `resolveName` still returns the instance's address so its
+    ///           slug stays reserved (see that function).
+    ///         - Not honored: trade execution. Every ERC-404 / ERC-1155 / ERC-721 instance forwards a
+    ///           user's comment to `GlobalMessageRegistry.postForAction` on its buy / sell / mint / bid
+    ///           path, and that call gates on `isInstanceFromApprovedFactory`. The instances pre-check the
+    ///           same read and skip the post rather than revert, so revocation silences a revoked
+    ///           instance's comments without stopping its trades. Revocation is a listing decision, not a
+    ///           trading halt, and this contract has no mechanism that is. `GlobalMessageRegistry.post`
+    ///           is permissionless in any case.
+    ///         Recovery means registering a new instance under a new name; the revoked instance's
+    ///         `nameHash` stays claimed in `nameHashes`.
     function revokeInstance(address instance) external override onlyOwner {
         if (instanceInfo[instance].instance == address(0)) revert NotRegistered();
         revokedInstances[instance] = true;
@@ -258,13 +252,12 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
         if (instanceVault == address(0)) revert InstanceHasNoVault();
         if (instanceVault != vault) revert VaultMismatch();
         if (instanceVault.code.length == 0) revert VaultNotDeployed();
-        // Vault-registry gate (choke-point): the alignment tithe must only ever route to a vault the
-        // registry has registered + alignment-validated. A code.length check alone lets a creator bind
-        // an instance to any contract exposing the vault surface and redirect the tithe off-curation.
-        // Gates on the FULL tri-composite (registered && active && target-active) via the shared
-        // `_vaultRegistered` predicate — the raw two-flag subset let a NEW ERC1155/721 collection bind a
-        // de-curated (revoked-target) vault, since `:243` is the sole vault-legitimacy gate for those
-        // families (MRV1-01). `_vaultRegistered` is the same predicate `isVaultRegistered` exposes.
+        // Vault-registry gate: the alignment tithe must only route to a vault the registry has registered
+        // and alignment-validated; a code.length check alone lets a creator bind an instance to any
+        // contract exposing the vault surface and redirect the tithe off-curation. Uses the full
+        // registered && active && target-active predicate (`_vaultRegistered`, the same one
+        // `isVaultRegistered` exposes), since this is the sole vault-legitimacy gate for ERC1155/721
+        // collections and the two-flag subset would let them bind a de-curated vault.
         if (!_vaultRegistered(vault)) revert UnregisteredVault();
 
         address instanceTreasury = IFactoryInstance(instance).protocolTreasury();
@@ -340,9 +333,8 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
 
     /// @notice Resolve a collection name to its instance address.
     /// @dev Case-insensitive (names are lowercased before hashing). Returns address(0) for an
-    ///      unknown name. Deliberately ignores revocation: a revoked instance still resolves so
-    ///      its slug stays reserved and cannot be squatted. Resolution and display are separate
-    ///      concerns — the frontend gates revoked instances.
+    ///      unknown name. Ignores revocation: a revoked instance still resolves so its slug stays
+    ///      reserved and cannot be squatted. The frontend gates display of revoked instances.
     function resolveName(string calldata name) external view override returns (address) {
         return instanceByNameHash[MetadataUtils.toNameHash(name)];
     }
@@ -403,25 +395,21 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
 
     /// @notice Whether a vault is registered AND its bound alignment target is still active.
     /// @dev Composite read across two independently-mutated `active` flags: the vault's own
-    ///      (`vaultInfo[vault].active`, toggled by `deactivateVault`) and its bound alignment
-    ///      target's (`AlignmentRegistryV1`, toggled by `deactivateAlignmentTarget`). Registration
-    ///      validates target-active at bind time (`registerVault`), but a target can be revoked
-    ///      LATER (e.g. a rug is discovered). Without re-checking here, a vault bound to a
-    ///      now-revoked target would stay registered — bindable by new ERC404 instances
-    ///      (`ERC404Factory` gates the graduation-tithe vault on this read) and otherwise usable.
-    ///      Gating on the composite read (rather than mutating `vaultInfo[vault].active` on every
-    ///      target deactivation) keeps the two flags independently truthful and covers every vault
-    ///      of a revoked target at once, with no extra write surface.
+    ///      (`vaultInfo[vault].active`, toggled by `deactivateVault`) and its bound alignment target's
+    ///      (`AlignmentRegistryV1`, toggled by `deactivateAlignmentTarget`). Registration validates
+    ///      target-active only at bind time, and a target can be revoked afterwards; re-checking here keeps
+    ///      a vault of a revoked target from being bound by new ERC404 instances (`ERC404Factory` gates
+    ///      the graduation-tithe vault on this read). Composing the read, rather than mutating
+    ///      `vaultInfo[vault].active` on target deactivation, keeps both flags truthful and covers every
+    ///      vault of a revoked target at once.
     // slither-disable-next-line timestamp
     function isVaultRegistered(address vault) external view override returns (bool) {
         return _vaultRegistered(vault);
     }
 
-    /// @dev The tri-composite vault-legitimacy predicate: registered, flag-active, AND its
-    ///      alignment target still active. The single source of truth for every vault gate —
-    ///      the external `isVaultRegistered` read AND the internal write-path gates
-    ///      (`registerInstance`, `migrateVault`) all route through here so no path can drift to
-    ///      the raw two-flag subset and re-open the revoked-target hole (MRV1-01).
+    /// @dev The vault-legitimacy predicate: registered, flag-active, and its alignment target still
+    ///      active. The external `isVaultRegistered` read and the write-path gates (`registerInstance`,
+    ///      `migrateVault`) all route through here, so no path accepts a vault of a revoked target.
     // slither-disable-next-line timestamp
     function _vaultRegistered(address vault) internal view returns (bool) {
         return registeredVaults[vault] && vaultInfo[vault].active
@@ -440,23 +428,19 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
     function migrateVault(address instance, address newVault) external override {
         if (msg.sender != instance) revert Unauthorized();
         if (instanceInfo[instance].instance == address(0)) revert NotRegistered();
-        // Full tri-composite gate (MRV1-02): mirror the `registerInstance` predicate so the migrate
-        // write-path cannot bind a revoked-target vault either. Inconsequential today (the genesis-targetId
-        // match below already pins the target), but kept consistent so no path repeats the raw-subset hole.
+        // Same predicate as `registerInstance`, so migration cannot bind a revoked-target vault either
+        // (the genesis-targetId match below also pins the target).
         if (!_vaultRegistered(newVault)) revert FactoryNotActive();
 
         address[] storage vaults = instanceInfo[instance].vaults;
         uint256 genesisTargetId = vaultInfo[vaults[0]].targetId;
         if (vaultInfo[newVault].targetId != genesisTargetId) revert VaultMismatch();
 
-        // Family choke-point (audit finding #2). The settlement split no longer turns on the family —
-        // every collection settles 1/19/80 — so this no longer guards a split flip, and the 61%-diversion
-        // it was written against is not reachable any more. What it still guards is the PROMISE the buyers
-        // paid in under: an endowment collection tithes into a permanent Aave position whose yield streams
-        // to the community, and a liquidity collection tithes into a pool with entirely different exposure
-        // (impermanent loss, sell pressure, MEV). Swapping one for the other after the fact changes what
-        // the tithe IS, not merely where it sits. Cross-family migration is economically nonsensical, so
-        // forbid it outright: the new vault must share the genesis vault's family.
+        // Family choke-point: buyers paid in under a promise. An endowment collection tithes into a
+        // permanent Aave position whose yield streams to the community; a liquidity collection tithes into
+        // a pool with different exposure (impermanent loss, sell pressure, MEV). Swapping one for the other
+        // changes what the tithe is, not merely where it sits, so the new vault must share the genesis
+        // vault's family.
         if (_isVaultLiquidityFamily(newVault) != _isVaultLiquidityFamily(vaults[0])) {
             revert VaultFamilyMismatch();
         }
@@ -489,8 +473,7 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
 
     /// @dev Resolve a vault's revenue-split family from its self-reported `vaultType()`, exactly as the
     ///      settlement instances do (`ERC1155Instance.withdraw` / `ERC721AuctionInstance.settleAuction`).
-    ///      An unrecognized family reverts `UnknownVaultFamily` — consistent with the loud-fail policy in
-    ///      `RevenueSplitLib`; a registered vault always reports a known family in production.
+    ///      An unrecognized family reverts `UnknownVaultFamily`, per the loud-fail policy in `RevenueSplitLib`.
     function _isVaultLiquidityFamily(address vault) internal view returns (bool) {
         return RevenueSplitLib.isLiquidityFamily(IAlignmentVault(payable(vault)).vaultType());
     }

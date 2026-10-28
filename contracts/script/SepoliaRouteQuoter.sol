@@ -2,47 +2,34 @@
 pragma solidity ^0.8.20;
 
 /// @title SepoliaRouteQuoter
-/// @notice The on-chain best-route quoter for the Sepolia showcase — the address `cfg.zQuoter`
-///         carries on this network, and the reason `BestRouteAcquirer._tryBestRoute` is a live path
-///         here rather than dead scaffolding.
+/// @notice The on-chain best-route quoter for the Sepolia showcase: the address `cfg.zQuoter`
+///         carries on this network, which makes `BestRouteAcquirer._tryBestRoute` a live path here.
 ///
-///         WHY A QUOTER IS WRITTEN RATHER THAN WIRED. `DeployCore` takes `cfg.zQuoter` as operator
-///         input, and on Ethereum mainnet it is: a canonical quoter is deployed there and the
-///         operator points at it. There is no such deployment on Sepolia, and the vendored upstream
-///         sources cannot stand in for one — `lib/zRouter/base/zQuoter.sol` is a lens that forwards
-///         every call to a hardcoded BASE-chain address, and all three vendored variants are pinned
-///         above this tree's `solc = "0.8.28"`. So a showcase that wants the seam exercised has to
-///         bring its own, exactly as the Anvil fork does (`AnvilFixedRouteQuoter`).
+///         Sepolia has no canonical quoter to point at, and the vendored upstream sources cannot
+///         stand in: `lib/zRouter/base/zQuoter.sol` forwards every call to a hardcoded Base-chain
+///         address, and all vendored variants pragma above this tree's `solc = "0.8.28"`. The
+///         Anvil fork brings its own quoter the same way (`AnvilFixedRouteQuoter`).
 ///
-///         WHAT IT IS AND IS NOT. This is a ROUTE TABLE, not a price oracle and not a search. It
-///         answers ETH -> token with the venue the seed has already put depth into, and it performs
-///         no comparison between venues, because on this network there is nothing to compare: each
-///         showcase asset has exactly one seeded pool per vault that acquires it.
+///         This is a route table, not a price oracle and not a search. It answers ETH -> token with
+///         the venue the seed has put depth into, and compares no venues: each showcase asset has
+///         one seeded pool per vault that acquires it.
 ///
-///         WHY THE TABLE IS KEYED BY THE VAULT THAT ASKS, AND NOT BY THE TOKEN ALONE. The showcase
-///         deliberately carries one asset across more than one venue: MS2 is the Uniswap V4 target
-///         AND the ZAMM target. Those are different vaults, LPing on different venues, each flooring
-///         its convert against its own venue's price authority. A table keyed by token alone cannot
-///         tell them apart: one UNI_V4 row for MS2 answers the ZAMM vault too, and that vault buys on
-///         the Uniswap pool instead, against a floor derived from its own venue's TWAP. The ZAMM leg
-///         the showcase exists to rehearse would then never execute on this chain at all.
+///         The table is keyed by (vault, token) because one asset sits on more than one venue: MS2
+///         is both the Uniswap V4 target and the ZAMM target, held by different vaults that each
+///         floor their convert against their own venue's price authority. A token-only key would
+///         route the ZAMM vault into the Uniswap pool, and the ZAMM leg would never execute.
+///         `BestRouteAcquirer` is inlined into its vault, so `getQuotes` sees the vault as
+///         `msg.sender`; the acquirer asks the same question and decodes the same reply as on
+///         mainnet.
 ///
-///         `BestRouteAcquirer` is inlined into its vault, so `getQuotes` sees the VAULT as
-///         `msg.sender`, and a row is registered against it. Nothing about the caller changes: the
-///         acquirer asks the same question and decodes the same reply it will on mainnet. What
-///         changes is that this table can say "this vault acquires on its own venue", which on this
-///         ABI is said by having no row — see the note on `setRoute`.
+///         `amountOut` is a flag, not a price. `BestRouteAcquirer` reads it only as a non-zero
+///         "route exists" test; the bound the swap executes against is the vault's own
+///         oracle-derived floor, which this contract cannot influence.
 ///
-///         `amountOut` IS A FLAG, NOT A PRICE. `BestRouteAcquirer` reads it only as a non-zero
-///         "route exists" test; the bound the swap actually executes against is the vault's own
-///         oracle-derived floor, from the price authority its family pins, which this contract
-///         cannot influence. Reading a price out of this return value would be wrong.
-///
-///         AN UNREGISTERED (VAULT, TOKEN) PAIR IS ANSWERED WITH AN EMPTY ROUTE, which
-///         `BestRouteAcquirer` reads as "no viable route" and degrades to the vault's own fixed leg.
-///         So a vault this quoter has not been told about behaves byte-for-byte as it would with no
-///         quoter wired at all — which is what makes deploying it before the roster exists safe, and
-///         what makes it the right answer for a vault whose venue the acquirer has no typed leg for.
+///         An unregistered (vault, token) pair is answered with an empty route, which
+///         `BestRouteAcquirer` reads as "no viable route" and degrades to the vault's own fixed
+///         leg. Such a vault behaves exactly as with no quoter wired, which is also the right answer
+///         for a vault whose venue the acquirer has no typed leg for.
 contract SepoliaRouteQuoter {
     /// @dev Mirrors the upstream nine-member `zQuoter.AMM` that `BestRouteAcquirer` decodes against.
     ///      The last four are declared so the ABI this contract presents is the ABI the acquirer
@@ -67,9 +54,9 @@ contract SepoliaRouteQuoter {
     }
 
     /// @notice One row: the venue a single vault acquires a single token on.
-    /// @dev `set` is carried rather than inferred, because every field a row holds has a legitimate
-    ///      zero — `UNI_V2` is source 0, and a ZAMM pool may genuinely run `feeOrHook == 0`. Absence
-    ///      is the answer that routes a vault to its own fixed leg, so it must not be guessable.
+    /// @dev `set` is stored because every other field has a legitimate zero: `UNI_V2` is source 0
+    ///      and a ZAMM pool may run `feeOrHook == 0`. Absence routes a vault to its own fixed leg, so
+    ///      it must be distinguishable from a zeroed row.
     struct Route {
         AMM source;
         uint256 feeOrHook;
@@ -85,15 +72,8 @@ contract SepoliaRouteQuoter {
 
     /// @notice The only account that may write the table. Starts as the deployer and moves with
     ///         `setOperator`.
-    /// @dev NOT `immutable`, and the reason is the ownership handover rather than anything this
-    ///      contract needs. `MigrateOwnership` exists so that after the deploy no capability is left
-    ///      on the deployer EOA — a freshly minted key whose whole design goal is to stop mattering
-    ///      once governance is in place. An immutable operator was the one exception: it would have
-    ///      kept `setRoute` and `clearRoute` on that key for this contract's entire life, so the
-    ///      honest answer to "does the deployer still hold anything?" would have been "yes, a little"
-    ///      rather than a flat no. It is a route table on one test network, so the power is small —
-    ///      but a handover with one documented hole in it is the kind of thing that gets copied
-    ///      forward, and the fix is four lines.
+    /// @dev Not `immutable`: `MigrateOwnership` leaves no capability on the deployer EOA, so the
+    ///      operator must be transferable to governance.
     address public operator;
 
     /// @notice vault -> tokenOut -> the route that vault acquires that token through.
@@ -104,26 +84,22 @@ contract SepoliaRouteQuoter {
     }
 
     /// @notice Register the venue `vault` acquires `token` through.
-    /// @dev Called by the seed once a vault exists and the pool it will swap in has depth. The
-    ///      pairing matters and is not automatic: registering a venue the seed has not filled points
-    ///      converts at an empty pool, where the vault's oracle floor will refuse them. Register the
-    ///      pool the depth went into, and no other.
+    /// @dev Called by the seed once a vault exists and the pool it will swap in has depth. Register
+    ///      the pool the depth went into: a venue with no depth points converts at an empty pool,
+    ///      where the vault's oracle floor refuses them.
     ///
-    ///      A VAULT WHOSE VENUE HAS NO TYPED LEG GETS NO ROW. `BestRouteAcquirer` dispatches to
-    ///      `swapV2/V3/V4/VZ` and nothing else; a vault on any other venue reaches it through the
-    ///      fallback by design. The honest row for such a vault is no row: "I cannot route this" is
-    ///      what an empty route means, and it is
-    ///      what puts the vault on the venue it LPs into. Hence the refusal below of the four
-    ///      upstream members this library quotes but cannot execute — storing one would be storing a
-    ///      row that can only degrade to the fallback, indistinguishable in effect from absence and
-    ///      misleading to read.
+    ///      A vault whose venue has no typed leg gets no row. `BestRouteAcquirer` dispatches to
+    ///      `swapV2/V3/V4/VZ` only; any other venue is reached through the fallback, and an empty
+    ///      route is how a vault says "I cannot route this". The four upstream members this contract
+    ///      quotes but cannot execute are therefore refused, since a stored row for one would only
+    ///      degrade to the fallback and mislead a reader.
     /// @param feeOrHook The source's second word as `BestRouteAcquirer` will use it: V3/V4 fee in the
     ///        quoter ABI's BPS units (30 -> the fee-3000 / spacing-60 pool), the full ZAMM `feeOrHook`
     ///        word for `ZAMM`, and unused — so required zero — for the two V2 legs.
     function setRoute(address vault, address token, AMM source, uint256 feeOrHook) external {
         if (msg.sender != operator) revert NotOperator();
         if (vault == address(0) || token == address(0)) revert InvalidRoute();
-        if (uint256(source) > uint256(AMM.UNI_V4)) revert InvalidRoute(); // no typed leg — see above
+        if (uint256(source) > uint256(AMM.UNI_V4)) revert InvalidRoute(); // no typed leg
         // The acquirer casts a V3/V4 fee to `uint24(feeOrHook * 100)` and `uint16(feeOrHook)`;
         // anything wider is refused there as a truncation risk, so refuse it at the source rather
         // than store a route that silently degrades every convert to the fallback.
@@ -145,16 +121,12 @@ contract SepoliaRouteQuoter {
         emit RouteCleared(vault, token);
     }
 
-    /// @notice Hand the table's write permission to another account — the governance Timelock, at the
+    /// @notice Hand the table's write permission to another account, the governance Timelock at the
     ///         ownership handover.
-    /// @dev Single-step and deliberately so, unlike the protocol's `SafeOwnableUUPS` two-step
-    ///      handover. A two-step request/complete exists to stop ownership being sent somewhere that
-    ///      cannot accept it, because for those contracts a mistake is unrecoverable. Here it is not:
-    ///      the table is rebuildable, and a vault whose row is missing degrades to its own fixed-pool
-    ///      leg rather than breaking, so the worst case is a quoter redeployed and re-pointed with
-    ///      `setZQuoter`. The zero-address check is kept because that case is not a mistake anyone
-    ///      recovers from by choice — it would freeze the table permanently while leaving every
-    ///      existing row live.
+    /// @dev Single-step, unlike the two-step `SafeOwnableUUPS` handover: the table is rebuildable
+    ///      and a missing row degrades to the vault's fixed-pool leg, so a mis-sent operator costs
+    ///      at most a quoter redeployed and re-pointed with `setZQuoter`. The zero address is
+    ///      refused because it would freeze the table permanently with every existing row live.
     function setOperator(address newOperator) external {
         if (msg.sender != operator) revert NotOperator();
         if (newOperator == address(0)) revert InvalidRoute();

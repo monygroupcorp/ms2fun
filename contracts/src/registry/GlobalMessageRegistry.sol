@@ -8,7 +8,7 @@ import { IGlobalMessageRegistry } from "./interfaces/IGlobalMessageRegistry.sol"
 
 /**
  * @title GlobalMessageRegistry
- * @notice V2 — standalone social layer (post/reply/quote/react) decoupled from trade execution.
+ * @notice Standalone social layer (post/reply/quote/react) decoupled from trade execution.
  * @dev Two entry points:
  *      - postForAction: called by registered instances to forward user messages atomically with actions
  *      - post: called directly by users, instance acts as channel
@@ -172,8 +172,7 @@ contract GlobalMessageRegistry is SafeOwnableUUPS, IGlobalMessageRegistry {
     }
 
     /// @notice Raise/lower the spam lever. Feed indexes only posts with `value >= postThreshold`.
-    /// @dev Display-side filter — does NOT gate posting on-chain. Stored here (vs. client config)
-    ///      so it's auditable with one source of truth and can drive an owner admin panel.
+    /// @dev Display-side filter; does not gate posting on-chain. Held on-chain as the single source of truth.
     function setPostThreshold(uint256 v) external onlyOwner {
         postThreshold = v;
         emit PostThresholdSet(v);

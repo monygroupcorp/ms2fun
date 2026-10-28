@@ -59,32 +59,24 @@ library HookAddressMiner {
     uint160 constant ULTRA_ALIGNMENT_FORBIDDEN_FLAGS = ALL_HOOK_FLAGS ^ ULTRA_ALIGNMENT_HOOK_FLAGS;
 
     /// @notice Absolute ceiling on the iterations a single mine may perform.
-    /// @dev This is the runaway bound, not the operating bound. It applies to the offset-less
-    ///      `mineSalt` overload, which scans `0 .. MAX_ITERATIONS` and exists for the fixed historical
-    ///      vectors the tests pin. Production callers use the offset-taking overload, whose scan length
-    ///      is `SCAN_WINDOW` — see there for the sizing argument. `SCAN_WINDOW <= MAX_ITERATIONS` is a
-    ///      library invariant and is asserted in the tests.
+    /// @dev The runaway bound, not the operating bound. It applies to the offset-less `mineSalt`
+    ///      overload, which scans `0 .. MAX_ITERATIONS` for the fixed vectors the tests pin. Production
+    ///      callers use the offset-taking overload, whose scan length is `SCAN_WINDOW`.
+    ///      `SCAN_WINDOW <= MAX_ITERATIONS` is a library invariant asserted in the tests.
     uint256 constant MAX_ITERATIONS = 250_000;
 
     /// @notice Iterations a single offset-scanning mine performs before reverting `NoValidSaltFound`.
     /// @dev Sized to fit inside a 30M-gas block alongside the rest of a graduation, so an unlucky search
-    ///      ends in a cheap named revert that a later block can retry with a fresh window, rather than in
-    ///      an out-of-gas that consumes the whole limit and reverts with nothing.
+    ///      ends in a cheap named revert that a retry with a fresh window can recover from, rather than
+    ///      an out-of-gas.
     ///
-    ///      The arithmetic, measured on this tree (`HookAddressMinerGas.t.sol` reports 15,419,320 gas for
-    ///      an 84,719-iteration mine = ~182 gas/iteration):
-    ///        - 100,000 iterations ~= 18.2M gas for the mine itself;
-    ///        - plus the init-code hash, the CREATE2 deploy and the rest of graduation, an attempt lands
-    ///          near 22M against a 30M limit, leaving headroom rather than filling the block.
-    ///      A 14-bit exact-flag constraint such as 0xCC is hit with probability 2^-14 per iteration, so a
-    ///      window of 100,000 misses with probability (1 - 2^-14)^100000 ~= 2.2e-3, and two independent
-    ///      attempts miss with probability ~5e-6.
-    ///
-    ///      The tradeoff, stated plainly: a named window makes a FIRST attempt fail slightly more often
-    ///      than an implicit "however much fits in this block" bound would, because the bound is now
-    ///      declared rather than discovered. In exchange, the failure is retryable — the offset varies
-    ///      per attempt (see `mineSalt(...,startOffset)`), so a second transaction scans different salts
-    ///      instead of reproducing the first one's search.
+    ///      `HookAddressMinerGas.t.sol` measures ~182 gas/iteration, so 100,000 iterations cost ~18.2M
+    ///      gas; with the init-code hash, the CREATE2 deploy and the rest of graduation an attempt lands
+    ///      near 22M against the 30M limit. A 14-bit exact-flag constraint such as 0xCC is hit with
+    ///      probability 2^-14 per iteration, so a window misses with probability
+    ///      (1 - 2^-14)^100000 ~= 2.2e-3 and two independent attempts miss with probability ~5e-6.
+    ///      The failure is retryable because the offset varies per attempt (see
+    ///      `mineSalt(...,startOffset)`), so a second transaction scans different salts.
     uint256 constant SCAN_WINDOW = 100_000;
 
     /// @notice Error when no valid salt found within iteration limit
@@ -114,16 +106,14 @@ library HookAddressMiner {
     /**
      * @notice Find a CREATE2 salt as above, scanning a `SCAN_WINDOW`-long run of salts that begins at
      *         `startOffset` instead of always beginning at zero.
-     * @dev The search is otherwise a pure function of `(deployer, initCodeHash, requiredFlags,
-     *      forbiddenFlags)`, all of which are fixed for a given hook parameterization — so a zero-offset
-     *      mine that does not fit in a block is the same failing search on every retry, forever. Varying
-     *      the offset is what makes a retry a different search. The caller supplies the offset; the
-     *      factory derives it from block entropy so that a retry lands in a different window.
+     * @dev The search is a pure function of `(deployer, initCodeHash, requiredFlags, forbiddenFlags)`,
+     *      all fixed for a given hook parameterization, so a zero-offset mine that does not fit in a
+     *      block fails identically on every retry. Varying the offset makes a retry a different search;
+     *      the factory derives it from block entropy.
      *
-     *      Any salt whose address carries exactly the required bits is equally acceptable, so the choice
-     *      of offset carries no property worth steering: it changes WHICH valid address is found, never
-     *      WHETHER the address is valid. The hook constructor's `validateHookPermissions()` remains the
-     *      on-chain check on the flags.
+     *      Any salt whose address carries exactly the required bits is equally acceptable: the offset
+     *      changes which valid address is found, never whether it is valid. The hook constructor's
+     *      `validateHookPermissions()` is the on-chain check on the flags.
      * @param startOffset First salt to try. The scan covers `startOffset .. startOffset + SCAN_WINDOW`.
      */
     function mineSalt(
@@ -153,28 +143,21 @@ library HookAddressMiner {
         uint256 forbidden = forbiddenFlags;
         uint256 found;
 
-        // Upper bound of the scan, computed explicitly rather than left to the loop's own comparison. A
-        // salt is a full bytes32, so `startOffset + window` can exceed uint256: unchecked addition would
-        // wrap the end BELOW the start, the loop's `lt(i, end)` would be false immediately, and a caller
-        // whose offset landed near the top of the range would silently scan nothing and always revert.
-        // Saturating the end at type(uint256).max instead makes the scan short (it stops at the top of
-        // the range) but never wraps around to salts the run has already tried and never scans zero
-        // salts on a wrap. With a keccak-derived offset the case is unreachable in practice; it is
-        // handled here so it cannot become a silent behaviour change if an offset is ever chosen
-        // differently.
+        // A salt is a full bytes32, so `startOffset + window` can exceed uint256. Unchecked addition
+        // would wrap the end below the start and the scan would cover nothing; saturating the end at
+        // type(uint256).max keeps the scan short at the top of the range but never empty or wrapped.
+        // With a keccak-derived offset the case is unreachable in practice.
         uint256 end;
         unchecked {
             end = startOffset + window;
         }
         if (end < startOffset) end = type(uint256).max;
 
-        // The 85-byte CREATE2 preimage (0xff ++ deployer ++ salt ++ initCodeHash) is laid out ONCE in a
-        // fixed memory window above the free-memory pointer, and each iteration rewrites only the salt
-        // word before hashing in place. Nothing is allocated inside the loop and the free-memory pointer
-        // never moves, so the memory high-water mark is constant and the per-iteration cost is constant:
-        // the mine is O(n) in its iteration count. The search sequence, the salt values and the resulting
-        // addresses are identical to the straightforward `computeAddress(deployer, bytes32(i), ...)` form,
-        // which the tests assert directly.
+        // The 85-byte CREATE2 preimage (0xff ++ deployer ++ salt ++ initCodeHash) is laid out once in
+        // fixed memory above the free-memory pointer, and each iteration rewrites only the salt word
+        // before hashing in place. Nothing is allocated in the loop, so per-iteration cost is constant
+        // and the mine is O(n). Salts and addresses equal the `computeAddress(deployer, bytes32(i), ...)`
+        // form, which the tests assert.
         assembly ("memory-safe") {
             let ptr := mload(0x40)
             mstore(add(ptr, 0x40), initCodeHash)
@@ -220,15 +203,13 @@ library HookAddressMiner {
      * @param initCodeHash The keccak256 of the init code (creation code + constructor args)
      * @return The predicted deployment address
      */
-    /// @dev Derives the address in FIXED scratch memory: the 85-byte CREATE2 preimage
+    /// @dev Derives the address in fixed scratch memory: the 85-byte CREATE2 preimage
     ///      (0xff ++ deployer ++ salt ++ initCodeHash) is written above the free-memory pointer and hashed
-    ///      in place, and the free-memory pointer is left untouched — so the allocation high-water mark
-    ///      does not move. This is what keeps `mineSalt` linear in its iteration count: `abi.encodePacked`
-    ///      allocates a fresh 85-byte buffer per call, and because EVM memory is never reclaimed, the
-    ///      expansion cost of a loop of such calls grows with the square of the iteration count.
-    ///      The derivation is byte-for-byte the same preimage and is asserted so by a differential test
-    ///      (`HookAddressMinerGas.t.sol`) against the `abi.encodePacked` form across a large sample of
-    ///      `(deployer, salt, initCodeHash)` triples, including zero and max values.
+    ///      in place, leaving the pointer untouched. This keeps `mineSalt` linear in its iteration
+    ///      count: `abi.encodePacked` allocates a fresh buffer per call, and EVM memory is never
+    ///      reclaimed, so a loop of such calls grows quadratically. The preimage is byte-for-byte the
+    ///      `abi.encodePacked` form, asserted by a differential test (`HookAddressMinerGas.t.sol`)
+    ///      over a large sample of triples, including zero and max values.
     function computeAddress(address deployer, bytes32 salt, bytes32 initCodeHash) internal pure returns (address addr) {
         assembly ("memory-safe") {
             let ptr := mload(0x40)
@@ -285,7 +266,7 @@ library HookAddressMiner {
      * @param vault The UniAlignmentVault address
      * @param weth The WETH address
      * @param owner The hook owner address
-     * @param benefactor The fixed project instance the hook credits (7th ctor arg, added in #115)
+     * @param benefactor The fixed project instance the hook credits
      * @param hookFeeBips The hook fee in basis points
      * @param initialLpFeeRate The initial LP fee rate
      * @param masterRegistry The registry the hook reads to learn that `vault` has been retired

@@ -18,25 +18,22 @@ interface IStakedBalanceReader {
 }
 
 /// @title TierRevealModule
-/// @custom:deprecated RETIRED (noesis-141). This module is the WRONG product: it reveals rare art
-///          *conditionally* on a holder's live effective balance, so art flickers as balances move.
-///          The shipped product is Token Tiers — tier NFTs are coin DENOMINATIONS and their art is
-///          static and unconditional. `TokenTierBandResolver` replaces it in the ERC404 create path;
-///          `DeployCore` no longer deploys or approves this module, and an unapproved component cannot
-///          be selected (the factory gates on `isApprovedForTag`), so retirement is complete for
-///          anything newly created. The file stays in-tree only so existing deployments remain
-///          readable and verifiable — do not wire it into any new path. Deletion is a separate cleanup.
+/// @custom:deprecated Superseded by `TokenTierBandResolver`. This module reveals rare art conditionally on
+///          a holder's live effective balance, so art changes as balances move; Token Tiers art is static
+///          and unconditional. No deploy script deploys or approves it, and the factory gates on
+///          `isApprovedForTag`, so no new instance can select it. It stays in-tree so existing deployments
+///          remain readable and verifiable.
 /// @notice Rarity-by-ownership metadata resolver (ADR-0007, Reading B). An id in a configured tier
 ///         range reveals its rare art only while the holder's *effective holdings*
 ///         (`balanceOf + stakedBalance`) clear the tier threshold; otherwise the locked art (or ""
 ///         to fall through to collection base) shows. Pure conditional reveal — zero allocation,
 ///         zero custody, DN404-native.
-/// @dev Singleton keyed by instance. Tier config is SEALED at construction: the factory that registered
-///      THIS instance wires the full tier table once via `initTiers` (validating non-overlapping
-///      ascending ranges), then it is frozen — no owner add/edit. Mutable rarity = rug. The reveal stays
-///      dynamic (tracks live balances); the rules do not. Auth = `masterRegistry.getInstanceInfo(inst)
-///      .factory == msg.sender` — ONLY the instance's own registering factory, not any registered factory
-///      (least privilege, D1; upgrade-safe, blocks the seal-front-run on deterministic CREATE3 addresses).
+/// @dev Singleton keyed by instance. Tier config is sealed: the factory that registered this instance
+///      wires the full tier table once via `initTiers` (validating non-overlapping ascending ranges),
+///      then it is frozen with no owner add/edit, since mutable rarity is a rug vector. The reveal tracks
+///      live balances; the rules do not change. Auth is `masterRegistry.getInstanceInfo(inst).factory ==
+///      msg.sender`: only the instance's own registering factory, not any registered factory, which is
+///      upgrade-safe and blocks a front-run of the seal on deterministic CREATE3 addresses.
 contract TierRevealModule is IMetadataResolver, Ownable {
     error NotRegisteredFactory();
     error AlreadySealed();
@@ -71,8 +68,6 @@ contract TierRevealModule is IMetadataResolver, Ownable {
     /// @dev Ranges must be ascending and non-overlapping: tiers[i].idEnd >= idStart and
     ///      tiers[i+1].idStart > tiers[i].idEnd.
     function initTiers(address inst, Tier[] calldata ts) external {
-        // Least privilege (D1): only the factory that registered THIS instance may seal its tiers,
-        // not any registered factory.
         if (masterRegistry.getInstanceInfo(inst).factory != msg.sender) revert NotRegisteredFactory();
         if (sealed_[inst]) revert AlreadySealed();
 
@@ -91,11 +86,11 @@ contract TierRevealModule is IMetadataResolver, Ownable {
         (bool found, Tier memory t) = _tierForId(inst, id);
         if (!found) return ""; // common id → collection base
 
-        // Holder address(0) (unminted): eff = 0 < any positive threshold → lockedURI path. No special-case.
+        // Holder address(0) (unminted): eff = 0 < any positive threshold → lockedURI path.
         uint256 eff = ITierInstance(inst).balanceOf(holder) + _stakedOf(inst, holder);
         if (eff >= t.minBalance) {
-            // Blank revealed baseURI → fall through to collection base (symmetry with blank lockedURI).
-            // Without this, string.concat("", id) would serve a bare "123" — a broken non-URI.
+            // Blank revealed baseURI falls through to collection base; otherwise string.concat("", id)
+            // would serve a bare "123", which is not a URI.
             if (bytes(t.baseURI).length == 0) return "";
             return string.concat(t.baseURI, LibString.toString(id)); // revealed
         }
@@ -109,7 +104,7 @@ contract TierRevealModule is IMetadataResolver, Ownable {
 
     // ── Internal ────────────────────────────────────────────────────────────────
 
-    /// @dev Explicit (found, Tier) — no idEnd==0 sentinel (H6). O(tiers); ranges capped at config.
+    /// @dev Explicit (found, Tier) with no idEnd==0 sentinel. O(tiers).
     function _tierForId(address inst, uint256 id) internal view returns (bool, Tier memory) {
         Tier[] storage ts = tiers[inst];
         uint256 len = ts.length;

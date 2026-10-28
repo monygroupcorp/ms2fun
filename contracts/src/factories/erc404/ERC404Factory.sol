@@ -23,7 +23,7 @@ import { TokenTierBandResolver } from "../../metadata/TokenTierBandResolver.sol"
 import { MetadataOverlayModule } from "../../metadata/MetadataOverlayModule.sol";
 
 /// @dev Minimal surface of the deploy-bond escrow the factory drives at create. The escrow is a
-///      SEPARATE contract (holds the ETH) so the factory keeps its "holds no ETH" invariant.
+///      separate contract (it holds the ETH) so the factory holds no ETH.
 interface IDeployBondEscrow {
     function bondAmount() external view returns (uint256);
     function postBond(address instance, address creator) external payable;
@@ -89,10 +89,10 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     ///      (then `childResolvers` is its ordered list) or a single resolver module (then childResolvers
     ///      empty). `overlay`/`tier` are the concrete module addresses to seal per-instance config on
     ///      (address(0) = skip that module). Everything is registry-validated, wired once, then frozen.
-    /// @dev `tiers` is the SINGLE source of truth for Token Tiers. The creator supplies the economic
+    /// @dev `tiers` is the single source of truth for Token Tiers. The creator supplies the economic
     ///      ladder once and the factory derives every id range from it, sealing the instance's ladder
-    ///      (`initTierBands`) and the resolver's art table (`initBands`) from the SAME derived ranges —
-    ///      so the two tables cannot describe different ids. Non-empty is REQUIRED whenever `tier` is
+    ///      (`initTierBands`) and the resolver's art table (`initBands`) from the same derived ranges,
+    ///      so the two tables cannot describe different ids. Non-empty is required whenever `tier` is
     ///      set: a tier module wired with no ladder is an instance whose tier ops are permanent no-ops.
     struct MetadataConfig {
         address resolver; // instance modules[METADATA_RESOLVER] target
@@ -111,7 +111,7 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         ///      increasing across the list (enforced by the instance's `initTierBands` seal).
         uint32 weight;
         /// @dev How many ids this tier has. 0 => the maximum, `idLimit / weight`. A value above that
-        ///      maximum is CLAMPED to it, never rejected. Below it the tier is deliberately scarce:
+        ///      maximum is clamped to it, not rejected. Below it the tier is scarce:
         ///      it can sell out (`BandExhausted`) while coin remains, and reopens on `mintDown`.
         uint32 count;
         /// @dev Band art prefix; resolves to `baseURI + id`. "" => fall through to the collection base.
@@ -130,30 +130,30 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     address public weth;
     uint256 public bondingFeeBps = 100; // 1% default
 
-    /// @notice Refundable deploy-bond escrow (N12 lever). address(0) OR its `bondAmount() == 0`
-    ///         means the lever is OFF and create behaves byte-identically to today.
+    /// @notice Refundable deploy-bond escrow. address(0) or `bondAmount() == 0` means no bond is
+    ///         taken at create.
     address public deployBondEscrow;
 
     // ── Graduation-carve params ───────────────────────────────────────────────
-    // These are the terms a create is made UNDER. An instance is sealed onto the values standing at its
+    // These are the terms a create is made under. An instance is sealed onto the values standing at its
     // own create (`_carveTermsOf`, written in `createInstance`), and `effectiveCarveEth` resolves
-    // against that seal rather than against whatever the protocol has moved the live values to since.
-    // The pair below is therefore the CURRENT regime — what the next create will be sealed onto, and
-    // what the wizard previews — and never a term any deployed collection is still exposed to.
+    // against that seal rather than the live values. The pair below is the current regime: what the
+    // next create is sealed onto and what the wizard previews, never a term a deployed collection is
+    // exposed to.
 
-    /// @notice Minimum ETH the LP pool must keep at graduation. A carve-CLAMP, never a
+    /// @notice Minimum ETH the LP pool must keep at graduation. A carve clamp, never a
     ///         graduation gate: thin raises still graduate, the floor only eats carve headroom.
     uint256 public minPoolEth = 1 ether;
     /// @dev Progressive carve-allowance brackets: 50% of first 4 ETH, 25% of next 16, 10% beyond 20.
     RevenueSplitLib.BracketParams internal _carveBrackets =
         RevenueSplitLib.BracketParams({ b1: 4 ether, b2: 20 ether, r1: 5000, r2: 2500, r3: 1000 });
 
-    /// @notice Hard ceiling on `setMinPoolEth`, 4× the shipped 1 ETH default.
+    /// @notice Hard ceiling on `setMinPoolEth`, 4× the 1 ETH default.
     /// @dev    The floor eats carve headroom out of the LP's 80% share, so a floor of F leaves nothing
-    ///         to carve until a raise clears `F / 0.8`. At this ceiling that dead band ends at 5 ETH,
-    ///         which is a regime the protocol can argue for; there is no raise size at which an
-    ///         unbounded floor stops being "every carve is zero". The seal below is what protects
-    ///         collections that already exist — this bounds what the protocol may offer the next one.
+    ///         to carve until a raise clears `F / 0.8`. At this ceiling that dead band ends at 5 ETH;
+    ///         with an unbounded floor there is no raise size at which every carve stops being zero.
+    ///         The seal protects collections that already exist; this bounds what the protocol may
+    ///         offer the next one.
     uint256 public constant MAX_MIN_POOL_ETH = 4 ether;
 
     /// @dev The carve terms one instance was created under. Flattened rather than holding a nested
@@ -259,7 +259,7 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         super.revokeRoles(user, roles);
     }
 
-    /// @dev Same invariant from the holder's side. `grantRoles` refuses to re-grant PROTOCOL_ROLE, so
+    /// @dev Same invariant from the holder's side. `grantRoles` refuses to grant PROTOCOL_ROLE, so
     ///      renouncing it would destroy every protocol lever — treasury, escrow, WETH, fee, pool floor
     ///      and carve bracket — for every address including the owner, with no way back. The role moves
     ///      only via `transferProtocolRole`, which hands it on rather than dropping it.
@@ -316,13 +316,11 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
             }
         }
 
-        // Route creation ETH. Deploy-bond lever (N12) is OFF when no escrow is wired or its
-        // bondAmount is 0 → forward everything to treasury exactly as before (factory holds no ETH).
-        // When ON: hold the bond, forward only the excess now; the bond is escrowed after the
-        // instance address is known (see `escrow.postBond` below — the instance is the bond key).
+        // Route creation ETH. With no escrow wired, or a zero bondAmount, everything goes to treasury
+        // (the factory holds no ETH). Otherwise hold the bond, forward only the excess now, and
+        // escrow the bond after the instance address is known (the instance is the bond key).
         uint256 bondAmt = deployBondEscrow == address(0) ? 0 : IDeployBondEscrow(deployBondEscrow).bondAmount();
         if (bondAmt == 0) {
-            // Lever off — byte-identical to prior behavior.
             if (msg.value > 0 && protocolTreasury != address(0)) {
                 SafeTransferLib.safeTransferETH(protocolTreasury, msg.value);
             }
@@ -341,11 +339,11 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         if (params.owner == address(0)) revert InvalidOwner();
         if (params.vault == address(0)) revert VaultRequired();
         if (params.vault.code.length == 0) revert VaultMustBeContract();
-        // Registry-gate the alignment vault at create-time. The 19% graduation vaultCut (the
-        // CULT-alignment tithe) must only ever flow to a vault the master registry has
+        // Registry-gate the alignment vault at create. The 19% graduation vaultCut (the
+        // CULT-alignment tithe) must only flow to a vault the master registry has
         // registered/alignment-validated — a code.length check alone lets the tithe be redirected
-        // to an unregistered contract. Vaults are NOT componentRegistry components; the authority
-        // is masterRegistry.isVaultRegistered (mirrors migrateVault's registry gate).
+        // to an unregistered contract. Vaults are not componentRegistry components; the authority
+        // is masterRegistry.isVaultRegistered (as in migrateVault's registry gate).
         if (!masterRegistry.isVaultRegistered(params.vault)) revert UnapprovedVault();
         if (params.declaredMaxAllowanceBps > 10000) revert InvalidDeclaredMaxAllowance();
 
@@ -374,8 +372,7 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         }
 
         instance = _deployAndInitialize(params, metadataURI, liquidityDeployer, gatingModule, freeMint, agentCreated);
-        // Escrow the held bond now that the instance address (the bond key) exists. Lever off ⇒
-        // bondAmt == 0 ⇒ no escrow interaction, so this is a no-op on the current create path.
+        // Escrow the held bond now that the instance address (the bond key) exists.
         if (bondAmt > 0) {
             IDeployBondEscrow(deployBondEscrow).postBond{ value: bondAmt }(instance, params.owner);
         }
@@ -387,13 +384,13 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         // Gating module is attached at create (see _deployAndInitialize); its config is authored
         // post-create by the owner via the module's own typed setter. The factory threads no gating
         // config at create — the generic gating slot must not bake in any one module's config shape.
-        // Metadata-resolution stack — its OWN wiring path (NOT routed through gatingModule).
+        // The metadata-resolution stack has its own wiring path, separate from gatingModule.
         // Empty config (resolver == address(0)) = feature off.
         _wireMetadata(instance, metadataConfig);
         // Seal the carve terms this collection is created under. `declaredMaxAllowanceBps` is written
-        // once here with no setter, so the creator's ceiling is already immutable; without this seal the
-        // two inputs the ceiling is measured AGAINST stayed live, and a later `setMinPoolEth` moved the
-        // economics of every collection already on chain.
+        // once with no setter, so the creator's ceiling is immutable; the seal fixes the two inputs
+        // the ceiling is measured against, so a later `setMinPoolEth` cannot move the economics of a
+        // collection already on chain.
         _sealCarveTerms(instance);
         emit DeclaredMaxAllowance(instance, params.declaredMaxAllowanceBps);
         emit InstanceCreated(instance, params.owner, params.name, params.symbol, params.vault);
@@ -403,29 +400,29 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     ///      are registry-validated; the instance slot + router list + band table + overlay config are
     ///      each wired exactly once here, then frozen (sealed mechanism — no owner setter).
     function _wireMetadata(address instance, MetadataConfig memory cfg) private {
-        // A ladder is only ever consumed under a wired `cfg.tier`, and only when the metadata feature is
-        // on at all — so a non-empty `tiers` with either pointer unset would be silently discarded: the
-        // create succeeds, the creator's ladder never reaches an instance, and the seal is create-only,
-        // so it can never be supplied afterwards. Checked ABOVE the feature-off return, because
-        // `resolver == address(0)` is one of the two ways to drop it.
+        // A ladder is only consumed under a wired `cfg.tier`, and only when the metadata feature is
+        // on — so a non-empty `tiers` with either pointer unset would be silently discarded: the
+        // create succeeds, the creator's ladder never reaches an instance, and the seal is create-only.
+        // Checked above the feature-off return, because `resolver == address(0)` is one of the two
+        // ways to drop it.
         if (cfg.tiers.length != 0 && (cfg.resolver == address(0) || cfg.tier == address(0))) revert InvalidBand();
 
         if (cfg.resolver == address(0)) return; // feature off
 
         // Mirror of the empty-ladder rejection below. A TIER-tagged module is resolver-family, so it can
         // reach the metadata chain through the resolver slot or a router child with `cfg.tier` unset —
-        // and on that path neither `initTierBands` nor `initBands` ever runs. The instance then carries a
+        // and on that path neither `initTierBands` nor `initBands` runs. The instance then carries a
         // tier resolver over an empty `tierBands`, which the instance's gas short-circuit reads as "opted
         // out of tiers": every tier op is a permanent no-op, and the create-only seal cannot repair it.
         // Component tags are exclusive (one tag per component), so this rejects exactly the TIER family
         // members: a router, a resolver or an overlay in either position is unaffected, and a TIER module
-        // WITH `cfg.tier` set is the ordinary tiered path. `InvalidBand` for the same reason as below —
+        // with `cfg.tier` set is the ordinary tiered path. `InvalidBand` for the same reason as below —
         // the module is approved; what is invalid is wiring it with no band ladder behind it.
         bool untiered = cfg.tier == address(0);
 
         // Resolver slot accepts any resolver-family module (a MetadataResolverRouter or a single
         // resolver/overlay/tier module used directly), matching the MetadataConfig docstring. The
-        // family check still rejects a gating/staking/liquidity module in the slot (the actual hole).
+        // family check rejects a gating/staking/liquidity module in the slot.
         if (!_isApprovedResolverFamily(cfg.resolver)) revert UnapprovedResolver();
         if (untiered && componentRegistry.isApprovedForTag(cfg.resolver, FeatureUtils.TIER)) revert InvalidBand();
         ERC404BondingInstance(payable(instance)).initModule(METADATA_RESOLVER, cfg.resolver);
@@ -444,13 +441,13 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         if (cfg.tier != address(0)) {
             if (!componentRegistry.isApprovedForTag(cfg.tier, FeatureUtils.TIER)) revert UnapprovedResolver();
 
-            // The tier module must sit IN the resolution chain this create is sealing — either as the
+            // The tier module must sit in the resolution chain this create is sealing — either as the
             // resolver itself or as one of the router children wired above. `cfg.tier` only names where
             // the band art is sealed; it wires nothing. A tier module outside the chain is sealed with a
-            // full art table that no `tokenURI` lookup can ever reach, while the economic ladder IS
-            // written onto the instance — so the bands mint, price and burn as tiers but render as
-            // ordinary ids forever. That is the mirror of the empty-ladder state rejected just below,
-            // and like it the seal is create-only, so nothing can repair it afterwards.
+            // full art table that no `tokenURI` lookup can reach, while the economic ladder is written
+            // onto the instance — so the bands mint, price and burn as tiers but render as ordinary
+            // ids. That is the mirror of the empty-ladder state rejected just below, and like it the
+            // seal is create-only.
             bool tierInChain = cfg.tier == cfg.resolver;
             for (uint256 i = 0; !tierInChain && i < cfg.childResolvers.length; i++) {
                 tierInChain = cfg.childResolvers[i] == cfg.tier;
@@ -459,20 +456,20 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
 
             // A tier module with no ladder produces an instance whose `tierBands` is empty, which the
             // instance's gas short-circuit reads as "opted out of tiers" — mintUp/mintDown/escrow and
-            // the burn-safety hook all become permanent no-ops, and the ladder seal is create-only so
-            // nobody can repair it afterwards. That state must not be constructible.
+            // the burn-safety hook all become permanent no-ops, and the ladder seal is create-only.
+            // That state must not be constructible.
             if (cfg.tiers.length == 0) revert InvalidBand();
 
-            // Derive every id range ONCE, then seal the ladder and the art table from the same list.
+            // Derive every id range once, then seal the ladder and the art table from the same list.
             (ERC404BondingStorage.TierBand[] memory ladder, TokenTierBandResolver.Band[] memory art) =
                 _deriveTierBands(instance, cfg.tiers);
 
             // Ladder first: the economics are what make the art meaningful, and a rejected ladder must
             // not leave a sealed art table behind on a create that reverts anyway.
             ERC404BondingInstance(payable(instance)).initTierBands(ladder);
-            // No minBalance guard here any more: Token Tiers art is static and unconditional, so
-            // there is no threshold that a zero value could defeat. Range sanity (ascending,
-            // non-overlapping, idEnd >= idStart) is validated by the resolver at seal.
+            // Token Tiers art is static and unconditional, so there is no minBalance threshold to
+            // guard. Range sanity (ascending, non-overlapping, idEnd >= idStart) is validated by the
+            // resolver at seal.
             TokenTierBandResolver(cfg.tier).initBands(instance, art);
         }
         if (cfg.overlay != address(0)) {
@@ -481,32 +478,31 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         }
     }
 
-    /// @dev Derive the Token Tiers id ranges from the creator's ladder, and return them in BOTH shapes:
+    /// @dev Derive the Token Tiers id ranges from the creator's ladder, and return them in both shapes:
     ///      the instance's economic `TierBand[]` and the resolver's art `Band[]`. One derivation, two
-    ///      consumers — that is what makes it impossible for the art table and the ladder to disagree.
+    ///      consumers, so the art table and the ladder cannot disagree.
     ///
     ///      Geometry: `idLimit = maxSupply / unit` is the ordinary id ceiling (the same value the
-    ///      instance's `initTierBands` recomputes for its own bound). Bands pack CONTIGUOUSLY ascending
-    ///      from `idLimit + 1`, so every band id is above the ordinary space and therefore unreachable
-    ///      by DN404's auto-mint. Each tier's size is `min(count, idLimit / weight)`, with `count == 0`
-    ///      meaning the maximum — a caller asking for more than the coin supply could back is clamped,
-    ///      not rejected, while a smaller `count` is an intentional scarce tier.
+    ///      instance's `initTierBands` recomputes for its own bound). Bands pack contiguously ascending
+    ///      from `idLimit + 1`, so every band id is above the ordinary space and unreachable by DN404's
+    ///      auto-mint. Each tier's size is `min(count, idLimit / weight)`, with `count == 0` meaning
+    ///      the maximum — a caller asking for more than the coin supply could back is clamped, not
+    ///      rejected, while a smaller `count` is an intentional scarce tier.
     ///
-    ///      ALL ARITHMETIC IS `uint256` AND EVERY RANGE IS REJECTED BEFORE NARROWING. Bands pack ABOVE
-    ///      `idLimit`, and DN404 permits an `idLimit` as high as `0xfffffffe`, so a derived `idEnd`
-    ///      genuinely exceeds `uint32` on a large supply. A bare `uint32(...)` cast would truncate
-    ///      silently and wrap the band back DOWN into the ordinary id space — handing auto-mintable ids
-    ///      to the tier path and sealing a band OTHER than the one derived here, the worst outcome
-    ///      available on this path. So `idEnd > type(uint32).max` reverts `BandIdOverflow` before any
-    ///      assignment into `TierBand`'s `uint32` fields. This is the only live uint32 rejection in the
-    ///      system: at the seal the bound is structural (the `idEnd` field is itself `uint32`), so the
-    ///      check can only matter here. `idEnd >= idStart` always, so checking `idEnd` alone covers the
+    ///      All arithmetic is `uint256` and every range is rejected before narrowing. Bands pack above
+    ///      `idLimit`, and DN404 permits an `idLimit` as high as `0xfffffffe`, so a derived `idEnd` can
+    ///      exceed `uint32` on a large supply. A bare `uint32(...)` cast would truncate silently and
+    ///      wrap the band back down into the ordinary id space — handing auto-mintable ids to the tier
+    ///      path and sealing a band other than the one derived here. So `idEnd > type(uint32).max`
+    ///      reverts `BandIdOverflow` before any assignment into `TierBand`'s `uint32` fields. This is
+    ///      the only uint32 rejection in the system: at the seal the bound is structural (the `idEnd`
+    ///      field is itself `uint32`). `idEnd >= idStart` always, so checking `idEnd` alone covers the
     ///      whole range.
     ///
     ///      `weight == 0` is caught by the zero-size rule rather than by a bare division: `idLimit / 0`
     ///      would panic (0x12) before the seal could raise `InvalidBand`. The `weight >= 2` and
-    ///      strictly-increasing rules are NOT duplicated here — the seal owns them, and duplicating a
-    ///      money-code invariant is how the two copies drift.
+    ///      strictly-increasing rules live only in the seal; a second copy of a money-code invariant
+    ///      can drift.
     function _deriveTierBands(address instance, TierSpec[] memory tiers)
         private
         view
@@ -529,7 +525,7 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
 
             uint256 idStart = prevEnd + 1;
             uint256 idEnd = idStart + size - 1;
-            // Reject BEFORE narrowing. `idEnd >= idStart`, so bounding `idEnd` bounds the whole range.
+            // Reject before narrowing. `idEnd >= idStart`, so bounding `idEnd` bounds the whole range.
             if (idEnd > type(uint32).max) revert BandIdOverflow();
 
             ladder[i] =
@@ -567,12 +563,12 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
 
         uint256 unit = preset.unitPerNFT * 1e18;
         uint256 maxSupply = params.nftCount * unit;
-        // The reserve is computed on the FULL supply — the identical basis the instance uses for its
-        // stored `liquidityReserve` (ERC404BondingInstance.initialize) and for the graduation reserve —
-        // so this value and the instance's are byte-identical.
+        // The reserve is computed on the full supply — the basis the instance uses for its stored
+        // `liquidityReserve` (ERC404BondingInstance.initialize) and for the graduation reserve — so
+        // this value and the instance's are identical.
         uint256 liquidityReserve = (maxSupply * preset.liquidityReserveBps) / 10000;
         uint256 allocationTokens = freeMint.allocation * unit;
-        // One bonding cap, defined once. The free-mint allocation is removed EXACTLY once, from the full
+        // One bonding cap, defined once. The free-mint allocation is removed once, from the full
         // supply after the reserve — the same expression `buyBonding`/`sellBonding` enforce as their cap.
         // An allocation larger than the post-reserve supply is refused here rather than producing a cap
         // that underflows at the first trade.
@@ -583,10 +579,9 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
             unit: unit,
             liquidityReserveBps: preset.liquidityReserveBps,
             declaredMaxAllowanceBps: params.declaredMaxAllowanceBps,
-            // The curve raises `targetETH` across EXACTLY the bonding cap the instance enforces, so a
+            // The curve raises `targetETH` across exactly the bonding cap the instance enforces, so a
             // fully-sold curve reaches its endpoint. The free-mint allocation is deducted only in
-            // `maxBondingSupply` above; the curve is no longer given a pre-deducted NFT count, which is
-            // what removed the allocation a second time on a different basis.
+            // `maxBondingSupply` above, so it is not removed a second time on a different basis.
             curve: ICurveSpanComputer(preset.curveComputer)
                 .computeCurveParamsFromBondingSupply(maxBondingSupply, preset.targetETH, preset.liquidityReserveBps)
         });
@@ -601,12 +596,12 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         bytes32 create3Salt = CreateXSalt.permissioned(address(this), msg.sender, params.salt);
         instance = ICreateX(CREATEX).deployCreate3(create3Salt, proxyCreationCode);
 
-        // The DN404 mirror is deployed HERE, not inside the instance: `new` is a CREATE, so the
-        // mirror's ~3.1KB of creation code would otherwise have to live inline in the instance's
-        // runtime bytecode — and the instance is the contract fighting the EIP-170 limit. Deployer
-        // is `address(this)`, which is exactly what `_initializeDN404` links with (`caller()`).
-        // Constructed inline at the call site on purpose: clone + initialize are atomic within this
-        // function, so no external caller can ever supply a clone's mirror. Do not hoist.
+        // The DN404 mirror is deployed here, not inside the instance: `new` is a CREATE, so the
+        // mirror's ~3.1KB of creation code would otherwise sit inline in the instance's runtime
+        // bytecode, and the instance is the contract against the EIP-170 limit. Deployer is
+        // `address(this)`, which is what `_initializeDN404` links with (`caller()`). It is constructed
+        // inline at the call site: clone + initialize are atomic within this function, so no external
+        // caller can supply a clone's mirror.
         ERC404BondingInstance(payable(instance))
             .initialize(
                 params.owner,
@@ -626,12 +621,11 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
                     weth: weth
                 })
             );
-        // `metadataURI` is the create call's COLLECTION URI — the very string handed to
-        // `masterRegistry.registerInstance` in `_createInstance`. Until noesis-085 it was never given to
-        // the instance, which is exactly the drift QueryAggregator's §6 read-through was fighting: the
-        // registry held the only copy and nothing could correct it. It now lands in the instance's
-        // ERC-7572 `contractURI`. `params.tokenBaseURI` stays what it always was — the per-token base for
-        // `tokenURI` — and keeps going to `metadataURI`. Two arguments, two slots, two meanings.
+        // `metadataURI` is the create call's collection URI — the string handed to
+        // `masterRegistry.registerInstance` in `_createInstance` — and lands in the instance's ERC-7572
+        // `contractURI`, so the instance and the registry hold the same copy. `params.tokenBaseURI` is
+        // the per-token base for `tokenURI` and goes to the instance's `metadataURI`. Two arguments,
+        // two slots, two meanings.
         ERC404BondingInstance(payable(instance))
             .initializeMetadata(params.name, params.symbol, params.styleUri, params.tokenBaseURI, metadataURI);
         ERC404BondingInstance(payable(instance)).initializeFreeMint(freeMint.allocation, freeMint.scope);
@@ -668,31 +662,30 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         emit BondingFeeUpdated(_bps);
     }
 
-    /// @notice Set the graduation pool floor for FUTURE creates. A carve-clamp only — NEVER blocks
+    /// @notice Set the graduation pool floor for later creates. A carve clamp only — it never blocks
     ///         graduation, and never reaches a collection that already exists.
     /// @dev    Bounded at `MAX_MIN_POOL_ETH`: an unbounded floor is a one-call zeroing of the carve on
-    ///         every raise below it, and the bound is what stops the offer made to the next creator
-    ///         from being one no creator would take.
+    ///         every raise below it.
     function setMinPoolEth(uint256 _minPoolEth) external onlyRoles(PROTOCOL_ROLE) {
         if (_minPoolEth > MAX_MIN_POOL_ETH) revert MinPoolEthTooHigh();
         minPoolEth = _minPoolEth;
         emit MinPoolEthUpdated(_minPoolEth);
     }
 
-    /// @notice Set the progressive carve-allowance brackets for FUTURE creates (market regimes change).
+    /// @notice Set the progressive carve-allowance brackets for later creates (market regimes change).
     ///         Collections already deployed keep the brackets sealed at their own create.
     function setCarveBrackets(RevenueSplitLib.BracketParams calldata p) external onlyRoles(PROTOCOL_ROLE) {
         if (p.b1 > p.b2 || p.r1 > 10000 || p.r2 > 10000 || p.r3 > 10000) revert InvalidBracketParams();
         // The first bracket's rate carries every ladder: with the monotonicity guard below, `r1 == 0`
         // forces r2 and r3 to zero too, and an all-zero ladder is an allowance of zero on every raise —
-        // the carve switched off wholesale under a setter whose subject is meant to be its SHAPE.
-        // Turning the carve off is a decision about what the protocol offers creators, and it must not
-        // be reachable as a bracket tune. r2 and r3 are deliberately still free to reach zero: a ladder
-        // that tapers to nothing on the largest raises is an ordinary regime.
+        // the carve switched off wholesale under a setter meant to tune its shape. Turning the carve
+        // off is a decision about what the protocol offers creators, so it is not reachable as a
+        // bracket tune. r2 and r3 may reach zero: a ladder that tapers to nothing on the largest
+        // raises is an ordinary regime.
         if (p.r1 == 0) revert InvalidBracketParams();
-        // Marginal rate must fall (or hold) as the raise grows — the documented income-tax-inverted
-        // shape (r1 >= r2 >= r3). Guards against a PROTOCOL_ROLE holder inverting design intent so
-        // larger raises carve a higher marginal rate.
+        // Marginal rate must fall (or hold) as the raise grows — the income-tax-inverted shape
+        // (r1 >= r2 >= r3). Stops a PROTOCOL_ROLE holder inverting it so larger raises carve a
+        // higher marginal rate.
         if (p.r1 < p.r2 || p.r2 < p.r3) revert InvalidBracketParams();
         _carveBrackets = p;
         emit CarveBracketsUpdated(p.b1, p.b2, p.r1, p.r2, p.r3);
@@ -718,11 +711,11 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     ///         their previewCarve view) — the bracket/floor math lives here because the DN404 instance
     ///         has no EIP-170 headroom.
     /// @dev effective = min(request, allowance(raise) × declaredMax / 10000, headroom above the
-    ///      pool floor). The floor is a carve-CLAMP, never a graduation gate.
-    /// @dev The terms come from `msg.sender`'s OWN seal, not from the live values. The caller of record
+    ///      pool floor). The floor is a carve clamp, never a graduation gate.
+    /// @dev The terms come from `msg.sender`'s own seal, not from the live values. The caller of record
     ///      is the instance itself — both call sites are `ICarveParamsSource(factory).effectiveCarveEth`
     ///      from inside the instance — so the seal needs no argument threaded through the instance and
-    ///      costs it no storage, which is what makes this fit under EIP-170. Any other caller (an
+    ///      costs it no storage, which keeps it under EIP-170. Any other caller (an
     ///      off-chain preview with no `from`, a wizard quote for a collection that does not exist yet)
     ///      has no seal and gets the current terms, which is the right answer for a create that has not
     ///      happened.
@@ -786,8 +779,7 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
 
     /// @notice Preview the deterministic address for a given (creator, salt) pair.
     /// @dev Derives the salt through the same `CreateXSalt.permissioned` the deploy uses, so the
-    ///      preview and the deploy cannot drift: this function previewed the permissioned guard while
-    ///      the deploy took CreateX's Random path, and returned an address CreateX would never use.
+    ///      preview and the deploy return the same address.
     function computeInstanceAddress(address creator, bytes32 salt) external view returns (address) {
         bytes32 create3Salt = CreateXSalt.permissioned(address(this), creator, salt);
         return ICreateX(CREATEX).computeCreate3Address(CreateXSalt.guarded(address(this), create3Salt), CREATEX);

@@ -14,7 +14,7 @@ import { RevenueSplitLib } from "../shared/libraries/RevenueSplitLib.sol";
 /// @dev Reads + holder-auth the overlay needs off an ERC404 instance.
 interface IOverlayInstance {
     function owner() external view returns (address);
-    function ownerOf(uint256 id) external view returns (address); // the new seam getter
+    function ownerOf(uint256 id) external view returns (address); // seam getter
     function protocolTreasury() external view returns (address);
     function vault() external view returns (address);
     function stakingModule() external view returns (address);
@@ -68,7 +68,7 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
         PAY
     }
     enum Payout {
-        ARTIST, // where PAY money goes (STAKERS deferred)
+        ARTIST, // where PAY money goes
         SPLIT
     }
 
@@ -141,8 +141,7 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
     /// @notice Seed initial collection config. Registered-factory-only, set-once. `autoLatest`
     ///         stays owner-mutable afterward (it is policy, not mechanism — holders keep pin control).
     function initConfig(address inst, bool autoLatest_, Payout defaultPayout_) external {
-        // Least privilege (D1): only the factory that registered THIS instance may seed its config,
-        // not any registered factory.
+        // Only the factory that registered this instance may seed its config, not any registered factory.
         if (masterRegistry.getInstanceInfo(inst).factory != msg.sender) revert NotRegisteredFactory();
         if (configured[inst]) revert AlreadyConfigured();
         configured[inst] = true;
@@ -153,7 +152,7 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
 
     // ── Artist writes (owner of the instance) ───────────────────────────────────
 
-    /// @notice Update collection auto-latest policy. Owner-mutable (H8) — safe: holders always retain pin.
+    /// @notice Update collection auto-latest policy. Owner-mutable; holders always retain pin.
     function setAutoLatest(address inst, bool v) external {
         _onlyInstanceOwner(inst);
         autoLatest[inst] = v;
@@ -200,14 +199,12 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
     }
 
     /// @notice Pay for a PAY commission and pin it in the same tx. CEI + nonReentrant.
-    /// @dev    `uriHash` is `keccak256(bytes(commissionURI[inst][id]))` as the buyer read it. The buyer
-    ///         signs for the ART, not only for the price. Without it the transaction committed to
-    ///         `t.price` and nothing else, while `commissionURI` stayed artist-mutable through
-    ///         {setCommission} right up to the instant `paid` is set — and the lock this contract
-    ///         advertises as buyer protection then made the substitution permanent for that id, for
-    ///         everyone. No mempool sophistication was needed to hit it: ordinary latency between the
-    ///         UI read and the mined block is enough. Failing closed is the point — a swapped URI now
-    ///         reverts the purchase instead of settling it, and the buyer re-reads and decides again.
+    /// @dev    `uriHash` is `keccak256(bytes(commissionURI[inst][id]))` as the buyer read it, so the buyer
+    ///         commits to the art and not only the price. `commissionURI` stays artist-mutable through
+    ///         {setCommission} until `paid` is set, and the lock then makes whatever URI is current
+    ///         permanent for that id, so a URI swapped between the UI read and the mined block would
+    ///         otherwise settle. A mismatch reverts `CommissionUriChanged`; the buyer re-reads and decides
+    ///         again.
     /// @param uriHash Hash of the commission URI the buyer is paying for.
     function unlock(address inst, uint256 id, bytes32 uriHash) external payable nonReentrant {
         _onlyHolder(inst, id);
@@ -253,20 +250,17 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
         if (price == 0) return;
         address artist = IOverlayInstance(inst).owner();
         if (payout == Payout.ARTIST) {
-            // forceSafeTransferETH, like the redirect leg below: the artist is
-            // `IOverlayInstance(inst).owner()`, an arbitrary address and commonly a Safe or another
-            // contract wallet. A plain send reverts the whole unlock when that address rejects ETH,
-            // which made every PAY commission and every PAY wave on the collection unbuyable until
-            // ownership moved. That put the artist's own misconfiguration on the buyer, as a feature
-            // silently denied. The force path pays regardless and leaves the consequence with the
-            // artist. The protocol-treasury leg below deliberately stays a plain send.
+            // forceSafeTransferETH, like the final artist leg: the artist is
+            // `IOverlayInstance(inst).owner()`, an arbitrary address and commonly a contract wallet. A
+            // plain send would revert the whole unlock when that address rejects ETH, making every PAY
+            // commission and wave unbuyable until ownership moved. The force path pays regardless. The
+            // protocol-treasury leg below is a plain send.
             SafeTransferLib.forceSafeTransferETH(artist, price);
             return;
         }
-        // SPLIT — 1% protocol / 19% vault / 80% artist (canonical graduation split). The module holds
-        // no custody, so EVERY wei of `price` must leave in this call: a leg whose destination is
-        // address(0) (the codebase tolerates a zero treasury) folds into the artist payout rather than
-        // stranding ETH in the module forever.
+        // SPLIT: 1% protocol / 19% vault / 80% artist (the canonical graduation split). The module holds
+        // no custody, so every wei of `price` must leave in this call: a leg whose destination is
+        // address(0) (a zero treasury is tolerated) folds into the artist payout.
         RevenueSplitLib.Split memory s = price.split();
         address treasury = IOverlayInstance(inst).protocolTreasury();
         address vault = IOverlayInstance(inst).vault();
@@ -277,25 +271,20 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
         }
         if (s.vaultCut > 0) {
             if (vault != address(0)) {
-                // De-curation gate (noesis-126/noesis-435): if the instance's alignment target was
-                // de-curated (`isVaultRegistered` false), fold the community cut into the artist payout
-                // instead of feeding the de-curated vault — mirroring the graduation primary paths, and
-                // generalising the fold this branch already applied when the treasury was zero.
-                // INVARIANT: de-curation may destroy value; it may not transfer value to the protocol.
-                // Losing the ability to pay a community is a consequence of curation; gaining their
-                // revenue is a conflict of interest, so this branch must never route to
-                // `protocolTreasury`. An artist betrayed by the community they aligned to gets their
-                // alignment share back — restitution, not windfall.
+                // De-curation gate: if the instance's alignment target was de-curated
+                // (`isVaultRegistered` false), the community cut folds into the artist payout instead of
+                // feeding the de-curated vault, as in the graduation primary paths.
+                // INVARIANT: de-curation may destroy value; it may not transfer value to the protocol, so
+                // this branch never routes to `protocolTreasury`.
                 if (!masterRegistry.isVaultRegistered(vault)) {
                     toArtist += s.vaultCut;
                     emit VaultCutReturnedToCreator(vault, artist, s.vaultCut);
                 } else {
-                    // Credit the contribution to the instance as benefactor (graduation path). Isolate the
-                    // send: a registered vault can still revert on a below-minimum contribution or a filled
-                    // conversion-participant cap, and the module holds no custody — so on a vault revert fold
-                    // the tithe into the artist payout (the same fold applied above for a zero vault/treasury)
-                    // rather than reverting the holder's unlock or stranding the wei. The unlock always
-                    // completes and payment is conserved: protocol + (vault-or-artist) + artist == price.
+                    // Credit the contribution to the instance as benefactor (graduation path). The send is
+                    // isolated: a registered vault can still revert on a below-minimum contribution or a
+                    // filled conversion-participant cap, and the module holds no custody, so on a vault
+                    // revert the tithe folds into the artist payout rather than reverting the unlock.
+                    // Payment is conserved: protocol + (vault-or-artist) + artist == price.
                     try IAlignmentVault(payable(vault)).receiveContribution{ value: s.vaultCut }(
                         Currency.wrap(address(0)), s.vaultCut, inst
                     ) { }
@@ -356,7 +345,7 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
         return c == CommCond.NONE || (c == CommCond.PAY && paid[inst][id]);
     }
 
-    /// @dev Per-wave Condition is the only gate (H2: AUTO is NOT blanket-staked-gated).
+    /// @dev Per-wave condition is the only gate; AUTO is not blanket stake-gated.
     function _waveEligible(address inst, uint256 id, uint256 w, address holder) internal view returns (bool) {
         Wave storage wv = waves[inst][w];
         if (wv.cond == WaveCond.NONE) return true;
@@ -366,11 +355,10 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
     }
 
     /// @dev Scan waves from the newest; return the first the holder qualifies for (its art), else "".
-    ///      The scan is unbounded by construction — `waves[inst]` is append-only and a STAKE wave costs
-    ///      an external `stakedBalance` call per iteration. Measured at ~1,672 gas per ineligible STAKE
-    ///      wave (400 of them cost 668,726 gas in `resolve`), so a 10M-gas `eth_call` tolerates roughly
-    ///      six thousand waves and no plausible collection reaches that. Accepted deliberately on that
-    ///      measurement rather than capped: recorded here so the next reader does not re-raise it.
+    ///      The scan is uncapped: `waves[inst]` is append-only and a STAKE wave costs an external
+    ///      `stakedBalance` call per iteration, measured at ~1,672 gas per ineligible STAKE wave (400 of
+    ///      them cost 668,726 gas in `resolve`). A 10M-gas `eth_call` tolerates roughly six thousand
+    ///      waves, which no plausible collection reaches.
     function _newestEligibleWave(address inst, uint256 id, address holder) internal view returns (string memory) {
         Wave[] storage ws = waves[inst];
         uint256 len = ws.length;

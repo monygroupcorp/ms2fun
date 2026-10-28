@@ -85,43 +85,30 @@ interface IShowcaseCurveState {
     function totalBondingSupply() external view returns (uint256);
 }
 
-/// @notice The chain-agnostic base for the Sepolia showcase seed — the pieces phase 1 (create + arm)
+/// @notice The chain-agnostic base for the Sepolia showcase seed: the pieces phase 1 (create + arm)
 ///         and phase 2 (buys + graduation) both need: the deployment reader, the roster, the
 ///         hand-off state file, the buy helpers, and the post-conditions.
 ///
-///         ── WHY THIS FILE MIRRORS `SeedAnvilShared` INSTEAD OF EXTENDING A COMMON ANCESTOR ──
+///         This file mirrors `SeedAnvilShared` rather than extending a common ancestor. The reusable
+///         parts of `SeedAnvilShared` (exact-cost buy helper, curve-params reconstruction, JSON
+///         readers, string predicates) are interleaved with anvil-only facts (a hardcoded
+///         `./deployments/anvil.json`, a fixed local chain id, well-known local test keys, a roster
+///         only a mainnet fork can serve), and that file is the local dev-chain rebuild's only
+///         regression gate, so it is left untouched. The Sepolia spine carries its own ~120 lines of
+///         curve arithmetic and string handling.
 ///
-///         The item that authored this preferred a shared ancestor both seeds inherit. That is the
-///         right shape and it is not what landed, for a reason worth stating rather than hiding:
-///         `SeedAnvilShared` is one file in which the genuinely reusable parts (the exact-cost buy
-///         helper, the curve-params reconstruction, the JSON readers, the string predicates) are
-///         interleaved with anvil-only facts — a hardcoded `./deployments/anvil.json` path, a fixed
-///         local chain id, the well-known local test keys, and a roster of eleven instances that only
-///         a mainnet fork can serve. Splitting those apart means editing the file the local dev-chain
-///         rebuild depends on end to end, and that rebuild is the anvil seed's only regression gate.
-///         The trade taken here is: the anvil seed is left BYTE-IDENTICAL (this branch changes no file
-///         the anvil path reads), and the Sepolia spine carries its own copy of ~120 lines of curve
-///         arithmetic and string handling.
-///
-///         The duplication is therefore deliberate and bounded. The follow-on is to lift the shared
-///         core into its own file once the Sepolia seed's shape has stopped moving — the two waves
-///         still to land on top of this one (further venues, further project types) are what would
-///         make that extraction premature today.
-///
-///         ── THE TIME MODEL, AND WHY SEPOLIA IS NOT ANVIL ──
+///         ── Time model ──
 ///
 ///         Arming a curve and buying into it cannot share one `forge script`: `setBondingOpenTime`
 ///         rejects a non-future timestamp, `buyBonding` reverts `TooEarly` before it, and forge
-///         simulates a whole script at ONE timestamp before broadcasting any of it. So the seed is
-///         two scripts with a clock advance in between — the same split the local seed uses.
+///         simulates a whole script at one timestamp before broadcasting any of it. So the seed is
+///         two scripts with a wait in between, as in the local seed.
 ///
-///         What is different: the local chain is told to advance (`evm_increaseTime`). A public
-///         testnet cannot be told anything. The gap between the two phases is REAL WALL-CLOCK TIME
-///         that a human waits out, so the arm window is short and configurable
-///         (`SEPOLIA_ARM_WINDOW_SECONDS`, default 20 minutes) rather than the local seed's day-long
-///         offsets, and phase 1 records the exact timestamp phase 2 becomes legal
-///         (`phase2NotBefore`) in the hand-off file so the orchestrator polls for it instead of
-///         guessing.
+///         A public testnet cannot be told to advance its clock (`evm_increaseTime`), so the gap
+///         between the phases is real wall-clock time. The arm window is short and configurable
+///         (`SEPOLIA_ARM_WINDOW_SECONDS`, default 20 minutes), and phase 1 records the exact
+///         timestamp phase 2 becomes legal (`phase2NotBefore`) in the hand-off file for the
+///         orchestrator to poll.
 abstract contract SeedSepoliaShared is Script {
     // ─────────────────────────── Network + paths ───────────────────────────
 
@@ -136,40 +123,35 @@ abstract contract SeedSepoliaShared is Script {
 
     // ─────────────────────────── Venue pool shape ───────────────────────────
     //
-    // One fee tier, deployment-wide. `DeployCore` builds every Uni vault's pool key from
-    // `zrouterFee`/`zrouterTickSpacing`, and `BestRouteAcquirer` falls back to the same pair. So the
-    // pool a vault LPs into, the pool its acquire leg swaps through, and the pool the registry
-    // curates as its route are all THIS tier — which is why the depth seed and the route both name
-    // it and neither guesses.
+    // One fee tier for the Uniswap vaults. `DeployCore` builds every Uni vault's pool key from
+    // `zrouterFee`/`zrouterTickSpacing`, and `BestRouteAcquirer` falls back to the same pair, so
+    // the pool a vault LPs into, the pool its acquire leg swaps through, and the pool the registry
+    // curates as its route are all this tier.
     //
     // `DeploySepolia` also wires a `SepoliaRouteQuoter`, and the seed registers each Uni vault
-    // against this same tier once its pool has depth. That does not CHANGE which pool a Uni vault
-    // uses — there is only one — it makes the best-route path the live one, so the showcase
-    // rehearses the code mainnet runs instead of the fallback around it.
-    //
-    // ONE TIER IS A UNISWAP STATEMENT AND NOT A DEPLOYMENT-WIDE ONE. The same wall also curates MS2
-    // on ZAMM, in a vault with its own pool and its own price authority.
-    // The quoter's rows are keyed by the vault that asks, for exactly that reason — see
-    // `SepoliaRouteQuoter` — so this tier is what the UNI vaults acquire on, and nothing else.
+    // against this tier once its pool has depth, so the best-route path is live and the showcase
+    // rehearses the code mainnet runs. The tier applies to the Uni vaults only: MS2 on ZAMM sits in
+    // a vault with its own pool and price authority, which is why the quoter keys rows by the
+    // asking vault (see `SepoliaRouteQuoter`).
 
     uint24 internal constant POOL_FEE = 3000;
     int24 internal constant POOL_TICK_SPACING = 60;
     /// @dev `POOL_FEE` in the quoter ABI's BPS units — what a Uni vault's `SepoliaRouteQuoter` row
     ///      stores. `BestRouteAcquirer` multiplies it back by 100 for the pool fee and maps it to the
-    ///      paired tick spacing (30 -> 60), so this derivation is what keeps the quoted pool and the
-    ///      seeded pool the same object rather than two numbers that agree today.
+    ///      paired tick spacing (30 -> 60); deriving it keeps the quoted pool and the seeded pool
+    ///      the same pool.
     uint256 internal constant POOL_FEE_BPS = uint256(POOL_FEE) / 100;
     /// @dev Starting price 1:1 (sqrt(1) * 2^96). A pool must be initialized before it can be named;
-    ///      it holds no liquidity until someone adds some. Parity is a CHOICE, and it is the same
-    ///      choice the reference pool is stood up at — see `SepoliaReferencePoolSeeder`.
+    ///      it holds no liquidity until someone adds some. The reference pool is stood up at the same
+    ///      parity — see `SepoliaReferencePoolSeeder`.
     uint160 internal constant SQRT_PRICE_1_1 = 79228162514264337593543950336;
 
     // ─────────────────────────── Clock knobs ───────────────────────────
     //
-    // Every window below is a WALL-CLOCK wait for whoever runs the seed, so the defaults are sized
-    // for a human at a terminal rather than for a chain that can be fast-forwarded.
+    // Every window below is a wall-clock wait for whoever runs the seed, so the defaults are sized
+    // for a human at a terminal.
 
-    /// @dev How long after phase 1 the showcase curves open. Deliberately short.
+    /// @dev How long after phase 1 the showcase curves open.
     string internal constant ENV_ARM_WINDOW = "SEPOLIA_ARM_WINDOW_SECONDS";
     uint256 internal constant DEFAULT_ARM_WINDOW = 20 minutes;
 
@@ -184,34 +166,31 @@ abstract contract SeedSepoliaShared is Script {
     string internal constant ENV_PHASE2_SLACK = "SEPOLIA_PHASE2_SLACK_SECONDS";
     uint256 internal constant DEFAULT_PHASE2_SLACK = 2 minutes;
 
-    /// @dev The pre-open row is the one state that must SURVIVE the seed rather than be crossed by
-    ///      it, because a visitor arriving days later still has to find a curve that has not opened.
-    ///      It is therefore armed on its own, much longer clock — this is not the arm window.
+    /// @dev The pre-open row must survive the seed, so a visitor arriving days later still finds a
+    ///      curve that has not opened. It is armed on its own long clock, not the arm window.
     string internal constant ENV_PREOPEN_DELAY = "SEPOLIA_PREOPEN_DELAY_SECONDS";
     uint256 internal constant DEFAULT_PREOPEN_DELAY = 30 days;
 
     // ─────────────────────────── Fill knobs ───────────────────────────
     //
-    // Fills are expressed as a share of the instance's own bondable supply so they stay meaningful
-    // whichever preset a row selects. They are ALSO the entire ETH cost of the seed, and that ETH is
-    // a human's faucet balance, so every one of them is overridable without touching the source.
+    // Fills are a share of the instance's own bondable supply, so they stay meaningful whichever
+    // preset a row selects. They are also the entire ETH cost of the seed, paid from a faucet
+    // balance, so each is overridable by environment.
     //
-    // THE DEFAULTS ARE SIZED FOR A FAUCET, NOT FOR DEPTH. A Sepolia faucet dispenses a fraction of an
-    // ETH per day, so the defaults below buy enough curve to render every surface the rows exist to
-    // show and no more — a measured 0.242 ETH across the three bought rows on the NICHE preset. Depth
-    // is a separate decision with a separate cost: raising these makes the graduated row's pool and
-    // the vault's tithe correspondingly larger, which is what a deployment meant to be attacked wants.
-    // Raise them by environment, and read the projection the seed prints before confirming.
+    // The defaults are sized for a faucet, not for depth. A Sepolia faucet dispenses a fraction of
+    // an ETH per day, so the defaults buy enough curve to render every surface the rows exist to
+    // show: a measured 0.242 ETH across the three bought rows on the NICHE preset. Raising them
+    // makes the graduated row's pool and the vault's tithe correspondingly larger; the seed prints
+    // its projection before spending.
 
     string internal constant ENV_MID_FILL_BPS = "SEPOLIA_MID_FILL_BPS";
     string internal constant ENV_READY_FILL_BPS = "SEPOLIA_READY_FILL_BPS";
     string internal constant ENV_GRADUATED_FILL_BPS = "SEPOLIA_GRADUATED_FILL_BPS";
 
-    // ─────────────────────────── Wave-2 breadth knobs ───────────────────────────
+    // ─────────────────────────── Breadth knobs ───────────────────────────
     //
-    // The breadth rows demonstrate MECHANISMS, not depth, so their defaults are the smallest values
-    // that still reach the state each row exists to show. Every one of them is overridable, and the
-    // seed prints its projection before it spends anything.
+    // The breadth rows demonstrate mechanisms, not depth, so their defaults are the smallest values
+    // that still reach the state each row exists to show. Each is overridable.
 
     /// @dev Fill for the staking row, in bps of its bondable supply. The stake itself is taken out of
     ///      what this buys, so it only has to be large enough to leave a non-zero position.
@@ -219,8 +198,8 @@ abstract contract SeedSepoliaShared is Script {
     uint256 internal constant DEFAULT_STAKING_FILL_BPS = 300;
 
     /// @dev Share of the bought staking position that is actually staked, in bps. Below 10000 so the
-    ///      row also holds a LIQUID balance — an instance whose whole float is locked cannot
-    ///      demonstrate the stake action a second time.
+    ///      row also holds a liquid balance; an instance whose whole float is locked cannot
+    ///      demonstrate staking a second time.
     string internal constant ENV_STAKE_SHARE_BPS = "SEPOLIA_STAKE_SHARE_BPS";
     uint256 internal constant DEFAULT_STAKE_SHARE_BPS = 5000;
 
@@ -244,9 +223,9 @@ abstract contract SeedSepoliaShared is Script {
     string internal constant ENV_AUCTION_BID_WEI = "SEPOLIA_AUCTION_BID_WEI";
     uint256 internal constant DEFAULT_AUCTION_BID = 0.0015 ether;
 
-    /// @dev How long the LIVE auction runs. Like the pre-open curve, this row must SURVIVE the seed —
-    ///      a visitor arriving days later still has to find a lot they can bid on — so it is armed on
-    ///      its own long clock and is excluded from the wait phase 2 computes.
+    /// @dev How long the live auction runs. Like the pre-open curve it must survive the seed, so a
+    ///      visitor arriving days later finds a lot to bid on; it runs on its own long clock and is
+    ///      excluded from the wait phase 2 computes.
     string internal constant ENV_LIVE_AUCTION_SECONDS = "SEPOLIA_LIVE_AUCTION_SECONDS";
     uint256 internal constant DEFAULT_LIVE_AUCTION_SECONDS = 30 days;
 
@@ -258,62 +237,50 @@ abstract contract SeedSepoliaShared is Script {
     // ─────────────────────────── The featured wall ───────────────────────────
     //
     // A featured slot is rented per day at the queue's own `dailyRate`, so the duration is the
-    // whole cost. The default is sized to the showcase's own planned lifetime — roughly 30 days
-    // on Sepolia before the mainnet push (operator ruling, 2026-08-26) — not to the queue's
-    // 365-day ceiling: a wall that outlives the showcase is spend, not durability. The seed
-    // PRINTS the resulting total before it spends anything; the env knob is the lever if the
-    // lifetime changes.
+    // whole cost. The default is 30 days, the showcase's lifetime on Sepolia, not the queue's
+    // 365-day ceiling. The seed prints the resulting total before it spends anything.
     //
-    // The rate is read from the deployed queue rather than assumed here: it is owner-tunable, and a
-    // projection computed off a stale literal would be a number nobody can act on.
+    // The rate is read from the deployed queue because it is owner-tunable.
     string internal constant ENV_FEATURED_DURATION_SECONDS = "SEPOLIA_FEATURED_DURATION_SECONDS";
     uint256 internal constant DEFAULT_FEATURED_DURATION_SECONDS = 30 days;
 
-    /// @dev The rank step between adjacent featured slots. Rank is what ORDERS the wall — the queue
-    ///      returns active slots sorted by effective rank — so the seed pays a distinct boost per slot
-    ///      and the tour reads top to bottom in the order it was composed rather than in an arbitrary
-    ///      one. The step is small on purpose: only the ordering is demonstrated here, and rank paid
-    ///      to out-rank nobody is ETH spent on nothing.
+    /// @dev The rank step between adjacent featured slots. The queue returns active slots sorted by
+    ///      effective rank, so a distinct boost per slot makes the wall read in composed order. The
+    ///      step is small because only the ordering is demonstrated.
     string internal constant ENV_FEATURED_RANK_STEP_WEI = "SEPOLIA_FEATURED_RANK_STEP_WEI";
     uint256 internal constant DEFAULT_FEATURED_RANK_STEP_WEI = 0.0001 ether;
 
-    // ─────────────────────────── Wave-3 venue knobs ───────────────────────────
+    // ─────────────────────────── Venue knobs ───────────────────────────
     //
-    // Every venue's depth is the seed's own ETH, so every one of them is an environment knob and the
-    // seed prints what it deposited. THE DEFAULTS ARE SIZED BY THE FLOOR, NOT BY AMBITION: the number
-    // that has to hold is that a demo-sized convert prices within the vault's -5% oracle floor, and a
-    // concentrated position reaches that on a fraction of an ETH. A deployment meant to be traded
-    // against wants more; raise these rather than editing the source.
+    // Every venue's depth is the seed's own ETH, so each is an environment knob and the seed prints
+    // what it deposited. The defaults are sized by the floor: a demo-sized convert must price
+    // within the vault's -5% oracle floor, and a concentrated position reaches that on a fraction
+    // of an ETH.
 
     /// @dev ETH into each Uniswap V4 acquire pool (one per Uni alignment target).
     ///
-    ///      SIZED BY THE FLOOR, MEASURED. The vault's oracle floor rejects a convert that prices more
-    ///      than `maxPriceDeviationBps` (5%) under the reference TWAP, and on a concentrated position
-    ///      at parity a swap of `dx` moves the price by roughly `2·dx/L`. So the pool has to carry
-    ///      `L >= 40·dx` for the vault's own swap to clear its own floor — with this seed's fills the
-    ///      largest convert swaps a little over a hundredth of an ETH, and the default below leaves
-    ///      that a comfortable margin. Raising the curve fills raises the tithe, and therefore raises
-    ///      this: the two knobs move together.
+    ///      Sized by the floor. The vault's oracle floor rejects a convert that prices more than
+    ///      `maxPriceDeviationBps` (5%) under the reference TWAP, and on a concentrated position at
+    ///      parity a swap of `dx` moves the price by roughly `2·dx/L`, so the pool needs
+    ///      `L >= 40·dx`. With this seed's fills the largest convert swaps a little over a hundredth
+    ///      of an ETH. Raising the curve fills raises the tithe, and therefore this.
     string internal constant ENV_V4_DEPTH_WEI = "SEPOLIA_V4_DEPTH_WEI";
     uint256 internal constant DEFAULT_V4_DEPTH_WEI = 0.05 ether;
 
-    /// @dev ETH into each seeded {token, WETH} Uniswap V3 REFERENCE pool. This pool is a price
-    ///      authority rather than an execution venue, so it is sized to be a credible quote rather
-    ///      than to absorb a trade.
+    /// @dev ETH into each seeded {token, WETH} Uniswap V3 reference pool, a price authority
+    ///      rather than an execution venue, sized to be a credible quote and not to absorb a trade.
     string internal constant ENV_REFERENCE_DEPTH_WEI = "SEPOLIA_REFERENCE_DEPTH_WEI";
     uint256 internal constant DEFAULT_REFERENCE_DEPTH_WEI = 0.01 ether;
 
-    /// @dev ETH into the ZAMM ETH/token pool. A flipped vault flag with no pool behind it is a dead
-    ///      vault rather than a venue, so the pool and its liquidity are stood up with the vault.
+    /// @dev ETH into the ZAMM ETH/token pool, stood up with the vault so the vault has a venue.
     string internal constant ENV_ZAMM_DEPTH_WEI = "SEPOLIA_ZAMM_DEPTH_WEI";
     uint256 internal constant DEFAULT_ZAMM_DEPTH_WEI = 0.05 ether;
 
     /// @dev The tithe seeded directly into the ZAMM vault so its convert has something to convert.
-    ///      The Uni vault receives its own the way the product does — 19% of a real graduation —
-    ///      because a collection graduates into that venue in this seed. No
+    ///      The Uni vault receives its own as the product does, 19% of a real graduation. No
     ///      collection graduates into ZAMM here, so its pending balance is a plain contribution from
     ///      the seed's own account: real ETH, credited to a real benefactor, converted by the real
-    ///      call. It is stated here rather than dressed up as a raise.
+    ///      call.
     string internal constant ENV_ZAMM_VAULT_TITHE_WEI = "SEPOLIA_ZAMM_VAULT_TITHE_WEI";
     uint256 internal constant DEFAULT_ZAMM_VAULT_TITHE_WEI = 0.002 ether;
 
@@ -325,7 +292,7 @@ abstract contract SeedSepoliaShared is Script {
 
     /// @dev Half-width of every seeded position, in ticks, before alignment to the pool's spacing.
     ///
-    ///      THE CONCENTRATION IS WHAT MAKES A FAUCET BUDGET ENOUGH. Liquidity for a given deposit
+    ///      Concentration makes a faucet budget enough. Liquidity for a given deposit
     ///      scales roughly as `1 / (1 - 1/sqrt(priceRatio))`, so narrowing the range buys depth that
     ///      widening it does not. 1200 ticks is about ±12.7% in price: two-and-a-half times the -5%
     ///      band the vault's floor allows a convert to move the price through, so the seeded range
@@ -337,15 +304,15 @@ abstract contract SeedSepoliaShared is Script {
     /// @dev Observation ring size requested on each seeded V3 reference pool.
     uint16 internal constant REFERENCE_POOL_CARDINALITY = 16;
 
-    /// @dev Minimum active liquidity a seeded venue pool must report before the seed will claim the
-    ///      venue is live. Guards the failure mode a budget alone cannot: a position minted OUTSIDE
-    ///      the current tick range reports units while adding none of the depth the acquire leg needs.
+    /// @dev Minimum active liquidity a seeded venue pool must report before the seed claims the venue
+    ///      is live. A position minted outside the current tick range reports units while adding none
+    ///      of the depth the acquire leg needs.
     uint128 internal constant MIN_VENUE_ACTIVE_LIQUIDITY = 1e12;
 
-    // ─────────────────────────── Wave-2 breadth: fixed shape ───────────────────────────
+    // ─────────────────────────── Breadth: fixed shape ───────────────────────────
 
-    /// @dev Anti-snipe buffer on the seeded auctions. Short, so a bid placed immediately after the lot
-    ///      is queued cannot extend the lot past the arm window the orchestrator is waiting out.
+    /// @dev Anti-snipe buffer on the seeded auctions. Short, so a bid placed right after the lot
+    ///      is queued cannot extend it past the arm window.
     uint40 internal constant AUCTION_TIME_BUFFER = 60;
     uint256 internal constant AUCTION_BID_INCREMENT = 0.0005 ether;
     /// @dev The timed auction runs for exactly the arm window, so its lots end in the same wait phase 2
@@ -361,17 +328,15 @@ abstract contract SeedSepoliaShared is Script {
     uint256 internal constant EDITION_FIXED_PRICE = 0.002 ether;
     uint256 internal constant EDITION_FIXED_SUPPLY = 250;
     uint256 internal constant EDITION_DYNAMIC_BASE_PRICE = 0.001 ether;
-    /// @dev +20% per mint. Chosen so the exponential regime is visible BY EYE across a handful of
-    ///      mints rather than merely non-zero: a rate that needs a spreadsheet to see is a flat curve
-    ///      wearing a dynamic label, which is the failure mode the price-movement assertion is about.
+    /// @dev +20% per mint, so the exponential regime is visible by eye across a handful of mints.
     uint256 internal constant EDITION_DYNAMIC_RATE_BPS = 2000;
     uint256 internal constant EDITION_DYNAMIC_SUPPLY = 250;
     uint256 internal constant DYNAMIC_PROBE_MINTS = 5;
     uint256 internal constant DYNAMIC_MIN_MULTIPLE = 2;
     uint256 internal constant EDITION_FREE_PRICE = 0.001 ether;
     uint256 internal constant EDITION_FREE_SUPPLY = 250;
-    /// @dev Reserved out of the supply above and claimable once per address. Sized as HEADROOM: it is
-    ///      the one surface a single visitor cannot exhaust by clicking twice.
+    /// @dev Reserved out of the supply above and claimable once per address. Sized as headroom, so a single
+    ///      visitor cannot exhaust it.
     uint256 internal constant EDITION_FREE_ALLOCATION = 100;
 
     /// @dev The gated edition's own numbers. One tier, open now — see `_gatedTierOpenTimes`.
@@ -379,49 +344,44 @@ abstract contract SeedSepoliaShared is Script {
     uint256 internal constant GATED_EDITION_PRICE = 0.002 ether;
     uint256 internal constant GATED_EDITION_SUPPLY = 100;
     uint256 internal constant GATED_FREE_ALLOCATION = 10;
-    /// @dev The cap the seeded operator address is listed with. Small on purpose: `QtyCapExceeded` is
-    ///      then two mints away rather than a hundred, which is the branch a mint UI most often gets
-    ///      wrong (it must read `claimed` before it builds the request).
+    /// @dev The cap the seeded operator address is listed with. Small so `QtyCapExceeded` is
+    ///      two mints away; a mint UI must read `claimed` before it builds the request.
     uint256 internal constant GATED_OPERATOR_QTY = 2;
     uint256 internal constant GATED_MEMBER_QTY = 1;
 
-    /// @dev The tier row's piece count, and the one number on this row bounded from BOTH sides.
+    /// @dev The tier row's piece count, bounded from both sides.
     ///
-    ///      From below: every tier operation costs WHOLE units, and a whole unit is `1 / nftCount` of
-    ///      the curve's supply — so a small collection makes the six units this row needs a large
-    ///      fraction of the raise, and the row stops being faucet-priced.
+    ///      Below: every tier operation costs whole units, and a whole unit is `1 / nftCount` of the
+    ///      curve's supply, so a small collection makes the six units this row needs a large
+    ///      fraction of the raise and the row stops being faucet-priced.
     ///
-    ///      From above: `maxSupply = nftCount * unitPerNFT * 1e18` and DN404 holds total supply in a
-    ///      `uint96`, so on the NICHE preset (`unitPerNFT` 1e6, hence a `1e24` unit) anything past
-    ///      79,228 pieces reverts `TotalSupplyOverflow` AT CREATE. That bound used to be the tight
-    ///      one — NICHE ran at 1e9 units/NFT and admitted 79 pieces, so 60 was nearly the whole
-    ///      preset. On the re-spaced ladder it is three orders of magnitude away, and only the bound
-    ///      from below still decides this number.
+    ///      Above: `maxSupply = nftCount * unitPerNFT * 1e18` and DN404 holds total supply in a
+    ///      `uint96`, so on the NICHE preset (`unitPerNFT` 1e6, a `1e24` unit) anything past 79,228
+    ///      pieces reverts `TotalSupplyOverflow` at create. 60 is far below it, so the lower bound
+    ///      decides this number.
     uint256 internal constant TIER_NFT_COUNT = 60;
-    /// @dev The OPEN rung: denomination 2, three ids. Minted up into and back down out of, and left
-    ///      with room, so the reversible half of Token Tiers is walkable after the seed.
+    /// @dev The open rung: denomination 2, three ids. Left with room so the reversible half of
+    ///      Token Tiers (mint up and back down) is walkable after the seed.
     uint32 internal constant TIER_OPEN_WEIGHT = 2;
     uint32 internal constant TIER_OPEN_COUNT = 3;
-    /// @dev The SCARCE rung: denomination 3, ONE id, against a supply that could back twenty. The seed
-    ///      takes that id, so the band is exhausted and the next `mintUp` into it reverts
-    ///      `BandExhausted` — the state §3 asks a visitor to be able to observe. It reopens the moment
-    ///      any holder mints down, which is the point: scarcity here is a queue, not a wall.
+    /// @dev The scarce rung: denomination 3, one id, against a supply that could back twenty. The
+    ///      seed takes that id, so the band is exhausted and the next `mintUp` into it reverts
+    ///      `BandExhausted`. It reopens when any holder mints down: scarcity here is a queue, not a
+    ///      wall.
     uint32 internal constant TIER_SCARCE_WEIGHT = 3;
     uint32 internal constant TIER_SCARCE_COUNT = 1;
     uint8 internal constant TIER_N_OPEN = 1;
     uint8 internal constant TIER_N_SCARCE = 2;
 
-    /// @dev The carve row declares its FULL allowance up front. The declaration is the disclosure
-    ///      surface — immutable per instance, on the label before the first buy — and declaring the
-    ///      maximum is what makes the row's page worth reading.
+    /// @dev The carve row declares its full allowance up front. The declaration is the disclosure
+    ///      surface, immutable per instance and visible before the first buy.
     uint16 internal constant CARVE_DECLARED_MAX_BPS = 10_000;
     uint256 internal constant CARVE_REQUEST_BPS = 10_000;
 
     // ─────────────────────────── Curve preset ───────────────────────────
 
-    /// @dev NICHE (`targetETH` 5 ether) — the smallest preset `DeployCore` registers, and the only
-    ///      sane choice for a deployment funded out of a faucet. STANDARD/HYPE raise 25/50 ETH across
-    ///      the same span, which multiplies every fill below by five or ten for no demonstrative gain.
+    /// @dev NICHE (`targetETH` 5 ether), the smallest preset `DeployCore` registers. STANDARD/HYPE
+    ///      raise 25/50 ETH across the same span, multiplying every fill by five or ten.
     uint8 internal constant PRESET_NICHE = 0;
 
     /// @dev Pieces per collection. DN404 mints one id per whole unit credited, so this is also the
@@ -430,20 +390,19 @@ abstract contract SeedSepoliaShared is Script {
 
     // ─────────────────────────── Art ───────────────────────────
     //
-    // EVERY row on this seed — the four curve rows and the eight breadth rows alike — wears ONE
-    // derivative collection end to end. A row's pieces resolve inside that collection's own metadata
-    // directory and its collection tile is that same collection's own art, so the featured wall reads
-    // as twelve distinct drops rather than one uniform set. No two rows share a family, and no row
-    // takes its tile from a directory another row's tile comes from.
+    // Every row on this seed, curve and breadth alike, wears one derivative collection end to end:
+    // its pieces resolve inside that collection's own metadata directory and its tile is that
+    // collection's own art, so the featured wall reads as twelve distinct drops. No two rows share a
+    // family, and no row takes its tile from a directory another row's tile comes from.
     //
-    // Per-piece bases are METADATA directories whose entries are addressed by the BARE token id,
-    // because `base + tokenId` composes with no separator and no extension — an image directory 404s
-    // for every id. Tiles are single FILES inside the family's own IMAGE directory, which is a
-    // different CID from the metadata one for every family here.
+    // Per-piece bases are metadata directories whose entries are addressed by the bare token id,
+    // because `base + tokenId` composes with no separator or extension; an image directory 404s for
+    // every id. Tiles are single files inside the family's own image directory, a different CID from
+    // the metadata one.
     //
-    // Rows whose mechanism composes per-piece `data:` metadata (the ERC-1155 editions and the ERC-721
-    // auction houses) have no on-chain base to wire, so only their family's image directory appears
-    // below: the piece document is ours, the picture inside it is the family's.
+    // Rows whose mechanism composes per-piece `data:` metadata (the ERC-1155 editions and the
+    // ERC-721 auction houses) have no on-chain base, so only their family's image directory appears
+    // below.
 
     // ── Metadata directories, one per row that carries an on-chain base ───────────────────────────
     string internal constant ART_BASE_PIXELADY = "ipfs://bafybeigd7557iwardhnwg5kbmg2s7tmuxqkstjeoixu7wunooiywbb3jqq/";
@@ -454,34 +413,25 @@ abstract contract SeedSepoliaShared is Script {
     string internal constant ART_BASE_GHIBLADY = "ipfs://bafybeic5in4it4rsocajjvzn3zs5scsci4a7hhpbpd5fulqca42vqtjs2q/";
     string internal constant ART_BASE_ELITE = "ipfs://bafybeicrcd4fgtumtkjfzkxkmlzqvy3w6cn2tlb3vm6jvbnxbojebvnwne/";
 
-    /// @dev The tier row's THREE metadata directories are one family's own lineage, bottom to top:
-    ///      the ordinary base is the parent collection, and each tier band is the derivative that
-    ///      succeeded it. Band art over base is only demonstrated if the layers can be told apart by
-    ///      eye, and a ladder read inside one lineage says what the rungs mean as well as that they
-    ///      differ.
+    /// @dev The tier row's three metadata directories are one family's lineage, bottom to top: the
+    ///      ordinary base is the parent collection, and each tier band is the derivative that
+    ///      succeeded it, so the layers can be told apart by eye.
     string internal constant ART_BASE_SONORA = "ipfs://QmX89dvzA3TSwsGfY7SthYkDxSFjszec8JkEEZE7JP5QHF/";
     string internal constant ART_BASE_SONORA222 = "ipfs://bafybeifxxqwdsdxtmvk6iauqqh4vobvlrflv332nb6fnllhwwjeblr35ra/";
     string internal constant ART_BASE_SCHIZO = "ipfs://bafybeibtjhjyswebkwvck4u6pomllz46gdsfqtsdfrurhm7awn34oxckgi/";
 
-    /// @dev The METADATA row's own lineage, read the same way: the Pixelady base is the parent
-    ///      collection, the WOTLK expansion is the wave an artist publishes for holders to opt into,
-    ///      and Pixelady Maker BC - the later edition of the same maker - is what a paid commission
-    ///      replaces a piece with. Three directories, one family, so a visitor can tell which layer
-    ///      they are looking at without being told which layer they are looking at.
+    /// @dev The metadata row's lineage: the Pixelady base is the parent collection, the WOTLK
+    ///      expansion is the wave an artist publishes for holders to opt into, and Pixelady Maker BC,
+    ///      the later edition of the same maker, is what a paid commission replaces a piece with.
     ///
-    ///      BOTH ARE WIRED AHEAD OF THEIR PIN. Their CIDs are the collections' own, recovered
-    ///      CID-preserving, so they are correct before the pin lands and stay correct after it. Until
-    ///      it lands these layers may render blank on public gateways - the same stated residual the
-    ///      figmata directory carried, and not a reason to hold the wiring.
+    ///      The CIDs are the collections' own, recovered CID-preserving; a gateway that has not
+    ///      pinned the content renders these layers blank.
     string internal constant ART_BASE_WOTLK = "ipfs://bafybeifxf2xnossezzaywoni3gf5dfyqotn36vdvhnjkvldgkavyc2kx2q/";
 
-    /// @dev The ALIGNMENT ROSTER's logos, one square PNG per community, keyed by ticker. Each is the
+    /// @dev The alignment roster's logos, one square PNG per community, keyed by ticker. Each is the
     ///      community's own mark, taken from its canonical source (its own site, or the asset lists
-    ///      the wallets and explorers already serve it from) rather than redrawn — a target a visitor
-    ///      recognises is the whole point of showing a roster instead of a list of addresses.
-    ///
-    ///      Wired ahead of its pin, CID-preserving, exactly as the collection art is: correct before
-    ///      the pin lands, unchanged after it, and blank in between.
+    ///      wallets and explorers serve it from). CID-preserving, so as with the collection art an
+    ///      unpinned directory renders blank.
     string internal constant ART_IMG_TARGETS = "ipfs://bafybeiaq7odvp24jbgwsyaxq5c67qs2iev2ct42rd7rhjuticpbqd6fhlm/";
     string internal constant ART_BASE_PIXELADYBC =
         "ipfs://bafybeigtcr23kdzivowzasei7u7yza5frirctrjflytvooycb6tdqa4dga/";
@@ -545,10 +495,9 @@ abstract contract SeedSepoliaShared is Script {
 
     // ── Id coverage of each metadata directory ───────────────────────────────────────────────────
     //
-    // A row mints piece ids 1..N, and `base + tokenId` resolves only for ids the directory actually
-    // carries. The counts below are each collection's supply — the number of ids its directory
-    // answers for. `_assertPieceCoverage` holds them against what a row can mint, so raising a piece
-    // count past a directory's reach is a named failure instead of a silent gap.
+    // A row mints piece ids 1..N, and `base + tokenId` resolves only for ids the directory carries.
+    // The counts below are each collection's supply, the number of ids its directory answers for.
+    // `_assertPieceCoverage` holds them against what a row can mint.
     uint256 internal constant COVER_PIXELADY = 10_000;
     uint256 internal constant COVER_BOREDMILADY = 6911;
     uint256 internal constant COVER_FIGMATA = 180;
@@ -562,12 +511,11 @@ abstract contract SeedSepoliaShared is Script {
     uint256 internal constant COVER_WOTLK = 150;
     uint256 internal constant COVER_PIXELADYBC = 1000;
 
-    // ── The retired directories ──────────────────────────────────────────────────────────────────
+    // ── Denylisted directories ───────────────────────────────────────────────────────────────────
     //
-    // The five blue-chip directories this seed used to draw from. They are kept here, and ONLY here,
-    // as a denylist: `_assertNotRetiredArt` runs over every base and every tile the seed configures,
-    // so one of them coming back — copied from the anvil seed, or restored from an older revision —
-    // is a named failure at simulation time rather than a wall of foreign art on the testnet.
+    // Five blue-chip directories the seed must not reference. `_assertNotRetiredArt` runs over every
+    // base and every tile the seed configures, so one of them (e.g. copied from the anvil seed) is a
+    // named failure at simulation time.
     string internal constant RETIRED_DIR_ANIME = "QmZcH4YvBVVRJtdn4RdbaqgspFU8gH6P9vomDpBVpAL3u4";
     string internal constant RETIRED_DIR_ARCTIC = "bafybeibc5sgo2plmjkq2tzmhrn54bk3crhnc23zd2msg4ea7a4pxrkgfna";
     string internal constant RETIRED_DIR_SIMIAN = "QmeSjSinHpPnmXmspMjwiXyN6zS4E9zccariGR3jxcaWtq";
@@ -581,9 +529,8 @@ abstract contract SeedSepoliaShared is Script {
     uint8 internal constant STATE_READY = 2;
     uint8 internal constant STATE_GRADUATED = 3;
 
-    /// @dev A roster row. BOTH phases build the identical list and index it BY NAME, never by
-    ///      position: the waves that follow this one add venues and project types to the showcase,
-    ///      and a phase-2 that resolved `instances[2]` would silently re-target when they do.
+    /// @dev A roster row. Both phases build the identical list and index it by name, never by
+    ///      position, so adding rows cannot silently re-target a phase-2 lookup.
     struct ShowcaseLeg {
         string slug; // registry name, and the key in the hand-off file
         string title; // display name in the collection metadata
@@ -596,19 +543,16 @@ abstract contract SeedSepoliaShared is Script {
         uint16 declaredMaxBps;
         uint256 fillBps; // phase-2 share of bondable supply to buy (0 for the pre-open row)
         uint256 pieceIdCoverage; // ids the row's metadata directory answers for — see COVER_*
-        /// @dev Wire the overlay module under a router on this row, making it the ARTIST METADATA
-        ///      demonstration. The roster is where the wall is described, so which row carries the
-        ///      metadata stack is stated HERE rather than special-cased at the create call.
+        /// @dev Wire the overlay module under a router on this row, making it the artist metadata
+        ///      demonstration.
         bool metadataOverlay;
     }
 
     /// @dev One community the showcase can align to.
     ///
-    ///      THE ASSET IS A TESTNET FIXTURE, AND EVERY ROW SAYS SO. The real token lives on Ethereum
-    ///      mainnet and cannot be traded here, so the seed mints a stand-in and records the real
-    ///      address beside it. That is what makes the demonstration honest AND complete: the tithe,
-    ///      the acquire swap and the LP position are all genuinely exercised against the fixture,
-    ///      while `mainnetToken` says exactly which asset this row is a rehearsal for.
+    ///      The asset is a testnet fixture. The real token lives on Ethereum mainnet and cannot be
+    ///      traded here, so the seed mints a stand-in and records the real address in `mainnetToken`.
+    ///      The tithe, the acquire swap and the LP position are exercised against the fixture.
     struct AlignmentSeed {
         string symbol; // the fixture's ticker — the community's real one
         string tokenName; // the fixture's on-chain name, which carries the word FIXTURE
@@ -690,7 +634,7 @@ abstract contract SeedSepoliaShared is Script {
         address zQuoter; // SepoliaRouteQuoter; the route table the acquire leg reads
         address weth;
         address v4PoolManager;
-        // ── Wave-2 breadth: the other project families and the optional modules ──
+        // ── Breadth: the other project families and the optional modules ──
         ERC1155Factory erc1155;
         ERC721AuctionFactory erc721;
         address merkleGating; // approved GATING — the Merkle allowlist module
@@ -698,7 +642,7 @@ abstract contract SeedSepoliaShared is Script {
         address resolverRouter; // METADATA_RESOLVER target when a stack is wired
         address overlay; // MetadataOverlayModule (waves + commissions)
         address tierResolver; // TokenTierBandResolver (static band art)
-        // ── Wave-3 venues: the LP families beyond Uni, and the periphery they ride ──
+        // ── Venues: the LP families beyond Uni, and the periphery they ride ──
         address zammVaultFactory; // ZAMMAlignmentVaultFactory — zero when this network has no ZAMM
         address zammDeployer; // approved LIQUIDITY_DEPLOYER — the ZAMM module
         address v3Factory;
@@ -708,16 +652,14 @@ abstract contract SeedSepoliaShared is Script {
         FeaturedQueueManager queue; // paid placement; what `QueryAggregator.getHomePageData` reads
         // ── The social layer ──
         //
-        // Every activity surface the app renders — the home preview, a collection's ACTIVITY
-        // section, the board — reads `MessagePosted` off this one registry and nothing else. A
-        // showcase that creates twelve collections and posts to none of them opens every one of
-        // those surfaces on its empty state.
+        // Every activity surface the app renders (home preview, a collection's activity section,
+        // the board) reads `MessagePosted` off this one registry.
         GlobalMessageRegistry messages;
     }
 
-    /// @dev What phase 1 hands phase 2, beyond the ERC404 curve roster itself. The breadth rows are
-    ///      addressed by FIELD rather than by the roster's name map because they are not curve rows:
-    ///      three of them are not ERC404 instances at all.
+    /// @dev What phase 1 hands phase 2, beyond the ERC404 curve roster. The breadth rows are
+    ///      addressed by field, not by the roster's name map, because they are not curve rows and
+    ///      three are not ERC404 instances.
     struct SeedHandoff {
         uint256 phase2NotBefore;
         address ms2Token;
@@ -728,14 +670,13 @@ abstract contract SeedSepoliaShared is Script {
         uint256 cultTargetId;
         // ── The alignment roster, in `_alignmentRoster()` order ──
         //
-        // The two named pairs above are the roster's first two rows, kept as their own fields because
-        // every collection binds to one of them by name. These arrays carry the WHOLE roster, so the
-        // check script can hold all five rows to the same reading without knowing their names.
+        // The two named pairs above are the roster's first two rows; every collection binds to one of
+        // them by name. These arrays carry the whole roster.
         address[] targetTokens;
         address[] targetVaults;
         uint256[] targetIds;
         address[] endowmentVaults; // per roster row; address(0) where the row carries none
-        // ── Wave-2 breadth ──
+        // ── Breadth ──
         address editions; // ERC1155: fixed + dynamic + free-claim editions
         address gatedEditions; // ERC1155 behind the Merkle allowlist
         address staking404; // ERC404 with the staking module wired + activated
@@ -746,15 +687,12 @@ abstract contract SeedSepoliaShared is Script {
         uint256 soldLotId; // the timed lot carrying a bid — settled in phase 2
         uint256 unsoldLotId; // the timed lot with no bid — reclaimed in phase 2
         uint256 liveLotId; // the live lot, left running
-        // ── Wave-3 venues ──
+        // ── Venues ──
         //
-        // WHY EACH VENUE CARRIES ITS OWN ALIGNMENT TARGET. The registry stores ONE acquire route per
+        // Each venue carries its own alignment target. The registry stores one acquire route per
         // (targetId, token), and a vault refuses to convert unless the route it reads names its own
-        // venue. So one target cannot carry a live convert on two venues for the same asset — and
-        // pointing a vault at a venue the registry curates as something else is the
-        // registry-vs-executed divergence the acquire route exists to close. Each venue therefore gets
-        // its own target, each with a coherent route and its own reference pool. Two targets naming one
-        // asset is a PICKER question (one asset, venue as an add-on), not a registry question.
+        // venue, so one target cannot carry a live convert on two venues for the same asset. Each
+        // venue gets its own target with a coherent route and its own reference pool.
         uint256 ms2ZammTargetId; // MS2 under a ZAMM route
         address ms2ZammVault;
         address ms2ReferencePool; // Uniswap V3 {MS2, WETH} — price authority for both MS2 targets
@@ -762,19 +700,16 @@ abstract contract SeedSepoliaShared is Script {
         uint256 referenceReadyAt; // when the seeded pools can first serve the deployment's TWAP window
         // ── The featured wall ──
         //
-        // The instances that hold a rented slot, in the order they were rented — which is descending
-        // rank, and therefore the order the home page renders them in. Recorded so the channel's
-        // preflight can assert the wall against the seed's own claim rather than against a count
-        // somebody has to remember.
+        // The instances that hold a rented slot, in rental order: descending rank, which is the
+        // order the home page renders them in.
         address[] featured;
         uint256 featuredSpendWei; // duration cost + rank boost, summed across the slots above
         uint256 featuredDuration; // the duration each slot was rented for
     }
 
-    /// @dev The seed's sender. Resolved from `msg.sender` inside `run()`, which is forge's
-    ///      `--sender` — so the same scripts serve a keystore (`--account`) on the live testnet and an
-    ///      unlocked account (`--unlocked`) on a fork rehearsal, with no key material in the
-    ///      environment either way. It must be the account that owns the deployment's registries.
+    /// @dev The seed's sender, resolved from `msg.sender` inside `run()` (forge's `--sender`), so the
+    ///      same scripts serve a keystore (`--account`) on the live testnet and an unlocked account
+    ///      (`--unlocked`) on a fork rehearsal. It must own the deployment's registries.
     address internal deployer;
 
     // ─────────────────────────── Env-backed knobs ───────────────────────────
@@ -804,15 +739,13 @@ abstract contract SeedSepoliaShared is Script {
     }
 
     /// @dev The rank boost for slot `index` of `count`, descending: the first slot rented outranks
-    ///      every later one by one step. Stated as a function rather than as a table so a wall that
-    ///      grows a row keeps its ordering property without a second edit.
+    ///      every later one by one step.
     function _featuredRankBoost(uint256 index, uint256 count) internal view returns (uint256) {
         return _featuredRankStep() * (count - index);
     }
 
-    /// @dev What the whole wall costs, asked of the DEPLOYED queue at its current `dailyRate`, before
-    ///      a single slot is rented. The rate is owner-tunable, so this is a read rather than an
-    ///      arithmetic restatement of a literal.
+    /// @dev What the whole wall costs at the deployed queue's current `dailyRate`, before any slot
+    ///      is rented.
     function _quoteFeaturedSpend(Deployed memory d, uint256 count) internal view returns (uint256 total) {
         uint256 durationCost = d.queue.quoteDurationCost(_featuredDuration());
         for (uint256 i = 0; i < count; i++) {
@@ -824,26 +757,21 @@ abstract contract SeedSepoliaShared is Script {
 
     /// @notice The four curve states the showcase must hold, as one list both phases read.
     ///
-    /// @dev EVERY DESCRIPTION STATES THE FEATURE, NOT A FICTION. The showcase's defining constraint
-    ///      is that a stranger can learn the product by reading the roster: a description says what
-    ///      the collection demonstrates and what to do with it. Copy that roleplays a real drop is
-    ///      the thing this roster exists not to be, and re-introducing it costs a later wave the
-    ///      unwind.
+    /// @dev Every description states the feature: a stranger learns the product by reading the
+    ///      roster, so a description says what the collection demonstrates and what to do with it,
+    ///      not a fictional drop.
     ///
-    ///      A NAME HONOURS THE DERIVATIVE FAMILY THE ROW WEARS; THE DESCRIPTION CARRIES THE TEACHING.
-    ///      Each row's pieces come from a named derivative collection, so the row is named as a riff
-    ///      on that collection — near enough to credit it, distinct enough that nobody reads the row
-    ///      as the collection itself. Lifecycle and mechanism words (pre-open, mid, staking, tiers,
-    ///      editions) belong in the description, never in the name. The SLUG is the internal key —
-    ///      the salt, the hand-off's map key, the label every log and post-condition reads — and it
-    ///      is deliberately not the display name: `name` below is what the app renders.
+    ///      A name riffs on the derivative family the row wears: near enough to credit it, distinct
+    ///      enough that nobody reads the row as the collection itself. Lifecycle and mechanism words
+    ///      (pre-open, mid, staking, tiers, editions) belong in the description, not the name. The
+    ///      slug is the internal key (the salt, the hand-off's map key, the label every log and
+    ///      post-condition reads); `name` below is what the app renders.
     ///
-    ///      A NAME IS ALSO A REGISTRY KEY, so it carries no spaces. `MasterRegistryV1.registerInstance`
-    ///      runs every name through `MetadataUtils.isValidName`, which admits only `[0-9A-Za-z-_]`;
-    ///      a space anywhere in a name reverts the create for the whole row. Capitalization survives
-    ///      the round trip — only the uniqueness hash case-folds — so a two-word riff is written as a
-    ///      CamelCase compound rather than hyphenated. Single-word and compound names sit side by side
-    ///      across the roster on purpose; there is no one form to normalise the wall onto.
+    ///      A name is also a registry key, so it carries no spaces.
+    ///      `MasterRegistryV1.registerInstance` runs every name through `MetadataUtils.isValidName`,
+    ///      which admits only `[0-9A-Za-z-_]`; a space reverts the create for the whole row.
+    ///      Capitalization survives (only the uniqueness hash case-folds), so a two-word riff is a
+    ///      CamelCase compound rather than hyphenated.
     function _showcaseRoster() internal view returns (ShowcaseLeg[] memory legs) {
         legs = new ShowcaseLeg[](4);
 
@@ -907,9 +835,8 @@ abstract contract SeedSepoliaShared is Script {
             metadataOverlay: false
         });
 
-        // The art is part of the roster's claim, so it is checked where the roster is built rather
-        // than only where it is deployed: a row whose directory cannot answer for every id the row
-        // can mint is named here, before anything is created on chain.
+        // The art is checked where the roster is built: a row whose directory cannot answer for every
+        // id the row can mint is named before anything is created on chain.
         for (uint256 i = 0; i < legs.length; i++) {
             _assertPieceBase(legs[i].pieceBase, legs[i].slug);
             _assertPieceCoverage(legs[i].pieceIdCoverage, SHOWCASE_NFT_COUNT, legs[i].slug);
@@ -938,12 +865,11 @@ abstract contract SeedSepoliaShared is Script {
         d.queue = FeaturedQueueManager(payable(vm.parseJsonAddress(json, ".contracts.FeaturedQueueManager")));
         d.messages = GlobalMessageRegistry(vm.parseJsonAddress(json, ".contracts.GlobalMessageRegistry"));
         d.v4PoolManager = vm.parseJsonAddress(json, ".uniswap.v4PoolManager");
-        // WETH is not a top-level field of the deployment file; it is the deploy config's, and the
-        // vault factory carries it as an immutable. Read it back off the factory rather than
-        // re-declaring an address literal here — this item introduces no new external addresses.
+        // WETH is not in the deployment file; the vault factory carries it as an immutable, so it is
+        // read back off the factory rather than redeclared.
         d.weth = IWethSource(d.uniVaultFactory).weth();
 
-        // ── Wave-2 breadth: the other two factories and the optional modules ──
+        // ── Breadth: the other two factories and the optional modules ──
         d.erc1155 = ERC1155Factory(payable(vm.parseJsonAddress(json, ".factories.ERC1155")));
         d.erc721 = ERC721AuctionFactory(payable(vm.parseJsonAddress(json, ".factories.ERC721")));
         d.merkleGating = vm.parseJsonAddress(json, ".contracts.ModuleMerkleGating");
@@ -952,7 +878,7 @@ abstract contract SeedSepoliaShared is Script {
         d.overlay = vm.parseJsonAddress(json, ".contracts.MetadataOverlayModule");
         d.tierResolver = vm.parseJsonAddress(json, ".contracts.TokenTierBandResolver");
 
-        // ── Wave-3 venues: the LP modules the deploy already publishes ──
+        // ── Venues: the LP modules the deploy publishes ──
         d.zammDeployer = vm.parseJsonAddress(json, ".contracts.ModuleZAMMDeployer");
         _readVenueHandoff(d);
 
@@ -961,9 +887,8 @@ abstract contract SeedSepoliaShared is Script {
         require(d.uniDeployer != address(0), "sepolia.json: ModuleUniV4Deployer missing (stale deployment file?)");
         require(d.v4PoolManager != address(0), "sepolia.json: v4PoolManager missing");
 
-        // Each breadth module is REQUIRED rather than optional: a deployment missing one of them
-        // cannot hold the showcase this seed claims to produce, and discovering that at the first
-        // `createInstance` would leave a half-seeded deployment behind.
+        // Each breadth module is required: discovering a missing one at the first `createInstance`
+        // would leave a half-seeded deployment.
         require(address(d.erc1155) != address(0), "sepolia.json: ERC1155 factory missing");
         require(address(d.erc721) != address(0), "sepolia.json: ERC721 factory missing");
         require(d.merkleGating != address(0), "sepolia.json: ModuleMerkleGating missing");
@@ -971,12 +896,10 @@ abstract contract SeedSepoliaShared is Script {
         require(d.resolverRouter != address(0), "sepolia.json: MetadataResolverRouter missing");
         require(d.overlay != address(0), "sepolia.json: MetadataOverlayModule missing");
         require(d.tierResolver != address(0), "sepolia.json: TokenTierBandResolver missing");
-        // The featured queue is REQUIRED for the same reason the breadth modules are: the home page
-        // reads its placements, so a deployment without one cannot hold the showcase's front door.
+        // The featured queue is required: the home page reads its placements.
         require(address(d.queue) != address(0), "sepolia.json: FeaturedQueueManager missing");
-        // Required on the same terms: the seed's last wave posts the showcase's activity, and a
-        // deployment without the registry would leave every activity surface on its empty state
-        // after a full, otherwise-successful seed.
+        // Required: the seed posts the showcase's activity, and without the registry every activity
+        // surface stays empty after an otherwise-successful seed.
         require(address(d.messages) != address(0), "sepolia.json: GlobalMessageRegistry missing");
     }
 
@@ -985,9 +908,8 @@ abstract contract SeedSepoliaShared is Script {
     ///      deploy time), plus the plain externals the venue legs ride. Read from a Sepolia-local file
     ///      so the cross-network `DeployCore` keeps one output shape.
     ///
-    ///      A ZERO here is a STATE, not a failure: a network may carry no ZAMM. The seed reports the
-    ///      venue as unavailable and continues rather than reverting a whole showcase over one absent
-    ///      rail.
+    ///      A zero here is a state, not a failure: a network may carry no ZAMM. The seed reports the
+    ///      venue as unavailable and continues.
     function _readVenueHandoff(Deployed memory d) internal view {
         if (!vm.exists(VENUE_PATH)) {
             console.log("VENUES: no", VENUE_PATH, "- the ZAMM leg will be reported unavailable");
@@ -1044,7 +966,7 @@ abstract contract SeedSepoliaShared is Script {
         vm.serializeUint(root, "soldLotId", h.soldLotId);
         vm.serializeUint(root, "unsoldLotId", h.unsoldLotId);
         vm.serializeUint(root, "liveLotId", h.liveLotId);
-        // ── Wave-3 venues ──
+        // ── Venues ──
         vm.serializeUint(root, "ms2ZammTargetId", h.ms2ZammTargetId);
         vm.serializeAddress(root, "ms2ZammVault", h.ms2ZammVault);
         vm.serializeAddress(root, "ms2ReferencePool", h.ms2ReferencePool);
@@ -1061,7 +983,7 @@ abstract contract SeedSepoliaShared is Script {
         console.log("Wrote seed state:", SEED_STATE_PATH);
     }
 
-    /// @dev Resolve the roster BY NAME out of the hand-off file, in roster order.
+    /// @dev Resolve the roster by name out of the hand-off file, in roster order.
     function _readSeedState(ShowcaseLeg[] memory legs)
         internal
         view
@@ -1069,9 +991,8 @@ abstract contract SeedSepoliaShared is Script {
     {
         string memory json = vm.readFile(SEED_STATE_PATH);
         uint256 chainId = vm.parseJsonUint(json, ".chainId");
-        // A hand-off file left behind by a DIFFERENT chain (a fork rehearsal, an earlier deployment)
-        // points at addresses that hold no code here. Fail at the boundary rather than broadcasting
-        // buys into the void and reporting success.
+        // A hand-off file from a different chain (a fork rehearsal, an earlier deployment) points at
+        // addresses that hold no code here; fail at the boundary.
         require(chainId == block.chainid, "sepolia-seed.json: wrong chainId (stale file from another chain?)");
 
         h.phase2NotBefore = vm.parseJsonUint(json, ".phase2NotBefore");
@@ -1096,8 +1017,8 @@ abstract contract SeedSepoliaShared is Script {
         h.soldLotId = vm.parseJsonUint(json, ".soldLotId");
         h.unsoldLotId = vm.parseJsonUint(json, ".unsoldLotId");
         h.liveLotId = vm.parseJsonUint(json, ".liveLotId");
-        // ── Wave-3 venues. Zeros are legal here: a venue whose rail this network does not carry was
-        //    reported unavailable in phase 1 and is skipped, not asserted, in phase 2.
+        // ── Venues. Zeros are legal: a venue whose rail this network does not carry is reported
+        //    unavailable in phase 1 and skipped, not asserted, in phase 2.
         h.ms2ZammTargetId = vm.parseJsonUint(json, ".ms2ZammTargetId");
         h.ms2ZammVault = vm.parseJsonAddress(json, ".ms2ZammVault");
         h.ms2ReferencePool = vm.parseJsonAddress(json, ".ms2ReferencePool");
@@ -1107,8 +1028,7 @@ abstract contract SeedSepoliaShared is Script {
 
         instances = new address[](legs.length);
         for (uint256 i = 0; i < legs.length; i++) {
-            // Bracket-quoted, not dotted: the slugs carry hyphens, which a dotted JSON path splits
-            // on rather than treating as part of the key.
+            // Bracket-quoted: the slugs carry hyphens, which a dotted JSON path splits on.
             instances[i] = vm.parseJsonAddress(json, string.concat(".instances[\"", legs[i].slug, "\"]"));
             require(
                 instances[i] != address(0), string.concat("seed state: ", legs[i].slug, " missing from the hand-off")
@@ -1122,8 +1042,8 @@ abstract contract SeedSepoliaShared is Script {
 
     // ─────────────────────────── Buy helpers ───────────────────────────
     //
-    // The cost is computed with the SAME library the instance charges with, so `maxCost == value ==
-    // cost` and a buy never reverts on a bound the seed itself chose. There is no buy-side fee (the
+    // The cost is computed with the same library the instance charges with, so `maxCost == value ==
+    // cost` and a buy never reverts on a bound the seed chose. There is no buy-side fee (the
     // protocol fee is taken on exit), so the value is the curve price exactly.
 
     function _buyCost(ERC404BondingInstance b, uint256 amount) internal view returns (uint256) {
@@ -1131,7 +1051,7 @@ abstract contract SeedSepoliaShared is Script {
     }
 
     /// @dev Buy `amount` tokens, minting the pieces the whole units carry. Reverts `TooEarly` unless
-    ///      the CHAIN has passed the instance's open time — which is why every caller is in phase 2.
+    ///      the chain has passed the instance's open time, so every caller is in phase 2.
     function _buyBondingMint(ERC404BondingInstance b, uint256 amount) internal returns (uint256 cost) {
         cost = _buyBonding(b, amount, true);
     }
@@ -1160,14 +1080,12 @@ abstract contract SeedSepoliaShared is Script {
 
     // ─────────────────────────── Post-conditions ───────────────────────────
     //
-    // WHY THESE ARE `require`s AND NOT LOGS. Forge simulates an entire script before broadcasting any
-    // of it, so a failed post-condition costs a named failure and NO partial seed. A comment claiming
-    // an outcome is not an outcome. Do not soften one to make a run pass.
+    // These are `require`s, not logs: forge simulates an entire script before broadcasting any of
+    // it, so a failed post-condition is a named failure with no partial seed.
     //
-    // WHY THEY LIVE HERE AND TAKE AN INTERFACE. The identical function is exercised by a unit test
-    // against a stub whose state is settable, which is what demonstrates that removing the graduation
-    // (or the maturity, or the raise) turns them RED. An assertion nothing can fail is the failure
-    // mode these are written against.
+    // They take an interface so the identical function is exercised by a unit test against a stub
+    // with settable state (`test/coverage/SepoliaShowcasePostConditions.t.sol`), which shows that
+    // removing the graduation, the maturity or the raise fails them.
 
     /// @notice Assert the four curve states the showcase claims to hold.
     /// @param states  The roster's instances, in roster order.
@@ -1193,9 +1111,8 @@ abstract contract SeedSepoliaShared is Script {
             string memory slug = legs[i].slug;
 
             if (legs[i].state == STATE_PREOPEN) {
-                // The pre-open row is the one the visitor must find UNBOUGHT and UNOPENED. Its open
-                // time still being in the future is the whole property: it is what makes `buyBonding`
-                // revert `TooEarly` on-chain, which is the behaviour the description promises.
+                // The pre-open row must be unbought and unopened: an open time still in the future is
+                // what makes `buyBonding` revert `TooEarly` on-chain, as the description promises.
                 require(s.bondingActive(), string.concat("post: ", slug, " is not armed"));
                 require(s.bondingOpenTime() > nowTs, string.concat("post: ", slug, " has already opened"));
                 require(s.totalBondingSupply() == 0, string.concat("post: ", slug, " has been bought into"));
@@ -1209,9 +1126,8 @@ abstract contract SeedSepoliaShared is Script {
                 require(s.reserve() > 0, string.concat("post: ", slug, " holds no raise"));
                 sawMid = true;
             } else if (legs[i].state == STATE_READY) {
-                // Ready-to-graduate is three facts at once, and dropping any one of them leaves the
-                // graduate action unreachable: open, matured, and holding a raise. `deployLiquidity`
-                // reverts `NoReserve` on a zero raise, so a matured empty curve is not "ready".
+                // Ready-to-graduate is open, matured and holding a raise; without any one the graduate
+                // action is unreachable. `deployLiquidity` reverts `NoReserve` on a zero raise.
                 require(s.bondingActive(), string.concat("post: ", slug, " is not armed"));
                 require(s.bondingOpenTime() <= nowTs, string.concat("post: ", slug, " has not opened"));
                 require(
@@ -1241,9 +1157,9 @@ abstract contract SeedSepoliaShared is Script {
 
     // ─────────────────────────── The art acceptance test ───────────────────────────
     //
-    // A seeded collection whose art does not render is a failed seed, whatever its economics say. A
-    // per-piece base composes as `base + tokenId` with NO separator, so a base missing its trailing
-    // slash addresses `<cid>7` instead of `<cid>/7`, and one carrying two produces `//7`.
+    // A seeded collection whose art does not render is a failed seed. A per-piece base composes as
+    // `base + tokenId` with no separator, so a base missing its trailing slash addresses `<cid>7`
+    // instead of `<cid>/7`, and one carrying two produces `//7`.
 
     function _assertPieceBase(string memory base, string memory label) internal pure {
         bytes memory b = bytes(base);
@@ -1255,10 +1171,9 @@ abstract contract SeedSepoliaShared is Script {
         _assertNotRetiredArt(base, label);
     }
 
-    /// @dev No URI this seed configures may point into a retired directory. The five directories the
-    ///      showcase used to draw from are kept as a denylist rather than as wiring, so a base or a
-    ///      tile carrying one — copied across from another seed, or restored from an older revision —
-    ///      fails by name at simulation time, before anything is created on chain.
+    /// @dev No URI this seed configures may point into a denylisted directory (the `RETIRED_DIR_*`
+    ///      constants); a base or tile carrying one fails by name at simulation time, before anything
+    ///      is created on chain.
     function _assertNotRetiredArt(string memory uri, string memory label) internal pure {
         require(
             !_contains(uri, RETIRED_DIR_ANIME) && !_contains(uri, RETIRED_DIR_ARCTIC)
@@ -1269,9 +1184,8 @@ abstract contract SeedSepoliaShared is Script {
     }
 
     /// @dev A row mints piece ids 1..`minted`, and `base + tokenId` resolves only for ids the
-    ///      directory actually carries. A directory shorter than the row's piece count renders the
-    ///      tail of the collection blank, which is a failed seed even though every wiring assertion
-    ///      passes — so the reach of the art is asserted against the count, not assumed from it.
+    ///      directory carries. A shorter directory renders the tail of the collection blank, so the
+    ///      reach of the art is asserted against the count.
     function _assertPieceCoverage(uint256 covered, uint256 minted, string memory label) internal pure {
         require(
             covered >= minted,
@@ -1279,11 +1193,9 @@ abstract contract SeedSepoliaShared is Script {
         );
     }
 
-    /// @dev The collection tile must come from the row's OWN family. There is no shared tile
-    ///      directory left to refuse: the rule is now positive and per row, because a tile taken from
-    ///      ANY directory other than the row's own puts one collection's image over another
-    ///      collection's pieces, and a wall of tiles that all came from one place reads as a single
-    ///      uniform set whatever family that place belongs to.
+    /// @dev The collection tile must come from the row's own family: a tile from any other directory
+    ///      puts one collection's image over another's pieces, and a wall of tiles from one place
+    ///      reads as a single uniform set.
     function _assertTileArt(string memory image, string memory imageDir, string memory label) internal pure {
         bytes memory b = bytes(image);
         require(b.length > 8, string.concat("art: ", label, " has no collection tile"));
@@ -1301,35 +1213,33 @@ abstract contract SeedSepoliaShared is Script {
     }
 
     /// @dev The highest piece id the tier row can address. Ordinary ids run 1..`TIER_NFT_COUNT`, and
-    ///      the two sealed bands are allocated ABOVE that ceiling, one id per unit of band count — so
-    ///      this is the largest id the band directories have to answer for.
+    ///      the two sealed bands are allocated above that ceiling, one id per unit of band count, so
+    ///      this is the largest id the band directories answer for.
     uint256 internal constant TIER_MAX_ADDRESSABLE_ID = TIER_NFT_COUNT + TIER_OPEN_COUNT + TIER_SCARCE_COUNT;
 
-    /// @dev The breadth rows' art, held to the same rules as the roster's — run before phase 1
-    ///      creates anything, so a mis-wired directory names itself at simulation time.
-    ///
-    ///      The ERC-1155 edition rows and the ERC-721 auction houses compose per-piece `data:`
-    ///      documents rather than a base + id, so there is no metadata directory to cover for them:
-    ///      what is checked is that every picture they name comes from their own family.
+    /// @dev The breadth rows' art, held to the same rules as the roster's and run before phase 1
+    ///      creates anything. The ERC-1155 edition rows and the ERC-721 auction houses compose
+    ///      per-piece `data:` documents rather than a base + id, so for them the check is that every
+    ///      picture they name comes from their own family.
     function _assertBreadthArt() internal pure {
-        // 1. Editions — one family across the collection tile and all three edition pictures.
+        // Editions: one family across the collection tile and all three edition pictures.
         _assertTileArt(ART_TILE_ATLAS, ART_IMG_RADBRO, "atlas-editions");
         _assertTileArt(ART_PIECE_ATLAS_FIXED, ART_IMG_RADBRO, "atlas-editions fixed");
         _assertTileArt(ART_PIECE_ATLAS_RISING, ART_IMG_RADBRO, "atlas-editions rising");
         _assertTileArt(ART_PIECE_ATLAS_CLAIM, ART_IMG_RADBRO, "atlas-editions claim");
 
-        // 2. The gated row.
+        // The gated row.
         _assertTileArt(ART_TILE_VEIL, ART_IMG_MFERS, "veil-list");
         _assertTileArt(ART_PIECE_VEIL_PASS, ART_IMG_MFERS, "veil-list pass");
 
-        // 3. Staking — an ERC404 row, so its base has to reach every id the row can mint.
+        // Staking: an ERC404 row, so its base must reach every id the row can mint.
         _assertTileArt(ART_TILE_QUARRY, ART_IMG_MILADYSTATION, "quarry-staking");
         _assertPieceBase(ART_BASE_MILADYSTATION, "quarry-staking");
         _assertPieceCoverage(COVER_MILADYSTATION, SHOWCASE_NFT_COUNT, "quarry-staking");
 
-        // 4/5. Tiers — one family's own lineage across four directories. The base answers for the
-        //      ordinary ids; the two band directories and the commission directory answer for ids up
-        //      to the band ceiling, which is the highest id anything on this row can address.
+        // Tiers: one family's lineage across three directories. The base answers for the ordinary
+        // ids; the two band directories answer for ids up to the band ceiling, the highest id
+        // anything on this row can address.
         _assertTileArt(ART_TILE_PRISM, ART_IMG_SONORA, "prism-tiers");
         _assertPieceBase(ART_BASE_SONORA, "prism-tiers base");
         _assertPieceBase(ART_BASE_SONORA222, "prism-tiers open band");
@@ -1337,18 +1247,17 @@ abstract contract SeedSepoliaShared is Script {
         _assertPieceCoverage(COVER_SONORA, TIER_NFT_COUNT, "prism-tiers base");
         _assertPieceCoverage(COVER_SONORA222, TIER_MAX_ADDRESSABLE_ID, "prism-tiers open band");
         _assertPieceCoverage(COVER_SCHIZO, TIER_MAX_ADDRESSABLE_ID, "prism-tiers scarce band");
-        // The rungs have to be tellable apart or the precedence stack demonstrates nothing. Three
-        // directories, checked here rather than only on the two the phase-2 read-back carries.
+        // The rungs must be tellable apart or the precedence stack demonstrates nothing.
         require(!_eq(ART_BASE_SONORA, ART_BASE_SONORA222), "art: prism-tiers open band repeats the base directory");
         require(!_eq(ART_BASE_SONORA, ART_BASE_SCHIZO), "art: prism-tiers scarce band repeats the base directory");
         require(!_eq(ART_BASE_SONORA222, ART_BASE_SCHIZO), "art: prism-tiers bands repeat one another");
 
-        // 7. The carve row.
+        // The carve row.
         _assertTileArt(ART_TILE_CARVE, ART_IMG_GHIBLADY, "carve-demo");
         _assertPieceBase(ART_BASE_GHIBLADY, "carve-demo");
         _assertPieceCoverage(COVER_GHIBLADY, SHOWCASE_NFT_COUNT, "carve-demo");
 
-        // 6. The two auction houses.
+        // The two auction houses.
         _assertTileArt(ART_TILE_RELIC, ART_IMG_MEOWLADY, "relic-line");
         _assertTileArt(ART_PIECE_RELIC_I, ART_IMG_MEOWLADY, "relic-line lot I");
         _assertTileArt(ART_PIECE_RELIC_II, ART_IMG_MEOWLADY, "relic-line lot II");
@@ -1358,10 +1267,9 @@ abstract contract SeedSepoliaShared is Script {
         _assertDistinctFamilies();
     }
 
-    /// @dev One family per row, across the whole seed. Two rows drawing on the same directory is the
-    ///      defect this asserts away: the wall then shows the same collection twice and the roster
-    ///      stops saying that each row is a different drop. Held over the IMAGE directories, because
-    ///      those are what a visitor actually sees on the featured grid.
+    /// @dev One family per row, across the whole seed: two rows on the same directory would show the
+    ///      same collection twice on the wall. Held over the image directories, which the featured
+    ///      grid displays.
     function _assertDistinctFamilies() internal pure {
         string[12] memory dirs = [
             ART_IMG_PIXELADY,
@@ -1417,7 +1325,7 @@ abstract contract SeedSepoliaShared is Script {
     // ─────────────────────────── Metadata ───────────────────────────
 
     /// @dev Backend-free collection metadata: an unencoded `data:application/json,{...}` URI whose
-    ///      image is a plain `ipfs://` pointer. No server, no gateway pinned, nothing to keep up.
+    ///      image is a plain `ipfs://` pointer.
     function _collectionMeta(string memory name, string memory description, string memory image)
         internal
         pure
@@ -1436,9 +1344,8 @@ abstract contract SeedSepoliaShared is Script {
 
     // ─────────────────────────── ETH discipline ───────────────────────────
 
-    /// @dev Print what a phase is about to spend BEFORE it spends it. On a public testnet the ETH is
-    ///      a human's faucet balance, not a fork's fabricated one, so the number has to be visible at
-    ///      simulation time — which is before `--broadcast` sends anything.
+    /// @dev Print what a phase is about to spend before it spends it. On a public testnet the ETH is
+    ///      a faucet balance, so the number is visible at simulation time, before `--broadcast`.
     function _reportSpend(string memory phase, uint256 curveEth, uint256 featuredEth, uint256 balanceBefore)
         internal
         pure
@@ -1446,8 +1353,8 @@ abstract contract SeedSepoliaShared is Script {
         console.log("--------------------------------------------------");
         console.log(string.concat("ETH projection - ", phase));
         console.log("  curve spend (wei):", curveEth);
-        // Featured placement is rented per DAY, so this line is the one that moves with a duration
-        // rather than with a fill. It is the wall's whole cost: rent plus the rank that orders it.
+        // Featured placement is rented per day, so this line moves with a duration, not a fill. It
+        // is the wall's whole cost: rent plus rank.
         console.log("  featured placement (wei):", featuredEth);
         console.log("  deployer balance before (wei):", balanceBefore);
         console.log("  gas is NOT included above - it is charged per broadcast tx by forge");
@@ -1456,25 +1363,21 @@ abstract contract SeedSepoliaShared is Script {
 
     // ─────────────────────────── The activity the showcase carries ───────────────────────────
     //
-    // WHY THIS WAVE EXISTS. Three surfaces in the app render nothing but `MessagePosted` events —
-    // the home page's RECENT ACTIVITY preview, each collection page's ACTIVITY section, and the
-    // board. A showcase that stands up twelve collections and posts to none of them opens all
-    // three on their empty state, which is what a visitor reads first.
+    // Three app surfaces render nothing but `MessagePosted` events: the home page's recent activity
+    // preview, each collection page's activity section, and the board. Seeding posts keeps them
+    // off their empty state.
     //
-    // WHAT THE COPY IS FOR. Every line states a FEATURE of the surface it sits on, in the same
-    // register the roster's descriptions use: what the mechanism does, and what to do with it. No
-    // personas, no invented community, no roleplayed drop — a stranger reading the board learns the
-    // product. The lines are constants rather than generated so the whole set is reviewable in one
-    // place before it is ever broadcast.
+    // Every line states a feature of the surface it sits on, in the register of the roster's
+    // descriptions: what the mechanism does and what to do with it. No personas or roleplayed
+    // drops. The lines are constants so the whole set is reviewable in one place.
     //
-    // WHAT IT COSTS. Every message carries zero attached ETH, so this wave adds no ETH to either
-    // phase's projection; it costs gas for exactly ONE broadcast transaction, because the registry
-    // takes the whole set through `postBatch`. The N12 spam lever (`postThreshold`) is zero on this
-    // deployment, so a zero-value post surfaces on every feed.
+    // Every message carries zero attached ETH, so activity adds no ETH to either phase's
+    // projection and costs gas for one broadcast transaction, because the registry takes the whole
+    // set through `postBatch`. The spam threshold (`postThreshold`) is zero on this deployment, so
+    // a zero-value post surfaces on every feed.
 
     /// @dev One channel's seeded activity: the address a post is filed under, the label the run log
-    ///      names it by, and the two lines it carries. Held as a struct so the copy sits beside the
-    ///      channel it teaches rather than in a parallel array that can drift out of step with it.
+    ///      names it by, and the two lines it carries.
     struct ActivityChannel {
         address channel;
         string label;
@@ -1482,9 +1385,8 @@ abstract contract SeedSepoliaShared is Script {
         string second;
     }
 
-    /// @dev Everything beyond the two lines each channel carries: the salon's own posts and the one
-    ///      reply / quote / reaction of each kind. Counted here so the batch can be allocated at its
-    ///      exact size — a memory array cannot be grown, and shrinking one takes assembly.
+    /// @dev Everything beyond the two lines each channel carries: the salon's own posts and the
+    ///      reply / quote / reaction of each kind. Counted so the batch is allocated at its exact size.
     uint256 internal constant ACTIVITY_EXTRA_MESSAGES = 9;
 
     /// @dev The eleven collection channels, in the order the run log prints them.
@@ -1571,14 +1473,14 @@ abstract contract SeedSepoliaShared is Script {
         }
     }
 
-    /// @dev Post the showcase's activity as ONE batch. `postBatch` emits sequential message ids
+    /// @dev Post the showcase's activity as one batch. `postBatch` emits sequential message ids
     ///      starting at the registry's current `messageCount`, so the id a reply / quote / reaction
-    ///      points at is computable before the batch is sent — which is what lets one transaction
-    ///      carry a threaded conversation rather than needing a round trip per reference.
+    ///      points at is computable before the batch is sent, and one transaction carries a threaded
+    ///      conversation.
     ///
-    ///      ORDER IS A DISPLAY DECISION. The home preview renders the LAST few messages, so the tail
-    ///      of this batch is what a visitor reads first: it ends on the salon's posts, a reply and a
-    ///      quote, with one reaction among them so the preview shows a typed badge too.
+    ///      Order is a display decision: the home preview renders the last few messages, so the batch
+    ///      ends on the salon's posts, a reply and a quote, with one reaction so the preview shows a
+    ///      typed badge too.
     function _seedActivity(
         Deployed memory d,
         ShowcaseLeg[] memory legs,
@@ -1601,18 +1503,18 @@ abstract contract SeedSepoliaShared is Script {
             posts[n++] = _activityPost(chans[i].channel, chans[i].second);
         }
 
-        // Endorsements carry no text on purpose: the app aggregates them into a count against the
-        // message they target and never renders them as a row of their own.
+        // Endorsements carry no text: the app aggregates them into a count against the message they
+        // target and never renders them as a row.
         posts[n++] = _activityReact(chans[1].channel, midCurveAnchor);
         posts[n++] = _activityReact(chans[3].channel, graduatedAnchor);
-        // A reply rides the SAME channel as the message it answers, which is what puts it inside
-        // that collection's own feed rather than only on the board.
+        // A reply rides the same channel as the message it answers, which puts it in that
+        // collection's own feed.
         posts[n++] = _activityReply(
             chans[1].channel, midCurveAnchor, "a reply carries the id of the post it answers. it threads under it here."
         );
 
-        // The salon: a post filed under the poster's own address rather than a collection. This is
-        // what the board's composer writes, and it is the channel the board opens on.
+        // The salon: posts filed under the poster's own address, as the board's composer writes
+        // them; it is the channel the board opens on.
         uint256 salonAnchor = base + n;
         posts[n++] = _activityPost(
             deployer, "the board is every channel at once. a post with no collection lands here, on the poster's wall."
@@ -1644,8 +1546,8 @@ abstract contract SeedSepoliaShared is Script {
 
         posted = posts.length;
 
-        // Post-condition, asserted against the registry rather than against the log: the batch is
-        // the only writer in this transaction, so the counter must have advanced by exactly its size.
+        // Asserted against the registry: the batch is the only writer in this transaction, so the
+        // counter advances by exactly its size.
         require(d.messages.messageCount() == base + posted, "activity: the registry did not record the whole batch");
 
         console.log("--------------------------------------------------");
@@ -1706,11 +1608,11 @@ abstract contract SeedSepoliaShared is Script {
         });
     }
 
-    /// @dev Create + arm helper shared by phase 1's rows. Kept here so the create parameters a row
-    ///      does NOT vary (owner, preset, piece count, gating, free mint) are stated exactly once.
+    /// @dev Create helper shared by phase 1's rows, stating once the parameters a row does not vary
+    ///      (owner, preset, piece count, gating, free mint).
     ///
-    ///      `name` is the row's DISPLAY name and `salt` is derived from the SLUG, so the identifier
-    ///      the seed keys its hand-off by stays stable while the name the app shows is the roster's.
+    ///      `name` is the row's display name and `salt` is derived from the slug, so the hand-off key
+    ///      is independent of the displayed name.
     function _createShowcaseInstance(Deployed memory d, ShowcaseLeg memory leg, address vault)
         internal
         returns (address instance)
@@ -1740,12 +1642,11 @@ abstract contract SeedSepoliaShared is Script {
             return instance;
         }
 
-        // The ARTIST METADATA row, created through the factory's METADATA overload so the overlay is
-        // sealed onto the instance in the same transaction that creates it. NO TIER POINTER and an
-        // EMPTY LADDER: Token Tiers is the other demonstration's, and `_wireMetadata` rejects a tier
-        // module wired with no bands behind it. The router carries ONE child, so what precedence
-        // there is to show on this row is the overlay's own - a holder's selection between the paid
-        // commission, the artist's wave and the collection base.
+        // The artist metadata row, created through the factory's metadata overload so the overlay is
+        // sealed onto the instance in the creating transaction. No tier pointer and an empty ladder:
+        // Token Tiers is the other demonstration's, and `_wireMetadata` rejects a tier module wired
+        // with no bands. The router carries one child, so the precedence shown is the overlay's own:
+        // a holder's selection between the paid commission, the artist's wave and the collection base.
         instance = d.erc404
             .createInstance(
                 params,
@@ -1765,23 +1666,20 @@ abstract contract SeedSepoliaShared is Script {
             );
     }
 
-    /// @dev A one-element child list, so the create call above reads as the wiring it is rather than
-    ///      as three lines of array construction.
+    /// @dev A one-element child list for the create call above.
     function _oneChild(address child) internal pure returns (address[] memory children) {
         children = new address[](1);
         children[0] = child;
     }
 
     // ══════════════════════════════════════════════════════════════════════════════════════════
-    //                        WAVE 2 — THE OTHER PROJECT TYPES AND MECHANISMS
+    //                        THE OTHER PROJECT TYPES AND MECHANISMS
     // ══════════════════════════════════════════════════════════════════════════════════════════
     //
-    // The spine above holds the four ERC404 CURVE STATES. Everything below holds the rest of what a
-    // visitor is told the product does: editions with three pricing regimes, an allowlist, staking,
-    // the metadata stack, Token Tiers, auctions in three states, and the creator carve.
-    //
-    // The same two rules the spine follows apply unchanged: every description states the FEATURE
-    // rather than roleplaying a drop, and every claimed outcome is a `require` rather than a comment.
+    // The spine above holds the four ERC404 curve states. Everything below holds the rest: editions
+    // with three pricing regimes, an allowlist, staking, the metadata stack, Token Tiers, auctions
+    // in three states, and the creator carve. Descriptions state the feature, and every claimed
+    // outcome is a `require`.
 
     // ─────────────────────────── Breadth knobs ───────────────────────────
 
@@ -1797,8 +1695,8 @@ abstract contract SeedSepoliaShared is Script {
 
     function _tierUnits() internal view returns (uint256) {
         uint256 v = vm.envOr(ENV_TIER_UNITS, DEFAULT_TIER_UNITS);
-        // 5 units reach the scarce band, 2 more reach the open band, 1 stays liquid to carry the
-        // commission the overlay is authored on. Below that the phase-2 walk cannot complete.
+        // 3 units reach the scarce band, 2 the open band, and 1 stays liquid to carry the commission
+        // the overlay is authored on; below that the phase-2 walk cannot complete.
         require(v >= DEFAULT_TIER_UNITS, "tier units: below what the tier walk consumes");
         return v;
     }
@@ -1827,15 +1725,13 @@ abstract contract SeedSepoliaShared is Script {
 
     /// @dev The ids the artist pre-authors commission offers on, above the pieces the seed keeps.
     ///
-    ///      THE POINT OF AUTHORING FORWARD. `unlock` is holder-gated, so an offer on a piece the SEED
-    ///      holds can only ever be paid by the seed — a visitor watching it is shown a state, not
-    ///      handed an action. `setCommission` has no existence check, so the artist can author an
-    ///      offer on an id before it is minted; the next person to buy into this row receives a piece
-    ///      with an offer already waiting on it, and can pay it as its holder. That is the difference
-    ///      between demonstrating the pay-and-pin path and describing it.
+    ///      `unlock` is holder-gated, so an offer on a piece the seed holds can only be paid by the
+    ///      seed. `setCommission` has no existence check, so the artist authors offers on ids before
+    ///      they are minted; the next buyer into this row receives a piece with an offer already
+    ///      waiting and can pay it as its holder.
     ///
-    ///      The ids are chosen, not sequential: they clear the pieces the seed keeps AND skip the ids
-    ///      whose commission art did not survive the rescue (see `_commissionArtMissing`).
+    ///      The ids clear the pieces the seed keeps and skip the ids whose commission art is
+    ///      unavailable (see `_commissionArtMissing`).
     function _commissionOfferIds() internal pure returns (uint256[] memory ids) {
         ids = new uint256[](6);
         ids[0] = 10;
@@ -1846,49 +1742,37 @@ abstract contract SeedSepoliaShared is Script {
         ids[5] = 16;
     }
 
-    /// @dev The `selection` pointer that means "wave 0" — `MetadataOverlayModule.WAVE_OFFSET` plus the
+    /// @dev The `selection` pointer that means "wave 0": `MetadataOverlayModule.WAVE_OFFSET` plus the
     ///      index of the only wave this seed publishes. The module's offset is `internal`, so this
-    ///      mirrors it rather than reading it; the seed does not trust the mirror, it CHECKS it, by
-    ///      requiring the selection to resolve to the wave's own art right after making it.
+    ///      mirrors it; the seed checks the mirror by requiring the selection to resolve to the
+    ///      wave's own art right after making it.
     uint256 internal constant OVERLAY_WAVE_0 = 3;
 
-    /// @dev How many pieces the ARTIST METADATA demonstration consumes: one wearing the artist's
+    /// @dev How many pieces the artist metadata demonstration consumes: one wearing the artist's
     ///      wave, one wearing a paid commission, and one carrying an unpaid commission as the live
-    ///      action. The row must HOLD at least this many for the demonstration to be authorable.
+    ///      action. The row must hold at least this many.
     uint256 internal constant METADATA_DEMO_PIECES = 3;
 
-    /// @dev Bump to step a vault's deterministic address past a CREATE3 collision.
-    ///
-    ///      EARNED, not anticipated. The vault salt used to be keyed on the target's ORDINAL, so
-    ///      removing one target from the deploy renumbered every row, moved every derived address,
-    ///      and landed one of them on an address that already holds code on Sepolia — CreateX reverts
-    ///      `FailedContractCreation` on the CREATE3 proxy and the whole phase dies. The salt is keyed
-    ///      on the TOKEN now, which does not renumber, but any deterministic address can collide with
-    ///      a chain it does not control. This is the escape hatch, so a collision on a live network is
-    ///      a re-run with one env var rather than an edit.
+    /// @dev Steps a vault's deterministic address past a CREATE3 collision. The vault salt is keyed
+    ///      on the token, but any deterministic address can collide with a chain it does not control
+    ///      (CreateX reverts `FailedContractCreation` on an address that already holds code); a
+    ///      collision is resolved by re-running with this variable set.
     string internal constant ENV_VAULT_SALT_NONCE = "SEPOLIA_VAULT_SALT_NONCE";
 
     function _vaultSaltNonce() internal view returns (uint256) {
         return vm.envOr(ENV_VAULT_SALT_NONCE, uint256(0));
     }
 
-    /// @dev The WOTLK ids whose art did not survive the rescue, and which a COMMISSION must therefore
-    ///      not be authored on.
+    /// @dev The WOTLK ids whose art is unavailable, on which a commission must not be authored.
     ///
-    ///      The expansion set was recovered CID-preserving from a thinned pin: 149/150 images and
-    ///      110/150 metadata files came back byte-identical and verified against the collection's own
-    ///      per-file CIDs, and the rest are unreachable — announced providers, none of them serving.
-    ///      THE HOLES ARE NOT AT THE END: ids 2 and 4-9 are among them, which is exactly where a
-    ///      "next few ids" rule would land. Hence a list, not a ceiling.
+    ///      The expansion set was recovered CID-preserving: 149/150 images and 110/150 metadata files
+    ///      verify against the collection's own per-file CIDs; the rest are unreachable. The holes are
+    ///      not at the end (ids 2 and 4-9 are among them), hence a list rather than a ceiling.
     ///
-    ///      This is why the WAVE does not ride this collection. A wave is published to the whole
-    ///      collection and opted into by any holder on any id, so it needs art for every id a row can
-    ///      mint; a commission is authored by the artist on ids it names, so it only needs those. The
-    ///      wave rides the fully-recovered edition and the commission rides this one — which also
-    ///      puts the PAID layer on the scarcer set, where paying for it makes more sense.
-    ///
-    ///      This is a property of the RESCUE, not of the collection, so it is stated once here rather
-    ///      than being rediscovered by whoever next reads a blank tile.
+    ///      The wave does not ride this collection: a wave is published to the whole collection and
+    ///      opted into on any id, so it needs art for every id a row can mint, whereas a commission
+    ///      needs art only for the ids the artist names. The wave rides the fully recovered edition
+    ///      and the commission rides this one.
     function _commissionArtMissing(uint256 id) internal pure returns (bool) {
         if (id == 0 || id > COVER_WOTLK) return true;
         uint16[41] memory holes = [
@@ -1940,10 +1824,10 @@ abstract contract SeedSepoliaShared is Script {
         return false;
     }
 
-    /// @dev The timed auction's lots must END inside the wait phase 2 already performs, so their
-    ///      duration IS the arm window. The floor keeps the anti-snipe buffer from dominating: a bid
-    ///      placed within `AUCTION_TIME_BUFFER` of the end extends the lot, which would push the
-    ///      settle past the instant the orchestrator waits for.
+    /// @dev The timed auction's lots end inside the wait phase 2 performs, so their duration is the
+    ///      arm window. The floor keeps the anti-snipe buffer from dominating: a bid within
+    ///      `AUCTION_TIME_BUFFER` of the end extends the lot, which would push the settle past the
+    ///      instant the orchestrator waits for.
     function _timedAuctionSeconds() internal view returns (uint256) {
         uint256 window = _armWindow();
         require(
@@ -1953,7 +1837,7 @@ abstract contract SeedSepoliaShared is Script {
         return window;
     }
 
-    // ══════════════════════════ WAVE 3 — VENUE KNOBS AND WIRING ══════════════════════════
+    // ══════════════════════════ VENUE KNOBS AND WIRING ══════════════════════════
 
     function _v4DepthWei() internal view returns (uint256) {
         return vm.envOr(ENV_V4_DEPTH_WEI, DEFAULT_V4_DEPTH_WEI);
@@ -1979,29 +1863,26 @@ abstract contract SeedSepoliaShared is Script {
         return int24(uint24(vm.envOr(ENV_DEPTH_HALF_WIDTH_TICKS, uint256(uint24(DEFAULT_DEPTH_HALF_WIDTH_TICKS)))));
     }
 
-    /// @dev The TWAP window the deployment's own validator was constructed with. Read off the
-    ///      validator rather than restated here: the wall-clock wait this seed imposes and the window
-    ///      the registry probes with must be the same number, and two copies of it would drift.
+    /// @dev The TWAP window the deployment's own validator was constructed with, read off the
+    ///      validator so the wait this seed imposes and the window the registry probes with are the
+    ///      same number.
     function _twapWindow(Deployed memory d) internal view returns (uint32) {
         return ITwapWindowSource(d.priceValidator).twapSecondsAgo();
     }
 
     /// @dev The instant a seeded V3 reference pool can first answer `observe([window, 0])`, derived
-    ///      from the observation the pool ITSELF holds.
+    ///      from the observation the pool itself holds.
     ///
-    ///      Phase 1 cannot compute this. A forge script is simulated at ONE timestamp and only then
-    ///      broadcast, so the instant phase 1 is able to record is the SIMULATION's, while the pool's
-    ///      first observation is written when its creating transaction is actually mined — a whole
-    ///      broadcast later. The recorded instant therefore under-states readiness by however long the
-    ///      phase-1 broadcast ran, and `phase2NotBefore`'s slack is sized for block-time jitter rather
-    ///      than for that offset, so which of the two is larger decides whether the pin succeeds.
-    ///      Reading the pool back replaces that race with the only clock that is authoritative here:
-    ///      `observe` reverts `OLD` for a target older than the oldest stored observation, so the
-    ///      oldest observation plus the window IS the instant, exactly.
+    ///      Phase 1 cannot compute this: forge simulates a script at one timestamp and then
+    ///      broadcasts, so phase 1 only knows the simulation's instant, while the pool's first
+    ///      observation is written when its creating transaction is mined, a broadcast later. A
+    ///      phase-1 value would understate readiness by the broadcast's duration, which
+    ///      `phase2NotBefore`'s slack (sized for block-time jitter) does not cover. `observe`
+    ///      reverts `OLD` for a target older than the oldest stored observation, so the oldest
+    ///      observation plus the window is the instant exactly.
     ///
     ///      The oldest observation sits at `index + 1` once the ring has wrapped and at 0 until it
-    ///      has; the `initialized` flag distinguishes the two. That is the same walk `Oracle.
-    ///      observeSingle` performs before it decides whether to revert.
+    ///      has; `initialized` distinguishes the two, as in `Oracle.observeSingle`.
     function _v3ReferenceReadyAt(address pool, uint32 window) internal view returns (uint256) {
         (,, uint16 index, uint16 cardinality,,,) = IUniswapV3PoolMinimal(pool).slot0();
         (uint32 oldest,,, bool initialized) = IUniswapV3PoolMinimal(pool).observations((index + 1) % cardinality);
@@ -2018,10 +1899,9 @@ abstract contract SeedSepoliaShared is Script {
     }
 
     /// @dev The native-ETH/token V4 key every Uni alignment vault in this seed LPs into and acquires
-    ///      through. Native ETH is currency0 — address(0) sorts below every token address, so the
-    ///      ordering holds without a comparison — and the tier is the deployment-wide one `DeployCore`
-    ///      builds vault keys from, which is also the tier `BestRouteAcquirer` falls back to when no
-    ///      quoter is wired. One pool, named by all three legs.
+    ///      through. Native ETH is currency0 (address(0) sorts below every token address), and the
+    ///      tier is the one `DeployCore` builds vault keys from, which `BestRouteAcquirer` also falls
+    ///      back to when no quoter is wired. One pool, named by all three legs.
     function _uniVenueKey(address token) internal pure returns (PoolKey memory) {
         return PoolKey({
             currency0: Currency.wrap(address(0)),
@@ -2033,19 +1913,15 @@ abstract contract SeedSepoliaShared is Script {
     }
 
     /// @dev The ZAMM key `DeployCore` bakes into a ZAMM vault at deploy: native ETH as token0, the
-    ///      alignment token as token1, the network's `zammFeeOrHook`. Rebuilt here so the pool the
-    ///      seed fills is provably the pool the vault will deposit into.
+    ///      alignment token as token1, the network's `zammFeeOrHook`. Rebuilt so the pool the seed
+    ///      fills is the pool the vault deposits into.
     function _zammVenueKey(address token, uint256 feeOrHook) internal pure returns (IZAMM.PoolKey memory) {
         return IZAMM.PoolKey({ id0: 0, id1: 0, token0: address(0), token1: token, feeOrHook: feeOrHook });
     }
 
-    /// @dev The pending tithe a vault holds, across the two names the families give it.
-    ///
-    ///      `UniAlignmentVault` exposes `totalPendingETH()`;
-    ///      `ZAMMAlignmentVault` exposes `pendingETH()`. Probed rather than branched on a family flag
-    ///      the seed would have to keep in step by hand — and a vault that answers NEITHER is refused
-    ///      here rather than read as a zero, because a zero is also what "this vault held no tithe"
-    ///      looks like and the two must not be confusable.
+    /// @dev The pending tithe a vault holds, across the two names the families give it:
+    ///      `UniAlignmentVault.totalPendingETH()` and `ZAMMAlignmentVault.pendingETH()`. A vault that
+    ///      answers neither is refused rather than read as zero, which would look like no tithe.
     function _pendingTithe(address vault) internal view returns (uint256) {
         (bool ok, bytes memory data) = vault.staticcall(abi.encodeWithSignature("totalPendingETH()"));
         if (!ok || data.length != 32) {
@@ -2063,8 +1939,8 @@ abstract contract SeedSepoliaShared is Script {
 
     // ─────────────────────────── Metadata ───────────────────────────
 
-    /// @dev Backend-free PIECE metadata — the per-edition JSON an ERC1155 edition carries. Same shape
-    ///      as `_collectionMeta`: an unencoded `data:` JSON URI pointing at a content-addressed image.
+    /// @dev Backend-free piece metadata: the per-edition JSON an ERC1155 edition carries, shaped as
+    ///      `_collectionMeta` (an unencoded `data:` JSON URI pointing at a content-addressed image).
     function _pieceMeta(string memory name, string memory image, string memory collection)
         internal
         pure
@@ -2083,19 +1959,14 @@ abstract contract SeedSepoliaShared is Script {
 
     // ─────────────────────────── Merkle allowlist ───────────────────────────
     //
-    // ── WHAT THIS SEEDS, AND WHAT IT DOES NOT ──
+    // The seeded allowlist is address-bound: a leaf commits to a wallet and the cap it was listed
+    // with, so a stranger cannot enter. No tier a cold visitor can satisfy is seeded, because the
+    // only gating module the deployment approves is this one; the tier's own description says so
+    // on-chain.
     //
-    // The seeded allowlist is ADDRESS-BOUND, which is what a Merkle allowlist is: a leaf commits to a
-    // wallet AND the cap it was listed with, so a stranger cannot enter it. The showcase standard also
-    // asks for a gated tier a cold visitor can satisfy, and this wave does NOT provide one — the only
-    // gating module the deployment approves is this one, and authoring a second, cold-satisfiable
-    // gating contract is security-relevant work that belongs in its own item rather than in a seed.
-    // The tier's own description says so on-chain, so a visitor is told what they are looking at
-    // rather than left to discover a door they cannot open.
-    //
-    // The list's SECOND member is a derived fixture address rather than a person's wallet: a
-    // single-leaf tree has `root == leaf` and an EMPTY proof, so it would verify without the verifier
-    // ever hashing an internal node. With two members every proof carries a real sibling.
+    // The list's second member is a derived fixture address rather than a person's wallet: a
+    // single-leaf tree has `root == leaf` and an empty proof, so it would verify without the
+    // verifier hashing an internal node. With two members every proof carries a real sibling.
 
     /// @dev A deterministic, code-free fixture address derived from the deployment's own sender. It
     ///      holds no key and is nobody's wallet — its only job is to be a second leaf.
@@ -2103,32 +1974,29 @@ abstract contract SeedSepoliaShared is Script {
         return address(uint160(uint256(keccak256(abi.encodePacked("ms2fun.showcase.allowlist.member", deployer)))));
     }
 
-    /// @dev A second derived fixture address, deliberately NOT listed, so the refusal path
-    ///      (`InvalidProof`) is a checked property of the seed rather than an assumption about it.
+    /// @dev A second derived fixture address, not listed, so the refusal path (`InvalidProof`) is a
+    ///      checked property of the seed.
     function _allowlistStranger() internal view returns (address) {
         return address(uint160(uint256(keccak256(abi.encodePacked("ms2fun.showcase.allowlist.stranger", deployer)))));
     }
 
-    /// @dev Leaf construction, byte-identical to `MerkleGatingModule.canMint` AND to
+    /// @dev Leaf construction, byte-identical to `MerkleGatingModule.canMint` and to
     ///      `app/src/lib/merkle.ts`: `keccak256(bytes.concat(keccak256(abi.encode(user, maxQty))))`.
-    ///      The cap is part of the leaf, which is what stops a listed wallet re-proving itself at a
-    ///      larger cap than it was listed with.
+    ///      The cap is part of the leaf, so a listed wallet cannot re-prove itself at a larger cap.
     function _leaf(address user, uint256 maxQty) internal pure returns (bytes32) {
         return keccak256(bytes.concat(keccak256(abi.encode(user, maxQty))));
     }
 
-    /// @dev Solady commutative (sorted-pair) parent hash — the internal node the on-chain verifier and
-    ///      the off-chain builder must agree on.
+    /// @dev Solady commutative (sorted-pair) parent hash: the internal node the on-chain verifier
+    ///      and the off-chain builder agree on.
     function _hashPair(bytes32 a, bytes32 b) internal pure returns (bytes32) {
         return uint256(a) <= uint256(b) ? keccak256(abi.encodePacked(a, b)) : keccak256(abi.encodePacked(b, a));
     }
 
-    /// @dev Build the two-member tier the fixture installs, and PROVE IT BEFORE INSTALLING IT.
-    ///
-    ///      A divergence between the leaf this seed commits and the leaf the app rebuilds surfaces in
-    ///      the UI as an unexplained `InvalidProof`, with nothing to point at. Verifying the seed's own
-    ///      proofs through the very library the module calls moves that failure into the SEED, where it
-    ///      names itself.
+    /// @dev Build the two-member tier the fixture installs, verifying it before install. A divergence
+    ///      between the leaf this seed commits and the leaf the app rebuilds would surface in the UI
+    ///      as an unexplained `InvalidProof`; verifying through the library the module calls moves
+    ///      that failure into the seed.
     function _buildAllowlistTier(address a, uint256 aQty, address b, uint256 bQty, address stranger)
         internal
         pure
@@ -2161,10 +2029,9 @@ abstract contract SeedSepoliaShared is Script {
     /// @dev The off-chain `{address,maxQty}[]` list the mint page fetches to rebuild a connected
     ///      wallet's proof. Self-hosted as a `data:` URI so the fixture needs no network.
     ///
-    ///      Two details are load-bearing rather than stylistic: the quotes are BACKSLASH-ESCAPED,
-    ///      because this string is embedded as a JSON string value inside collection metadata that is
-    ///      itself an unencoded `data:` JSON URI; and `maxQty` is a QUOTED integer, because a cap
-    ///      denominated in token units does not fit a JSON number exactly.
+    ///      The quotes are backslash-escaped because this string is embedded as a JSON string value
+    ///      inside collection metadata that is itself an unencoded `data:` JSON URI; `maxQty` is a
+    ///      quoted integer because a cap in token units does not fit a JSON number exactly.
     function _allowlistListUri(address a, uint256 aQty, address b, uint256 bQty) internal pure returns (string memory) {
         return string.concat(
             "data:application/json,[{\\\"address\\\":\\\"",
@@ -2180,8 +2047,8 @@ abstract contract SeedSepoliaShared is Script {
     }
 
     /// @dev Collection metadata carrying an `allowlists` row, so the mint page can find the list for
-    ///      this (editionId, tierIndex) pair. `tierIndex` is 0 — the tier the app resolves, and the
-    ///      reason the seeded tier is tier 0 and open immediately.
+    ///      this (editionId, tierIndex) pair. `tierIndex` is 0, the tier the app resolves, so the
+    ///      seeded tier is tier 0 and open immediately.
     function _collectionMetaWithAllowlist(
         string memory name,
         string memory description,
@@ -2206,11 +2073,10 @@ abstract contract SeedSepoliaShared is Script {
 
     // ══════════════════════════ Breadth post-conditions ══════════════════════════
     //
-    // Each mechanism's claim is stated as a plain struct of on-chain-observable FACTS plus a pure
-    // predicate over it. That shape is deliberate and is the whole vacuity story: phase 2 fills the
-    // struct by reading the chain, and `test/coverage/SepoliaShowcaseBreadth.t.sol` fills the same
-    // struct by hand — including the shapes that must make each predicate go RED. An assertion that
-    // only ever sees healthy input is an assertion nobody has shown can fail.
+    // Each mechanism's claim is a plain struct of on-chain-observable facts plus a pure predicate
+    // over it. Phase 2 fills the struct by reading the chain, and
+    // `test/coverage/SepoliaShowcaseBreadth.t.sol` fills the same struct by hand, including the
+    // shapes that must fail each predicate.
 
     /// @dev What the hand-off must carry before phase 2 will touch anything.
     function _requireBreadthHandoff(SeedHandoff memory h) internal pure {
@@ -2226,7 +2092,7 @@ abstract contract SeedSepoliaShared is Script {
         require(h.liveLotId != 0, "seed state: the live auction's lot id is missing");
     }
 
-    // ── 1. ERC-1155 editions: fixed, LIMITED_DYNAMIC, free claim ──
+    // ── ERC-1155 editions: fixed, LIMITED_DYNAMIC, free claim ──
 
     struct EditionFacts {
         uint256 nextEditionId;
@@ -2243,12 +2109,11 @@ abstract contract SeedSepoliaShared is Script {
         uint256 freeClaimMinted;
     }
 
-    /// @notice The three pricing regimes an edition collection can carry, each asserted as a REGIME
-    ///         rather than as a configuration flag.
-    /// @dev The dynamic row is the one worth reading twice. Checking that `pricingModel` is
-    ///      `LIMITED_DYNAMIC` and the rate is non-zero would pass with a rate too small to see across
-    ///      a handful of mints — a flat curve wearing a dynamic label. So the assertion is about PRICE
-    ///      MOVEMENT: what the module will actually charge after `DYNAMIC_PROBE_MINTS` mints.
+    /// @notice The three pricing regimes an edition collection can carry, each asserted as a regime
+    ///         rather than a configuration flag.
+    /// @dev For the dynamic row, a `LIMITED_DYNAMIC` model with a non-zero rate would pass with a
+    ///      rate too small to see across a handful of mints, so the assertion is about price
+    ///      movement: what the module charges after `DYNAMIC_PROBE_MINTS` mints.
     function _assertEditionShowcase(EditionFacts memory f) internal pure {
         require(f.nextEditionId == EDITION_FREE_CLAIM + 1, "editions: the collection does not carry all three editions");
 
@@ -2272,12 +2137,12 @@ abstract contract SeedSepoliaShared is Script {
             f.freeClaimAllocation <= f.freeClaimSupply,
             "editions: the free-claim reservation exceeds the row's own supply"
         );
-        // Headroom, not merely presence: the claim is one-per-address, so a reservation a single
-        // visitor could exhaust would leave the next visitor a dead button.
+        // Headroom: the claim is one-per-address, so a reservation a single visitor could exhaust
+        // would leave the next visitor a dead button.
         require(f.freeClaimMinted < f.freeClaimAllocation, "editions: the free-claim reservation is already exhausted");
     }
 
-    // ── 2. Merkle allowlist gating ──
+    // ── Merkle allowlist gating ──
 
     struct GatingFacts {
         address attachedModule;
@@ -2292,11 +2157,10 @@ abstract contract SeedSepoliaShared is Script {
         bool unlistedAddressRejected;
     }
 
-    /// @notice The allowlist is INSTALLED, OPEN, and DISCRIMINATING.
-    /// @dev The last two facts are what stop this being a label. A root can be installed on a tier
-    ///      that never opens, and a "gate" that accepts every proof is an open collection wearing a
-    ///      gated description — so the seed re-verifies both a listed member and an unlisted address
-    ///      against the root it actually installed, through the same library the module calls.
+    /// @notice The allowlist is installed, open, and discriminating.
+    /// @dev A root can be installed on a tier that never opens, and a gate that accepts every proof
+    ///      is an open collection with a gated description, so the seed re-verifies a listed member
+    ///      and an unlisted address against the installed root through the library the module calls.
     function _assertGatingShowcase(GatingFacts memory f, uint256 nowTs) internal pure {
         require(f.attachedModule != address(0), "gating: no gating module is attached to the collection");
         require(f.attachedModule == f.expectedModule, "gating: the attached module is not the approved one");
@@ -2310,7 +2174,7 @@ abstract contract SeedSepoliaShared is Script {
         require(f.unlistedAddressRejected, "gating: an unlisted address verifies (the gate refuses nobody)");
     }
 
-    // ── 3. Staking ──
+    // ── Staking ──
 
     struct StakingFacts {
         address module;
@@ -2322,11 +2186,10 @@ abstract contract SeedSepoliaShared is Script {
     }
 
     /// @notice The stake/unstake surface is wired, enabled, and carries a real position.
-    /// @dev This wave asserts the SURFACE, not a running stream. The module's only funding path is a
-    ///      real LP-fee delta through `claimAllFees`, which needs pool depth and swap volume that a
-    ///      later wave seeds; manufacturing a reward here would fabricate the source. What is checked
-    ///      is therefore everything that must be true for that stream to start crediting the moment it
-    ///      is funded — and the row keeps a LIQUID balance so the stake action is walkable again.
+    /// @dev This asserts the surface, not a running stream (see `_assertStakingStream`). The
+    ///      module's only funding path is a real LP-fee delta through `claimAllFees`, so what is
+    ///      checked is everything that must hold for the stream to credit once funded. The row keeps
+    ///      a liquid balance so the stake action is walkable again.
     function _assertStakingShowcase(StakingFacts memory f) internal pure {
         require(f.module != address(0), "staking: no staking module is wired to the row");
         require(f.module == f.expectedModule, "staking: the wired module is not the approved one");
@@ -2336,7 +2199,7 @@ abstract contract SeedSepoliaShared is Script {
         require(f.liquidBalance > 0, "staking: the whole position is locked (the stake action is unwalkable)");
     }
 
-    // ── 3b. The staking STREAM (wave 3) ──
+    // ── The staking stream ──
 
     struct StreamFacts {
         uint256 feeDelta; // ETH the instance actually received when it claimed its vaults' fees
@@ -2346,16 +2209,11 @@ abstract contract SeedSepoliaShared is Script {
         uint256 nowTs;
     }
 
-    /// @notice The staking stream is RUNNING, and it is running on a real LP-fee delta.
-    /// @dev Wave 2 left this row's stream armed and unfunded and said so, because the module's only
-    ///      funding path is a fee delta arriving through `claimAllFees` — and pushing ETH at it from a
-    ///      fixture would fabricate the reward source rather than demonstrate it. Wave 3 funds it the
-    ///      way the product does: the alignment vault holds a real LP position, a real swap on that
-    ///      pool pays it a fee, and the claim moves that fee to the instance.
-    ///
-    ///      `feeDelta > 0` is the assertion that keeps this honest. Without it the remaining three
-    ///      checks would pass on a stream started by any ETH from anywhere, which is exactly the shape
-    ///      wave 2 declined to ship.
+    /// @notice The staking stream is running, on a real LP-fee delta.
+    /// @dev The module's only funding path is a fee delta arriving through `claimAllFees`. The
+    ///      stream is funded as in the product: the alignment vault holds a real LP position, a
+    ///      real swap on that pool pays it a fee, and the claim moves that fee to the instance.
+    ///      `feeDelta > 0` is what excludes a stream started by ETH pushed from anywhere.
     function _assertStakingStream(StreamFacts memory f) internal pure {
         require(f.totalStaked > 0, "stream: nothing is staked (a stream nobody can accrue is not running)");
         require(f.feeDelta > 0, "stream: no fee delta arrived - the stream would have no earned source");
@@ -2363,7 +2221,7 @@ abstract contract SeedSepoliaShared is Script {
         require(f.periodFinish > f.nowTs, "stream: the reward period has already finished");
     }
 
-    // ── 3c. The VENUES (wave 3) ──
+    // ── The venues ──
 
     struct VenueFacts {
         string label;
@@ -2377,26 +2235,25 @@ abstract contract SeedSepoliaShared is Script {
         uint256 vaultTargetId;
         uint256 expectedTargetId;
         address vaultPriceValidator;
-        uint256 venueLiquidity; // ACTIVE depth in the pool the acquire leg swaps through
+        uint256 venueLiquidity; // active depth in the pool the acquire leg swaps through
         uint256 minVenueLiquidity;
         uint256 pendingBefore; // the tithe the vault held going into its convert
         uint256 pendingAfter;
         uint256 lpPositionValue; // what the convert itself reported
     }
 
-    /// @notice One venue is LIVE: curated coherently, priced by a pinned reference, deep enough to
-    ///         serve a convert, and proven by a convert that actually executed.
+    /// @notice One venue is live: curated coherently, priced by a pinned reference, deep enough to
+    ///         serve a convert, and proven by a convert that executed.
     ///
-    /// @dev Three of these facts are the ones a venue quietly fails on, and none of them reads the
-    ///      others. The ROUTE is what a vault refuses to convert against when it disagrees,
-    ///      and what the app shows a visitor either way. The REFERENCE POOL is the price authority the
-    ///      -5% floor reads; unpinned, the convert reverts before it reaches any pool. The ACTIVE
-    ///      LIQUIDITY is the one a deposit figure cannot stand in for — a position minted outside the
-    ///      current tick range reports units while adding none of the depth the swap needs.
+    /// @dev Three facts are ones a venue quietly fails on, and none reads the others. The route is
+    ///      what a vault refuses to convert against when it disagrees, and what the app shows. The
+    ///      reference pool is the price authority the -5% floor reads; unpinned, the convert reverts
+    ///      before reaching any pool. The active liquidity cannot be replaced by a deposit figure,
+    ///      since a position minted outside the current tick range reports units while adding none
+    ///      of the depth the swap needs.
     ///
-    ///      The last three are the ones that make this an outcome rather than a configuration
-    ///      listing: a tithe existed, the convert consumed it, and it reported a position. Drop the
-    ///      convert and `pendingAfter < pendingBefore` goes red.
+    ///      The last three make this an outcome: a tithe existed, the convert consumed it
+    ///      (`pendingAfter < pendingBefore`), and it reported a position.
     function _assertVenueShowcase(VenueFacts memory f) internal pure {
         require(f.expectedVenue != 0, "venue: the expected venue is NONE (the assertion would say nothing)");
         require(f.routeVenue == f.expectedVenue, string.concat("venue: ", f.label, " route is not the venue it LPs on"));
@@ -2421,7 +2278,7 @@ abstract contract SeedSepoliaShared is Script {
         require(f.lpPositionValue > 0, string.concat("venue: ", f.label, " convert reported no LP position"));
     }
 
-    // ── 4/5. Metadata stack and Token Tiers ──
+    // ── Metadata stack and Token Tiers ──
 
     struct TierFacts {
         uint256 scarceCapacity;
@@ -2434,19 +2291,17 @@ abstract contract SeedSepoliaShared is Script {
         string bandArt;
     }
 
-    /// @notice Mint-up, mint-down, an EXHAUSTED band, and two visibly different art layers.
-    /// @dev The exhaustion check is the one §3 asks for by name: the scarce band's outstanding count
-    ///      equalling its capacity is exactly the condition under which the next `mintUp` into it
-    ///      reverts `BandExhausted`. The open band is asserted to still have room, because the seed
-    ///      minted down out of it — without that, "reversible" is a claim rather than an outcome.
+    /// @notice Mint-up, mint-down, an exhausted band, and two visibly different art layers.
+    /// @dev The scarce band's outstanding count equalling its capacity is exactly the condition under
+    ///      which the next `mintUp` into it reverts `BandExhausted`. The open band must still have
+    ///      room, because the seed minted down out of it; otherwise "reversible" is only a claim.
     ///
-    ///      The art strings are compared for INEQUALITY rather than checked for presence: band over
-    ///      base is only demonstrated if the two layers resolve to visibly different pictures, and two
-    ///      pointers into one collection would render as one image twice and show nothing.
+    ///      The art strings are compared for inequality: band over base is only demonstrated if the
+    ///      layers resolve to different pictures, and two pointers into one collection would render
+    ///      one image twice.
     ///
-    ///      THE WAVE COUNT IS ASSERTED ZERO. Waves and paid commissions are the ARTIST METADATA row's
-    ///      demonstration; this row deliberately wires no overlay at all. Asserting the absence makes
-    ///      the split a gate rather than a convention somebody can quietly undo.
+    ///      The wave count is asserted zero. Waves and paid commissions are the artist metadata row's
+    ///      demonstration; this row wires no overlay.
     function _assertTierShowcase(TierFacts memory f) internal pure {
         require(f.scarceCapacity > 0, "tiers: the scarce band has no capacity (the ladder was not sealed)");
         require(
@@ -2461,7 +2316,7 @@ abstract contract SeedSepoliaShared is Script {
         require(!_eq(f.baseArt, f.bandArt), "tiers: band art is the same collection as the base art");
     }
 
-    // ── 6. ERC-721 auctions ──
+    // ── ERC-721 auctions ──
 
     struct AuctionLotFacts {
         string label;
@@ -2474,11 +2329,10 @@ abstract contract SeedSepoliaShared is Script {
     }
 
     /// @notice The three auction states, each asserted by the fact that distinguishes it.
-    /// @dev `settled` is set by BOTH terminal paths, so it cannot tell a sold lot from a reclaimed
-    ///      one on its own. What separates them is the token: `settleAuction` mints it to the winner,
-    ///      `reclaimUnsold` never mints at all. So the sold lot is checked to be OWNED BY ITS WINNER
-    ///      and the reclaimed lot to have no token in existence — remove the settle and the first goes
-    ///      red, remove the reclaim and the second still shows a live unsettled lot.
+    /// @dev `settled` is set by both terminal paths, so it cannot tell a sold lot from a reclaimed
+    ///      one. The token does: `settleAuction` mints it to the winner, `reclaimUnsold` never
+    ///      mints. So the sold lot is checked to be owned by its winner and the reclaimed lot to
+    ///      have no token.
     function _assertAuctionShowcase(
         AuctionLotFacts memory live,
         AuctionLotFacts memory sold,
@@ -2510,7 +2364,7 @@ abstract contract SeedSepoliaShared is Script {
         require(!reclaimed.minted, string.concat("auctions: ", reclaimed.label, " minted a token on reclaim"));
     }
 
-    // ── 7. The carve ──
+    // ── The carve ──
 
     struct CarveFacts {
         uint16 declaredMaxBps;
@@ -2521,18 +2375,15 @@ abstract contract SeedSepoliaShared is Script {
         bool graduated;
     }
 
-    /// @notice The carve was DECLARED, REQUESTED, and settled at the protocol's own figure.
-    /// @dev The declaration is the disclosure surface — immutable per instance and readable before the
-    ///      first buy — so it is asserted to be on-chain and non-zero regardless of what the carve
-    ///      pays out.
+    /// @notice The carve was declared, requested, and settled at the protocol's own figure.
+    /// @dev The declaration is the disclosure surface, immutable per instance and readable before the
+    ///      first buy, so it must be on-chain and non-zero regardless of the payout.
     ///
-    ///      The payout itself is a DEPTH question, and this assertion states it as one rather than
-    ///      asserting a number the seed's own fill decides. `effectiveCarveEth` is the minimum of the
-    ///      request, the bracket allowance, and the LP share's headroom ABOVE the pool floor — so on a
-    ///      raise whose LP share does not clear that floor the effective carve is zero BY THE
-    ///      PROTOCOL'S DESIGN, and asserting otherwise would be asserting that the seed bought depth.
-    ///      What is checked is the consistency of the two: below the floor the carve must be zero, and
-    ///      above it, having requested the declared maximum, it must not be.
+    ///      The payout is a depth question. `effectiveCarveEth` is the minimum of the request, the
+    ///      bracket allowance, and the LP share's headroom above the pool floor, so on a raise whose
+    ///      LP share does not clear that floor the effective carve is zero by design. The check is
+    ///      consistency: below the floor the carve is zero, and above it, having requested the
+    ///      declared maximum, it is not.
     function _assertCarveShowcase(CarveFacts memory f) internal pure {
         require(f.declaredMaxBps > 0, "carve: the row declares no allowance (there is no disclosure to read)");
         require(f.requestBps > 0, "carve: no carve was requested at graduation");
@@ -2558,8 +2409,7 @@ abstract contract SeedSepoliaShared is Script {
     }
 
     /// @dev The raise at which a full-allowance carve stops clamping to zero: the smallest raise whose
-    ///      LP share strictly exceeds the pool floor. Printed by the seed rather than asserted,
-    ///      because whether to buy that much curve is a depth decision, not a seed decision.
+    ///      LP share strictly exceeds the pool floor. Printed by the seed, not asserted.
     function _carveThresholdRaise(uint256 minPoolEth_) internal pure returns (uint256) {
         // `split` sends 1% to the protocol and 19% to the vault; the remainder is the LP share. Solve
         // `remainder(raise) > floor` by inverting that 80%, then add one wei to make it strict.
@@ -2573,35 +2423,32 @@ abstract contract SeedSepoliaShared is Script {
     }
 }
 
-/// @dev The vault factory's WETH immutable — read so the seed never re-declares an external address.
+/// @dev The vault factory's WETH immutable, read so the seed declares no external address.
 interface IWethSource {
     function weth() external view returns (address);
 }
 
-/// @dev The validator's own TWAP window. The wall-clock wait this seed imposes before it will pin a
-///      freshly-created reference pool and the window the registry probes that pool with have to be
-///      the same number, so it is read from the deployment rather than restated in the seed.
+/// @dev The validator's own TWAP window. The wait this seed imposes before pinning a freshly created
+///      reference pool and the window the registry probes it with are the same number, read from the
+///      deployment.
 interface ITwapWindowSource {
     function twapSecondsAgo() external view returns (uint32);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════════════════════
-//                     WAVE 3 — THE VENUES: EXTERNAL SURFACES AND THE TWO SEEDERS
+//                     THE VENUES: EXTERNAL SURFACES AND THE TWO SEEDERS
 // ══════════════════════════════════════════════════════════════════════════════════════════════
 //
-// A venue is not a configuration flag. Three separate things have to be true before a vault's
-// convert can execute, and none of them reads the others:
+// Three separate things must hold before a vault's convert can execute, and none reads the others:
 //
-//   · the ACQUIRE ROUTE — the venue the registry curates for this (target, token);
-//   · the REFERENCE POOL — the price authority the vault's -5% oracle floor reads, which must be a
-//     {token, WETH} pool that can already serve a TWAP over the deployment's window; and
-//   · the venue POOL ITSELF, holding enough depth that a demo-sized buy prices inside that floor.
+//   · the acquire route: the venue the registry curates for this (target, token);
+//   · the reference pool: the price authority the vault's -5% oracle floor reads, a {token, WETH}
+//     pool that can already serve a TWAP over the deployment's window; and
+//   · the venue pool itself, deep enough that a demo-sized buy prices inside that floor.
 //
-// The floor is never touched. What the seeders below change is the POOL: the showcase's alignment
-// assets are fixture tokens this deployment mints, so the market that prices them is ours to stand
-// up — and a testnet demonstration of what a vault DOES needs a market for the vault to do it in.
-// That is market plumbing, and it is distinct from the reward source the staking row still refuses
-// to fabricate (which stays a real LP-fee delta from a real swap; see `SeedSepoliaBuys`).
+// The floor is never touched. The seeders below stand up the pools: the alignment assets are
+// fixture tokens this deployment mints, so the market that prices them is the seed's to create.
+// The staking reward source stays a real LP-fee delta from a real swap (see `SeedSepoliaBuys`).
 
 /// @dev The two calls the reference-pool seeder makes on the Uniswap V3 factory.
 interface IUniswapV3FactoryMinimal {
@@ -2646,8 +2493,8 @@ interface IUniswapV3PoolMinimal {
     function token1() external view returns (address);
 }
 
-/// @dev Minimal WETH surface. The V4 and ZAMM venues are NATIVE-ETH pools; the reference pool is a
-///      WETH pair, so exactly the ETH it consumes is wrapped and nothing else.
+/// @dev Minimal WETH surface. The V4 and ZAMM venues are native-ETH pools; the reference pool is a
+///      WETH pair, so only the ETH it consumes is wrapped.
 interface IWethMinimal {
     function deposit() external payable;
     function approve(address spender, uint256 amount) external returns (bool);
@@ -2655,10 +2502,9 @@ interface IWethMinimal {
     function balanceOf(address account) external view returns (uint256);
 }
 
-/// @dev The fixture-token surface the seed uses. These are the deployment's OWN `MockERC20`s, minted
-///      by this seed — which is why the token leg of every venue is minted rather than bought. There
-///      is no deep pool on this network to buy a fixture asset from, and inventing one to buy from
-///      would be the same fabrication one step removed.
+/// @dev The fixture-token surface the seed uses: the deployment's own `MockERC20`s, minted by this
+///      seed, so the token leg of every venue is minted rather than bought. No deep pool on this
+///      network sells a fixture asset.
 interface IFixtureToken {
     function mint(address to, uint256 amount) external;
     function approve(address spender, uint256 amount) external returns (bool);
@@ -2666,8 +2512,8 @@ interface IFixtureToken {
     function balanceOf(address account) external view returns (uint256);
 }
 
-/// @dev The owner-only registry setters the venue wiring drives. Declared here rather than imported
-///      from the concrete registry so the seed states exactly the three calls it makes.
+/// @dev The owner-only registry setters the venue wiring drives, declared here so the seed states
+///      exactly the calls it makes.
 interface IAlignmentRouteAdmin {
     function setAcquireRoute(uint256 targetId, address token, IAlignmentRegistry.AcquireRoute calldata route) external;
     function setReferencePool(uint256 targetId, address token, IAlignmentRegistry.ReferencePool calldata ref) external;
@@ -2681,9 +2527,9 @@ interface IAlignmentRouteAdmin {
         returns (IAlignmentRegistry.ReferencePool memory);
 }
 
-/// @dev The reads a vault is checked through after it is wired. Every member here is a public getter
-///      on ALL THREE vault families — the two that are not (the pending-tithe read and the convert)
-///      are handled explicitly below rather than assumed into this interface.
+/// @dev The reads a vault is checked through after it is wired. Every member is a public getter on
+///      all three vault families; the pending-tithe read and the convert differ by family and are
+///      handled separately.
 interface IVenueVaultView {
     function alignmentToken() external view returns (address);
     function alignmentTargetId() external view returns (uint256);
@@ -2697,9 +2543,8 @@ interface IVenueVaultConvert {
 }
 
 /// @dev The convert, as the ZAMM family exposes it. Its LP add is a paired deposit rather than a
-///      range position, so it carries two further minimums for the deposit legs. Declared separately
-///      rather than folded into one interface: the two signatures are genuinely different calls, and
-///      a single interface would only be able to express one of them.
+///      range position, so it carries two further minimums for the deposit legs. It is a different
+///      signature from `IVenueVaultConvert`.
 interface IZammVaultConvert {
     function convertAndAddLiquidity(uint256 minTokenOut, uint256 minEth, uint256 minToken)
         external
@@ -2709,35 +2554,28 @@ interface IZammVaultConvert {
 /// @notice Stands up the Uniswap V3 {token, WETH} pool the vault's oracle floor reads as its price
 ///         authority, and holds the position it mints.
 ///
-///         ── WHY THE SHOWCASE MINTS ITS OWN REFERENCE POOL ──
+///         The floor is derived from a pinned pool's own TWAP, which an attacker cannot move inside
+///         one transaction. It presumes a pool exists, and the alignment assets are fixture tokens
+///         minted by this deployment, so nothing on this network prices them until the deployment
+///         does. Standing the pool up is part of standing the asset up; the floor is left as
+///         deployed.
 ///
-///         The floor is derived from a pinned pool's own TWAP, which is the correct design: an
-///         attacker cannot move a time-weighted price inside one transaction. It presumes a pool
-///         exists. The showcase's alignment assets are FIXTURE tokens minted by this deployment, so
-///         nothing on this network prices them until this deployment prices them. Standing the pool
-///         up is therefore part of standing the asset up; it is not a way around the floor, and the
-///         floor is left exactly as deployed.
+///         `setReferencePool` probes `observe([window, 0])` before accepting a pool, and a freshly
+///         initialized pool has no observation old enough to answer. This contract therefore only
+///         creates and seeds the pool; the pin happens a full window later, in phase 2, after the
+///         orchestrator has waited the window out in real time.
 ///
-///         ── THE TWAP IS A WALL-CLOCK COST, NOT A CALL ──
-///
-///         `setReferencePool` probes `observe([window, 0])` before it will accept a pool, and a pool
-///         initialized moments ago has no observation old enough to answer that. So this contract
-///         only CREATES and SEEDS the pool; the pin happens a full window later, in phase 2, after
-///         the orchestrator has waited the window out in real time. There is no fast-forward on a
-///         public testnet — the wait is the mechanism.
-///
-///         The position is minted under this contract and left. There is no withdraw path, which is
-///         deliberate: the reference pool's depth should not be removable by a demo action.
+///         The position is minted under this contract and left. There is no withdraw path, so the
+///         reference pool's depth cannot be removed by a demo action.
 contract SepoliaReferencePoolSeeder {
     error NotOwner();
     error NotPool();
     error PoolPairMismatch();
     error NoLiquidityMinted();
 
-    /// @dev 1:1. The fixture asset has no prior price, so the price it is stood up at is a choice —
-    ///      and parity with ETH is the choice that makes every other number in the showcase readable
-    ///      by eye. The V4 and ZAMM venues are seeded at the same parity, so the curated reference and
-    ///      the executed venue agree and the -5% floor has real headroom rather than a permanent skew.
+    /// @dev 1:1. The fixture asset has no prior price; parity with ETH keeps every number in the
+    ///      showcase readable. The V4 and ZAMM venues are seeded at the same parity, so the curated
+    ///      reference and the executed venue agree and the -5% floor has headroom.
     uint160 internal constant SQRT_PRICE_1_1 = 79228162514264337593543950336;
 
     address public immutable owner;
@@ -2785,10 +2623,9 @@ contract SepoliaReferencePoolSeeder {
             pool.initialize(SQRT_PRICE_1_1);
             sqrtPriceX96 = SQRT_PRICE_1_1;
         }
-        // Widen the observation ring so the pool keeps history once anything trades on it. The pin a
-        // window from now does not depend on this — an untraded pool answers from its single
-        // initialization observation — but a pool that is traded and cannot remember is a reference
-        // that stops working the moment it becomes interesting.
+        // Widen the observation ring so the pool keeps history once anything trades on it. The pin
+        // does not depend on this (an untraded pool answers from its initialization observation),
+        // but a traded pool with a one-slot ring stops serving as a reference.
         pool.increaseObservationCardinalityNext(cardinality);
 
         // Both legs, at the parity the pool was initialized at: the ETH the caller sent, wrapped, and
@@ -2800,9 +2637,8 @@ contract SepoliaReferencePoolSeeder {
         (, int24 tick,,,,,) = pool.slot0();
         (int24 tickLower, int24 tickUpper) = _range(tick, tickSpacing, halfWidthTicks);
 
-        // At parity the two legs are equal in nominal terms, so which side sorts first does not
-        // change the amounts offered — only the callback's payment does, and that reads the ordering
-        // for itself.
+        // At parity the two legs are equal in nominal terms, so token ordering does not change the
+        // amounts offered; the callback reads the ordering for its payment.
         liquidityMinted = LiquidityAmounts.getLiquidityForAmounts(
             sqrtPriceX96, TickMath.getSqrtPriceAtTick(tickLower), TickMath.getSqrtPriceAtTick(tickUpper), ethLeg, ethLeg
         );
@@ -2838,17 +2674,14 @@ contract SepoliaReferencePoolSeeder {
 /// @notice Gives the Uniswap V4 pool a vault actually acquires through the depth its curated route
 ///         already claims.
 ///
-///         This is the Sepolia analog of the depth seeder the mainnet-fork seed uses, and it differs
-///         in exactly one place. On a mainnet fork the token leg is BOUGHT on a deep same-pair V3
-///         pool, because the alignment asset is a real coin with a real market. On this network the
-///         alignment asset is a fixture this deployment minted, and there is no deep pool to buy it
-///         from — so the leg is MINTED. That is a structural difference between a fork of a live
-///         market and a network where the asset begins with the deployment, not a weakening of the
-///         pattern: what both do is put real two-sided liquidity into the pool the acquire leg swaps
+///         This is the Sepolia analog of the mainnet-fork seed's depth seeder. On a mainnet fork the
+///         token leg is bought on a deep same-pair V3 pool because the alignment asset has a real
+///         market; here the asset is a fixture this deployment minted and no deep pool exists, so
+///         the leg is minted. Both put two-sided liquidity into the pool the acquire leg swaps
 ///         through, so the executed buy prices inside the vault's -5% floor.
 ///
-///         The position is minted under this contract with a zero salt and left. There is no withdraw
-///         path, for the same reason the reference pool has none.
+///         The position is minted under this contract with a zero salt and left, with no withdraw
+///         path, as with the reference pool.
 contract SepoliaV4DepthSeeder is IUnlockCallback {
     using CurrencySettler for Currency;
     using StateLibrary for IPoolManager;
@@ -2928,8 +2761,8 @@ contract SepoliaV4DepthSeeder is IUnlockCallback {
         if (ethLeft != 0) SafeTransferLib.safeTransferETH(owner, ethLeft);
     }
 
-    /// @dev V4 unlock callback — the house pattern: price the liquidity off the pool's live sqrt
-    ///      price, mint it, then settle debts and take credits with `CurrencySettler`.
+    /// @dev V4 unlock callback: price the liquidity off the pool's live sqrt price, mint it, then
+    ///      settle debts and take credits with `CurrencySettler`.
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
         if (msg.sender != address(poolManager)) revert NotPoolManager();
         AddLiquidityCallbackData memory p = abi.decode(data, (AddLiquidityCallbackData));

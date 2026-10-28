@@ -4,32 +4,26 @@ pragma solidity ^0.8.20;
 import { DeployCore } from "./DeployCore.sol";
 import { MainnetAddresses } from "./MainnetAddresses.sol";
 
-/// @notice Mainnet deployment — populate _mainnetConfig() before use.
+/// @notice Mainnet deployment configuration.
 ///         Run with: forge script script/DeployMainnet.s.sol --account <keystore> \
 ///                   --rpc-url mainnet --broadcast --verify
 ///
-///         Every external address this deploys against is stated in `script/MainnetAddresses.sol`
-///         and read from there, because `DeployAnvil` rehearses this deploy on a mainnet fork and
-///         reads the same file. What is left here is what mainnet-the-deployment CHOOSES rather
-///         than inherits: the salts, the governance Safe, the roster, and the oracle/pool params.
+///         Every external address this deploys against is stated in `script/MainnetAddresses.sol`,
+///         which `DeployAnvil` reads too when it rehearses this deploy on a mainnet fork. What is set
+///         here is what mainnet chooses rather than inherits: the salts, the governance Safe, the
+///         roster, and the oracle/pool params.
 ///
-/// TODO before mainnet launch:
-///   1. Do NOT mine a second salt set. ONE deployer and ONE set serve both chains: CreateX's guarded
-///      salt takes no chain id (byte 20 is 0x00), so the same salt under the same deployer yields the
-///      SAME address on every chain, and the CREATE2 proxy that collides is per-chain — so a set
-///      spent on Sepolia is still unspent here. Reuse the set in `SepoliaSalts.sol` and assert its
-///      DEPLOYER in run() the way DeploySepolia does; CreateX reverts `InvalidSalt` for any other
-///      sender, so a mismatch surfaces in simulation. Mining a fresh set here would hand mainnet
-///      different addresses than the ones Sepolia rehearsed, which is the one thing the dress
-///      rehearsal exists to prevent.
-///   2. Set real alignment targets (token addresses, vault flags)
-///   3. Set cfg.safe to the real Gnosis Safe address — address(0) deploys a MockSafe
-///   4. Choose cfg.hookFeeBips and cfg.lpFeeRate — the perpetual post-graduation swap tithe. Both are
-///      left at zero here DELIBERATELY: the rate is immutable per hook (baked into its init code at
-///      graduation), so it is an economic decision with no safe default, and Sepolia's 100 bips is a
-///      testnet rehearsal figure rather than a proposal for this network. Zero is not inert — enabled
-///      over a zero rate, every mainnet graduation mints a hook that takes nothing, forever, with no
-///      revert to say so. `test/script/MainnetConfigCompleteness.t.sol` holds the gap open.
+///         Salts: one deployer and one salt set serve both chains. CreateX's guarded salt takes no
+///         chain id (byte 20 is 0x00), so the same salt under the same deployer yields the same
+///         address on every chain, and the CREATE2 proxy that collides is per-chain; a set spent on
+///         Sepolia is unspent here. The set in `SepoliaSalts.sol` gives mainnet the addresses Sepolia
+///         rehearsed. CreateX reverts `InvalidSalt` for any other sender.
+///
+///         `hookFeeBips` and `lpFeeRate` are zero: the rate is immutable per hook (baked into its
+///         init code at graduation), so it is an economic choice with no safe default, and Sepolia's
+///         100 bips is a testnet figure. Zero is not inert once the tithe is enabled: every
+///         graduation then mints a hook that takes nothing, permanently, with no revert.
+///         `test/script/MainnetConfigCompleteness.t.sol` holds the gap open.
 contract DeployMainnet is DeployCore {
     function run() public {
         vm.startBroadcast();
@@ -39,7 +33,7 @@ contract DeployMainnet is DeployCore {
 
     function _mainnetConfig() internal pure returns (NetworkConfig memory cfg) {
         AlignmentTargetConfig[] memory targets = new AlignmentTargetConfig[](0);
-        // TODO: populate targets
+        // The roster is empty.
 
         cfg.chainId = 1;
         cfg.weth = MainnetAddresses.WETH;
@@ -47,16 +41,14 @@ contract DeployMainnet is DeployCore {
         cfg.v3Factory = MainnetAddresses.V3_FACTORY;
         cfg.v2Factory = MainnetAddresses.V2_FACTORY;
         cfg.zamm = MainnetAddresses.ZAMM_V1;
-        // The Aave endowment family. Unset gates the family off entirely (`DeployCore` treats a zero
-        // stataToken as "this network has no endowment rail"), which is how it came to be missing
-        // here while the mainnet-fork rehearsal wired it — the same omission noesis-404 found on
-        // Sepolia. `cfg.aaveWeth` stays unset on purpose: this token's `asset()` IS canonical WETH,
-        // so the field resolves back to `cfg.weth` and `deploy()` asserts the match.
+        // The Aave endowment family. A zero stataToken gates the family off entirely (`DeployCore`
+        // reads it as "this network has no endowment rail"). `cfg.aaveWeth` is unset: this token's
+        // `asset()` is canonical WETH, so the field resolves to `cfg.weth` and `deploy()` asserts the match.
         cfg.aaveStataToken = MainnetAddresses.WETH_STATA_TOKEN;
         cfg.zrouter = MainnetAddresses.ZROUTER;
         cfg.zQuoter = MainnetAddresses.ZQUOTER;
-        cfg.safe = address(0); // TODO: real Safe address
-        cfg.saltMasterRegistry = bytes32(0); // TODO: mine vanity salts
+        cfg.safe = address(0); // address(0) deploys a MockSafe
+        cfg.saltMasterRegistry = bytes32(0);
         cfg.saltTreasury = bytes32(0);
         cfg.saltQueueManager = bytes32(0);
         cfg.saltGlobalMsgReg = bytes32(0);
@@ -66,10 +58,10 @@ contract DeployMainnet is DeployCore {
         cfg.twapSeconds = 1800;
         cfg.zrouterFee = 3000;
         cfg.zrouterTickSpacing = 60;
-        cfg.zammFeeOrHook = 30; // 0.3% — LOCKED (rth, 2026-07-10); matches vault feeOrHook() and Uni launch tier
-        // TODO 4: cfg.hookFeeBips / cfg.lpFeeRate — the perpetual swap tithe, left unchosen. See the
-        // header. Turning the tithe ON is a separate governed call either way (script/
-        // EnableAlignmentTithe.s.sol); this pair is only the rate it would be turned on at.
+        cfg.zammFeeOrHook = 30; // 0.3%; matches vault feeOrHook() and the Uni launch tier
+        // cfg.hookFeeBips / cfg.lpFeeRate (the perpetual swap tithe) are zero; see the header. Enabling
+        // the tithe is a separate governed call (script/EnableAlignmentTithe.s.sol); this pair is
+        // only the rate it is enabled at.
         cfg.alignmentTargets = targets;
         cfg.jsonOutputPath = "./deployments/mainnet.json";
     }

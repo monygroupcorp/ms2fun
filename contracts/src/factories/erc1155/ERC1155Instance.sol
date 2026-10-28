@@ -47,8 +47,7 @@ error ERC1155RejectedTokens();
 error NoDynamicPricingModule();
 error OnlyFactory();
 error AlreadyInitialized();
-/// @dev The clone guard, distinct from `AlreadyInitialized` so a revert says WHICH one-shot was
-///      spent: the free-mint setup, or the claim on the instance itself.
+/// @dev The clone guard, distinct from `AlreadyInitialized` (the free-mint setup one-shot).
 error InstanceAlreadyInitialized();
 import { Currency } from "v4-core/types/Currency.sol";
 import { RevenueSplitLib } from "../../shared/libraries/RevenueSplitLib.sol";
@@ -109,17 +108,11 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     // slither-disable-next-line immutable-states
     address public factory;
     IAlignmentVault public vault;
-    /// @notice The genesis vault (the one bound at construction — what buyers pay in against). Pinned
-    ///         at initialization so the revenue-split family used at settlement can never diverge
-    ///         from what buyers paid into, even if `vault` is later migrated (audit finding #2,
-    ///         defense-in-depth).
-    /// @dev SET ONCE AND NEVER AGAIN. These four were `immutable` until this contract became the
-    ///      implementation behind EIP-1167 clones, and an immutable lives in the runtime code every
-    ///      clone SHARES — so a per-collection value cannot be one. What made them safe was never
-    ///      the keyword: it was that nothing can write them after the one write. That still holds —
-    ///      `initialize` is the only writer and `_initialized` lets it run once — and it is what the
-    ///      audit finding asked for. `slither-disable` markers are kept off them deliberately:
-    ///      slither's `immutable-states` suggestion is exactly the change this comment refuses.
+    /// @notice The genesis vault, bound at initialization: what buyers pay in against. Pinned so the
+    ///         revenue-split family used at settlement cannot diverge from it if `vault` is migrated.
+    /// @dev Set once. Immutables live in the runtime code every EIP-1167 clone shares, so per-collection
+    ///      values are storage written only by `initialize`, which `_initialized` lets run once.
+    ///      Slither's `immutable-states` suggestion does not apply to them.
     address public genesisVault;
     // slither-disable-next-line immutable-states
     IMasterRegistry public masterRegistry;
@@ -139,10 +132,9 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     // slither-disable-next-line immutable-states
     IDynamicPricingModule public dynamicPricingModule;
 
-    // Free mint (per-edition; noesis-135). Each edition carries its own allocation, running claim
-    // counter, and per-user claimed flag — a wallet may claim one free token PER edition, and each
-    // edition's allocation is independent (draining edition A never consumes edition B). The retired
-    // collection-wide scalars are gone; `gatingScope` stays collection-level (sub-decision 2, v1).
+    // Free mint, per edition: each edition carries its own allocation, claim counter and per-user
+    // claimed flag. A wallet may claim one free token per edition, and editions' allocations are
+    // independent. `gatingScope` is collection-level.
     mapping(uint256 => uint256) public freeMintAllocation;
     mapping(uint256 => uint256) public freeMintsClaimed;
     mapping(uint256 => mapping(address => bool)) public freeMintClaimed;
@@ -150,13 +142,10 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     bool private _freeMintInitialized;
     bool public agentDelegationEnabled;
 
-    // Edition schedule (noesis/open-edition-cannot-close). A drop that cannot be closed is not the
-    // timed edition the field runs, so an edition carries a close time and a per-wallet ceiling
-    // beside the `openTime` it already had. Both live here rather than in `Edition` on purpose:
-    // `QueryAggregator.IERC1155EditionReader` declares its own copy of that struct and decodes
-    // `getEdition` against it for every instance it reads, including the ones already deployed, so
-    // a field added to the struct would break those reads. Per-edition side mappings are also how
-    // the free-mint allocation above is already carried.
+    // Edition schedule: a close time and a per-wallet ceiling beside `openTime`. They live in side
+    // mappings, not in `Edition`, because `QueryAggregator.IERC1155EditionReader` declares its own
+    // copy of that struct and decodes `getEdition` against it, so a new struct field would break
+    // those reads.
     /// @notice Unix timestamp at which an edition stops minting. 0 = never closes.
     /// @dev Exclusive: minting reverts AT this timestamp, mirroring `openTime`, which opens at its own.
     mapping(uint256 => uint256) public editionCloseTime;
@@ -164,8 +153,8 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     ///         together. 0 = no ceiling.
     mapping(uint256 => uint256) public editionMaxPerWallet;
     /// @notice Tokens of an edition a wallet has MINTED, paid and free together.
-    /// @dev Not `balanceOf`: a balance falls when a token is transferred away, and a ceiling read off
-    ///      a balance would let one wallet take the whole edition by emptying itself between mints.
+    /// @dev Not `balanceOf`: a balance falls on transfer, so a ceiling read off it would let one wallet
+    ///      take the whole edition by emptying itself between mints.
     mapping(uint256 => mapping(address => uint256)) public editionMintedBy;
 
     uint256 public nextEditionId;
@@ -200,12 +189,11 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     /// @dev INVARIANT: de-curation may destroy value; it may not transfer value to the protocol. No
     ///      `isVaultRegistered`-false branch in this contract routes to `protocolTreasury`.
     event VaultCutReturnedToCreator(address indexed vault, address indexed creator, uint256 amount);
-    /// @notice A vault cut that had been stashed by a failed push was returned to the creator on the
-    ///         retry, because the vault's alignment target was de-curated while it sat.
-    /// @dev Distinct topic from `VaultCutReturnedToCreator`, which the PRIMARY path emits when a cut is
-    ///      returned as it is earned. Both move the same money to the same place, but only one of them
-    ///      is new revenue: a tithe report that saw a single event for both would double-count every
-    ///      cut that was stashed once and returned later. This is the retry.
+    /// @notice A vault cut stashed by a failed push was returned to the creator on retry, because the
+    ///         vault's alignment target was de-curated while it sat.
+    /// @dev Distinct from `VaultCutReturnedToCreator`, which the primary withdraw path emits when a
+    ///      cut is returned as it is earned. Only that one is new revenue; a single shared event would
+    ///      double-count a cut that was stashed once and returned later.
     event PendingVaultCutReturnedToCreator(address indexed vault, address indexed creator, uint256 amount);
 
     event EditionMetadataUpdated(uint256 indexed editionId, string metadataURI);
@@ -214,10 +202,10 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     ///      collection-level ERC-7572 `contractURI` is not a per-id URI and is not a site for this.
     event URI(string value, uint256 indexed id);
     event FreeMintClaimed(address indexed user, uint256 indexed editionId);
-    /// @dev Emitted when an edition's free-mint allocation is set (at creation) or later adjusted.
+    /// @dev Emitted when an edition's free-mint allocation is set, at creation or on adjustment.
     event FreeMintAllocationSet(uint256 indexed editionId, uint256 allocation);
-    /// @dev Emitted when an edition's close time or per-wallet ceiling is set, at creation or on a
-    ///      later reschedule. Always carries both, so one event is the whole schedule.
+    /// @dev Emitted when an edition's close time or per-wallet ceiling is set, at creation or on
+    ///      reschedule. Always carries both, so one event is the whole schedule.
     event EditionScheduleSet(uint256 indexed editionId, uint256 closeTime, uint256 maxPerWallet);
     event ContractURIUpdated();
 
@@ -232,10 +220,10 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     bool private _initialized;
 
     /// @notice Locks the implementation this file deploys directly.
-    /// @dev Collections are EIP-1167 clones of one implementation, and an implementation left
-    ///      uninitialized is anyone's to call `initialize` on and own. Setting the flag in the
-    ///      constructor means the only contract `initialize` can ever run on is a clone, whose
-    ///      storage starts empty and whose constructor never runs.
+    /// @dev Collections are EIP-1167 clones of one implementation, and an uninitialized
+    ///      implementation could be initialized and owned by anyone. Setting the flag in the
+    ///      constructor leaves clones, whose storage starts empty, as the only contracts `initialize`
+    ///      can run on.
     constructor() {
         _initialized = true;
     }
@@ -311,13 +299,10 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     // ── Free mint ─────────────────────────────────────────────────────────────
 
     /// @notice Set the collection-level gating scope. Called by the factory once after construction.
-    /// @dev Free-mint allocation is PER EDITION (noesis-135): it is set at edition creation via
-    ///      `addEdition`'s `freeMintAlloc` argument, or adjusted later via
-    ///      `setEditionFreeMintAllocation`. Editions do not exist at create time, so there is no
-    ///      edition id for a collection-wide allocation to key to and this entry point takes none.
-    ///      `ERC1155Factory` rejects a non-zero `FreeMintParams.allocation` rather than accepting a
-    ///      value it cannot apply. Only the gating `scope` (collection-level, sub-decision 2) is
-    ///      stored here.
+    /// @dev Free-mint allocation is per edition, set by `addEdition`'s `freeMintAlloc` or
+    ///      `setEditionFreeMintAllocation`. Editions do not exist at create time, so only the
+    ///      collection-level gating `scope` is stored here; `ERC1155Factory` rejects a non-zero
+    ///      `FreeMintParams.allocation`.
     function initializeFreeMint(GatingScope scope) external {
         if (msg.sender != factory) revert OnlyFactory();
         if (_freeMintInitialized) revert AlreadyInitialized();
@@ -343,14 +328,11 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
 
         Edition storage edition = editions[editionId];
         if (bytes(edition.pieceTitle).length == 0) revert EditionNotFound();
-        // Enforce the scheduled open time on the free path too. Without this a bot could drain the
-        // free allocation before the public open — the gating block below is skipped entirely when
-        // there is no gating module or the scope is PAID_ONLY, so openTime is the only fair-launch
-        // guard on this path. Mirrors the paid mint() gate.
+        // The open time gates the free path as it does `mint`. The gating block below is skipped
+        // with no gating module or under PAID_ONLY scope, so `openTime` is then the only guard
+        // against draining the allocation before the public open.
         if (edition.openTime != 0 && block.timestamp < edition.openTime) revert EditionNotOpen();
-        // A closed edition takes no claim either. The free allocation is part of the same drop, so it
-        // ends when the drop ends; leaving it open would make "the edition is over" false on the one
-        // path a bot is most likely to be watching.
+        // The free allocation is part of the drop, so it ends when the edition closes.
         uint256 closeTime = editionCloseTime[editionId];
         if (closeTime != 0 && block.timestamp >= closeTime) revert EditionClosed();
         // The per-wallet ceiling spans both paths, so a free claim spends one against it.
@@ -382,8 +364,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     // │   Edition Management    │
     // └─────────────────────────┘
 
-    /// @dev The owner-or-delegated-agent branch every edition-management entry point shares.
-    ///      Extracted so a new entry point cannot drift from the four that were already here.
+    /// @dev The owner-or-delegated-agent check every edition-management entry point shares.
     function _requireOwnerOrAgent() private view {
         if (msg.sender == owner()) return; // Owner always allowed
         // Direct agent call when delegation is on (non-custodial config)
@@ -391,11 +372,9 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         revert Unauthorized();
     }
 
-    /// @dev A close time has to fall after the edition opens, so an edition can never be created or
-    ///      rescheduled into a window that was already over — a drop nobody can mint from, which
-    ///      reads on the collection page as a sold-out piece rather than as a mistake.
-    ///      `openTime == 0` means "open now", so the comparison is against the current block there.
-    ///      `closeTime == 0` is "never closes" and is always allowed.
+    /// @dev A close time must fall after the edition opens, so an edition is never created or
+    ///      rescheduled into a window already over. `openTime == 0` means open now, so the comparison
+    ///      is against the current block there. `closeTime == 0` never closes and is always allowed.
     function _validateSchedule(uint256 openTime, uint256 closeTime) private view {
         if (closeTime == 0) return;
         uint256 opensAt = openTime == 0 ? block.timestamp : openTime;
@@ -411,17 +390,15 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
      * @param pricingModel Pricing model (UNLIMITED, LIMITED_FIXED, LIMITED_DYNAMIC)
      * @param priceIncreaseRate Price increase rate in basis points (for dynamic pricing)
      * @param openTime Unix timestamp; 0 = open immediately
-     * @param freeMintAlloc Per-edition free-mint allocation (0 = no free mints). RESERVE-from-supply
-     *        (noesis-135 sub-decision 1): for a limited edition (supply > 0) it must be <= supply, so
-     *        free claims come OUT of the edition's supply and never inflate it; an unlimited edition
-     *        (supply == 0) accepts any allocation.
+     * @param freeMintAlloc Per-edition free-mint allocation (0 = no free mints). Reserved from supply:
+     *        for a limited edition (supply > 0) it must be <= supply, so free claims come out of the
+     *        edition's supply; an unlimited edition (supply == 0) accepts any allocation.
      * @param closeTime Unix timestamp at which minting stops; 0 = never closes. Must fall after the
-     *        edition opens. With `openTime` this is the timed drop the rest of the field runs.
+     *        edition opens.
      * @param maxPerWallet Most tokens one wallet may mint of this edition, paid and free together;
      *        0 = no ceiling.
-     * @dev The schedule is set in the transaction that creates the edition, so there is no window in
-     *      which the edition is live and unbounded. It stays correctable until the first mint, via
-     *      `setEditionSchedule`.
+     * @dev The schedule is set in the creating transaction, so the edition is never live and
+     *      unbounded. It stays correctable until the first mint via `setEditionSchedule`.
      */
     function addEdition(
         string memory pieceTitle,
@@ -475,8 +452,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
             emit FreeMintAllocationSet(editionId, freeMintAlloc);
         }
 
-        // Written only when there is a schedule to write, so an open-ended edition costs no extra
-        // storage and emits no event claiming a schedule it does not have.
+        // Written only when there is a schedule, so an open-ended edition adds no storage or event.
         if (closeTime > 0 || maxPerWallet > 0) {
             editionCloseTime[editionId] = closeTime;
             editionMaxPerWallet[editionId] = maxPerWallet;
@@ -489,12 +465,10 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
 
     /**
      * @notice Set or clear an edition's close time and per-wallet ceiling, before it has sold.
-     * @dev Editable until the first mint and not after: a collector who has already paid chose a drop
-     *      with a stated end and a stated ceiling, and moving either afterwards would change the deal
-     *      under them. That is the bound the rest of the field holds to (objkt's open-edition listing
-     *      is editable until the first sale). The free-mint allocation deliberately does NOT carry
-     *      this bound (`setEditionFreeMintAllocation`, rth 2026-08-04); a giveaway the creator can
-     *      still widen is not a promise about what a buyer paid for.
+     * @dev Editable until the first mint and not after: a collector who has paid chose a drop with a
+     *      stated end and ceiling, and moving either would change the deal. The free-mint allocation
+     *      carries no such bound (`setEditionFreeMintAllocation`); a giveaway the creator can widen
+     *      is not a promise about what a buyer paid for.
      * @param editionId The edition to reschedule. Must exist and have no mints.
      * @param closeTime Unix timestamp at which minting stops; 0 = never closes.
      * @param maxPerWallet Most tokens one wallet may mint of this edition; 0 = no ceiling.
@@ -514,11 +488,11 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
 
     /**
      * @notice Adjust an edition's free-mint allocation at any time (owner or delegated agent).
-     * @dev Same auth branch as `addEdition`. No lock-at-first-mint — the owner can raise or lower an
-     *      edition's allocation whenever they like (rth 2026-08-04). The RESERVE-from-supply cap still
-     *      holds: for a limited edition the new allocation must be <= supply; an unlimited edition
-     *      (supply == 0) accepts any value. Lowering below `freeMintsClaimed[editionId]` is permitted —
-     *      already-claimed mints stand, and `claimFreeMint` simply stays exhausted until/unless raised.
+     * @dev Same auth as `addEdition`. The allocation can change at any time, including after
+     *      mints. The reserve cap holds: for a limited edition the allocation must be <= supply; an
+     *      unlimited edition (supply == 0) accepts any value. Lowering below
+     *      `freeMintsClaimed[editionId]` is permitted: claimed mints stand and `claimFreeMint` stays
+     *      exhausted until the allocation is raised.
      * @param editionId The edition to adjust. Must exist.
      * @param allocation The new free-mint allocation.
      */
@@ -623,38 +597,32 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         if (edition.openTime != 0) {
             if (block.timestamp < edition.openTime) revert EditionNotOpen();
         }
-        // ... and the close time on the other side of it. Checked before the gating module is
-        // consulted so a closed edition costs a caller nothing and no module sees a mint that cannot
-        // happen (`onMint` is a state-changing call on the gating module).
+        // The close time is checked before the gating module so no module sees a mint that cannot
+        // happen (`onMint` is a state-changing call).
         uint256 closeTime = editionCloseTime[editionId];
         if (closeTime != 0 && block.timestamp >= closeTime) revert EditionClosed();
 
-        // Per-wallet ceiling, counted off tokens this wallet MINTED rather than what it still holds,
-        // and spanning the free path too — see `editionMintedBy`.
+        // Per-wallet ceiling, counted off tokens minted (paid and free), see `editionMintedBy`.
         uint256 maxPerWallet = editionMaxPerWallet[editionId];
         if (maxPerWallet != 0 && editionMintedBy[editionId][msg.sender] + amount > maxPerWallet) {
             revert ExceedsWalletLimit();
         }
 
-        // Gating check — forwards authoritative editionId + edition openTime; gatingData carries the
-        // raw module payload (no password-shaped wrap, so a bytes32[] merkle proof fits).
-        // FREE_MINT_ONLY intentionally leaves paid buys open (gates free-mint claims only), mirroring
-        // the ERC404 buyBonding guard and IGatingModule's GatingScope doc. Any other scope gates the
-        // paid buy — closing the bypass where a Merkle-gated collection's paid mint slipped through.
+        // Gating check: forwards the authoritative editionId and openTime; gatingData is the raw
+        // module payload. FREE_MINT_ONLY leaves paid buys open (it gates free-mint claims only),
+        // as in the ERC404 buyBonding guard and IGatingModule's GatingScope doc; any other scope
+        // gates the paid buy.
         if (address(gatingModule) != address(0) && gatingScope != GatingScope.FREE_MINT_ONLY) {
             (bool allowed,) = gatingModule.canMint(msg.sender, editionId, amount, edition.openTime, gatingData);
             if (!allowed) revert GatingCheckFailed();
             gatingModule.onMint(msg.sender, editionId, amount);
         }
 
-        // Check supply limits. Withhold the still-unclaimed free-mint reserve from the paid supply so
-        // every promised, unclaimed free claim always has supply behind it — the RESERVE-from-supply
-        // contract the allocation docstrings state (noesis-135 sub-decision 1), which the paid path did
-        // not previously honor. `freeMintAllocation` can be lowered below `freeMintsClaimed` at any time
-        // (setEditionFreeMintAllocation, no lock-at-first-mint), so clamp the reserve at zero. The
-        // reserve can never exceed supply: addEdition and setEditionFreeMintAllocation cap the allocation
-        // at supply for a limited edition, so `minted + amount + reserve` gates paid mints exactly to the
-        // non-reserved remaining supply without a subtraction that could underflow.
+        // Supply limit. The unclaimed free-mint reserve is withheld from paid supply so every
+        // unclaimed free claim has supply behind it. `freeMintAllocation` can be lowered below
+        // `freeMintsClaimed`, so the reserve is clamped at zero. The allocation is capped at supply
+        // for a limited edition, so `minted + amount + reserve` gates paid mints to the non-reserved
+        // remaining supply without an underflowing subtraction.
         if (edition.pricingModel != PricingModel.UNLIMITED) {
             uint256 claimed = freeMintsClaimed[editionId];
             uint256 alloc = freeMintAllocation[editionId];
@@ -673,11 +641,9 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         balanceOf[msg.sender][editionId] += amount;
         totalProceeds += totalCost;
 
-        // Forward message to global registry
-        // Revocation must not brick the trade. `postForAction` refuses a caller the registry no longer
-        // approves, and `revokeInstance` is exactly that flip, so a bare call here would revert a
-        // commented mint that still succeeds uncommented. Pre-checking only that one read keeps the skip
-        // narrow: every other reason `postForAction` can revert still reverts the mint.
+        // Forward message to global registry. `postForAction` refuses a caller the registry no longer
+        // approves (`revokeInstance` flips that), so revocation must not brick the mint: only that one
+        // condition is skipped, and every other `postForAction` revert still reverts the mint.
         if (messageData.length > 0 && masterRegistry.isInstanceFromApprovedFactory(address(this))) {
             globalMessageRegistry.postForAction(msg.sender, address(this), messageData);
         }
@@ -707,42 +673,35 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         if (amount > totalProceeds - totalWithdrawn) revert InsufficientBalance();
         totalWithdrawn += amount;
 
-        // The mint split is family-blind: 1% protocol / 19% vault / 80% creator, whatever the vault is.
-        // The family read stays, and only as a deploy-config guard — an unrecognized `vaultType()` on the
-        // PINNED genesis vault (never the live `vault`, audit finding #2) still reverts
-        // `UnknownVaultFamily` rather than settling against a vault nobody classified.
+        // The split is family-blind: 1% protocol / 19% vault / 80% creator. The family read is a
+        // guard only: an unrecognized `vaultType()` on the pinned genesis vault (never the live
+        // `vault`) reverts `UnknownVaultFamily` rather than settling against an unclassified vault.
         RevenueSplitLib.isLiquidityFamily(IAlignmentVault(payable(genesisVault)).vaultType());
         RevenueSplitLib.Split memory s = RevenueSplitLib.split(amount);
 
-        // Protocol cut to treasury. Use smartTransferETH (WETH fallback) so a reverting/non-receiving
-        // treasury cannot brick withdraw — consistent with the try/catch vault-cut path below and the
-        // artist remainder payout. No pending-retry lane: the treasury is trusted and the 1% cut is small.
+        // Protocol cut to treasury via smartTransferETH (WETH fallback), so a reverting treasury
+        // cannot brick withdraw. The treasury is trusted, so there is no pending-retry lane.
         if (s.protocolCut > 0 && protocolTreasury != address(0)) {
             SmartTransferLib.smartTransferETH(protocolTreasury, s.protocolCut, weth);
         }
 
         // Vault cut — tracks this instance as benefactor.
-        // De-curation gate (noesis-113/noesis-435): if the vault's alignment target was revoked AFTER this
-        // instance bound (a rug discovered post-hoc), `isVaultRegistered` now reads false. Fold the
-        // community cut into the creator's remainder instead of feeding the de-curated vault.
-        // INVARIANT: de-curation may destroy value; it may not transfer value to the protocol. Losing the
-        // ability to pay a community is a consequence of curation; gaining their revenue is a conflict of
-        // interest, so this branch must never route to `protocolTreasury`. A creator betrayed by the
-        // community they aligned to gets their alignment share back — restitution, not windfall. The
-        // mint/withdraw still succeeds either way (never freeze the creator for the DAO's revocation), and
-        // the fold moves whatever `vaultCut` resolved to for this family, never a hardcoded 19%. For an
-        // active target, keep the existing try/catch + pendingVaultCut retry path (a vault revert is a
-        // transient upgrade issue, not curation).
+        // De-curation gate: if the vault's alignment target was revoked after this instance bound,
+        // `isVaultRegistered` reads false and the community cut folds into the creator's remainder
+        // instead of feeding the de-curated vault.
+        // INVARIANT: de-curation may destroy value; it may not transfer value to the protocol.
+        // Gaining a de-curated community's revenue is a conflict of interest, so this branch never
+        // routes to `protocolTreasury`. Withdraw succeeds either way, and the fold moves `s.vaultCut`
+        // as computed, not a fixed 19%. For an active target a vault revert is a transient issue,
+        // not curation, and takes the try/catch + `pendingVaultCut` retry path.
         uint256 vaultCutSent;
         if (s.vaultCut > 0) {
             if (!masterRegistry.isVaultRegistered(address(vault))) {
-                // Folded into the remainder below, which is paid with the same brick-proof
-                // smartTransferETH the creator leg already uses.
+                // Folded into the remainder, paid below via smartTransferETH.
                 s.remainder += s.vaultCut;
                 emit VaultCutReturnedToCreator(address(vault), owner(), s.vaultCut);
             } else {
-                // If the vault reverts (e.g. broken upgrade), accumulate for retry rather than
-                // blocking creator proceeds permanently.
+                // A reverting vault accumulates for retry instead of blocking creator proceeds.
                 try vault.receiveContribution{ value: s.vaultCut }(
                     Currency.wrap(address(0)), s.vaultCut, address(this)
                 ) {
@@ -768,10 +727,9 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         uint256 pending = pendingVaultCut;
         if (pending == 0) revert NoPendingVaultCut();
         pendingVaultCut = 0;
-        // De-curation gate (noesis-126/noesis-435): if the vault's alignment target was revoked while this
-        // cut was stashed, do not force-feed the de-curated vault on retry — return the cut to the creator,
-        // mirroring the `withdraw` primary path. The stashed cut is the same money as a fresh one and must
-        // not survive as a treasury path. For an active target, re-send to the vault as before.
+        // De-curation gate: if the alignment target was revoked while the cut was stashed, the cut
+        // returns to the creator as in `withdraw`, never to the treasury. Otherwise it is re-sent
+        // to the vault.
         if (!masterRegistry.isVaultRegistered(address(vault))) {
             SmartTransferLib.smartTransferETH(owner(), pending, weth);
             emit PendingVaultCutReturnedToCreator(address(vault), owner(), pending);
@@ -786,23 +744,18 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
      * @dev Only callable by the project creator
      *      This instance was registered as the benefactor when tithes were sent to the vault
      *      The creator calls this to claim fees and keep the rewards
-     * @dev Fee claiming uses intentional "dragnet" pattern. Vault contributions
-     *      (via withdraw tithe) go to pendingETH and only convert to benefactorShares
-     *      when convertAndAddLiquidity() is called. Creators must wait for conversion
-     *      before claiming fees. Frontend handles dragnet activation to ensure
-     *      contributions are included in conversions.
+     * @dev Vault contributions (via the withdraw tithe) go to pendingETH and convert to
+     *      benefactorShares only when convertAndAddLiquidity() is called, so fees are claimable only
+     *      after a conversion.
      * @return totalClaimed Amount of ETH claimed from vault
      */
     function claimVaultFees() external onlyOwner nonReentrant returns (uint256 totalClaimed) {
-        // Vaults pay the benefactor by pushing ETH (payable(recipient).call{value}("")); receive()
-        // is what lets that push land here. Measure the amount by balance-delta rather than trusting
-        // the vault's return value — the ETH is custodied here first, then forwarded to the owner.
+        // Vaults push ETH to the benefactor, landing via receive(). The amount is the balance delta,
+        // not the vault's return value; the ETH is held here first, then forwarded to the owner.
         uint256 before = address(this).balance;
-        // Call vault's claimFees, which uses msg.sender (this contract) as the benefactor
         vault.claimFees();
         totalClaimed = address(this).balance - before;
 
-        // Route all claimed fees to the owner
         if (totalClaimed == 0) revert NoFeesToClaim();
         SmartTransferLib.smartTransferETH(owner(), totalClaimed, weth);
     }
@@ -815,10 +768,10 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     }
 
     /// @notice Claim accumulated fees from all vault positions (current and historical).
-    /// @dev Vaults push claimed ETH to this instance (received via receive()); the net amount pushed
-    ///      across every vault is measured by balance-delta and forwarded to the owner. Each
-    ///      claimFees() is wrapped in try/catch so one vault that intentionally reverts (e.g. the
-    ///      AlignmentEndowmentVault's NotSupported()) can't brick fee delivery for the rest.
+    /// @dev Vaults push claimed ETH to this instance via receive(); the net amount across every vault
+    ///      is the balance delta and is forwarded to the owner. Each claimFees() is wrapped in
+    ///      try/catch so a vault that reverts (e.g. AlignmentEndowmentVault's NotSupported()) cannot
+    ///      block fee delivery from the rest.
     // slither-disable-next-line calls-loop,unused-return
     function claimAllFees() external onlyOwner nonReentrant {
         uint256 before = address(this).balance;
@@ -887,9 +840,8 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
 
     /**
      * @notice Balances for a set of (account, id) pairs.
-     * @dev ERC-1155 required member. Reads the same `balanceOf` mapping as the per-id getter; no
-     *      additional storage. Reverts `LengthMismatch` when the arrays differ in length, as the
-     *      standard requires.
+     * @dev ERC-1155 required member. Reads the `balanceOf` mapping; reverts `LengthMismatch` when
+     *      the arrays differ in length, as the standard requires.
      */
     function balanceOfBatch(address[] memory accounts, uint256[] memory ids)
         external
@@ -906,9 +858,8 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     /**
      * @notice ERC-165 interface detection.
      * @dev Answers for ERC-165 (`0x01ffc9a7`), ERC-1155 (`0xd9b67a26`) and ERC-1155 metadata URI
-     *      (`0x0e89341c`), and returns `false` — never reverts — for anything else, including
-     *      `0xffffffff`. Consumers that probe before deciding what a contract is (marketplaces,
-     *      indexers, wallets) depend on both halves of that.
+     *      (`0x0e89341c`), and returns `false`, never reverting, for anything else including
+     *      `0xffffffff`, as ERC-165 probes require.
      */
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
         return
@@ -923,9 +874,8 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
 
     /**
      * @notice ERC-1155 metadata URI for an edition.
-     * @dev Returns `editions[id].metadataURI` — the same field `getEdition` exposes, so there is one
-     *      source of truth for an edition's URI. An id that does not exist answers with the empty
-     *      string rather than reverting, so a metadata probe on an uncreated edition is a plain miss.
+     * @dev Returns `editions[id].metadataURI`, the field `getEdition` exposes. An id that does not
+     *      exist answers with the empty string rather than reverting.
      */
     function uri(uint256 id) external view returns (string memory) {
         return editions[id].metadataURI;

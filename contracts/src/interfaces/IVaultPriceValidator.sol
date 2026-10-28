@@ -28,8 +28,7 @@ interface IVaultPriceValidator {
     ///      The numeraire ordering is NOT assumed — the caller passes `ethIsCurrency0` for its own pool.
     ///      A V4 native-ETH pool has ETH = currency0 (address(0) sorts first), so its caller passes `true`.
     ///      An ERC20/ERC20 pool is ordered by WNativeToken-vs-token address, so its caller
-    ///      passes `weth < token` (which is `false` when the alignment token sorts below WETH — a real,
-    ///      supported ordering). Passing the wrong flag inverts the price direction and mis-sizes the swap,
+    ///      passes `weth < token` (`false` when the alignment token sorts below WETH). Passing the wrong flag inverts the price direction and mis-sizes the swap,
     ///      so the ordering MUST reflect the pool that produced `sqrtPriceX96`.
     /// @param token Alignment token address (used to resolve the V3 TWAP cross-check pool)
     /// @param tickLower Vault's current LP position lower tick
@@ -48,13 +47,12 @@ interface IVaultPriceValidator {
     /// @notice Quote the ETH value of `amount` of `token` from ONE pinned canonical pool's TWAP.
     /// @dev Reads the pinned `pool`'s time-weighted mean tick over `window` seconds and converts it to
     ///      ETH using canonical mean-tick fixed-point math. This NEVER returns 0 as a fail-open: if the
-    ///      pinned pool cannot produce a usable TWAP,
-    ///      it reverts (`ReferenceTwapUnavailable`). Callers are expected to supply a registry-guaranteed
-    ///      usable pool (the DoS-vs-fail-open tradeoff is intentional). The validator does not read the
+    ///      pinned pool cannot produce a usable TWAP, it reverts (`ReferenceTwapUnavailable`); reverting
+    ///      over failing open is the chosen tradeoff. Callers supply a registry-guaranteed usable pool. The validator does not read the
     ///      registry itself — the caller resolves the canonical `ReferencePool` and passes its params in.
     /// @param pool Pinned canonical pool to read the TWAP from (WETH/`token`, either token ordering)
-    /// @param kind Pool family: 0 = Uniswap V3 (`observe`), the only value accepted today. Carried so a
-    ///             second oracle family can be added without moving this signature; anything else reverts
+    /// @param kind Pool family: 0 = Uniswap V3 (`observe`), the only accepted value; anything else reverts.
+    ///             Carried so another oracle family can be added without moving this signature
     /// @param window TWAP lookback in seconds; 0 uses the validator's configured `twapSecondsAgo`
     /// @param token Token to price (the non-WETH leg of `pool`)
     /// @param amount Amount of `token` to value in ETH

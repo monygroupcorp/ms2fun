@@ -7,14 +7,12 @@ import { MasterRegistryV1 } from "../src/master/MasterRegistryV1.sol";
 /// @notice Upgrades the MasterRegistryV1 proxy of an EXISTING deployment to a freshly deployed
 ///         implementation, and optionally deactivates a superseded factory and revokes an instance.
 ///
-///         The proxy address comes from the deployment record `DeploySepolia` wrote — it is not
-///         pinned here, because a CREATE3 proxy address is a function of the salt set in use and a
-///         redeploy runs a fresh salt set (a salt is single-use per deployer: CreateX reverts
-///         `CreateCollision` once its proxy address carries code).
+///         The proxy address is read from the deployment record `DeploySepolia` wrote, because a
+///         CREATE3 proxy address depends on the salt set in use and a salt is single-use per
+///         deployer (CreateX reverts `CreateCollision` once its proxy address carries code).
 ///
-///         The two clean-up targets are per-run inputs rather than constants, because which factory
-///         is superseded and which instance is being revoked differ on every run. Both are optional:
-///         unset (or the zero address) skips that step.
+///         The two clean-up targets are per-run inputs, since the superseded factory and the
+///         revoked instance differ each run. Unset or the zero address skips that step.
 ///
 ///         Run with:
 ///         OLD_ERC404_FACTORY=0x... REVOKE_INSTANCE=0x... \

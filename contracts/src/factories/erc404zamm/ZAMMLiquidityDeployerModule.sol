@@ -55,9 +55,9 @@ interface IZAMM {
  *      bonding reserve). Graduation liquidity is locked by design, not by the mere absence of a caller.
  *      Do NOT add any path that transfers, burns, or withdraws these LP shares. Pinned by test
  *      (`test/factories/LpLockInvariant.t.sol`).
- *      The ZAMM-graduated pool is UNTAXED post-graduation: `feeOrHook` is wired as a plain LP fee with
- *      no alignment hook. The perpetual swap tithe to the vault exists ONLY on the Uni V4 venue, by
- *      design (seeding depth off Uniswap is itself the alignment service). See docs/phases/vault-flavors.md.
+ *      The ZAMM-graduated pool is untaxed post-graduation: `feeOrHook` is wired as a plain LP fee with
+ *      no alignment hook. The perpetual swap tithe to the vault exists only on the Uni V4 venue
+ *      (seeding depth off Uniswap is itself the alignment service). See docs/phases/vault-flavors.md.
  */
 contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     error ETHMismatch();
@@ -73,9 +73,9 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     error NoUnconsumedCoin();
 
     /// @notice Max deviation (bps) tolerated between an already-seeded pool's reserve ratio and the
-    ///         intended graduation ratio. 100 bps (1%) mirrors the 99/100 LP-min-slippage convention
-    ///         already used in this module. A larger gap means the pool was seeded by a front-runner
-    ///         at a skewed price — we revert (retryable) rather than add liquidity into it.
+    ///         intended graduation ratio. 100 bps (1%) matches the 99/100 LP-min-slippage convention
+    ///         of this module. A larger gap means the pool was seeded by a front-runner at a skewed
+    ///         price, so graduation reverts (retryable) rather than add liquidity into it.
     uint256 public constant MAX_INIT_PRICE_DEVIATION_BPS = 100;
 
     address public immutable zamm;
@@ -87,9 +87,8 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     /// @dev A graduation vault cut that could not be delivered (the vault reverted on receiveContribution).
     ///      The ETH is retained in this module and re-sendable via flushPendingVaultCut. Keyed by instance
     ///      because this deployer is a singleton shared across every ERC404 graduation; the bound vault is
-    ///      stored alongside the amount so a retry can only ever re-send to that same vault (no redirect
-    ///      surface). Mirrors the ERC1155/721 pendingVaultCut stash, held on the module (which already
-    ///      custodies the graduation ETH).
+    ///      stored alongside the amount so a retry can only re-send to that same vault. Held on the
+    ///      module, which already custodies the graduation ETH.
     /// @dev INVARIANT: the sum of every pendingVaultCut[*].amount is <= address(this).balance.
     struct PendingCut {
         address vault;
@@ -124,16 +123,15 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     event LiquidityDeployed(address indexed zamm, address token0, address token1, uint256 liquidity);
     event GraduationFeePaid(address indexed treasury, uint256 amount);
     event GraduationVaultContribution(address indexed vault, uint256 amount);
-    /// @notice The creator's own carve. `requested` is `p.carveEth` — what the creator asked for, on the
-    ///         axis the collection's declared allowance is measured on — and never includes any other
-    ///         diverted leg.
+    /// @notice The creator's own carve. `requested` is `p.carveEth`, the amount the creator asked for,
+    ///         and never includes any other diverted leg.
     event CreatorCarvePaid(address indexed instance, address indexed creator, uint256 requested, uint256 paid);
     /// @notice LP-share ETH the caller's parity clamp could not place at the pool price, tithed 80/19/1 on
     ///         the same rail as the carve. Mirrors the instance's `GraduationEthDiverted.excessEth`.
     event GraduationExcessTithed(address indexed instance, uint256 amount);
     /// @notice A graduation vault cut could not be delivered and was stashed for retry.
     event VaultContributionFailed(address indexed vault, address indexed instance, uint256 amount);
-    /// @notice A previously-stashed graduation vault cut was successfully re-delivered.
+    /// @notice A stashed graduation vault cut was re-delivered.
     event VaultContributionRetried(address indexed vault, address indexed instance, uint256 amount);
     /// @notice The vault's alignment target was de-curated (`isVaultRegistered` false); the graduation
     ///         community cut was returned to the creator instead of feeding the de-curated vault.
@@ -143,9 +141,8 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     /// @notice A stashed vault cut was returned to the instance's creator on the retry, because the
     ///         vault's alignment target was de-curated while the cut sat pending.
     /// @dev Distinct topic from `VaultCutReturnedToCreator`, which the graduation path emits when a cut
-    ///      is returned as it is earned. Both move the same money to the same place, but only one of
-    ///      them is new revenue: a tithe report that saw a single event for both would double-count
-    ///      every cut that was stashed once and returned later. This is the retry.
+    ///      is returned as it is earned. Only one of them is new revenue, so a tithe report seeing a
+    ///      single event for both would double-count every cut that was stashed once and returned later.
     event PendingVaultCutReturnedToCreator(address indexed vault, address indexed creator, uint256 amount);
     /// @notice The LP capital ZAMM did not take, and where it went. `ethTithed` joined the 80/19/1 rail
     ///         as a second `excessEth` leg; `ethReturned` and `coinReturned` went back to the graduating
@@ -153,19 +150,15 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     /// @dev Both are zero on an ordinary graduation into a fresh pool, and non-zero only when the pool
     ///      was already seeded at a reserve ratio inside `MAX_INIT_PRICE_DEVIATION_BPS` but not at the
     ///      graduation ratio, which is the only case where `addLiquidity` caps a leg.
-    /// @dev `ethTithed` is its OWN leg on the rail, beside `CreatorCarvePaid` and
-    ///      `GraduationExcessTithed`, and the three sum to the graduation's whole diverted total. It is
-    ///      reported here rather than inside `GraduationExcessTithed` because it is the one leg the
-    ///      graduating instance cannot compute: the instance knows what its parity clamp could not
-    ///      place, and only this module learns what the venue then declined.
+    /// @dev `ethTithed` is its own leg on the rail, beside `CreatorCarvePaid` and
+    ///      `GraduationExcessTithed`; the three sum to the graduation's whole diverted total. It is
+    ///      reported here because only this module learns what the venue declined; the instance knows
+    ///      only what its parity clamp could not place.
     /// @dev `ethTithed` and `ethReturned` are the same ETH under the two destinations it can have, and
-    ///      never both non-zero: with a creator the residue rides the rail, and with none — a renounced
-    ///      launch — it is force-transferred to the instance beside the coin. Both are zero when the
-    ///      venue took the whole ETH leg and declined only coin. They are reported apart rather than as one figure because only the tithed leg is
-    ///      revenue: a report summing the ETH a graduation diverted must add `ethTithed` and must NOT
-    ///      add `ethReturned`, which was never levied on anyone. Splitting them is also what makes the
-    ///      returned leg readable at all — it used to be reported nowhere, and where a renounced
-    ///      launch's LP capital went could only be recovered from a balance.
+    ///      never both non-zero: with a creator the residue rides the rail, and with none (a renounced
+    ///      launch) it is force-transferred to the instance beside the coin. Both are zero when the
+    ///      venue took the whole ETH leg and declined only coin. Only the tithed leg is revenue: a
+    ///      report summing the ETH a graduation diverted adds `ethTithed` and not `ethReturned`.
     event GraduationResidueReturned(
         address indexed instance, uint256 ethTithed, uint256 ethReturned, uint256 coinReturned
     );
@@ -179,21 +172,18 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
      */
     // slither-disable-next-line reentrancy-events
     function deployLiquidity(DeployParams calldata p) external payable override {
-        // Strict caller guard: only a genuine, registered ERC404 instance acting as itself may
-        // deploy liquidity. For ERC404, instance == token, and the instance is the msg.sender at
-        // graduation. Blocks arbitrary callers passing a crafted DeployParams.
+        // Only a registered ERC404 instance acting as itself may deploy liquidity (instance == token,
+        // and the instance is msg.sender at graduation), so a crafted DeployParams is refused.
         if (msg.sender != p.instance || !masterRegistry.isRegisteredInstance(msg.sender)) {
             revert UnauthorizedCaller();
         }
         if (msg.value != p.ethReserve) revert ETHMismatch();
 
-        // Name this venue's coin counterparty to the graduating instance BEFORE any coin moves. ZAMM is
-        // a singleton AMM: `addLiquidity` pulls the pool's coin side out of this module and into
-        // `zamm`, which then holds it for the life of the market. An ERC404 instance mints one NFT id
-        // per `unit` to an unflagged recipient, so without this the AMM takes delivery of the whole
-        // coin side in ids and re-mints them on the sell side of every later swap. The call is hard,
-        // not fail-soft: an instance that cannot be told is one whose pool would silently take that
-        // delivery.
+        // Name `zamm` to the graduating instance before any coin moves. `addLiquidity` pulls the
+        // pool's coin side into `zamm`, which holds it for the life of the market. An ERC404 mints one
+        // NFT id per `unit` to an unflagged recipient, so without this the AMM takes the whole coin
+        // side in ids and re-mints them on every sell. The call is hard, not fail-soft: an instance
+        // that cannot be told is one whose pool would take that delivery.
         IGraduationSkipNFTTarget(p.instance).markGraduationSkipNFT(zamm);
 
         PoolResult memory r = _deployPool(p);
@@ -201,28 +191,26 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
         _payFees(p, r);
     }
 
-    /// @dev Give the LP capital ZAMM did not take an owner, in the same transaction that discovers it.
-    ///      This module is a SINGLETON shared by every ERC404 graduation on this venue, so anything
-    ///      left here is not merely locked, it is unattributable: it mixes with the next collection's
-    ///      money and with the `pendingVaultCut` stash. Two destinations, neither of them new:
+    /// @dev Gives the LP capital ZAMM did not take an owner in the same transaction that finds it.
+    ///      The module is a singleton shared by every ERC404 graduation on this venue, so anything left
+    ///      here is unattributable: it mixes with the next collection's money and the `pendingVaultCut`
+    ///      stash.
     ///
-    ///        * ETH joins the 80/19/1 rail as a second `excessEth` leg — the same treatment the
-    ///          instance already gives LP-share ETH its own parity clamp could not place
-    ///          (`ERC404BondingOps.deployLiquidity`, noesis-188). `_titheResidue` re-runs the split
-    ///          with the residue folded into the diverted legs, so the figures `_payFees` pays out are
-    ///          the ones that account for it.
-    ///        * Coin goes back to the graduating instance, which is the only address with any claim on
-    ///          it. The instance's own skipNFT is set at `_initializeDN404`, so this mints it no ids.
-    ///          The leftover allowance is zeroed with it: coin this module no longer holds must not
-    ///          stay spendable by the AMM.
+    ///        * ETH joins the 80/19/1 rail as a second `excessEth` leg, like the LP-share ETH the
+    ///          instance's own parity clamp could not place (`ERC404BondingOps.deployLiquidity`).
+    ///          `_titheResidue` re-runs the split with the residue folded into the diverted legs, so
+    ///          the figures `_payFees` pays out account for it.
+    ///        * Coin goes back to the graduating instance, the only address with a claim on it. The
+    ///          instance's skipNFT is set at `_initializeDN404`, so this mints it no ids. The leftover
+    ///          allowance is zeroed with it: coin this module no longer holds must not stay spendable
+    ///          by the AMM.
     ///
-    ///      NO REMOVAL PATH IS ADDED. The LP shares are the instance's and are untouched; this moves
-    ///      only what never entered the pool. `test/factories/LpLockInvariant.t.sol` pins that
-    ///      distinction by probing for removal-shaped selectors, and it still finds none.
+    ///      This is not a removal path. The LP shares are the instance's and are untouched; only what
+    ///      never entered the pool moves. `test/factories/LpLockInvariant.t.sol` pins that by probing
+    ///      for removal-shaped selectors.
     ///
     ///      With no creator the rail has no 80 leg to pay, so the ETH follows the coin to the instance
-    ///      rather than staying in the singleton — a strictly better home than this contract, and
-    ///      deliberately not a policy decision about what a renounced launch is owed (that is L-11).
+    ///      rather than staying in the singleton.
     function _returnResidue(ILiquidityDeployerModule.DeployParams calldata p, PoolResult memory r) private {
         uint256 ethResidue = r.ethForPool - r.ethUsed;
         uint256 coinResidue = p.tokenReserve - r.coinUsed;
@@ -244,16 +232,15 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
                 p.instance, renounced ? 0 : ethResidue, renounced ? ethResidue : 0, coinResidue
             );
         }
-        // From here on `r` describes the pool as it IS, not as it was sized. `_titheResidue` already
-        // lands `ethForPool` on this value; the no-creator branch has to be told.
+        // `r` describes the pool as delivered, not as sized. `_titheResidue` already lands
+        // `ethForPool` on this value; the no-creator branch does not.
         r.ethForPool = r.ethUsed;
     }
 
-    /// @dev Re-run the graduation split with `residueEth` added to the diverted legs, so every figure
-    ///      `_payFees` pays is computed against the ETH the pool actually took. The residue rides the
-    ///      rail rather than being paid out whole because it IS LP-share ETH: the 1% and 19% legs are
-    ///      levied on the full raise and the 80 is the creator's, and none of that changes because a
-    ///      front-runner moved the pool's reserve ratio.
+    /// @dev Re-runs the graduation split with `residueEth` added to the diverted legs, so every figure
+    ///      `_payFees` pays is computed against the ETH the pool took. The residue rides the rail
+    ///      because it is LP-share ETH: the 1% and 19% legs are levied on the full raise and the 80 is
+    ///      the creator's, whatever reserve ratio the pool was seeded at.
     function _titheResidue(ILiquidityDeployerModule.DeployParams calldata p, PoolResult memory r, uint256 residueEth)
         private
         pure
@@ -269,21 +256,16 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     }
 
     /// @notice Send an instance's coin sitting in this module back to that instance.
-    /// @dev The backstop behind `_returnResidue`, for coin a venue leaves here by a route the
-    ///      in-transaction return does not see. It is deliberately the COIN leg only, and deliberately
-    ///      has no destination parameter:
+    /// @dev Backstop behind `_returnResidue` for coin a venue leaves here by a route the in-transaction
+    ///      return does not see. Coin only, with no destination parameter:
     ///
-    ///        * PERMISSIONLESS AND UNDIRECTED. The destination is the argument's own identity — for
-    ///          ERC404 the instance IS the token, so `instance`'s coin can only ever go to `instance`.
-    ///          There is nothing for a caller to choose and so nothing for an owner to be trusted
-    ///          with; it is not the owner sweep the audit warns about, which is why it is not one.
-    ///        * NO ETH. An ETH sweep on this module would be a genuine new trust surface: the module
-    ///          custodies live graduation ETH and the `pendingVaultCut` stash, whose invariant is that
-    ///          the sum of every pending amount is covered by this balance. ETH residue is routed in
-    ///          transaction instead, and no path here moves ETH that is not owed to a named payee.
-    ///        * NOT A REMOVAL PATH. The graduation LP shares are ERC-6909 balances held by the
-    ///          instance inside ZAMM, not a coin balance here, so this cannot reach them. Pinned by
-    ///          `LpLockInvariant.t.sol`.
+    ///        * Permissionless and undirected. For ERC404 the instance is the token, so `instance`'s
+    ///          coin can only go to `instance`; a caller chooses nothing, so no owner is trusted.
+    ///        * No ETH. The module custodies live graduation ETH and the `pendingVaultCut` stash,
+    ///          whose invariant is that the sum of every pending amount is covered by this balance.
+    ///          ETH residue is routed in transaction instead.
+    ///        * Not a removal path. The graduation LP shares are ERC-6909 balances held by the
+    ///          instance inside ZAMM, not a coin balance here. Pinned by `LpLockInvariant.t.sol`.
     /// @param instance The graduated ERC404 instance, which is also its own token.
     function sweepUnconsumedCoin(address instance) external {
         uint256 amount = SafeTransferLib.balanceOf(instance, address(this));
@@ -295,10 +277,9 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     // slither-disable-next-line arbitrary-send-eth,unused-return
     function _deployPool(ILiquidityDeployerModule.DeployParams calldata p) private returns (PoolResult memory r) {
         // 1/19/80 split of the raise + the tithed diversions (80/19/1) out of the LP 80. Both diverted
-        // legs — the creator's carve and the caller's unplaceable parity residue — ride the same rail, so
-        // the split's input is their sum and every downstream figure is independent of how the caller
-        // apportioned them. The instance resolves the effective carve; splitGraduation re-clamps to the
-        // LP share.
+        // legs (the creator's carve and the caller's unplaceable parity residue) ride the same rail,
+        // so the split's input is their sum. The instance resolves the effective carve;
+        // splitGraduation re-clamps to the LP share.
         uint256 carve = p.creator == address(0) ? 0 : p.carveEth + p.excessEth;
         RevenueSplitLib.GraduationSplit memory g = RevenueSplitLib.splitGraduation(p.ethReserve, carve, 0);
         r.protocolFee = g.protocolCut;
@@ -322,16 +303,15 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
         uint256 a1 = r.ethIsToken0 ? p.tokenReserve : r.ethForPool;
 
         // Front-run-safe: a fresh pool (zero reserves) is created at our ratio by addLiquidity. If an
-        // attacker pre-seeded the pool, addLiquidity would silently deposit at THEIR ratio — accept it
-        // only if the existing reserve ratio is within tolerance of our intended a1/a0, else revert
-        // (retryable) rather than provide liquidity at an attacker-chosen price.
+        // attacker pre-seeded the pool, addLiquidity would deposit at their ratio, so it is accepted
+        // only within tolerance of our intended a1/a0, else this reverts (retryable).
         _requireReserveRatioWithinTolerance(uint256(keccak256(abi.encode(zammKey))), a0, a1);
 
         uint256 a0Min = a0 * 99 / 100; // 1% slippage tolerance
         uint256 a1Min = a1 * 99 / 100;
-        // KEEP THE RETURN VALUES. `addLiquidity` caps both legs at the pool's live reserve ratio and
-        // refunds the ETH remainder to msg.sender — this module — so discarding `(amount0, amount1)`
-        // was the module never even observing what its own venue had handed back.
+        // The return values are kept: `addLiquidity` caps both legs at the pool's live reserve ratio and
+        // refunds the ETH remainder to msg.sender (this module), so `(amount0, amount1)` is what the
+        // venue actually took.
         uint256 used0;
         uint256 used1;
         (used0, used1, r.liquidity) =
@@ -346,22 +326,16 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
             SafeTransferLib.safeTransferETH(p.protocolTreasury, r.protocolFee);
             emit GraduationFeePaid(p.protocolTreasury, r.protocolFee);
         }
-        // 19% of raise (+ 19% of carve) → alignment vault. Isolate the send: a reverting vault (cut below
-        // MIN_CONTRIBUTION, participant cap, a broken upgrade) must NOT brick graduation. On failure the
-        // r.vaultCut ETH is retained in this module and stashed as pendingVaultCut[p.instance] for later
-        // delivery via flushPendingVaultCut — mirroring the ERC1155/721 try/catch + pending-cut retry.
-        // Graduation completes; the tithe is deferred, not lost.
+        // 19% of raise (+ 19% of carve) → alignment vault. The send is isolated: a reverting vault (cut
+        // below MIN_CONTRIBUTION, participant cap, a broken upgrade) must not brick graduation. On
+        // failure the r.vaultCut ETH stays in this module, stashed as pendingVaultCut[p.instance] for
+        // delivery via flushPendingVaultCut.
         if (r.vaultCut > 0 && p.vault != address(0)) {
-            // De-curation gate (noesis-126/noesis-435): if the alignment target was revoked
-            // (`isVaultRegistered` false), fold the community cut into the creator leg instead of feeding
-            // the de-curated vault — mirroring the ERC1155/721 primary paths.
-            // INVARIANT: de-curation may destroy value; it may not transfer value to the protocol. Losing
-            // the ability to pay a community is a consequence of curation; gaining their revenue is a
-            // conflict of interest, so this branch must never route to `protocolTreasury`. A creator
-            // betrayed by the community they aligned to gets their alignment share back — restitution, not
-            // windfall. The fold moves whatever `vaultCut` resolved to, never a hardcoded 19%, and the
-            // creator leg below force-transfers so the brick-proof property of this leg survives the fold.
-            // For an active target, keep the try/catch + stash retry.
+            // De-curation gate: if the alignment target was revoked (`isVaultRegistered` false), the
+            // community cut folds into the creator leg instead of feeding the de-curated vault.
+            // INVARIANT: de-curation may destroy value; it may not transfer value to the protocol, so
+            // this branch never routes to `protocolTreasury`. The fold moves whatever `vaultCut`
+            // resolved to, and the creator leg below force-transfers so the fold cannot brick it.
             if (!masterRegistry.isVaultRegistered(p.vault)) {
                 r.creatorCut += r.vaultCut;
                 emit VaultCutReturnedToCreator(p.vault, p.creator, r.vaultCut);
@@ -379,30 +353,26 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
             }
         }
         // 80% of carve → creator, plus any community cut folded in by the de-curation gate above.
-        // force-transfer (noesis-435): the folded leg was brick-proof before the fold and must stay so —
-        // a creator contract that rejects ETH cannot be allowed to brick graduation.
+        // Force-transfer: a creator contract that rejects ETH cannot brick graduation.
         if (r.creatorCut > 0) {
             SafeTransferLib.forceSafeTransferETH(p.creator, r.creatorCut);
         }
-        // The two diverted legs, reported apart. `r.carvePaid` is the post-clamp figure for their SUM;
-        // attribution is CARVE-FIRST — the creator's request is met first and the clamp residue absorbs
-        // any squeeze — so the two emitted figures always sum to `r.carvePaid` exactly. A squeeze cannot
-        // arise on the ERC404 graduation path (the instance sizes the legs so their sum is
-        // `lp - ethForPool`, inside `splitGraduation`'s headroom), and for any caller where it can,
-        // carve-first keeps the creator-facing figure the one the creator actually asked for.
+        // The diverted legs, reported apart. `r.carvePaid` is the post-clamp figure for their sum;
+        // attribution is carve-first (the creator's request is met first and the clamp residue absorbs
+        // any squeeze), so the emitted figures sum to `r.carvePaid` exactly. A squeeze cannot arise on
+        // the ERC404 graduation path (the instance sizes the legs so their sum is `lp - ethForPool`,
+        // inside `splitGraduation`'s headroom).
         if (p.carveEth > 0) {
             emit CreatorCarvePaid(
                 p.instance, p.creator, p.carveEth, r.carvePaid < p.carveEth ? r.carvePaid : p.carveEth
             );
         }
-        // The CALLER's clamp residue, which is `r.carvePaid` less the carve and less the residue this
-        // module discovered for itself. Three legs now ride the rail and each event reports the one its
-        // own layer can see: the instance knows what its parity clamp could not place, and only the
-        // module knows what the venue then declined. `GraduationResidueReturned` carries that third
-        // leg, so the three figures sum to `r.carvePaid` exactly and none of them double-counts.
-        // Guarded, not subtracted blind: with `p.creator == address(0)` the split above zeroes the
-        // carve entirely while `p.carveEth` still carries the caller's request, so the difference runs
-        // backwards. That is the case `test_deployLiquidity_carve_zeroCreatorZeroesCarve` pins.
+        // The caller's clamp residue: `r.carvePaid` less the carve and less the residue this module
+        // found itself. Three legs ride the rail and each event reports the one its layer can see;
+        // `GraduationResidueReturned` carries the venue-declined leg, so the three sum to
+        // `r.carvePaid` with no double-count. Guarded rather than subtracted blind: with
+        // `p.creator == address(0)` the split zeroes the carve while `p.carveEth` still carries the
+        // request (pinned by `test_deployLiquidity_carve_zeroCreatorZeroesCarve`).
         uint256 diverted = p.carveEth + r.residueTithed;
         if (r.carvePaid > diverted) {
             emit GraduationExcessTithed(p.instance, r.carvePaid - diverted);
@@ -423,28 +393,21 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
         if (diff * 10_000 > rhs * MAX_INIT_PRICE_DEVIATION_BPS) revert PoolPriceMismatch();
     }
 
-    /// @notice Retry delivering a graduation vault cut that a reverting vault previously rejected.
-    /// @dev Permissionless (mirrors the ERC721 flushPendingVaultCut authority model): the ETH goes to the
-    ///      vault bound at stash time UNLESS that target has since been de-curated, in which case the
-    ///      de-curation gate (noesis-126/noesis-435) returns the cut to the instance's creator — the retry
-    ///      is not a redirect-free surface, it faces the same de-curation risk as the primary send. The
-    ///      pending amount is zeroed BEFORE the external call (checks-effects-interactions); if the active
-    ///      vault still reverts the whole transaction reverts and the stash is restored — idempotent, no ETH
-    ///      is ever lost.
+    /// @notice Retry delivering a graduation vault cut that a reverting vault rejected.
+    /// @dev Permissionless. The ETH goes to the vault bound at stash time unless that target has been
+    ///      de-curated, in which case the cut returns to the instance's creator, as on the primary send.
+    ///      The pending amount is zeroed before the external call (checks-effects-interactions); if the
+    ///      active vault still reverts the whole transaction reverts and the stash is restored.
     /// @param instance The graduated instance whose stashed cut should be flushed.
     function flushPendingVaultCut(address instance) external {
         PendingCut memory pc = pendingVaultCut[instance];
         if (pc.amount == 0) revert NoPendingVaultCut();
         delete pendingVaultCut[instance];
         if (!masterRegistry.isVaultRegistered(pc.vault)) {
-            // Target de-curated while stashed: return the cut to the instance's creator rather than
-            // force-feed the de-curated vault. The stashed cut is the same money as a fresh one and must
-            // not survive as a treasury path (noesis-435).
-            // The creator is read back through the instance for the same reason the treasury was — the
-            // instance's `owner()` is the address the primary graduation leg pays as `DeployParams.creator`
-            // — so `PendingCut` does not have to grow a field (it is a public mapping; a new member would
-            // change the generated getter for no benefit). forceSafeTransferETH is brick-proof so a
-            // creator that rejects ETH cannot strand the retry.
+            // Target de-curated while stashed: the cut returns to the instance's creator, never to the
+            // treasury. The creator is the instance's `owner()`, the address the primary graduation
+            // leg pays as `DeployParams.creator`, so `PendingCut` needs no creator field.
+            // forceSafeTransferETH keeps a creator that rejects ETH from stranding the retry.
             address creator = IFactoryInstance(instance).owner();
             SafeTransferLib.forceSafeTransferETH(creator, pc.amount);
             emit PendingVaultCutReturnedToCreator(pc.vault, creator, pc.amount);

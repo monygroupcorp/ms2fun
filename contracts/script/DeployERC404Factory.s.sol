@@ -7,16 +7,14 @@ import { ERC404Factory } from "../src/factories/erc404/ERC404Factory.sol";
 import { ERC404BondingInstance } from "../src/factories/erc404/ERC404BondingInstance.sol";
 import { ERC404BondingOps } from "../src/factories/erc404/ERC404BondingOps.sol";
 
-/// @notice Deploys a new ERC404BondingInstance implementation + ERC404Factory against an EXISTING
+/// @notice Deploys a new ERC404BondingInstance implementation + ERC404Factory against an existing
 ///         deployment, wires the protocol treasury, and registers the factory in MasterRegistry.
-///         This is the factory-only replacement path; a full protocol deploy is `DeploySepolia`.
+///         A full protocol deploy is `DeploySepolia`.
 ///
 ///         Every protocol address is read from the deployment record `DeploySepolia` wrote, so the
-///         script targets whichever deployment that file describes. It carries no pinned protocol
-///         addresses: a CREATE3 proxy address is a function of the salt set in use, and a redeploy
-///         runs a fresh salt set — a salt is single-use per deployer, because CreateX reverts
-///         `CreateCollision` once its proxy address carries code — so a pinned address only
-///         survives until the next deploy.
+///         script targets whichever deployment that file describes. No protocol address is pinned: a
+///         CREATE3 proxy address is a function of the salt set in use, and a salt is single-use per
+///         deployer (CreateX reverts `CreateCollision` once the proxy address carries code).
 ///
 ///         Run with:
 ///         forge script script/DeployERC404Factory.s.sol \
@@ -28,9 +26,8 @@ contract DeployERC404Factory is Script {
     /// @dev The deployment record this script reads every protocol address from.
     string constant DEPLOYMENT_PATH = "./deployments/sepolia.json";
 
-    /// @dev Sepolia WETH9. A network fixture, not something this protocol deploys — `DeployCore`
-    ///      takes it from the network config and does not write it to the record, so it is mirrored
-    ///      here. Single source of truth: `cfg.weth` in `DeploySepolia.s.sol`.
+    /// @dev Sepolia WETH9. A network fixture that `DeployCore` takes from the network config and
+    ///      does not write to the record, so it is mirrored here from `cfg.weth` in `DeploySepolia.s.sol`.
     address constant WETH = 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14;
 
     function run() public {
@@ -51,12 +48,12 @@ contract DeployERC404Factory is Script {
 
         vm.startBroadcast();
 
-        // 1. Deploy new implementation
+        // 1. Implementation
         ERC404BondingOps ops = new ERC404BondingOps();
         ERC404BondingInstance impl = new ERC404BondingInstance(address(ops));
         console.log("ERC404BondingInstance impl:", address(impl));
 
-        // 2. Deploy new factory
+        // 2. Factory
         ERC404Factory factory = new ERC404Factory(
             ERC404Factory.CoreConfig({
                 implementation: address(impl), masterRegistry: masterRegistry, protocol: deployer, weth: WETH
@@ -69,11 +66,10 @@ contract DeployERC404Factory is Script {
         );
         console.log("ERC404Factory:", address(factory));
 
-        // 3. Wire treasury
         factory.setProtocolTreasury(protocolTreasury);
         console.log("Treasury set");
 
-        // 4. Register in MasterRegistry
+        // 3. Register in MasterRegistry
         MasterRegistryV1(masterRegistry)
             .registerFactory(
                 address(factory),
@@ -90,7 +86,7 @@ contract DeployERC404Factory is Script {
     }
 
     /// @dev A missing key reverts inside `parseJsonAddress`; a zero or codeless entry is rejected
-    ///      here. All three are loud — a record that cannot supply an address must stop the run.
+    ///      here, so a record that cannot supply an address stops the run.
     function _recordAddress(string memory json, string memory key, string memory label)
         internal
         view

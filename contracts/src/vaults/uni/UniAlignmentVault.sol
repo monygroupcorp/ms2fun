@@ -85,7 +85,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     error ContributionBelowMinimum();
     error TooManyConversionParticipants();
     error NoReferencePool();
-    /// @dev withdrawTargetFees: the registry has no per-target alignment sink pinned yet
+    /// @dev withdrawTargetFees: the registry has no per-target alignment sink pinned
     ///      (`getCommunityPayout == address(0)`). Accrual still happens; only the push is gated.
     error TargetSinkNotSet();
 
@@ -144,10 +144,10 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     uint256 public lastVaultFeeCollectionTime;
     uint256 public vaultFeeCollectionInterval = 1 days;
 
-    // Protocol yield cut — the 80/19/1 alignment law (hard immutable, noesis-051)
-    /// @notice Protocol treasury cut of LP yield: 1%. Compile-time constant — there is deliberately
-    ///         NO owner setter. The ratio is locked, and so is the destination: `protocolTreasury`
-    ///         is set once at `initialize` from the deploying factory's immutable and never moves.
+    // Protocol yield cut: the 80/19/1 alignment law
+    /// @notice Protocol treasury cut of LP yield: 1%. Compile-time constant with no owner setter. The
+    ///         destination is fixed too: `protocolTreasury` is set once at `initialize` from the
+    ///         deploying factory's immutable.
     uint256 public constant PROTOCOL_CUT_BPS = 100;
     /// @notice Per-target alignment sink cut of LP yield: 19%. Compile-time constant.
     uint256 public constant TARGET_CUT_BPS = 1900;
@@ -179,7 +179,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     int24 public zRouterTickSpacing;
 
     // zQuoter for on-chain best-route acquisition (owner-set, address(0) = fixed-pool fallback only).
-    // Wired post-deploy by the factory; the fixed zRouterFee/zRouterTickSpacing pool stays the fallback.
+    // The fixed zRouterFee/zRouterTickSpacing pool is the fallback.
     address public zQuoter;
 
     // Peripherals (set once at initialize, owner can update)
@@ -258,9 +258,8 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         // acquisition path with no repair possible post-deploy.
         if (_zRouter == address(0)) revert InvalidAddress();
         if (address(_alignmentRegistry) == address(0)) revert InvalidAddress();
-        // The 1% protocol cut accrues from the first fee collection onward, and the vault carries no
-        // setter for its destination — a zero treasury would accrue into a bucket with no exit, so it
-        // is refused here rather than at withdrawal time (mirrors ZAMMAlignmentVault.initialize).
+        // The 1% protocol cut accrues from the first fee collection and the destination has no setter, so
+        // a zero treasury would accrue into a bucket with no exit (mirrors ZAMMAlignmentVault.initialize).
         if (_protocolTreasury == address(0)) revert TreasuryNotSet();
         if (!_alignmentRegistry.isAlignmentTargetActive(_alignmentTargetId)) revert TargetNotActive();
         if (!_alignmentRegistry.isTokenInTarget(_alignmentTargetId, _alignmentToken)) revert TokenNotInTarget();
@@ -276,7 +275,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         alignmentTargetId = _alignmentTargetId;
         protocolTreasury = _protocolTreasury;
 
-        // Initialize defaults that can't use declaration initializers with clones
+        // Defaults that declaration initializers cannot set on a clone
         v3PreferredFee = 3000;
         maxPriceDeviationBps = 500;
         vaultFeeCollectionInterval = 1 days;
@@ -292,11 +291,10 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     // ========== Fee Reception ==========
 
     /// @notice Accept direct ETH contributions, crediting msg.sender as the benefactor.
-    /// @dev Silently accepts ETH that arrives DURING an active vault operation (the reentrancy guard
-    ///      is held) — e.g. zRouter refunding swap dust, or the V4 PoolManager settling native ETH
-    ///      back to the vault. Only ETH arriving OUTSIDE an operation is tracked as a contribution.
-    ///      Without this, a zRouter swap-dust refund reverts here mid-convertAndAddLiquidity and
-    ///      bricks the entire conversion (mirrors ZAMMAlignmentVault.receive).
+    /// @dev ETH arriving during an active vault operation (the reentrancy guard is held), e.g. a zRouter
+    ///      swap-dust refund or the V4 PoolManager settling native ETH, is accepted without being tracked;
+    ///      rejecting it would revert mid-convertAndAddLiquidity and brick the conversion. Only ETH
+    ///      arriving outside an operation is a contribution (mirrors ZAMMAlignmentVault.receive).
     receive() external payable {
         if (!_isLocked()) _receiveExternalContribution();
     }
@@ -356,7 +354,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         // ETH actually deployed into the position this convert (swapped leg + ETH leg genuinely LP'd).
         uint256 ethDeployed;
         // ETH offered to the position but not pulled by modifyLiquidity (rounding residual); this is
-        // re-credited to totalPendingETH so it is never stranded (noesis-034).
+        // re-credited to totalPendingETH so it is never stranded.
         uint256 ethUnabsorbed;
     }
 
@@ -365,21 +363,20 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         if (minOutTarget == 0) revert AmountMustBePositive();
         if (totalPendingETH == 0) revert NoPendingETH();
         // A rounding residual re-credited to totalPendingETH (see _distributeSharesAndCleanup) can
-        // leave totalPendingETH > 0 with NO tracked participant. Converting that alone would revert on
-        // the empty activeBenefactors[0] access; treat it as "nothing to convert" until a real
-        // contribution re-registers a participant, at which point the residual rides along (noesis-034).
+        // leave totalPendingETH > 0 with no tracked participant. Converting that alone would revert on
+        // the empty activeBenefactors[0] access, so it counts as nothing to convert until a real
+        // contribution re-registers a participant, and the residual rides along.
         if (conversionParticipants.length == 0) revert NoPendingETH();
         if (alignmentToken == address(0)) revert NoAlignmentTarget();
         if (Currency.unwrap(v4PoolKey.currency0) == address(0) && Currency.unwrap(v4PoolKey.currency1) == address(0)) {
             revert PoolKeyNotSet();
         }
 
-        // Crystallize any LP fees accrued in the existing position into `accFeesPerShare` BEFORE the new
+        // Crystallize LP fees accrued in the existing position into `accFeesPerShare` before the new
         // shares mint in `_distributeSharesAndCleanup`, so a benefactor arriving in this convert cannot
-        // dilute incumbents' already-earned (but as-yet uncollected) fees. Ordering-driven: it bypasses
-        // the 1-day collection interval that the claim paths keep. Gated to "a position exists and there
-        // are incumbents to protect" — the first-ever convert has no shares and no position, so nothing
-        // is collected; once a position exists, `_claimVaultFees` self-returns zero when no fee is owed.
+        // dilute incumbents' earned but uncollected fees. It bypasses the 1-day collection interval that
+        // the claim paths keep. Gated on a position existing with incumbents to protect; the first
+        // convert has neither, and `_claimVaultFees` returns zero when no fee is owed.
         if (totalShares > 0 && totalLPUnits > 0) {
             _collectAndAccrueNow();
         }
@@ -389,15 +386,14 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         uint256 ethToAdd = totalPendingETH;
 
         // The oracle floor (Via-quote + minOut, enforced below via `_floorTokenOut`) is the uniform
-        // anti-fail-open guard across every vault family; the legacy `validatePrice` cross-check
-        // (Uni-only, fail-open on no reference pool) was removed in favor of it (noesis-063).
+        // anti-fail-open guard across every vault family.
         uint256 proportionToSwap = priceValidator.calculateSwapProportion(
             alignmentToken, lastTickLower, lastTickUpper, poolManager, bytes32(PoolId.unwrap(v4PoolKey.toId()))
         );
         uint256 ethToSwap = (ethToAdd * proportionToSwap) / 1e18; // round down: excess stays as ethForLP
 
         // Floor the caller's slippage bound to an oracle-derived minimum so a permissionless caller
-        // cannot pass loose minOut and sandwich the vault's own ETH->token swap (F7).
+        // cannot pass loose minOut and sandwich the vault's own ETH->token swap.
         uint256 effMinOut = _floorTokenOut(ethToSwap, minOutTarget);
         SwapLPResult memory r = _doSwapAndLP(ethToAdd, ethToSwap, effMinOut, tickLower, tickUpper);
 
@@ -413,9 +409,9 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         private
         returns (SwapLPResult memory r)
     {
-        // Unified acquire (Front 2): pick the deepest pool via on-chain zQuoter and dispatch to the
-        // matching TYPED zRouter leg; degrade to the fixed zRouterFee/zRouterTickSpacing swapV4 pool
-        // when zQuoter is unset/empty. minOutTarget (the oracle floor) is enforced by the router.
+        // Pick the deepest pool via on-chain zQuoter and dispatch to the matching typed zRouter leg,
+        // falling back to the fixed zRouterFee/zRouterTickSpacing swapV4 pool when zQuoter is unset or
+        // empty. minOutTarget (the oracle floor) is enforced by the router.
         r.targetTokenReceived = BestRouteAcquirer.acquireViaV4(
             zRouter, zQuoter, alignmentToken, ethToSwap, minOutTarget, zRouterFee, zRouterTickSpacing, type(uint256).max
         );
@@ -429,10 +425,10 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         r.liquidityUnitsAdded = uint256(liquidityUnits);
         totalLPUnits += r.liquidityUnitsAdded;
 
-        // ETH offered to the position (ethRemaining) that modifyLiquidity did not pull is legitimate
-        // rounding residual — re-credit it (via ethUnabsorbed) so it is spendable on the next convert
-        // instead of being stranded. ethDeposited <= ethRemaining always (liquidity is sized by the
-        // binding leg), but clamp defensively against fee credits that could net the ETH delta up.
+        // ETH offered to the position (ethRemaining) that modifyLiquidity did not pull is rounding
+        // residual; re-credit it (via ethUnabsorbed) so it is spendable on the next convert.
+        // ethDeposited <= ethRemaining (liquidity is sized by the binding leg), but clamp against fee
+        // credits that could net the ETH delta up.
         r.ethUnabsorbed = ethRemaining > ethDeposited ? ethRemaining - ethDeposited : 0;
         // ETH actually deployed = everything offered minus what came back as residual. Equivalently
         // ethToSwap (spent to acquire the token leg) + ethDeposited (ETH leg genuinely LP'd).
@@ -451,16 +447,15 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         address largestContributor = activeBenefactors[0];
         uint256 largestContribution = 0;
 
-        // Cleared HERE rather than at the end, because the loop below re-registers the benefactors that
-        // carry a residual. `activeBenefactors` is already a memory copy (`_getActiveBenefactors` returns
-        // the storage array by value), so emptying storage first is what makes the re-registrations the
-        // whole of the new participant set instead of appending to the old one.
+        // Cleared before the loop, which re-registers the benefactors that carry a residual.
+        // `activeBenefactors` is a memory copy (`_getActiveBenefactors` returns the storage array by
+        // value), so emptying storage first makes the re-registrations the whole new participant set.
         _clearConversionParticipants();
 
-        // Carry-forward bookkeeping for the unabsorbed ETH, ported from the ZAMM sibling
-        // (`ZAMMAlignmentVault._addLiquidity`): `carriedTotal` is the sum of the per-benefactor carries
-        // and `dustTaker` the last benefactor eligible for one, so the round-down remainder can be
-        // settled after the loop and `sum(pendingETH)` stays exactly equal to `totalPendingETH`.
+        // Carry-forward bookkeeping for the unabsorbed ETH, as in `ZAMMAlignmentVault._addLiquidity`:
+        // `carriedTotal` is the sum of the per-benefactor carries and `dustTaker` the last benefactor
+        // eligible for one, so the round-down remainder settles after the loop and `sum(pendingETH)`
+        // stays exactly equal to `totalPendingETH`.
         uint256 carriedTotal;
         address dustTaker;
 
@@ -483,12 +478,10 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
             shareValueAtLastClaim[benefactor] += (sharesToIssue * accFeesPerShare) / 1e18;
             totalSharesActuallyIssued += sharesToIssue;
 
-            // Zeroing unconditionally is what left the unabsorbed ETH unowned: `totalPendingETH` was set
-            // to `ethUnabsorbed` with no benefactor's `pendingETH` backing a wei of it, so the NEXT batch
-            // minted shares against it and the attribution shortfall landed in `accumulatedDustShares` —
-            // paid to THAT batch's largest contributor. Carry each benefactor's own pro-rata share of the
-            // residual forward instead, so the ETH that did not become liquidity stays theirs and buys
-            // them shares in the batch that finally deploys it.
+            // Each benefactor's own pro-rata share of the unabsorbed residual is carried forward, so ETH
+            // that did not become liquidity stays theirs and buys them shares in the batch that deploys
+            // it. Zeroing instead would leave `totalPendingETH` with no `pendingETH` backing it, and the
+            // next batch's attribution shortfall would land in `accumulatedDustShares`.
             if (ethUnabsorbed != 0) {
                 uint256 carried = (contribution * ethUnabsorbed) / ethToAdd; // round down; remainder settled below
                 pendingETH[benefactor] = carried;
@@ -504,8 +497,8 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
         if (ethUnabsorbed != 0) {
             // Hand the round-down remainder to the last eligible benefactor so the carried amounts sum to
-            // `ethUnabsorbed` exactly — no wei of `totalPendingETH` is left unowned, which is the
-            // invariant `invariant_pendingSumConsistency` is meant to hold.
+            // `ethUnabsorbed` exactly; no wei of `totalPendingETH` is left unowned
+            // (`invariant_pendingSumConsistency`).
             uint256 dust = ethUnabsorbed - carriedTotal;
             if (dust != 0 && dustTaker != address(0)) {
                 if (pendingETH[dustTaker] == 0) conversionParticipants.push(dustTaker);
@@ -528,14 +521,12 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         // Reward debt for newly-issued shares is set inline at issuance above (MasterChef pattern);
         // existing holders are not re-watermarked, so their accrued entitlement is preserved.
         //
-        // totalEthLocked credits ETH ACTUALLY deployed into the position, not the ethToAdd offered:
-        // the pre-fix `+= ethToAdd` over-reported locked value whenever any ETH went unabsorbed.
-        // (No consumer reads totalEthLocked except its public getter — share math keys off shares and
-        //  accFeesPerShare, never this field — so the semantics change is payout-neutral.)
+        // totalEthLocked credits ETH actually deployed into the position, not the ethToAdd offered.
+        // Only its public getter reads it; share math keys off shares and accFeesPerShare.
         totalEthLocked += ethDeployed;
-        // Re-credit the unabsorbed residual so no ETH becomes unspendable. It is owned at the
-        // per-benefactor level by the carry-forward loop above, so this total is exactly the sum of the
-        // `pendingETH` entries that loop rewrote, and the participants carrying them are already pushed.
+        // Re-credit the unabsorbed residual so no ETH becomes unspendable. The carry-forward loop owns it
+        // per benefactor, so this total is exactly the sum of the `pendingETH` entries it wrote, and the
+        // participants carrying them are already pushed.
         totalPendingETH = ethUnabsorbed;
     }
 
@@ -578,9 +569,9 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     // slither-disable-next-line unused-return
     /// @dev Floor a caller-supplied token-out minimum to a canonical-reference-derived value for the
     ///      vault's ETH->token swap. Reads the DAO-pinned {ReferencePool} for this (target, token) from
-    ///      the registry and prices it via the validator's pinned-pool TWAP path. NO fail-open: an
+    ///      the registry and prices it via the validator's pinned-pool TWAP path. Fails closed: an
     ///      unset reference reverts {NoReferencePool}, and an unusable one reverts inside
-    ///      {quoteEthForTokensVia} — a permissionless caller can never disable the floor by pointing at
+    ///      {quoteEthForTokensVia}, so a permissionless caller can never disable the floor by pointing at
     ///      a thin pool. 1e18 is the reference token amount; the pinned quote is linear so the per-unit
     ///      price cancels the decimals.
     function _floorTokenOut(uint256 ethIn, uint256 callerMin) internal view returns (uint256) {
@@ -597,10 +588,10 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     function _convertVaultFeesToEth(uint256 tokenAmount) internal returns (uint256 ethReceived) {
         if (tokenAmount == 0) return 0;
 
-        // Derive the sell-side minimum from the SAME canonical reference as the buy-side floor, so a
-        // permissionless fee-collection caller cannot sandwich the vault's token->ETH swap. NO
-        // fail-open: an unset reference reverts {NoReferencePool} and an unusable one reverts inside
-        // {quoteEthForTokensVia} (035's setter guarantees a usable reference for any approved target).
+        // Derive the sell-side minimum from the same canonical reference as the buy-side floor, so a
+        // permissionless fee-collection caller cannot sandwich the vault's token->ETH swap. Fails
+        // closed: an unset reference reverts {NoReferencePool} and an unusable one reverts inside
+        // {quoteEthForTokensVia}. The registry setter guarantees a usable reference for any approved target.
         IAlignmentRegistry.ReferencePool memory ref =
             alignmentRegistry.getReferencePool(alignmentTargetId, alignmentToken);
         if (ref.pool == address(0)) revert NoReferencePool();
@@ -633,22 +624,19 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         }
     }
 
-    /// @dev Collect LP fees and route them through the 80/19/1 split with NO collection-interval gate.
-    ///      The interval throttles only the user-facing `claimFees`/`claimFeesAsDelegate` paths (gas/DoS
-    ///      characteristics unchanged there); the ordering-driven pre-weight-change crystallization in
-    ///      `convertAndAddLiquidity` calls this directly, because deferring the collect past a share
-    ///      mint is exactly what dilutes incumbents. `_claimVaultFees` self-returns zero when no fees are
-    ///      owed, so a convert with nothing to crystallize accrues nothing.
+    /// @dev Collect LP fees and route them through the 80/19/1 split with no collection-interval gate.
+    ///      The interval throttles only the user-facing `claimFees`/`claimFeesAsDelegate` paths; the
+    ///      pre-weight-change crystallization in `convertAndAddLiquidity` calls this directly, because
+    ///      deferring the collect past a share mint dilutes incumbents. `_claimVaultFees` returns zero
+    ///      when no fees are owed, so a convert with nothing to crystallize accrues nothing.
     function _collectAndAccrueNow() internal {
         (uint256 ethCollected,) = _claimVaultFees();
-        // Convert the vault's WHOLE alignment-token balance, not just what this collect returned.
-        // `_doSwapAndLP` acquires `targetTokenReceived` and offers it to the position, which consumes
-        // only what the binding leg needs; the difference stays in the vault. The ETH side of that
-        // same rounding is re-credited through `ethUnabsorbed`, but the token side had no reader at
-        // all, so it accreted monotonically with no path out. The vault holds no alignment token in
-        // flight at either call site — this runs before `_doSwapAndLP` inside `convertAndAddLiquidity`
-        // and outside it on the claim paths — so the balance here is exactly fees plus residue, and
-        // both belong to the same 80/19/1 split.
+        // Convert the vault's whole alignment-token balance, not just what this collect returned.
+        // `_doSwapAndLP` offers the acquired tokens to the position, which consumes only what the binding
+        // leg needs; the difference stays in the vault (the ETH side of that rounding is re-credited
+        // through `ethUnabsorbed`). The vault holds no alignment token in flight at either call site
+        // (this runs before `_doSwapAndLP` inside `convertAndAddLiquidity`, and outside it on the claim
+        // paths), so the balance is exactly fees plus residue, and both belong to the 80/19/1 split.
         uint256 ethFromTokens = _convertVaultFeesToEth(SafeTransferLib.balanceOf(alignmentToken, address(this)));
 
         uint256 totalCollected = ethCollected + ethFromTokens;
@@ -705,7 +693,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
         if (address(this).balance < ethClaimed) revert InsufficientBalance();
         // WETH-fallback transfer: a benefactor/delegate that is a smart wallet rejecting plain ETH
-        // still receives its yield as WETH instead of bricking the claim (adoption-gap F1).
+        // still receives its yield as WETH instead of bricking the claim.
         SmartTransferLib.smartTransferETH(recipient, ethClaimed, weth);
 
         emit FeesClaimed(benefactor, ethClaimed);
@@ -718,11 +706,10 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     /// @dev Accrue fees into both the lifetime total and the per-share accumulator.
     ///      Existing holders' entitlement (shares*accFeesPerShare - debt) is preserved when new
     ///      shares mint later, because minting only raises the new holder's debt, not accPerShare.
-    ///      NOTE: if totalShares == 0 the amount is recorded in accumulatedFees but not attributable;
-    ///      fees only accrue after a conversion has minted shares, so this path should not occur in
-    ///      normal operation. Consider reverting here if that assumption must be enforced.
-    ///      `internal` rather than `private` so test harnesses can drive the accumulator through the
-    ///      same arithmetic production uses instead of restating it. No external surface is added.
+    ///      If totalShares == 0 the amount is recorded in accumulatedFees but not attributable; fees only
+    ///      accrue after a conversion has minted shares, so that path is not reached in normal operation.
+    ///      `internal` rather than `private` so test harnesses can drive the accumulator through the same
+    ///      arithmetic production uses.
     function _accrueFees(uint256 amount) internal {
         accumulatedFees += amount;
         if (totalShares > 0) {
@@ -864,11 +851,11 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         _validateV4Pool(key);
     }
 
-    /// @notice Whether this vault is operationally wired for liquidity provision (O2 gate).
-    /// @dev True once a V4 pool key (token side set) AND a price validator are configured, so the
-    ///      wizard can safely offer this venue — a creator cannot pick a vault whose graduation LP
-    ///      add would revert on missing config. `currency1` is the alignment-token side (native ETH
-    ///      is always `currency0 == address(0)`); an unset pool key leaves both currencies zero.
+    /// @notice Whether this vault is operationally wired for liquidity provision.
+    /// @dev True once a V4 pool key (token side set) and a price validator are configured, so the
+    ///      wizard only offers a venue whose graduation LP add will not revert on missing config.
+    ///      `currency1` is the alignment-token side (native ETH is always `currency0 == address(0)`);
+    ///      an unset pool key leaves both currencies zero.
     function isLiquidityReady() external view returns (bool) {
         return Currency.unwrap(v4PoolKey.currency1) != address(0) && address(priceValidator) != address(0);
     }
@@ -884,8 +871,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     }
 
     function calculateClaimableAmount(address benefactor) external view override returns (uint256) {
-        // Net out the reward-debt watermark, matching getUnclaimedFees and the claimFees write path.
-        // Returning the lifetime-gross value here inflated integrator portfolios by every past claim.
+        // Net of the reward-debt watermark, matching getUnclaimedFees and the claimFees write path.
         uint256 currentShareValue = (benefactorShares[benefactor] * accFeesPerShare) / 1e18; // round down: favors vault (MasterChef accumulator)
         return currentShareValue > shareValueAtLastClaim[benefactor]
             ? currentShareValue - shareValueAtLastClaim[benefactor]
@@ -988,22 +974,17 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     /// @notice Set the Uniswap V4 pool key for liquidity operations
     /// @dev Validates fee tier, tick spacing, currency ordering, and alignment token presence.
     ///
-    ///      LOCKED ONCE A POSITION EXISTS, and the lock is load-bearing rather than tidy. The
-    ///      position this vault holds is identified by (poolId, tickLower, tickUpper), but only the
-    ///      ticks are stored — `unlockCallback` reads `v4PoolKey` LIVE for the poolId. Re-pointing
-    ///      the key while `totalLPUnits != 0` therefore does not move the position: it leaves the
-    ///      real one orphaned under the old poolId and aims every later call at a position that was
-    ///      never opened. The fee poke `_claimVaultFees` makes is a zero-`liquidityDelta`
-    ///      `modifyLiquidity`, which v4 refuses on an empty position with
-    ///      `Position.CannotUpdateEmptyPosition` — so `claimFees`, `claimFeesAsDelegate` and
-    ///      `convertAndAddLiquidity` (which crystallizes first) all revert together, and the
-    ///      benefactors' 80% leg is unreachable until the key is put back. Nothing on chain says
-    ///      that happened; the owner sees a successful setter and a vault that has stopped paying.
+    ///      Locked once a position exists. The position is identified by (poolId, tickLower, tickUpper),
+    ///      but only the ticks are stored; `unlockCallback` reads `v4PoolKey` live for the poolId.
+    ///      Re-pointing the key while `totalLPUnits != 0` leaves the real position orphaned under the old
+    ///      poolId and aims every later call at a position that was never opened. The fee poke
+    ///      `_claimVaultFees` makes is a zero-`liquidityDelta` `modifyLiquidity`, which v4 refuses on an
+    ///      empty position with `Position.CannotUpdateEmptyPosition`, so `claimFees`,
+    ///      `claimFeesAsDelegate` and `convertAndAddLiquidity` would all revert and the benefactors' 80%
+    ///      leg would be unreachable until the key is put back, with nothing on chain saying so.
     ///
-    ///      `ZAMMAlignmentVault.setPoolKey` has carried the same guard against `principalInvariant`
-    ///      since it was written; this is that guard, against this vault's own liveness counter.
-    ///      Wiring an unwired vault is unaffected — `totalLPUnits` is zero until the first
-    ///      `convertAndAddLiquidity` — which is the whole of the post-init gap the setter exists for.
+    ///      `ZAMMAlignmentVault.setPoolKey` has the same guard against `principalInvariant`. Wiring an
+    ///      unwired vault is unaffected: `totalLPUnits` is zero until the first `convertAndAddLiquidity`.
     /// @param newPoolKey V4 PoolKey struct identifying the target pool
     function setV4PoolKey(PoolKey calldata newPoolKey) external onlyOwner {
         if (totalLPUnits != 0) revert PoolKeyLocked();
@@ -1016,8 +997,8 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     /// @dev address(0) disables best-route selection, leaving only the fixed zRouterFee/
     ///      zRouterTickSpacing swapV4 fallback (mirrors the priceValidator "inert when zero" pattern).
     ///      Only the acquire (ETH->alignment token) leg consults it; the vault-fee token->ETH swap is
-    ///      unchanged. `minOut` is always the vault's own oracle floor, so a mis-set quoter can never
-    ///      widen slippage — the worst case is degrading to the fixed pool.
+    ///      does not use it. `minOut` is always the vault's own oracle floor, so a mis-set quoter can
+    ///      never widen slippage; the worst case is degrading to the fixed pool.
     /// @param newZQuoter zQuoter address, or address(0) to use fixed-pool acquisition only
     function setZQuoter(address newZQuoter) external onlyOwner {
         zQuoter = newZQuoter;
@@ -1025,9 +1006,8 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     }
 
     /// @notice Wire the independent price validator used to floor swaps and read the reference TWAP.
-    /// @dev Owner is the deploying factory; rotation routes through the factory passthrough. Mirrors
-    ///      ZAMMAlignmentVault.setPriceValidator so a broken validator can be rotated (previously the
-    ///      field was set only at initialize and could never be changed).
+    /// @dev Owner is the deploying factory; rotation routes through the factory passthrough, so a
+    ///      broken validator can be replaced. Mirrors ZAMMAlignmentVault.setPriceValidator.
     function setPriceValidator(address validator) external onlyOwner {
         priceValidator = IVaultPriceValidator(validator);
         emit PriceValidatorUpdated(validator);
@@ -1068,10 +1048,10 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     }
 
     /// @notice Push the accrued 19% target-alignment cut to the registry-pinned per-target sink.
-    /// @dev Permissionless. Pull-to-fixed-registry-sink: the destination is ALWAYS
+    /// @dev Permissionless. The destination is always
     ///      `alignmentRegistry.getCommunityPayout(alignmentTargetId)`, never caller-supplied (no
-    ///      redirect surface). Reverts `TargetSinkNotSet` when the sink is unset — the 19% keeps
-    ///      accruing so an un-wired sink never blocks the benefactors' 80% claim path.
+    ///      redirect surface). Reverts `TargetSinkNotSet` when the sink is unset; the 19% keeps
+    ///      accruing so an unwired sink never blocks the benefactors' 80% claim path.
     // slither-disable-next-line reentrancy-events
     function withdrawTargetFees() external {
         address sink = alignmentRegistry.getCommunityPayout(alignmentTargetId);

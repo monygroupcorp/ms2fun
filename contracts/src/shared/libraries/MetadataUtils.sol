@@ -8,11 +8,10 @@ pragma solidity ^0.8.20;
 library MetadataUtils {
     /**
      * @notice Validate metadata URI format
-     * @dev Scheme allowlist (rth 2026-07-22): content-addressed `ipfs://`/`ar://` and hosted
-     *      `https://` are accepted. `data:` is accepted ONLY when media-typed as `data:image/` or
-     *      `data:application/json` — on-chain-permanent metadata is kept, but the `data:text/html,`
-     *      / `data:application/javascript,` stored-XSS forms are rejected at the contract boundary.
-     *      `http://` is dropped entirely (browser-mixed-content-blocked, plaintext, mutable).
+     * @dev Scheme allowlist: content-addressed `ipfs://`/`ar://` and hosted
+     *      `https://` are accepted. `data:` is accepted only as `data:image/` or
+     *      `data:application/json`; the `data:text/html,` / `data:application/javascript,` stored-XSS
+     *      forms are rejected. `http://` is rejected (plaintext, mutable, blocked as mixed content).
      * @param uri Metadata URI to validate
      * @return True if URI is valid
      */

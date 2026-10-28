@@ -16,8 +16,7 @@ import { SepoliaRouteQuoter } from "./SepoliaRouteQuoter.sol";
 ///         simulation rather than on chain.
 contract DeploySepolia is DeployCore {
     string internal constant DEPLOYMENT_PATH = "./deployments/sepolia.json";
-    /// @dev The vault-factory addresses `DeployCore`'s own output does not carry. See
-    ///      `_writeVenueHandoff` for why this is a second file rather than a wider core.
+    /// @dev The vault-factory addresses `DeployCore`'s own output does not carry; see `_writeVenueHandoff`.
     string internal constant VENUE_PATH = "./deployments/sepolia-venues.json";
 
     function run() public {
@@ -27,37 +26,28 @@ contract DeploySepolia is DeployCore {
         );
         vm.startBroadcast();
         NetworkConfig memory cfg = _sepoliaConfig();
-        // THE ONE PART OF THE CONFIG THAT HAS TO BE DEPLOYED BEFORE IT CAN BE NAMED.
+        // `cfg.zQuoter` is operator input elsewhere because other networks have a canonical quoter
+        // to point at. Sepolia has none (see `SepoliaRouteQuoter`), so the network brings its own,
+        // deployed here because `_sepoliaConfig()` is `pure` and states only what is fixed about
+        // Sepolia.
         //
-        // `cfg.zQuoter` is operator input everywhere else, because everywhere else there is a
-        // canonical quoter already on the chain to point at. Sepolia has none, and the vendored
-        // upstream sources are a Base-chain forwarder pinned above this tree's solc — see
-        // `SepoliaRouteQuoter` for the whole reckoning. So this network brings its own, and it is
-        // deployed here rather than in `_sepoliaConfig()` because that function is `pure`: it is a
-        // statement of what is FIXED about Sepolia, and an address minted per run is not that.
-        //
-        // It ships with an EMPTY route table, so at the end of this script every vault behaves
-        // exactly as it would with no quoter wired. `SeedSepolia` registers a route per roster token
-        // once that token exists and its pool has depth, which is the first moment a route could be
-        // truthful.
+        // The route table starts empty, so every vault behaves as with no quoter wired until
+        // `SeedSepolia` registers a route per roster token once its pool has depth.
         cfg.zQuoter = address(new SepoliaRouteQuoter(msg.sender));
         deploy(msg.sender, cfg);
         vm.stopBroadcast();
         _writeVenueHandoff();
     }
 
-    /// @dev The ZAMM vault FACTORY, written beside the deployment file.
+    /// @dev The ZAMM vault factory, written beside the deployment file.
     ///
-    ///      `DeployCore`'s own output publishes the Uni and Aave factories, because those are the two
-    ///      a network deploys vaults from at deploy time. The Sepolia showcase deploys its ZAMM vaults
-    ///      from the SEED instead — its alignment tokens are fixtures the seed itself mints, so they do
-    ///      not exist yet when `DeployCore` runs — and a factory address that is in no file is not
-    ///      reachable by a later script. This writes the one the seed needs, in a Sepolia-local file,
-    ///      so the cross-network core keeps one output shape.
+    ///      `DeployCore`'s own output publishes the Uni and Aave factories, the two a network deploys
+    ///      vaults from at deploy time. The Sepolia showcase deploys its ZAMM vaults from the seed,
+    ///      whose alignment tokens are fixtures it mints itself, so the seed needs the factory address
+    ///      in a Sepolia-local file and the cross-network core keeps one output shape.
     ///
-    ///      The address is zero when the network carries no such family: `cfg.zamm == 0` leaves the
-    ///      ZAMM factory undeployed. The seed reads a zero as "this venue is not available here" and
-    ///      reports it rather than reverting.
+    ///      The address is zero when `cfg.zamm == 0` leaves the ZAMM factory undeployed; the seed
+    ///      reads a zero as "this venue is not available here" and reports it rather than reverting.
     function _writeVenueHandoff() internal {
         NetworkConfig memory cfg = _sepoliaConfig();
         string memory root = "sepoliaVenueHandoff";
@@ -70,19 +60,14 @@ contract DeploySepolia is DeployCore {
     }
 
     function _sepoliaConfig() internal pure returns (NetworkConfig memory cfg) {
-        // NO DEPLOY-TIME ALIGNMENT TARGETS ON THIS NETWORK.
+        // No deploy-time alignment targets on this network.
         //
-        // The showcase's roster is five communities — Remilia, MS2, SPX6900, MOG and ZAMM — and every
-        // one of them is an Ethereum MAINNET token that does not exist here. A vault bound
-        // to a mainnet address on Sepolia deploys happily and then fails at its first acquire, which
-        // is a worse demonstration than none. So the roster is minted, registered, vaulted and given
-        // depth by `SeedSepolia` as FIXTURE assets, each recording the real mainnet address it stands
-        // in for. See `SeedSepoliaShared._alignmentRoster`.
-        //
-        // This list was previously one entry — LINK — which existed only so the per-target Aave
-        // ENDOWMENT vault had something to hang on. That surface has a better home now: the endowment
-        // vaults are stood up by the seed on the two roster rows that should carry one (Remilia and
-        // MS2), so the wall no longer shows a target nothing aligns to and nobody chose.
+        // The showcase roster (Remilia, MS2, SPX6900, MOG, ZAMM) is Ethereum mainnet tokens that do
+        // not exist here, and a vault bound to a mainnet address on Sepolia fails at its first
+        // acquire. `SeedSepolia` mints, registers, vaults and gives depth to fixture assets, each
+        // recording the mainnet address it stands in for (`SeedSepoliaShared._alignmentRoster`).
+        // The seed also stands up the endowment vaults, on the two roster rows that carry one
+        // (Remilia and MS2).
         AlignmentTargetConfig[] memory targets = new AlignmentTargetConfig[](0);
 
         cfg.chainId = 11155111;
@@ -91,26 +76,20 @@ contract DeploySepolia is DeployCore {
         cfg.v3Factory = 0x0227628f3F023bb0B980b67D528571c95c6DaC1c;
         cfg.v2Factory = 0xF62c03E08ada871A0bEb309762E260a7a6a880E6;
         // Aave endowment family. Sepolia's Aave V3 WETH market is fronted by Aave's own test WETH, so the
-        // stataToken's `asset()` is that token and NOT the canonical Sepolia WETH set above. The endowment
-        // family therefore gets its own WETH here; `cfg.weth` stays canonical, so every other family — and
-        // a visitor arriving with canonical Sepolia WETH — is untouched. The vault wraps ETH internally
-        // and both tokens expose a permissionless payable `deposit()`, so a visitor contributing ETH needs
-        // neither token in hand.
-        //
-        // Mainnet carries no equivalent line: there the stataToken's `asset()` IS canonical WETH, so
-        // `cfg.aaveWeth` stays unset and resolves back to `cfg.weth`. `DeployCore` asserts the match at
-        // deploy on every network.
+        // stataToken's `asset()` is that token and not the canonical Sepolia WETH set above. The endowment
+        // family gets its own WETH; `cfg.weth` stays canonical for every other family. The vault wraps ETH
+        // internally and both tokens expose a permissionless payable `deposit()`, so a visitor
+        // contributing ETH needs neither token in hand. Mainnet leaves `cfg.aaveWeth` unset (its
+        // `asset()` is canonical WETH); `DeployCore` asserts the match on every network.
         cfg.aaveStataToken = 0x162B500569F42D9eCe937e6a61EDfef660A12E98; // stataEthWETH (StaticATokenLM)
         cfg.aaveWeth = 0xC558DBdd856501FCd9aaF1E62eae57A9F0629a3c; // Aave's Sepolia test WETH
         // ZAMM is a canonical CREATE2 singleton (same address on every chain it's deployed to).
         cfg.zamm = 0x000000000000040470635EB91b7CE4D132D616eD; // V1
-        // zRouter: SELF-DEPLOYED here rather than reusing a pre-existing Sepolia address.
-        //
-        // Neither router already on Sepolia is this repo's router. `0x0000…F600e4` predates `swapVZ`,
-        // so every ZAMM leg reverts `Unauthorized()`; `0x4ABd…1CFB` binds the mainnet V4 PoolManager,
-        // so every V4 acquire reverts. Deploying `src/peripherals/zRouter.sol` with the Sepolia
-        // bindings below means the logic the showcase exercises is the logic mainnet runs, only
-        // re-addressed — a rehearsal against it transfers.
+        // zRouter: self-deployed. Neither router already on Sepolia is this repo's router:
+        // `0x0000…F600e4` predates `swapVZ`, so every ZAMM leg reverts `Unauthorized()`; `0x4ABd…1CFB`
+        // binds the mainnet V4 PoolManager, so every V4 acquire reverts. Deploying
+        // `src/peripherals/zRouter.sol` with the Sepolia bindings below runs the mainnet logic
+        // re-addressed.
         cfg.zrouter = address(0);
         cfg.zrouterChain = ChainConfig({
             weth: cfg.weth,
@@ -121,11 +100,10 @@ contract DeploySepolia is DeployCore {
             // CREATE2 address from this factory + hash and matching `getPool`.
             v3Factory: cfg.v3Factory,
             v3PoolInitCodeHash: 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54,
-            // ── DARK LEGS ──────────────────────────────────────────────────────────────────────
+            // ── Unbound legs (each reverts) ────────────────────────────────────────────────────
             // No vault or showcase surface routes through V2 or Sushi here, and a V2 leg would need
-            // its own pair init-code hash verified against whichever factory it bound. Left unbound;
-            // the leg reverts. A Uniswap-V2 factory does exist on Sepolia (`cfg.v2Factory`, used by
-            // the price validator) if the leg is ever lit.
+            // its own pair init-code hash verified against its factory. A Uniswap-V2 factory exists on
+            // Sepolia (`cfg.v2Factory`, used by the price validator).
             v2Factory: address(0),
             v2PoolInitCodeHash: bytes32(0),
             sushiFactory: address(0),
@@ -133,21 +111,20 @@ contract DeploySepolia is DeployCore {
             // ───────────────────────────────────────────────────────────────────────────────────
             // ZAMM V1 is deployed to the same canonical address on Sepolia and is byte-identical.
             zamm: cfg.zamm,
-            // The hookless ZAMM predecessor has no Sepolia deployment — unbound, leg reverts.
+            // The hookless ZAMM predecessor has no Sepolia deployment.
             zamm0: address(0),
-            // Lido has no Sepolia deployment under these addresses — unbound, leg reverts.
+            // Lido has no Sepolia deployment under these addresses.
             steth: address(0),
             wsteth: address(0),
-            // No canonical DAI on Sepolia — the DAI-permit path reverts.
+            // No canonical DAI on Sepolia; the DAI-permit path reverts.
             dai: address(0),
             // Permit2 is deployed to its canonical address on Sepolia.
             permit2: 0x000000000022D473030F116dDEE9F6B43aC78BA3,
-            // NameNFT is mainnet-only — unbound, leg reverts.
+            // NameNFT is mainnet-only.
             nameNft: address(0)
         });
         cfg.safe = address(0); // deploys MockSafe
-        // Vanity CREATE3 salts. Single source: script/SepoliaSalts.sol — see that file for the
-        // salt layout, the address derivation, and how to re-mine the set.
+        // Vanity CREATE3 salts; script/SepoliaSalts.sol states the layout, the address derivation and the mining.
         cfg.saltMasterRegistry = SepoliaSalts.MASTER_REGISTRY;
         cfg.saltTreasury = SepoliaSalts.TREASURY;
         cfg.saltQueueManager = SepoliaSalts.QUEUE_MANAGER;
@@ -158,37 +135,28 @@ contract DeploySepolia is DeployCore {
         cfg.twapSeconds = 1800;
         cfg.zrouterFee = 3000;
         cfg.zrouterTickSpacing = 60;
-        cfg.zammFeeOrHook = 30; // 0.3% — LOCKED (rth, 2026-07-10)
-        // ── The perpetual alignment tithe: its RATE, seeded here; its SWITCH, not here ────────────
+        cfg.zammFeeOrHook = 30; // 0.3%
+        // ── The perpetual alignment tithe: its rate is seeded here, its switch is not ──────────────
         //
-        // `DeployCore` copies both values onto the singleton `LiquidityDeployerModule` at deploy and
-        // leaves `alignmentHookFactory` at `address(0)`, which is the module's OFF position. So what
-        // this pair does on its own is nothing: it is the rate a hook WOULD be minted with, sitting
-        // ready, and until the switch is thrown no graduation deploys a hook at all.
+        // `DeployCore` copies both values onto the singleton `LiquidityDeployerModule` and leaves
+        // `alignmentHookFactory` at `address(0)`, the module's off position, so until the switch is
+        // thrown no graduation deploys a hook. Throwing it over a zero `hookFeeBips` would mint hooks
+        // that take nothing on every swap, with no revert, so a rate has to sit under the switch.
         //
-        // Both were previously left unset, and an unset rate is the failure this closes. Throwing the
-        // switch over a zero `hookFeeBips` mints a hook that takes zero on every swap — a graduated
-        // pool that looks taxed, emits nothing, and credits the community nothing, with no revert and
-        // no warning anywhere to say so. A rehearsal of the switch is only a rehearsal if there is a
-        // rate under it.
+        // 100 bips is the testnet rehearsal rate, not a statement about mainnet's (see
+        // `DeployMainnet` and `test/script/MainnetConfigCompleteness.t.sol`). The rate is immutable
+        // per deployed hook (baked into its init code), so a change affects only hooks minted after
+        // it; pools that already graduated keep the rate they were born with.
         //
-        // 100 bips is the TESTNET rehearsal rate and is not a statement about mainnet's. Mainnet's is
-        // an open decision — see `DeployMainnet` and the assertion that holds it open in
-        // `test/script/MainnetConfigCompleteness.t.sol`. The rate is IMMUTABLE per deployed hook: it
-        // is baked into the hook's init code, so changing it here changes only hooks minted after the
-        // change, and every pool that already graduated keeps the rate it was born with.
-        //
-        // A NUMBER TO KNOW BEFORE TESTING THE SWITCH: `UniAlignmentVault.MIN_CONTRIBUTION` is
-        // 0.001 ETH, and the hook QUEUES a take the vault rejects rather than reverting the swap. At
-        // 100 bips that makes 0.1 ETH the smallest swap whose tithe reaches the vault in the swap's
-        // own transaction; below it the ETH lands in the hook's `queuedFees` and needs a
-        // `flushQueuedFees()` once the queue clears the minimum. See the runbook's observation step.
+        // `UniAlignmentVault.MIN_CONTRIBUTION` is 0.001 ETH, and the hook queues a take the vault
+        // rejects rather than reverting the swap. At 100 bips, 0.1 ETH is the smallest swap whose
+        // tithe reaches the vault in the swap's own transaction; below it the ETH lands in the
+        // hook's `queuedFees` until `flushQueuedFees()` is called with the queue above the minimum.
         cfg.hookFeeBips = 100; // 1% of the ETH leg of every swap, to the pool's alignment vault
         // The dynamic LP fee the hook overrides the pool with. Matched to `cfg.zrouterFee`, the static
-        // fee an untaxed graduation uses, so throwing the switch changes what the pool TAKES and not
-        // what it charges: the hooked pool trades on the same 0.3% tier as every pool graduated before
-        // it. A hooked pool must carry a dynamic fee (v4 honors the hook's `beforeSwap` override on no
-        // other kind), so this value cannot simply be inherited — it has to be stated.
+        // fee an untaxed graduation uses, so the hooked pool trades on the same 0.3% tier. A hooked
+        // pool must carry a dynamic fee (v4 honors the hook's `beforeSwap` override on no other
+        // kind), so the value is stated rather than inherited.
         cfg.lpFeeRate = 3000; // 0.3%
         cfg.alignmentTargets = targets;
         cfg.jsonOutputPath = DEPLOYMENT_PATH;

@@ -12,27 +12,19 @@ import { LaunchPresets } from "./LaunchPresets.sol";
 ///             --account <keystore> --broadcast
 ///
 ///         `LAUNCH_MANAGER` may be omitted on a chain whose deploy run left a record at
-///         `deployments/sepolia.json`; see `_launchManager` for why the live Sepolia protocol is
-///         not such a chain. Drop `--broadcast` to read the chain and print the drift without
-///         sending anything — the run is read-only until a rung actually differs.
+///         `deployments/sepolia.json`. Without `--broadcast` the script reads the chain and prints
+///         the drift; it sends nothing until a rung actually differs.
 ///
-///         ── WHY THIS EXISTS AS A SCRIPT AND NOT AS THREE `cast send` CALLS ──
+///         A preset is read once, at create: `ERC404Factory._deployAndInitialize` copies it into the
+///         instance's stored bonding params, and no later `setPreset` reaches an existing collection.
+///         `unitPerNFT` fixes `maxSupply = nftCount * unitPerNFT * 1e18` against DN404's `uint96`, a
+///         permanent ceiling on the pieces a collection may have. Retuning the ladder in `DeployCore`
+///         does not touch a deployed chain, and a re-run of the deploy cannot either: a CREATE3 salt is
+///         single-use per deployer, so it stands up a second protocol at fresh addresses. The owner
+///         call that retunes the live ladder is scripted here so the numbers are never typed by hand.
 ///
-///         A preset is read ONCE, at create: `ERC404Factory._deployAndInitialize` copies it into the
-///         instance's stored bonding params, and no later `setPreset` reaches a collection that
-///         already exists. So a rung that is wrong when a creator launches is wrong for that
-///         collection forever — `unitPerNFT` fixes `maxSupply = nftCount * unitPerNFT * 1e18` against
-///         DN404's `uint96`, which is a permanent ceiling on the pieces it may ever have. Retuning
-///         the ladder in `DeployCore` therefore does nothing to a chain that is already deployed.
-///         Nor does re-running the deploy reach it: a CREATE3 salt is single-use per deployer, so a
-///         fresh run cannot land on the addresses that are live — it stands a SECOND protocol up
-///         beside the first, at fresh addresses, and the first keeps the ladder it was born with.
-///         Re-deploying is a choice about which protocol the network points at; it is not a way to
-///         retune the one already there. That gap is closed by an owner call, and an owner call
-///         typed by hand is an eight-digit number typed by hand.
-///
-///         This reads the ladder from `LaunchPresets` — the same statement `DeployCore` writes and
-///         `ValidateSepolia` asserts — and writes only the rungs that differ, so a second run after
+///         The ladder is read from `LaunchPresets`, the statement `DeployCore` writes and
+///         `ValidateSepolia` asserts. Only the rungs that differ are written, so a second run after
 ///         a successful one broadcasts nothing.
 contract ApplyLaunchPresets is Script {
     string internal constant DEPLOYMENT_PATH = "./deployments/sepolia.json";
@@ -75,20 +67,12 @@ contract ApplyLaunchPresets is Script {
         console.log("rungs rewritten:", changed);
     }
 
-    /// @dev Which LaunchManager to bring up to the ladder. `LAUNCH_MANAGER` wins over the record,
-    ///      and it has to, because the chain that needs this script most is the one with no record:
-    ///      a deployment record is a BROADCAST artifact written by the deploy run itself, so it
-    ///      describes the deployment that wrote it and no other. Sepolia's live protocol was
-    ///      deployed in March, its record was superseded and moved aside as history, and the salt
-    ///      set that produced it is spent — there will never be a run that writes
-    ///      `deployments/sepolia.json` for the contracts that are live there now. Resolving only
-    ///      through the record therefore fails on `readFile` before it reads a single rung, and the
-    ///      alternative is hand-writing a record for a deployment nothing else on disk describes.
-    ///      `LAUNCH_MANAGER` is the same env var `MigrateOwnership` already takes for this contract.
-    ///
-    ///      The record stays the fallback so a freshly deployed chain needs no env var at all, and
-    ///      both paths are held to the same two checks: an address that is zero, or that carries no
-    ///      code on the RPC in hand, is a pointer at the wrong chain and must stop the run.
+    /// @dev Which LaunchManager to bring up to the ladder. `LAUNCH_MANAGER` wins over the record: a
+    ///      deployment record is a broadcast artifact describing only the deployment that wrote it,
+    ///      so a chain whose live protocol has no such record can only be addressed by env var.
+    ///      `MigrateOwnership` takes the same env var for this contract. The record is the fallback,
+    ///      so a freshly deployed chain needs no env var. Both paths reject a zero address and an
+    ///      address with no code on the RPC in hand, which is a pointer at the wrong chain.
     function _launchManager() internal view virtual returns (address addr) {
         addr = _envLaunchManager();
         if (addr != address(0)) {
@@ -101,17 +85,15 @@ contract ApplyLaunchPresets is Script {
         require(addr.code.length > 0, "LaunchManager: no code at the resolved address");
     }
 
-    /// @dev Overridden in the test, which supplies a record in memory rather than reading one off
-    ///      disk. Production behaviour is the default. Mirrors the seam in `ValidateSepolia`.
+    /// @dev Overridden in the test to supply a record in memory. Mirrors the seam in `ValidateSepolia`.
     function _deploymentJson() internal view virtual returns (string memory) {
         return vm.readFile(DEPLOYMENT_PATH);
     }
 
     /// @dev The override as the operator supplies it, `address(0)` when unset. Its own seam because
-    ///      the process environment is global to a forge run and test cases execute concurrently, so
-    ///      a test that sets `LAUNCH_MANAGER` to exercise precedence races every other test reading
-    ///      it. Overriding here lets the precedence in `_launchManager` — which is where the
-    ///      decisions are — be tested deterministically; what is left below is the builtin read.
+    ///      the process environment is global to a forge run and concurrent test cases would race on
+    ///      `LAUNCH_MANAGER`; overriding it lets the precedence in `_launchManager` be tested
+    ///      deterministically.
     function _envLaunchManager() internal view virtual returns (address) {
         return vm.envOr("LAUNCH_MANAGER", address(0));
     }

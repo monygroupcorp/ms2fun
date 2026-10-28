@@ -11,34 +11,30 @@ import { IMasterRegistry } from "../../../master/interfaces/IMasterRegistry.sol"
 
 /**
  * @title UniTitheHookFactory
- * @notice Alignment-hook TYPE #1: deploys `UniAlignmentV4Hook` (the ETH swap-tithe hook fixed in #109)
- *         at a Uniswap v4 permission-bit-valid address, one per graduation.
- * @dev Deploy primitive is RAW CREATE2 (`new UniAlignmentV4Hook{salt}(...)`, deployer = this factory) —
- *      NOT the house CreateX/CREATE3 pattern the ERC-x factories use. Uniswap v4 encodes hook
- *      permissions in the low 14 bits of the hook ADDRESS, and `HookAddressMiner.mineSalt` finds a salt
+ * @notice Deploys `UniAlignmentV4Hook` (the ETH swap-tithe hook) at a Uniswap v4 permission-bit-valid
+ *         address, one per graduation.
+ * @dev The deploy primitive is raw CREATE2 (`new UniAlignmentV4Hook{salt}(...)`, deployer = this
+ *      factory), not the CreateX/CREATE3 pattern the ERC-x factories use. Uniswap v4 encodes hook
+ *      permissions in the low 14 bits of the hook address, and `HookAddressMiner.mineSalt` finds a salt
  *      by evaluating the raw CREATE2 formula `keccak256(0xff, deployer, salt, initCodeHash)`. CreateX's
- *      CREATE3 derives the address from a keccak-of-proxy indirection that does not fit that formula, so
- *      it cannot produce a permission-bit-constrained address. Hence raw CREATE2 with the mined salt.
+ *      CREATE3 derives the address through a proxy indirection that does not fit that formula, so it
+ *      cannot produce a permission-bit-constrained address.
  *
- *      PoolManager, WETH and the master registry are factory immutables (set at factory deploy by 117b /
- *      DeployCore); `deployHook` supplies only the per-graduation data (vault, benefactor, fees). The
- *      hook constructor's `validateHookPermissions()` is the on-chain guard against a bad address.
+ *      PoolManager, WETH and the master registry are factory immutables (set at factory deploy by
+ *      DeployCore); `deployHook` supplies only the per-graduation data (vault, benefactor, fees, pool).
+ *      The hook constructor's `validateHookPermissions()` is the on-chain guard against a bad address.
  *
- *      THE HOOK OWNER IS NOT AN IMMUTABLE, and this factory is `Ownable`. Each deployed hook's owner
- *      holds `setLpFeeRate` and `rescueQueuedFees` on that hook for the hook's whole life, and the
- *      hook's own owner is fixed at ITS construction. If the value this factory stamps in were an
- *      immutable set to the deploying EOA, every hook this factory ever produced would be owned by
- *      that key past the governance handover, with no path that could move it. So `hookOwner` is
- *      owner-settable state and the factory itself migrates to the Timelock with everything else
- *      (`script/MigrateOwnership.s.sol`), which moves both the factory and — via `setHookOwner` —
- *      the owner of the hooks it goes on to deploy.
+ *      The hook owner is not an immutable, and this factory is `Ownable`. Each deployed hook's owner
+ *      holds `setLpFeeRate` and `rescueQueuedFees` on that hook for its whole life, fixed at the hook's
+ *      construction. An immutable owner set to the deploying EOA would leave every hook owned by that
+ *      key past the governance handover, with no path to move it. So `hookOwner` is owner-settable
+ *      state, and `script/MigrateOwnership.s.sol` moves both the factory and, via `setHookOwner`, the
+ *      owner of the hooks it goes on to deploy.
  *
- *      The mined ADDRESS is not fixed across attempts: the scan starts at a block-derived offset so that
- *      a mine which does not fit in one block is retryable in the next rather than repeating itself. What
- *      IS fixed is the hook's IDENTITY — the init-code hash over the creation code and all nine
- *      constructor arguments — and `deployedHook` keys on that, so one parameterization yields one hook.
- *
- *      RE-AUDIT BEFORE DEPLOY: this contract deploys a fee-taking v4 hook via CREATE2 + on-chain mine.
+ *      The mined address varies across attempts: the scan starts at a block-derived offset so that a
+ *      mine which does not fit in one block is retryable in the next. The hook's identity is fixed:
+ *      the init-code hash over the creation code and all ten constructor arguments, which
+ *      `deployedHook` keys on, so one parameterization yields one hook.
  */
 contract UniTitheHookFactory is IAlignmentHookFactory, Ownable {
     /// @notice Uniswap v4 PoolManager the deployed hooks bind to (immutable, factory config).
@@ -52,28 +48,26 @@ contract UniTitheHookFactory is IAlignmentHookFactory, Ownable {
     ///      `deactivateVault`, which is what lets it stop taxing and release its queued fees.
     address public immutable masterRegistry;
 
-    /// @notice Governance owner stamped into each hook this factory deploys from here on.
-    /// @dev Owner-settable, not immutable — see the contract note. It is also part of each hook's
-    ///      init-code hash, so changing it changes the IDENTITY of the hooks this factory produces:
-    ///      a hook mined under the old value is a different hook at a different address, and the old
-    ///      one stays adoptable under its own `deployedHook` key. Hooks already deployed are
-    ///      untouched: each hook's owner was written at ITS construction and moves only through that
-    ///      hook's own Solady ownership handover.
+    /// @notice Governance owner stamped into each hook this factory deploys.
+    /// @dev Owner-settable, not immutable; see the contract note. It is part of each hook's init-code
+    ///      hash, so changing it changes the identity of the hooks this factory produces: a hook mined
+    ///      under the old value is a different hook at a different address, adoptable under its own
+    ///      `deployedHook` key. Deployed hooks are untouched: each hook's owner is written at its
+    ///      construction and moves only through that hook's own Solady ownership handover.
     address public hookOwner;
 
     /// @notice Required permission bits (0xCC = beforeSwap|afterSwap|beforeSwapReturnDelta|afterSwapReturnDelta).
     uint160 public constant REQUIRED_FLAGS = HookAddressMiner.ULTRA_ALIGNMENT_HOOK_FLAGS;
 
-    /// @notice Forbidden permission bits (all other hook flags — the complement of REQUIRED_FLAGS).
+    /// @notice Forbidden permission bits (all other hook flags, the complement of REQUIRED_FLAGS).
     uint160 public constant FORBIDDEN_FLAGS = HookAddressMiner.ULTRA_ALIGNMENT_FORBIDDEN_FLAGS;
 
     /// @notice The hook this factory has already deployed for a given init-code hash, if any.
-    /// @dev Adoption is keyed on IDENTITY, not on a mined address. `initCodeHash` commits to the hook's
-    ///      creation code and to all nine constructor arguments, so an entry here means exactly "this
-    ///      hook, with this parameterization, already exists" — whichever salt found it. That distinction
-    ///      is load-bearing now that the mine's starting offset varies per block: a second call mines a
-    ///      different salt and therefore a different candidate address, so an address-only check would
-    ///      find empty code there and deploy a duplicate hook instead of adopting the existing one.
+    /// @dev Adoption is keyed on identity, not on a mined address. `initCodeHash` commits to the hook's
+    ///      creation code and all ten constructor arguments, so an entry means "this hook, with this
+    ///      parameterization, already exists", whichever salt found it. This is load-bearing because the
+    ///      mine's starting offset varies per block: a second call mines a different salt and candidate
+    ///      address, so an address-only check would find empty code and deploy a duplicate hook.
     mapping(bytes32 initCodeHash => address hook) public deployedHook;
 
     error InvalidAddress();
@@ -102,18 +96,17 @@ contract UniTitheHookFactory is IAlignmentHookFactory, Ownable {
         weth = _weth;
         hookOwner = _hookOwner;
         masterRegistry = _masterRegistry;
-        // Same idiom as every other plain-Ownable factory and module in the tree (Solady `Ownable`,
-        // single-step `transferOwnership`), so `MigrateOwnership` carries this factory in the same
-        // loop as the rest rather than needing a shape of its own.
+        // Plain Solady `Ownable` like the other factories, so `MigrateOwnership` handles it in the
+        // same loop.
         _initializeOwner(msg.sender);
         emit HookOwnerUpdated(address(0), _hookOwner);
     }
 
     /// @notice Re-point the governance owner stamped into hooks deployed from here on.
-    /// @dev The reason this factory is `Ownable` at all. A hook's owner holds `setLpFeeRate` and
-    ///      `rescueQueuedFees` on it permanently, so the address stamped in has to be movable from
-    ///      the deploying key to governance. Applies to FUTURE hooks only — a hook already deployed
-    ///      keeps the owner it was constructed with.
+    /// @dev The reason this factory is `Ownable`. A hook's owner holds `setLpFeeRate` and
+    ///      `rescueQueuedFees` on it permanently, so the stamped address has to be movable from the
+    ///      deploying key to governance. Applies to later hooks only; a deployed hook keeps the owner
+    ///      it was constructed with.
     /// @param newHookOwner The address to stamp into subsequently deployed hooks.
     function setHookOwner(address newHookOwner) external onlyOwner {
         if (newHookOwner == address(0)) revert InvalidAddress();
@@ -131,10 +124,9 @@ contract UniTitheHookFactory is IAlignmentHookFactory, Ownable {
         int24 poolTickSpacing
     ) external returns (address hook) {
         // Init code exactly as `new UniAlignmentV4Hook{salt}(...)` below assembles it: creation code ++
-        // abi.encode(ALL nine constructor args, in order). Both the mine and the deploy derive their
-        // address from THIS hash, and it is computed by the shared HookAddressMiner.computeInitCodeHash
-        // helper — the single source of truth for the init-code hash, so factory and helper can never
-        // disagree about the deployed address.
+        // abi.encode(all ten constructor args, in order). The mine and the deploy derive their address
+        // from this hash, computed by HookAddressMiner.computeInitCodeHash, the single source of truth
+        // for it.
         bytes32 initCodeHash = HookAddressMiner.computeInitCodeHash(
             type(UniAlignmentV4Hook).creationCode,
             address(poolManager),
@@ -149,51 +141,48 @@ contract UniTitheHookFactory is IAlignmentHookFactory, Ownable {
             poolTickSpacing
         );
 
-        // Idempotent deploy, checked BEFORE the mine: `deployHook` is callable by anyone, and its four
-        // arguments are derivable from public state, so the hook for a pending graduation can be deployed
-        // ahead of that graduation. Adopt what is already there and let the graduation proceed, rather
-        // than reverting on a CREATE2 collision and leaving the pool un-graduatable — the same posture as
-        // `LiquidityDeployerModule._initOrValidatePool`, which accepts a pre-initialized pool.
+        // Idempotent deploy, checked before the mine: `deployHook` is callable by anyone, and its
+        // arguments are derivable from public state, so the hook for a pending graduation can be
+        // deployed ahead of it. Adopt what is there rather than revert on a CREATE2 collision and
+        // leave the pool un-graduatable, as `LiquidityDeployerModule._initOrValidatePool` does for a
+        // pre-initialized pool.
         //
-        // The key is the init-code hash, which commits to the creation code and to all nine constructor
-        // arguments, so a hit is precisely "this hook, this parameterization, already deployed by this
-        // factory". Reading it first also means an adoption pays no mining gas at all.
+        // The key is the init-code hash, so a hit is precisely "this hook, this parameterization,
+        // already deployed by this factory". Checking first means an adoption pays no mining gas.
         //
-        // Since audit L-6 the parameterization names the POOL as well (`poolToken`, `poolTickSpacing`),
-        // and the hook refuses every other key. So a pre-deploy for a pool the graduation is not opening
-        // is a different hook at a different address, and the graduation mines its own — a caller who
-        // deploys ahead can hand the graduation its hook, never a hook bound somewhere else.
+        // The parameterization names the pool as well (`poolToken`, `poolTickSpacing`) and the hook
+        // refuses every other key, so a pre-deploy for a pool the graduation is not opening is a
+        // different hook at a different address. A caller who deploys ahead can hand the graduation
+        // its hook, never a hook bound somewhere else.
         address adopted = deployedHook[initCodeHash];
         if (adopted != address(0)) {
             emit AlignmentHookAdopted(adopted, address(vault), benefactor, hookFeeBips, lpFeeRate);
             return adopted;
         }
 
-        // Start the salt scan at a block-derived offset. The mine's inputs — this factory, the init-code
-        // hash, and the flag masks — are all fixed for a given hook parameterization, so a scan that
-        // always began at zero would walk the identical salts and burn the identical gas on every call:
-        // if the search does not fit in one block, no retry ever would. A retry lands in a later block,
-        // draws a different `prevrandao` and `number`, and therefore scans a different window.
+        // The salt scan starts at a block-derived offset. The mine's inputs (this factory, the
+        // init-code hash, the flag masks) are fixed for a given parameterization, so a scan always
+        // starting at zero would walk the same salts on every call and never fit if it did not fit
+        // once. A retry lands in a later block, draws a different `prevrandao` and `number`, and scans
+        // a different window.
         //
-        // MANIPULABILITY: `block.prevrandao` is influenceable at the margin by a proposer, and that does
-        // not matter here. Every salt whose address carries exactly the required bits is equally
-        // acceptable; there is no property of the resulting address an adversary gains from steering, and
-        // the offset changes only WHICH valid address is found, never WHETHER it is valid. The hook
-        // constructor's `validateHookPermissions()` remains the on-chain check on the permission bits.
+        // `block.prevrandao` is influenceable at the margin by a proposer, which does not matter:
+        // every salt whose address carries exactly the required bits is equally acceptable, the offset
+        // changes only which valid address is found, and the hook constructor's
+        // `validateHookPermissions()` remains the on-chain check on the permission bits.
         uint256 startOffset = uint256(keccak256(abi.encode(block.prevrandao, block.number, initCodeHash)));
 
-        // Mine a salt so the CREATE2 address carries EXACTLY the 0xCC permission bits. The scan covers
-        // HookAddressMiner.SCAN_WINDOW salts, sized to fit in a 30M-gas block alongside the rest of a
+        // Mine a salt so the CREATE2 address carries exactly the 0xCC permission bits. The scan covers
+        // HookAddressMiner.SCAN_WINDOW salts, sized to fit a 30M-gas block alongside the rest of a
         // graduation; for 0xCC the expected hit is ~2^14 iterations, well inside the window. Exhausting
-        // the window reverts `NoValidSaltFound` — a cheap, named failure the next block can retry against
-        // a fresh window — instead of running the block out of gas.
+        // the window reverts `NoValidSaltFound`, a cheap named failure the next block can retry.
         (bytes32 salt, address predicted) =
             HookAddressMiner.mineSalt(address(this), initCodeHash, REQUIRED_FLAGS, FORBIDDEN_FLAGS, startOffset);
 
-        // Belt and braces for a hook that reached this address by a path that did not write the mapping:
-        // the address is CREATE2-derived from (this factory, salt, initCodeHash), so only this factory can
-        // occupy it, and only with an init code hashing to `initCodeHash`. Code there is therefore this
-        // hook with this parameterization. Record it so later calls adopt without mining.
+        // A hook that reached this address without writing the mapping: the address is
+        // CREATE2-derived from (this factory, salt, initCodeHash), so only this factory can occupy it,
+        // and only with an init code hashing to `initCodeHash`. Code there is this hook with this
+        // parameterization. Record it so later calls adopt without mining.
         if (predicted.code.length != 0) {
             deployedHook[initCodeHash] = predicted;
             emit AlignmentHookAdopted(predicted, address(vault), benefactor, hookFeeBips, lpFeeRate);
@@ -202,11 +191,10 @@ contract UniTitheHookFactory is IAlignmentHookFactory, Ownable {
 
         // `new C{salt}(args)` deploys at keccak256(0xff, address(this), salt, keccak256(creationCode ++
         // abi.encode(args)))[12:], which is `predicted` by construction: the mine derived it from the same
-        // deployer, the same salt, and an init code hash built from this creation code and these nine
-        // arguments in this order. An equality check here could not fail, so the property is asserted in
-        // the tests (a hook deployed through this function lands on the independently derived address)
-        // rather than as an unreachable runtime branch. The hook constructor's `validateHookPermissions()`
-        // remains the on-chain guard that the address carries the required permission bits.
+        // deployer, salt, and an init code hash built from this creation code and these ten arguments in
+        // this order. An equality check could not fail, so the property is asserted in the tests (a hook
+        // deployed through this function lands on the independently derived address). The hook
+        // constructor's `validateHookPermissions()` is the on-chain guard on the permission bits.
         hook = address(
             new UniAlignmentV4Hook{ salt: salt }(
                 poolManager,

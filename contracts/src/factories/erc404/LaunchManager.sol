@@ -36,19 +36,11 @@ contract LaunchManager is Ownable {
     }
 
     /// @notice Set or update a graduation preset. Only callable by owner (DAO).
-    /// @dev The reserve is validated against the preset's OWN curve computer rather than against a
-    ///      bound written down here. `(0, 10000)` is the arithmetically legal range for a bps, but it
-    ///      is far wider than the range a curve can actually be solved over: the reserve fixes the
-    ///      pool parity target, and a target outside the multiples the computer's pole band reaches
-    ///      is unreachable. At today's constants that band is 592..3567 bps, so a preset anywhere in
-    ///      the other ~7,000 values used to store cleanly, emit `PresetUpdated`, read back live from
-    ///      `getPreset` — and then revert every `create` made against it, on a CREATOR's transaction,
-    ///      with an error from a contract they never named.
-    ///
-    ///      Asking the computer keeps the bound in one place; a copy of the numbers here would be a
-    ///      second definition, and a retune of the computer's shape constants would silently put the
-    ///      two out of agreement. A preset names its own `curveComputer`, so the right answer is
-    ///      per-preset in any case.
+    /// @dev The reserve is validated against the preset's own curve computer, not a bound held here.
+    ///      The reserve fixes the pool parity target, and only a band narrower than (0, 10000) bps is
+    ///      solvable by a curve; a reserve outside it would store and read back but revert every
+    ///      `create` on the creator's transaction. The computer owns the band, so there is one
+    ///      definition, and it is per-preset because each preset names its own `curveComputer`.
     function setPreset(uint256 presetId, Preset calldata preset) external onlyOwner {
         if (preset.targetETH == 0) revert InvalidTargetETH();
         if (preset.unitPerNFT == 0) revert InvalidUnitPerNFT();

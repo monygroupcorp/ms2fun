@@ -14,8 +14,7 @@ interface IFactoryInstance {
     function protocolTreasury() external view returns (address);
 
     /// @notice Returns the instance creator (Ownable owner), the address every creator-facing payout leg
-    ///         pays. Declared here so a shared module can read the creator back through the instance
-    ///         rather than stashing a per-cut copy of it.
+    ///         pays. Declared here so a shared module can read the creator back through the instance.
     /// @return The creator address
     function owner() external view returns (address);
 

@@ -24,9 +24,8 @@ library RevenueSplitLib {
     }
 
     /// @notice The split, 1/19/80 — 1% protocol, 19% vault (the community tithe), 80% remainder to the
-    ///         creator or the LP. Every family takes it, on graduation and on mint settlement alike:
-    ///         the endowment's inverted 1/80/19 mint split went with the vesting duality it existed to
-    ///         feed, so there is one split left and it does not vary with anything.
+    ///         creator or the LP. Every family takes it, on graduation and on mint settlement alike;
+    ///         it does not vary with anything.
     /// @dev Protocol = amount / 100 (floor), vault = amount * 19 / 100 (floor),
     ///      remainder = amount - protocol - vault (absorbs rounding dust).
     function split(uint256 amount) internal pure returns (Split memory s) {
@@ -97,14 +96,13 @@ library RevenueSplitLib {
     ///      comes only out of the LP 80. The pool floor is a carve-CLAMP, never a gate: when the
     ///      LP share can't reach the floor the carve is squeezed (to zero if needed) and the pool
     ///      takes everything — this function never reverts on a thin raise.
-    /// @dev INVARIANT / FOOTGUN: with `minPoolEth = 0` this lib's own clamp only guarantees
+    /// @dev PRECONDITION: with `minPoolEth = 0` this lib's own clamp only guarantees
     ///      `carve <= lp` — the pool can be starved to zero. `carveEth` MUST already be clamped to
     ///      the pool floor by the caller (as `ERC404Factory.effectiveCarveEth` does), OR a real
     ///      `minPoolEth` must be passed here. Passing a raw (unclamped) carve request with
-    ///      `minPoolEth = 0` lets the carve consume the full LP 80 and starve the pool without this
-    ///      function complaining. Today's deployers pass the factory's already-clamped carve with
-    ///      `minPoolEth = 0`, so the real floor lives upstream in the factory — this note keeps that
-    ///      precondition explicit for the next caller.
+    ///      `minPoolEth = 0` lets the carve consume the full LP 80 and starve the pool. Deployers pass
+    ///      the factory's already-clamped carve with `minPoolEth = 0`, so the real floor lives in the
+    ///      factory.
     function splitGraduation(uint256 raise, uint256 carveEth, uint256 minPoolEth)
         internal
         pure

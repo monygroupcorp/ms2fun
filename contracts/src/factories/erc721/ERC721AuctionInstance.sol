@@ -66,9 +66,9 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
     // └─────────────────────────┘
 
     IAlignmentVault public vault;
-    /// @notice The genesis vault (bound at construction — what buyers pay in against). Pinned immutably
-    ///         so the revenue-split family used at settlement can never diverge from what buyers paid
-    ///         into, even if `vault` is later migrated (audit finding #2, defense-in-depth).
+    /// @notice The genesis vault, bound at construction: what buyers pay in against. Immutable so the
+    ///         revenue-split family used at settlement cannot diverge from what buyers paid into,
+    ///         even if `vault` is migrated.
     address public immutable genesisVault;
     // slither-disable-next-line immutable-states
     IMasterRegistry public masterRegistry;
@@ -119,21 +119,19 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
     event UnsoldReclaimed(uint24 indexed tokenId, uint256 creatorRefund, uint256 protocolCut);
     event AgentDelegationChanged(bool enabled);
     event VaultContributionFailed(address indexed vault, uint256 amount);
-    /// @dev Emitted when a previously stashed tithe is successfully re-sent to the vault by
-    ///      `flushPendingVaultCut`. Pairs with `VaultContributionFailed` so a reader summing the two
-    ///      arrives at the live `pendingVaultCut` rather than a figure that only ever grows.
+    /// @dev Emitted when a stashed tithe is re-sent to the vault by `flushPendingVaultCut`. Pairs with
+    ///      `VaultContributionFailed` so a reader summing the two arrives at the live `pendingVaultCut`.
     event VaultContributionRetried(address indexed vault, uint256 amount);
     /// @notice The vault's alignment target has been de-curated (`isVaultRegistered` false), so the
     ///         community cut it would have funded was returned to the creator. Settle still succeeds.
     /// @dev INVARIANT: de-curation may destroy value; it may not transfer value to the protocol. No
     ///      `isVaultRegistered`-false branch in this contract routes to `protocolTreasury`.
     event VaultCutReturnedToCreator(address indexed vault, address indexed creator, uint256 amount);
-    /// @notice A vault cut that had been stashed by a failed push was returned to the creator on the
-    ///         retry, because the vault's alignment target was de-curated while it sat.
-    /// @dev Distinct topic from `VaultCutReturnedToCreator`, which the PRIMARY path emits when a cut is
-    ///      returned as it is earned. Both move the same money to the same place, but only one of them
-    ///      is new revenue: a tithe report that saw a single event for both would double-count every
-    ///      cut that was stashed once and returned later. This is the retry.
+    /// @notice A vault cut stashed by a failed push was returned to the creator on the retry, because
+    ///         the vault's alignment target was de-curated while it sat.
+    /// @dev Distinct topic from `VaultCutReturnedToCreator`, which the primary path emits when a cut is
+    ///      returned as it is earned. Only one of them is new revenue, so a tithe report seeing a
+    ///      single event for both would double-count every cut stashed once and returned later.
     event PendingVaultCutReturnedToCreator(address indexed vault, address indexed creator, uint256 amount);
     event ContractURIUpdated();
 
@@ -167,18 +165,14 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
         if (bytes(p.symbol).length == 0) revert InvalidSymbol();
         if (p.lines < 1 || p.lines > 3) revert InvalidLines();
         if (p.baseDuration == 0) revert InvalidDuration();
-        // Bounded on BOTH sides, and the upper bound is the one that holds someone else's money.
-        // The anti-snipe rule at `placeBid` is an absolute RESET, not an increment —
-        // `endTime = block.timestamp + timeBuffer` — so `timeBuffer` is not "a little extra time",
-        // it is the auction's whole remaining life recomputed on every late bid. Unbounded, the
-        // FIRST bid on a fresh auction can push `endTime` decades out, and the bidder has no exit:
-        // this contract has no cancel, no withdraw and no rescue, `settleAuction` and
-        // `reclaimUnsold` both gate on `endTime`, and the only refund path is a higher bid from
-        // someone else, which locks that volunteer instead and re-arms the clock. The creator gains
-        // nothing by it — their 80% leg only pays at settlement — so the realistic cause is not
-        // malice but reading the field as "how long a fresh bid keeps this alive" and typing a year.
-        // Capping it at `baseDuration` says the buffer may extend an auction by at most one of its
-        // own lengths, which is the invariant every caller already assumed.
+        // Bounded on both sides; the upper bound protects bidders' money. The anti-snipe rule at
+        // `createBid` is an absolute reset, `endTime = block.timestamp + timeBuffer`, so `timeBuffer`
+        // is the auction's whole remaining life recomputed on every late bid. Unbounded, the first
+        // bid on a fresh auction could push `endTime` decades out with no exit: this contract has no
+        // cancel, withdraw or rescue, `settleAuction` and `reclaimUnsold` both gate on `endTime`, and
+        // the only refund is a higher bid from someone else, which locks that bidder and re-arms the
+        // clock. Capping at `baseDuration` lets the buffer extend an auction by at most one of its
+        // own lengths.
         if (p.timeBuffer == 0 || p.timeBuffer > p.baseDuration) revert InvalidTimeBuffer();
         if (p.bidIncrement == 0) revert InvalidBidIncrement();
 
@@ -336,9 +330,9 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
         }
 
         // Revocation must not brick the trade. `postForAction` refuses a caller the registry no longer
-        // approves, and `revokeInstance` is exactly that flip, so a bare call here would revert a
-        // commented bid that still succeeds uncommented. Pre-checking only that one read keeps the skip
-        // narrow: every other reason `postForAction` can revert still reverts the bid.
+        // approves, and `revokeInstance` is that flip, so a bare call would revert a commented bid that
+        // succeeds uncommented. Pre-checking only that read keeps the skip narrow: every other reason
+        // `postForAction` can revert still reverts the bid.
         if (messageData.length > 0 && masterRegistry.isInstanceFromApprovedFactory(address(this))) {
             globalMessageRegistry.postForAction(msg.sender, address(this), messageData);
         }
@@ -380,9 +374,9 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
         SafeTransferLib.forceSafeTransferETH(owner(), auction.minBid);
 
         // The winning bid splits family-blind: 1% protocol / 19% vault / 80% creator, whatever the vault
-        // is. The family read stays, and only as a deploy-config guard — an unrecognized `vaultType()` on
-        // the PINNED genesis vault (never the live `vault`, audit finding #2) still reverts
-        // `UnknownVaultFamily` rather than settling against a vault nobody classified.
+        // is. The family read is a deploy-config guard only: an unrecognized `vaultType()` on the pinned
+        // genesis vault (never the live `vault`) reverts `UnknownVaultFamily` rather than settling
+        // against a vault nobody classified.
         RevenueSplitLib.isLiquidityFamily(IAlignmentVault(payable(genesisVault)).vaultType());
         RevenueSplitLib.Split memory s = RevenueSplitLib.split(auction.highBid);
 
@@ -391,17 +385,13 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
             SafeTransferLib.forceSafeTransferETH(protocolTreasury, s.protocolCut);
         }
 
-        // De-curation gate (noesis-113/noesis-435): if the vault's alignment target was revoked AFTER this
-        // instance bound, `isVaultRegistered` reads false — fold the community cut into the creator's
-        // remainder instead of feeding the de-curated vault.
-        // INVARIANT: de-curation may destroy value; it may not transfer value to the protocol. Losing the
-        // ability to pay a community is a consequence of curation; gaining their revenue is a conflict of
-        // interest, so this branch must never route to `protocolTreasury`. A creator betrayed by the
-        // community they aligned to gets their alignment share back — restitution, not windfall. The
-        // auction settle still succeeds either way (never freeze the line for the DAO's revocation), and
-        // the fold moves whatever `vaultCut` resolved to for this family, never a hardcoded 19%. For an
-        // active target, keep the existing try/catch + pendingVaultCut retry (a vault revert is a
-        // transient upgrade issue).
+        // De-curation gate: if the vault's alignment target was revoked after this instance bound,
+        // `isVaultRegistered` reads false and the community cut folds into the creator's remainder
+        // instead of feeding the de-curated vault.
+        // INVARIANT: de-curation may destroy value; it may not transfer value to the protocol, so this
+        // branch never routes to `protocolTreasury`. Settlement succeeds either way (a revocation
+        // never freezes the line), and the fold moves whatever `vaultCut` resolved to. For an active
+        // target, a vault revert (a transient upgrade issue) is stashed in `pendingVaultCut` for retry.
         if (s.vaultCut > 0 && !masterRegistry.isVaultRegistered(address(vault))) {
             // Folded into the remainder below, which is paid with the same brick-proof smartTransferETH
             // the creator leg already uses.
@@ -445,8 +435,8 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
 
         auction.settled = true;
 
-        // Refund creator minus a 1% protocol cut (was 100% forfeit). protocolCut floors to 0 for
-        // tiny deposits; skip the treasury leg if it is zero or unset.
+        // Refund creator minus a 1% protocol cut. protocolCut floors to 0 for tiny deposits; the
+        // treasury leg is skipped if it is zero or unset.
         uint256 deposit = auction.minBid;
         uint256 protocolCut = deposit / 100;
         uint256 creatorRefund = deposit - protocolCut;
@@ -477,10 +467,9 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
      */
     // slither-disable-next-line unused-return
     function claimVaultFees() external onlyOwner nonReentrant returns (uint256 totalClaimed) {
-        // Vaults pay the benefactor by pushing ETH; the return value is a report, not a receipt.
-        // Measure the amount by balance-delta rather than trusting it — this contract custodies
-        // queued creators' deposits and every live high bid, so forwarding an unbacked figure
-        // would pay the owner out of that escrow.
+        // Vaults pay the benefactor by pushing ETH; the return value is a report, not a receipt. The
+        // amount is the balance delta, because this contract custodies queued creators' deposits and
+        // every live high bid, and forwarding an unbacked figure would pay the owner out of that escrow.
         uint256 before = address(this).balance;
         vault.claimFees();
         totalClaimed = address(this).balance - before;
@@ -488,18 +477,16 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
         SmartTransferLib.smartTransferETH(owner(), totalClaimed, weth);
     }
 
-    /// @notice Retry sending any previously failed vault cuts.
-    /// @dev Permissionless — anyone can call once the vault is healthy again.
+    /// @notice Retry sending any failed vault cuts.
+    /// @dev Permissionless.
     function flushPendingVaultCut() external nonReentrant {
         uint256 pending = pendingVaultCut;
         if (pending == 0) revert NoFeesToClaim();
         pendingVaultCut = 0;
-        // De-curation gate (noesis-126/noesis-435): if the vault's alignment target was revoked while this
-        // cut was stashed, return it to the creator instead of force-feeding the de-curated vault on retry,
-        // mirroring the `settleAuction` primary path. The stashed cut is the same money as a fresh one and
-        // must not survive as a treasury path. smartTransferETH keeps the leg brick-proof (a creator that
-        // rejects ETH is paid in WETH rather than stranding the retry). For an active target, re-send to
-        // the vault as before.
+        // De-curation gate: if the vault's alignment target was revoked while this cut was stashed, it
+        // returns to the creator instead of the de-curated vault, as on the `settleAuction` primary
+        // path, and never to the treasury. smartTransferETH pays a creator that rejects ETH in WETH
+        // rather than stranding the retry. For an active target, the cut is re-sent to the vault.
         if (!masterRegistry.isVaultRegistered(address(vault))) {
             SmartTransferLib.smartTransferETH(owner(), pending, weth);
             emit PendingVaultCutReturnedToCreator(address(vault), owner(), pending);
@@ -517,11 +504,11 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
     }
 
     /// @notice Claim accumulated fees from all vault positions (current and historical).
-    /// @dev Tolerant sweep: some vaults (e.g. AlignmentEndowmentVault) intentionally revert
-    ///      NotSupported() on claimFees() — they have no pull-claim model. A bare loop would let one
-    ///      such vault in the history brick fee delivery for the whole instance, and any ETH the other
-    ///      vaults DID push would strand here (no generic withdraw). So we swallow per-vault reverts and
-    ///      forward the net balance delta to the owner, matching claimVaultFees.
+    /// @dev Tolerant sweep: some vaults (e.g. AlignmentEndowmentVault) revert NotSupported() on
+    ///      claimFees() because they have no pull-claim model. A bare loop would let one such vault in
+    ///      the history brick fee delivery for the whole instance and strand any ETH the other vaults
+    ///      pushed (there is no generic withdraw). Per-vault reverts are swallowed and the net balance
+    ///      delta is forwarded to the owner, as in claimVaultFees.
     // slither-disable-next-line calls-loop,unused-return
     function claimAllFees() external onlyOwner nonReentrant {
         uint256 before = address(this).balance;
@@ -594,6 +581,6 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
         return auctions[tokenId];
     }
 
-    // Allow receiving ETH (for vault refunds etc.)
+    // Accepts ETH pushed by vaults.
     receive() external payable { }
 }

@@ -41,16 +41,16 @@ interface IAlignmentRegistry {
     }
 
     /// @notice DAO-pinned deep reference pool whose TWAP is the price authority for a `(targetId, token)` pair.
-    /// @dev The anti-sandwich vault floor reads this pool's own on-chain oracle TWAP — a pool an attacker cannot
-    ///      move intra-transaction. The other side of the pair is always the injected WETH (the floor denominates
-    ///      in ETH), enforced by the setter. `kind` selects the venue's oracle read.
+    /// @dev The anti-sandwich vault floor reads this pool's own on-chain oracle TWAP, which an attacker
+    ///      cannot move intra-transaction. The other side of the pair is always the injected WETH (the floor
+    ///      denominates in ETH), enforced by the setter. `kind` selects the venue's oracle read.
     ///      - kind 0: a Uniswap V3 pool; TWAP via `IUniswapV3Pool.observe`.
-    ///      `kind` is kept as a field rather than dropped so a second oracle family can be added without
-    ///      migrating stored routes or the setter's ABI; kind 0 is the only value the registry accepts today.
+    ///      `kind` is a field so another oracle family can be added without migrating stored routes or the
+    ///      setter's ABI; kind 0 is the only value the registry accepts.
     struct ReferencePool {
         address pool; // kind 0: Uniswap V3 pool
         uint8 kind; // 0 = Uniswap V3 observe(). The only accepted value.
-        uint32 twapWindow; // seconds. 0 means "use the registry default" ON INPUT ONLY: `setReferencePool`
+        uint32 twapWindow; // seconds. 0 means "use the registry default" on input only: `setReferencePool`
         // resolves it and stores the window it proved the pool over, so a value read back is never 0.
     }
 

@@ -45,8 +45,8 @@ interface IMerkleGatingView {
 }
 
 /// @dev Minimal owner surface for curating an alignment target's acquisition venue and its pinned
-///      price-authority pool. Both are `onlyOwner` on AlignmentRegistryV1 and the deployer still owns
-///      the registry at seed time (protocol-admin handover is deferred — see `_transferAdmin`).
+///      price-authority pool. Both are `onlyOwner` on AlignmentRegistryV1, and the deployer owns the
+///      registry at seed time (`_transferAdmin` in SeedAnvilBuys hands it over last).
 interface IAlignmentRouteAdmin {
     function setAcquireRoute(uint256 targetId, address token, IAlignmentRegistry.AcquireRoute calldata route) external;
     function setReferencePool(uint256 targetId, address token, IAlignmentRegistry.ReferencePool calldata ref) external;
@@ -75,50 +75,49 @@ interface IUniVaultView {
     function alignmentTargetId() external view returns (uint256);
 }
 
-/// @dev Minimal MasterRegistry agent surface — setAgent is onlyOwner (the deployer, pre-handover).
+/// @dev Minimal MasterRegistry agent surface; setAgent is onlyOwner (the deployer, before the handover).
 interface IAgentRegistry {
     function setAgent(address agent, bool authorized) external;
     function isAgent(address agent) external view returns (bool);
 }
 
-/// @notice Anvil-only FULL-STATE seed: stands up demoable instances of every project type
-///         (ERC1155 editions, ERC721 auctions, ERC404 bonding) plus profiles + activity, so the
-///         discovery cards, trading surfaces, candles, staking, and profile pages all light up with
-///         real on-chain state. Runs AFTER DeployAnvil; reads the deployed addresses from
-///         deployments/anvil.json. All metadata is backend-free — inline `data:` JSON with inline
-///         `data:` SVG images, so the seed needs no IPFS/network and renders offline. NEVER part of
-///         a production deploy (DeployCore stays clean); this lives only in the local dev bridge.
+/// @notice Anvil-only full-state seed: stands up demoable instances of every project type
+///         (ERC1155 editions, ERC721 auctions, ERC404 bonding) plus profiles and activity, so the
+///         discovery cards, trading surfaces, candles, staking, and profile pages all have real
+///         on-chain state. Runs after DeployAnvil and reads the deployed addresses from
+///         deployments/anvil.json. All metadata is backend-free: inline `data:` JSON with inline
+///         `data:` SVG images, so the seed needs no IPFS/network and renders offline. Never part of
+///         a production deploy; it lives only in the local dev bridge.
 ///
-///         TIME MODEL — READ THIS BEFORE MOVING ANYTHING. vm.warp is a NO-OP under --broadcast (it
-///         advances only the script's in-memory EVM, not the live chain), so this seed NEVER warps.
-///         Every instance is created with time OFFSETS relative to seed-time T0 (open +1h, gallery
-///         duration 1h, maturity +90m), and `deploy.ts` advances the anvil chain AFTERWARD.
+///         Time model. vm.warp is a no-op under --broadcast (it advances only the script's in-memory
+///         EVM, not the live chain), so this seed never warps. Every instance is created with time
+///         offsets relative to seed-time T0 (open +1h, gallery duration 1h, maturity +90m), and
+///         `deploy.ts` advances the anvil chain afterward.
 ///
-///         The seed is TWO SCRIPTS because `buyBonding` reverts `TooEarly` before `bondingOpenTime`
-///         while `setBondingOpenTime` reverts `TimeMustBeInFuture` on a non-future time — a single
-///         script cannot both arm a launch and buy into it (see SeedAnvilShared's header for the
-///         full derivation). THIS script only CREATES and ARMS. Every buy, and everything downstream
-///         of a buy, lives in SeedAnvilBuys.
+///         The seed is two scripts because `buyBonding` reverts `TooEarly` before `bondingOpenTime`
+///         while `setBondingOpenTime` reverts `TimeMustBeInFuture` on a non-future time, so a single
+///         script cannot both arm a launch and buy into it (see SeedAnvilShared's header). This
+///         script only creates and arms; every buy, and everything downstream of a buy, lives in
+///         SeedAnvilBuys.
 ///
 ///         deploy.ts drives the clock in two steps:
 ///           SeedAnvil  →  +1h +slack  →  SeedAnvilBuys  →  +2h
-///         so ~3h of chain time passes in total. Net result at the end:
-///           · ember       preopen        (open +1 day — uncrossed by ~3h, deliberately)
-///           · vapor       bonding        (open crossed by the FIRST advance, then bought + staked)
+///         so ~3h of chain time passes in total. The end state:
+///           · ember       preopen        (open +1 day, uncrossed by ~3h)
+///           · vapor       bonding        (open crossed by the first advance, then bought + staked)
 ///           · cinder      bonding + MATURED (maturity +90m: after the buys, before the end)
 ///           · molten      bonding + MATURED (same shape, ZAMM venue)
-///           · carve       bonding, reserve >= 3 ETH, matured — graduates in deploy.ts WITH a carve
+///           · carve       bonding, reserve >= 3 ETH, matured; graduates in deploy.ts with a carve
 ///           · stacked     bonding, ids 1-3 held, overlay authored
-///           · gallery auction (1h)  ENDED — note it now ends during the FIRST advance, not the
-///             second; it is settle-ready + no-bid either way, and nothing in phase 2 needs it live
+///           · gallery auction (1h)  ENDED during the first advance: settle-ready, no bid
 ///           · live auction (1 day)  ACTIVE, with its phase-1 bid intact
 contract SeedAnvil is SeedAnvilShared {
     using StateLibrary for IPoolManager;
     using PoolIdLibrary for PoolKey;
 
-    // Agent-delegation demo (pre-testnet confirmation): the AGENT is an authorized delegate that
-    // creates a collection ON BEHALF OF the PERSON, who ends up owning it. Anvil accounts #3 (agent)
-    // and #2 (person) — well-known public test keys.
+    // Agent-delegation demo: the AGENT is an authorized delegate that creates a collection on behalf
+    // of the PERSON, who ends up owning it. Anvil accounts #3 (agent) and #2 (person), well-known
+    // public test keys.
     uint256 constant AGENT_KEY = 0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6;
     address constant AGENT = 0x90F79bf6EB2c4f870365E785982E1f101E93b906; // anvil #3
     address constant PERSON = 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC; // anvil #2
@@ -138,116 +137,108 @@ contract SeedAnvil is SeedAnvilShared {
     uint256 constant NEON_DRIFT_DYNAMIC_EDITION = 3;
     uint256 constant GHOST_MINT_EDITION = 1;
 
-    // ── Merkle-allowlist fixture (noesis-357) ───────────────────────────────────────────────
-    // Two gated instances, one per instance family, because the families forward DIFFERENT
-    // editionIds to the module (ERC1155 forwards the real edition; ERC404 forwards 0) and a
-    // fixture that only proves one leaves the other unexercised.
+    // ── Merkle-allowlist fixture ────────────────────────────────────────────────────────────
+    // Two gated instances, one per instance family, because the families forward different
+    // editionIds to the module (ERC1155 forwards the real edition; ERC404 forwards 0) and a fixture
+    // that proves one leaves the other unexercised.
     //
     // Allowlist membership, shared by both fixtures:
     //   · ADMIN  (the team's testing wallet) — the wallet the walk mints WITH.
     //   · PERSON (anvil #2)                  — a second member, so every proof has a real sibling
     //                                          rather than degenerating to an empty proof.
-    //   · acct1  (anvil #1)                  — deliberately NOT on any list, so the refusal path
+    //   · acct1  (anvil #1)                  — deliberately not on any list, so the refusal path
     //                                          (`InvalidProof`) is walkable from a funded wallet.
     //
-    // SCOPE ASSIGNMENT IS FORCED BY THE INSTANCES, not chosen for variety. Both free-mint paths are
-    // one-claim-per-address (`freeMintClaimed[.. ]` on both families), so a cumulative per-user cap
-    // can only be exceeded on a PAID path — which means the instance that must demonstrate
-    // `QtyCapExceeded` is the one whose scope includes paid buys. Hence: ERC1155 = BOTH (paid mint
-    // gated, cap reachable), ERC404 = FREE_MINT_ONLY (the free-claim path gated, buys open).
+    // Scope assignment is forced by the instances. Both free-mint paths are one-claim-per-address
+    // (`freeMintClaimed[.. ]` on both families), so a cumulative per-user cap can only be exceeded
+    // on a paid path, and the instance that demonstrates `QtyCapExceeded` must have paid buys in
+    // scope. Hence ERC1155 = BOTH (paid mint gated, cap reachable), ERC404 = FREE_MINT_ONLY (the
+    // free-claim path gated, buys open).
     uint256 constant VEIL_EDITION = 1; // first addEdition on a fresh instance; asserted, not assumed
     uint256 constant VEIL_TIER_COUNT = 2;
-    // Tier 0 (open now). ADMIN's cap is 2 so a second mint of 2 exceeds it — QtyCapExceeded is two
-    // clicks away, which is the part most likely to be wrong in a UI (it must read `claimed` before
-    // building the request).
+    // Tier 0 (open now). ADMIN's cap is 2 so a second mint of 2 exceeds it: `QtyCapExceeded` is two
+    // clicks away, and a UI must read `claimed` before building the request.
     uint256 constant VEIL_T0_ADMIN_QTY = 2;
     uint256 constant VEIL_T0_MEMBER_QTY = 1;
-    // Tier 1 (opens +1 day, i.e. after both of deploy.ts's advances) — the later phase raises the
-    // caps, which is the module's documented re-allocation lever. Unopened, so `TierNotOpen` is
-    // reachable for the whole life of the seeded chain.
+    // Tier 1 opens +1 day, after both of deploy.ts's advances, with higher caps than tier 0.
+    // Unopened, so `TierNotOpen` is reachable for the whole life of the seeded chain.
     uint256 constant VEIL_T1_ADMIN_QTY = 5;
     uint256 constant VEIL_T1_MEMBER_QTY = 5;
     uint256 constant VEIL_TIER1_DELAY = 1 days;
     uint256 constant VEIL_FREE_ALLOC = 3;
 
     // ERC404 side. The module's `amount` on the free-claim path is `unit` (one NFT's worth of
-    // tokens), NOT an NFT count — so the cap encoded in the leaf is denominated in the same units.
+    // tokens), not an NFT count, so the cap encoded in the leaf is denominated in the same units.
     // preset 1 (STANDARD) is unitPerNFT = 1e5, and the created instance's `unit()` is asserted
     // against this before the config is trusted, because the leaf (and therefore the root) is built
-    // BEFORE the instance exists. Re-space the preset ladder and this constant moves with it — the
-    // assert below is what makes that a seed failure rather than an unclaimable allowlist.
+    // before the instance exists. The assert makes a change to the preset ladder a seed failure
+    // rather than an unclaimable allowlist.
     uint256 constant SIGIL_UNIT = 1e5 * 1e18;
     uint256 constant SIGIL_MAX_QTY = SIGIL_UNIT; // exactly one free claim's worth
     uint256 constant SIGIL_FREE_ALLOC = 3;
 
-    // ── THE ALIGNMENT CATALOG ROSTER ────────────────────────────────────────────────────────
+    // ── The alignment catalog roster ────────────────────────────────────────────────────────
     //
-    // THE ROSTER IS A SET OF EXAMPLES, NOT A MEASUREMENT. Several seeded collections stand in for
-    // real, recognisable collections; being recognisable is the whole of their job. Their figures are
-    // ILLUSTRATIVE — they give an armed curve the shape of a real one, they cost nothing, and they are
-    // never asserted, never presented as verified, and never worth spending ETH to make exact.
+    // The roster is a set of examples, not a measurement. Several seeded collections stand in for
+    // real, recognisable collections. Their figures are illustrative: they give an armed curve the
+    // shape of a real one and are never asserted or presented as verified.
     //
-    // WHAT IS ASSERTED IS WIRING AND ART: that the preset the seed registered is the preset the
-    // instance got, that a row binds to the vault it names, and that every seeded piece composes a
-    // metadata pointer that actually resolves. Those are real failure modes, and each one is invisible
-    // on a card until somebody opens it.
+    // What is asserted is wiring and art: the preset the seed registered is the preset the instance
+    // got, a row binds to the vault it names, and every seeded piece composes a metadata pointer
+    // that resolves.
     //
-    // WHAT THE ROSTER IS ARGUING. Not that these collections owe anyone anything. That the platform
-    // routes value to artists: a curve binds a share of every trade to a community's own token, an
-    // auction turns a hammer price into permanent endowment principal, and two of the four alignment
-    // targets are individual artists rather than communities. The roster is the demonstration surface
-    // for that, and its copy should read as demonstration rather than as accusation.
+    // The roster argues that the platform routes value to artists: a curve binds a share of every
+    // trade to a community's own token, an auction turns a hammer price into permanent endowment
+    // principal, and two of the four alignment targets are individual artists rather than
+    // communities. Its copy reads as demonstration.
     //
     // The roster's figures, its curve preset ids and the artist-endowment fixtures live in
-    // SeedAnvilShared: both phases read them, and a figure restated in two files eventually disagrees
-    // with itself.
+    // SeedAnvilShared, which both phases read, so a figure is not restated in two files.
 
     // ── The alignment target's two registry legs ────────────────────────────────────────────
-    // ACQUIRE: native ETH / CULT on Uniswap V4, 1% tier, hookless. The 0.3% tier is INITIALIZED and
-    // holds ZERO liquidity — "a pool exists" is not "a pool can be swapped through", so the tier
-    // matters and is not interchangeable.
+    // ACQUIRE: native ETH / CULT on Uniswap V4, 1% tier, hookless. The 0.3% tier is initialized and
+    // holds zero liquidity ("a pool exists" is not "a pool can be swapped through"), so the tiers
+    // are not interchangeable.
     uint24 constant CULT_ACQUIRE_FEE = 10000;
     int24 constant CULT_ACQUIRE_TICK_SPACING = 200;
-    // REFERENCE: a Uniswap V3 pool is a valid price AUTHORITY but is NOT a valid acquire venue
-    // (`Venue` is UNI_V4 | ZAMM). This is the deepest ETH/CULT pool on chain and is pinned
-    // as the anti-sandwich floor's oracle only. Its 0.3% sibling is likewise empty — do not swap them.
+    // REFERENCE: a Uniswap V3 pool is a valid price authority but not a valid acquire venue
+    // (`Venue` is UNI_V4 | ZAMM). This is the deepest ETH/CULT pool on chain and is pinned as the
+    // anti-sandwich floor's oracle only. Its 0.3% sibling is likewise empty.
     address constant CULT_REFERENCE_POOL_V3 = 0xC4ce8E63921b8B6cBdB8fCB6Bd64cC701Fb926f2;
     uint8 constant CULT_REFERENCE_KIND = 0; // Uniswap V3 `observe`
-    // 0 asks for the registry's default window. The pin READS BACK as that resolved default (1800),
-    // not as 0 — `setReferencePool` stores the window it proved the pool over (noesis-285).
+    // 0 asks for the registry's default window. The pin reads back as that resolved default (1800),
+    // not as 0: `setReferencePool` stores the window it proved the pool over.
     uint32 constant CULT_REFERENCE_TWAP_WINDOW = 0;
 
-    // ── The acquire pool's DEPTH ────────────────────────────────────────────────────────────
+    // ── The acquire pool's depth ────────────────────────────────────────────────────────────
     // Mainnet singletons, present on the fork. The pool manager is the V4 singleton every pool lives
-    // in; WETH is needed only because the deep pool the token leg is bought on is a WETH pair.
+    // in; WETH is needed because the deep pool the token leg is bought on is a WETH pair.
     address constant V4_POOL_MANAGER = 0x000000000004444c5dc75cB358380D2e3dE08A90;
     address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    // THE BUDGET IS SIZED BY MEASUREMENT, not by taste. Half buys the token leg on the deep pool and
-    // half is the native-ETH leg, and a tick-symmetric range makes those two legs equal in value.
-    // What the figure has to buy is a pool that can serve a demo-sized convert inside the vault's -5%
-    // oracle floor. Measured on the fork at authoring time, the 1%/200 tier's own liquidity prices a
-    // 0.1 ETH buy tens of percent under the reference TWAP; the position this budget mints lifts the
-    // tier's active liquidity by roughly three orders of magnitude, which puts a several-ETH buy
-    // inside the floor with the 1% pool fee already paid out of the budget. The graduation this fork
-    // leaves armed carves a vault share well under that, so the headroom is deliberate rather than
-    // exact — a demo that reverts on the second convert is the failure mode being bought out.
+    // The budget is sized by measurement. Half buys the token leg on the deep pool and half is the
+    // native-ETH leg; a tick-symmetric range makes the two legs equal in value. It has to buy a pool
+    // that can serve a demo-sized convert inside the vault's -5% oracle floor. On the fork, the
+    // 1%/200 tier's own liquidity prices a 0.1 ETH buy tens of percent under the reference TWAP; the
+    // position this budget mints lifts the tier's active liquidity by roughly three orders of
+    // magnitude, which puts a several-ETH buy inside the floor with the 1% pool fee already paid out
+    // of the budget. The graduation this fork leaves armed carves a vault share well under that, so
+    // the headroom is deliberate.
     uint256 constant CULT_DEPTH_BUDGET = 24 ether;
     // +/- ~19.7% in price around the pool's current tick, aligned down to the 200 spacing. Wide
     // enough that a demo-sized buy stays inside the range for the whole swap (a swap that walks out
-    // of the range falls back onto the tier's original depth mid-trade, which is the thin case again).
+    // of the range falls back onto the tier's original depth mid-trade).
     int24 constant CULT_DEPTH_HALF_WIDTH_TICKS = 1800;
-    // A floor, not the expected value: what is being asserted is that the deposit LANDED and moved
-    // the tier by orders of magnitude, not that it landed to the wei. The tier's pre-existing active
-    // liquidity was ~3.7e20 at authoring, so this is ~100x that and cannot be met by the pool's own
-    // depth drifting on a newer fork block.
+    // A floor, not the expected value: it asserts that the deposit landed and moved the tier by
+    // orders of magnitude, not that it landed to the wei. The tier's pre-existing active liquidity
+    // is ~3.7e20, so this is ~100x that and is not met by the pool's own depth drifting on a newer
+    // fork block.
     uint128 constant CULT_DEPTH_MIN_ACTIVE_LIQUIDITY = 4e22;
 
-    // ── The ERC-1155 tranche — free-mint-heavy examples, TRUNCATED ──────────────────────────
+    // ── The ERC-1155 tranche: free-mint-heavy examples, truncated ───────────────────────────
     // The seed demonstrates the family; it does not mint ten thousand tokens onto a fork. Each
     // edition is cut to a demo size, and the cut rides the instance's own on-chain metadata beside
-    // the example supply it stands in for. That pairing is the load-bearing part: a truncated
-    // edition's on-chain supply is the one figure a surface can read directly, so leaving it to be
-    // mistaken for the size it is an example of would misstate the only real number on the row.
+    // the example supply it stands in for, because a truncated edition's on-chain supply is the one
+    // figure a surface can read directly.
     uint256 constant ANTI_SEEDED_SUPPLY = 40; // example 10,000 -> 1:250
     uint256 constant ANTI_FREE_ALLOC = 39; // the split it stands in for was mostly free
     uint256 constant OEKAKI_SEEDED_SUPPLY = 50; // example 5,555 -> ~1:111
@@ -257,32 +248,32 @@ contract SeedAnvil is SeedAnvilShared {
 
     // ── Auction shape ───────────────────────────────────────────────────────────────────────
     // The orchestrator advances the chain +70m after phase 1 and +120m after phase 2, and
-    // `baseDuration` is an instance IMMUTABLE. A duration under 70m is what lets phase 2 SETTLE the
-    // opening auctions, which is the only way the endowment ends up holding principal that arrived
-    // through the 80% leg rather than through a donation. That same duration means the auctions
-    // settlement starts have themselves ended by the time the app boots, so the collection lands
-    // settle-ready-with-bids rather than mid-countdown. The two cannot both be had from one
-    // instance: any auction a settlement starts begins at the +70m mark and would need to outlive a
-    // further 120m, i.e. a duration LONGER than the one that made the settlement possible.
-    // Settled-with-real-principal is the half that carries the 80% endowment, so it is the half kept.
+    // `baseDuration` is an instance immutable. A duration under 70m lets phase 2 settle the opening
+    // auctions, the only way the endowment holds principal that arrived through the 80% leg rather
+    // than a donation. The same duration means the auctions settlement starts have ended by the time
+    // the app boots, so the collection lands settle-ready-with-bids rather than mid-countdown. Both
+    // cannot be had from one instance: an auction a settlement starts begins at the +70m mark and
+    // would need to outlive a further 120m. Settled-with-real-principal carries the 80% endowment,
+    // so it is the half kept.
     uint40 constant FIGMATA_DURATION = 45 minutes;
     uint8 constant FIGMATA_LINES = 3;
     // Deposit per queued piece, and three bid sizes spanning a plausible settlement spread, so the
-    // endowment ends up holding 80% of a distribution rather than of one repeated number. These are
-    // illustrative sizes; nothing downstream asserts them.
+    // endowment holds 80% of a distribution rather than of one repeated number. Illustrative sizes;
+    // nothing downstream asserts them.
     uint256 constant FIGMATA_MIN_BID = 0.095 ether;
     uint256 constant FIGMATA_BID_MEDIAN = 0.3 ether;
     uint256 constant FIGMATA_BID_HIGH = 0.95 ether;
     uint256 constant FIGMATA_BID_MAX = 4.025 ether;
 
     // ── The artist endowments ───────────────────────────────────────────────────────────────
-    // Two auction collections, one per artist target. The auction family is what feeds an endowment
-    // vault with real principal: the vault leg is `RevenueSplitLib.split`'s 19%, routed to the bound
-    // vault from the ERC-1155 and ERC-721 settlement paths.
+    // Two auction collections, one per artist target. The auction family feeds an endowment vault
+    // with real principal: the vault leg is `RevenueSplitLib.split`'s 19%, routed to the bound vault
+    // from the ERC-1155 and ERC-721 settlement paths.
     //
-    // Small on purpose. These exist to make the target list argue something and to give each artist
-    // vault real principal to render — not to be large. The duration mirrors the other
-    // auction row so the orchestrator's first advance can settle the openers, which is the only way
+    // Small on purpose: they make the target list argue something and give each artist vault real
+    // principal to render. The duration mirrors the other auction row so the orchestrator's first
+    // advance settles the openers, the only way principal reaches the endowment through the 80% leg
+    // rather than as a donation.
     // principal reaches the endowment through the 80% leg rather than as a donation.
     uint8 constant ARTIST_LINES = 2;
     uint40 constant ARTIST_DURATION = 45 minutes;
@@ -291,22 +282,21 @@ contract SeedAnvil is SeedAnvilShared {
     uint256 constant ARTIST_BID_LOW = 2.3 ether;
 
     // Anvil account #2, the second bidder. Well-known public test key; `PERSON` is its address and
-    // already carries the agent-delegation demo's collection, so the seed's two non-deployer actors
-    // stay the two it already uses.
+    // already carries the agent-delegation demo's collection.
     uint256 constant PERSON_KEY = 0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a;
 
-    // Every seeded instance, accumulated as they're created, so phase 2's _transferAdmin can hand
-    // them over. Persisted to anvil-seed.json at the end of run() — phase 2 cannot see this array.
+    // Every seeded instance, accumulated as created, so phase 2's _transferAdmin can hand them over.
+    // Persisted to anvil-seed.json at the end of run(); phase 2 cannot see this array.
     address[] private _instances;
 
     // The ERC404 instances phase 2 resolves by name.
     SeededErc404 private _seeded;
 
-    // The non-ERC404 catalog instances phase 2 still has work to do on.
+    // The non-ERC404 catalog instances phase 2 has work to do on.
     SeededCatalog private _catalog;
 
-    // The two merkle-gated fixtures (noesis-357), kept so the phase-1 post-conditions and the
-    // closing console block can name them.
+    // The two merkle-gated fixtures, kept so the phase-1 post-conditions and the closing console
+    // block can name them.
     address private _gatedErc1155;
     address private _gatedErc404;
 
@@ -317,19 +307,17 @@ contract SeedAnvil is SeedAnvilShared {
 
         Deployed memory d = _readDeployed();
 
-        // ── Phase A: ERC1155 editions + profiles + activity (the original seed, enriched) ──
+        // ── Phase A: ERC1155 editions + profiles + activity ──
         (address c0, address c2) = _seedErc1155(d);
 
-        // TIME MODEL: vm.warp is a NO-OP under --broadcast (it advances only the script's in-memory
-        // EVM, never the live chain). So this seed never warps — every instance is created with time
-        // OFFSETS relative to seed-time T0, and deploy.ts advances the anvil chain afterward
-        // (evm_increaseTime) so the ended/open/matured states materialize. The UI's countdown is
-        // chain-anchored (useNowSec reads block.timestamp), so it agrees with the advanced chain.
-        // Order below is no longer time-sensitive.
+        // vm.warp is a no-op under --broadcast, so every instance is created with time offsets
+        // relative to seed-time T0 and deploy.ts advances the anvil chain afterward (evm_increaseTime).
+        // The UI's countdown is chain-anchored (useNowSec reads block.timestamp), so it agrees with
+        // the advanced chain.
         //
-        // Nothing here BUYS. Arming a launch and buying into it cannot share one script (see the
-        // contract header) — the buys are in SeedAnvilBuys, which deploy.ts runs after advancing
-        // the clock past every open time set below.
+        // Nothing here buys. Arming a launch and buying into it cannot share one script (see the
+        // contract header); the buys are in SeedAnvilBuys, which deploy.ts runs after advancing the
+        // clock past every open time set below.
 
         // ── ERC721 gallery (1h duration -> ENDED after the +2h advance: settle-ready + no-bid) ──
         _seedErc721Gallery(d);
@@ -343,37 +331,37 @@ contract SeedAnvil is SeedAnvilShared {
         // ── ERC404 with a stacked metadata-resolution stack (overlay + tier) ──
         _seedErc404Stacked(d);
 
-        // ── THE ALIGNMENT CATALOG ROSTER ──
-        // Registry legs FIRST: the acquire venue and the pinned price authority are properties of the
-        // TARGET, and every roster instance below binds to a vault that reads them. Curating them
+        // ── The alignment catalog roster ──
+        // Registry legs first: the acquire venue and the pinned price authority are properties of the
+        // target, and every roster instance below binds to a vault that reads them. Curating them
         // after the instances exist would leave a window in which an aligned collection is bound to a
-        // target with no acquisition route at all.
+        // target with no acquisition route.
         _seedCultAlignmentLegs(d, CULT_REFERENCE_POOL_V3);
-        // Depth into the curated acquire pool, IMMEDIATELY after the legs and before any roster
-        // instance exists. Ordering is load-bearing in both directions: the pool key has to be set
-        // first (the depth goes into the tier the vault and the registry name, not the deployment
-        // default), and the depth has to exist before anything can graduate into the vault, because a
-        // convert reads the pool at execution time and gets no second attempt at the same ETH.
+        // Depth into the curated acquire pool, right after the legs and before any roster instance
+        // exists. The pool key has to be set first (the depth goes into the tier the vault and the
+        // registry name, not the deployment default), and the depth has to exist before anything can
+        // graduate into the vault, because a convert reads the pool at execution time and gets no
+        // second attempt at the same ETH.
         _seedCultPoolDepth(d);
-        // Catalog-sized curve presets, before the two curves that select them.
+        // Catalog-sized curve presets, registered before the two curves that select them.
         _registerCatalogPresets(d);
         _seedCatalogFlagship(d);
         _seedCatalogMidCurve(d);
         _seedCatalogSecondMidCurve(d);
         _seedCatalogGraduate(d);
         _seedCatalogAuction(d);
-        // The artist endowments — the two targets that make the roster an argument about artists
-        // rather than about one community. After the community rows on purpose: they read as the
-        // generalisation of what those rows do, not as a separate feature.
+        // The artist endowments: the two targets that make the roster an argument about artists
+        // rather than about one community. They follow the community rows because they generalise
+        // what those rows do.
         _seedArtistEndowments(d);
         _seedCatalogEditions(d);
 
         // ── ERC721 live (1-day duration -> stays ACTIVE after the advance) ──
         _seedErc721Live(d);
 
-        // ── Merkle-gated fixtures — one per instance family (noesis-357) ──
-        // Added AFTER the ungated instances on purpose: the rest of the walk depends on those being
-        // open, so gating is introduced as NEW surfaces rather than by gating an existing one.
+        // ── Merkle-gated fixtures, one per instance family ──
+        // Added after the ungated instances: the rest of the walk depends on those being open, so
+        // gating is introduced as new surfaces rather than by gating an existing one.
         address merkleGating = _readMerkleGatingModule();
         _gatedErc1155 = _seedGatedErc1155(d, merkleGating);
         _gatedErc404 = _seedGatedErc404(d, merkleGating);
@@ -394,11 +382,11 @@ contract SeedAnvil is SeedAnvilShared {
         // Agent-delegation confirmation: an authorized agent creates a collection FOR a person.
         _seedAgentDemo(d);
 
-        // Everything this phase claims, checked before the state file is written. See the function
-        // header for why these are `require`s rather than logs.
+        // Everything this phase claims, checked before the state file is written; `require`s rather
+        // than logs so a broken seed fails the run.
         _assertPhase1(c0, c2);
 
-        // Ownership handover is NOT here: it must run after ALL owner-only seeding, and phase 2 still
+        // Ownership handover is not here: it runs after all owner-only seeding, and phase 2 still
         // performs owner-only writes (staking activation, overlay authoring). _transferAdmin lives in
         // SeedAnvilBuys and runs last there.
         _writeSeedState(_seeded, _catalog, _instances);
@@ -424,24 +412,23 @@ contract SeedAnvil is SeedAnvilShared {
     }
 
     /// @dev Enrich the four seeded alignment targets (registered by DeployCore with empty metadataURI)
-    ///      with a richer description + a logo, so the Vaults-page "Alignment targets" section has
-    ///      something to show. Ids 1 (MS2) and 2 (the community token) are the community targets; 3
-    ///      and 4 are the artist endowments. The deployer still owns the registry at seed time
-    ///      (protocol-admin handover is deferred — see _transferAdmin).
+    ///      with a richer description and a logo for the Vaults-page "Alignment targets" section. Ids
+    ///      1 (MS2) and 2 (the community token) are the community targets; 3 and 4 are the artist
+    ///      endowments. The deployer owns the registry at seed time (see _transferAdmin).
     function _enrichAlignmentTargets(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
         IAlignmentTargetAdmin reg = IAlignmentTargetAdmin(d.alignmentRegistry);
         string memory ms2 =
             "The MS2 community and its milady-descended aesthetic. Collections aligned here route ~20% of every fee into the MS2 token, by contract.";
-        // The token is the community's own ERC20 — first-party, which is the entire point: the
-        // derivative collections align back to the parent's real token rather than to a proxy for it.
+        // The token is the community's own ERC20, first-party: the derivative collections align back
+        // to the parent's real token rather than to a proxy for it.
         string memory cult =
             "The Remilia / Milady community and the collections aligned to it. An aligned collection binds ~20% of its fees to the community's own token, by contract, forever.";
-        // THE TWO ARTIST TARGETS ARE THE ARGUMENT. A target list with one large community token and
-        // two individual artists says, before any collection is opened, that this is an
-        // artist-exaltation platform on which a large community is one instance rather than the
-        // purpose. Both descriptions say plainly that the payout address and the alignment token are
-        // generated fixtures, so nothing here reads as a claim about a real person's wallet.
+        // The two artist targets are the argument: a list with one large community token and two
+        // individual artists says, before any collection is opened, that a large community is one
+        // instance of the platform rather than its purpose. Both descriptions say that the payout
+        // address and the alignment token are generated fixtures, so nothing reads as a claim about a
+        // real person's wallet.
         string memory paradilf =
             "An artist endowment. Collections aligned here do not buy a token - they escrow permanent principal in a vault that supplies it to Aave, and the yield streams to the artist for as long as the principal sits there. This is a demonstration target: the payout address and the alignment token beside it are generated fixtures, not a real person's.";
         string memory petravoice =
@@ -459,11 +446,11 @@ contract SeedAnvil is SeedAnvilShared {
         vm.stopBroadcast();
     }
 
-    /// @dev Pre-testnet agent-delegation confirmation, exercised against the REAL MasterRegistryV1:
-    ///      the deployer (registry owner, pre-handover) authorizes AGENT, then AGENT creates an ERC404
-    ///      collection with `owner = PERSON`. The factory's agent-on-behalf path requires the caller to
-    ///      be a registered agent whenever `msg.sender != owner`, and hands a fully PERSON-owned
-    ///      collection back. NOT pushed to `_instances` — PERSON owns it, not ADMIN, which is the point.
+    /// @dev Agent-delegation demo against the real MasterRegistryV1: the deployer (registry owner,
+    ///      before the handover) authorizes AGENT, then AGENT creates an ERC404 collection with
+    ///      `owner = PERSON`. The factory's agent-on-behalf path requires the caller to be a
+    ///      registered agent whenever `msg.sender != owner`, and hands back a fully PERSON-owned
+    ///      collection. Not pushed to `_instances`: PERSON owns it, not ADMIN.
     function _seedAgentDemo(Deployed memory d) internal {
         // 1. Owner authorizes the agent (deployer still owns MasterRegistry at seed time).
         vm.startBroadcast(deployerKey);
@@ -477,12 +464,10 @@ contract SeedAnvil is SeedAnvilShared {
             name: "agent-commission",
             symbol: "COMM",
             styleUri: "",
-            // Per-piece art, same rule as every other seeded ERC404: `_tokenURI` composes
-            // `tokenBaseURI + tokenId`, so a metadata directory here is what makes the agent-created
-            // pieces resolve to art instead of a bare id. This instance is deliberately absent from
-            // `_instances`/`_seeded` (PERSON owns it, not ADMIN), so it carries its base explicitly
-            // rather than inheriting one from a list. ART_BASE_DOODLE is the base no neighbouring
-            // instance uses, so the commission reads as its own collection.
+            // Per-piece art, as for every other seeded ERC404: `_tokenURI` composes
+            // `tokenBaseURI + tokenId`, so a metadata directory here makes the pieces resolve to art
+            // instead of a bare id. This instance is absent from `_instances`/`_seeded`, so it carries
+            // its base explicitly. ART_BASE_DOODLE is the base no neighbouring instance uses.
             tokenBaseURI: ART_BASE_DOODLE,
             owner: PERSON,
             vault: d.vault,
@@ -514,7 +499,7 @@ contract SeedAnvil is SeedAnvilShared {
         console.log("  agent:", AGENT, "person:", PERSON);
     }
 
-    // ─────────────────── Merkle-allowlist fixtures (noesis-357) ───────────────────
+    // ─────────────────── Merkle-allowlist fixtures ───────────────────
 
     /// @dev The gating module is deployed by DeployCore and exported to anvil.json. It is read here
     ///      rather than added to the shared `Deployed` struct: only this phase needs it, and every
@@ -540,17 +525,16 @@ contract SeedAnvil is SeedAnvilShared {
         return uint256(a) <= uint256(b) ? keccak256(abi.encodePacked(a, b)) : keccak256(abi.encodePacked(b, a));
     }
 
-    /// @dev Build the two-member tier both fixtures use, and PROVE IT BEFORE INSTALLING IT.
+    /// @dev Build the two-member tier both fixtures use, and prove it before installing it.
     ///
-    ///      Two members rather than one on purpose: a single-leaf tree has root == leaf and an EMPTY
-    ///      proof, so it would verify without `MerkleProofLib` ever hashing a node. With two, every
-    ///      proof carries a real sibling.
+    ///      Two members rather than one: a single-leaf tree has root == leaf and an empty proof, so it
+    ///      would verify without `MerkleProofLib` ever hashing a node. With two, every proof carries a
+    ///      real sibling.
     ///
-    ///      The self-verification below is the check the item exists for. `IMerkleGatingModule`
-    ///      documents the leaf/root construction as byte-identical to `app/src/lib/merkle.ts`; a
-    ///      divergence between the two surfaces as an unexplained `InvalidProof` in the UI during a
-    ///      walk, with nothing to point at. Verifying the seed's own proof through the very library
-    ///      the module calls moves that failure to the SEED, where it names itself.
+    ///      The self-verification checks that the leaf/root construction is byte-identical to
+    ///      `app/src/lib/merkle.ts` (as `IMerkleGatingModule` documents). A divergence would surface
+    ///      as an unexplained `InvalidProof` in the UI during a walk; verifying the seed's own proof
+    ///      through the library the module calls moves that failure to the seed.
     function _buildTier(address a, uint256 aQty, address b, uint256 bQty, address excluded)
         internal
         pure
@@ -571,8 +555,8 @@ contract SeedAnvil is SeedAnvilShared {
         // 1. Both members must verify against the root that is about to be installed.
         require(MerkleProofLib.verify(proofA, root, leafA), "gating: member A's proof does not verify");
         require(MerkleProofLib.verify(proofB, root, leafB), "gating: member B's proof does not verify");
-        // 2. The deliberately-excluded address must NOT verify at either listed cap — this is the
-        //    refusal the walk sees as `InvalidProof`, checked against the same library the module uses.
+        // 2. The deliberately-excluded address must not verify at either listed cap: the refusal
+        //    the walk sees as `InvalidProof`, checked against the library the module uses.
         require(
             !MerkleProofLib.verify(proofA, root, _leaf(excluded, aQty)),
             "gating: the excluded address verifies at member A's cap"
@@ -590,14 +574,13 @@ contract SeedAnvil is SeedAnvilShared {
 
     /// @dev The off-chain `{address,maxQty}[]` list the mint page fetches to rebuild a connected
     ///      wallet's proof (`app/src/lib/collection/allowlistConfig.ts`). Self-hosted as a `data:`
-    ///      URI — the same shape the admin panel's paste path produces — so the seed needs no
-    ///      network and the fixture is walkable offline.
+    ///      URI, the shape the admin panel's paste path produces, so the fixture is walkable offline.
     ///
-    ///      Two details that are load-bearing rather than stylistic:
-    ///        · the quotes are BACKSLASH-ESCAPED, because this string is embedded as a JSON string
+    ///      Two details are load-bearing:
+    ///        · the quotes are backslash-escaped, because this string is embedded as a JSON string
     ///          value inside the collection metadata, which is itself an unencoded `data:` JSON URI;
-    ///        · `maxQty` is a QUOTED integer. The ERC404 cap is a token amount (1e23) and a JSON
-    ///          number cannot carry it exactly; the parser accepts a numeric string for exactly this.
+    ///        · `maxQty` is a quoted integer: the ERC404 cap is a token amount (1e23) and a JSON
+    ///          number cannot carry it exactly; the parser accepts a numeric string for this.
     function _allowlistListUri(address a, uint256 aQty, address b, uint256 bQty) internal pure returns (string memory) {
         return string.concat(
             "data:application/json,[{\\\"address\\\":\\\"",
@@ -613,8 +596,8 @@ contract SeedAnvil is SeedAnvilShared {
     }
 
     /// @dev Collection metadata carrying an `allowlists` row, so the mint page can find the list for
-    ///      this (editionId, tierIndex) pair. `tierIndex` is 0: the app resolves tier 0 only today,
-    ///      which is why tier 0 is the OPEN tier on the multi-tier fixture below.
+    ///      this (editionId, tierIndex) pair. `tierIndex` is 0: the app resolves tier 0 only, so tier
+    ///      0 is the open tier on the multi-tier fixture below.
     function _collectionMetaWithAllowlist(
         string memory name,
         string memory description,
@@ -637,12 +620,11 @@ contract SeedAnvil is SeedAnvilShared {
         );
     }
 
-    /// @dev GATED ERC-1155, scope BOTH — the paid path is gated, so the cumulative per-user cap is
-    ///      reachable: ADMIN is listed at 2, so a first mint of 2 succeeds and a second reverts
-    ///      `QtyCapExceeded`. TWO tiers, staggered: tier 0 is open immediately (and is the tier the
-    ///      app resolves), tier 1 opens +1 day — past both of deploy.ts's advances — so `TierNotOpen`
-    ///      stays reachable for the life of the seeded chain and the tier ladder is not a length-1
-    ///      degenerate case.
+    /// @dev Gated ERC-1155, scope BOTH: the paid path is gated, so the cumulative per-user cap is
+    ///      reachable. ADMIN is listed at 2, so a first mint of 2 succeeds and a second reverts
+    ///      `QtyCapExceeded`. Two staggered tiers: tier 0 is open immediately (and is the tier the
+    ///      app resolves), tier 1 opens +1 day, past both of deploy.ts's advances, so `TierNotOpen`
+    ///      stays reachable for the life of the seeded chain.
     function _seedGatedErc1155(Deployed memory d, address merkleGating) internal returns (address instance) {
         (bytes32 tier0Root,,) = _buildTier(ADMIN, VEIL_T0_ADMIN_QTY, PERSON, VEIL_T0_MEMBER_QTY, acct1);
         (bytes32 tier1Root,,) = _buildTier(ADMIN, VEIL_T1_ADMIN_QTY, PERSON, VEIL_T1_MEMBER_QTY, acct1);
@@ -688,8 +670,8 @@ contract SeedAnvil is SeedAnvilShared {
                 0
             );
 
-        // Post-create, by the instance owner — the factory threads no gating config (the generic
-        // slot bakes in no module's config shape), so this second tx is the intended path.
+        // Post-create, by the instance owner: the factory threads no gating config (the generic slot
+        // bakes in no module's config shape).
         IMerkleGatingModule(merkleGating)
             .configureFor(
                 instance, MerkleConfig({ editionId: VEIL_EDITION, roots: roots, tierOpenTimes: tierOpenTimes })
@@ -708,10 +690,10 @@ contract SeedAnvil is SeedAnvilShared {
         console.log("  NOT allowlisted (refusal path):", acct1);
     }
 
-    /// @dev GATED ERC-404, scope FREE_MINT_ONLY — the free-claim path is gated and paid buys stay
-    ///      open, which is the half of `GatingScope` an all-`BOTH` fixture cannot distinguish from
-    ///      the scope being ignored. ERC404 has no editions, so the module is configured at
-    ///      editionId 0 with a single tier (the app resolves tier 0 only).
+    /// @dev Gated ERC-404, scope FREE_MINT_ONLY: the free-claim path is gated and paid buys stay
+    ///      open, the half of `GatingScope` an all-`BOTH` fixture cannot distinguish from the scope
+    ///      being ignored. ERC404 has no editions, so the module is configured at editionId 0 with a
+    ///      single tier (the app resolves tier 0 only).
     function _seedGatedErc404(Deployed memory d, address merkleGating) internal returns (address instance) {
         (bytes32 root,,) = _buildTier(ADMIN, SIGIL_MAX_QTY, PERSON, SIGIL_MAX_QTY, acct1);
 
@@ -751,14 +733,14 @@ contract SeedAnvil is SeedAnvilShared {
         _instances.push(instance); // tracked so _transferAdmin hands ownership to ADMIN
 
         ERC404BondingInstance b = ERC404BondingInstance(payable(instance));
-        // The cap in the leaf is denominated in TOKENS (the free-claim path forwards `unit` as the
-        // amount), and the leaf was built before the instance existed. If the preset's unit is not
-        // what the leaf committed to, every claim would revert `QtyCapExceeded` on a valid proof —
-        // so the assumption is checked here, before the root is installed.
+        // The cap in the leaf is denominated in tokens (the free-claim path forwards `unit` as the
+        // amount), and the leaf was built before the instance existed. If the preset's unit differs
+        // from what the leaf committed to, every claim would revert `QtyCapExceeded` on a valid
+        // proof, so the assumption is checked before the root is installed.
         require(b.unit() == SIGIL_UNIT, "gating: sigil-gate unit differs from the cap encoded in the leaves");
 
         // Free claims are part of the curve and revert `TooEarly` before it opens: +1h, crossed by
-        // deploy.ts's FIRST advance, same as every other armed instance in this phase.
+        // deploy.ts's first advance, as for every other armed instance in this phase.
         b.setBondingOpenTime(block.timestamp + 1 hours);
         b.setBondingActive(true);
 
@@ -777,11 +759,10 @@ contract SeedAnvil is SeedAnvilShared {
         console.log("  NOT allowlisted (refusal path):", acct1);
     }
 
-    /// @dev Read the ERC1155 fixture back off-chain-state. Everything asserted here is something the
-    ///      walk depends on and nothing here restates a comment: the module must be ATTACHED (the
-    ///      factory silently accepts address(0)), the scope must be the one that gates the paid path,
-    ///      the edition id must be the one the config keyed to, and the installed roots must be the
-    ///      roots that were proven above.
+    /// @dev Read the ERC1155 fixture back from chain state. Everything asserted is something the walk
+    ///      depends on: the module is attached (the factory accepts address(0)), the scope gates the
+    ///      paid path, the edition id is the one the config keyed to, and the installed roots are the
+    ///      roots proven above.
     function _assertGatedErc1155(
         address instance,
         address merkleGating,
@@ -802,15 +783,15 @@ contract SeedAnvil is SeedAnvilShared {
             require(installed[i] == roots[i], "gating: veil-list installed a root that was never proven");
             require(installedOpens[i] == tierOpenTimes[i], "gating: veil-list tier open time drifted");
         }
-        // The two tiers must actually be STAGGERED on the seeded chain, or `TierNotOpen` is unwalkable.
+        // The two tiers must be staggered on the seeded chain, or `TierNotOpen` is unwalkable.
         require(installedOpens[0] <= block.timestamp, "gating: veil-list tier 0 is not open");
         require(installedOpens[1] > block.timestamp, "gating: veil-list tier 1 is not still closed");
     }
 
     /// @dev Same read-back for the ERC404 fixture. `gatingActive` is checked because the module is
-    ///      consulted only while it is true, and the buy path clears it on a `permanent` allow —
-    ///      an allowlist is deliberately never permanent, and a fixture that shipped with it already
-    ///      cleared would be an open collection wearing a gated label.
+    ///      consulted only while it is true, and the buy path clears it on a `permanent` allow; an
+    ///      allowlist is never permanent, and a fixture shipped with it cleared would be an open
+    ///      collection wearing a gated label.
     function _assertGatedErc404(address instance, address merkleGating, bytes32[] memory roots) internal view {
         ERC404BondingInstance sigil = ERC404BondingInstance(payable(instance));
         require(address(sigil.gatingModule()) == merkleGating, "gating: sigil-gate has no gating module attached");
@@ -825,45 +806,39 @@ contract SeedAnvil is SeedAnvilShared {
 
     // ─────────────────────── Phase 1 post-conditions ───────────────────────
 
-    /// @notice Assert, on-chain, every state PHASE 1 claims to have created.
+    /// @notice Assert, on-chain, every state phase 1 creates.
     ///
-    /// @dev WHY `require` AND NOT `console.log`. Forge simulates a whole script before broadcasting
-    ///      any of it, so a failed post-condition here leaves NO partial seed and names the assert
-    ///      that failed. A comment claiming an outcome is not an outcome — this seed carried such a
-    ///      comment about the free-claim configuration, and the state it described was never created.
-    ///      Do not soften an assertion to make a run pass: a failing post-condition is the tool
-    ///      working, and the seed refusing to complete is cheaper than a walk built on a false premise.
+    /// @dev `require` rather than `console.log`: forge simulates a whole script before broadcasting
+    ///      any of it, so a failed post-condition leaves no partial seed and names the assert that
+    ///      failed.
     ///
-    ///      Each post-condition lives in the phase where the state it describes actually exists.
-    ///      Phase 1 creates and ARMS: nothing is bought, staked or ADMIN-held here, so the holder-side
-    ///      checks are in SeedAnvilBuys and the registry handover check is in deploy.ts. A
-    ///      post-condition in the wrong phase is vacuous, not merely misplaced.
+    ///      Each post-condition lives in the phase where the state it describes exists. Phase 1
+    ///      creates and arms: nothing is bought, staked or ADMIN-held here, so the holder-side checks
+    ///      are in SeedAnvilBuys and the registry handover check is in deploy.ts.
     ///
-    ///      NOT ASSERTED, deliberately: the staking reward stream. `rewardRate` is reachable only via
-    ///      `recordFeesReceived` <- `claimAllFees` <- a vault fee DELTA, and vaults receive nothing
-    ///      until graduation, while the staking instance (vapor-mid) deliberately never graduates. A
-    ///      direct ETH donation cannot substitute, because claimAllFees measures a delta across the
-    ///      vault loop. The stake/unstake surface is therefore seeded and walkable; the CLAIM surface
-    ///      is not, and there is nothing to claim for any address. That is a stated residual, not an
-    ///      oversight — reaching it needs a graduated instance with a staking module, which no seeded
-    ///      instance is.
+    ///      Not asserted: the staking reward stream. `rewardRate` is reachable only via
+    ///      `recordFeesReceived` <- `claimAllFees` <- a vault fee delta, and vaults receive nothing
+    ///      until graduation, while the staking instance (vapor-mid) never graduates. A direct ETH
+    ///      donation cannot substitute, because claimAllFees measures a delta across the vault loop.
+    ///      The stake/unstake surface is seeded and walkable; the claim surface is not, and there is
+    ///      nothing to claim for any address. Reaching it needs a graduated instance with a staking
+    ///      module, which no seeded instance is.
     ///
-    ///      NOT ASSERTED, deliberately: the deploy-bond escrow. `bondAmount` stays 0. Turning it on
-    ///      requires `setBondAmount` to run after the LAST create (every 404 create here sends
-    ///      msg.value 0 and the factory reverts InsufficientBond below the bond), and reading the
-    ///      escrow's address means widening the Deployed struct. The escrow stays inert and the walk
-    ///      records it as not-covered rather than half-covered.
+    ///      Not asserted: the deploy-bond escrow. `bondAmount` stays 0, so the escrow is inert.
+    ///      Enabling it needs `setBondAmount` to run after the last create (every 404 create here
+    ///      sends msg.value 0 and the factory reverts InsufficientBond below the bond), and reading
+    ///      the escrow's address needs a wider Deployed struct.
     function _assertPhase1(address c0, address c2) internal view {
-        // 1. FREE-CLAIM ALLOCATION. The free-claim collection must actually carry an allocation on
-        //    the edition claimFreeMint targets, or the whole free-claim surface is unwalkable and
-        //    claimFreeMint reverts for everyone.
+        // 1. Free-claim allocation. The free-claim collection must carry an allocation on the edition
+        //    claimFreeMint targets, or the free-claim surface is unwalkable and claimFreeMint reverts
+        //    for everyone.
         uint256 alloc = ERC1155Instance(payable(c2)).freeMintAllocation(GHOST_MINT_EDITION);
         require(alloc > 0, "phase1: ghost-mint free-claim allocation is 0 (nothing is claimable)");
 
-        // 2. LIMITED_DYNAMIC COVERAGE — asserted as a REGIME, not as a configuration. Checking only
-        //    that pricingModel is LIMITED_DYNAMIC and the rate is non-zero would pass with a rate too
-        //    small to see across a handful of mints, which is a flat curve wearing a dynamic label.
-        //    So: read the edition back, then ask the module what it will actually charge.
+        // 2. LIMITED_DYNAMIC coverage, asserted as a regime and not as a configuration. A rate too
+        //    small to see across a handful of mints would pass a check on the pricingModel field and
+        //    the rate being non-zero while being a flat curve. So: read the edition back, then ask
+        //    the module what it will charge.
         ERC1155Instance neonDrift = ERC1155Instance(payable(c0));
         (,, uint256 basePrice,,,, ERC1155Instance.PricingModel model, uint256 rate,) =
             neonDrift.editions(NEON_DRIFT_DYNAMIC_EDITION);
@@ -956,15 +931,13 @@ contract SeedAnvil is SeedAnvilShared {
             );
 
         // Edition 3 on c0: the LIMITED_DYNAMIC (exponential) pricing regime. Every other seeded
-        // edition is UNLIMITED or LIMITED_FIXED, so without this one DynamicPricingModule is never
-        // reached by anything a walker can click, and the exponential path ships unwalked.
+        // edition is UNLIMITED or LIMITED_FIXED, so without this one nothing a walker can click
+        // reaches DynamicPricingModule.
         //
-        // DYN_RATE_BPS is chosen so the rise is VISIBLE across a handful of mints rather than merely
-        // non-zero: calculatePrice compounds (10000 + rate)/10000 per mint, so 2000 bps doubles the
-        // price in under 4 mints (1.2^4 = 2.07). A rate small enough to need a spreadsheet to see is
-        // a flat curve wearing a dynamic label, which is the failure mode this edition exists to
-        // make observable — hence the assertion in _assertPhase1 is about PRICE MOVEMENT, not about
-        // the pricingModel field being set.
+        // DYN_RATE_BPS makes the rise visible across a handful of mints: calculatePrice compounds
+        // (10000 + rate)/10000 per mint, so 2000 bps doubles the price in under 4 mints
+        // (1.2^4 = 2.07). The assertion in _assertPhase1 is about price movement, not about the
+        // pricingModel field being set.
         ERC1155Instance(payable(c0))
             .addEdition(
                 "Aberration Rising",
@@ -995,7 +968,7 @@ contract SeedAnvil is SeedAnvilShared {
 
         // ghost-mint needs at least one edition so claimFreeMint has a target. The eighth argument is
         // the edition's free-mint allocation: 5 free claims reserved out of the supply of 100. The
-        // two after it are the schedule — no close time, no per-wallet ceiling.
+        // two after it are the schedule: no close time, no per-wallet ceiling.
         ERC1155Instance(payable(c2))
             .addEdition(
                 "Ghost",
@@ -1050,7 +1023,7 @@ contract SeedAnvil is SeedAnvilShared {
     ) internal returns (address instance) {
         ERC1155Factory.CreateParams memory params = ERC1155Factory.CreateParams({
             name: slug,
-            symbol: "", // optional collection symbol (noesis-084)
+            symbol: "", // optional collection symbol
             metadataURI: _collectionMeta(displayName, description, image),
             creator: deployer,
             vault: vault,
@@ -1153,10 +1126,9 @@ contract SeedAnvil is SeedAnvilShared {
     ///      (UI shows a countdown). No buys.
     function _seedErc404PreOpen(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
-        // This instance covers the PREOPEN phase only — it never opens, so it never reaches a
-        // venue. It carries the Uni vault and deployer because a bonding instance must name a pair,
-        // not because the pair is exercised here; the graduation rails are covered by
-        // `cinder-ready` (Uni-V4) and `molten-ready` (ZAMM) below.
+        // This instance covers the PREOPEN phase only: it never opens, so it never reaches a venue.
+        // It carries the Uni vault and deployer because a bonding instance must name a pair; the
+        // graduation rails are covered by `cinder-ready` (Uni-V4) and `molten-ready` (ZAMM) below.
         address inst = _createBonding(
             d,
             "ember-preopen",
@@ -1173,8 +1145,8 @@ contract SeedAnvil is SeedAnvilShared {
             PRESET_SOURCE
         );
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
-        // +1 DAY, not +1h: this one must stay preopen through BOTH of deploy.ts's advances (~3h
-        // total). It is the only ERC404 the seed never buys into, which is the point of it.
+        // +1 DAY, not +1h: this one stays preopen through both of deploy.ts's advances (~3h total).
+        // It is the only ERC404 the seed never buys into.
         b.setBondingOpenTime(block.timestamp + 1 days);
         b.setBondingActive(true);
         d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.06 ether);
@@ -1205,7 +1177,7 @@ contract SeedAnvil is SeedAnvilShared {
         );
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         // openTime must be strictly future at broadcast; +1h clears any broadcast lag. deploy.ts
-        // crosses it with its FIRST advance, before SeedAnvilBuys runs -> derivePhase=bonding.
+        // crosses it with its first advance, before SeedAnvilBuys runs -> derivePhase=bonding.
         b.setBondingOpenTime(block.timestamp + 1 hours);
         b.setBondingActive(true);
         d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.05 ether);
@@ -1214,12 +1186,11 @@ contract SeedAnvil is SeedAnvilShared {
     }
 
     /// @dev READY-TO-GRADUATE: armed here; the single buy that gives it the reserve > 0 that
-    ///      deployLiquidity requires happens in SeedAnvilBuys. Maturity is set so that after BOTH of
-    ///      deploy.ts's advances it has passed -> deployLiquidity's isMatured becomes true and the UI
-    ///      surfaces the graduate button. Maturity +90m sits deliberately AFTER the first advance
-    ///      (+1h) so the buy lands on an open, un-matured curve, and before the ~3h total so it ends
-    ///      matured. We do NOT call deployLiquidity (it hits an external AMM); the human graduates
-    ///      live. No vm.warp.
+    ///      deployLiquidity requires happens in SeedAnvilBuys. Maturity +90m falls after the first
+    ///      advance (+1h), so the buy lands on an open, un-matured curve, and before the ~3h total,
+    ///      so the curve ends matured: deployLiquidity's isMatured is true and the UI surfaces the
+    ///      graduate button. deployLiquidity is not called here (it hits an external AMM); the human
+    ///      graduates live.
     ///      One graduate-ready instance is seeded per LP venue, so the graduation rail and the
     ///      post-graduation surface can be exercised on each: cinder-ready (Uni-V4 -> swapV4),
     ///      molten-ready (ZAMM -> swapVZ).
@@ -1286,9 +1257,9 @@ contract SeedAnvil is SeedAnvilShared {
             PRESET_SOURCE
         );
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
-        // openTime +1h (crossed by deploy.ts's FIRST advance, so the phase-2 buy lands on an open
-        // curve), maturity +90m (still ahead at buy time, crossed by the SECOND advance) so the
-        // curve ends bonding AND matured (graduate unlocked).
+        // openTime +1h (crossed by deploy.ts's first advance, so the phase-2 buy lands on an open
+        // curve), maturity +90m (ahead at buy time, crossed by the second advance) so the curve ends
+        // bonding and matured (graduate unlocked).
         b.setBondingOpenTime(block.timestamp + 1 hours);
         b.setBondingMaturityTime(block.timestamp + 90 minutes);
         b.setBondingActive(true);
@@ -1296,13 +1267,13 @@ contract SeedAnvil is SeedAnvilShared {
         vm.stopBroadcast();
     }
 
-    /// @dev CARVE DEMO: an ERC404 that declared the FULL carve allowance (declaredMax = 10000) and
+    /// @dev Carve demo: an ERC404 that declared the full carve allowance (declaredMax = 10000) and
     ///      builds a deep-enough reserve (>= 3 ETH) that graduating with a carve is meaningful:
     ///      allowance(3 ETH) = 1.5 ETH, LP-80 headroom above the 1 ETH pool floor = 1.4 ETH, so a
     ///      full-request graduation carves ~1.4 ETH (80% creator / 19% vault / 1% protocol).
-    ///      The GRADUATION itself happens in deploy.ts AFTER the +2h chain advance (openTime is
+    ///      The graduation happens in deploy.ts after the +2h chain advance (openTime is
     ///      strictly-future at seed time, and vm.warp is a no-op under --broadcast), calling
-    ///      deployLiquidity(10000) as ADMIN — so the app boots with a graduated-WITH-carve
+    ///      deployLiquidity(10000) as ADMIN, so the app boots with a graduated-with-carve
     ///      collection on a real Uni-V4 pool.
     function _seedErc404CarveDemo(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
@@ -1332,28 +1303,25 @@ contract SeedAnvil is SeedAnvilShared {
         _seeded.carve = inst;
     }
 
-    /// @dev STACKED METADATA: an ERC404 created via the factory's metadata overload (NOT the gating
+    /// @dev Stacked metadata: an ERC404 created via the factory's metadata overload (not the gating
     ///      param), wiring resolver(router) → [overlay, tier]. Both the economic ladder and the band
-    ///      art table are sealed at create, from the SAME derived id ranges.
-    ///      The ladder is one SCARCE tier: `weight: 5, count: 1` against the 10-id supply. The factory
-    ///      derives its range as the single id 11 — above the instance's id ceiling (nftCount = 10),
+    ///      art table are sealed at create, from the same derived id ranges.
+    ///      The ladder is one scarce tier: `weight: 5, count: 1` against the 10-id supply. The factory
+    ///      derives its range as the single id 11, above the instance's id ceiling (nftCount = 10),
     ///      because DN404's auto-mint bounds emitted ids to [1..idLimit] (`_wrapNFTId`, DN404.sol:531,
-    ///      544), so band ids are never handed out by an ordinary buy. `count: 1` is BELOW the maximum
-    ///      the supply could back (10 / 5 = 2 ids), which is what makes the tier scarce: the second
-    ///      `mintUp` into it reverts `BandExhausted` until a holder mints down, and the demo shows a
-    ///      capped tier rather than one that can never sell out.
+    ///      544), so band ids are never handed out by an ordinary buy. `count: 1` is below the maximum
+    ///      the supply could back (10 / 5 = 2 ids), which makes the tier scarce: the second `mintUp`
+    ///      into it reverts `BandExhausted` until a holder mints down, so the demo shows a capped tier.
     ///      Post-create the deployer (artist) publishes an opt-in event wave and a PAY commission on
-    ///      id 3, then — as the holder of id 3 — unlocks + pins it. Precedence (overlay > tier > base)
-    ///      is demonstrated in ART: each of the three layers is a DIFFERENT collection, so id 3
-    ///      (commission), id 11 (band) and an ordinary id resolve to three visibly different images
-    ///      rather than three labels that only a diff can tell apart.
+    ///      id 3, then, as the holder of id 3, unlocks and pins it. Precedence (overlay > tier > base)
+    ///      is demonstrated in art: each of the three layers is a different collection, so id 3
+    ///      (commission), id 11 (band) and an ordinary id resolve to three visibly different images.
     function _seedErc404Stacked(Deployed memory d) internal {
         // The ladder the creator supplies; the factory derives the id range (11-11) and seals both the
         // instance's economic ladder and the resolver's art table from it.
         ERC404Factory.TierSpec[] memory tiers = new ERC404Factory.TierSpec[](1);
-        // The band's own metadata base — a DIFFERENT collection from the instance's ordinary-piece
-        // base, so minting up into the band visibly changes the art rather than swapping one label
-        // for another. Composes as `base + 11`.
+        // The band's own metadata base: a different collection from the instance's ordinary-piece
+        // base, so minting up into the band visibly changes the art. Composes as `base + 11`.
         tiers[0] = ERC404Factory.TierSpec({ weight: 5, count: 1, baseURI: ART_BASE_ARCTIC });
 
         address[] memory children = new address[](2);
@@ -1406,8 +1374,8 @@ contract SeedAnvil is SeedAnvilShared {
         vm.stopBroadcast();
         _seeded.stacked = inst;
 
-        // The buy-with-mint (ids 1,2,3) and the overlay authoring that depends on HOLDING id 3 are
-        // both in SeedAnvilBuys — the unlock is a holder write, so it cannot precede the buy.
+        // The buy-with-mint (ids 1,2,3) and the overlay authoring that depends on holding id 3 are
+        // both in SeedAnvilBuys: the unlock is a holder write, so it cannot precede the buy.
 
         console.log("STACKED prism instance:", inst);
         console.log("  overlay:", d.overlay);
@@ -1471,25 +1439,25 @@ contract SeedAnvil is SeedAnvilShared {
 
     // ───────────────── THE ALIGNMENT CATALOG ROSTER (phase 1: create + arm) ─────────────────
 
-    /// @dev Curate the alignment target's two registry legs and point its OWN LP vault at the pool
-    ///      that can actually absorb liquidity.
+    /// @dev Curate the alignment target's two registry legs and point its own LP vault at the pool
+    ///      that can absorb liquidity.
     ///
-    ///      THREE THINGS THAT LOOK LIKE ONE AND ARE NOT:
-    ///        · the ACQUIRE ROUTE is registry curation — the venue a DAO-side convert is told to use;
-    ///        · the REFERENCE POOL is the price authority the anti-sandwich floor reads, and a
+    ///      Three distinct things:
+    ///        · the acquire route is registry curation: the venue a DAO-side convert is told to use;
+    ///        · the reference pool is the price authority the anti-sandwich floor reads, and a
     ///          Uniswap V3 pool is legal here and illegal as an acquire venue (`Venue` carries no V3);
-    ///        · the vault's own V4 POOL KEY is where the vault deposits liquidity, and it is neither
-    ///          of the above — it lives on the vault, not in the registry.
-    ///      All three are set here because leaving any one of them at a default silently sends real
-    ///      value to a pool that cannot serve it, and none of the three reads the others.
+    ///        · the vault's own V4 pool key is where the vault deposits liquidity; it lives on the
+    ///          vault, not in the registry.
+    ///      All three are set here because leaving any one at a default silently sends real value to
+    ///      a pool that cannot serve it, and none of the three reads the others.
     ///
-    ///      THE POOL KEY IS SET PER VAULT, NOT NETWORK-WIDE. `DeployCore` builds every vault's key
+    ///      The pool key is set per vault, not network-wide. `DeployCore` builds every vault's key
     ///      from the network's single fee/tick-spacing pair, so the deployment-wide default is the
     ///      0.3% tier. This target's deep pool is the 1% tier, and retuning the network default to
     ///      reach it would move the other target's vault and every graduating curve's launch venue
-    ///      with it. The vault's `setV4PoolKey` is owner-only and the FACTORY owns every vault it
-    ///      deploys, so the retune routes through the factory and touches exactly one vault. That is
-    ///      why the factory address is exported to the deployment file at all.
+    ///      with it. The vault's `setV4PoolKey` is owner-only and the factory owns every vault it
+    ///      deploys, so the retune routes through the factory and touches exactly one vault; that is
+    ///      why the factory address is exported to the deployment file.
     function _seedCultAlignmentLegs(Deployed memory d, address referencePool) internal {
         require(referencePool.code.length > 0, "catalog: the pinned reference pool holds no code");
         IAlignmentRouteAdmin reg = IAlignmentRouteAdmin(d.alignmentRegistry);
@@ -1524,11 +1492,10 @@ contract SeedAnvil is SeedAnvilShared {
         _assertCultAlignmentLegs(d, referencePool);
     }
 
-    /// @dev Read all three legs back off chain state. Each check is a property the seed depends on
-    ///      and none of them restates a comment: an unset route reads as `Venue.NONE` and callers are
-    ///      required to refuse rather than fall back to a hardcoded pool, an unset reference pool
-    ///      reads as address(0) and disarms the price floor, and a pool key left at the deployment
-    ///      default would point the vault's liquidity at the empty tier.
+    /// @dev Read all three legs back from chain state. An unset route reads as `Venue.NONE` and
+    ///      callers are required to refuse rather than fall back to a hardcoded pool, an unset
+    ///      reference pool reads as address(0) and disarms the price floor, and a pool key left at
+    ///      the deployment default would point the vault's liquidity at the empty tier.
     function _assertCultAlignmentLegs(Deployed memory d, address referencePool) internal view {
         IAlignmentRouteAdmin reg = IAlignmentRouteAdmin(d.alignmentRegistry);
 
@@ -1558,22 +1525,21 @@ contract SeedAnvil is SeedAnvilShared {
 
     /// @dev Give the curated acquire pool the depth the curated route already claims.
     ///
-    ///      WHY THE SEED PAYS FOR THIS AT ALL. The registry curates the native-ETH 1%/200 tier as the
+    ///      Why the seed pays for this. The registry curates the native-ETH 1%/200 tier as the
     ///      target's acquire venue, the vault LPs into that same tier, and the fork's route pin sends
-    ///      the executed buy there too — three legs naming one pool. On a bare mainnet fork that pool
+    ///      the executed buy there too: three legs naming one pool. On a bare mainnet fork that pool
     ///      carries a small fraction of the depth its same-fee V3 sibling does, so a demo-sized ETH ->
     ///      token buy prices far enough under the reference TWAP to trip the vault's -5% oracle floor
-    ///      and revert the convert. The floor is correct and is left alone; what changes is the pool.
+    ///      and revert the convert. The floor is left alone; the pool's liquidity changes.
     ///
-    ///      WHERE THE TOKEN LEG COMES FROM. A two-sided position needs the alignment token and the
-    ///      seed holds only ETH, so the seeder buys the token leg on the deep V3 pool — real tokens at
+    ///      Where the token leg comes from. A two-sided position needs the alignment token and the
+    ///      seed holds only ETH, so the seeder buys the token leg on the deep V3 pool: real tokens at
     ///      a real price rather than fabricated balances. That buy nudges the token's price up on the
-    ///      reference pool, which moves the vault's floor DOWN (the floor is a minimum token-out
-    ///      derived from the reference price), so it cannot be what breaks a later convert.
+    ///      reference pool, which moves the vault's floor down (the floor is a minimum token-out
+    ///      derived from the reference price), so it cannot break a later convert.
     ///
-    ///      WHAT THIS DOES NOT TOUCH: the reference pool's role as the price authority, the vault's
-    ///      own pool key, the network-wide fee/tick default, and the oracle floor. Only the pool's
-    ///      liquidity moves.
+    ///      Untouched: the reference pool's role as the price authority, the vault's own pool key,
+    ///      the network-wide fee/tick default, and the oracle floor.
     function _seedCultPoolDepth(Deployed memory d) internal {
         PoolKey memory key = PoolKey({
             currency0: Currency.wrap(address(0)),
@@ -1593,10 +1559,10 @@ contract SeedAnvil is SeedAnvilShared {
             seeder.seedDepth{ value: CULT_DEPTH_BUDGET }(key, CULT_DEPTH_HALF_WIDTH_TICKS);
         vm.stopBroadcast();
 
-        // Read the tier back off the pool manager rather than trusting the seeder's return: the
-        // number that decides whether a convert survives the floor is the pool's ACTIVE liquidity,
-        // and a position minted outside the current tick range would report units while adding none
-        // of the depth the acquire leg swaps through.
+        // The tier is read back from the pool manager rather than trusting the seeder's return: what
+        // decides whether a convert survives the floor is the pool's active liquidity, and a
+        // position minted outside the current tick range would report units while adding none of
+        // the depth the acquire leg swaps through.
         uint128 nowActive = IPoolManager(V4_POOL_MANAGER).getLiquidity(key.toId());
         require(liquidityAdded > 0, "catalog: the acquire pool's depth seed minted no liquidity");
         require(nowActive > before, "catalog: the depth seed did not land in the pool's active range");
@@ -1615,16 +1581,15 @@ contract SeedAnvil is SeedAnvilShared {
     }
 
     /// @dev Register the four catalog-sized curve presets. `setPreset` guards only against a zero
-    ///      target, a zero unit, an out-of-band reserve and a zero computer — there is no ceiling on
-    ///      `targetETH` anywhere in the contract, so a raise the size of a real collection's is
-    ///      expressible today and needs no protocol change. Everything except the target is carried
-    ///      over from the STANDARD preset, so a catalog curve differs from a production one in SIZE
-    ///      ONLY; read the source preset rather than restating its fields, or the two drift apart
-    ///      silently the first time STANDARD is retuned.
+    ///      target, a zero unit, an out-of-band reserve and a zero computer; there is no ceiling on
+    ///      `targetETH`, so a raise the size of a real collection's is expressible. Everything except
+    ///      the target is carried over from the STANDARD preset, so a catalog curve differs from a
+    ///      production one in size only; the source preset is read rather than restated so the two
+    ///      cannot drift apart.
     ///
-    ///      ARMING IS FREE. A preset only prices the curve; nothing is spent until somebody buys along
-    ///      it. So a row can carry the raise its real counterpart suggests while the seed buys a
-    ///      fraction of it, which is exactly what phase 2 does on the three large rows.
+    ///      Arming is free. A preset only prices the curve; nothing is spent until somebody buys along
+    ///      it. A row can carry the raise its real counterpart suggests while the seed buys a
+    ///      fraction of it, which is what phase 2 does on the three large rows.
     function _registerCatalogPresets(Deployed memory d) internal {
         LaunchManager lm = LaunchManager(d.launchManager);
         LaunchManager.Preset memory std = lm.getPreset(PRESET_SOURCE);
@@ -1636,9 +1601,9 @@ contract SeedAnvil is SeedAnvilShared {
         _setCatalogPreset(lm, std, PRESET_LAWBSTERS, LAWBSTERS_REAL_RAISE);
         vm.stopBroadcast();
 
-        // A preset that did not take would surface much later as a curve priced for a raise nobody
-        // chose. This is a WIRING check, not an accuracy claim: what it proves is that the preset the
-        // seed registered is the preset the instance will be created against.
+        // A preset that did not take would surface later as a curve priced for a raise nobody chose.
+        // This is a wiring check, not an accuracy claim: the preset the seed registered is the preset
+        // the instance will be created against.
         _assertCatalogPreset(lm, std, PRESET_SCHIZO, SCHIZO_REAL_RAISE);
         _assertCatalogPreset(lm, std, PRESET_PIXELADY, PIXELADY_REAL_RAISE);
         _assertCatalogPreset(lm, std, PRESET_BOREDMILADY, BOREDMILADY_REAL_RAISE);
@@ -1682,25 +1647,21 @@ contract SeedAnvil is SeedAnvilShared {
         require(got.active, "catalog: preset registered inactive");
     }
 
-    /// @dev FLAGSHIP — the largest curve on the roster, armed at the size a real collection of its
-    ///      shape suggests. Phase 2 buys a FRACTION of it: arming costs nothing, and buying a curve
-    ///      out to land the reserve on an exact figure would be spending real ETH to prop up an
-    ///      accuracy claim this roster does not make. `declaredMax` is 0 deliberately — with no
-    ///      creator carve the graduation arithmetic is the unmodified 1/19/80, which is the shape the
-    ///      row is demonstrating.
+    /// @dev Flagship: the largest curve on the roster, armed at the size a real collection of its
+    ///      shape suggests. Phase 2 buys a fraction of it: arming costs nothing, and buying a curve
+    ///      out to land the reserve on an exact figure would spend real ETH to prop up an accuracy
+    ///      claim this roster does not make. `declaredMax` is 0, so with no creator carve the
+    ///      graduation arithmetic is the unmodified 1/19/80, the shape the row demonstrates.
     ///
-    ///      The READY-TO-GRADUATE posture moved off this row and onto the small one below, where the
-    ///      whole curve can be bought out for a couple of ETH and the graduate action is genuinely
-    ///      live. `cinder`/`molten` carry the same posture per LP venue.
+    ///      The ready-to-graduate posture lives on the small row below, where the whole curve can be
+    ///      bought out for a couple of ETH, and on `cinder`/`molten` per LP venue.
     ///
-    ///      ART: the real collection serves its metadata from a live third-party domain, so the
-    ///      pieces take one of the seed's own pinned IPFS bases instead. Wiring the real host would
-    ///      make this fork's art depend on somebody else's uptime and point our traffic at it.
-    ///      Do not "improve" this into the real host.
+    ///      Art: the real collection serves its metadata from a live third-party domain, so the
+    ///      pieces take one of the seed's own pinned IPFS bases instead, which keeps this fork's art
+    ///      independent of somebody else's uptime.
     ///
-    ///      DESCRIPTION: the LONG one on the roster, on purpose. The description field is demo
-    ///      surface — a page that only ever renders one grey line has not been shown doing its job —
-    ///      and the renderer takes plain text, so length and phrasing are the only axes there are.
+    ///      Description: the long one on the roster, on purpose. The description field is demo
+    ///      surface, and the renderer takes plain text, so length and phrasing are the only axes.
     function _seedCatalogFlagship(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
         address inst = _createBonding(
@@ -1719,10 +1680,9 @@ contract SeedAnvil is SeedAnvilShared {
             PRESET_SCHIZO
         );
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
-        // Open time crossed by the orchestrator's first advance so the phase-2 buys land on an open
-        // curve. NO maturity time: this row is no longer the graduate demo, and a curve filled to a
-        // quarter that also advertised a graduate action would be advertising one that cannot pay for
-        // itself. We never call deployLiquidity here.
+        // Open time is crossed by the orchestrator's first advance so the phase-2 buys land on an open
+        // curve. No maturity time: a curve filled to a quarter that also advertised a graduate
+        // action would advertise one that cannot pay for itself. deployLiquidity is never called here.
         b.setBondingOpenTime(block.timestamp + 1 hours);
         b.setBondingActive(true);
         d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.07 ether);
@@ -1733,14 +1693,14 @@ contract SeedAnvil is SeedAnvilShared {
         console.log("CATALOG flagship (mid-curve, armed large):", inst);
     }
 
-    /// @dev MID-CURVE — the instance the site's live features are demonstrated on, so it must sit
-    ///      visibly mid-curve: bought into far enough that the curve, the holder surface and the
-    ///      vault panel all have something real to render, and with NO maturity time set, so the
-    ///      graduate action never unlocks and a demo cannot accidentally end it.
+    /// @dev Mid-curve: the instance the site's live features are demonstrated on, so it sits visibly
+    ///      mid-curve: bought into far enough that the curve, the holder surface and the vault panel
+    ///      all have something real to render, with no maturity time, so the graduate action never
+    ///      unlocks and a demo cannot end it.
     ///
-    ///      ART: the real collection's metadata is immutable IPFS whose entries are addressed by the
-    ///      bare token id, which is exactly the `base + tokenId` concatenation the instance performs.
-    ///      So this one carries the REAL art, re-hosted nowhere.
+    ///      Art: the real collection's metadata is immutable IPFS whose entries are addressed by the
+    ///      bare token id, which is the `base + tokenId` concatenation the instance performs. This
+    ///      one carries the real art, re-hosted nowhere.
     function _seedCatalogMidCurve(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
         address inst = _createBonding(
@@ -1760,8 +1720,8 @@ contract SeedAnvil is SeedAnvilShared {
         );
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         b.setBondingOpenTime(block.timestamp + 1 hours);
-        // No maturity time, deliberately — same shape as the other mid-curve instance. The buys are
-        // in phase 2, after the chain crosses the open time.
+        // No maturity time, as for the other mid-curve instance. The buys are in phase 2, after the
+        // chain crosses the open time.
         b.setBondingActive(true);
         d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.068 ether);
         vm.stopBroadcast();
@@ -1771,17 +1731,16 @@ contract SeedAnvil is SeedAnvilShared {
         console.log("CATALOG mid-curve:", inst);
     }
 
-    /// @dev SECOND MID-CURVE — a large, widely-recognised collection the roster was missing. Same
-    ///      shape as the row above (no maturity time, a partial fill in phase 2) because the point it
-    ///      makes is different: one recognisable row can be read as a one-off, two cannot.
+    /// @dev Second mid-curve: a large, widely-recognised collection. Same shape as the row above (no
+    ///      maturity time, a partial fill in phase 2); one recognisable row can be read as a one-off,
+    ///      two cannot.
     ///
-    ///      ART: real, and content-addressed. `tokenURI(1)` on the collection this row echoes answers
-    ///      `ipfs://<cid>/1` — bare-id form, which is exactly what `base + tokenId` reproduces — so
-    ///      the pieces resolve to the actual art with no re-hosting and no third-party host in the path.
+    ///      Art: real and content-addressed. `tokenURI(1)` on the collection this row echoes answers
+    ///      `ipfs://<cid>/1`, the bare-id form that `base + tokenId` reproduces, so the pieces
+    ///      resolve to the actual art with no re-hosting and no third-party host in the path.
     ///
-    ///      DESCRIPTION: the SHORT one on the roster, deliberately. A surface that renders the long
-    ///      description well and collapses on a one-liner is still broken, and the only way to know is
-    ///      to have both on the chain.
+    ///      Description: the short one on the roster, so a surface is exercised on both a long
+    ///      description and a one-liner.
     function _seedCatalogSecondMidCurve(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
         address inst = _createBonding(
@@ -1810,18 +1769,18 @@ contract SeedAnvil is SeedAnvilShared {
         console.log("CATALOG second mid-curve:", inst);
     }
 
-    /// @dev THE READY-TO-GRADUATE ROW, and it is the SMALL collection on purpose. A few-hundred-piece
+    /// @dev The ready-to-graduate row, and it is the small collection on purpose. A few-hundred-piece
     ///      curve armed at a few ETH can be bought out in full for a couple of ETH, so the graduate
-    ///      action on this chain is genuinely live rather than a posture held at three hundred ETH of
-    ///      fill. Phase 2 buys the curve out; GRADUATION IS LEFT UNCROSSED — a visitor performs it,
-    ///      and watching the split happen is worth more than finding it already done.
+    ///      action on this chain is live rather than a posture held at three hundred ETH of fill.
+    ///      Phase 2 buys the curve out; graduation is left uncrossed so a visitor performs it and
+    ///      watches the split happen.
     ///
-    ///      Maturity is crossed by the orchestrator's second advance, which is what unlocks the action
+    ///      Maturity is crossed by the orchestrator's second advance, which unlocks the action
     ///      without taking it. `deployLiquidity` is never called here or in phase 2.
     ///
-    ///      ART: real, content-addressed, bare-id form — same test the two rows above pass.
+    ///      Art: real, content-addressed, bare-id form, as for the two rows above.
     ///
-    ///      DESCRIPTION: the one that names the mechanic it is here to show.
+    ///      Description: the one that names the mechanic it is here to show.
     function _seedCatalogGraduate(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
         address inst = _createBonding(
@@ -1851,20 +1810,19 @@ contract SeedAnvil is SeedAnvilShared {
         console.log("CATALOG ready-to-graduate (small):", inst);
     }
 
-    /// @dev THE 80% ENDOWMENT — an ERC-721 auction collection bound to the target's OWN Aave
-    ///      endowment vault. This is the only roster member that can express the 80% leg at all: the
-    ///      split is chosen by the PINNED genesis vault's family, and the endowment branch is reachable
-    ///      from the ERC-1155 and ERC-721 settlement paths only. The collection is auction-native in
-    ///      real life too, so its mechanism and this instance's are the same shape.
+    /// @dev The 80% endowment: an ERC-721 auction collection bound to the target's own Aave
+    ///      endowment vault. It is the only roster member that can express the 80% leg: the split is
+    ///      chosen by the pinned genesis vault's family, and the endowment branch is reachable from
+    ///      the ERC-1155 and ERC-721 settlement paths only. The collection is auction-native in real
+    ///      life too, so its mechanism and this instance's are the same shape.
     ///
     ///      Phase 1 queues the pieces and places the opening bids; phase 2 settles them once the
     ///      chain has passed their end time, and settlement is what puts real principal into the
     ///      endowment. The bids span a spread rather than repeating one size, so the principal the
-    ///      vault ends up holding is 80% of a distribution and the vault panel has something with
-    ///      shape in it.
+    ///      vault holds is 80% of a distribution.
     ///
-    ///      ART: the real collection's metadata is immutable IPFS in bare-id form, and an ERC-721
-    ///      piece carries its token URI directly, so each queued piece IS the real metadata pointer.
+    ///      Art: the real collection's metadata is immutable IPFS in bare-id form, and an ERC-721
+    ///      piece carries its token URI directly, so each queued piece is the real metadata pointer.
     function _seedCatalogAuction(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
         ERC721AuctionFactory.CreateParams memory params = ERC721AuctionFactory.CreateParams({
@@ -1897,15 +1855,15 @@ contract SeedAnvil is SeedAnvilShared {
         ERC721AuctionInstance a = ERC721AuctionInstance(payable(inst));
         // Two pieces per line: the first of each auto-starts now and is settled in phase 2; the second
         // is what settlement advances the line to. Each queuePiece's msg.value is the piece's minimum
-        // bid, and the collection's real minimum winning bid is what it is set to.
+        // bid.
         for (uint256 i = 1; i <= uint256(FIGMATA_LINES) * 2; i++) {
             a.queuePiece{ value: FIGMATA_MIN_BID }(string.concat(ART_BASE_FIGMATA, vm.toString(i)));
         }
         d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.066 ether);
         vm.stopBroadcast();
 
-        // Opening bids, from the two non-deployer actors — a creator cannot be the only bidder on its
-        // own line and have the settlement mean anything.
+        // Opening bids come from the two non-deployer actors: a creator that is the only bidder on its
+        // own line makes the settlement meaningless.
         vm.startBroadcast(ACCOUNT_1_KEY);
         a.createBid{ value: FIGMATA_BID_MEDIAN }(1, "");
         a.createBid{ value: FIGMATA_BID_MAX }(3, "");
@@ -1918,9 +1876,9 @@ contract SeedAnvil is SeedAnvilShared {
         _assertQueuedPieceURIs(a, ART_BASE_FIGMATA, uint24(uint256(FIGMATA_LINES) * 2), "pixelady-figmata");
         _catalog.figmata = inst;
 
-        // The three opening auctions must actually be settleable by phase 2, or the endowment ends up
-        // empty and the 80% leg is never exercised. Both halves of that are checked: a bid is present,
-        // and the auction ends before the orchestrator's first advance rather than after it.
+        // The three opening auctions must be settleable by phase 2, or the endowment ends up empty and
+        // the 80% leg is never exercised: a bid is present, and the auction ends before the
+        // orchestrator's first advance rather than after it.
         for (uint24 id = 1; id <= 3; id++) {
             (,,, address highBidder, uint256 highBid,, uint40 endTime,) = a.auctions(id);
             require(highBidder != address(0), "catalog: an opening auction carries no bid (nothing to settle)");
@@ -1935,26 +1893,24 @@ contract SeedAnvil is SeedAnvilShared {
         console.log("  endowment vault:", d.cultAaveVault);
     }
 
-    /// @dev THE ARTIST ENDOWMENTS — one small auction collection per artist target, bound to that
+    /// @dev The artist endowments: one small auction collection per artist target, bound to that
     ///      artist's own Aave endowment vault.
     ///
-    ///      WHAT AN ARTIST ENDOWMENT ACTUALLY IS, because it needs less machinery than it looks.
     ///      `AlignmentEndowmentVault` buys nobody's token: it wraps ETH to WETH, supplies it to Aave,
     ///      and `harvest()` splits the yield between the benefactor's claimable purse and the target's
     ///      `communityPayout`. Its `alignmentToken` exists only to satisfy `registerVault`'s check.
-    ///      So an artist endowment is permanent principal streaming yield to a payout address — which
-    ///      is what "exaltation" should mean, and it needs no token to exist for the artist. It is
-    ///      also the framing that describes what this vault family does: the family has no swap path
-    ///      at all, so a collection bound here never buys anything on anyone's behalf.
+    ///      An artist endowment is therefore permanent principal streaming yield to a payout address,
+    ///      and needs no token to exist for the artist. The family has no swap path at all, so a
+    ///      collection bound here never buys anything on anyone's behalf.
     ///
-    ///      THE AUCTION FAMILY IS FORCED, not chosen. The vault leg is reachable from a settlement
-    ///      path only, so a curve bound to an endowment vault would render a panel nothing feeds.
+    ///      The auction family is forced: the vault leg is reachable from a settlement path only, so
+    ///      a curve bound to an endowment vault would render a panel nothing feeds.
     ///
-    ///      ART: these two are not standing in for real collections, so their pieces take the seed's
-    ///      own pinned IPFS bases — one each, and neither is the base of a collection sitting beside
-    ///      them, so each reads as its own drop.
+    ///      Art: these two do not stand in for real collections, so their pieces take the seed's own
+    ///      pinned IPFS bases, one each, and neither is the base of a neighbouring collection, so
+    ///      each reads as its own drop.
     ///
-    ///      NO REAL PERSON'S ADDRESS OR HANDLE reaches an on-chain field here. The payout is derived
+    ///      No real person's address or handle reaches an on-chain field here. The payout is derived
     ///      from a slug, the alignment token is a fixture, and every description says so.
     function _seedArtistEndowments(Deployed memory d) internal {
         _catalog.paradilf = _seedArtistEndowment(
@@ -1979,8 +1935,8 @@ contract SeedAnvil is SeedAnvilShared {
         );
     }
 
-    /// @dev One artist endowment collection: create, queue, bid. Phase 2 settles — which is what turns
-    ///      a hammer price into permanent principal — and asserts the vault actually took it.
+    /// @dev One artist endowment collection: create, queue, bid. Phase 2 settles, which turns a hammer
+    ///      price into permanent principal, and asserts the vault took it.
     function _seedArtistEndowment(
         Deployed memory d,
         address vault,
@@ -1992,8 +1948,8 @@ contract SeedAnvil is SeedAnvilShared {
         string memory pieceBase
     ) internal returns (address inst) {
         // The vault must be the one the registry pinned this artist's payout on. A collection bound to
-        // the wrong endowment still trades, still settles and still renders a vault panel — it simply
-        // endows somebody else, and nothing on the page would say so.
+        // the wrong endowment still trades, settles and renders a vault panel while endowing somebody
+        // else, and nothing on the page would say so.
         require(vault != address(0), "artist endowment: no vault resolved for this target");
         require(
             EndowmentSink.sinkOf(vault) == ArtistEndowments.payout(slug),
@@ -2038,8 +1994,8 @@ contract SeedAnvil is SeedAnvilShared {
         d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.065 ether);
         vm.stopBroadcast();
 
-        // The two non-deployer actors bid. A creator bidding on its own line would settle into its own
-        // endowment, which demonstrates nothing.
+        // The two non-deployer actors bid; a creator bidding on its own line would settle into its own
+        // endowment.
         vm.startBroadcast(ACCOUNT_1_KEY);
         a.createBid{ value: ARTIST_BID_HIGH }(1, "");
         vm.stopBroadcast();
@@ -2047,8 +2003,7 @@ contract SeedAnvil is SeedAnvilShared {
         a.createBid{ value: ARTIST_BID_LOW }(2, "");
         vm.stopBroadcast();
 
-        // Settleable before the orchestrator's first advance, or the endowment ends up empty and the
-        // whole row demonstrates the opposite of what it claims.
+        // Settleable before the orchestrator's first advance, or the endowment ends up empty.
         for (uint24 id = 1; id <= uint24(ARTIST_LINES); id++) {
             (,,, address highBidder, uint256 highBid,, uint40 endTime,) = a.auctions(id);
             require(highBidder != address(0), "artist endowment: an opening auction carries no bid");
@@ -2058,27 +2013,24 @@ contract SeedAnvil is SeedAnvilShared {
                 "artist endowment: an opening auction was extended past the window phase 2 can settle in"
             );
         }
-        // THE ART, CHECKED AS QUEUED. An ERC-721 piece carries its URI directly and `tokenURI` reverts
-        // before the piece is minted, so the pointer is verified on the QUEUED record — which is the
-        // same string the mint will hand out, and the last point at which a fix is still cheap.
+        // The art is checked as queued. An ERC-721 piece carries its URI directly and `tokenURI`
+        // reverts before the piece is minted, so the pointer is verified on the queued record, the
+        // same string the mint hands out.
         _assertQueuedPieceURIs(a, pieceBase, uint24(uint256(ARTIST_LINES) * 2), slug);
 
         console.log("ARTIST endowment collection:", inst);
         console.log("  vault:", vault, "payout:", ArtistEndowments.payout(slug));
     }
 
-    /// @dev THE ERC-1155 TRANCHE — three free-mint-heavy examples, each cut to a demo-sized edition.
+    /// @dev The ERC-1155 tranche: three free-mint-heavy examples, each cut to a demo-sized edition.
     ///      The example supply, the example raise, the mechanic and the truncation ratio all ride the
     ///      on-chain metadata, and each row says in its own metadata that the figures are illustrative.
-    ///      The truncation ratio is the one that must never be dropped: the seeded supply is readable
-    ///      off chain, and without the ratio beside it there is no way to tell a demo-sized edition
-    ///      from a small collection.
+    ///      The truncation ratio must stay beside the seeded supply: without it there is no way to
+    ///      tell a demo-sized edition from a small collection.
     ///
-    ///      The three are chosen to span the range rather than repeat one story: a pure free mint at
-    ///      scale, a mixed free-and-paid edition, and a collection that charged nothing. The last one
-    ///      earns its slot precisely BECAUSE its aligned share is zero — a demonstration that only
-    ///      ever shows value moving is a pitch, and a row where nothing moves is what makes the other
-    ///      rows legible as a mechanism.
+    ///      The three span the range: a pure free mint at scale, a mixed free-and-paid edition, and a
+    ///      collection that charged nothing. The last earns its slot because its aligned share is
+    ///      zero: a row where nothing moves makes the other rows legible as a mechanism.
     function _seedCatalogEditions(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
 
@@ -2104,7 +2056,7 @@ contract SeedAnvil is SeedAnvilShared {
             0.024 ether
         );
 
-        // Mixed free and paid — the interesting tier case, and the largest revenue in this tranche.
+        // Mixed free and paid: the tier case, and the largest revenue in this tranche.
         address oekaki = _createCatalogEdition(
             d,
             "oekaki-maker",
@@ -2149,8 +2101,8 @@ contract SeedAnvil is SeedAnvilShared {
         );
         vm.stopBroadcast();
 
-        // Each edition must carry the free allocation its real free/paid split is standing in for, or
-        // the tranche demonstrates the wrong thing: a free-mint collection whose claim path is closed.
+        // Each edition must carry the free allocation its real free/paid split stands in for, or a
+        // free-mint collection would have a closed claim path.
         require(
             ERC1155Instance(payable(anti)).freeMintAllocation(1) == ANTI_FREE_ALLOC,
             "catalog: the free-mint-at-scale edition carries the wrong allocation"
@@ -2213,7 +2165,7 @@ contract SeedAnvil is SeedAnvilShared {
 
     /// @dev Every queued piece points at `base + tokenId`, exactly. `queuePiece` assigns ids
     ///      sequentially from 1 and stores the URI verbatim, so a base that lost its trailing slash or
-    ///      a loop that queued the wrong index shows up here rather than as a wall of blank tiles.
+    ///      a loop that queued the wrong index fails here rather than as a wall of blank tiles.
     function _assertQueuedPieceURIs(ERC721AuctionInstance a, string memory base, uint24 count, string memory label)
         internal
         view
@@ -2228,14 +2180,13 @@ contract SeedAnvil is SeedAnvilShared {
         }
     }
 
-    /// @dev The illustrative figures a catalog row carries, kept as a struct so a row cannot be
-    ///      written with its example figures and the mechanic they illustrate out of step.
+    /// @dev The illustrative figures a catalog row carries, a struct so a row's example figures and
+    ///      the mechanic they illustrate stay together.
     ///
-    ///      EVERY FIELD HERE IS AN EXAMPLE, and `figureBasis` says so on every row. These are not
-    ///      measurements and nothing in the app should present them as verified. What IS load-bearing
-    ///      is `seededSupply` beside `exampleSupply`: an edition cut to a demo size whose on-chain
-    ///      supply could be mistaken for the size it stands in for would misstate the one number a
-    ///      surface can actually read off chain.
+    ///      Every field is an example, and `figureBasis` says so on every row; none is a measurement
+    ///      and nothing in the app presents them as verified. `seededSupply` beside `exampleSupply`
+    ///      is load-bearing: an edition cut to a demo size whose on-chain supply could be mistaken
+    ///      for the size it stands in for would misstate the one number a surface can read off chain.
     struct CatalogFacts {
         string standsInFor; // the kind of collection this row is an example of
         string exampleSupply; // illustrative
@@ -2247,12 +2198,11 @@ contract SeedAnvil is SeedAnvilShared {
     }
 
     /// @dev Catalog metadata: the ordinary collection shape plus a `catalog` object carrying the
-    ///      illustrative figures alongside what the fork actually seeded. Both halves are present on
-    ///      purpose. A surface that read only the on-chain supply of a truncated edition would report
-    ///      the row as a fortieth of the size it is standing in for; a surface that read only the
-    ///      example figures would misstate what this chain holds. Neither is recoverable from the
-    ///      other, so both are written down — and `figureBasis` rides along so neither is mistaken
-    ///      for a measurement.
+    ///      illustrative figures alongside what the fork actually seeded. A surface that read only the
+    ///      on-chain supply of a truncated edition would report the row as a fraction of the size it
+    ///      stands in for; one that read only the example figures would misstate what this chain
+    ///      holds. Neither is recoverable from the other, so both are written, and `figureBasis`
+    ///      rides along so neither is mistaken for a measurement.
     function _catalogMeta(string memory name, string memory description, string memory image, CatalogFacts memory f)
         internal
         pure
@@ -2302,10 +2252,9 @@ contract SeedAnvil is SeedAnvilShared {
     }
 
     // ── Real art (mainnet-harvested, gateway-verified IPFS CIDs) ─────────────────
-    // A fresh, varied set: a coherent style per collection (as a real drop would have). Each CID was
-    // read off a live mainnet collection's tokenURI on the fork and verified to return image bytes,
-    // so it is genuinely pinned. If a public gateway is slow the frontend's IpfsImage rotator falls
-    // through to the next one. To refresh the pool see docs/phases/design-pass-blockers.md.
+    // A coherent style per collection (as a real drop would have). Each CID was read off a live
+    // mainnet collection's tokenURI on the fork and verified to return image bytes. If a public
+    // gateway is slow the frontend's IpfsImage rotator falls through to the next one.
     // Azuki (anime) → neon-drift edition · Doodles → gallery-relics auction · Pudgy → live-salon
     // auction + prism · mfers → monolith + vapor · World of Women → ghost-mint + cinder.
     string constant ART_NEON_DRIFT = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/7.png";
@@ -2325,24 +2274,21 @@ contract SeedAnvil is SeedAnvilShared {
     string constant ART_VAPOR = "ipfs://QmNg8FE8pgKSCjo54WDNEHaiaUcgW2eNUQ5iWzBYc7ZUKt";
     string constant ART_CINDER = "ipfs://QmbeHAw5nGwSQSZ8pQc8WSdbzxh3rLY8Pg2rqiS1wJRcvQ";
     string constant ART_MOLTEN = "ipfs://QmS3XQsKc1FRKV6Q9sn3kgwstdLmgM5sK9gFhiJtRLv7y1";
-    // Reuses a gateway-verified CID from the harvested set (same precedent as ART_CARVED).
+    // Reuses a gateway-verified CID from the harvested set (same as ART_CARVED).
     string constant ART_PRISM = "ipfs://QmNf1UsmdGaMbpatQ6toXSkzDpizaGmC9zfunCyoz1enD5/penguin/777.png";
-    // Reuses a gateway-verified CID from the harvested set (512.png is NOT verified; 42.png is).
+    // Reuses a gateway-verified CID from the harvested set (512.png is not verified; 42.png is).
     string constant ART_CARVED = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/42.png";
-    // The two gated fixtures REUSE gateway-verified CIDs from the harvested set rather than
-    // introduce unverified ones (same precedent as ART_CARVED): veil-list takes the azuki 128, its
-    // piece the azuki 7, and sigil-gate the azuki 777.
+    // The two gated fixtures reuse gateway-verified CIDs from the harvested set (as ART_CARVED
+    // does): veil-list takes the azuki 128, its piece the azuki 7, and sigil-gate the azuki 777.
     string constant ART_VEIL = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/128.png";
     string constant ART_VEIL_PIECE = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/7.png";
     string constant ART_SIGIL = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/777.png";
-    // Catalog-row card art. Same precedent as ART_CARVED: REUSE a gateway-verified CID from the
-    // harvested set rather than introduce an unverified one. Card art is the collection tile only —
-    // the PIECE art is what carries a row's real collection, and two of the rows carry theirs
-    // verbatim off content-addressed storage (see ART_BASE_PIXELADY / ART_BASE_FIGMATA).
-    // Card images for the two roster additions, taken from the same content-addressed image
+    // Catalog-row card art reuses gateway-verified CIDs from the harvested set. Card art is the
+    // collection tile only; the piece art carries a row's real collection, and two of the rows
+    // carry theirs verbatim off content-addressed storage (see ART_BASE_PIXELADY / ART_BASE_FIGMATA).
+    // The card images for BOREDMILADY and LAWBSTERS come from the same content-addressed image
     // directories the collections' own metadata resolves to (`ipfs://<image-cid>/<id>.png`, read out
-    // of `<metadata-cid>/1`). Card art and per-piece art therefore come from the same place, which is
-    // what makes a row read as one collection rather than as a stock image over real pieces.
+    // of `<metadata-cid>/1`), so card art and per-piece art come from the same place.
     string constant ART_BOREDMILADY = "ipfs://QmWEQVc5xLyjPduYopckWWu6arhqgg7srxTo5FuLmLxiAU/1.png";
     string constant ART_LAWBSTERS = "ipfs://QmRFZ9GtqT6A8cF8ZF1x4fsysRHMhFSk1g8QGEBVn249pQ/1.png";
     string constant ART_SCHIZO = "ipfs://QmbeHAw5nGwSQSZ8pQc8WSdbzxh3rLY8Pg2rqiS1wJRcvQ";

@@ -18,15 +18,13 @@ import { IMasterRegistry } from "../master/interfaces/IMasterRegistry.sol";
 
 /**
  * @title ProtocolOwnedLiquidityV1
- * @notice UUPS upgradeable holder of protocol-owned Uniswap V4 liquidity (POL), carved out of
- *         ProtocolTreasuryV1 (noesis-066) so the always-live treasury carries no V4 `unlock`
- *         reentrancy surface. This contract owns its POL positions and the fees it collects.
- * @dev `receivePOL` is gated to registered instances (moved verbatim from the treasury). It is the
- *      party a registered instance calls at graduation to stand up treasury-owned LP — but no caller
- *      is wired yet; wiring POL-at-graduation is a separate follow-up. `claimPOLFees` stays
- *      permissionless (censorship-resistant fee collection). The V4 `unlock`/callback is this
- *      contract's only external interaction surface, so it is guarded explicitly with `nonReentrant`
- *      (the treasury previously relied on slither-disable comments only). `withdrawPOL` is the
+ * @notice UUPS upgradeable holder of protocol-owned Uniswap V4 liquidity (POL), kept apart from
+ *         ProtocolTreasuryV1 so the always-live treasury carries no V4 `unlock` reentrancy surface.
+ *         This contract owns its POL positions and the fees it collects.
+ * @dev `receivePOL` is gated to registered instances; a registered instance calls it at graduation
+ *      to stand up treasury-owned LP. `claimPOLFees` is permissionless (censorship-resistant fee
+ *      collection). The V4 `unlock`/callback is this contract's only external interaction surface,
+ *      so it is guarded with `nonReentrant`. `withdrawPOL` is the
  *      owner-gated exit for the LP principal: it routes a negative `liquidityDelta` through the same
  *      `unlock` callback the deposit uses, returning principal (plus anything accrued on it) to this
  *      contract. Owner sweeps recovered principal and collected fees out via `withdrawETH` /
@@ -176,8 +174,7 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
     ///      the caller via `transferFrom`. The V4 position is funded strictly from that escrow — never from
     ///      this contract's shared balance (pooled fees, treasury seeding, or other instances' funds). Any
     ///      escrow the position does not consume is refunded to the caller, so a `receivePOL` caller can
-    ///      neither drain the shared balance nor leave dust stranded here. (noesis-111: closes the §2f
-    ///      latent-HIGH where the native leg was settled from `address(this).balance`.)
+    ///      neither drain the shared balance nor leave dust stranded here.
     // slither-disable-next-line reentrancy-benign,reentrancy-events,reentrancy-no-eth,unused-return
     function receivePOL(PoolKey calldata poolKey, int24 tickLower, int24 tickUpper, uint256 amount0, uint256 amount1)
         external
@@ -303,12 +300,11 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
 
     /// @notice Owner-gated exit for a protocol-owned LP position: burn `liquidity` from the position and
     ///         bring the underlying principal back to this contract.
-    /// @dev Mirrors the deposit seam exactly — the same `unlock` callback, the same `_settleDelta`, with a
-    ///      NEGATIVE `liquidityDelta`. The amounts credited by the burn (principal, plus any fees the
-    ///      position had accrued on the burnt share) are `take`n to this contract, where the existing
-    ///      `withdrawETH` / `withdrawERC20` sweeps move them on. Partial withdrawal is supported: the
-    ///      tracked liquidity is reduced by `liquidity` and the position stays readable via
-    ///      `getPolPosition`. `receivePOL`'s guards are untouched.
+    /// @dev Mirrors the deposit seam: the same `unlock` callback and `_settleDelta`, with a negative
+    ///      `liquidityDelta`. The amounts credited by the burn (principal, plus any fees accrued on the
+    ///      burnt share) are `take`n to this contract, where `withdrawETH` / `withdrawERC20` move them
+    ///      on. Partial withdrawal is supported: the tracked liquidity is reduced by `liquidity` and the
+    ///      position stays readable via `getPolPosition`.
     /// @param instance The registered instance whose position is being exited.
     /// @param liquidity Amount of position liquidity to burn; must be non-zero and at most the tracked amount.
     // slither-disable-next-line reentrancy-benign,reentrancy-events

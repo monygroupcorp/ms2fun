@@ -8,22 +8,18 @@ import { ICurationRegistry } from "./interfaces/ICurationRegistry.sol";
  * @title CurationRegistry
  * @notice Minimal, ownerless, non-upgradeable registry of curations — named, published sets of
  *         collections and pieces that any address can assemble.
- * @dev Sibling of `ProfileRegistry`, and deliberately the same shape: no owner, no upgrade path, no
- *      admin surface, no fee. The reason is the whole point of the contract. Every other way onto
- *      a noesis discovery surface runs through something the caller must first have or buy — a
- *      deployed instance to be listed at all, a featured-queue rental to be
- *      ranked in the featured grid. Selection is the one creative act on this platform that needs
- *      neither, so nothing here gates it: `createCuration` takes no value, checks no registry, and
- *      admits any address.
+ * @dev Same shape as `ProfileRegistry`: no owner, no upgrade path, no admin surface, no fee. Every
+ *      other way onto a noesis discovery surface needs something the caller must first have or buy
+ *      (a deployed instance, a featured-queue rental); selection needs neither, so `createCuration`
+ *      takes no value, checks no registry, and admits any address.
  *
- *      What the chain holds is the minimum selection needs — curator, last write, on-view flag, and
- *      one pointer at the JSON carrying the name, the note and the set (ADR-0004). Keeping the set
- *      itself off-chain is what makes a curation of two pieces and a curation of two hundred cost
- *      the same to publish, which a surface meant for people who buy rather than mint has to be.
+ *      The chain holds the minimum selection needs: curator, last write, on-view flag, and one
+ *      pointer at the JSON carrying the name, the note and the set (ADR-0004). The set stays off-chain
+ *      so a curation of two pieces and one of two hundred cost the same to publish.
  *
- *      Authority is split so the two halves can move independently: a COLLABORATOR may repoint the
- *      curation (assembling is the shared act), and only the CURATOR may retire it or change who
- *      collaborates. The record never transfers — a curation permanently names who assembled it.
+ *      A collaborator may repoint the curation (assembling is the shared act); only the curator may
+ *      retire it or change who collaborates. The record never transfers: a curation permanently names
+ *      who assembled it.
  */
 contract CurationRegistry is ICurationRegistry {
     // ┌─────────────────────────┐
@@ -151,15 +147,13 @@ contract CurationRegistry is ICurationRegistry {
     /**
      * @inheritdoc ICurationRegistry
      * @dev Returns only curations that are on view: a retired one is skipped rather than returned
-     *      as a hole, so a caller asking for twelve gets twelve if twelve exist. `offset` therefore
-     *      counts ON-VIEW curations, not ids — paging stays correct while a curator retires things
-     *      underneath it. The walk is descending over ids and bounded by `totalCurations()`; this is
-     *      an off-chain read path (no contract calls it) and callers page rather than ask for all.
+     *      as a hole, so a caller asking for twelve gets twelve if twelve exist. `offset` counts
+     *      on-view curations, not ids, so paging stays correct while a curator retires things. The
+     *      walk is descending over ids and bounded by `totalCurations()`; it is an off-chain read path
+     *      and callers page rather than ask for all.
      *
-     *      `limit` is clamped to `totalCurations()` before anything is allocated. Nothing is
-     *      truncated by that — a page can never hold more rows than there are curations — but it
-     *      stops a caller asking for a page far wider than the registry from paying to expand
-     *      memory it could not have filled.
+     *      `limit` is clamped to `totalCurations()` before allocation; a page can never hold more rows
+     *      than there are curations, so nothing is truncated.
      */
     function latestCurations(uint256 offset, uint256 limit)
         external

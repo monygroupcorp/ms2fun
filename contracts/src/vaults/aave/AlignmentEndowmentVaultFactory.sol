@@ -12,9 +12,9 @@ import { SafeOwnable } from "../../shared/SafeOwnable.sol";
 /// @notice Deploys AlignmentEndowmentVault clones via CREATE3 (EIP-1167 minimal proxy).
 ///         The factory becomes the owner of every vault it deploys. That ownership carries the
 ///         emergency position migration and nothing about the community payout: a vault's target sink is
-///         read live from the alignment registry on every send, this factory has no setter for it, and
-///         the vault has none either. Redirecting a community's money is not a capability the protocol
-///         holds — the registry pins a payout once and only the address receiving it rotates it.
+///         read live from the alignment registry on every send, and neither this factory nor the vault
+///         has a setter for it. The registry pins a payout once and only the address receiving it
+///         rotates it.
 ///
 ///         Vault creation is owner-gated: only the protocol may deploy a vault for an approved,
 ///         active alignment target. The factory self-registers each vault in the
@@ -51,36 +51,29 @@ contract AlignmentEndowmentVaultFactory is SafeOwnable, IFactory {
     event VaultDeployed(address indexed vault, address indexed alignmentToken, uint256 indexed targetId);
 
     /// @param _weth The wrapped-native token the endowment wraps contributions into.
-    /// @param _stataToken The ERC-4626 the endowment holds its principal in. **A DEPLOYMENT CONSTRAINT
-    ///        RIDES ON THIS ONE, and it is not a preference.** The token must price shares from a MONOTONIC
-    ///        INDEX, with its `totalAssets()` DERIVED from `totalSupply()` through that index rather than
-    ///        held as an independent balance. Aave's static aToken (`waEthWETH`) is such a token: its share
-    ///        price is the reserve's liquidity index, which no redemption moves, and its assets are the
-    ///        supply priced by it.
+    /// @param _stataToken The ERC-4626 the endowment holds its principal in. It must price shares from a
+    ///        monotonic index, with `totalAssets()` derived from `totalSupply()` through that index rather
+    ///        than held as an independent balance. Aave's static aToken (`waEthWETH`) qualifies: its share
+    ///        price is the reserve's liquidity index, which no redemption moves.
     ///
-    ///        An ordinary assets-over-shares ERC-4626 — one keeping managed assets as a second, free
-    ///        variable — does NOT satisfy it, and the endowment's accounting comes apart against one:
+    ///        An ordinary assets-over-shares ERC-4626, with managed assets as a second free variable,
+    ///        breaks the endowment's accounting:
     ///
-    ///          1. EIP-4626 requires `withdraw` to round the share burn UP, so every redemption burns
-    ///             fractionally more shares than proportional. Under a ratio price that over-burn RATCHETS
-    ///             the share price upward — permanently, and without limit as the position is drawn down.
-    ///          2. Once the price has ratcheted, a redemption that leaves a remainder smaller than one
-    ///             share is worth takes the LAST share while assets remain. The supply is empty over a
-    ///             non-zero asset balance. Nothing exotic is needed to arrive there: two accrue-and-harvest
-    ///             cycles alone will do it, with no ambassador `execute` and no adversary.
-    ///          3. `convertToAssets` on an empty supply is zero, so the vault reads its own position as
-    ///             EMPTY. The round closes redeeming nothing, and the principal basis is zeroed over assets
-    ///             that are still sitting in the wrapper.
-    ///          4. The next contribution mints 1:1 against that empty supply and inherits the orphaned
-    ///             assets. They now stand ABOVE the basis the contribution credited, which is precisely the
-    ///             definition of harvestable yield — so the next `harvest()` splits donated PRINCIPAL
-    ///             80/19/1 and routes a fifth of it to the target and protocol legs, out of the pool the
-    ///             benefactors own, permanently.
+    ///          1. EIP-4626 requires `withdraw` to round the share burn up, so every redemption burns
+    ///             fractionally more shares than proportional. Under a ratio price that over-burn ratchets
+    ///             the share price upward without limit as the position is drawn down.
+    ///          2. Once ratcheted, a redemption leaving a remainder smaller than one share's worth takes
+    ///             the last share while assets remain: the supply is empty over a non-zero asset balance,
+    ///             reachable by two accrue-and-harvest cycles alone, with no adversary.
+    ///          3. `convertToAssets` on an empty supply is zero, so the vault reads its position as empty.
+    ///             The round closes redeeming nothing, and the basis is zeroed over assets still in the
+    ///             wrapper.
+    ///          4. The next contribution mints 1:1 against the empty supply and inherits the orphaned
+    ///             assets. They stand above the basis, which is the definition of harvestable yield, so
+    ///             the next `harvest()` splits donated principal 80/19/1 out of the benefactors' pool.
     ///
-    ///        Nothing is stolen and no balance is overdrawn at any step; principal is RECLASSIFIED, which
-    ///        is why no revert or shortfall guard catches it. The whole chain dies at step 1 against an
-    ///        index-priced wrapper, and only there. Deploy this factory against a token that does not have
-    ///        that property and the endowment silently pays out its own corpus as yield.
+    ///        No balance is overdrawn at any step; principal is reclassified, so no revert or shortfall
+    ///        guard catches it. The chain breaks at step 1 against an index-priced wrapper, and only there.
     /// @param _protocolTreasury Recipient of the protocol leg of every harvest.
     /// @param _masterRegistry The registry each deployed vault self-registers in.
     /// @param _alignmentRegistry Source of the live community payout and of ambassador authority.
@@ -123,20 +116,13 @@ contract AlignmentEndowmentVaultFactory is SafeOwnable, IFactory {
         return new bytes32[](0);
     }
 
-    // `setVaultCommunityPayout` is deliberately absent. It forwarded to the vault's owner-only sink
-    // setter, which was consulted whenever the alignment registry's payout for the target was zero —
-    // and since pinning that registry payout is itself owner-gated, an owner who never pinned one kept a
-    // sink they could re-point here at will, over a community that had nothing to rotate. The vault now
-    // reads the registry and only the registry, so there is nothing for this to write.
-
     /// @notice Emergency: redeem a vault's WHOLE principal position to `to`, for an Aave reserve
     ///         deprecation (the factory owns its vaults, and the vault's `migratePosition` is onlyOwner).
-    ///         There is no tranche to choose between: an endowment holds one principal balance, and this
-    ///         call takes all of it. Pending yield is crystallized into the 80/19/1 legs first and an
+    ///         An endowment holds one principal balance, and this call takes all of it. Pending yield is crystallized into the 80/19/1 legs first and an
     ///         impaired position is written down first, so what leaves is pro-rata across every
     ///         benefactor rather than first-come. Per-benefactor accounting is preserved on-chain; the
     ///         vault is decommissioned (intake closes permanently).
-    /// @dev    What is NOT swept: `roundResidue` — corpus a round close already redeemed out of Aave and
+    /// @dev    Not swept: `roundResidue` — corpus a round close already redeemed out of Aave and
     ///         that the vault holds as native ETH. The reserve deprecation this call answers does not
     ///         touch it, and it keeps both of its doors afterwards (`flushRoundResidue` while the target
     ///         is curated, `releaseCorpusToCommunity` after). See `AlignmentEndowmentVault.migratePosition`.
@@ -174,8 +160,7 @@ contract AlignmentEndowmentVaultFactory is SafeOwnable, IFactory {
         bytes32 create3Salt = CreateXSalt.permissioned(address(this), msg.sender, salt);
         vault = ICreateX(CREATEX).deployCreate3(create3Salt, proxyCreationCode);
 
-        // No payout is passed: the vault resolves its target sink from `alignmentRegistry` on every send,
-        // so there is no deploy-time copy to seed and no window in which a stale one could be paid.
+        // No payout is passed: the vault resolves its target sink from `alignmentRegistry` on every send.
         AlignmentEndowmentVault(payable(vault))
             .initialize(
                 address(this), weth, stataToken, protocolTreasury, masterRegistry, alignmentToken, alignmentTargetId
@@ -183,10 +168,10 @@ contract AlignmentEndowmentVaultFactory is SafeOwnable, IFactory {
 
         canonicalVault[dedupKey] = vault;
 
-        // Self-register in the MasterRegistry with an ON-CHAIN-DERIVED name (never caller-supplied) and
-        // the factory-hardcoded metadataURI. `msg.sender` — the owner, under the gate above — is credited
-        // as the vault creator. The registry
-        // enforces target-active + token-in-target, and requires this factory to be an active IFactory.
+        // Self-register in the MasterRegistry with an on-chain-derived name (never caller-supplied) and
+        // the factory-hardcoded metadataURI. `msg.sender` (the owner, under the gate above) is credited
+        // as the vault creator. The registry enforces target-active + token-in-target, and requires this
+        // factory to be an active IFactory.
         string memory derivedName =
             string.concat(alignmentRegistry.getAlignmentTarget(alignmentTargetId).title, " Aave Endowment Vault");
         IMasterRegistry(masterRegistry).registerVault(vault, msg.sender, derivedName, METADATA_URI, alignmentTargetId);
