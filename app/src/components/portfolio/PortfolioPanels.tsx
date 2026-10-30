@@ -1,4 +1,5 @@
 import { Link } from 'wouter'
+import { useReadContracts } from 'wagmi'
 import {
   auctionPositions,
   isPortfolioEmpty,
@@ -11,7 +12,10 @@ import {
 import { fmtEth, fmtEndTime, escrowNote } from './portfolioFormat'
 import { truncateAddress } from '../../lib/format'
 import { forkChainId } from '../../lib/addresses'
+import { benefactorPositionAbi } from '../../lib/vaults/benefactorPositionAbi'
 import { StateBlock } from '../ui/StateBlock'
+import { TxButton } from '../ui/TxButton'
+import { useTxAction } from '../ui/useTxAction'
 import styles from './PortfolioPanels.module.css'
 
 /** Slug link when the holding's name is in hand; else the address link (301s via the legacy
@@ -214,20 +218,82 @@ export function HeldPanel({ data, isPending, isError, truncated }: PanelProps) {
   )
 }
 
-/** Per-vault Claim affordance. The real write (`claimFees`) lands with the Aave alignment vault
- * (pending T4) — the current ABI stubs it as `pure`, so the action is shown but honestly disabled
- * rather than faked against a stub. Wire it to `useTxAction` once the vault ships. */
-function ClaimButton() {
+/** Reads `vaultType()` alone — the one-function slice `useVaultsSummary` already uses to tell the
+ * Aave endowment (which implements `claimFees` as a `pure` stub, see `benefactorPositionAbi`) apart
+ * from the Uni/ZAMM liquidity families (which implement it for real). */
+const vaultTypeAbi = [
+  {
+    type: 'function',
+    name: 'vaultType',
+    inputs: [],
+    outputs: [{ type: 'string' }],
+    stateMutability: 'pure',
+  },
+] as const
+
+/** Per-vault Claim affordance (noesis-330). `claimFees()` is real on the Uni and ZAMM liquidity
+ * families — it pays `msg.sender`'s own accrued share — and a `pure` revert stub on the Aave
+ * endowment vault, whose payout path is `claimYieldPurse` on the vault page instead. The family is
+ * read per vault rather than assumed, so the button is wired exactly where the write exists and
+ * stays honestly disabled where it does not. */
+export function ClaimButton({ vault }: { vault: `0x${string}` }) {
+  const { data } = useReadContracts({
+    allowFailure: true,
+    contracts: [
+      { address: vault, abi: vaultTypeAbi, functionName: 'vaultType', chainId: forkChainId },
+    ],
+  })
+  const vaultType = data?.[0]?.status === 'success' ? data[0].result : undefined
+  const isEndowment = vaultType === 'AaveEndowment'
+
+  const tx = useTxAction()
+
+  if (vaultType === undefined) {
+    return (
+      <button
+        type="button"
+        className={styles.claimBtn}
+        disabled
+        title="checking this vault's family…"
+        data-testid="vault-claim"
+      >
+        Claim
+      </button>
+    )
+  }
+
+  if (isEndowment) {
+    return (
+      <button
+        type="button"
+        className={styles.claimBtn}
+        disabled
+        title="Aave endowment yield is claimed from the vault's own page (claim yield purse), not here."
+        data-testid="vault-claim"
+      >
+        Claim
+      </button>
+    )
+  }
+
   return (
-    <button
-      type="button"
-      className={styles.claimBtn}
-      disabled
-      title="Claims land with the Aave alignment vault (pending T4)"
-      data-testid="vault-claim"
-    >
-      Claim
-    </button>
+    <TxButton
+      state={tx.state}
+      onClick={() =>
+        tx.send({
+          address: vault,
+          abi: benefactorPositionAbi,
+          chainId: forkChainId,
+          functionName: 'claimFees',
+        })
+      }
+      label="claim"
+      className={styles.claimBtn ?? ''}
+      successLabel="claimed — tx confirmed."
+      errorText="claim failed — try again"
+      onReset={tx.reset}
+      testId="vault-claim"
+    />
   )
 }
 
@@ -288,7 +354,7 @@ export function VaultsPanel({
                 </span>
                 <span className={`v ${styles.claimCell}`}>
                   {fmtEth(v.claimable)} ETH
-                  {isOwn && <ClaimButton />}
+                  {isOwn && <ClaimButton vault={v.vault} />}
                 </span>
               </div>
             ))}
