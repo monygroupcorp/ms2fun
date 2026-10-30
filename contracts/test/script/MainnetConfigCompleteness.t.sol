@@ -5,6 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { DeployCore } from "../../script/DeployCore.sol";
 import { DeployMainnet } from "../../script/DeployMainnet.s.sol";
 import { MainnetAddresses } from "../../script/MainnetAddresses.sol";
+import { SepoliaSalts } from "../../script/SepoliaSalts.sol";
 
 /// @notice Reads `DeployMainnet`'s own config and asserts that every vault family the protocol ships
 ///         is actually switched on in it.
@@ -143,15 +144,27 @@ contract MainnetConfigCompletenessTest is Test {
     // ── What is still owed before this script may be run ─────────────────────
 
     /// @dev Stated as a test so the launch-day preconditions are read back from the config rather than
-    ///      from the TODO comment above it. These are the three the script's header names, and they are
+    ///      from the TODO comment above it. These are the two the script's header names, and they are
     ///      TRUE while they are still owed — this file asserts the shape of the gap, and the seat that
-    ///      closes one flips its assertion. `cfg.safe == 0` deploys a MockSafe; zero salts are unmined;
-    ///      an empty roster launches with nothing to align to.
+    ///      closes one flips its assertion. `cfg.safe == 0` deploys a MockSafe; an empty roster
+    ///      launches with nothing to align to.
     function test_theKnownLaunchTodosAreStillOpen() public view {
         DeployCore.NetworkConfig memory cfg = harness.config();
         assertEq(cfg.safe, address(0), "TODO 3: cfg.safe still deploys a MockSafe on mainnet");
-        assertEq(cfg.saltMasterRegistry, bytes32(0), "TODO 1: the CREATE3 salt set is still unmined");
         assertEq(cfg.alignmentTargets.length, 0, "TODO 2: the alignment roster is still empty");
+    }
+
+    /// @dev Mainnet spends the salt set Sepolia rehearsed. The guarded salt takes no chain id, so the
+    ///      same deployer and the same salts give mainnet the six registry addresses Sepolia carries;
+    ///      `SepoliaSaltSet.t.sol` checks the set itself.
+    function test_theSaltSetIsTheOneSepoliaRehearsed() public view {
+        DeployCore.NetworkConfig memory cfg = harness.config();
+        assertEq(cfg.saltMasterRegistry, SepoliaSalts.MASTER_REGISTRY, "master registry salt");
+        assertEq(cfg.saltTreasury, SepoliaSalts.TREASURY, "treasury salt");
+        assertEq(cfg.saltQueueManager, SepoliaSalts.QUEUE_MANAGER, "queue manager salt");
+        assertEq(cfg.saltGlobalMsgReg, SepoliaSalts.GLOBAL_MSG_REG, "global message registry salt");
+        assertEq(cfg.saltAlignmentReg, SepoliaSalts.ALIGNMENT_REG, "alignment registry salt");
+        assertEq(cfg.saltComponentReg, SepoliaSalts.COMPONENT_REG, "component registry salt");
     }
 
     /// @dev The perpetual swap tithe's RATE, which mainnet has not chosen. Sepolia carries 100 bips as

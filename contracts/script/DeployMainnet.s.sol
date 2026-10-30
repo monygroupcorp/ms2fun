@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import { DeployCore } from "./DeployCore.sol";
 import { MainnetAddresses } from "./MainnetAddresses.sol";
+import { SepoliaSalts } from "./SepoliaSalts.sol";
 
 /// @notice Mainnet deployment configuration.
 ///         Run with: forge script script/DeployMainnet.s.sol --account <keystore> \
@@ -26,6 +27,10 @@ import { MainnetAddresses } from "./MainnetAddresses.sol";
 ///         `test/script/MainnetConfigCompleteness.t.sol` holds the gap open.
 contract DeployMainnet is DeployCore {
     function run() public {
+        require(
+            msg.sender == SepoliaSalts.DEPLOYER,
+            "DeployMainnet: sender is not the deployer the salt set is bound to (see script/SepoliaSalts.sol)"
+        );
         vm.startBroadcast();
         deploy(msg.sender, _mainnetConfig());
         vm.stopBroadcast();
@@ -48,12 +53,12 @@ contract DeployMainnet is DeployCore {
         cfg.zrouter = MainnetAddresses.ZROUTER;
         cfg.zQuoter = MainnetAddresses.ZQUOTER;
         cfg.safe = address(0); // address(0) deploys a MockSafe
-        cfg.saltMasterRegistry = bytes32(0);
-        cfg.saltTreasury = bytes32(0);
-        cfg.saltQueueManager = bytes32(0);
-        cfg.saltGlobalMsgReg = bytes32(0);
-        cfg.saltAlignmentReg = bytes32(0);
-        cfg.saltComponentReg = bytes32(0);
+        cfg.saltMasterRegistry = SepoliaSalts.MASTER_REGISTRY;
+        cfg.saltTreasury = SepoliaSalts.TREASURY;
+        cfg.saltQueueManager = SepoliaSalts.QUEUE_MANAGER;
+        cfg.saltGlobalMsgReg = SepoliaSalts.GLOBAL_MSG_REG;
+        cfg.saltAlignmentReg = SepoliaSalts.ALIGNMENT_REG;
+        cfg.saltComponentReg = SepoliaSalts.COMPONENT_REG;
         cfg.priceDeviationBps = 500; // 5% — mainnet liquidity is deeper
         cfg.twapSeconds = 1800;
         cfg.zrouterFee = 3000;

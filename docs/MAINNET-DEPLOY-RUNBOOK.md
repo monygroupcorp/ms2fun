@@ -13,9 +13,10 @@ Read on 2026-10-19 against `main` at 8a3f798b and live chain state:
   pinned bundle behind a `.gwei` name and answers.
 - The deployer `0x000888695d3e361434f67D9dbd110f1A443822b9` has nonce 0 on mainnet. Nothing has
   touched the CREATE3 addresses there.
-- `script/DeployMainnet.s.sol` still carries six `bytes32(0)` salts and `cfg.safe = address(0)`.
-  Both are code, not mining: the Sepolia set is reusable on mainnet because CreateX's guarded salt
-  carries no chain id and the collision proxy is per chain (see the script's own header, TODO 1).
+- `script/DeployMainnet.s.sol` reads its six salts from `SepoliaSalts.sol` and refuses any sender
+  but `SepoliaSalts.DEPLOYER`: the Sepolia set is reusable on mainnet because CreateX's guarded salt
+  carries no chain id and the collision proxy is per chain. Read 2026-10-30: CreateX is on mainnet
+  and all six derived addresses are empty there. `cfg.safe = address(0)` is still open.
 - The two-phase ownership handover (`script/MigrateOwnership.s.sol`) has never been executed on any
   chain: `MasterRegistry.owner()` on Sepolia is still the deployer. `DeployCore` installs a
   `MockSafe` when `cfg.safe` is zero and nothing asserts the registries' owner afterwards
@@ -53,8 +54,8 @@ below keeps that order; the chain work does not wait for it.
 
 One branch, reviewed under the contracts gate:
 
-1. `DeployMainnet` reads the six salts from `SepoliaSalts.sol` and asserts `SepoliaSalts.DEPLOYER`
-   in `run()` as `DeploySepolia` does.
+1. ~~`DeployMainnet` reads the six salts from `SepoliaSalts.sol` and asserts `SepoliaSalts.DEPLOYER`
+   in `run()` as `DeploySepolia` does.~~ Done.
 2. `cfg.safe` is the real Safe; `test/script/MainnetConfigCompleteness.t.sol` fails on a zero salt
    or a zero Safe.
 3. A post-deploy assertion (in the verify step or `DeployCore`) that every registry's `owner()` is
