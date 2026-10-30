@@ -83,11 +83,31 @@ contract UniTitheHookFactoryTest is Test {
         assertEq(address(marker.vault()), address(VAULT), "IAlignmentHook.vault");
     }
 
+    /// @dev `deployHook`'s mine starts its scan at a block-derived offset (`block.prevrandao`,
+    ///      `block.number`, the init-code hash), so a window that has no 0xCC-valid address for this
+    ///      block is a real, intended outcome, not a test flake — the factory's own doc says the next
+    ///      block draws a different offset and retries. A fixed test block never does that on its own,
+    ///      so `_deployHookRetrying` rolls the block forward on `NoValidSaltFound` exactly as a real
+    ///      caller would, bounded so an actually-unsatisfiable mine still fails the test.
+    function _deployHookRetrying(address benefactor) internal returns (address hook) {
+        for (uint256 i = 0; i < 16; i++) {
+            try factory.deployHook(
+                VAULT, benefactor, HOOK_FEE_BIPS, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING
+            ) returns (
+                address deployed
+            ) {
+                return deployed;
+            } catch {
+                vm.roll(block.number + 1);
+            }
+        }
+        revert("mine did not land within 16 retried blocks");
+    }
+
     function test_deployHook_produces_distinct_hooks_per_call() public {
-        address a = factory.deployHook(VAULT, BENEFACTOR, HOOK_FEE_BIPS, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING);
+        address a = _deployHookRetrying(BENEFACTOR);
         // Different benefactor => different init code => different mined address (no CREATE2 collision).
-        address b =
-            factory.deployHook(VAULT, address(0x1234), HOOK_FEE_BIPS, LP_FEE_RATE, POOL_TOKEN, POOL_TICK_SPACING);
+        address b = _deployHookRetrying(address(0x1234));
         assertTrue(a != b, "distinct init code must yield distinct hook addresses");
         assertTrue(HookAddressMiner.isValidUniAlignmentHookAddress(b), "second hook also 0xCC-valid");
         assertEq(UniAlignmentV4Hook(payable(b)).benefactor(), address(0x1234), "second hook benefactor");
