@@ -2,7 +2,6 @@
   "name": "ms2fun-launchpad",
   "version": "1.0.0",
   "description": "MS2.fun Launchpad",
-  "main": "server.js",
   "scripts": {
     "start": "vite preview",
     "dev": "vite",
@@ -10,7 +9,6 @@
     "dev:sepolia": "VITE_FORCE_MODE=SEPOLIA_DEV vite",
     "dev:coming-soon": "VITE_FORCE_MODE=COMING_SOON vite",
     "build": "vite build",
-    "server:legacy": "nodemon server.js",
     "setup:local": "bash scripts/local-chain/setup.sh",
     "chain:start": "bash scripts/local-chain/start-chain.sh",
     "chain:start:empty": "bash scripts/local-chain/start-chain.sh --scenario empty",
@@ -24,15 +22,7 @@
     "contracts:update": "git submodule update --remote contracts && npm run contracts:build",
     "chain:validate": "node scripts/local-chain/validate-deploy.mjs"
   },
-  "dependencies": {
-    "@monygroupcorp/micro-web3": "^1.4.2",
-    "@monygroupcorp/microact": "^0.2.4",
-    "ethers": "^5.7.2",
-    "express": "^4.17.1",
-    "web3": "^4.16.0"
-  },
   "devDependencies": {
-    "nodemon": "^2.0.15",
     "vite": "^7.3.1"
   }
 }
