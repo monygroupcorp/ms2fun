@@ -14,7 +14,14 @@ Filed 2026-09-10 (noesis-451).
 
 ---
 
-## 1. There is no publish pipeline that has ever published
+## 1. There is no publish pipeline that has ever published — STRUCK 2026-11-06
+
+**Struck 2026-11-06, worker seat on noesis/pre-mainnet-checklist-stale-low.** `fc0cb3de`
+(2026-09-29) rewrote `.github/workflows/deploy.yml` to redirect `ms2.fun` to the live
+distribution instead of building the retired root stack. gh run **36590068562** on that commit
+("Deploy to GitHub Pages", `.github/workflows/deploy.yml`) completed with conclusion `success`
+on 2026-09-29 and created a Pages deployment — observed, not inferred from the workflow file
+reading correctly. The pipeline has actually published.
 
 **Finding.** noesis has no working deploy path. `.github/workflows/deploy.yml` is
 `workflow_dispatch`-only and has never once succeeded: it still builds the retired root stack (root
@@ -44,7 +51,14 @@ the pipeline that would publish that target is what makes the gap load-bearing.
 
 ---
 
-## 2. The deep invariant profile is not run by anything
+## 2. The deep invariant profile is not run by anything — STRUCK 2026-11-06
+
+**Struck 2026-11-06, worker seat on noesis/pre-mainnet-checklist-stale-low.**
+`gh run list --workflow=contracts-deep-invariant.yml` shows the scheduled job has now run and
+completed with conclusion `success` on 2026-10-04 (run 37191568103), 2026-10-11 (run
+38128939688), 2026-10-18 (run 39108671468) and 2026-10-25 (run 40175066047) — each `event:
+schedule`, not a manual dispatch. The scheduled job has completed at least one run, observed;
+it has in fact completed four in a row.
 
 **Finding.** `[profile.deep.invariant] runs = 10000` is selected by no workflow. It is a hand-run
 profile: 10,000 invariant runs per suite across the invariant suites.
@@ -142,10 +156,10 @@ Two backend observations worth carrying forward, neither of them a contract defe
   the depth they were supposed to buy is not bought. The suite is green and this is not a defect;
   it is a handler that could explore more state for the same money.
 
-**Still open, and this is why the entry is not struck.** The scheduled job
-(`.github/workflows/contracts-deep-invariant.yml`) has not yet run once on a schedule. Entry 1 of
+**Open at filing — SUPERSEDED, see the strike above.** At filing (2026-09-10) the scheduled job
+(`.github/workflows/contracts-deep-invariant.yml`) had not yet run once on a schedule. Entry 1 of
 this document sets the standard and it applies here: a workflow that looks correct is not a
-workflow that ran.
+workflow that ran. Kept as history; it is no longer the state of the job.
 
 **Discharges when.** The scheduled job has completed at least one run, *observed* — not merged,
 run. Both halves that were missing at filing are now in hand: the profile produces a complete
