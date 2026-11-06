@@ -23,11 +23,13 @@ distribution instead of building the retired root stack. gh run **36590068562** 
 on 2026-09-29 and created a Pages deployment — observed, not inferred from the workflow file
 reading correctly. The pipeline has actually published.
 
-**Finding.** noesis has no working deploy path. `.github/workflows/deploy.yml` is
-`workflow_dispatch`-only and has never once succeeded: it still builds the retired root stack (root
-`index.html` → `/src/index.js`), and root `src/` no longer exists, so every run fails at
-`Failed to resolve /src/index.js`. The frontend that should actually ship is `app/`, which `app-ci`
-typechecks, tests and builds on every commit but never publishes.
+**Finding at filing — SUPERSEDED, see the strike above.** At filing (2026-09-10) noesis had no
+working deploy path. `.github/workflows/deploy.yml` was `workflow_dispatch`-only and had never once
+succeeded: it still built the retired root stack (root `index.html` → `/src/index.js`), and root
+`src/` no longer existed, so every run failed at `Failed to resolve /src/index.js`. The frontend
+that should actually ship is `app/`, which `app-ci` typechecks, tests and builds on every commit.
+Kept as history; `fc0cb3de` (2026-09-29) replaced the workflow's trigger and body, so it is no
+longer `workflow_dispatch`-only and it has now succeeded — see the strike above.
 
 **Location.** `.github/workflows/deploy.yml` (header comment and `on:` block).
 
