@@ -10,6 +10,9 @@ import { MockToggleVault } from "../../mocks/MockToggleVault.sol";
 import { MockVault } from "../../mocks/MockVault.sol";
 import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
 import { MockInstance } from "../../mocks/MockInstance.sol";
+import { PoolKey } from "v4-core/types/PoolKey.sol";
+import { Currency } from "v4-core/types/Currency.sol";
+import { IHooks } from "v4-core/interfaces/IHooks.sol";
 
 /// @dev Exposes the internal graduation-fee dispatch (`_postUnlock`) so the vaultCut send isolation can be
 ///      unit-tested without a full V4 PoolManager (the surrounding V4 liquidity add is fork-tested; this
@@ -18,7 +21,19 @@ contract PostUnlockHarness is LiquidityDeployerModule {
     constructor(address reg) LiquidityDeployerModule(address(0), address(0x3), 3000, 60, reg) { }
 
     function postUnlock(ILiquidityDeployerModule.DeployParams calldata p, AmountsResult memory r) external {
-        _postUnlock(p, r);
+        // protocolOwnedLiquidity is unset (OFF by default), so the pool key this dispatch never
+        // reads under that path is irrelevant here — an empty key stands in for it.
+        _postUnlock(
+            p,
+            r,
+            PoolKey({
+                currency0: Currency.wrap(address(0)),
+                currency1: Currency.wrap(address(0)),
+                fee: 0,
+                tickSpacing: 60,
+                hooks: IHooks(address(0))
+            })
+        );
     }
 }
 

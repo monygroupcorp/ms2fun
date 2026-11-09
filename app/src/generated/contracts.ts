@@ -10394,8 +10394,22 @@ export const liquidityDeployerModuleAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'polFeeBps',
+    outputs: [{ name: '', internalType: 'uint16', type: 'uint16' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'poolFee',
     outputs: [{ name: '', internalType: 'uint24', type: 'uint24' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'protocolOwnedLiquidity',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
   },
   {
@@ -10437,6 +10451,20 @@ export const liquidityDeployerModuleAbi = [
     type: 'function',
     inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
     name: 'setMetadataURI',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'bps', internalType: 'uint16', type: 'uint16' }],
+    name: 'setPolFeeBps',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'pol', internalType: 'address', type: 'address' }],
+    name: 'setProtocolOwnedLiquidity',
     outputs: [],
     stateMutability: 'nonpayable',
   },
@@ -10764,6 +10792,65 @@ export const liquidityDeployerModuleAbi = [
     anonymous: false,
     inputs: [
       {
+        name: 'polFeeBps',
+        internalType: 'uint16',
+        type: 'uint16',
+        indexed: false,
+      },
+    ],
+    name: 'PolFeeBpsUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'ethAmount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'ProtocolOwnedLiquidityFunded',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'ethAmount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'ProtocolOwnedLiquidityFundingSkipped',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'pol', internalType: 'address', type: 'address', indexed: true },
+    ],
+    name: 'ProtocolOwnedLiquidityUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
         name: 'instance',
         internalType: 'address',
         type: 'address',
@@ -10866,6 +10953,7 @@ export const liquidityDeployerModuleAbi = [
   { type: 'error', inputs: [], name: 'NoTokensForPool' },
   { type: 'error', inputs: [], name: 'NoUnconsumedCoin' },
   { type: 'error', inputs: [], name: 'NotPoolManager' },
+  { type: 'error', inputs: [], name: 'PolFeeBpsTooHigh' },
   { type: 'error', inputs: [], name: 'PoolPriceMismatch' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
   { type: 'error', inputs: [], name: 'UnauthorizedCaller' },
@@ -25930,12 +26018,30 @@ export const useReadLiquidityDeployerModulePendingVaultCut =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"polFeeBps"`
+ */
+export const useReadLiquidityDeployerModulePolFeeBps =
+  /*#__PURE__*/ createUseReadContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'polFeeBps',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"poolFee"`
  */
 export const useReadLiquidityDeployerModulePoolFee =
   /*#__PURE__*/ createUseReadContract({
     abi: liquidityDeployerModuleAbi,
     functionName: 'poolFee',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"protocolOwnedLiquidity"`
+ */
+export const useReadLiquidityDeployerModuleProtocolOwnedLiquidity =
+  /*#__PURE__*/ createUseReadContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'protocolOwnedLiquidity',
   })
 
 /**
@@ -26062,6 +26168,24 @@ export const useWriteLiquidityDeployerModuleSetMetadataUri =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"setPolFeeBps"`
+ */
+export const useWriteLiquidityDeployerModuleSetPolFeeBps =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'setPolFeeBps',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"setProtocolOwnedLiquidity"`
+ */
+export const useWriteLiquidityDeployerModuleSetProtocolOwnedLiquidity =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'setProtocolOwnedLiquidity',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"sweepUnconsumedCoin"`
  */
 export const useWriteLiquidityDeployerModuleSweepUnconsumedCoin =
@@ -26182,6 +26306,24 @@ export const useSimulateLiquidityDeployerModuleSetMetadataUri =
   /*#__PURE__*/ createUseSimulateContract({
     abi: liquidityDeployerModuleAbi,
     functionName: 'setMetadataURI',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"setPolFeeBps"`
+ */
+export const useSimulateLiquidityDeployerModuleSetPolFeeBps =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'setPolFeeBps',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"setProtocolOwnedLiquidity"`
+ */
+export const useSimulateLiquidityDeployerModuleSetProtocolOwnedLiquidity =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'setProtocolOwnedLiquidity',
   })
 
 /**
@@ -26350,6 +26492,42 @@ export const useWatchLiquidityDeployerModulePendingVaultCutReturnedToCreatorEven
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: liquidityDeployerModuleAbi,
     eventName: 'PendingVaultCutReturnedToCreator',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"PolFeeBpsUpdated"`
+ */
+export const useWatchLiquidityDeployerModulePolFeeBpsUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'PolFeeBpsUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"ProtocolOwnedLiquidityFunded"`
+ */
+export const useWatchLiquidityDeployerModuleProtocolOwnedLiquidityFundedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'ProtocolOwnedLiquidityFunded',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"ProtocolOwnedLiquidityFundingSkipped"`
+ */
+export const useWatchLiquidityDeployerModuleProtocolOwnedLiquidityFundingSkippedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'ProtocolOwnedLiquidityFundingSkipped',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"ProtocolOwnedLiquidityUpdated"`
+ */
+export const useWatchLiquidityDeployerModuleProtocolOwnedLiquidityUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'ProtocolOwnedLiquidityUpdated',
   })
 
 /**
