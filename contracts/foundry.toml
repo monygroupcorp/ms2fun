@@ -46,6 +46,9 @@ skip = [
     "test/audit/HookQueuedFeesMigratedVault.t.sol",
     "test/audit/HookSecondPoolNotBound.t.sol",
     "test/audit/UniVaultPoolKeyRotation.t.sol",
+    # Post-audit hunt proofs that drive the real PoolManager (contracts/audits/2026-11-post-audit-hunt.md):
+    "test/hunt/liquidity/PreInitRecoverableRealV4.t.sol",
+    "test/hunt/peripheral/H01_HookSwapReentry.t.sol",
     # DIFFERENT reason, and it is now the only file left under it. This group held the
     # 2026-09-17 pre-testnet audit's reproductions of defects that were still OPEN: they
     # assert the property the code SHOULD hold, so they FAIL on purpose, and a failing

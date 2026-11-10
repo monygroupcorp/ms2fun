@@ -56,6 +56,8 @@ RUN=(
     test/audit/HookSecondPoolNotBound.t.sol
     test/audit/HookQueuedFeesMigratedVault.t.sol
     test/audit/UniVaultPoolKeyRotation.t.sol
+    test/hunt/liquidity/PreInitRecoverableRealV4.t.sol
+    test/hunt/peripheral/H01_HookSwapReentry.t.sol
 )
 
 # Skipped AND deliberately not run, each with the reason it is out. A file belongs here only
