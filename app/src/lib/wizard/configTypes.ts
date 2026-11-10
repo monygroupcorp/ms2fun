@@ -123,7 +123,10 @@ export const CONFIG_SCHEMAS: ConfigSchema[] = [
         key: 'tierWeights',
         label: 'Denomination (coin units per NFT)',
         kind: 'list',
-        help: 'One row per tier; at least 2, and climbing — each tier is worth more than the one below',
+        help:
+          'One row per tier; at least 2, and climbing — each tier is worth more than the one below. ' +
+          'A weight is how many tokens one tier piece bundles, not a price: the bonding curve sets ' +
+          'the price of every token either way',
         learnMore: 'token-tiers',
         item: { key: 'tierWeight', label: 'Weight', kind: 'number' },
         validation: { min: 1 },

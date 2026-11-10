@@ -502,3 +502,33 @@
     border-bottom: var(--border-width-thick, 2px) solid var(--color-border);
   }
 }
+
+/* The Advanced-settings switch (rail). Off by default: the simple flow. */
+.advanced {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-5) 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 20%, transparent);
+}
+
+.advancedLabel {
+  composes: checkboxLabel from '../components/wizard/SchemaForm.module.css';
+}
+
+.advancedCheck {
+  composes: checkbox from '../components/wizard/SchemaForm.module.css';
+}
+
+.advancedText {
+  composes: checkboxText from '../components/wizard/SchemaForm.module.css';
+}
+
+.advancedHelp {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-relaxed);
+  margin: 0;
+}

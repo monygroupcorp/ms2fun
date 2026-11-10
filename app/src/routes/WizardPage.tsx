@@ -16,6 +16,12 @@ import {
   composePieceArtPreview,
   encodeMetadataConfig,
   validateMetadataConfig,
+  advancedInEffect,
+  defaultLiquidityDeployer,
+  hasAdvancedSettings,
+  useApprovedModules,
+  visibleFields,
+  visibleSlots,
   type MetadataModuleSelection,
   type ModuleSlot,
   type ProjectTypeSchema,
@@ -132,6 +138,9 @@ const STEP_LABEL: Record<StepKey, string> = Object.fromEntries(
 export interface DeployBlocker {
   message: string
   step: StepKey
+  /** The fix is an Advanced setting: jumping to it must also turn Advanced settings on, or the
+   *  creator lands on a step where the offending input is hidden. */
+  advanced?: boolean
 }
 
 /** Which step owns a given core field's input, so a core-field blocker deep-links to the right step.
@@ -165,6 +174,11 @@ export interface DeployBlockerInput {
   /** `supplyCeilingError(...)` — ERC-404 only: `nftCount` above what the chosen preset's unit size
    *  admits under DN404's uint96 total supply. Null when it fits, or while the ceiling is unread. */
   supplyCeilingError?: string | null
+  /** ERC-404 only: no liquidity deployer chosen. The factory needs one; an empty slot submits the
+   *  zero address and the create reverts. Normally pre-selected, so this is the no-V4-chain case. */
+  missingLiquidity?: boolean
+  /** Core-field keys rendered only under Advanced settings — their blockers carry `advanced`. */
+  advancedFieldKeys?: readonly string[]
 }
 
 /**
@@ -190,11 +204,14 @@ export function buildDeployBlockers(input: DeployBlockerInput): DeployBlocker[] 
       step: 'contract',
     })
   if (!input.vaultSelected) out.push({ message: 'Select an alignment vault.', step: 'alignment' })
+  if (input.missingLiquidity)
+    out.push({ message: 'Choose a liquidity deployer.', step: 'liquidity' })
 
   // Expand each failing core field into its own line (naming the field via the validator message),
   // routed to the step that renders it.
   for (const [key, message] of Object.entries(input.coreErrors)) {
-    out.push({ message, step: coreFieldStep(key) })
+    const advanced = input.advancedFieldKeys?.includes(key) ?? false
+    out.push({ message, step: coreFieldStep(key), ...(advanced ? { advanced } : {}) })
   }
   // The preset's supply ceiling. Not a `FieldSchema` rule because the bound is not static — it comes
   // from the selected preset's on-chain `unitPerNFT` — but it blocks deploy exactly like one, and it
@@ -206,9 +223,10 @@ export function buildDeployBlockers(input: DeployBlockerInput): DeployBlocker[] 
     const message = artPointerError(pointer.uri)
     if (message) out.push({ message: `${pointer.label}: ${message}`, step: pointer.step })
   }
-  // Expand each metadata-stack error (tier rows, router wiring…) — all owned by the Modules step.
+  // Expand each metadata-stack error (tier rows, router wiring…) — all owned by the Modules step,
+  // and every metadata-stack slot is an Advanced setting.
   for (const message of Object.values(input.metaErrors)) {
-    out.push({ message, step: 'modules' })
+    out.push({ message, step: 'modules', advanced: true })
   }
   return out
 }
@@ -250,9 +268,28 @@ export function WizardPage() {
   const [metadata, setMetadata] = useState<CollectionMetadata>(EMPTY_META)
   const [attempted, setAttempted] = useState(false)
   const [stepKey, setStepKey] = useState<StepKey>('contract')
+  // Simple mode by default: settings marked `advanced` on the schema stay hidden until the creator
+  // asks for them. Turning it back off HIDES them without resetting them — anything already set
+  // keeps submitting, and `advancedInEffect` below names it so nothing deploys unseen. Kept across
+  // a change of project type: it is the creator's preference, not a property of the contract.
+  const [advanced, setAdvanced] = useState(false)
 
   const submit = useCreateSubmit()
   const vaults = useRegisteredVaults()
+
+  // Pre-select the Uniswap V4 liquidity deployer, the venue the alignment hook can tax. Taken from
+  // this chain's deployment file and used only while the ComponentRegistry approves it; a chain with
+  // no V4 deployer leaves the slot empty for the creator to choose. The slot is required and has no
+  // "None", so once filled the creator can only swap it for another approved venue.
+  const liquidityOptions = useApprovedModules('liquidity')
+  const v4Deployer = defaultLiquidityDeployer(
+    liquidityOptions.data,
+    forkAddresses.ModuleUniV4Deployer,
+  )
+  useEffect(() => {
+    if (typeKey !== 'erc404' || !v4Deployer) return
+    setModules((m) => (m.liquidityDeployer ? m : { ...m, liquidityDeployer: v4Deployer }))
+  }, [typeKey, v4Deployer, modules.liquidityDeployer])
   // What the chosen liquidity deployer actually does about the perpetual swap tithe. Only ERC-404
   // graduates into a pool, so it is the only standard that can have an answer; the other two are
   // covered by `secondaryEarnSentence`, which says flatly that nothing is taken after the sale.
@@ -404,6 +441,8 @@ export function WizardPage() {
     coreErrors: deployCoreErrors,
     metaErrors: deployMetaErrors,
     supplyCeilingError: supplyError,
+    missingLiquidity: typeKey === 'erc404' && !modules.liquidityDeployer,
+    advancedFieldKeys: (projectType?.coreFields ?? []).filter((f) => f.advanced).map((f) => f.key),
     artPointers: [
       { label: 'Cover image', uri: metadata.image, step: 'page' },
       { label: 'Banner image', uri: metadata.banner, step: 'page' },
@@ -469,6 +508,11 @@ export function WizardPage() {
   const pieceArtPreviewUri = composePieceArtPreview(rawTokenBaseURI)
   const noPieceArt = typeKey === 'erc404' && pieceArtBlank && !modules.resolver
 
+  const offersAdvanced = hasAdvancedSettings(pt)
+  // Advanced settings that differ from a plain simple-mode launch. Shown beside the toggle while it
+  // is off (they still deploy) and on the Review summary either way.
+  const advancedSet = advancedInEffect(pt, values, modules)
+
   function pickType(key: ProjectTypeSchema['key']) {
     setTypeKey(key)
     // Reset to the NEW type's defaults (not `{}`) — see the `values` state note above.
@@ -499,6 +543,8 @@ export function WizardPage() {
       return
     // A supply above the preset's ceiling reverts DN404's `TotalSupplyOverflow()` inside create.
     if (supplyError) return
+    // ERC-404 graduates into the chosen deployer; the zero address would revert the create.
+    if (typeKey === 'erc404' && !modules.liquidityDeployer) return
 
     const salt = toHex(crypto.getRandomValues(new Uint8Array(32)))
     submit.submit(assembleCall(vault, salt))
@@ -508,7 +554,7 @@ export function WizardPage() {
   const missingName = attempted && !metadata.name.trim()
 
   // ── Step model ────────────────────────────────────────────────────────────────
-  const slotKeys = new Set(pt.moduleSlots.map((s) => s.key))
+  const slotKeys = new Set(visibleSlots(pt.moduleSlots, advanced).map((s) => s.key))
   const applicable: Record<StepKey, boolean> = {
     contract: true,
     modules:
@@ -647,7 +693,7 @@ export function WizardPage() {
                   piece art) is rendered bespoke below (composed-URI preview `ImageSourceInput` can't
                   do through the generic text field) — all three share `values` state. */}
               <SchemaForm
-                fields={pt.coreFields.filter(
+                fields={visibleFields(pt.coreFields, advanced).filter(
                   (f) => f.key !== 'styleUri' && f.key !== 'freeMint' && f.key !== 'tokenBaseURI',
                 )}
                 values={values}
@@ -695,7 +741,7 @@ export function WizardPage() {
               )}
               {/* ERC404: the declared-max carve disclosure gets a live allowance/depth preview so
                   the number being committed to (immutably) is priced in, not abstract. */}
-              {typeKey === 'erc404' && (
+              {typeKey === 'erc404' && advanced && (
                 <CarveDisclosure declaredValue={values['declaredMaxAllowanceBps']} />
               )}
               {typeKey === 'erc404' && <BondNotice />}
@@ -704,17 +750,28 @@ export function WizardPage() {
         )
 
       case 'modules': {
-        const slots = ['stakingModule', 'resolver', 'overlay', 'tier']
-          .map(slotByKey)
-          .filter((s): s is ModuleSlot => !!s)
+        const slots = visibleSlots(
+          ['stakingModule', 'resolver', 'overlay', 'tier']
+            .map(slotByKey)
+            .filter((s): s is ModuleSlot => !!s),
+          advanced,
+        )
         return (
           <div className={styles.body}>
-            <p className={styles.lede}>
-              Compose optional modules — each states its effect. Everything here is part of the same
-              deploy, and the metadata resolver below is wired once, permanently — it cannot be
-              added or swapped after deploy. It's how a piece's art can differ by tier band instead
-              of every piece looking identical.
-            </p>
+            {advanced ? (
+              <p className={styles.lede}>
+                Compose optional modules — each states its effect. Everything here is part of the
+                same deploy, and the metadata resolver below is wired once, permanently — it cannot
+                be added or swapped after deploy. It's how a piece's art can differ by tier band
+                instead of every piece looking identical.
+              </p>
+            ) : (
+              <p className={styles.lede}>
+                Optional modules — each states its effect, and skipping them is a complete launch.
+                Token Tiers, the artist overlay and the metadata resolver are under{' '}
+                <b>Advanced settings</b>; left alone, the collection deploys without them.
+              </p>
+            )}
             {slots.map(renderSlot)}
           </div>
         )
@@ -888,6 +945,14 @@ export function WizardPage() {
                   <dt>Aligned to</dt>
                   <dd>{vault ? `${vaultLabel} · 19%` : '—'}</dd>
                 </div>
+                {offersAdvanced && (
+                  <div className={styles.summaryRow}>
+                    <dt>Advanced</dt>
+                    <dd data-testid="review-advanced">
+                      {advancedSet.length > 0 ? advancedSet.join(' · ') : 'defaults'}
+                    </dd>
+                  </div>
+                )}
               </dl>
               <div className={styles.permanence}>
                 <span aria-hidden>▪ </span>Deploying is <b>permanent</b>. The contract, the modules,
@@ -899,7 +964,8 @@ export function WizardPage() {
                 <p className={styles.bindNote}>
                   Your pieces will have no art — every id renders as a bare placeholder. You can add
                   a base URI later from collection admin; a metadata resolver cannot be added after
-                  deploy, only wired now on the Modules step.
+                  deploy, only wired now on the Modules step
+                  {advanced ? '' : ' (under Advanced settings)'}.
                 </p>
               )}
               {!metadata.image.trim() && (
@@ -991,6 +1057,32 @@ export function WizardPage() {
             })}
           </div>
 
+          {offersAdvanced && (
+            <div className={styles.advanced}>
+              <label className={styles.advancedLabel}>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  className={styles.advancedCheck}
+                  checked={advanced}
+                  onChange={(e) => setAdvanced(e.target.checked)}
+                />
+                <span className={styles.advancedText}>Advanced settings</span>
+              </label>
+              <p className={styles.advancedHelp}>
+                {advanced
+                  ? 'Showing Token Tiers, the artist overlay, the metadata resolver and the creator-carve disclosure.'
+                  : 'Off: tiers, the artist overlay and the creator-carve disclosure use their defaults. A launch needs none of them.'}
+              </p>
+              {!advanced && advancedSet.length > 0 && (
+                <p className={styles.advancedHelp} role="status" data-testid="advanced-in-effect">
+                  Still in effect: {advancedSet.join(', ')}. These deploy as set — turn Advanced
+                  settings on to review or clear them.
+                </p>
+              )}
+            </div>
+          )}
+
           <div className={`noesis-manifest ${styles.manifest}`}>
             <p className={styles.manifestHead}>Manifest</p>
             <div className="mr">
@@ -1066,7 +1158,10 @@ export function WizardPage() {
                     <button
                       type="button"
                       className={styles.blockerJump}
-                      onClick={() => setStepKey(b.step)}
+                      onClick={() => {
+                        if (b.advanced) setAdvanced(true)
+                        setStepKey(b.step)
+                      }}
                     >
                       <span>{b.message}</span>
                       <span className={styles.blockerStep}>Fix in {STEP_LABEL[b.step]} →</span>

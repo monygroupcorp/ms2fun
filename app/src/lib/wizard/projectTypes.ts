@@ -145,6 +145,8 @@ const erc404: ProjectTypeSchema = {
       // Not `required`: an untouched field submits the displayed default (10000) — the builder
       // (`buildErc404Create`) applies the same default, so form and calldata agree.
       validation: { min: 0, max: 10000 },
+      // Hidden in the wizard's simple mode, where the default above is what deploys.
+      advanced: true,
     },
     {
       key: 'styleUri',
@@ -188,14 +190,18 @@ const erc404: ProjectTypeSchema = {
       tag: 'resolver',
       required: false,
       help: 'Router that stacks dynamic-metadata modules (overlay, tier). Off when unset.',
+      advanced: true,
     },
     {
       key: 'tier',
       label: 'Token Tiers',
       tag: 'tier',
       required: false,
-      help: 'NFTs that are coin denominations — fold coin into a band NFT and back.',
+      help:
+        'NFTs that are coin denominations — fold coin into a band NFT and back. Price still ' +
+        'follows the bonding curve: a tier is a bundle of tokens held as one piece, not a price level.',
       learnMore: 'token-tiers',
+      advanced: true,
     },
     {
       key: 'overlay',
@@ -204,6 +210,7 @@ const erc404: ProjectTypeSchema = {
       required: false,
       help: 'Augmentation layer: event waves + paid commissions (configured post-create)',
       learnMore: 'metadata-overlay',
+      advanced: true,
     },
   ],
 }
