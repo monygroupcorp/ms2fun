@@ -144,14 +144,23 @@ contract MainnetConfigCompletenessTest is Test {
     // ── What is still owed before this script may be run ─────────────────────
 
     /// @dev Stated as a test so the launch-day preconditions are read back from the config rather than
-    ///      from the TODO comment above it. These are the two the script's header names, and they are
-    ///      TRUE while they are still owed — this file asserts the shape of the gap, and the seat that
-    ///      closes one flips its assertion. `cfg.safe == 0` deploys a MockSafe; an empty roster
-    ///      launches with nothing to align to.
+    ///      from a comment. TRUE while still owed — this file asserts the shape of the gap, and the
+    ///      seat that closes it flips the assertion. An empty roster launches with nothing to align to.
     function test_theKnownLaunchTodosAreStillOpen() public view {
         DeployCore.NetworkConfig memory cfg = harness.config();
-        assertEq(cfg.safe, address(0), "TODO 3: cfg.safe still deploys a MockSafe on mainnet");
         assertEq(cfg.alignmentTargets.length, 0, "TODO 2: the alignment roster is still empty");
+    }
+
+    /// @dev `cfg.safe` administers the Timelock that owns the protocol (`DeployTimelock`,
+    ///      `MigrateOwnership`), so a zero here silently deploys a `MockSafe` instead — this is the
+    ///      governance root and it is pinned to the real Safe, not merely asserted non-zero.
+    function test_theGovernanceSafeIsWired() public view {
+        DeployCore.NetworkConfig memory cfg = harness.config();
+        assertEq(
+            cfg.safe,
+            0xBCE7DF8d399F145745C660DecB9ef50CA723d262,
+            "cfg.safe must be the 1-of-1 mainnet Safe owned by 0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6"
+        );
     }
 
     /// @dev Mainnet spends the salt set Sepolia rehearsed. The guarded salt takes no chain id, so the

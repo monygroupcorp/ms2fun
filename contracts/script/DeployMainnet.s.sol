@@ -52,7 +52,7 @@ contract DeployMainnet is DeployCore {
         cfg.aaveStataToken = MainnetAddresses.WETH_STATA_TOKEN;
         cfg.zrouter = MainnetAddresses.ZROUTER;
         cfg.zQuoter = MainnetAddresses.ZQUOTER;
-        cfg.safe = address(0); // address(0) deploys a MockSafe
+        cfg.safe = 0xBCE7DF8d399F145745C660DecB9ef50CA723d262; // 1-of-1 Safe, owner rth (0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6)
         cfg.saltMasterRegistry = SepoliaSalts.MASTER_REGISTRY;
         cfg.saltTreasury = SepoliaSalts.TREASURY;
         cfg.saltQueueManager = SepoliaSalts.QUEUE_MANAGER;
