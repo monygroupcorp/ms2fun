@@ -16,13 +16,16 @@ Read on 2026-10-19 against `main` at 8a3f798b and live chain state:
 - `script/DeployMainnet.s.sol` reads its six salts from `SepoliaSalts.sol` and refuses any sender
   but `SepoliaSalts.DEPLOYER`: the Sepolia set is reusable on mainnet because CreateX's guarded salt
   carries no chain id and the collision proxy is per chain. Read 2026-10-30: CreateX is on mainnet
-  and all six derived addresses are empty there. `cfg.safe = address(0)` is still open.
+  and all six derived addresses are empty there.
+- Read 2026-11-10: `cfg.safe` is the 1-of-1 Safe at `0xBCE7DF8d399F145745C660DecB9ef50CA723d262`,
+  owned solely by `0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6` (rth), ruled on the `the-safe`
+  decision record and wired into `_mainnetConfig()`.
 - The two-phase ownership handover (`script/MigrateOwnership.s.sol`) has never been executed on any
-  chain: `MasterRegistry.owner()` on Sepolia is still the deployer. `DeployCore` installs a
-  `MockSafe` when `cfg.safe` is zero and nothing asserts the registries' owner afterwards
-  (`contracts/docs/PRE-MAINNET-CHECKLIST.md`, entry 4).
-- Three deploy-time choices are open in `DeployMainnet`: the alignment-target roster, the Safe
-  address, and the tithe pair `hookFeeBips` / `lpFeeRate`. The tithe switch ships OFF either way.
+  chain: `MasterRegistry.owner()` on Sepolia is still the deployer. `DeployCore` now installs the
+  real Safe-administered Timelock on mainnet rather than a `MockSafe`, and nothing yet asserts the
+  registries' owner afterward (`contracts/docs/PRE-MAINNET-CHECKLIST.md`, entry 4).
+- Two deploy-time choices are still open in `DeployMainnet`: the alignment-target roster and the
+  tithe pair `hookFeeBips` / `lpFeeRate`. The tithe switch ships OFF either way.
 
 ## 1. Decisions that gate the date
 
@@ -35,7 +38,7 @@ below keeps that order; the chain work does not wait for it.
 | --- | --- |
 | week of 10-20 | the four decisions in the table below; the code in §2 on one branch |
 | 10-23 | Sepolia ownership handover executed and asserted (the first time on any chain) |
-| 10-24 | the Safe created on mainnet, its address committed |
+| ~~10-24~~ 11-10 | the Safe created on mainnet, its address committed |
 | by 11-06 | one outside tester's end-to-end run observed; the testnet announcement posted |
 | 11-09 | fork rehearsal on the merge commit (§3); deployer funded |
 | 11-16 | freeze; rehearsal re-run on the exact broadcast commit |
@@ -45,7 +48,7 @@ below keeps that order; the chain work does not wait for it.
 
 | decision | where it lands |
 | --- | --- |
-| Safe signers and threshold | `the-safe` decision record; the Safe's address into the deploy config |
+| ~~Safe signers and threshold~~ ruled 1-of-1, rth sole owner | `the-safe` decision record; address in `DeployMainnet._mainnetConfig` |
 | tithe rate, or "OFF at launch, rate decided before the first enable" | `DeployMainnet._mainnetConfig` |
 | the first curated alignment target | `DeployMainnet` targets array |
 | pinning account on a paid plan | operator's account |
@@ -56,8 +59,8 @@ One branch, reviewed under the contracts gate:
 
 1. ~~`DeployMainnet` reads the six salts from `SepoliaSalts.sol` and asserts `SepoliaSalts.DEPLOYER`
    in `run()` as `DeploySepolia` does.~~ Done.
-2. `cfg.safe` is the real Safe; `test/script/MainnetConfigCompleteness.t.sol` fails on a zero salt
-   or a zero Safe.
+2. ~~`cfg.safe` is the real Safe.~~ Done: `test_theGovernanceSafeIsWired` in
+   `test/script/MainnetConfigCompleteness.t.sol` pins it to the deployed address.
 3. A post-deploy assertion (in the verify step or `DeployCore`) that every registry's `owner()` is
    the Timelock, so a skipped handover fails loudly.
 4. The roster entry for the first target.
