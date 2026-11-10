@@ -62,6 +62,23 @@ contract StubZAMM {
  *         address the attacker names. The transient model has no way to tell "I wrapped what was
  *         already here" from "I paid this in", so resting ETH is first-come-first-served across
  *         transactions at T4.
+ *
+ * @dev    Scope: this attacks `src/peripherals/zRouter.sol`, the vendored fork `DeployCore` self-deploys
+ *         only on Sepolia and Anvil (`DeploySepolia.s.sol`, `DeployAnvil.s.sol` both leave `cfg.zrouter`
+ *         at `address(0)`). Mainnet never deploys it: `DeployMainnet.s.sol` sets
+ *         `cfg.zrouter = MainnetAddresses.ZROUTER`, the already-deployed canonical singleton at
+ *         `0x000000000000FB114709235f1ccBFfb925F600e4` — infrastructure this project does not own,
+ *         did not write, and cannot patch. That contract's own `sweep` (`lib/zRouter/src/zRouter.sol:866`,
+ *         the pristine copy its README names as the deployed source) carries no credit check at all:
+ *         resting value there is first-come-first-served by design, for every caller, not a defect this
+ *         fork introduced or can regress. `_requireOwnBalance` is this fork's own addition on top of
+ *         that baseline, and `wrap(0)` is a gap in it, not in the router this protocol actually runs on.
+ *         Separately, nothing this protocol's own code calls (`BestRouteAcquirer.sol`) ever leaves value
+ *         resting: every call is a single exact-in typed leg with `to == address(this)` (the vault),
+ *         never a `multicall`, `deposit`, or `wrap`. The protocol is never the victim this claim needs.
+ *         Disposition: confirmed against the fork, accepted-class for mainnet — the fork is testnet-only
+ *         plumbing, not a fund-safety issue, and not a bug to report against code this project does not
+ *         own.
  */
 contract H02ZRouterRestingTest is Test {
     StubWETH internal weth;
