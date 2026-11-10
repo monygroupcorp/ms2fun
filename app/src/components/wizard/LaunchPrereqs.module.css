@@ -1,0 +1,67 @@
+/* ============================================================
+   LaunchPrereqs — Gallery Brutalism
+   Monochrome CSS Modules. All color via var(--…) tokens.
+   ============================================================ */
+
+.root,
+.alert {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  padding: var(--padding-lg);
+  margin: 0 0 var(--space-4);
+}
+
+.root {
+  border: 1px dashed var(--border-secondary);
+}
+
+/* Next to Deploy: solid ink rule, the same weight the deploy blockers use. */
+.alert {
+  border-left: var(--border-width-thick, 2px) solid var(--color-text);
+  margin: var(--space-3) 0 0;
+}
+
+.head {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.list {
+  margin: 0;
+  padding-left: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+}
+
+.list,
+.note {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+.note {
+  margin: 0;
+}
+
+.list b {
+  color: var(--text-primary);
+}
+
+.link {
+  color: var(--text-primary);
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
+}
+
+.link:hover {
+  color: var(--text-secondary);
+}

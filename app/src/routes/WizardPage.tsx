@@ -35,6 +35,7 @@ import { useNameAvailability } from '../components/wizard/useNameAvailability'
 import { usePresetSupplyCeiling } from '../components/wizard/usePresetSupplyCeiling'
 import { CarveDisclosure } from '../components/wizard/CarveDisclosure'
 import { BondNotice } from '../components/wizard/BondNotice'
+import { BeforeYouStart, TestnetFundsNotice } from '../components/wizard/LaunchPrereqs'
 import { TierSupplyHelper } from '../components/wizard/TierSupplyHelper'
 import { SchemaForm } from '../components/wizard/SchemaForm'
 import { PostCreateEditionStep } from '../components/wizard/PostCreateEditionStep'
@@ -452,6 +453,13 @@ export function WizardPage() {
       : undefined
   const gasEstimate = useDeployGasEstimate(reviewCall, wallet)
   const gasPrice = useGasPriceGwei()
+  // What the deploy will cost the wallet, once it is known: ETH sent with the call (the deploy bond,
+  // when that lever is on) plus live gas × live price. The fallback price is not a read, so it never
+  // feeds a "you can't afford this" claim.
+  const deployCostWei =
+    reviewCall && gasEstimate.gas !== undefined && gasPrice.isLive
+      ? reviewCall.value + gasEstimate.gas * BigInt(Math.round(gasPrice.gwei * 1e9))
+      : reviewCall?.value || undefined
   const embedBreakdownData = useMemo(() => embedBreakdown(metadata), [metadata])
 
   // All hooks have run — safe to bail now. Stable non-null binding so the step-body / slot closures
@@ -1019,6 +1027,8 @@ export function WizardPage() {
             — {STEP_DEFS[fullIdx]?.label}
           </p>
 
+          {stepKey === 'contract' && <BeforeYouStart />}
+
           {stepBody()}
 
           <div className={styles.footer}>
@@ -1057,6 +1067,7 @@ export function WizardPage() {
               </button>
             )}
           </div>
+          {stepKey === 'review' && <TestnetFundsNotice wallet={wallet} costWei={deployCostWei} />}
           {stepKey === 'review' && wallet && deployBlockers.length > 0 && (
             <div className={styles.blockers}>
               <p className={styles.blockersHead}>Before you can deploy:</p>
