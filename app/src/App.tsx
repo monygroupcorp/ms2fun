@@ -9,6 +9,7 @@ import { GatewayThrottleNotice } from './components/ui/GatewayThrottleNotice'
 import { BoardCartProvider } from './components/board/BoardCartProvider'
 import { BoardCartBar } from './components/board/BoardCartBar'
 import { config } from './lib/wagmi'
+import { isIpfsTarget } from './lib/distTarget'
 import { queryClient } from './lib/queryClient'
 import { PERSIST_BUSTER, PERSIST_MAX_AGE, queryPersister } from './lib/queryPersister'
 // HomePage stays eager — it's the landing route, so we don't want a chunk round-trip before first
@@ -71,16 +72,6 @@ import styles from './App.module.css'
 /** The commit the bundle was built from, inlined by vite `define` (see vite.config.ts). Both
  * distribution targets carry it. */
 declare const __BUILD_COMMIT__: string
-
-/** Which distribution target this bundle is serving.
- *
- * `'ipfs'` is the pinned distribution reached through noesis.gwei.domains, served from under a
- * gateway path prefix. Read at render time rather than inlined as a build constant so the routing
- * matrix in `ipfs-routing.test.tsx` can drive both modes; in a production build vite has already
- * folded `import.meta.env.VITE_DIST_TARGET` to a literal, so the dead branch is dropped. */
-function isIpfsTarget(): boolean {
-  return import.meta.env.VITE_DIST_TARGET === 'ipfs'
-}
 
 // Build identity in the console, on every target, once per load. The pinned distribution is
 // repointed on its own cadence and can lag ms2.fun, so a bug report has to be able to name the
@@ -357,7 +348,8 @@ function AppShell() {
  * reverse-proxies that behaviour unchanged. Hash routing keeps the whole route in the fragment,
  * which no gateway ever sees — every deep link resolves to the one document that is actually
  * pinned. `useHashLocation.hrefs` also rewrites every `Link` href to `#/...`, so no call site
- * changes. */
+ * changes — except a raw `<a>` outside `Link` (a new-tab link, which `Link` doesn't support), which
+ * bypasses that rewrite and must build its own href with `lib/distTarget`'s `appHref`. */
 export function App() {
   return isIpfsTarget() ? (
     <Router hook={useHashLocation}>

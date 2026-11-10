@@ -4,6 +4,7 @@ import { useAccount } from 'wagmi'
 import { toHex } from 'viem'
 import { useReadMasterRegistryV1IsAgent } from '../generated/contracts'
 import { forkAddresses } from '../lib/addresses'
+import { appHref } from '../lib/distTarget'
 import {
   PROJECT_TYPES,
   artPointerError,
@@ -947,7 +948,12 @@ export function WizardPage() {
         <Link href="/" className={styles.back}>
           ← noesis
         </Link>
-        <a href="/learn" target="_blank" rel="noopener noreferrer" className={styles.back}>
+        <a
+          href={appHref('/learn')}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={styles.back}
+        >
           Learn how it works ↗
         </a>
       </nav>

@@ -4,6 +4,7 @@
  * Dev-only guard: an unknown slug `console.warn`s so a typo is caught in review, not shipped as a
  * dead link (the concepts unit test is the CI-level guard).
  */
+import { appHref } from '../../lib/distTarget'
 import { getConcept } from '../../lib/learn/concepts'
 import styles from './LearnLink.module.css'
 
@@ -19,7 +20,12 @@ export function LearnLink({
     console.warn(`[LearnLink] no /learn concept for slug "${slug}"`)
   }
   return (
-    <a className={styles.link} href={`/learn/${slug}`} target="_blank" rel="noopener noreferrer">
+    <a
+      className={styles.link}
+      href={appHref(`/learn/${slug}`)}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
       {label} ↗
     </a>
   )
