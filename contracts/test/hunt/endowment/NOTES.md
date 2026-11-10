@@ -11,3 +11,18 @@ principal (40%): identical rates. Shares mint as `amount * shares / principal`, 
 the sliver, so the join-time crystallize plus pro-rata minting makes the yield rate match the honest
 rate to division dust.
 test name: test_Defended_lateJoinerYieldRateMatchesPrincipal — defended.
+
+
+claim: the new `approvedDeployer` bypass in `receivePOL` keys the position by the caller-supplied
+`instance` argument, so a T2 registered instance can call `receivePOL` for ITSELF with a 1-wei dust
+escrow before graduation; the slot then permanently reads `POLAlreadyDeployed`, and the graduation
+venue's module (the approved deployer) can never stand up the protocol's POL position for that
+instance — `LiquidityDeployerModule._fundProtocolOwnedLiquidity` makes that call WITHOUT try/catch.
+trust level crossed: T2 (the instance itself; setup uses owner to configure + seat the deployer).
+steps: owner wires POL + approvedDeployer -> instance self-funds POL slot with 1 wei/leg -> graduation:
+module brings the 1 ETH protocol fee leg -> receivePOL reverts POLAlreadyDeployed, fee leg stays out.
+impact: protocol-owned LP is locked out per-instance for the instance's whole life (only an owner
+withdrawPOL of the attacker's dust frees the slot; the owner gate `setApprovedDeployer` is T0 and
+unrelated). No attacker profit; the harm is protocol capital denied deployment + a hard revert in the
+graduation payout path.
+test name: test_lateJoinDustSealsInstancePolSlotAgainstProtocolFunding — attack (PASS).
