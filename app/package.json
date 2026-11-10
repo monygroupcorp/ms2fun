@@ -75,7 +75,9 @@
   },
   "pnpm": {
     "overrides": {
-      "esbuild": "^0.28.0"
+      "esbuild": "^0.28.0",
+      "ws": "^8.21.0",
+      "zod": "^4.6.6"
     },
     "onlyBuiltDependencies": [
       "esbuild"
