@@ -180,7 +180,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         PoolKey memory key = _dummyPoolKey();
         vm.prank(alice);
         vm.expectRevert(ProtocolOwnedLiquidityV1.RegistryNotConfigured.selector);
-        pol.receivePOL(key, -887220, 887220, 1 ether, 1 ether);
+        pol.receivePOL(alice, key, -887220, 887220, 1 ether, 1 ether);
     }
 
     function test_receivePOL_RevertNotRegisteredInstance() public {
@@ -190,7 +190,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         PoolKey memory key = _dummyPoolKey();
         vm.prank(alice);
         vm.expectRevert(ProtocolOwnedLiquidityV1.NotRegisteredInstance.selector);
-        pol.receivePOL(key, -887220, 887220, 1 ether, 1 ether);
+        pol.receivePOL(alice, key, -887220, 887220, 1 ether, 1 ether);
     }
 
     function test_receivePOL_RevertV4NotConfigured() public {
@@ -204,7 +204,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         PoolKey memory key = _dummyPoolKey();
         vm.prank(alice);
         vm.expectRevert(ProtocolOwnedLiquidityV1.V4NotConfigured.selector);
-        pol.receivePOL(key, -887220, 887220, 1 ether, 1 ether);
+        pol.receivePOL(alice, key, -887220, 887220, 1 ether, 1 ether);
     }
 
     function test_receivePOL_RevertWETHNotConfigured() public {
@@ -218,7 +218,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         PoolKey memory key = _dummyPoolKey();
         vm.prank(alice);
         vm.expectRevert(ProtocolOwnedLiquidityV1.WETHNotConfigured.selector);
-        pol.receivePOL(key, -887220, 887220, 1 ether, 1 ether);
+        pol.receivePOL(alice, key, -887220, 887220, 1 ether, 1 ether);
     }
 
     // ========== receivePOL escrow / drain-regression (noesis-111) ==========
@@ -279,7 +279,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         uint256 tokenAmt = 1 ether;
 
         vm.prank(alice);
-        pol.receivePOL{ value: nativeAmt }(key, TICK_LOWER, TICK_UPPER, nativeAmt, tokenAmt);
+        pol.receivePOL{ value: nativeAmt }(alice, key, TICK_LOWER, TICK_UPPER, nativeAmt, tokenAmt);
 
         // Position deployed.
         assertEq(pol.polInstanceCount(), 1, "position count");
@@ -305,7 +305,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         // Directs a 1 ETH native leg but escrows 0 → must revert, cannot borrow the shared 5 ETH.
         vm.prank(alice);
         vm.expectRevert(ProtocolOwnedLiquidityV1.NativeValueMismatch.selector);
-        pol.receivePOL{ value: 0 }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+        pol.receivePOL{ value: 0 }(alice, key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
 
         assertEq(address(pol).balance, seeded, "shared ETH untouched after revert");
         assertEq(pol.polInstanceCount(), 0, "no position");
@@ -316,7 +316,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         PoolKey memory key = _setUpLivePool();
         vm.prank(alice);
         vm.expectRevert(ProtocolOwnedLiquidityV1.NativeValueMismatch.selector);
-        pol.receivePOL{ value: 2 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+        pol.receivePOL{ value: 2 ether }(alice, key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
     }
 
     /// @notice The token leg is pulled from the caller for this deploy (not assumed already pooled here).
@@ -326,7 +326,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         uint256 aliceTokenBefore = token.balanceOf(alice);
 
         vm.prank(alice);
-        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+        pol.receivePOL{ value: 1 ether }(alice, key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
 
         // Alice paid the token leg (consumed amount); any unconsumed token escrow was refunded to her.
         assertLt(token.balanceOf(alice), aliceTokenBefore, "caller funded the token leg");
@@ -343,7 +343,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         assertEq(token.allowance(address(pol), address(pm)), 0, "no allowance before deploy");
 
         vm.prank(alice);
-        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+        pol.receivePOL{ value: 1 ether }(alice, key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
 
         (,,, uint128 liquidity) = pol.getPolPosition(alice);
         assertGt(liquidity, 0, "deploy succeeded with the allowance at zero");
@@ -359,7 +359,7 @@ contract ProtocolOwnedLiquidityTest is Test {
 
         vm.prank(alice);
         vm.expectRevert();
-        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+        pol.receivePOL{ value: 1 ether }(alice, key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
     }
 
     /// @notice Escrow the position does not consume is refunded to the caller, not stranded in POL.
@@ -376,7 +376,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         // Over-provide the native leg (3 ETH) relative to the 1 ETH token leg; at 1:1 full-range the
         // position is sized by the smaller leg, so most native escrow is refunded.
         vm.prank(alice);
-        pol.receivePOL{ value: 3 ether }(key, TICK_LOWER, TICK_UPPER, 3 ether, 1 ether);
+        pol.receivePOL{ value: 3 ether }(alice, key, TICK_LOWER, TICK_UPPER, 3 ether, 1 ether);
 
         // Caller spent strictly less than the full 3 ETH escrow (got a refund).
         assertGt(alice.balance, aliceEthBefore - 3 ether, "unused native escrow refunded to caller");
@@ -390,11 +390,11 @@ contract ProtocolOwnedLiquidityTest is Test {
         PoolKey memory key = _setUpLivePool();
 
         vm.prank(alice);
-        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+        pol.receivePOL{ value: 1 ether }(alice, key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
 
         vm.prank(alice);
         vm.expectRevert(ProtocolOwnedLiquidityV1.POLAlreadyDeployed.selector);
-        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+        pol.receivePOL{ value: 1 ether }(alice, key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
     }
 
     // ========== polInstances enumeration (noesis-304) ==========
@@ -411,7 +411,7 @@ contract ProtocolOwnedLiquidityTest is Test {
 
         vm.prank(alice);
         vm.expectRevert(ProtocolOwnedLiquidityV1.ZeroLiquidityDeploy.selector);
-        pol.receivePOL{ value: 0 }(key, TICK_LOWER, TICK_UPPER, 0, 0);
+        pol.receivePOL{ value: 0 }(alice, key, TICK_LOWER, TICK_UPPER, 0, 0);
 
         assertEq(pol.polInstanceCount(), 0, "no-op deploy must not be enumerated");
         (,,, uint128 liquidity) = pol.getPolPosition(alice);
@@ -425,7 +425,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         for (uint256 i = 0; i < 5; i++) {
             vm.prank(alice);
             vm.expectRevert(ProtocolOwnedLiquidityV1.ZeroLiquidityDeploy.selector);
-            pol.receivePOL{ value: 0 }(key, TICK_LOWER, TICK_UPPER, 0, 0);
+            pol.receivePOL{ value: 0 }(alice, key, TICK_LOWER, TICK_UPPER, 0, 0);
         }
 
         assertEq(pol.polInstanceCount(), 0, "polInstances must not grow on rejected deploys");
@@ -436,7 +436,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         PoolKey memory key = _setUpLivePool();
 
         vm.prank(alice);
-        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+        pol.receivePOL{ value: 1 ether }(alice, key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
 
         assertEq(pol.polInstanceCount(), 1, "one entry per deployed position");
         assertEq(pol.polInstances(0), alice, "entry is the depositing instance");
@@ -449,7 +449,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         PoolKey memory key = _setUpLivePool();
 
         vm.prank(alice);
-        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+        pol.receivePOL{ value: 1 ether }(alice, key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
         assertEq(pol.polInstanceCount(), 1, "first deploy enumerated");
 
         (,,, uint128 liquidity) = pol.getPolPosition(alice);
@@ -459,7 +459,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         assertEq(liquidityAfterExit, 0, "position fully exited");
 
         vm.prank(alice);
-        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+        pol.receivePOL{ value: 1 ether }(alice, key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
 
         (,,, uint128 liquidityRedeployed) = pol.getPolPosition(alice);
         assertGt(liquidityRedeployed, 0, "position live again after re-deploy");
@@ -479,7 +479,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         PoolKey memory key = _setUpLivePool();
 
         vm.prank(alice);
-        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+        pol.receivePOL{ value: 1 ether }(alice, key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
 
         (,,, uint128 liquidity) = pol.getPolPosition(alice);
         assertGt(liquidity, 0, "liquidity deployed");
@@ -514,7 +514,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         PoolKey memory key = _setUpLivePool();
 
         vm.prank(alice);
-        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+        pol.receivePOL{ value: 1 ether }(alice, key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
 
         (,,, uint128 liquidity) = pol.getPolPosition(alice);
 
@@ -536,7 +536,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         PoolKey memory key = _setUpLivePool();
 
         vm.prank(alice);
-        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+        pol.receivePOL{ value: 1 ether }(alice, key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
 
         (int24 tickLower, int24 tickUpper, bytes32 salt, uint128 liquidity) = pol.getPolPosition(alice);
         uint128 half = liquidity / 2;
@@ -575,7 +575,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         PoolKey memory key = _setUpLivePool();
 
         vm.prank(alice);
-        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+        pol.receivePOL{ value: 1 ether }(alice, key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
 
         vm.prank(owner);
         vm.expectRevert(ProtocolOwnedLiquidityV1.InvalidLiquidityAmount.selector);
@@ -586,7 +586,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         PoolKey memory key = _setUpLivePool();
 
         vm.prank(alice);
-        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+        pol.receivePOL{ value: 1 ether }(alice, key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
 
         (,,, uint128 liquidity) = pol.getPolPosition(alice);
 
@@ -610,7 +610,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         PoolKey memory key = _setUpLivePool();
 
         vm.prank(alice);
-        pol.receivePOL{ value: 1 ether }(key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
+        pol.receivePOL{ value: 1 ether }(alice, key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
 
         // bob is neither owner nor a registered instance, yet may call for alice's position.
         vm.prank(bob);

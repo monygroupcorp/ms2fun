@@ -26,6 +26,9 @@
  *   - setAgent(address agent, bool authorized) — toggle an agent's authorization.
  *   - revokeAgent(address agent) — emergency single-agent revoke.
  *   - setEmergencyRevoker(address _revoker) — set who may emergency-revoke.
+ *   - setProtocolOwnedLiquidity(address pol) — where a graduation's POL-cut fee leg lands (LiquidityDeployerModule).
+ *   - setPolFeeBps(uint16 bps) — fraction of that fee leg redirected there, max 10000. Inert while the
+ *     address above is unset (both default off, so an unconfigured deployer is unchanged).
  */
 import { useState } from 'react'
 import { formatEther } from 'viem'
@@ -34,6 +37,7 @@ import {
   erc404FactoryAbi,
   featuredQueueManagerAbi,
   globalMessageRegistryAbi,
+  liquidityDeployerModuleAbi,
   masterRegistryV1Abi,
   useReadDeployBondEscrowBondAmount,
   useReadDeployBondEscrowGraceDays,
@@ -47,6 +51,8 @@ import {
   useReadErc404FactoryBondingFeeBps,
   useReadErc404FactoryMinPoolEth,
   useReadGlobalMessageRegistryPostThreshold,
+  useReadLiquidityDeployerModulePolFeeBps,
+  useReadLiquidityDeployerModuleProtocolOwnedLiquidity,
 } from '../../generated/contracts'
 import { AdminSection, ActionRow } from '../ui/AdminSection'
 import { AmountField } from '../ui/AmountField'
@@ -55,6 +61,7 @@ import { parseAmount } from '../ui/parseAmount'
 import { useOwnerGate } from '../ui/useOwnerGate'
 import { useTxAction } from '../ui/useTxAction'
 import { forkAddresses, forkChainId } from '../../lib/addresses'
+import { truncateAddress } from '../../lib/format'
 import styles from './PlatformConfigPanel.module.css'
 
 const SECONDS_PER_DAY = 86_400n
@@ -81,6 +88,7 @@ export function PlatformConfigPanel() {
       <MessageBoardSection />
       <CarveEconomicsSection />
       <DeployBondSection />
+      <ProtocolOwnedLiquiditySection />
     </div>
   )
 }
@@ -1028,6 +1036,138 @@ function MaxBondDurationRow() {
           disabled={!canSubmit}
           errorText="set failed — try again"
           testId="admin-set-max-bond-duration"
+        />
+      </div>
+    </ActionRow>
+  )
+}
+
+// ── Section 6: protocol-owned liquidity (LiquidityDeployerModule) ───────────────
+// Both knobs default off (address zero / 0 bps), which leaves a graduation's protocol fee leg going
+// to the treasury exactly as it always has. Setting the address alone does nothing until a bps cut
+// is also set, and vice versa.
+
+function ProtocolOwnedLiquiditySection() {
+  const { isOwner } = useOwnerGate(forkAddresses.ModuleUniV4Deployer)
+  if (!isOwner) return null
+
+  return (
+    <AdminSection title="protocol-owned liquidity" testId="admin-pol-config">
+      <PolAddressRow />
+      <PolFeeBpsRow />
+    </AdminSection>
+  )
+}
+
+function PolAddressRow() {
+  const [address, setAddress] = useState('')
+  const { data: current, refetch } = useReadLiquidityDeployerModuleProtocolOwnedLiquidity({
+    address: forkAddresses.ModuleUniV4Deployer,
+    chainId: forkChainId,
+  })
+  const tx = useTxAction({
+    onSuccess: () => {
+      setAddress('')
+      void refetch()
+    },
+  })
+  const valid = isAddress(address)
+
+  return (
+    <ActionRow
+      label="POL address"
+      hint={`where a graduation's POL-cut fee leg lands. address(0) = off (fee leg goes to treasury). current: ${
+        current !== undefined ? truncateAddress(current) : '…'
+      }`}
+    >
+      <div className={styles.form}>
+        <input
+          className={styles.addrInput}
+          type="text"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          placeholder="0x… ProtocolOwnedLiquidityV1, or 0x0 to turn off"
+          disabled={tx.isBusy}
+          aria-label="protocol-owned liquidity address"
+        />
+        <TxButton
+          state={tx.state}
+          onClick={() => {
+            if (!valid) return
+            tx.send({
+              address: forkAddresses.ModuleUniV4Deployer,
+              abi: liquidityDeployerModuleAbi,
+              functionName: 'setProtocolOwnedLiquidity',
+              args: [address.trim() as `0x${string}`],
+              chainId: forkChainId,
+            })
+          }}
+          label="set POL address"
+          successLabel="POL address set — tx confirmed."
+          onReset={tx.reset}
+          disabled={!valid}
+          errorText="set failed — try again"
+          testId="admin-set-pol-address"
+        />
+      </div>
+    </ActionRow>
+  )
+}
+
+function PolFeeBpsRow() {
+  const [bps, setBps] = useState('')
+  const { data: current, refetch } = useReadLiquidityDeployerModulePolFeeBps({
+    address: forkAddresses.ModuleUniV4Deployer,
+    chainId: forkChainId,
+  })
+  const tx = useTxAction({
+    onSuccess: () => {
+      setBps('')
+      void refetch()
+    },
+  })
+  const value = parseAmount(bps, 0) // raw basis points
+  const canSubmit = value !== undefined && value <= 10_000n
+
+  return (
+    <ActionRow
+      label="POL fee cut"
+      hint={`fraction of the protocol fee leg redirected to the POL address, in basis points (max 10000). inert while the POL address is unset. current: ${
+        current !== undefined ? `${current} bps` : '…'
+      }`}
+    >
+      <div className={styles.form}>
+        <AmountField
+          value={bps}
+          onChange={setBps}
+          placeholder="0"
+          unit="bps"
+          disabled={tx.isBusy}
+          ariaLabel="POL fee cut in basis points"
+          testId="admin-pol-fee-bps-input"
+        />
+        <TxButton
+          state={tx.state}
+          onClick={() => {
+            if (value === undefined || value > 10_000n) return
+            tx.send({
+              address: forkAddresses.ModuleUniV4Deployer,
+              abi: liquidityDeployerModuleAbi,
+              functionName: 'setPolFeeBps',
+              args: [Number(value)],
+              chainId: forkChainId,
+            })
+          }}
+          label="set POL fee cut"
+          className="btn btn-secondary"
+          successLabel="POL fee cut set — tx confirmed."
+          onReset={tx.reset}
+          disabled={!canSubmit}
+          {...(value !== undefined && value > 10_000n
+            ? { disabledHint: 'the contract refuses anything above 10000 bps' }
+            : {})}
+          errorText="set failed — try again"
+          testId="admin-set-pol-fee-bps"
         />
       </div>
     </ActionRow>

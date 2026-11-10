@@ -61,6 +61,7 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
     event V4PoolManagerUpdated(address indexed newPoolManager);
     event WETHUpdated(address indexed newWETH);
     event MasterRegistryUpdated(address indexed newRegistry);
+    event ApprovedDeployerUpdated(address indexed deployer);
     event POLPositionDeployed(address indexed instance, uint128 liquidity, bytes32 salt);
     event POLFeesCollected(address indexed instance, uint256 amount0, uint256 amount1);
     event POLPositionWithdrawn(address indexed instance, uint128 liquidity, uint256 amount0, uint256 amount1);
@@ -76,6 +77,16 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
     address public v4PoolManager;
     address public weth;
     IMasterRegistry public masterRegistry;
+
+    /// @notice A liquidity-deployer module allowed to fund a registered instance's POL position on
+    ///         that instance's behalf. `address(0)` (the default) disables the bypass entirely; a
+    ///         registered instance calling `receivePOL` for itself is unaffected either way.
+    /// @dev A graduation venue's deployer module is a singleton shared by every instance that
+    ///      graduates through it, so its own address can never be the per-instance key `receivePOL`
+    ///      stores positions under. This lets such a module be `msg.sender` while the position is
+    ///      still keyed, gated and enumerated by the `instance` argument, exactly as a direct call
+    ///      from the instance itself would be.
+    address public approvedDeployer;
 
     // ============ POL Position Tracking ============
 
@@ -166,29 +177,49 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
         emit MasterRegistryUpdated(_registry);
     }
 
+    /// @notice Set the deployer module allowed to fund a POL position on a registered instance's
+    ///         behalf. `address(0)` disables the bypass, requiring every call to come from the
+    ///         registered instance itself.
+    function setApprovedDeployer(address _deployer) external onlyOwner {
+        approvedDeployer = _deployer;
+        emit ApprovedDeployerUpdated(_deployer);
+    }
+
     // ============ Protocol-Owned Liquidity ============
 
-    /// @notice Called by a registered instance during graduation to deploy protocol-owned LP.
-    /// @dev The caller must escrow ALL capital for the position IN THIS CALL: the native-currency leg as
-    ///      `msg.value` (which must equal the native amount exactly) and every ERC20/WETH leg pulled from
-    ///      the caller via `transferFrom`. The V4 position is funded strictly from that escrow — never from
-    ///      this contract's shared balance (pooled fees, treasury seeding, or other instances' funds). Any
-    ///      escrow the position does not consume is refunded to the caller, so a `receivePOL` caller can
-    ///      neither drain the shared balance nor leave dust stranded here.
+    /// @notice Called by a registered instance during graduation to deploy protocol-owned LP, either
+    ///         directly (`msg.sender == instance`) or via an `approvedDeployer` acting on the named
+    ///         instance's behalf.
+    /// @dev The caller (`msg.sender`) must escrow ALL capital for the position IN THIS CALL: the
+    ///      native-currency leg as `msg.value` (which must equal the native amount exactly) and every
+    ///      ERC20/WETH leg pulled from the caller via `transferFrom`. The V4 position is funded strictly
+    ///      from that escrow — never from this contract's shared balance (pooled fees, treasury seeding,
+    ///      or other instances' funds). Any escrow the position does not consume is refunded to the
+    ///      caller, so a `receivePOL` caller can neither drain the shared balance nor leave dust stranded
+    ///      here. The position itself is tracked under `instance`, not under `msg.sender`: a graduation
+    ///      venue's deployer module is one singleton shared by every instance that graduates through it,
+    ///      so its own address could never be the per-instance key.
+    /// @param instance The registered instance this POL position belongs to.
     // slither-disable-next-line reentrancy-benign,reentrancy-events,reentrancy-no-eth,unused-return
-    function receivePOL(PoolKey calldata poolKey, int24 tickLower, int24 tickUpper, uint256 amount0, uint256 amount1)
-        external
-        payable
-        nonReentrant
-    {
+    function receivePOL(
+        address instance,
+        PoolKey calldata poolKey,
+        int24 tickLower,
+        int24 tickUpper,
+        uint256 amount0,
+        uint256 amount1
+    ) external payable nonReentrant {
+        if (msg.sender != instance && (approvedDeployer == address(0) || msg.sender != approvedDeployer)) {
+            revert NotRegisteredInstance();
+        }
         if (address(masterRegistry) == address(0)) revert RegistryNotConfigured();
-        if (!masterRegistry.isRegisteredInstance(msg.sender)) revert NotRegisteredInstance();
+        if (!masterRegistry.isRegisteredInstance(instance)) revert NotRegisteredInstance();
         if (v4PoolManager == address(0)) revert V4NotConfigured();
         if (weth == address(0)) revert WETHNotConfigured();
-        if (_polPositions[msg.sender].liquidity != 0) revert POLAlreadyDeployed();
+        if (_polPositions[instance].liquidity != 0) revert POLAlreadyDeployed();
 
         // Deterministic salt per instance
-        bytes32 salt = keccak256(abi.encodePacked("POL", msg.sender));
+        bytes32 salt = keccak256(abi.encodePacked("POL", instance));
 
         Currency currency0 = poolKey.currency0;
         Currency currency1 = poolKey.currency1;
@@ -238,18 +269,18 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
         if (liquidity == 0) revert ZeroLiquidityDeploy();
 
         // Store position
-        _polPositions[msg.sender] = POLPosition({
+        _polPositions[instance] = POLPosition({
             poolKey: poolKey, tickLower: tickLower, tickUpper: tickUpper, salt: salt, liquidity: liquidity
         });
         // Enumerate each instance exactly once. A re-deploy after a full exit is permitted by the guard
         // above (the position's liquidity is back to zero), so the append is conditional on the instance
         // not already being listed.
-        if (!_polInstanceListed[msg.sender]) {
-            _polInstanceListed[msg.sender] = true;
-            polInstances.push(msg.sender);
+        if (!_polInstanceListed[instance]) {
+            _polInstanceListed[instance] = true;
+            polInstances.push(instance);
         }
 
-        emit POLPositionDeployed(msg.sender, liquidity, salt);
+        emit POLPositionDeployed(instance, liquidity, salt);
 
         // Refund escrow the position did not consume back to the caller, so nothing the caller sent is
         // left in the shared balance (and, conversely, the shared balance never subsidised the position).

@@ -227,6 +227,19 @@
           "do": "in the alignment panel's ambassador row, add the address against the target id. Have that wallet walk H-2. Then remove it and have the same wallet try H-2 again",
           "expect": "the appointed wallet can edit the target in H-2 and the removed one cannot — the edit is refused by the contract rather than accepted and ignored. The seat survives de-curation: after O-10 the ambassador can still edit the description, and only the spending is frozen",
           "blocking": true
+        },
+        {
+          "id": "O-14",
+          "title": "point a graduation's fee leg at a POL position",
+          "route": "/admin",
+          "calls": [
+            "liquidityDeployerModuleAbi.setProtocolOwnedLiquidity",
+            "liquidityDeployerModuleAbi.setPolFeeBps"
+          ],
+          "given": "a deployed ProtocolOwnedLiquidityV1 address, and a collection from C-1 that has not yet graduated",
+          "do": "in the platform-config panel's protocol-owned-liquidity section, set the POL address and a fee cut in basis points, then reload and graduate the collection",
+          "expect": "each value reads back what was set; the graduation's protocol fee leg lands as a POL position instead of the treasury, keyed to the graduating collection",
+          "blocking": false
         }
       ]
     },

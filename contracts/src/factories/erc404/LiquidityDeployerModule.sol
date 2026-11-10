@@ -22,6 +22,7 @@ import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
 import { IAlignmentHookFactory } from "./hooks/IAlignmentHookFactory.sol";
 import { LPFeeLibrary } from "v4-core/libraries/LPFeeLibrary.sol";
+import { IProtocolOwnedLiquidity } from "../../interfaces/IProtocolOwnedLiquidity.sol";
 
 /**
  * @title LiquidityDeployerModule
@@ -120,6 +121,8 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
     error HookFeeTooHigh();
     /// @dev lpFeeRate exceeds {MAX_LP_FEE_RATE}, the ceiling the deployed hook enforces on itself.
     error LpFeeRateTooHigh();
+    /// @dev polFeeBps exceeds 10000 (100% of the protocol fee leg).
+    error PolFeeBpsTooHigh();
 
     /// @notice The alignment-hook TYPE factory selected for graduation pools changed (address(0) = OFF).
     event AlignmentHookFactoryUpdated(address indexed factory);
@@ -127,6 +130,27 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
     event HookFeeBipsUpdated(uint256 hookFeeBips);
     /// @notice The initial dynamic LP-fee rate forwarded to newly-deployed graduation hooks changed.
     event LpFeeRateUpdated(uint24 lpFeeRate);
+    /// @notice The `ProtocolOwnedLiquidityV1` this module funds from the protocol fee leg changed
+    ///         (address(0) = OFF: the whole protocol fee leg goes to `protocolTreasury`, as before).
+    event ProtocolOwnedLiquidityUpdated(address indexed pol);
+    /// @notice The fraction (bps) of the protocol fee leg redirected to `protocolOwnedLiquidity` changed.
+    event PolFeeBpsUpdated(uint16 polFeeBps);
+    /// @notice A graduation's protocol fee leg (or part of it) was deposited as protocol-owned
+    ///         liquidity instead of being sent to `protocolTreasury`.
+    event ProtocolOwnedLiquidityFunded(address indexed instance, uint256 ethAmount);
+    /// @notice The graduation price left no room above it for a POL range inside this pool's usable
+    ///         tick space; the diverted leg fell back to `protocolTreasury` instead.
+    event ProtocolOwnedLiquidityFundingSkipped(address indexed instance, uint256 ethAmount);
+
+    // ── Protocol-owned liquidity (owner-settable; OFF by default) ───────────────────────────────
+    /// @notice `ProtocolOwnedLiquidityV1` funded from part of the protocol fee leg at graduation.
+    ///         `address(0)` (the default) means every graduation's protocol fee goes to
+    ///         `protocolTreasury` exactly as it always has.
+    address public protocolOwnedLiquidity;
+
+    /// @notice Fraction (bps) of the protocol fee leg (`AmountsResult.protocolFee`) redirected to
+    ///         `protocolOwnedLiquidity`, when set. `0` (the default) is inert.
+    uint16 public polFeeBps;
 
     // slither-disable-next-line missing-zero-check
     constructor(address _v4PoolManager, address _weth, uint24 _poolFee, int24 _tickSpacing, address _masterRegistry) {
@@ -278,7 +302,7 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
         AmountsResult memory r = _computeAmounts(p);
         PoolSetupResult memory setup = _setupPoolAndUnlock(p, r);
         _returnResidue(p, r, setup);
-        _postUnlock(p, r);
+        _postUnlock(p, r, setup.poolKey);
     }
 
     /// @dev Gives the LP capital the pool did not take an owner in the same transaction that finds it.
@@ -424,12 +448,25 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
     }
 
     /// @dev Dispatches graduation fees, emits final event.
+    /// @param poolKey The pool this graduation just opened (or added to) — reused, not rebuilt, so a
+    ///        POL deposit below always lands in the exact same pool a trader sees.
     // slither-disable-next-line arbitrary-send-eth,reentrancy-events
-    function _postUnlock(ILiquidityDeployerModule.DeployParams calldata p, AmountsResult memory r) internal {
-        // 1% of raise (+ 1% of carve) → protocol treasury
-        if (r.protocolFee > 0 && p.protocolTreasury != address(0)) {
-            SafeTransferLib.safeTransferETH(p.protocolTreasury, r.protocolFee);
-            emit GraduationFeePaid(p.protocolTreasury, r.protocolFee);
+    function _postUnlock(
+        ILiquidityDeployerModule.DeployParams calldata p,
+        AmountsResult memory r,
+        PoolKey memory poolKey
+    ) internal {
+        // 1% of raise (+ 1% of carve) → protocol treasury, except a `polFeeBps` slice that stands up
+        // protocol-owned liquidity instead when `protocolOwnedLiquidity` is configured (both OFF by
+        // default, so `polCut` is 0 and this is the unmodified original payout).
+        uint256 polCut = protocolOwnedLiquidity != address(0) ? (r.protocolFee * polFeeBps) / 10_000 : 0;
+        uint256 treasuryCut = r.protocolFee - polCut;
+        if (treasuryCut > 0 && p.protocolTreasury != address(0)) {
+            SafeTransferLib.safeTransferETH(p.protocolTreasury, treasuryCut);
+            emit GraduationFeePaid(p.protocolTreasury, treasuryCut);
+        }
+        if (polCut > 0) {
+            _fundProtocolOwnedLiquidity(poolKey, p.instance, polCut, p.protocolTreasury);
         }
         // 19% of raise (+ 19% of carve) → alignment vault. The send is isolated: a reverting vault (cut
         // below MIN_CONTRIBUTION, vault at MAX_CONVERSION_PARTICIPANTS, a broken upgrade) must not
@@ -484,6 +521,49 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
         }
 
         emit LiquidityDeployed(address(v4PoolManager), r.tokensForPool, r.ethForPool);
+    }
+
+    /// @dev Funds a POL position from this graduation's protocol fee leg: a single-sided ETH-only
+    ///      deposit, staged strictly above the pool's live price so `amount1` (the coin leg) is
+    ///      correctly zero. Nothing is diverted from the LP, vault or creator legs — this leg is the
+    ///      protocol's own 1% cut, which otherwise goes to `protocolTreasury` in cash; here it goes
+    ///      to work as liquidity in the same pool instead. Reads the live price itself rather than
+    ///      trusting a stale one, since this deposit opens in a second `getSlot0` read after the
+    ///      graduation add above may have moved it.
+    /// @dev Falls back to `treasury` (this leg's original destination) when the live price leaves no
+    ///      usable tick range above it to stage the position in — an edge this module declines to
+    ///      brick graduation over.
+    function _fundProtocolOwnedLiquidity(PoolKey memory poolKey, address instance, uint256 ethAmount, address treasury)
+        private
+    {
+        PoolId poolId = poolKey.toId();
+        (, int24 currentTick,,) = v4PoolManager.getSlot0(poolId);
+
+        // Next tick-spacing boundary strictly above the live tick. Solidity's `/` truncates toward
+        // zero rather than flooring, so a negative tick that isn't already a multiple needs an
+        // explicit floor correction before the `+1`.
+        int24 compressed = currentTick / tickSpacing;
+        if (currentTick < 0 && currentTick % tickSpacing != 0) compressed -= 1;
+        int24 polTickLower = (compressed + 1) * tickSpacing;
+        int24 polTickUpper = TickMath.maxUsableTick(tickSpacing);
+
+        if (polTickLower >= polTickUpper) {
+            if (treasury != address(0)) {
+                SafeTransferLib.safeTransferETH(treasury, ethAmount);
+                emit GraduationFeePaid(treasury, ethAmount);
+            }
+            emit ProtocolOwnedLiquidityFundingSkipped(instance, ethAmount);
+            return;
+        }
+
+        bool ethIsCurrency0 = poolKey.currency0.isAddressZero();
+        uint256 amount0 = ethIsCurrency0 ? ethAmount : 0;
+        uint256 amount1 = ethIsCurrency0 ? 0 : ethAmount;
+
+        IProtocolOwnedLiquidity(protocolOwnedLiquidity).receivePOL{ value: ethAmount }(
+            instance, poolKey, polTickLower, polTickUpper, amount0, amount1
+        );
+        emit ProtocolOwnedLiquidityFunded(instance, ethAmount);
     }
 
     /**
@@ -724,5 +804,22 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
         if (rate > MAX_LP_FEE_RATE) revert LpFeeRateTooHigh();
         lpFeeRate = rate;
         emit LpFeeRateUpdated(rate);
+    }
+
+    /// @notice Select the `ProtocolOwnedLiquidityV1` funded from the protocol fee leg at graduation.
+    ///         `address(0)` turns the diversion off: the whole protocol fee leg goes to
+    ///         `protocolTreasury`, as before this was wired. Setting this has no effect until that
+    ///         contract's own `approvedDeployer` also names this module.
+    function setProtocolOwnedLiquidity(address pol) external onlyOwner {
+        protocolOwnedLiquidity = pol;
+        emit ProtocolOwnedLiquidityUpdated(pol);
+    }
+
+    /// @notice Set the fraction (bps) of the protocol fee leg redirected to `protocolOwnedLiquidity`.
+    ///         Inert while `protocolOwnedLiquidity` is `address(0)`.
+    function setPolFeeBps(uint16 bps) external onlyOwner {
+        if (bps > 10_000) revert PolFeeBpsTooHigh();
+        polFeeBps = bps;
+        emit PolFeeBpsUpdated(bps);
     }
 }
