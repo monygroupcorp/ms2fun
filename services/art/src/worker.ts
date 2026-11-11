@@ -16,10 +16,10 @@
  * A creator may upload art through the launch wizard instead of setting up IPFS first. That art is
  * HOSTED: held in a separate bucket with no eviction rule, addressed by the IPFS CIDs it was built
  * under, for a limited time and with no permanence claim. Unlaunched uploads expire after a week; a
- * launched collection's art is expected to move to IPFS after it graduates. The CID is what makes
- * the move free — every pointer stays valid wherever the bytes end up. The code is in `hosted/`,
- * and every read route here asks it first and falls through to the cache and roster when the CID is
- * not hosted.
+ * launched collection's art stays hosted, and its creator is encouraged to move it to IPFS once the
+ * collection graduates — the collection page builds the move for them. The CID is what makes the
+ * move cheap. The code is in `hosted/`, and every read route here asks it first and falls through
+ * to the cache and roster when the CID is not hosted.
  *
  * ── Why the app is not required to know about it ──────────────────────────────────────────────
  * The app addresses this service only when `VITE_ART_SERVICE` names one, and it reports failures
@@ -33,6 +33,7 @@
  *   GET /meta/<ipfs-path>             the collection's metadata JSON, verbatim
  *   GET /ipfs/<cid>/<file>            gateway-shaped: hosted bytes first, else cache and roster
  *   GET /car/<cid>                    the CAR a hosted root arrived in, to move it to IPFS
+ *   GET /hosting/<instance>           whether a launched collection has graduated or moved to IPFS
  *   /upload/...                       sign-in, upload, bind — see `hosted/routes.ts`
  *
  * BOTH, because one without the other does not achieve the thing. A card cannot render art until it
@@ -50,7 +51,13 @@ import { sniffImage } from '../../../app/src/lib/art/hostingLimits'
 import { gatewayUrl, IPFS_GATEWAYS, type IpfsGateway } from '../../../app/src/lib/metadata/gateways'
 import type { RootIndex } from './hosted/car'
 import type { HostingEnv } from './hosted/config'
-import { handleUpload, readHosted, serveCar, serveHostedFile } from './hosted/routes'
+import {
+  handleHostingStatus,
+  handleUpload,
+  readHosted,
+  serveCar,
+  serveHostedFile,
+} from './hosted/routes'
 import { loadIndex, readHostedFile } from './hosted/store'
 
 export { HostingLedger } from './hosted/ledgerObject'
@@ -465,6 +472,10 @@ async function handle(request: Request, env: Env, ctx: ExecutionContext): Promis
 
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     return new Response('method not allowed', { status: 405 })
+  }
+
+  if (url.pathname.startsWith('/hosting/')) {
+    return handleHostingStatus(env, url.pathname.slice('/hosting/'.length))
   }
 
   const ART = '/art/'

@@ -16,16 +16,9 @@ import * as dagPb from '@ipld/dag-pb'
 import { importer, type ImportCandidate } from 'ipfs-unixfs-importer'
 import { CID } from 'multiformats/cid'
 
-/** UnixFS import parameters, pinned rather than defaulted — CIDv1 with raw leaves, wrapped in a
- * directory, which is the shape `ipfs add --recursive --cid-version=1` produces and what a gateway
- * expects to serve a directory from. Pinned because a library default that moves in a minor release
- * would silently move every CID built with it; `pack.test.ts` records the resulting CID for a
- * fixture so such a move fails a test instead of shipping a different identity. */
-export const UNIXFS_OPTIONS = {
-  cidVersion: 1,
-  rawLeaves: true,
-  wrapWithDirectory: true,
-} as const
+import { UNIXFS_OPTIONS } from './unixfsOptions'
+
+export { UNIXFS_OPTIONS }
 
 /** One file to import: a directory-relative POSIX path and its bytes. */
 export interface ImportFile {

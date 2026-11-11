@@ -12,7 +12,6 @@
     "@cloudflare/workers-types": "^4.20250109.0",
     "@ipld/car": "5.4.7",
     "@types/node": "^22.10.2",
-    "ipfs-unixfs-importer": "17.0.1",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8",
     "wrangler": "^3.99.0"
@@ -21,6 +20,7 @@
     "@ipld/dag-cbor": "^10.0.2",
     "@ipld/dag-pb": "^4.2.0",
     "ipfs-unixfs": "^13.1.2",
+    "ipfs-unixfs-importer": "17.0.1",
     "multiformats": "14.0.5",
     "viem": "2.53.1"
   }

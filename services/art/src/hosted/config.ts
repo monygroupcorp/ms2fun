@@ -32,6 +32,8 @@ export interface HostingEnv {
   HOSTED_MAX_TOTAL_BYTES?: string
   /** Largest single upload. Raise only on a plan whose request-body ceiling is above 100 MB. */
   UPLOAD_MAX_CAR_BYTES?: string
+  /** Minutes between on-chain checks of each launched collection. Informational only. */
+  HOSTED_CHECK_MINUTES?: string
 }
 
 /** Bytes hosting may hold when a deployment sets no ceiling of its own: 50 GiB. */
@@ -43,6 +45,12 @@ export const SESSION_TTL_MS = 60 * 60 * 1000
 function positiveInt(raw: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(raw?.trim() ?? '', 10)
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback
+}
+
+/** How often the watcher reads each launched collection's state from the chain, in ms. */
+export function checkIntervalMs(env: HostingEnv): number {
+  const minutes = Number.parseFloat(env.HOSTED_CHECK_MINUTES?.trim() ?? '')
+  return (Number.isFinite(minutes) && minutes > 0 ? minutes : 60) * 60 * 1000
 }
 
 export function hostingConfig(env: HostingEnv) {
