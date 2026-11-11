@@ -25,6 +25,7 @@
         "milady-fumo",
         "milady-maker",
         "milady-maker-party",
+        "milady333",
         "remilio-babies"
       ],
       "firstPartyNote": "A first-party collection is the TARGET side of alignment, never the aligned side. Shown for scale, never counted as owing. Adjudicated by rth 2026-08-21; see tools/provenance.json for the contested rulings.",
@@ -743,7 +744,7 @@
       "label": "Milady333",
       "address": "0x8a45fb65311ac8434aad5b8a93d1eba6ac4e813b",
       "family": "milady",
-      "class": "derivative",
+      "class": "first-party",
       "state": "harvested",
       "note": null,
       "priorCatalog": {

@@ -95,6 +95,10 @@ wiki, then adjudicated. Machine-readable: `tools/provenance.json`.
 - **Radbro Webring and SchizoPosters — DERIVATIVE.** The wiki's "parallel umbrella" framing does not
   exempt them. R3DBRO follows.
 
+**Ruling, rth, 2026-11-11:**
+
+- **Milady333 — FIRST-PARTY.** An official Remilia collection, struck from the derivative census.
+
 These are peers being put on the spot on purpose. The numbers are the whole argument, so every one
 of them is measured on chain and re-derivable by anyone who doubts it.
 

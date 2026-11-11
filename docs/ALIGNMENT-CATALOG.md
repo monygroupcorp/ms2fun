@@ -95,6 +95,10 @@ wiki, then adjudicated. Machine-readable: `tools/provenance.json`.
 - **Radbro Webring and SchizoPosters — DERIVATIVE.** The wiki's "parallel umbrella" framing does not
   exempt them. R3DBRO follows.
 
+**Ruling, rth, 2026-11-11:**
+
+- **Milady333 — FIRST-PARTY.** An official Remilia collection, struck from the derivative census.
+
 These are peers being put on the spot on purpose. The numbers are the whole argument, so every one
 of them is measured on chain and re-derivable by anyone who doubts it.
 
@@ -155,14 +159,13 @@ of them is measured on chain and re-derivable by anyone who doubts it.
 | KARDLADY | `0xcbaa32…` | 87 | 87 | 0 | **0.00** | 0.00 | IPFS | yes | measured |
 | Pixelady Maker: Radbro | `0xb2619d…` | 100 | 100 | 0 | **0.00** | 0.00 | IPFS | yes | measured |
 | SonoraMaker | `0x9a051c…` | 444 | 444 | 0 | **0.00** | 0.00 | IPFS gateway (ipfs.io) | yes | measured |
-| Milady333 | `0x8a45fb…` | 333 | 333 | 0 | **0.00** | 0.00 | centralized (miladymaker.net) | yes | measured |
 | Sudo Bastard Miladys | `0x58ae0d…` | — | 1,666 | 0 | **0.00** | 0.00 | on-chain (data URI) | no | measured |
 | Pixelady Maker BC | `0x4d40c6…` | 1000 | 1,000 | 0 | **0.00** | 0.00 | IPFS | yes | measured |
 | Rainbow Zorblady Maker | `0x43316b…` | 69 | 69 | 0 | **0.00** | 0.00 | on-chain (data URI) | no | measured |
 | Yona Honorary Service | `0x283d7a…` | 11 | 11 | 0 | **0.00** | 0.00 | IPFS | no | measured |
 | Merikuri | `0x0b121c…` | 125 | 125 | 0 | **0.00** | 0.00 | IPFS | yes | measured |
 
-**55 collections · 50,153 free mints · 71,828 paid mints · 1654.13 ETH minted → 314.28 ETH aligned at 19%, locked for every collection alike.**
+**54 collections · 49,820 free mints · 71,828 paid mints · 1654.13 ETH minted → 314.28 ETH aligned at 19%, locked for every collection alike.**
 
 ### First-party Remilia — the TARGET side, shown for scale, never counted as owing
 
@@ -171,8 +174,9 @@ of them is measured on chain and re-derivable by anyone who doubts it.
 | TEST NFT | `0xd3d9dd…` | 10000 | 2,153 | 7,847 | **862.37** | 163.85 | centralized (remilio.org) | yes | measured |
 | Milady Maker Party | `0x05c632…` | 3000 | 1,446 | 1,554 | **77.62** | 14.74 | IPFS | yes | measured |
 | This User... Banners | `0x135214…` | 2000 | 1,564 | 436 | **43.60** | 8.28 | centralized (miladymaker.net) | yes | measured |
+| Milady333 | `0x8a45fb…` | 333 | 333 | 0 | **0.00** | 0.00 | centralized (miladymaker.net) | yes | measured |
 
-**3 collections · 5,163 free mints · 9,837 paid mints · 983.59 ETH minted → 186.88 ETH aligned at 19%, locked for every collection alike.**
+**4 collections · 5,496 free mints · 9,837 paid mints · 983.59 ETH minted → 186.88 ETH aligned at 19%, locked for every collection alike.**
 
 **`404 base` reads whether the collection's own art drops into an ERC404 instance verbatim.**
 `ERC404BondingInstance._tokenURI` concatenates `base + tokenId` with no suffix, so a `tokenURI`
