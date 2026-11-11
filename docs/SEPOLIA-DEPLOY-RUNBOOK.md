@@ -844,6 +844,14 @@ detail under "Hosted uploads → Provisioning" in `services/art/README.md`):
 6. `wrangler deploy` from `services/art/` — the first deploy applies the `hosting-v1` Durable Object
    migration.
 
+Hosting is a convenience, not a permanence promise: noesis's policy is that art belongs on IPFS,
+and the collection page encourages creators to move it there once their collection graduates,
+building the move for them. Nothing is offloaded automatically — bound collections stay hosted until
+the operator acts. `UPLOAD_RPC_URL` also drives a watcher that reads each launched collection's
+`graduated()` and `metadataURI()` (every `HOSTED_CHECK_MINUTES`, default 60) so the page can show
+whether it has graduated or moved; keep it reachable after launch. See "Moving to IPFS" in
+`services/art/README.md`.
+
 Check it before pinning: `curl -s https://<art-host>/upload/nonce` answers a JSON nonce, not a 503.
 
 Build from the commit that carries the §5.3 address record. Both targets stamp their commit into the
