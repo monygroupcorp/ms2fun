@@ -35,10 +35,14 @@
     "rpc:check": "tsx scripts/check-rpcs.ts"
   },
   "dependencies": {
+    "@ipld/car": "5.4.7",
+    "@ipld/dag-pb": "4.1.7",
     "@tanstack/query-sync-storage-persister": "^5.101.2",
     "@tanstack/react-query": "^5.101.0",
     "@tanstack/react-query-persist-client": "^5.101.2",
     "@tanstack/react-virtual": "^3.14.10",
+    "ipfs-unixfs-importer": "17.0.1",
+    "multiformats": "14.0.5",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "viem": "^2.53.1",
@@ -46,7 +50,6 @@
     "wouter": "^3.10.0"
   },
   "devDependencies": {
-    "@ipld/car": "5.4.7",
     "@playwright/test": "^1.61.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -59,9 +62,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.3",
-    "ipfs-unixfs-importer": "17.0.1",
     "jsdom": "^29.1.1",
-    "multiformats": "14.0.5",
     "prettier": "^3.8.4",
     "stylelint": "^17.14.0",
     "stylelint-config-standard": "^40.0.0",
