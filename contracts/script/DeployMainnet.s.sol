@@ -20,11 +20,11 @@ import { SepoliaSalts } from "./SepoliaSalts.sol";
 ///         Sepolia is unspent here. The set in `SepoliaSalts.sol` gives mainnet the addresses Sepolia
 ///         rehearsed. CreateX reverts `InvalidSalt` for any other sender.
 ///
-///         `hookFeeBips` and `lpFeeRate` are zero: the rate is immutable per hook (baked into its
-///         init code at graduation), so it is an economic choice with no safe default, and Sepolia's
-///         100 bips is a testnet figure. Zero is not inert once the tithe is enabled: every
-///         graduation then mints a hook that takes nothing, permanently, with no revert.
-///         `test/script/MainnetConfigCompleteness.t.sol` holds the gap open.
+///         `hookFeeBips` / `lpFeeRate` (the perpetual swap tithe) ship LIVE at launch, matching
+///         Sepolia's rehearsed rate: ruled 2026-11-11 (rth) — mainnet launches on 1% fees, not zero,
+///         and not deferred to a later `EnableAlignmentTithe` switch-on. The rate is immutable per
+///         hook, baked into its init code at graduation, so this is the number every pool graduating
+///         from day one keeps for good.
 contract DeployMainnet is DeployCore {
     function run() public {
         require(
@@ -36,9 +36,65 @@ contract DeployMainnet is DeployCore {
         vm.stopBroadcast();
     }
 
+    // The curated launch roster: five communities, each already rehearsed on Sepolia under a
+    // fixture standing in for the mainnet address below (`SeedSepoliaShared._alignmentRoster`).
+    // Both vault families are opened for every target so a creator can align a collection to
+    // either venue. `communityPayout` is left unset for all five: each is pinned on the registry
+    // after deploy (`AlignmentRegistryV1.setCommunityPayout`), since a real-world payout address
+    // is operator input a deploy script cannot derive.
+    address internal constant CULT_TOKEN = 0x0000000000c5dc95539589fbD24BE07c6C14eCa4;
+    address internal constant MS2_TOKEN = 0x98Ed411B8cf8536657c660Db8aA55D9D4bAAf820;
+    address internal constant SPX6900_TOKEN = 0xE0f63A424a4439cBE457D80E4f4b51aD25b2c56C;
+    address internal constant MOG_TOKEN = 0xaaeE1A9723aaDB7afA2810263653A34bA2C21C7a;
+    address internal constant ZAMM_TOKEN = 0xE9b1cFEA55BAA219e34301f2F31b9FD0921664ED;
+
     function _mainnetConfig() internal pure returns (NetworkConfig memory cfg) {
-        AlignmentTargetConfig[] memory targets = new AlignmentTargetConfig[](0);
-        // The roster is empty.
+        AlignmentTargetConfig[] memory targets = new AlignmentTargetConfig[](5);
+        targets[0] = AlignmentTargetConfig({
+            token: CULT_TOKEN,
+            symbol: "CULT",
+            name: "Remilia",
+            description: "Remilia Corporation's own token, and the community every collection on this platform descends from. A share of every aligned sale buys CULT and holds it as liquidity.",
+            deployUniVault: true,
+            deployZAMMVault: true,
+            communityPayout: address(0)
+        });
+        targets[1] = AlignmentTargetConfig({
+            token: MS2_TOKEN,
+            symbol: "MS2",
+            name: "MS2",
+            description: "This platform's own token. A share of every aligned sale buys MS2 and holds it as liquidity.",
+            deployUniVault: true,
+            deployZAMMVault: true,
+            communityPayout: address(0)
+        });
+        targets[2] = AlignmentTargetConfig({
+            token: SPX6900_TOKEN,
+            symbol: "SPX",
+            name: "SPX6900",
+            description: "A community a creator can align a collection to instead of the platform's own.",
+            deployUniVault: true,
+            deployZAMMVault: true,
+            communityPayout: address(0)
+        });
+        targets[3] = AlignmentTargetConfig({
+            token: MOG_TOKEN,
+            symbol: "MOG",
+            name: "Mog Coin",
+            description: "A community a creator can align a collection to instead of the platform's own.",
+            deployUniVault: true,
+            deployZAMMVault: true,
+            communityPayout: address(0)
+        });
+        targets[4] = AlignmentTargetConfig({
+            token: ZAMM_TOKEN,
+            symbol: "ZAMM",
+            name: "ZAMM",
+            description: "The token of the venue this platform already routes one of its vault families through.",
+            deployUniVault: true,
+            deployZAMMVault: true,
+            communityPayout: address(0)
+        });
 
         cfg.chainId = 1;
         cfg.weth = MainnetAddresses.WETH;
@@ -64,9 +120,8 @@ contract DeployMainnet is DeployCore {
         cfg.zrouterFee = 3000;
         cfg.zrouterTickSpacing = 60;
         cfg.zammFeeOrHook = 30; // 0.3%; matches vault feeOrHook() and the Uni launch tier
-        // cfg.hookFeeBips / cfg.lpFeeRate (the perpetual swap tithe) are zero; see the header. Enabling
-        // the tithe is a separate governed call (script/EnableAlignmentTithe.s.sol); this pair is
-        // only the rate it is enabled at.
+        cfg.hookFeeBips = 100; // 1% of the ETH leg of every swap, to the pool's alignment vault — live at launch, see header
+        cfg.lpFeeRate = 3000; // 0.3%
         cfg.alignmentTargets = targets;
         cfg.jsonOutputPath = "./deployments/mainnet.json";
     }
