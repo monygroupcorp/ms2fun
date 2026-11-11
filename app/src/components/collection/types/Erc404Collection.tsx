@@ -2,7 +2,8 @@
  * ERC404 collection surfaces (W-B1), split into the three page regions CollectionPage composes:
  *   Primary — the phase-aware trading UI (buy/sell / free-mint / reroll / graduate, or the embedded
  *             graduated swap). Lives in the shell's "works" column.
- *   Gallery — the DN404 mirror art (a 404 is also an NFT collection) as a grid below the shell.
+ *   Gallery — the DN404 mirror art (a 404 is also an NFT collection) as a grid below the shell,
+ *             with the art-hosting record above it when the art was uploaded for hosting.
  *   Admin   — creator admin (bonding lifecycle, style, vault, delegation); self-hides unless owner.
  * See `collectionSurfaces` for how the page picks these by contractType.
  */
@@ -12,6 +13,7 @@ import { Erc404Portfolio } from '../erc404/Erc404Portfolio'
 import { TierPanel } from '../erc404/TierPanel'
 import { Erc404AdminPanel } from '../erc404/Erc404AdminPanel'
 import { Erc404NftGallery } from '../erc404/Erc404NftGallery'
+import { HostedArtSection } from '../HostedArtSection'
 import styles from './TypeSection.module.css'
 
 export interface Erc404SurfaceProps {
@@ -51,10 +53,14 @@ export function Erc404PortfolioSection({ instance }: Erc404SurfaceProps) {
 
 export function Erc404Gallery({ instance }: Erc404SurfaceProps) {
   return (
-    <section className={styles.section}>
-      <h2 className={styles.title}>PIECES</h2>
-      <Erc404NftGallery instance={instance} />
-    </section>
+    <>
+      {/* Self-hides unless the art host has a record of this collection. */}
+      <HostedArtSection instance={instance} />
+      <section className={styles.section}>
+        <h2 className={styles.title}>PIECES</h2>
+        <Erc404NftGallery instance={instance} />
+      </section>
+    </>
   )
 }
 

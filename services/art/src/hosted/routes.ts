@@ -7,6 +7,7 @@
  *   GET    /upload/drafts         the signed-in wallet's drafts
  *   DELETE /upload/drafts/<id>    delete one of them, if no collection uses it yet
  *   POST   /upload/bind           { instance } -> the draft that instance's metadata points at
+ *   GET    /hosting/<instance>    whether that collection graduated or moved to IPFS — public
  *
  * Reads (`/ipfs/`, `/art/`, `/meta/`, `/car/`) live in `worker.ts`, which calls
  * {@link serveHostedFile} first and falls through to the cache and the roster when it answers null.
@@ -312,6 +313,35 @@ export async function readHosted(
     return null
   }
   return { index, type: file.type, bytes }
+}
+
+/**
+ * `GET /hosting/<instance>`: the record for a launched collection — whether it has graduated or
+ * moved to IPFS, its roots, and the piece names the migrated metadata is built from. Public: it is a fact about a public
+ * collection, and the app shows it to every visitor. 404 when nothing is hosted for it.
+ */
+export async function handleHostingStatus(
+  env: HostingEnv,
+  instance: string,
+  deps: Pick<HostingDeps, 'now'> = DEFAULT_DEPS,
+): Promise<Response> {
+  if (env.HOSTING_LEDGER === undefined) return refuse(404, 'this deployment hosts nothing')
+  if (!/^0x[0-9a-fA-F]{40}$/.test(instance)) return refuse(400, 'expected /hosting/<address>')
+  const status = await callLedger<unknown>(env, {
+    op: 'hosting',
+    instance: instance.toLowerCase(),
+    now: deps.now(),
+  })
+  if (status === null) return refuse(404, 'nothing is hosted for that collection')
+  return new Response(JSON.stringify(status), {
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      // Short: the state moves on the watcher's schedule.
+      'cache-control': 'public, max-age=60',
+      'access-control-allow-origin': '*',
+      'x-content-type-options': 'nosniff',
+    },
+  })
 }
 
 /** A hosted file as a response, or null so the caller falls through to the cache and the roster. */

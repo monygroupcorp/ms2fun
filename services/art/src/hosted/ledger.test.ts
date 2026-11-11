@@ -166,3 +166,39 @@ describe('bind and remove', () => {
     expect(ledger.remove(ALICE, draft.id)).toBeNull()
   })
 })
+
+describe('collection records', () => {
+  const INSTANCE = '0x1111111111111111111111111111111111111111'
+
+  it('starts a record at bind, and it never touches the draft', () => {
+    const draft = openDraft(ALICE, 5 * MiB, 1)
+    ledger.bind('meta1', INSTANCE, T0 + 10)
+    expect(ledger.collectionFor(INSTANCE)).toMatchObject({
+      draftId: draft.id,
+      imgCid: 'img1',
+      metaCid: 'meta1',
+      boundAt: T0 + 10,
+      graduatedAt: null,
+      migratedAt: null,
+    })
+    ledger.recordCheck(draft.id, T0 + 20, { graduated: true, uri: 'x' })
+    ledger.markMigrated(draft.id, T0 + 30)
+    expect(ledger.sweep(T0 + 1000 * 24 * 3600_000)).toEqual([])
+    expect(ledger.drafts(ALICE)[0]).toMatchObject({ state: 'bound', expiresAt: null })
+    expect(ledger.totalBytes()).toBe(5 * MiB)
+  })
+
+  it('records graduation once, the first time it is seen', () => {
+    const draft = openDraft(ALICE, MiB, 1)
+    ledger.bind('meta1', INSTANCE, T0)
+    ledger.recordCheck(draft.id, T0 + 1, { graduated: false, uri: 'a' })
+    expect(ledger.collection(draft.id)?.graduatedAt).toBeNull()
+    ledger.recordCheck(draft.id, T0 + 2, { graduated: true, uri: 'b' })
+    ledger.recordCheck(draft.id, T0 + 3, { graduated: true, uri: 'c' })
+    expect(ledger.collection(draft.id)).toMatchObject({
+      graduatedAt: T0 + 2,
+      checkedAt: T0 + 3,
+      lastUri: 'c',
+    })
+  })
+})

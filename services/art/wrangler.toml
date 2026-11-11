@@ -59,6 +59,10 @@ HOSTED_MAX_TOTAL_BYTES = ""
 # Largest single upload. Empty means 95 MiB, under the 100 MB request ceiling of Free/Pro zones.
 UPLOAD_MAX_CAR_BYTES = ""
 
+# Minutes between the watcher's on-chain checks of each launched collection (graduated? moved to
+# IPFS?). Informational only: nothing it sees ends hosting. Empty means 60.
+HOSTED_CHECK_MINUTES = ""
+
 # The cache. `bucket_name` is a local name and not an identifier of ours; create it in your own
 # account and apply the lifecycle rule from README.md, which is what bounds the bill.
 [[r2_buckets]]

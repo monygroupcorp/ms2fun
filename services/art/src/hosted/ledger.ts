@@ -14,8 +14,14 @@
  * ── What a draft is ────────────────────────────────────────────────────────────────────────────
  *   reserved  space held for an upload in flight. Expires quickly if the upload never completes.
  *   open      a verified upload no deployed collection uses yet. Deleted after the draft TTL.
- *   bound     an upload a deployed collection's on-chain metadata points at. No TTL here: hosting
- *             for it ends when the art has moved to IPFS after graduation, which a later step drives.
+ *   bound     an upload a deployed collection's on-chain metadata points at. No TTL: it stays
+ *             hosted until the operator acts. Moving the art to IPFS is the creator's choice, which
+ *             the collection page encourages once the collection graduates.
+ *
+ * ── What a collection record is ────────────────────────────────────────────────────────────────
+ * One per bound draft: what the watcher (`lifecycle.ts`) has seen on chain since the bind — whether
+ * the collection has graduated, and whether its per-token base now points at the regenerated IPFS
+ * metadata. It informs the collection page and nothing else: no record ever ends hosting.
  *
  * The ledger is pure logic over a small SQL surface so it can be tested on any SQLite; the Durable
  * Object at the bottom of this file is the thin adapter that gives it storage and an alarm.
@@ -97,6 +103,53 @@ function draftOf(row: DraftRow): Draft {
   }
 }
 
+/** What the watcher knows about one bound draft. Dates are epoch ms; null means "not seen yet". */
+export interface HostedCollection {
+  draftId: string
+  instance: string
+  imgCid: string
+  metaCid: string
+  boundAt: number
+  /** The image file names under `imgCid`; null until the watcher has read them. */
+  pieces: string[] | null
+  /** The metadata root a migrated collection points at; null until worked out. */
+  migrationCid: string | null
+  graduatedAt: number | null
+  migratedAt: number | null
+  checkedAt: number | null
+  lastUri: string | null
+}
+
+interface CollectionRow {
+  draft_id: string
+  instance: string
+  img_cid: string
+  meta_cid: string
+  bound_at: number
+  pieces: string | null
+  migration_cid: string | null
+  graduated_at: number | null
+  migrated_at: number | null
+  checked_at: number | null
+  last_uri: string | null
+}
+
+function collectionOf(row: CollectionRow): HostedCollection {
+  return {
+    draftId: row.draft_id,
+    instance: row.instance,
+    imgCid: row.img_cid,
+    metaCid: row.meta_cid,
+    boundAt: row.bound_at,
+    pieces: row.pieces === null ? null : (JSON.parse(row.pieces) as string[]),
+    migrationCid: row.migration_cid,
+    graduatedAt: row.graduated_at,
+    migratedAt: row.migrated_at,
+    checkedAt: row.checked_at,
+    lastUri: row.last_uri,
+  }
+}
+
 /** A random identifier: lower-case alphanumerics, `length` of them. Also a valid SIWE nonce. */
 export function randomId(length = 20): string {
   const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789'
@@ -130,6 +183,22 @@ export class Ledger {
     this.sql.exec('CREATE INDEX IF NOT EXISTS drafts_meta ON drafts (meta_cid)')
     this.sql.exec('CREATE INDEX IF NOT EXISTS drafts_img ON drafts (img_cid)')
     this.sql.exec('CREATE INDEX IF NOT EXISTS drafts_expiry ON drafts (expires_at)')
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS collections (
+      draft_id TEXT PRIMARY KEY,
+      instance TEXT NOT NULL,
+      img_cid TEXT NOT NULL,
+      meta_cid TEXT NOT NULL,
+      bound_at INTEGER NOT NULL,
+      pieces TEXT,
+      migration_cid TEXT,
+      graduated_at INTEGER,
+      migrated_at INTEGER,
+      checked_at INTEGER,
+      last_uri TEXT
+    )`)
+    this.sql.exec(
+      'CREATE INDEX IF NOT EXISTS collections_instance ON collections (instance, bound_at)',
+    )
   }
 
   issueNonce(now: number): { nonce: string; expiresAt: number } {
@@ -264,7 +333,10 @@ export class Ledger {
         metaCid,
       )
       .toArray()
-    if (rows.length === 1) return draftOf(rows[0]!)
+    if (rows.length === 1) {
+      this.ensureCollections(now)
+      return draftOf(rows[0]!)
+    }
     const bound = this.sql
       .exec<DraftRow>(
         `SELECT * FROM drafts WHERE meta_cid = ? AND state = 'bound' LIMIT 1`,
@@ -327,6 +399,79 @@ export class Ledger {
     return (
       this.sql.exec<{ total: number | null }>('SELECT SUM(bytes) AS total FROM drafts').toArray()[0]
         ?.total ?? 0
+    )
+  }
+
+  // ── Collection records ─────────────────────────────────────────────────────────────────────
+
+  /** Give every bound draft a record, dated from when it was bound. Idempotent. */
+  ensureCollections(now: number): void {
+    this.sql.exec(
+      `INSERT INTO collections (draft_id, instance, img_cid, meta_cid, bound_at)
+       SELECT id, instance, img_cid, meta_cid, COALESCE(bound_at, ?) FROM drafts
+       WHERE state = 'bound' AND img_cid IS NOT NULL AND meta_cid IS NOT NULL
+         AND instance IS NOT NULL AND id NOT IN (SELECT draft_id FROM collections)`,
+      now,
+    )
+  }
+
+  /** Every bound draft's record, oldest first. */
+  collections(): HostedCollection[] {
+    return this.sql
+      .exec<CollectionRow>('SELECT * FROM collections ORDER BY bound_at')
+      .toArray()
+      .map(collectionOf)
+  }
+
+  collection(draftId: string): HostedCollection | null {
+    const row = this.sql
+      .exec<CollectionRow>('SELECT * FROM collections WHERE draft_id = ?', draftId)
+      .toArray()[0]
+    return row === undefined ? null : collectionOf(row)
+  }
+
+  /** The record of the upload a collection most recently bound, or null when it bound none. */
+  collectionFor(instance: string): HostedCollection | null {
+    const row = this.sql
+      .exec<CollectionRow>(
+        'SELECT * FROM collections WHERE instance = ? ORDER BY bound_at DESC LIMIT 1',
+        instance.toLowerCase(),
+      )
+      .toArray()[0]
+    return row === undefined ? null : collectionOf(row)
+  }
+
+  /** Record the image names and the migrated metadata root they make. Set once. */
+  setMigrationTarget(draftId: string, pieces: readonly string[], migrationCid: string): void {
+    this.sql.exec(
+      `UPDATE collections SET pieces = ?, migration_cid = ?
+       WHERE draft_id = ? AND migration_cid IS NULL`,
+      JSON.stringify(pieces),
+      migrationCid,
+      draftId,
+    )
+  }
+
+  /** Record one look at the chain. Graduation is recorded the first time it is seen, never undone. */
+  recordCheck(draftId: string, now: number, facts: { graduated: boolean; uri: string }): void {
+    this.sql.exec(
+      `UPDATE collections SET checked_at = ?, last_uri = ?,
+         graduated_at = COALESCE(graduated_at, CASE WHEN ? = 1 THEN ? END)
+       WHERE draft_id = ?`,
+      now,
+      facts.uri,
+      facts.graduated ? 1 : 0,
+      now,
+      draftId,
+    )
+  }
+
+  /** The collection points at the migrated metadata. Recorded once. */
+  markMigrated(draftId: string, now: number): void {
+    this.sql.exec(
+      'UPDATE collections SET migrated_at = COALESCE(migrated_at, ?) WHERE draft_id = ?',
+      now,
+      draftId,
     )
   }
 

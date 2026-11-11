@@ -7,10 +7,10 @@
  * file imports nothing — the same arrangement `metadata/gateways.ts` has — and both sides read it.
  * A second copy of these numbers is how the form and the service come to disagree.
  *
- * WHAT HOSTING IS. Uploaded art is held for a limited time, addressed by its IPFS CID, so a creator
- * can launch without setting up IPFS first. It is not a permanence promise: the art is expected to
- * move to IPFS after the collection graduates, and the CID it was built under is what keeps every
- * pointer valid when it does.
+ * WHAT HOSTING IS. Uploaded art is held, addressed by its IPFS CID, so a creator can launch without
+ * setting up IPFS first. It is a convenience and not a permanence promise: the policy is that art
+ * belongs on IPFS, and creators are encouraged to move it there once the collection graduates. The
+ * CID it was built under is what keeps every pointer valid when it does.
  *
  * These are working defaults, chosen to be easy to change: every one of them is a plain constant
  * here, and the service lets a deployment override the money-shaped ones through its own vars.
@@ -67,6 +67,16 @@ export const HOSTING_LIMITS = {
   /** Files a collection bound to a deployed instance may hold. */
   boundFiles: 10_000,
 } as const
+
+/**
+ * Where a launched collection's hosted art stands, as the art service reports it. Informational:
+ * none of these ends hosting.
+ *
+ *   hosted     launched with hosted art, not graduated yet
+ *   graduated  the collection has graduated; moving the art to IPFS is recommended
+ *   migrated   the collection points at the regenerated IPFS metadata
+ */
+export type HostingState = 'hosted' | 'graduated' | 'migrated'
 
 /** The extension of a hosted image name, lower-cased, or null when hosting does not accept it. */
 export function hostedImageExt(name: string): HostedImageExt | null {

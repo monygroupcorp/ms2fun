@@ -12,6 +12,7 @@ GET /art/<ipfs-path>?w=<width>    the image, at one of the rungs in ART_WIDTHS
 GET /meta/<ipfs-path>             the collection's metadata JSON, verbatim
 GET /ipfs/<cid>/<file>            gateway-shaped: hosted bytes first, else cache and roster
 GET /car/<cid>                    the CAR a hosted upload arrived in
+GET /hosting/<instance>           whether a launched collection has graduated or moved to IPFS
     /upload/...                   sign-in, upload, bind (hosted uploads only)
 ```
 
@@ -93,8 +94,10 @@ wallet, and the CAR is uploaded here. The wizard then writes the collection's pe
   block only if its bytes hash to its CID, and an upload only if the whole DAG under its two roots is
   present and nothing else is (`src/hosted/car.ts`). So the CIDs are facts about the bytes, and they
   are the CIDs any IPFS node will give the same art.
-- **Time-boxed.** Unlaunched uploads are deleted after seven days. A launched collection's art is
-  kept until it moves to IPFS after graduation; nothing here promises to keep it longer.
+- **A convenience, not custody.** Unlaunched uploads are deleted after seven days. A launched
+  collection's art stays hosted; nothing here ends it automatically, and nothing here promises to
+  keep it forever. The policy is that art belongs on IPFS, and creators are encouraged to move it
+  there once the collection graduates (see [Moving to IPFS](#moving-to-ipfs)).
 - **Movable for free.** Every pointer — the on-chain base and the `image` in each piece's JSON — is
   gateway-shaped (`https://<art-host>/ipfs/<cid>/<file>`). The app reads such a link as the IPFS
   pointer it is and falls back to the public roster, and `/ipfs/` on this service falls through to
@@ -141,6 +144,54 @@ Bind needs no sign-in. It reads `metadataURI()` from the instance and `isRegiste
 the registry over RPC, and binds only the upload whose metadata root that base names. The wizard
 calls it right after a deploy; anyone may call it again later.
 
+### Moving to IPFS
+
+Hosting is a convenience for launching without IPFS, not a permanence promise. **Policy: art belongs
+on IPFS, and creators are encouraged to move it there once their collection graduates.** Nothing
+moves or stops automatically: a bound collection stays hosted until the operator acts by hand
+(`ART_DENYLIST`, or deleting its objects — see [Takedown](#takedown)).
+
+The collection page offers the owner the move in three steps:
+
+1. **Get the art on IPFS.** The browser downloads the hosted CAR, checks every block against its
+   CID, and builds a new CAR under one root holding the images and **regenerated metadata** whose
+   `image` is `ipfs://<imgCid>/<n>.<ext>` instead of this host's link. The creator uploads it to a
+   pinning service they control. The platform pins nothing into an account of its own.
+2. **Check it is retrievable.** Public gateways from the app's roster — never this host — are asked
+   for a sample of both roots; the metadata must match byte for byte.
+3. **Point the collection at it**: `setMetadataURI("ipfs://<new metadata root>/")`, sent by the
+   creator.
+
+The new metadata root depends only on the images root and the piece names, written by
+`app/src/lib/art/ipfsMigration.ts` and imported with the same UnixFS parameters, so anyone can
+recompute it. The collection page does, in the visitor's browser, and shows **verified on IPFS**
+when the chain points at it.
+
+**What the service knows.** The ledger's Durable Object alarm runs a watcher: at bind it reads the
+upload's piece names and works out that root once; every `HOSTED_CHECK_MINUTES` (60) it reads each
+collection's `graduated()` and `metadataURI()` over `UPLOAD_RPC_URL`. It **only informs** — it
+records graduation the first time it is seen and marks a collection migrated when its base is
+exactly `ipfs://<migrationCid>/`, and then stops reading it. A read that fails changes nothing and
+waits a full interval. A collection type without `graduated()` simply never shows as graduated;
+with no `UPLOAD_RPC_URL` nothing is read.
+
+```
+GET /hosting/<instance> -> {
+  instance, state: "hosted" | "graduated" | "migrated",
+  imgCid, metaCid, migrationCid, pieces: ["1.png", ...], migrated,
+  boundAt, graduatedAt, migratedAt
+}
+```
+
+Public, no sign-in, cached for a minute; 404 for a collection with nothing hosted. There are no
+deadline fields because there is no deadline. `graduated` is what the app turns into its
+recommendation to move. A migrated collection's hosted copy keeps being served, so caches and
+marketplaces that remember the old links still resolve; reclaiming it is the operator's call.
+
+The platform does not send the migration transaction. Collections that enabled agent delegation
+could in principle have it sent by a protocol agent, but that needs an agent key held by the service
+and gas spent on the creator's behalf; neither exists here, so that path is not built.
+
 ### Caps and kill switches
 
 | what | default | where |
@@ -151,9 +202,10 @@ calls it right after a deploy; anyone may call it again later.
 | a launched collection | 1 GiB or 10,000 files | `hostingLimits.ts` (phase one uploads never reach it) |
 | everything hosted | 50 GiB | `HOSTED_MAX_TOTAL_BYTES` — refuses new uploads once reached |
 | manual stop | off | `UPLOADS_PAUSED=1` — refuses new uploads; reads, downloads and binds carry on |
+| chain checks | every 60 minutes | `HOSTED_CHECK_MINUTES` — how often the watcher reads each collection; informational only |
 
 The caps are counted in a Durable Object (`src/hosted/ledger.ts` explains why not KV or D1), which
-also deletes lapsed uploads on its own alarm — nothing to schedule. `pnpm spend` reports the hosted
+also deletes lapsed unlaunched uploads and runs the watcher on its own alarm — nothing to schedule. `pnpm spend` reports the hosted
 bucket's storage alongside the cache's; when it says the month is over budget, set
 `UPLOADS_PAUSED=1`.
 
@@ -175,13 +227,17 @@ Nothing below is done by this repository. In your own Cloudflare account:
    rotating it signs everyone out and nothing else).
 4. **The vars**, at deploy time or in the dashboard — `UPLOAD_SIWE_DOMAINS` (the host the app is
    served from), `UPLOAD_CHAIN_ID`, `UPLOAD_RPC_URL`, `UPLOAD_REGISTRY` (the master registry's
-   address on that chain). Optionally `HOSTED_MAX_TOTAL_BYTES`.
+   address on that chain). Optionally `HOSTED_MAX_TOTAL_BYTES` and `HOSTED_CHECK_MINUTES`.
+   `UPLOAD_RPC_URL` also feeds the watcher, two view calls per unmigrated collection per check.
 5. **A route or custom domain** for the worker at the art host the app names (`VITE_ART_HOST`, set
    in `app/.env.production`). The same worker can serve `VITE_ART_SERVICE`.
 6. **Optional: the Images binding** (uncomment `[images]` in `wrangler.toml`, on a wrangler that
    supports it) to serve hosted art at the width rungs and resize a new upload's first grid ahead of
    its first visitor. Without it hosted originals are served at every width.
-7. `wrangler deploy`. The first deploy applies the `hosting-v1` Durable Object migration.
+7. `wrangler deploy`. The first deploy applies the `hosting-v1` Durable Object migration. Upgrading
+   an existing deployment needs no new migration: the ledger creates its `collections` table on
+   start and the watcher picks up already-bound uploads on the next upload, bind, or
+   `GET /hosting/` read.
 
 With no `UPLOAD_SIWE_DOMAINS` or no secret, the upload routes answer 503 and the wizard's upload
 fails with that reason; the paste field and every read route are unaffected.
@@ -199,6 +255,12 @@ cd ../../app && VITE_ART_HOST=http://127.0.0.1:8788 pnpm dev
 
 `wrangler dev` simulates the bucket and the Durable Object locally. The `[images]` binding is not
 simulated by wrangler 3, so locally hosted art is served at its original size.
+
+To watch the migration path, add `--var HOSTED_CHECK_MINUTES:0.1` (a check every six seconds) and
+use a stand-in instance on anvil — any contract with `metadataURI()`, `setMetadataURI(string)` and
+`graduated()`, registered with a stand-in registry answering `isRegisteredInstance(address)`.
+Upload, deploy the instance with the hosted base, bind, and watch `GET /hosting/<instance>`: flip
+`graduated` to see `graduated`, then `setMetadataURI("ipfs://<migrationCid>/")` to see `migrated`.
 
 ## The roster stays underneath
 
