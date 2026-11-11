@@ -6,9 +6,11 @@
  * signs in with their wallet, uploads the result to the art host, and fills the piece-art base with
  * the hosted link. The paste field stays exactly where it was; this sits beside it.
  *
- * WHAT THE CREATOR IS TOLD, and it is the honest version: hosting is temporary. The art is stored
- * under its IPFS address, so the link keeps working once the art is on IPFS, and it should be moved
- * there after the collection graduates. An upload no collection uses is deleted after a week.
+ * WHAT THE CREATOR IS TOLD, and it is the honest version: hosting is a convenience for launching
+ * without IPFS, not a promise to keep the art forever. The policy is that art belongs on IPFS; the
+ * art is stored under its IPFS address so it can move there without changing identity, and the
+ * collection page walks the creator through the move, recommending it once the collection
+ * graduates. An upload no collection uses is deleted after a week.
  *
  * Rendered only when the build names an art host (`VITE_ART_HOST`); with none, the wizard is the
  * paste field alone, as it was.
@@ -116,10 +118,11 @@ export function ArtUploadPanel({ host, onUploaded, supply }: ArtUploadPanelProps
         each. Pieces are numbered in file-name order.
       </p>
       <p className={styles.notice}>
-        <strong>Hosting is temporary.</strong> Your art is stored at {hostName(host)} under its IPFS
-        address, so the link keeps working after it moves. Move it to IPFS once your collection
-        graduates. Uploads that no launched collection uses are deleted after{' '}
-        {HOSTING_LIMITS.draftTtlDays} days.
+        <strong>Hosting is a convenience, not a promise to keep your art forever.</strong> Your art
+        is stored at {hostName(host)} under its IPFS address so you can launch without setting up
+        IPFS. Art belongs on IPFS: once your collection graduates, we recommend moving it there —
+        your collection page walks you through it, and the links keep working. Uploads that no
+        launched collection uses are deleted after {HOSTING_LIMITS.draftTtlDays} days.
       </p>
 
       <input
@@ -193,11 +196,12 @@ export function ArtUploadPanel({ host, onUploaded, supply }: ArtUploadPanelProps
             Metadata <code>{phase.built.metaCid}</code>
           </p>
           <p className={styles.note}>
-            Keep a copy to pin on IPFS later:{' '}
+            Keep a copy:{' '}
             <a href={`${host}/car/${phase.built.metaCid}`} download>
               download the CAR
             </a>
-            .
+            . To move the art to IPFS later, use the collection page: it builds the IPFS version of
+            the metadata for you.
             {phase.expiresAt !== null &&
               ` Launch by ${new Date(phase.expiresAt).toLocaleDateString()}, or the upload is deleted.`}
           </p>

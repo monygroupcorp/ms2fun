@@ -11,6 +11,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { packDirectory, writeCar } from './pack'
 import { buildUpload, pieceJson, planUpload, type PieceSource } from '../../src/lib/art/buildUpload'
+import { migratedPieceJson } from '../../src/lib/art/ipfsMigration'
+import { migratedMetaCidOf } from '../../src/lib/art/migrate'
 import { importFiles, writeCarChunks } from '../../src/lib/art/unixfs'
 
 const HOST = 'https://art.example'
@@ -141,5 +143,18 @@ describe('the shared UnixFS core', () => {
     await writeCarChunks([root], blocks, (chunk) => void parts.push(chunk))
     const { readFileSync } = await import('node:fs')
     expect(await bytesOf(new Blob(parts as BlobPart[]))).toEqual(new Uint8Array(readFileSync(out)))
+  })
+})
+
+describe('the migrated metadata', () => {
+  it('has the root the release packer gives the same files on disk', async () => {
+    const imgCid = 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi'
+    const names = ['1.png', '2.jpg', '3.webp', '10.gif']
+    const dir = tempDir()
+    for (const name of names) {
+      const n = Number.parseInt(name, 10)
+      writeFileSync(join(dir, String(n)), migratedPieceJson(n, imgCid, name))
+    }
+    expect(await migratedMetaCidOf(imgCid, names)).toBe((await packDirectory(dir)).root.toString())
   })
 })

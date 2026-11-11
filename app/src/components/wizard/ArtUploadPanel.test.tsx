@@ -26,11 +26,14 @@ function png(name: string): File {
 }
 
 describe('the upload option', () => {
-  test('tells the creator plainly that hosting is temporary and the art should move to IPFS', () => {
+  test('tells the creator plainly that hosting is a convenience and the art belongs on IPFS', () => {
     render(<ArtUploadPanel host={HOST} onUploaded={() => {}} />)
-    const notice = screen.getByText(/Hosting is temporary\./).closest('p')!
+    const notice = screen.getByText(/Hosting is a convenience/).closest('p')!
     expect(notice.textContent).toMatch(/art\.example/)
-    expect(notice.textContent).toMatch(/Move it to IPFS once your collection graduates/)
+    expect(notice.textContent).toMatch(/not a promise to keep your art forever/)
+    expect(notice.textContent).toMatch(/Art belongs on IPFS/)
+    expect(notice.textContent).toMatch(/once your collection graduates, we recommend moving it/)
+    expect(notice.textContent).not.toMatch(/\d+ days after/)
     expect(notice.textContent).toMatch(/deleted after 7 days/)
   })
 

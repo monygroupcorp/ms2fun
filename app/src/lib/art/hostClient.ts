@@ -1,5 +1,5 @@
 /**
- * The app's side of art hosting: where the host is, and the four requests that talk to it.
+ * The app's side of art hosting: where the host is, and the requests that talk to it.
  *
  * The host is read from `VITE_ART_HOST` and from nowhere else. `app/.env.production` sets the
  * project's default, so a production build offers uploads; a dev build, a test run, or a fork that
@@ -9,7 +9,7 @@
 import { createSiweMessage } from 'viem/siwe'
 
 import { normaliseArtServiceBase } from '../metadata/artServiceBase'
-import { parseGatewayShapedUri } from './hostingLimits'
+import { parseGatewayShapedUri, type HostingState } from './hostingLimits'
 
 /** The art host's origin, or null when this build has none. */
 export function artHostBase(): string | null {
@@ -149,4 +149,37 @@ export async function bindHostedArt(host: string, instance: `0x${string}`): Prom
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ instance }),
   })
+}
+
+/**
+ * What the art host knows about one launched collection's hosted art. Read by anyone: it is a public
+ * fact about a public collection. Informational only — there is no deadline in it, because hosting
+ * has none. Dates are epoch milliseconds.
+ */
+export interface HostingStatus {
+  instance: string
+  state: HostingState
+  imgCid: string
+  /** The hosted metadata root the collection launched with. */
+  metaCid: string
+  /** The metadata root a migrated collection should point at, once the host has worked it out. */
+  migrationCid: string | null
+  /** The image file names under `imgCid`, which is all the regenerated metadata depends on. */
+  pieces: string[]
+  migrated: boolean
+  boundAt: number
+  graduatedAt: number | null
+  migratedAt: number | null
+}
+
+/** The host's record for a collection, or null when it hosts nothing for it. */
+export async function fetchHostingStatus(
+  host: string,
+  instance: `0x${string}`,
+  fetcher: typeof fetch = fetch,
+): Promise<HostingStatus | null> {
+  const res = await fetcher(`${host}/hosting/${instance.toLowerCase()}`)
+  if (res.status === 404) return null
+  if (!res.ok) throw new ArtHostError(await reasonOf(res), res.status)
+  return (await res.json()) as HostingStatus
 }
