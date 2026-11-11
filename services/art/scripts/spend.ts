@@ -18,11 +18,13 @@
  *   CLOUDFLARE_ACCOUNT_ID   the account the service is deployed in
  *   CLOUDFLARE_API_TOKEN    a token with Account Analytics:Read
  *   ART_BUDGET_USD          the monthly budget to measure against
- *   ART_BUCKET              the R2 bucket, default `noesis-art-cache`
+ *   ART_BUCKET              the cache bucket, default `noesis-art-cache`
+ *   ART_HOSTED_BUCKET       the hosted-uploads bucket, default `noesis-art-hosted`
  *   ART_WORKER              the Worker's script name, default `noesis-art`
  *
  * It exits 1 when the month's cost is over budget, so it can be a scheduled check and not only
- * something a person reads.
+ * something a person reads. Over budget, the lever is `UPLOADS_PAUSED=1` on the worker: it stops new
+ * hosted uploads, the one cost here a stranger can grow, while every read carries on.
  */
 
 /**
@@ -173,6 +175,9 @@ export function report(usage: Usage, budgetUsd: number, now: Date): string[] {
     '',
     `  prices read ${PRICES.readOn} from ${PRICES.sources.join(' and ')}`,
   ]
+  if (cost.totalUsd > budgetUsd) {
+    out.push('  to stop new hosted uploads: set UPLOADS_PAUSED=1 on the worker and redeploy')
+  }
 
   const age = priceAgeDays(PRICES.readOn, now)
   if (age > STALE_AFTER_DAYS) {
@@ -208,18 +213,19 @@ function required(name: string): string {
  */
 async function fetchUsage(accountId: string, token: string, since: Date): Promise<Usage> {
   const query = `
-    query ArtSpend($account: String!, $since: Time!, $bucket: String!, $script: String!) {
+    query ArtSpend($account: String!, $since: Time!, $buckets: [String!]!, $script: String!) {
       viewer {
         accounts(filter: { accountTag: $account }) {
           r2StorageAdaptiveGroups(
-            limit: 1
-            filter: { datetime_geq: $since, bucketName: $bucket }
+            limit: 10
+            filter: { datetime_geq: $since, bucketName_in: $buckets }
           ) {
+            dimensions { bucketName }
             max { payloadSize }
           }
           r2OperationsAdaptiveGroups(
             limit: 100
-            filter: { datetime_geq: $since, bucketName: $bucket }
+            filter: { datetime_geq: $since, bucketName_in: $buckets }
           ) {
             dimensions { actionType }
             sum { requests }
@@ -242,7 +248,11 @@ async function fetchUsage(accountId: string, token: string, since: Date): Promis
       variables: {
         account: accountId,
         since: since.toISOString(),
-        bucket: process.env.ART_BUCKET?.trim() || 'noesis-art-cache',
+        // The cache and the hosted uploads: two buckets, one bill.
+        buckets: [
+          process.env.ART_BUCKET?.trim() || 'noesis-art-cache',
+          process.env.ART_HOSTED_BUCKET?.trim() || 'noesis-art-hosted',
+        ],
         script: process.env.ART_WORKER?.trim() || 'noesis-art',
       },
     }),
@@ -275,8 +285,12 @@ export function parseUsage(account: unknown): Usage {
     workersInvocationsAdaptive?: { sum?: { requests?: number } }[]
   }
 
-  const storedBytes = node.r2StorageAdaptiveGroups?.[0]?.max?.payloadSize
-  if (typeof storedBytes !== 'number') throw new Error('no R2 storage figure in the answer')
+  // One group per bucket, each its peak for the month; the bill is their sum.
+  const storage = (node.r2StorageAdaptiveGroups ?? []).map((g) => g.max?.payloadSize)
+  if (storage.length === 0 || !storage.every((b): b is number => typeof b === 'number')) {
+    throw new Error('no R2 storage figure in the answer')
+  }
+  const storedBytes = storage.reduce((sum, b) => sum + b, 0)
 
   const ops = node.r2OperationsAdaptiveGroups
   if (!Array.isArray(ops)) throw new Error('no R2 operations figures in the answer')

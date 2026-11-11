@@ -132,6 +132,17 @@ describe("reading Cloudflare's answer", () => {
     })
   })
 
+  it('adds the hosted bucket to the cache bucket — two buckets, one bill', () => {
+    const usage = parseUsage({
+      ...ANSWER,
+      r2StorageAdaptiveGroups: [
+        { dimensions: { bucketName: 'noesis-art-cache' }, max: { payloadSize: 3 * GB } },
+        { dimensions: { bucketName: 'noesis-art-hosted' }, max: { payloadSize: 2 * GB } },
+      ],
+    })
+    expect(usage.storedBytes).toBe(5 * GB)
+  })
+
   it('sums every Worker group rather than reading only the first', () => {
     const usage = parseUsage({
       ...ANSWER,

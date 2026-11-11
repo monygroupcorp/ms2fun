@@ -7,8 +7,9 @@
 #   account_id  -> set CLOUDFLARE_ACCOUNT_ID in the environment, never here
 #   route/host  -> set at deploy time, or use the workers.dev subdomain
 #
-# See README.md for the bucket, the lifecycle rule that makes this a cache rather than custody,
-# and what the app does when no service is configured at all (it works; that is the point).
+# See README.md for the cache bucket and the lifecycle rule that makes it a cache rather than
+# custody, the hosted-uploads bucket that must NOT have one, and what the app does when no service
+# is configured at all (it works; that is the point).
 
 name = "noesis-art"
 main = "src/worker.ts"
@@ -37,8 +38,52 @@ ART_DENYLIST = ""
 # art. It LEADS the roster and does not replace it; if it is down the public entries still run.
 ART_GATEWAY_LEAD = ""
 
+# ── Hosted uploads ────────────────────────────────────────────────────────────────────────────
+# Art a creator uploads through the launch wizard, held for a limited time under its IPFS CIDs so
+# they can launch without setting up IPFS first. See README.md "Hosted uploads". Every value is empty
+# here for the same reason as above, and empty is safe: with no sign-in domain the upload routes
+# answer 503 and every read route behaves as it did before hosting existed.
+#
+# Also required, and never in this file: `wrangler secret put UPLOAD_SESSION_SECRET`.
+
+# Hosts a sign-in message may name, comma-separated — the site's own host, e.g. the app's domain.
+UPLOAD_SIWE_DOMAINS = ""
+# The chain sign-in must name and bind reads, its RPC, and the protocol's master registry there.
+UPLOAD_CHAIN_ID = ""
+UPLOAD_RPC_URL = ""
+UPLOAD_REGISTRY = ""
+# "1" refuses new uploads; reads, downloads and binds carry on. The manual kill switch.
+UPLOADS_PAUSED = ""
+# Total bytes hosting may hold, every draft counted. Empty means 50 GiB. The automatic kill switch.
+HOSTED_MAX_TOTAL_BYTES = ""
+# Largest single upload. Empty means 95 MiB, under the 100 MB request ceiling of Free/Pro zones.
+UPLOAD_MAX_CAR_BYTES = ""
+
 # The cache. `bucket_name` is a local name and not an identifier of ours; create it in your own
 # account and apply the lifecycle rule from README.md, which is what bounds the bill.
 [[r2_buckets]]
 binding = "ART_CACHE"
 bucket_name = "noesis-art-cache"
+
+# Hosted originals. A SEPARATE bucket from the cache, and it must have NO lifecycle rule: the cache
+# above expires everything after 30 days, which would silently delete a launched collection's art.
+# Hosting ends when the ledger says so, never by eviction.
+[[r2_buckets]]
+binding = "ART_HOSTED"
+bucket_name = "noesis-art-hosted"
+
+# The hosting ledger: nonces, drafts and caps, strongly consistent. Bound by class name, so no
+# identifier is needed here. See src/hosted/ledger.ts for why this is not KV or D1.
+[[durable_objects.bindings]]
+name = "HOSTING_LEDGER"
+class_name = "HostingLedger"
+
+[[migrations]]
+tag = "hosting-v1"
+new_sqlite_classes = ["HostingLedger"]
+
+# Optional: resizes hosted images into the width rungs (and pre-warms a new upload's first grid).
+# Without it, hosted originals are served at every width. Needs Cloudflare Images enabled on the
+# account and a wrangler that knows the binding; uncomment to use.
+# [images]
+# binding = "IMAGES"

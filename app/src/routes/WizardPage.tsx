@@ -45,6 +45,8 @@ import { TierSupplyHelper } from '../components/wizard/TierSupplyHelper'
 import { SchemaForm } from '../components/wizard/SchemaForm'
 import { PostCreateEditionStep } from '../components/wizard/PostCreateEditionStep'
 import { ImageSourceInput } from '../components/wizard/ImageSourceInput'
+import { ArtUploadPanel } from '../components/wizard/ArtUploadPanel'
+import { artHostBase, bindHostedArt, isHostedArtUri } from '../lib/art/hostClient'
 import { ModuleSlotPicker } from '../components/wizard/ModuleSlotPicker'
 import { CollectionMetaForm } from '../components/wizard/CollectionMetaForm'
 import { StylePreviewControl } from '../components/wizard/StylePreviewControl'
@@ -363,6 +365,18 @@ export function WizardPage() {
     setLocation,
   ])
 
+  // Hosted piece art: once the collection is deployed, tell the art host which instance uses the
+  // upload, so it is kept rather than expiring as an unlaunched draft. The host checks the claim on
+  // chain itself; this only asks it to look. Failure is quiet on purpose — the deploy has already
+  // succeeded, and the bind can be retried by anyone later.
+  const tokenBaseForBind = values['tokenBaseURI'] ?? ''
+  useEffect(() => {
+    const host = artHostBase()
+    if (!submit.isSuccess || !submit.instance || host === null) return
+    if (!isHostedArtUri(tokenBaseForBind, host)) return
+    void bindHostedArt(host, submit.instance).catch(() => undefined)
+  }, [submit.isSuccess, submit.instance, tokenBaseForBind])
+
   // Reaching Review means the user is trying to finish, so surface field-level errors on every step
   // from here on. Otherwise the deploy button stays disabled while `deployBlockers` is non-empty, so a
   // click can never fire `handleSubmit` to set `attempted` — the blocker list says "Complete the
@@ -503,6 +517,8 @@ export function WizardPage() {
   // A resolver, when wired, overrides the base entirely (ADR-0006/0007 precedence), so a blank base
   // with a resolver selected is not an art gap — only blank-base-with-no-resolver is.
   const pieceArtField = pt.coreFields.find((f) => f.key === 'tokenBaseURI')
+  // Upload is offered beside the paste field only when this build names an art host.
+  const artHost = artHostBase()
   const rawTokenBaseURI = values['tokenBaseURI'] ?? ''
   const pieceArtBlank = rawTokenBaseURI.trim() === ''
   const pieceArtPreviewUri = composePieceArtPreview(rawTokenBaseURI)
@@ -719,6 +735,13 @@ export function WizardPage() {
                       First piece renders as <code>{pieceArtPreviewUri}</code> — a missing trailing
                       slash on the base is not added for you.
                     </p>
+                  )}
+                  {artHost !== null && (
+                    <ArtUploadPanel
+                      host={artHost}
+                      onUploaded={(v) => setValues((vals) => ({ ...vals, tokenBaseURI: v }))}
+                      {...(values['nftCount'] ? { supply: values['nftCount'] } : {})}
+                    />
                   )}
                 </>
               )}

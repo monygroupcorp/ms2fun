@@ -13,6 +13,12 @@ importers:
 
   .:
     dependencies:
+      '@ipld/car':
+        specifier: 5.4.7
+        version: 5.4.7
+      '@ipld/dag-pb':
+        specifier: 4.1.7
+        version: 4.1.7
       '@tanstack/query-sync-storage-persister':
         specifier: ^5.101.2
         version: 5.101.2
@@ -25,6 +31,12 @@ importers:
       '@tanstack/react-virtual':
         specifier: ^3.14.10
         version: 3.14.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      ipfs-unixfs-importer:
+        specifier: 17.0.1
+        version: 17.0.1
+      multiformats:
+        specifier: 14.0.5
+        version: 14.0.5
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -41,9 +53,6 @@ importers:
         specifier: ^3.10.0
         version: 3.10.0(react@19.2.7)
     devDependencies:
-      '@ipld/car':
-        specifier: 5.4.7
-        version: 5.4.7
       '@playwright/test':
         specifier: ^1.61.0
         version: 1.61.0
@@ -80,15 +89,9 @@ importers:
       eslint-plugin-react-refresh:
         specifier: ^0.5.3
         version: 0.5.3(eslint@10.5.0)
-      ipfs-unixfs-importer:
-        specifier: 17.0.1
-        version: 17.0.1
       jsdom:
         specifier: ^29.1.1
         version: 29.1.1(@noble/hashes@1.8.0)
-      multiformats:
-        specifier: 14.0.5
-        version: 14.0.5
       prettier:
         specifier: ^3.8.4
         version: 3.8.4

@@ -826,3 +826,64 @@ describe('art service', () => {
     expect(contentKey(`ipfs://${CID_V1}`, 320)).toBe(`${original}@320`)
   })
 })
+
+// ── gateway-shaped links ───────────────────────────────────────────────────────
+
+describe('a gateway-shaped https link', () => {
+  const HOST = 'https://art.example'
+  const shaped = `${HOST}/ipfs/${CID_V1}/1`
+  let mockFetch: MockFetch
+
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', makeLocalStorageMock())
+    resetGatewayHealth()
+    customGatewayStore.remove()
+    mockFetch = vi.fn()
+    vi.stubGlobal('fetch', mockFetch)
+  })
+
+  afterEach(() => {
+    resetGatewayHealth()
+    customGatewayStore.remove()
+    vi.unstubAllGlobals()
+  })
+
+  it('is the same content as its ipfs:// form, and as fixed', () => {
+    expect(contentKey(shaped)).toBe(contentKey(`ipfs://${CID_V1}/1`))
+    expect(isImmutableUri(shaped)).toBe(true)
+    // An ordinary https link is still neither.
+    expect(isImmutableUri('https://art.example/pieces/1')).toBe(false)
+  })
+
+  it('asks its own host first, then falls back to the public roster for the same CID', () => {
+    const urls = resolveCandidates(shaped).map((c) => c.url)
+    expect(urls[0]).toBe(shaped)
+    expect(urls.slice(1)).toEqual(publicUrls(`${CID_V1}/1`))
+    expect(resolveUriCandidates(shaped)).toEqual([shaped, ...publicUrls(`${CID_V1}/1`)])
+  })
+
+  it('moves its host to the back while that host is cooling', () => {
+    noteFault(gatewayKey({ operator: 'origin', form: 'path', base: `${HOST}/ipfs/` }), Date.now())
+    const urls = resolveCandidates(shaped).map((c) => c.url)
+    expect(urls[urls.length - 1]).toBe(shaped)
+  })
+
+  it('still resolves through the roster once its host has stopped answering', async () => {
+    const data = { name: '#1', image: `${HOST}/ipfs/${CID_V1}/1.png` }
+    mockFetch.mockImplementation((url: string) =>
+      Promise.resolve(
+        url.startsWith(HOST)
+          ? makeMockResponse(false, null, 'text/plain', 404)
+          : makeMockResponse(true, data),
+      ),
+    )
+    expect(await fetchJson(shaped)).toEqual({ status: 'found', data })
+    expect(mockFetch.mock.calls[0]![0]).toBe(shaped)
+  })
+
+  it('leaves an https link that is not gateway-shaped exactly as it was', () => {
+    expect(resolveCandidates('https://art.example/ipfs/notacid/1')).toEqual([
+      { url: 'https://art.example/ipfs/notacid/1', gatewayKey: null },
+    ])
+  })
+})
