@@ -3,45 +3,54 @@ import * as dagPb from '@ipld/dag-pb'
 import { CID } from 'multiformats/cid'
 import { describe, expect, it, vi } from 'vitest'
 
+import { collectFiles, hashLips, png } from '../../test/artFixtures'
 import type { IpfsGateway } from '../metadata/gateways'
-import { buildUpload, planUpload, type PieceSource } from './buildUpload'
+import { buildUpload, carBlob } from './buildUpload'
 import { migratedPieceJson } from './ipfsMigration'
-import { buildMigrationCar, checkRetrievable, migratedMetaCidOf } from './migrate'
+import { planArt } from './layout'
+import {
+  buildMigrationCar,
+  checkRetrievable,
+  hostedPieces,
+  migratedMetaCidOf,
+  type MigratedPiece,
+} from './migrate'
 
 const HOST = 'https://art.example'
 
-function png(seed: number, size = 64): Uint8Array {
-  const bytes = new Uint8Array(size)
-  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
-  for (let i = 8; i < size; i++) bytes[i] = (seed * 31 + i * 7) & 0xff
-  return bytes
-}
-
-function source(name: string, bytes: Uint8Array): PieceSource {
-  return { name, size: bytes.byteLength, arrayBuffer: async () => bytes.slice().buffer }
-}
-
 async function hostedUpload() {
-  const built = await buildUpload(
-    planUpload([source('a.png', png(1)), source('b.png', png(2)), source('c.png', png(3))]),
-    HOST,
-  )
-  const car = new Uint8Array(await built.car.arrayBuffer())
-  return { built, car, names: ['1.png', '2.png', '3.png'] }
+  const plan = await planArt(await collectFiles(hashLips(3)), { supply: 3 })
+  const built = await buildUpload(plan, HOST, { pattern: '', description: '' })
+  const car = new Uint8Array(await (await carBlob(built)).arrayBuffer())
+  return { built, car }
 }
 
+/** A host serving the whole upload's CAR under both roots, as hosts before metadata CARs did. */
 function serving(car: Uint8Array): typeof fetch {
   return vi.fn(async () => new Response(car.slice())) as unknown as typeof fetch
 }
 
+describe('hostedPieces', () => {
+  it("reads the creator's hosted JSON out of the host's CAR", async () => {
+    const { built, car } = await hostedUpload()
+    const { pieces } = await hostedPieces(HOST, built.metaCid, serving(car))
+    expect(pieces.map((p) => p.name).sort()).toEqual(['1', '2', '3'])
+    const first = pieces.find((p) => p.name === '1')!
+    expect(first.json).toContain('"dna":"dna1"')
+    expect(first.json).toContain(`"image":"${HOST}/ipfs/${built.imgCid}/1.png"`)
+  })
+})
+
 describe('buildMigrationCar', () => {
   it('carries the hosted images and the regenerated metadata under one root', async () => {
-    const { built, car, names } = await hostedUpload()
+    const { built, car } = await hostedUpload()
     const fetcher = serving(car)
-    const migration = await buildMigrationCar(HOST, built.imgCid, names, undefined, fetcher)
+    const migration = await buildMigrationCar(HOST, built.imgCid, built.metaCid, undefined, fetcher)
 
+    expect(fetcher).toHaveBeenCalledWith(`${HOST}/car/${built.metaCid}`)
     expect(fetcher).toHaveBeenCalledWith(`${HOST}/car/${built.imgCid}`)
-    expect(migration.metaCid).toBe(await migratedMetaCidOf(built.imgCid, names))
+    const { pieces: hosted } = await hostedPieces(HOST, built.metaCid, serving(car))
+    expect(migration.metaCid).toBe(await migratedMetaCidOf(built.imgCid, hosted))
     expect(migration.metaCid).not.toBe(built.metaCid)
 
     const iterator = await CarBlockIterator.fromBytes(
@@ -61,31 +70,32 @@ describe('buildMigrationCar', () => {
     const firstJson = dagPb
       .decode(blocks.get(migration.metaCid)!)
       .Links.find((l) => l.Name === '1')!.Hash
-    expect(new TextDecoder().decode(blocks.get(firstJson.toString()))).toBe(
-      migratedPieceJson(1, built.imgCid, '1.png'),
-    )
+    const text = new TextDecoder().decode(blocks.get(firstJson.toString()))
+    expect(text).toBe(migratedPieceJson(hosted.find((p) => p.name === '1')!.json, built.imgCid))
+    expect(text).toContain(`"image":"ipfs://${built.imgCid}/1.png"`)
+    expect(text).toContain('"compiler":"HashLips Art Engine"')
+    expect(migration.pieces.map((p) => [p.name, p.image])).toEqual([
+      ['1', '1.png'],
+      ['2', '2.png'],
+      ['3', '3.png'],
+    ])
   })
 
   it('refuses a host that serves bytes that do not match their CIDs', async () => {
-    const { built, car, names } = await hostedUpload()
+    const { built, car } = await hostedUpload()
     const tampered = car.slice()
-    // Flip a byte near the end, inside the last block's data.
-    tampered[tampered.byteLength - 5]! ^= 0xff
+    // Flip a byte inside the first image block's data, early in the CAR.
+    tampered[200]! ^= 0xff
     await expect(
-      buildMigrationCar(HOST, built.imgCid, names, undefined, serving(tampered)),
-    ).rejects.toThrow(/does not match its CID/)
+      buildMigrationCar(HOST, built.imgCid, built.metaCid, undefined, serving(tampered)),
+    ).rejects.toThrow(/does not match its CID|is not hashed|block/)
   })
 
   it('says so when the host no longer has the upload', async () => {
     const gone = vi.fn(async () => new Response('', { status: 404 })) as unknown as typeof fetch
+    const cid = CID.parse('bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy')
     await expect(
-      buildMigrationCar(
-        HOST,
-        CID.parse('bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy').toString(),
-        ['1.png'],
-        undefined,
-        gone,
-      ),
+      buildMigrationCar(HOST, cid.toString(), cid.toString(), undefined, gone),
     ).rejects.toThrow(/no longer has this upload/)
   })
 })
@@ -93,7 +103,11 @@ describe('buildMigrationCar', () => {
 describe('checkRetrievable', () => {
   const IMG = 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi'
   const META = 'bafybeif26azk5uoapwvutphkf2bq7jdgrt3m7tch3xhishtv72jb6zoupq'
-  const NAMES = ['1.png', '2.png', '3.png', '4.png', '5.png']
+  const PIECES: MigratedPiece[] = [1, 2, 3, 4, 5].map((n) => ({
+    name: String(n),
+    json: `{"name":"#${n}","image":"ipfs://${IMG}/${n}.png"}`,
+    image: `${n}.png`,
+  }))
   const A: IpfsGateway = { operator: 'A', form: 'path', base: 'https://a.example/ipfs/' }
   const B: IpfsGateway = { operator: 'B', form: 'path', base: 'https://b.example/ipfs/' }
 
@@ -105,7 +119,7 @@ describe('checkRetrievable', () => {
       const meta = new RegExp(`/ipfs/${META}/(\\d+)$`).exec(url)
       if (meta !== null) {
         const n = Number(meta[1])
-        return new Response(migratedPieceJson(n, IMG, `${n}.png`))
+        return new Response(PIECES[n - 1]!.json)
       }
       return new Response(png(1) as BlobPart)
     }) as unknown as typeof fetch
@@ -113,7 +127,7 @@ describe('checkRetrievable', () => {
 
   it('passes when one public gateway serves a sample of both roots', async () => {
     const fetcher = gateways((url) => url.startsWith('https://b.example'))
-    const result = await checkRetrievable(IMG, META, NAMES, { gateways: [A, B], fetcher })
+    const result = await checkRetrievable(IMG, META, PIECES, { gateways: [A, B], fetcher })
     expect(result.ok).toBe(true)
     expect(result.operator).toBe('B')
     expect(result.problems).toEqual(['A: metadata #1 answered 504'])
@@ -127,14 +141,14 @@ describe('checkRetrievable', () => {
 
   it('fails when the metadata is not the regenerated JSON', async () => {
     const fetcher = vi.fn(async () => new Response('{"name":"#1"}')) as unknown as typeof fetch
-    const result = await checkRetrievable(IMG, META, NAMES, { gateways: [A], fetcher })
+    const result = await checkRetrievable(IMG, META, PIECES, { gateways: [A], fetcher })
     expect(result.ok).toBe(false)
     expect(result.problems).toEqual(['A: metadata #1 is not the regenerated JSON'])
   })
 
   it('fails when an image is missing even though the metadata is there', async () => {
     const fetcher = gateways((url) => !url.endsWith('/5.png'))
-    const result = await checkRetrievable(IMG, META, NAMES, { gateways: [A], fetcher })
+    const result = await checkRetrievable(IMG, META, PIECES, { gateways: [A], fetcher })
     expect(result.ok).toBe(false)
     expect(result.problems).toEqual(['A: image 5.png answered 504'])
   })

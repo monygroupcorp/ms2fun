@@ -103,7 +103,12 @@ export interface BuiltUpload {
 /** An upload in the shape the browser builds: images, then per-piece JSON naming them. */
 export async function buildUpload(
   images: ReadonlyArray<{ name: string; bytes: Uint8Array }>,
-  options: { order?: 'dag' | 'cid'; shardSplitThresholdBytes?: number } = {},
+  options: {
+    order?: 'dag' | 'cid'
+    shardSplitThresholdBytes?: number
+    /** The JSON for one piece, given its number and hosted image link. Default: the bare shape. */
+    metadata?: (piece: string, image: string) => string
+  } = {},
 ): Promise<BuiltUpload> {
   const imageDag = await importDir(
     images.map((i) => ({ path: i.name, content: i.bytes })),
@@ -113,10 +118,11 @@ export async function buildUpload(
   const json = images.map((image) => ({
     path: image.name.replace(/\..*$/, ''),
     content: new TextEncoder().encode(
-      JSON.stringify({
-        name: `#${image.name.replace(/\..*$/, '')}`,
-        image: `${HOST}/ipfs/${imgCid}/${image.name}`,
-      }),
+      (options.metadata ??
+        ((piece: string, link: string) => JSON.stringify({ name: `#${piece}`, image: link })))(
+        image.name.replace(/\..*$/, ''),
+        `${HOST}/ipfs/${imgCid}/${image.name}`,
+      ),
     ),
   }))
   const metaDag = await importDir(json, options.shardSplitThresholdBytes)
@@ -149,9 +155,51 @@ async function bytesOf(body: unknown): Promise<Uint8Array> {
   return new Uint8Array(await new Response(body as ReadableStream).arrayBuffer())
 }
 
-/** An R2 stand-in that keeps bytes, honours ranged reads, and fails a put whose stream errors. */
+/**
+ * An R2 stand-in that keeps bytes, honours ranged reads, fails a put whose stream errors, and does
+ * multipart uploads with R2's rule that every part but the last is the same size.
+ */
 export function memoryBucket() {
   const objects = new Map<string, { bytes: Uint8Array; contentType?: string }>()
+  const uploads = new Map<string, { key: string; parts: Map<number, Uint8Array> }>()
+  let nextUpload = 0
+  const multipart = (key: string, uploadId: string) => ({
+    key,
+    uploadId,
+    async uploadPart(partNumber: number, body: unknown) {
+      const upload = uploads.get(uploadId)
+      if (upload === undefined) throw new Error('no such multipart upload')
+      const bytes = await bytesOf(body)
+      upload.parts.set(partNumber, bytes)
+      return { partNumber, etag: `etag-${partNumber}-${bytes.byteLength}` }
+    },
+    async abort() {
+      uploads.delete(uploadId)
+    },
+    async complete(parts: Array<{ partNumber: number; etag: string }>) {
+      const upload = uploads.get(uploadId)
+      if (upload === undefined) throw new Error('no such multipart upload')
+      const chunks = parts.map((p) => {
+        const bytes = upload.parts.get(p.partNumber)
+        if (bytes === undefined || p.etag !== `etag-${p.partNumber}-${bytes.byteLength}`) {
+          throw new Error(`part ${p.partNumber} is not uploaded`)
+        }
+        return bytes
+      })
+      if (chunks.slice(0, -1).some((c) => c.byteLength !== chunks[0]!.byteLength)) {
+        throw new Error('every part but the last must be the same size')
+      }
+      const bytes = new Uint8Array(chunks.reduce((n, c) => n + c.byteLength, 0))
+      let at = 0
+      for (const chunk of chunks) {
+        bytes.set(chunk, at)
+        at += chunk.byteLength
+      }
+      objects.set(key, { bytes })
+      uploads.delete(uploadId)
+      return object(bytes)
+    },
+  })
   const object = (bytes: Uint8Array, contentType?: string) => ({
     size: bytes.byteLength,
     httpMetadata: contentType === undefined ? {} : { contentType },
@@ -163,6 +211,15 @@ export function memoryBucket() {
   })
   return {
     objects,
+    uploads,
+    async createMultipartUpload(key: string) {
+      const uploadId = `upload-${++nextUpload}`
+      uploads.set(uploadId, { key, parts: new Map() })
+      return multipart(key, uploadId)
+    },
+    resumeMultipartUpload(key: string, uploadId: string) {
+      return multipart(key, uploadId)
+    },
     async get(key: string, options?: { range?: { offset: number; length: number } }) {
       const found = objects.get(key)
       if (found === undefined) return null

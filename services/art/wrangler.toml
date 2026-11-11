@@ -54,9 +54,11 @@ UPLOAD_RPC_URL = ""
 UPLOAD_REGISTRY = ""
 # "1" refuses new uploads; reads, downloads and binds carry on. The manual kill switch.
 UPLOADS_PAUSED = ""
-# Total bytes hosting may hold, every draft counted. Empty means 50 GiB. The automatic kill switch.
+# Total bytes hosting may hold, every draft counted. Empty means 500 GiB. The automatic kill switch.
 HOSTED_MAX_TOTAL_BYTES = ""
-# Largest single upload. Empty means 95 MiB, under the 100 MB request ceiling of Free/Pro zones.
+# Largest request body: a one-request upload, or one part of an upload in parts. Empty means 95 MiB,
+# under the 100 MB request ceiling of Free/Pro zones. Uploads larger than this (up to 2 GiB) arrive
+# in 16 MiB parts and are checked whole once the last part is in.
 UPLOAD_MAX_CAR_BYTES = ""
 
 # Minutes between the watcher's on-chain checks of each launched collection (graduated? moved to

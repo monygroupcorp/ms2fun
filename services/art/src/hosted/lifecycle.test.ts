@@ -16,7 +16,7 @@ import { HostingLedger } from './ledgerObject'
 import { migrationCidOf } from './migration'
 import { DEFAULT_DEPS, handleUpload } from './routes'
 import { forgetIndex } from './store'
-import { buildUpload, memoryBucket, png, sqliteSql } from './testing'
+import { HOST, buildUpload, memoryBucket, png, sqliteSql } from './testing'
 
 const account = privateKeyToAccount(
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
@@ -120,6 +120,14 @@ const PIECES = [
   { name: '3.png', bytes: png(3) },
 ]
 
+/** The hosted JSON `buildUpload` writes for {@link PIECES}. */
+function hostedJson(imgCid: string) {
+  return PIECES.map((p) => {
+    const n = p.name.replace(/\..*$/, '')
+    return { name: n, json: JSON.stringify({ name: `#${n}`, image: `${HOST}/ipfs/${imgCid}/${p.name}` }) }
+  })
+}
+
 /** Upload, deploy (the chain now points at the hosted base), bind, and run the watcher once. */
 async function launch() {
   const upload = await buildUpload(PIECES)
@@ -143,10 +151,7 @@ async function launch() {
   )
   expect(bound.status).toBe(200)
   await ledgerObject.watch(Date.now())
-  const migrationCid = await migrationCidOf(
-    upload.imgCid,
-    PIECES.map((p) => p.name),
-  )
+  const migrationCid = await migrationCidOf(upload.imgCid, hostedJson(upload.imgCid))
   return { upload, migrationCid }
 }
 
@@ -220,7 +225,7 @@ describe('a launched collection’s hosted art', () => {
     expect(image.headers.get('x-art-cache')).toBe('hosted')
     expect((await call(`/ipfs/${upload.metaCid}/2`)).status).toBe(200)
     expect((await call(`/car/${upload.imgCid}`)).status).toBe(200)
-    expect([...env.hosted.objects.keys()].filter((k) => k.endsWith('.car'))).toHaveLength(1)
+    expect([...env.hosted.objects.keys()].filter((k) => k.startsWith('hosted/car/'))).toHaveLength(1)
     // The same art uploaded again is the same draft, not a refusal.
     const again = await put(await signIn(), upload.car)
     expect(again.status).toBe(200)

@@ -319,8 +319,58 @@ The wizard's image fields take a **link**, not a file — host the art somewhere
 - **Any HTTPS link you control** — a link to a file you host yourself works too, as long as it stays up.
 
 Paste whichever link you end up with into the field — the wizard shows a live preview so you can confirm it resolves before you deploy.
+
+For an ERC-404 collection's piece art you can also upload the files instead — see "Preparing your files".
 `,
-    related: ['cover-vs-banner', 'withholding-art'],
+    related: ['preparing-your-files', 'cover-vs-banner', 'withholding-art'],
+  },
+  'preparing-your-files': {
+    title: 'Preparing your files',
+    summary:
+      'How to lay out a collection for upload: images with your own metadata as JSON or a spreadsheet, or images alone.',
+    body: `
+Drop a **zip**, a **folder**, or the **files themselves** on the upload panel. Nothing is sent until you have reviewed every piece, its traits, and anything that needs fixing.
+
+## What it accepts
+
+- **Images and one JSON per piece** — \`1.png\` beside \`1.json\`, or an \`images/\` folder beside a \`json/\` or \`metadata/\` folder. This is what HashLips and most generators produce.
+- **Images and one metadata list** — a \`_metadata.json\` (or \`metadata.json\`) holding every piece's JSON in a list.
+- **Images and a spreadsheet** — a CSV with a \`file\` column naming each image, then \`name\`, \`description\`, and one column per trait. An \`id\` column numbers the pieces; without one they follow the row order.
+- **Images alone** — type a name pattern such as \`Sprite #{n}\` and, if you like, a description, and the metadata is written for you.
+
+Images are PNG, JPEG, WebP or GIF. Each piece's metadata is matched to its image by the file name its \`image\` field ends in, then by its number, then by its base name (\`dragon.json\` with \`dragon.png\`). Placeholder links like \`ipfs://NewUriToReplace/1.png\` are expected: the link is replaced with the hosted copy.
+
+**Your metadata is kept exactly as you wrote it** — every field, in your order. Only \`image\` changes. A piece whose image has no metadata gets it from the name pattern, and the review says which.
+
+## Downloads
+
+- [Example collection (zip)](asset:art-examples/example-collection.zip) — four tiny images with one JSON each.
+- [CSV template](asset:art-examples/metadata-template.csv) — the spreadsheet layout, ready to fill in.
+
+## Numbering
+
+The first NFT is **token #1**, and piece N is the art for token N. Files numbered from 0 are moved up by one for you, with a notice; names inside your metadata (such as \`#0\`) are kept as you wrote them. The number of pieces must match the NFT supply — the review names any token that would have no art.
+
+## What marketplaces show
+
+- \`name\` — the piece's title.
+- \`description\` — the text under it.
+- \`attributes\` — the traits, as a list of \`{"trait_type": "Eyes", "value": "Laser"}\`; marketplaces use them for filters and rarity.
+- \`external_url\` — a "website" link on the piece.
+- \`animation_url\` — video or interactive art. It is **not** hosted here and is kept pointing wherever you put it.
+
+## Limits
+
+- 10 MiB per image, up to 10,000 pieces, and 2 GiB in all.
+- 512 KiB of metadata per piece.
+- The upload goes up in parts and resumes after a dropped connection or a reload: choose the same files again and it carries on.
+- An upload no launched collection uses is deleted after 7 days.
+
+## Already on IPFS?
+
+If every piece's \`image\` already links your art on IPFS, nothing needs hosting. The panel packs your metadata into one folder named by token id, gives you its CAR to pin, and fills the piece-art link with its \`ipfs://\` address.
+`,
+    related: ['onchain-image-cost', 'withholding-art'],
   },
   'cover-vs-banner': {
     title: 'Cover vs banner',
@@ -386,6 +436,9 @@ export const CONCEPT_GROUPS: { title: string; slugs: string[] }[] = [
       'agent-delegation',
     ],
   },
-  { title: 'Collection page', slugs: ['onchain-image-cost', 'cover-vs-banner', 'withholding-art'] },
+  {
+    title: 'Collection page',
+    slugs: ['onchain-image-cost', 'preparing-your-files', 'cover-vs-banner', 'withholding-art'],
+  },
   { title: 'Support', slugs: ['support'] },
 ]

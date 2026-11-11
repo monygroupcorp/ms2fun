@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   onChain: '' as string,
   send: vi.fn(),
   check: vi.fn(),
+  migrationOf: vi.fn(),
 }))
 
 vi.mock('../../lib/art/hostClient', async (importOriginal) => ({
@@ -33,7 +34,7 @@ vi.mock('../../lib/art/hostClient', async (importOriginal) => ({
   fetchHostingStatus: () => mocks.status(),
 }))
 vi.mock('../../lib/art/migrate', () => ({
-  migratedMetaCidOf: async () => MIGRATED,
+  migrationOf: async () => mocks.migrationOf(),
   checkRetrievable: (...args: unknown[]) => mocks.check(...args),
   buildMigrationCar: vi.fn(),
 }))
@@ -69,7 +70,14 @@ function status(over: Partial<HostingStatus> = {}): HostingStatus {
   }
 }
 
+const PIECES = [1, 2].map((n) => ({
+  name: String(n),
+  json: `{"name":"#${n}","image":"ipfs://${IMG}/${n}.png"}`,
+  image: `${n}.png`,
+}))
+
 beforeEach(() => {
+  mocks.migrationOf.mockResolvedValue({ metaCid: MIGRATED, pieces: PIECES })
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   mocks.host = HOST
   mocks.isOwner = false
@@ -132,7 +140,7 @@ test('a graduated collection’s owner is recommended to move, and offered it on
 
   fireEvent.click(screen.getByTestId('hosted-art-check'))
   await screen.findByTestId('hosted-art-check-ok')
-  expect(mocks.check).toHaveBeenCalledWith(IMG, MIGRATED, ['1.png', '2.png'])
+  expect(mocks.check).toHaveBeenCalledWith(IMG, MIGRATED, PIECES)
 
   await waitFor(() =>
     expect(screen.getByTestId('hosted-art-set-base')).toHaveProperty('disabled', false),
@@ -181,4 +189,11 @@ test('does not call a different ipfs:// base verified', async () => {
   render(<HostedArtSection instance={INSTANCE} />, { wrapper })
   await screen.findByTestId('hosted-art-state')
   expect(screen.queryByTestId('hosted-art-verified')).toBeNull()
+})
+
+test('a visitor downloads nothing to check while the collection still points at hosted art', async () => {
+  mocks.status.mockResolvedValue(status())
+  render(<HostedArtSection instance={INSTANCE} />, { wrapper })
+  await screen.findByTestId('hosted-art-state')
+  expect(mocks.migrationOf).not.toHaveBeenCalled()
 })

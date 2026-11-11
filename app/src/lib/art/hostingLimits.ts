@@ -44,26 +44,38 @@ export const HOSTED_JSON_TYPE = 'application/json; charset=utf-8'
 export const HOSTING_LIMITS = {
   /** Largest single image. */
   maxImageBytes: 10 * MiB,
-  /** Largest per-piece metadata document. Kilobytes is generous for a name and an image link. */
-  maxPieceJsonBytes: 16 * KiB,
+  /**
+   * Largest per-piece metadata document. The creator's own JSON is hosted as written, so this is
+   * the art service's read cap for any piece's metadata rather than a size for a name and a link.
+   */
+  maxPieceJsonBytes: 512 * KiB,
+  /** All of one upload's metadata together. HashLips-style JSON is around a kilobyte a piece. */
+  maxMetadataBytes: 32 * MiB,
   /** Most pieces one upload may carry. Also the file ceiling of a bound collection. */
   maxFiles: 10_000,
+  /** Largest upload, in bytes of CAR: a full-size collection. Sent in parts (see `partBytes`). */
+  maxUploadBytes: 2 * GiB,
   /**
-   * Largest single upload, in bytes of CAR.
-   *
-   * Below 100 MB because that is the request-body ceiling Cloudflare applies on its Free and Pro
-   * plans: a larger body never reaches the worker at all. A deployment on a plan with a higher
-   * ceiling raises this with the service's `UPLOAD_MAX_CAR_BYTES` var.
+   * Largest single request body, in bytes. Below 100 MB because that is the request-body ceiling
+   * Cloudflare applies on its Free and Pro plans: a larger body never reaches the worker at all. A
+   * one-request upload is capped here; a larger one goes up in parts. A deployment on a plan with a
+   * higher ceiling raises it with the service's `UPLOAD_MAX_CAR_BYTES` var.
    */
-  maxUploadBytes: 95 * MiB,
-  /** Bytes one wallet may hold across its unbound drafts. */
-  draftBytesPerWallet: 200 * MiB,
-  /** Unbound drafts one wallet may hold at once. */
+  maxRequestBytes: 95 * MiB,
+  /**
+   * The size of each part of a resumable upload (the last may be smaller). Storage requires every
+   * part but the last to be the same size and at least 5 MiB; this size keeps a 2 GiB upload to 128
+   * parts and loses at most 16 MiB to a dropped connection.
+   */
+  partBytes: 16 * MiB,
+  /** Bytes one wallet may hold across its unbound drafts, unfinished uploads included. */
+  draftBytesPerWallet: 2 * GiB,
+  /** Unbound drafts one wallet may hold at once, unfinished uploads included. */
   draftsPerWallet: 3,
   /** Days an unbound draft is kept before it is deleted. A deploy that binds it ends the clock. */
   draftTtlDays: 7,
   /** Bytes a collection bound to a deployed instance may hold. */
-  boundBytes: 1 * GiB,
+  boundBytes: 2 * GiB,
   /** Files a collection bound to a deployed instance may hold. */
   boundFiles: 10_000,
 } as const

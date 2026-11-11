@@ -1,11 +1,10 @@
 /**
  * What the collection page knows about a collection's hosted art: the art host's record of it
- * (graduated, migrated), and the migrated metadata root worked out here in the browser from that record.
+ * (graduated, migrated), and the migrated metadata root worked out here in the browser.
  *
  * The root is computed locally rather than taken from the host's `migrationCid`, because the
  * "verified on IPFS" badge is a claim this page makes to the visitor: the chain's base must equal
- * what the hosted images and the piece list regenerate to, by a computation the visitor's own
- * browser did.
+ * what the hosted metadata regenerates to, by a computation the visitor's own browser did.
  */
 import { useQuery } from '@tanstack/react-query'
 
@@ -23,20 +22,25 @@ export function useHostingStatus(instance: `0x${string}`) {
   })
 }
 
-/** The migrated metadata root for a hosted collection, computed in this browser. */
-export function useMigratedMetaCid(status: HostingStatus | null | undefined) {
-  const pieces = status?.pieces ?? []
+/**
+ * The migrated metadata for a hosted collection, computed in this browser from the host's copy of
+ * the hosted metadata (every block checked against the hosted root's CID).
+ *
+ * That copy is a download of every piece's JSON, so it is fetched only when it can matter: for the
+ * owner, who needs it to move the art, and for a visitor only once the collection's on-chain base
+ * points at IPFS — before that, there is no move to verify.
+ */
+export function useMigration(status: HostingStatus | null | undefined, enabled: boolean) {
+  const host = artHostBase()
   return useQuery({
-    // The two hosted roots fix the piece list (the metadata root names one file per piece), so they
-    // identify the answer without putting thousands of names in the key.
-    queryKey: ['art-migrated-cid', status?.imgCid, status?.metaCid, pieces.length],
+    queryKey: ['art-migration', host, status?.imgCid, status?.metaCid],
     queryFn: async () => {
       // The UnixFS importer loads on first use: visitors to collections with no hosted art never
       // download it.
-      const { migratedMetaCidOf } = await import('../../lib/art/migrate')
-      return migratedMetaCidOf(status!.imgCid, pieces)
+      const { migrationOf } = await import('../../lib/art/migrate')
+      return migrationOf(host!, status!.imgCid, status!.metaCid)
     },
-    enabled: status != null && pieces.length > 0,
+    enabled: enabled && host !== null && status != null,
     staleTime: Infinity,
   })
 }

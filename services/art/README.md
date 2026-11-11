@@ -11,7 +11,8 @@ It answers these requests:
 GET /art/<ipfs-path>?w=<width>    the image, at one of the rungs in ART_WIDTHS
 GET /meta/<ipfs-path>             the collection's metadata JSON, verbatim
 GET /ipfs/<cid>/<file>            gateway-shaped: hosted bytes first, else cache and roster
-GET /car/<cid>                    the CAR a hosted upload arrived in
+GET /car/<cid>                    a hosted upload's CAR: whole for the images root, metadata only
+                                  for the metadata root
 GET /hosting/<instance>           whether a launched collection has graduated or moved to IPFS
     /upload/...                   sign-in, upload, bind (hosted uploads only)
 ```
@@ -104,7 +105,8 @@ wallet, and the CAR is uploaded here. The wizard then writes the collection's pe
   the cache and roster for a CID it does not host. Once the CAR is pinned anywhere (`GET /car/<cid>`
   hands it back byte for byte), the same links keep working with no transaction.
 - **Narrow.** PNG, JPEG, WebP and GIF only, each checked by its first bytes as well as its name; no
-  SVG, HTML or video. Up to 10 MiB per image and 10,000 pieces. Every hosted byte is served with a
+  SVG, HTML or video. Up to 10 MiB per image, 10,000 pieces and 2 GiB per upload. A creator's
+  `animation_url` and any other link in their metadata is kept as written and never hosted. Every hosted byte is served with a
   content type this service chose, `nosniff`, and a sandboxing CSP. `/ipfs/` will not proxy anything
   from the roster except a raster image or a JSON document, so it is not an open gateway.
 
@@ -117,23 +119,58 @@ One CAR, two roots, in this order:
 
 ```
 root 0  images     1.png, 2.jpg, ...       one image per piece, named by piece number
-root 1  metadata   1, 2, ...               { "name": "#1", "image": "https://<art-host>/ipfs/<root 0>/1.png" }
+root 1  metadata   1, 2, ...               the creator's JSON for that piece, with its "image" set to
+                                           "https://<art-host>/ipfs/<root 0>/1.png"
 ```
 
 `tokenURI(id)` is `base + id`, so the metadata files have no extension, and the base is root 1.
+Piece N is token N; the first NFT a collection mints is token 1.
+
+**The metadata is the creator's own.** The wizard reads per-piece JSON, a `_metadata.json` list, or
+a CSV (`app/src/lib/art/layout.ts`), keeps every field in the creator's key order, and rewrites only
+`image` (`app/src/lib/art/pieceJson.ts`); images alone get `{"name": <pattern>, "description"?,
+"image"}`. This service accepts any JSON object per piece, up to 512 KiB, and checks, once the CAR is
+stored and before anything is indexed: each piece is UTF-8, strictly valid JSON, one object, and its
+`image` links a file under root 0 (`src/hosted/metadata.ts`). Pieces are served as
+`application/json`. The metadata is read back with a few ranged reads, because the browser writes the
+CAR in DAG order with the metadata together at the end; a CAR that scatters it is refused.
 
 ### Routes
 
 ```
 GET    /upload/nonce          a fresh sign-in nonce, valid 10 minutes, usable once
 POST   /upload/session        { message, signature } -> { token, address, expiresAt }   (1 hour)
-PUT    /upload/car            the CAR, Authorization: Bearer <token>, Content-Length required
+PUT    /upload/car            the CAR in one request (up to 95 MiB), Content-Length required
+POST   /upload/parts          { bytes, imgCid, metaCid } -> an upload in parts, new or resumed
+GET    /upload/parts/<id>     { upload: { id, bytes, partSize, parts: [held part numbers], ... } }
+PUT    /upload/parts/<id>/<n> part n (from 1): bytes [(n-1)*partSize, n*partSize) of the CAR
+POST   /upload/parts/<id>/complete   assemble, verify the whole CAR, index -> the draft
 GET    /upload/drafts         the signed-in wallet's uploads
 DELETE /upload/drafts/<id>    delete one of them, unless a launched collection uses it
 POST   /upload/bind           { instance } -> the upload that instance's on-chain base points at
 GET    /ipfs/<cid>/<file>     hosted bytes, else cache and roster
-GET    /car/<cid>             the CAR either root arrived in
+GET    /car/<cid>             images root: the whole upload. metadata root: just the metadata
 ```
+
+Every upload route but sign-in needs `Authorization: Bearer <token>`.
+
+**Uploads in parts** are how a full-size collection gets past the 100 MB request ceiling, and how it
+survives a dropped connection or a page reload. `POST /upload/parts` reserves the upload's full size
+against the wallet's caps and starts an R2 multipart upload; asked again by the same wallet for the
+same roots and size, it answers with the same upload and the parts already held, and the wizard sends
+only the rest. Parts are 16 MiB (R2 requires equal parts of at least 5 MiB, the last excepted);
+the first part's CAR header must name exactly the declared roots, none denied. Nothing is indexed or
+served until `complete`, which assembles the parts and streams the whole CAR back through the same
+verifier a one-request upload goes through — every block against its CID, the two-root shape, the
+metadata — and deletes it if anything fails. `complete` is safe to repeat. An upload that never
+completes counts against the wallet at its full size and is deleted, parts and all, when the 7-day
+draft clock runs out; the uploader can delete it sooner. If the roots are already hosted,
+`POST /upload/parts` answers with that draft and nothing is sent.
+
+Measured locally (`wrangler dev`, 10,000 pieces, a 1.87 GiB CAR): `complete` took 18 s; the
+verifier on its own used about 6 s of CPU and 50 MiB of heap in Node for the same CAR. That fits
+inside the Workers Paid default of 30 s CPU per request; a deployment that sees it run close can
+raise `[limits] cpu_ms` in its own config.
 
 Sign-in is EIP-4361 (Sign-In with Ethereum). An ordinary signature is checked locally; anything
 else is checked on chain through `UPLOAD_RPC_URL` with viem's `verifyHash`, so ERC-1271 smart
@@ -153,22 +190,25 @@ moves or stops automatically: a bound collection stays hosted until the operator
 
 The collection page offers the owner the move in three steps:
 
-1. **Get the art on IPFS.** The browser downloads the hosted CAR, checks every block against its
-   CID, and builds a new CAR under one root holding the images and **regenerated metadata** whose
-   `image` is `ipfs://<imgCid>/<n>.<ext>` instead of this host's link. The creator uploads it to a
+1. **Get the art on IPFS.** The browser downloads the hosted CARs, checks every block against its
+   CID, and builds a new CAR under one root holding the images and **regenerated metadata**: the
+   hosted JSON with only `image` switched to `ipfs://<imgCid>/<n>.<ext>` instead of this host's
+   link. The images stream through, so a full-size collection is never held in memory at once. The creator uploads it to a
    pinning service they control. The platform pins nothing into an account of its own.
 2. **Check it is retrievable.** Public gateways from the app's roster — never this host — are asked
    for a sample of both roots; the metadata must match byte for byte.
 3. **Point the collection at it**: `setMetadataURI("ipfs://<new metadata root>/")`, sent by the
    creator.
 
-The new metadata root depends only on the images root and the piece names, written by
+The new metadata root depends only on the images root and the hosted JSON, rewritten by
 `app/src/lib/art/ipfsMigration.ts` and imported with the same UnixFS parameters, so anyone can
-recompute it. The collection page does, in the visitor's browser, and shows **verified on IPFS**
-when the chain points at it.
+recompute it from the hosted copy (`GET /car/<metaCid>`, checked against `metaCid`). The collection
+page does, in the visitor's browser, once the chain points at IPFS, and shows **verified on IPFS**
+when the chain points at the result. A bare upload's JSON (`{"name":"#1","image":...}`) migrates to
+exactly what it always did, so the shared test vectors from before still hold.
 
 **What the service knows.** The ledger's Durable Object alarm runs a watcher: at bind it reads the
-upload's piece names and works out that root once; every `HOSTED_CHECK_MINUTES` (60) it reads each
+upload's image names and hosted metadata and works out that root once; every `HOSTED_CHECK_MINUTES` (60) it reads each
 collection's `graduated()` and `metadataURI()` over `UPLOAD_RPC_URL`. It **only informs** — it
 records graduation the first time it is seen and marks a collection migrated when its base is
 exactly `ipfs://<migrationCid>/`, and then stops reading it. A read that fails changes nothing and
@@ -196,11 +236,13 @@ and gas spent on the creator's behalf; neither exists here, so that path is not 
 
 | what | default | where |
 | --- | --- | --- |
-| one upload | 95 MiB of CAR | `UPLOAD_MAX_CAR_BYTES` — under the 100 MB request ceiling of Free/Pro zones |
-| unlaunched art per wallet | 200 MiB, 3 uploads | `hostingLimits.ts` |
-| unlaunched lifetime | 7 days | `hostingLimits.ts` |
-| a launched collection | 1 GiB or 10,000 files | `hostingLimits.ts` (phase one uploads never reach it) |
-| everything hosted | 50 GiB | `HOSTED_MAX_TOTAL_BYTES` — refuses new uploads once reached |
+| one request | 95 MiB | `UPLOAD_MAX_CAR_BYTES` — a one-request upload or one part; under the 100 MB request ceiling of Free/Pro zones |
+| one upload | 2 GiB of CAR, 10,000 pieces | `hostingLimits.ts` — sent in 16 MiB parts |
+| metadata | 512 KiB per piece, 32 MiB per upload | `hostingLimits.ts` |
+| unlaunched art per wallet | 2 GiB, 3 uploads, unfinished ones included at full size | `hostingLimits.ts` |
+| unlaunched lifetime | 7 days, unfinished uploads included | `hostingLimits.ts` |
+| a launched collection | 2 GiB or 10,000 files | `hostingLimits.ts` |
+| everything hosted | 500 GiB | `HOSTED_MAX_TOTAL_BYTES` — refuses new uploads once reached; about $7.50 a month in R2 storage if full |
 | manual stop | off | `UPLOADS_PAUSED=1` — refuses new uploads; reads, downloads and binds carry on |
 | chain checks | every 60 minutes | `HOSTED_CHECK_MINUTES` — how often the watcher reads each collection; informational only |
 
@@ -222,7 +264,9 @@ Nothing below is done by this repository. In your own Cloudflare account:
    ```
 
    Check it has none: `wrangler r2 bucket lifecycle list noesis-art-hosted`. A rule here would
-   delete launched collections' art on a timer.
+   delete launched collections' art on a timer. The one exception is R2's default rule that aborts
+   incomplete multipart uploads after 7 days, which new buckets carry: it touches only uploads in
+   parts that never finished, the same ones the ledger deletes at 7 days, and can stay.
 3. **The session secret:** `wrangler secret put UPLOAD_SESSION_SECRET` (any long random string;
    rotating it signs everyone out and nothing else).
 4. **The vars**, at deploy time or in the dashboard — `UPLOAD_SIWE_DOMAINS` (the host the app is
@@ -235,9 +279,11 @@ Nothing below is done by this repository. In your own Cloudflare account:
    supports it) to serve hosted art at the width rungs and resize a new upload's first grid ahead of
    its first visitor. Without it hosted originals are served at every width.
 7. `wrangler deploy`. The first deploy applies the `hosting-v1` Durable Object migration. Upgrading
-   an existing deployment needs no new migration: the ledger creates its `collections` table on
-   start and the watcher picks up already-bound uploads on the next upload, bind, or
-   `GET /hosting/` read.
+   an existing deployment needs no new migration: the ledger creates its `collections` and `parts`
+   tables and adds the columns uploads in parts need on start, and the watcher picks up
+   already-bound uploads on the next upload, bind, or `GET /hosting/` read. Uploads in parts use the
+   same hosted bucket; there is nothing new to create. Uploads made before metadata CARs were kept
+   are served whole under `/car/<metaCid>`, which the app reads just the same.
 
 With no `UPLOAD_SIWE_DOMAINS` or no secret, the upload routes answer 503 and the wizard's upload
 fails with that reason; the paste field and every read route are unaffected.
@@ -326,7 +372,8 @@ something and a person who answers.
 4. **Hosted uploads obey the same list.** A denied CID is refused at upload, and a hosted one is
    answered `410` on every route, `/ipfs/` and `/car/` included. The list stops it being SERVED; to
    reclaim the space as well, delete the upload's objects from the hosted bucket
-   (`hosted/car/<draft>.car` and `hosted/idx/<cid>.json` for both of its roots).
+   (`hosted/car/<draft>.car`, `hosted/meta/<draft>.car`, and `hosted/idx/<cid>.json` for both of
+   its roots).
 5. **Deleting from this cache does not remove the content from IPFS**, which is not ours and not
    addressable by us, and it does not stop the app's public gateway roster from serving it — the
    denylist is scoped to our own origin, deliberately, because the roster is what makes the app

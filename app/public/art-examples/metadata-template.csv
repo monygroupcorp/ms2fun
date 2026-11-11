@@ -1,0 +1,5 @@
+file,name,description,external_url,Background,Square
+1.png,Square #1,"An example piece, with a comma in its description.",https://example.org/squares,Red,Black
+2.png,Square #2,An example piece.,https://example.org/squares,Blue,Black
+3.png,Square #3,An example piece.,https://example.org/squares,Red,White
+4.png,Square #4,An example piece.,https://example.org/squares,Blue,White

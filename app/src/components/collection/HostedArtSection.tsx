@@ -25,12 +25,17 @@ import {
 } from '../../generated/contracts'
 import { artHostBase, type HostingStatus } from '../../lib/art/hostClient'
 import { isMigratedBase, migratedBaseUri } from '../../lib/art/ipfsMigration'
-import type { MigrationCar, MigrationStage, RetrievalResult } from '../../lib/art/migrate'
+import type {
+  MigrationCar,
+  MigrationStage,
+  Regenerated,
+  RetrievalResult,
+} from '../../lib/art/migrate'
 import { TxButton } from '../ui/TxButton'
 import { useOwnerGate } from '../ui/useOwnerGate'
 import { useTxAction } from '../ui/useTxAction'
 import { useCollectionChainId } from './useCollectionChain'
-import { useHostingStatus, useMigratedMetaCid } from './useHostedArt'
+import { useHostingStatus, useMigration } from './useHostedArt'
 import styles from './HostedArtSection.module.css'
 
 function hostName(host: string): string {
@@ -50,7 +55,9 @@ export function HostedArtSection({ instance }: { instance: `0x${string}` }) {
     address: instance,
     chainId,
   })
-  const { data: migratedCid } = useMigratedMetaCid(status)
+  const pointsAtIpfs = onChainBase !== undefined && onChainBase.trim().startsWith('ipfs://')
+  const { data: migration } = useMigration(status, isOwner || pointsAtIpfs)
+  const migratedCid = migration?.metaCid
 
   if (host === null || status == null) return null
 
@@ -68,7 +75,7 @@ export function HostedArtSection({ instance }: { instance: `0x${string}` }) {
           instance={instance}
           host={host}
           status={status}
-          migratedCid={migratedCid}
+          migration={migration}
           onMoved={() => void refetch()}
         />
       )}
@@ -93,8 +100,8 @@ function Summary({
         <span className={styles.badge} data-testid="hosted-art-verified">
           verified on IPFS
         </span>{' '}
-        This collection points at its art on IPFS, and its metadata is exactly what the hosted
-        images regenerate to.
+        This collection points at its art on IPFS, and its metadata is exactly the hosted metadata
+        with each image link moved to IPFS.
       </p>
     )
   }
@@ -149,15 +156,16 @@ function MigrationSteps({
   instance,
   host,
   status,
-  migratedCid,
+  migration,
   onMoved,
 }: {
   instance: `0x${string}`
   host: string
   status: HostingStatus
-  migratedCid: string | undefined
+  migration: Regenerated | undefined
   onMoved: () => void
 }) {
+  const migratedCid = migration?.metaCid
   const chainId = useCollectionChainId()
   const [build, setBuild] = useState<Build>({ kind: 'idle' })
   const [check, setCheck] = useState<Check>({ kind: 'idle' })
@@ -170,7 +178,7 @@ function MigrationSteps({
     return () => URL.revokeObjectURL(carUrl)
   }, [carUrl])
 
-  const ready = status.pieces.length > 0 && migratedCid !== undefined
+  const ready = migration !== undefined
   const where = hostName(host)
   const base = migratedCid === undefined ? null : migratedBaseUri(migratedCid)
   const checked = check.kind === 'done' && check.result.ok
@@ -179,7 +187,7 @@ function MigrationSteps({
     try {
       const { buildMigrationCar } = await import('../../lib/art/migrate')
       setBuild({ kind: 'building', stage: 'downloading' })
-      const car = await buildMigrationCar(host, status.imgCid, status.pieces, (stage) =>
+      const car = await buildMigrationCar(host, status.imgCid, status.metaCid, (stage) =>
         setBuild({ kind: 'building', stage }),
       )
       setBuild({ kind: 'built', car, url: URL.createObjectURL(car.car) })
@@ -189,13 +197,13 @@ function MigrationSteps({
   }
 
   async function runCheck() {
-    if (migratedCid === undefined) return
+    if (migration === undefined) return
     setCheck({ kind: 'checking' })
     try {
       const { checkRetrievable } = await import('../../lib/art/migrate')
       setCheck({
         kind: 'done',
-        result: await checkRetrievable(status.imgCid, migratedCid, status.pieces),
+        result: await checkRetrievable(status.imgCid, migration.metaCid, migration.pieces),
       })
     } catch (error) {
       setCheck({ kind: 'failed', message: errorText(error) })
@@ -218,7 +226,7 @@ function MigrationSteps({
       )}
       {!ready && (
         <p className={styles.note}>
-          The art host is still reading this collection&apos;s pieces. Check back in a minute.
+          Reading this collection&apos;s hosted metadata from the art host…
         </p>
       )}
 

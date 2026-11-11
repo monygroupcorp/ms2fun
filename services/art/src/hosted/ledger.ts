@@ -3,7 +3,7 @@
  *
  * ── Why a Durable Object, and not KV or D1 ─────────────────────────────────────────────────────
  * Every rule here is a count that must not be raced: a nonce used once, three open drafts per
- * wallet, 200 MiB per wallet, one global byte ceiling. KV is eventually consistent — two uploads in
+ * wallet, 2 GiB per wallet, one global byte ceiling. KV is eventually consistent — two uploads in
  * the same second can each read "two drafts" and both pass — so it cannot hold a cap. D1 is
  * consistent, but binding it puts a database id in `wrangler.toml`, and this service's template
  * carries no account-scoped identifier so a fork can deploy it as it stands. A Durable Object is
@@ -12,7 +12,10 @@
  * and the serving path never touches it: hosted reads go to the index in R2.
  *
  * ── What a draft is ────────────────────────────────────────────────────────────────────────────
- *   reserved  space held for an upload in flight. Expires quickly if the upload never completes.
+ *   reserved  space held for an upload in flight. A one-request upload's expires within the hour
+ *             if it never completes; an upload in parts, which may be resumed after a dropped
+ *             connection or a reload, holds its full size until the draft TTL and is then deleted
+ *             with whatever parts arrived.
  *   open      a verified upload no deployed collection uses yet. Deleted after the draft TTL.
  *   bound     an upload a deployed collection's on-chain metadata points at. No TTL: it stays
  *             hosted until the operator acts. Moving the art to IPFS is the creator's choice, which
@@ -48,6 +51,12 @@ export interface Draft {
   id: string
   wallet: string
   state: DraftState
+  /** For an upload in parts: the storage's id for it, while it is still arriving. */
+  uploadId: string | null
+  partSize: number | null
+  /** For an upload in parts: the roots it was started for. */
+  wantImg: string | null
+  wantMeta: string | null
   bytes: number
   files: number
   imgCid: string | null
@@ -63,6 +72,25 @@ export interface Removal {
   draftId: string
   /** Root CIDs whose index should go. */
   cids: string[]
+  /** An upload in parts still arriving, to abort in storage. */
+  uploadId: string | null
+}
+
+/** An upload in parts, as the uploader sees it. */
+export interface PartsUpload {
+  id: string
+  bytes: number
+  partSize: number
+  parts: number[]
+  imgCid: string
+  metaCid: string
+  expiresAt: number | null
+}
+
+export interface Part {
+  n: number
+  etag: string
+  bytes: number
 }
 
 export type Refusal = { ok: false; status: number; reason: string }
@@ -79,6 +107,10 @@ interface DraftRow {
   id: string
   wallet: string
   state: DraftState
+  upload_id: string | null
+  part_size: number | null
+  want_img: string | null
+  want_meta: string | null
   bytes: number
   files: number
   img_cid: string | null
@@ -93,6 +125,10 @@ function draftOf(row: DraftRow): Draft {
     id: row.id,
     wallet: row.wallet,
     state: row.state,
+    uploadId: row.upload_id ?? null,
+    partSize: row.part_size ?? null,
+    wantImg: row.want_img ?? null,
+    wantMeta: row.want_meta ?? null,
     bytes: row.bytes,
     files: row.files,
     imgCid: row.img_cid,
@@ -179,6 +215,29 @@ export class Ledger {
       instance TEXT,
       bound_at INTEGER
     )`)
+    // Columns added for uploads in parts. A ledger created before them gains them here; SQLite
+    // cannot add a column "if not exists", so the table's own description is asked first.
+    const columns = new Set(
+      this.sql
+        .exec<{ name: string }>('PRAGMA table_info(drafts)')
+        .toArray()
+        .map((c) => c.name),
+    )
+    for (const [name, type] of [
+      ['upload_id', 'TEXT'],
+      ['part_size', 'INTEGER'],
+      ['want_img', 'TEXT'],
+      ['want_meta', 'TEXT'],
+    ] as const) {
+      if (!columns.has(name)) this.sql.exec(`ALTER TABLE drafts ADD COLUMN ${name} ${type}`)
+    }
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS parts (
+      draft_id TEXT NOT NULL,
+      n INTEGER NOT NULL,
+      etag TEXT NOT NULL,
+      bytes INTEGER NOT NULL,
+      PRIMARY KEY (draft_id, n)
+    )`)
     this.sql.exec('CREATE INDEX IF NOT EXISTS drafts_wallet ON drafts (wallet, state)')
     this.sql.exec('CREATE INDEX IF NOT EXISTS drafts_meta ON drafts (meta_cid)')
     this.sql.exec('CREATE INDEX IF NOT EXISTS drafts_img ON drafts (img_cid)')
@@ -219,7 +278,12 @@ export class Ledger {
   }
 
   /** Hold space for an upload, or say which cap refuses it. */
-  reserve(wallet: string, bytes: number, now: number): { ok: true; id: string } | Refusal {
+  reserve(
+    wallet: string,
+    bytes: number,
+    now: number,
+    ttlMs: number = this.limits.reserveTtlMs,
+  ): { ok: true; id: string } | Refusal {
     const who = wallet.toLowerCase()
     const mine = this.sql
       .exec<{ count: number; total: number | null }>(
@@ -258,9 +322,118 @@ export class Ledger {
       who,
       bytes,
       now,
-      now + this.limits.reserveTtlMs,
+      now + ttlMs,
     )
     return { ok: true, id }
+  }
+
+  /**
+   * Start an upload in parts, or pick up the one this wallet already started for the same roots and
+   * size — after a dropped connection or a page reload, the uploader asks again and carries on.
+   *
+   * It is held against the wallet's caps for its FULL size from the start, and it expires with the
+   * draft clock: an upload abandoned halfway is deleted, parts and all, like an unlaunched draft.
+   * Answers with the existing draft instead when these roots are already hosted.
+   */
+  begin(
+    wallet: string,
+    want: { bytes: number; imgCid: string; metaCid: string; partSize: number },
+    now: number,
+  ):
+    | { ok: true; upload: PartsUpload; fresh: boolean }
+    | { ok: true; duplicate: Draft }
+    | Refusal {
+    const who = wallet.toLowerCase()
+    const hosted = this.sql
+      .exec<DraftRow>(
+        `SELECT * FROM drafts WHERE meta_cid = ? AND state IN ('open', 'bound') LIMIT 1`,
+        want.metaCid,
+      )
+      .toArray()[0]
+    if (hosted !== undefined) return { ok: true, duplicate: draftOf(hosted) }
+    const resumable = this.sql
+      .exec<DraftRow>(
+        `SELECT * FROM drafts WHERE wallet = ? AND state = 'reserved' AND want_meta = ?
+           AND want_img = ? AND bytes = ? AND part_size = ? AND upload_id IS NOT NULL
+         ORDER BY created_at DESC LIMIT 1`,
+        who,
+        want.metaCid,
+        want.imgCid,
+        want.bytes,
+        want.partSize,
+      )
+      .toArray()[0]
+    if (resumable !== undefined) {
+      return { ok: true, upload: this.partsUpload(draftOf(resumable)), fresh: false }
+    }
+    const reserved = this.reserve(who, want.bytes, now, this.limits.draftTtlMs)
+    if (!reserved.ok) return reserved
+    this.sql.exec(
+      'UPDATE drafts SET part_size = ?, want_img = ?, want_meta = ? WHERE id = ?',
+      want.partSize,
+      want.imgCid,
+      want.metaCid,
+      reserved.id,
+    )
+    return { ok: true, upload: this.partsUpload(this.draft(reserved.id)!), fresh: true }
+  }
+
+  /** Record the storage's id for a freshly begun upload. */
+  attach(id: string, uploadId: string): void {
+    this.sql.exec(
+      `UPDATE drafts SET upload_id = ? WHERE id = ? AND state = 'reserved'`,
+      uploadId,
+      id,
+    )
+  }
+
+  /** One of the wallet's uploads in parts, still arriving; null when there is no such upload. */
+  upload(wallet: string, id: string): (PartsUpload & { uploadId: string }) | null {
+    const row = this.sql
+      .exec<DraftRow>(
+        `SELECT * FROM drafts WHERE id = ? AND wallet = ? AND state = 'reserved'
+           AND upload_id IS NOT NULL`,
+        id,
+        wallet.toLowerCase(),
+      )
+      .toArray()[0]
+    if (row === undefined) return null
+    return { ...this.partsUpload(draftOf(row)), uploadId: row.upload_id! }
+  }
+
+  /** Record a part that storage accepted. Sending a part again replaces it. */
+  recordPart(id: string, part: Part): void {
+    this.sql.exec(
+      `INSERT INTO parts (draft_id, n, etag, bytes) VALUES (?, ?, ?, ?)
+       ON CONFLICT (draft_id, n) DO UPDATE SET etag = excluded.etag, bytes = excluded.bytes`,
+      id,
+      part.n,
+      part.etag,
+      part.bytes,
+    )
+  }
+
+  parts(id: string): Part[] {
+    return this.sql
+      .exec<Part>('SELECT n, etag, bytes FROM parts WHERE draft_id = ? ORDER BY n', id)
+      .toArray()
+  }
+
+  private draft(id: string): Draft | null {
+    const row = this.sql.exec<DraftRow>('SELECT * FROM drafts WHERE id = ?', id).toArray()[0]
+    return row === undefined ? null : draftOf(row)
+  }
+
+  private partsUpload(draft: Draft): PartsUpload {
+    return {
+      id: draft.id,
+      bytes: draft.bytes,
+      partSize: draft.partSize!,
+      parts: this.parts(draft.id).map((p) => p.n),
+      imgCid: draft.wantImg!,
+      metaCid: draft.wantMeta!,
+      expiresAt: draft.expiresAt,
+    }
   }
 
   /**
@@ -300,7 +473,8 @@ export class Ledger {
     }
     const rows = this.sql
       .exec<DraftRow>(
-        `UPDATE drafts SET state = 'open', img_cid = ?, meta_cid = ?, files = ?, expires_at = ?
+        `UPDATE drafts SET state = 'open', img_cid = ?, meta_cid = ?, files = ?, expires_at = ?,
+           upload_id = NULL
          WHERE id = ? AND state = 'reserved' RETURNING *`,
         roots.imgCid,
         roots.metaCid,
@@ -309,12 +483,14 @@ export class Ledger {
         id,
       )
       .toArray()
+    this.sql.exec('DELETE FROM parts WHERE draft_id = ?', id)
     return rows.length === 1 ? { status: 'open', draft: draftOf(rows[0]!) } : { status: 'missing' }
   }
 
   /** Drop a reservation whose upload failed. */
   release(id: string): void {
     this.sql.exec(`DELETE FROM drafts WHERE id = ? AND state = 'reserved'`, id)
+    this.sql.exec('DELETE FROM parts WHERE draft_id = ?', id)
   }
 
   /**
@@ -476,8 +652,9 @@ export class Ledger {
   }
 
   private removalOf(row: DraftRow): Removal {
+    this.sql.exec('DELETE FROM parts WHERE draft_id = ?', row.id)
     // No other live draft shares these roots — `commit` guarantees it — so both indexes go.
     const cids = [row.img_cid, row.meta_cid].filter((cid): cid is string => cid !== null)
-    return { draftId: row.id, cids }
+    return { draftId: row.id, cids, uploadId: row.upload_id ?? null }
   }
 }

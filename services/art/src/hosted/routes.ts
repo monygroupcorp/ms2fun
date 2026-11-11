@@ -3,7 +3,11 @@
  *
  *   GET    /upload/nonce          a fresh sign-in nonce
  *   POST   /upload/session        { message, signature } -> { token, address, expiresAt }
- *   PUT    /upload/car            the CAR, with `Authorization: Bearer <token>` -> the draft
+ *   PUT    /upload/car            the CAR in one request (up to ~95 MiB) -> the draft
+ *   POST   /upload/parts          { bytes, imgCid, metaCid } -> an upload in parts, new or resumed
+ *   GET    /upload/parts/<id>     which parts the host holds
+ *   PUT    /upload/parts/<id>/<n> part n (from 1) of the CAR
+ *   POST   /upload/parts/<id>/complete   assemble, verify the whole CAR, index -> the draft
  *   GET    /upload/drafts         the signed-in wallet's drafts
  *   DELETE /upload/drafts/<id>    delete one of them, if no collection uses it yet
  *   POST   /upload/bind           { instance } -> the draft that instance's metadata points at
@@ -12,15 +16,26 @@
  * Reads (`/ipfs/`, `/art/`, `/meta/`, `/car/`) live in `worker.ts`, which calls
  * {@link serveHostedFile} first and falls through to the cache and the roster when it answers null.
  */
+import * as dagCbor from '@ipld/dag-cbor'
+import { CID as CIDClass } from 'multiformats/cid'
 import type { CID } from 'multiformats/cid'
 
 import { bearerOf, issueSession, readSession, verifySignIn as realVerifySignIn } from './auth'
-import { CarRejected, indexCar, verifyingStream, type HostedIndex, type RootIndex } from './car'
+import {
+  CarRejected,
+  indexCar,
+  readVarint,
+  verifyingStream,
+  type HostedIndex,
+  type RootIndex,
+  type VerifiedCar,
+} from './car'
 import { baseCid, readInstance as realReadInstance, type ReadInstance } from './chain'
 import { SESSION_TTL_MS, hostingConfig, uploadsUnavailable, type HostingEnv } from './config'
-import type { CommitResult, Draft, Refusal } from './ledger'
+import type { CommitResult, Draft, Part, PartsUpload, Refusal } from './ledger'
+import { checkMetadata } from './metadata'
 import { callLedger } from './ledgerObject'
-import { carKey, forgetIndex, indexKey, loadIndex, readHostedFile } from './store'
+import { carKey, forgetIndex, indexKey, loadIndex, metaCarKey, readHostedFile } from './store'
 
 export interface HostingDeps {
   now: () => number
@@ -54,8 +69,10 @@ function publicDraft(draft: Draft) {
   return {
     id: draft.id,
     state: draft.state,
-    imgCid: draft.imgCid,
-    metaCid: draft.metaCid,
+    imgCid: draft.imgCid ?? draft.wantImg,
+    metaCid: draft.metaCid ?? draft.wantMeta,
+    /** An upload in parts that has not finished arriving. */
+    unfinished: draft.state === 'reserved' && draft.uploadId !== null,
     bytes: draft.bytes,
     files: draft.files,
     createdAt: draft.createdAt,
@@ -120,6 +137,35 @@ export async function handleUpload(
   if (path === '/upload/car' && method === 'PUT') {
     return upload(request, env, config, wallet, deny, deps, onCommitted)
   }
+  if (path === '/upload/parts' && method === 'POST') {
+    return beginParts(request, env, config, wallet, deny, deps)
+  }
+  const parts = /^\/upload\/parts\/([a-z0-9]{8,64})(?:\/(\d{1,5}|complete))?$/.exec(path)
+  if (parts !== null) {
+    const id = parts[1]!
+    const upload = await callLedger<(PartsUpload & { uploadId: string }) | null>(env, {
+      op: 'upload',
+      wallet,
+      id,
+    })
+    if (upload === null) {
+      // Completed already, and the answer was lost on its way back: the same answer again.
+      if (parts[2] === 'complete' && method === 'POST') {
+        const drafts = await callLedger<Draft[]>(env, { op: 'drafts', wallet })
+        const finished = drafts.find((d) => d.id === id && d.state !== 'reserved')
+        if (finished !== undefined) return json({ draft: publicDraft(finished), duplicate: false })
+      }
+      return refuse(404, 'no such unfinished upload')
+    }
+    if (parts[2] === undefined && method === 'GET') return json({ upload: publicUpload(upload) })
+    if (parts[2] === 'complete' && method === 'POST') {
+      return completeParts(env, wallet, upload, deny, deps, onCommitted)
+    }
+    if (parts[2] !== undefined && parts[2] !== 'complete' && method === 'PUT') {
+      return putPart(request, env, config, upload, Number(parts[2]), deny)
+    }
+    return refuse(405, 'method not allowed')
+  }
   if (path === '/upload/drafts' && method === 'GET') {
     const drafts = await callLedger<Draft[]>(env, { op: 'drafts', wallet })
     return json({ drafts: drafts.map(publicDraft) })
@@ -174,18 +220,61 @@ async function upload(
     const denied = roots.find((root) => deny(root.toString()))
     if (denied !== undefined) throw new CarRejected(`${denied} is not accepted here`)
   })
-  let indexes: ReturnType<typeof indexCar>
+  let verified: VerifiedCar
   try {
     const sized = sizedStream(length)
     const piping = request.body.pipeThrough(stream).pipeTo(sized.writable)
     await Promise.all([bucket.put(key, sized.readable), piping])
-    indexes = indexCar(await result)
+    verified = await result
   } catch (error) {
     await abandon()
     const refused = refusal() ?? (error instanceof CarRejected ? error : null)
     return refused === null
       ? refuse(500, 'the upload could not be stored')
       : refuse(400, refused.message)
+  }
+  return commitVerified(env, wallet, id, verified, null, deps, onCommitted)
+}
+
+/**
+ * Index a stored, block-verified CAR and make it servable: shape and metadata checks, the ledger's
+ * commit, then the indexes. Whatever refuses it deletes the stored bytes and gives the space back.
+ * `want` is the roots an upload in parts was started for; the CAR must carry exactly those.
+ */
+async function commitVerified(
+  env: HostingEnv,
+  wallet: string,
+  id: string,
+  verified: VerifiedCar,
+  want: { imgCid: string; metaCid: string } | null,
+  deps: HostingDeps,
+  onCommitted: ((images: RootIndex) => void) | undefined,
+): Promise<Response> {
+  const bucket = env.ART_HOSTED!
+  const key = carKey(id)
+  const abandon = async () => {
+    await Promise.allSettled([
+      bucket.delete([key, metaCarKey(id)]),
+      callLedger(env, { op: 'release', id }),
+    ])
+  }
+
+  let indexes: ReturnType<typeof indexCar>
+  let metaCar: Blob
+  try {
+    indexes = indexCar(verified)
+    if (
+      want !== null &&
+      (indexes.images.root !== want.imgCid || indexes.metadata.root !== want.metaCid)
+    ) {
+      throw new CarRejected('the CAR does not carry the roots this upload was started for')
+    }
+    metaCar = (await checkMetadata(bucket, key, verified, indexes)).metaCar
+  } catch (error) {
+    await abandon()
+    return error instanceof CarRejected
+      ? refuse(400, error.message)
+      : refuse(500, 'the upload could not be stored')
   }
 
   const files =
@@ -197,11 +286,11 @@ async function upload(
     now: deps.now(),
   })
   if (committed.status === 'duplicate') {
-    await bucket.delete(key)
+    await bucket.delete([key, metaCarKey(id)])
     return json({ draft: publicDraft(committed.draft), duplicate: true })
   }
   if (committed.status === 'conflict') {
-    await bucket.delete(key)
+    await bucket.delete([key, metaCarKey(id)])
     return refuse(409, 'these images are already hosted under different metadata')
   }
   if (committed.status === 'missing') {
@@ -210,22 +299,257 @@ async function upload(
   }
 
   try {
-    for (const root of [indexes.images, indexes.metadata]) {
-      const index: HostedIndex = { ...root, car: key }
-      await bucket.put(indexKey(root.root), JSON.stringify(index), {
+    await bucket.put(metaCarKey(id), metaCar, {
+      httpMetadata: { contentType: 'application/vnd.ipld.car' },
+    })
+    const roots: HostedIndex[] = [
+      { ...indexes.images, car: key },
+      { ...indexes.metadata, car: key, metaCar: metaCarKey(id) },
+    ]
+    for (const index of roots) {
+      await bucket.put(indexKey(index.root), JSON.stringify(index), {
         httpMetadata: { contentType: 'application/json' },
       })
     }
   } catch {
     await Promise.allSettled([
       callLedger(env, { op: 'remove', wallet, id }),
-      bucket.delete([key, indexKey(indexes.images.root), indexKey(indexes.metadata.root)]),
+      bucket.delete([
+        key,
+        metaCarKey(id),
+        indexKey(indexes.images.root),
+        indexKey(indexes.metadata.root),
+      ]),
     ])
     return refuse(500, 'the upload could not be stored')
   }
 
   onCommitted?.(indexes.images)
   return json({ draft: publicDraft(committed.draft), duplicate: false }, 201)
+}
+
+/** What the uploader is told about an upload in parts. */
+function publicUpload(upload: PartsUpload) {
+  return {
+    id: upload.id,
+    bytes: upload.bytes,
+    partSize: upload.partSize,
+    parts: upload.parts,
+    imgCid: upload.imgCid,
+    metaCid: upload.metaCid,
+    expiresAt: upload.expiresAt,
+  }
+}
+
+const CID_TEXT = /^[a-z2-7]{50,100}$/
+
+/** `POST /upload/parts`: start an upload in parts, or answer with the one already started. */
+async function beginParts(
+  request: Request,
+  env: HostingEnv,
+  config: ReturnType<typeof hostingConfig>,
+  wallet: string,
+  deny: (cid: string) => boolean,
+  deps: HostingDeps,
+): Promise<Response> {
+  if (config.paused) return refuse(503, 'uploads are paused')
+  let body: { bytes?: unknown; imgCid?: unknown; metaCid?: unknown }
+  try {
+    body = (await request.json()) as typeof body
+  } catch {
+    return refuse(400, 'expected JSON')
+  }
+  const { bytes, imgCid, metaCid } = body
+  if (
+    typeof bytes !== 'number' ||
+    !Number.isSafeInteger(bytes) ||
+    bytes <= 0 ||
+    typeof imgCid !== 'string' ||
+    typeof metaCid !== 'string' ||
+    !CID_TEXT.test(imgCid) ||
+    !CID_TEXT.test(metaCid)
+  ) {
+    return refuse(400, 'expected { bytes, imgCid, metaCid }')
+  }
+  if (bytes > config.maxUploadBytes) {
+    return refuse(413, `an upload may be at most ${config.maxUploadBytes} bytes`)
+  }
+  const denied = [imgCid, metaCid].find(deny)
+  if (denied !== undefined) return refuse(400, `${denied} is not accepted here`)
+
+  const partSize = Math.min(config.partBytes, config.maxCarBytes)
+  const begun = await callLedger<
+    | { ok: true; upload: PartsUpload; fresh: boolean }
+    | { ok: true; duplicate: Draft }
+    | Refusal
+  >(env, { op: 'begin', wallet, want: { bytes, imgCid, metaCid, partSize }, now: deps.now() })
+  if (!begun.ok) return refuse(begun.status, begun.reason)
+  if ('duplicate' in begun) return json({ draft: publicDraft(begun.duplicate), duplicate: true })
+  if (!begun.fresh) return json({ upload: publicUpload(begun.upload) })
+
+  try {
+    const multipart = await env.ART_HOSTED!.createMultipartUpload(carKey(begun.upload.id), {
+      httpMetadata: { contentType: 'application/vnd.ipld.car' },
+    })
+    await callLedger(env, { op: 'attach', id: begun.upload.id, uploadId: multipart.uploadId })
+  } catch {
+    await callLedger(env, { op: 'release', id: begun.upload.id })
+    return refuse(500, 'the upload could not be started')
+  }
+  return json({ upload: publicUpload(begun.upload) }, 201)
+}
+
+/**
+ * The first part's CAR header, checked as it streams past: it must name exactly the roots the
+ * upload was started for, none of them denied. Everything else is checked once the CAR is whole.
+ */
+function headerCheck(
+  want: { imgCid: string; metaCid: string },
+  deny: (cid: string) => boolean,
+): TransformStream<Uint8Array, Uint8Array> {
+  let seen = new Uint8Array(0)
+  let done = false
+  return new TransformStream({
+    transform(chunk, controller) {
+      if (!done) {
+        const joined = new Uint8Array(seen.byteLength + chunk.byteLength)
+        joined.set(seen)
+        joined.set(chunk, seen.byteLength)
+        seen = joined
+        const prefix = readVarint(seen.subarray(0, 8))
+        if (prefix !== null && seen.byteLength >= prefix[0] + prefix[1]) {
+          done = true
+          let roots: string[] = []
+          try {
+            const header = dagCbor.decode(seen.subarray(prefix[1], prefix[1] + prefix[0])) as {
+              roots?: unknown[]
+            }
+            roots = (header.roots ?? []).map((root) => CIDClass.asCID(root)?.toString() ?? '')
+          } catch {
+            throw new CarRejected('malformed CAR: the header does not decode')
+          }
+          const denied = roots.find(deny)
+          if (denied !== undefined) throw new CarRejected(`${denied} is not accepted here`)
+          if (roots.length !== 2 || roots[0] !== want.imgCid || roots[1] !== want.metaCid) {
+            throw new CarRejected('the CAR does not carry the roots this upload was started for')
+          }
+        } else if (seen.byteLength > 4096) {
+          throw new CarRejected('malformed CAR: the header is too long')
+        }
+      }
+      controller.enqueue(chunk)
+    },
+  })
+}
+
+/** `PUT /upload/parts/<id>/<n>`: one part, exactly the size its place in the CAR says. */
+async function putPart(
+  request: Request,
+  env: HostingEnv,
+  config: ReturnType<typeof hostingConfig>,
+  upload: PartsUpload & { uploadId: string },
+  n: number,
+  deny: (cid: string) => boolean,
+): Promise<Response> {
+  if (config.paused) return refuse(503, 'uploads are paused')
+  const count = Math.ceil(upload.bytes / upload.partSize)
+  if (!Number.isInteger(n) || n < 1 || n > count) {
+    return refuse(400, `this upload has parts 1 to ${count}`)
+  }
+  const expected = n < count ? upload.partSize : upload.bytes - (count - 1) * upload.partSize
+  const length = Number.parseInt(request.headers.get('content-length') ?? '', 10)
+  if (length !== expected) return refuse(400, `part ${n} must be exactly ${expected} bytes`)
+  if (request.body === null) return refuse(400, 'the part is empty')
+
+  const multipart = env.ART_HOSTED!.resumeMultipartUpload(carKey(upload.id), upload.uploadId)
+  let body = request.body
+  let check: TransformStream<Uint8Array, Uint8Array> | null = null
+  if (n === 1) {
+    check = headerCheck(upload, deny)
+    body = body.pipeThrough(check)
+  }
+  const sized = sizedStream(expected)
+  try {
+    const piping = body.pipeTo(sized.writable)
+    const [uploaded] = await Promise.all([multipart.uploadPart(n, sized.readable), piping])
+    const part: Part = { n, etag: uploaded.etag, bytes: expected }
+    await callLedger(env, { op: 'part', id: upload.id, part })
+  } catch (error) {
+    if (error instanceof CarRejected) return refuse(400, error.message)
+    return refuse(500, `part ${n} could not be stored; send it again`)
+  }
+  return json({ part: n })
+}
+
+/** Stream a stored object through the verifier, keeping nothing but what the verifier keeps. */
+async function verifyStored(
+  bucket: R2Bucket,
+  key: string,
+  deny: (cid: string) => boolean,
+): Promise<VerifiedCar> {
+  const object = await bucket.get(key)
+  if (object === null) throw new Error('the assembled upload is missing')
+  const { stream, result } = verifyingStream((roots: CID[]) => {
+    const denied = roots.find((root) => deny(root.toString()))
+    if (denied !== undefined) throw new CarRejected(`${denied} is not accepted here`)
+  })
+  await object.body.pipeThrough(stream).pipeTo(new WritableStream())
+  return result
+}
+
+/**
+ * `POST /upload/parts/<id>/complete`: assemble the parts, then verify the WHOLE CAR — every block
+ * against its CID, the shape, the metadata — before anything is indexed or served.
+ *
+ * Safe to call again: if the parts were already assembled (the answer to an earlier call was lost),
+ * the stored CAR is verified as it stands.
+ */
+async function completeParts(
+  env: HostingEnv,
+  wallet: string,
+  upload: PartsUpload & { uploadId: string },
+  deny: (cid: string) => boolean,
+  deps: HostingDeps,
+  onCommitted: ((images: RootIndex) => void) | undefined,
+): Promise<Response> {
+  const bucket = env.ART_HOSTED!
+  const key = carKey(upload.id)
+  const count = Math.ceil(upload.bytes / upload.partSize)
+  const parts = await callLedger<Part[]>(env, { op: 'parts', id: upload.id })
+  const missing = Array.from({ length: count }, (_, i) => i + 1).filter(
+    (n) => !parts.some((p) => p.n === n),
+  )
+  if (missing.length > 0) {
+    return refuse(409, `parts ${missing.slice(0, 10).join(', ')} have not arrived yet`)
+  }
+
+  const stored = await bucket.head(key)
+  if (stored === null) {
+    try {
+      await bucket
+        .resumeMultipartUpload(key, upload.uploadId)
+        .complete(parts.map((p) => ({ partNumber: p.n, etag: p.etag })))
+    } catch {
+      return refuse(500, 'the parts could not be assembled; try completing again')
+    }
+  } else if (stored.size !== upload.bytes) {
+    await Promise.allSettled([bucket.delete(key), callLedger(env, { op: 'release', id: upload.id })])
+    return refuse(400, 'the assembled upload is not the size it was started with')
+  }
+
+  let verified: VerifiedCar
+  try {
+    verified = await verifyStored(bucket, key, deny)
+  } catch (error) {
+    await Promise.allSettled([
+      bucket.delete([key, metaCarKey(upload.id)]),
+      callLedger(env, { op: 'release', id: upload.id }),
+    ])
+    return error instanceof CarRejected
+      ? refuse(400, error.message)
+      : refuse(500, 'the upload could not be checked')
+  }
+  return commitVerified(env, wallet, upload.id, verified, upload, deps, onCommitted)
 }
 
 /**
@@ -357,11 +681,19 @@ export async function serveHostedFile(
   return new Response(method === 'HEAD' ? null : hosted.bytes, { headers })
 }
 
-/** The whole CAR a hosted root arrived in — what a creator imports into IPFS to move the art. */
+/**
+ * The CAR for a hosted root. For the images root, the whole upload — what a creator imports into
+ * IPFS to move the art. For the metadata root, just the metadata when it was kept on its own, which
+ * is what a visitor's browser checks a move against; the whole upload for older ones.
+ */
 export async function serveCar(env: HostingEnv, cid: string, method: string): Promise<Response> {
   const bucket = env.ART_HOSTED
   const index = bucket === undefined ? null : await loadIndex(bucket, cid)
-  const object = index === null ? null : await bucket!.get(index.car)
+  const object =
+    index === null
+      ? null
+      : ((index.metaCar === undefined ? null : await bucket!.get(index.metaCar)) ??
+        (await bucket!.get(index.car)))
   if (object === null) return new Response('not hosted here', { status: 404 })
   return new Response(method === 'HEAD' ? null : object.body, {
     headers: {
