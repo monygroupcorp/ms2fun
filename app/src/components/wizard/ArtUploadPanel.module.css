@@ -80,3 +80,117 @@
 .note code {
   word-break: break-all;
 }
+
+.drop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px dashed var(--border-primary);
+}
+
+.dropActive {
+  border-style: solid;
+  background-color: var(--bg-primary);
+}
+
+.pick {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-primary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.hiddenInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+  gap: var(--space-2);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.thumb {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border: 1px solid var(--border-secondary);
+  background-color: var(--bg-primary);
+}
+
+.cardName,
+.cardTraits {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.cardTraits {
+  color: var(--text-tertiary);
+}
+
+.details {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+}
+
+.traits {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: var(--space-2);
+}
+
+.traits th,
+.traits td {
+  text-align: left;
+  vertical-align: top;
+  padding: var(--space-1) var(--space-2) var(--space-1) 0;
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.rare {
+  text-decoration: underline;
+  color: var(--text-primary);
+}
+
+.naming {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.naming label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.input {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  padding: var(--space-1) var(--space-2);
+}
