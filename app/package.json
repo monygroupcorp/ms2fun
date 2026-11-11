@@ -32,7 +32,8 @@
     "tithe:report": "tsx scripts/tithe-report.ts",
     "ipfs:latency": "tsx scripts/ipfs-gateway-latency.ts",
     "publish:preflight": "tsx scripts/assert-publishable.ts",
-    "rpc:check": "tsx scripts/check-rpcs.ts"
+    "rpc:check": "tsx scripts/check-rpcs.ts",
+    "art:examples": "tsx scripts/art-examples/write.ts"
   },
   "dependencies": {
     "@ipld/car": "5.4.7",

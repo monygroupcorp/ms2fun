@@ -61,3 +61,22 @@ describe('Markdown rendering', () => {
     expect(container.textContent).not.toContain('**')
   })
 })
+
+describe('Markdown downloads', () => {
+  it('links a file shipped with the app against the build base, as a download', () => {
+    const { container } = render(
+      <Markdown source="[the example](asset:art-examples/example-collection.zip)" />,
+    )
+    const a = container.querySelector('a')!
+    expect(a.getAttribute('href')).toBe(
+      `${import.meta.env.BASE_URL}art-examples/example-collection.zip`,
+    )
+    expect(a.hasAttribute('download')).toBe(true)
+  })
+
+  it('refuses an asset path that climbs out of public/', () => {
+    const { container } = render(<Markdown source="[x](asset:../secret)" />)
+    expect(container.querySelector('a')).toBeNull()
+    expect(container.textContent).toBe('[x](asset:../secret)')
+  })
+})

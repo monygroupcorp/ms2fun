@@ -11,6 +11,10 @@
  * Grammar (intentionally tiny — NOT a general Markdown engine): ATX headings `#`–`###`, paragraphs,
  * unordered (`-`/`*`) and ordered (`1.`) lists, links `[text](href)`, inline `` `code` ``, and
  * `**bold**`. Unsupported syntax degrades to plain text.
+ *
+ * DOWNLOADS: `[text](asset:art-examples/file.zip)` links a file in `public/`, resolved against the
+ * build's base so it works on the site and from an IPFS gateway alike (a root-anchored `/file.zip`
+ * would leave the pinned app on a gateway). Rendered with `download`.
  */
 import type { ReactNode } from 'react'
 
@@ -18,7 +22,7 @@ type Inline =
   | { type: 'text'; value: string }
   | { type: 'code'; value: string }
   | { type: 'bold'; value: string }
-  | { type: 'link'; text: string; href: string }
+  | { type: 'link'; text: string; href: string; download?: boolean }
 
 type Block =
   | { type: 'heading'; level: 1 | 2 | 3; inline: Inline[] }
@@ -27,6 +31,9 @@ type Block =
 
 const INLINE_RE = /(\*\*[^*]+\*\*)|(`[^`]*`)|(\[[^\]]*\]\([^)\s]+\))/g
 const LINK_RE = /^\[([^\]]*)\]\(([^)\s]+)\)$/
+
+/** A file shipped in `public/`, by its path there: lower-case, no `..`, no leading slash. */
+const ASSET_RE = /^asset:([a-z0-9][a-z0-9_-]*(?:\/[a-z0-9][a-z0-9_.-]*)*)$/
 
 /** Allow only http(s), mailto, and same-origin relative/anchor hrefs; everything else is dropped. */
 function safeHref(href: string): string | null {
@@ -54,9 +61,17 @@ function parseInline(text: string): Inline[] {
       out.push({ type: 'code', value: token.slice(1, -1) })
     } else {
       const link = LINK_RE.exec(token)
-      const href = link ? safeHref(link[2] ?? '') : null
-      if (link && href) out.push({ type: 'link', text: link[1] ?? '', href })
-      else out.push({ type: 'text', value: token }) // unsafe/unparseable → literal text
+      const asset = link ? ASSET_RE.exec(link[2] ?? '') : null
+      const href = asset
+        ? `${import.meta.env.BASE_URL}${asset[1]}`
+        : link
+          ? safeHref(link[2] ?? '')
+          : null
+      if (link && href) {
+        out.push({ type: 'link', text: link[1] ?? '', href, ...(asset ? { download: true } : {}) })
+      } else {
+        out.push({ type: 'text', value: token }) // unsafe/unparseable → literal text
+      }
     }
     last = idx + token.length
   }
@@ -120,7 +135,12 @@ function renderInline(nodes: Inline[]): ReactNode[] {
     if (n.type === 'bold') return <strong key={k}>{n.value}</strong>
     if (n.type === 'link')
       return (
-        <a key={k} href={n.href} rel="noopener noreferrer">
+        <a
+          key={k}
+          href={n.href}
+          rel="noopener noreferrer"
+          {...(n.download ? { download: '' } : {})}
+        >
           {n.text}
         </a>
       )
