@@ -26,12 +26,17 @@
         and nothing in the app uses either. `base-uri`/`form-action` are pinned to `'self'`.
       * `style-src` keeps `'unsafe-inline'` because a collection's `styleUri` CSS is injected as a
         <style> element (see ProjectStyle) and CSS modules inline styles in development.
+      * `connect-src` names plain-http loopback (`http://127.0.0.1:*`, `http://localhost:*`) and
+        nothing else over http. That is where a holder's own IPFS node answers (IPFS Desktop and
+        kubo serve their API on 127.0.0.1:5001 by default) when they pin a collection to it from the
+        collection page. The app sends nothing there without that click, and loopback never leaves
+        the holder's machine; every other plain-http origin stays refused.
       `frame-ancestors` is deliberately absent: it is ignored in a meta policy and belongs on a
       response header.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-src 'none'; manifest-src 'self'; worker-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src 'self' data: https: wss:"
+      content="default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-src 'none'; manifest-src 'self'; worker-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src 'self' data: https: wss: http://127.0.0.1:* http://localhost:*"
     />
     <!--
       Asset hrefs below go through vite's base-url placeholder, never a leading `/`. Vite

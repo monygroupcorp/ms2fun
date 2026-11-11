@@ -74,7 +74,8 @@ function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
   return a.byteLength === b.byteLength && a.every((byte, i) => byte === b[i])
 }
 
-async function verified(cid: CID, bytes: Uint8Array): Promise<void> {
+/** Throws unless `bytes` hash to `cid` (sha-256 only, which is what every CID here uses). */
+export async function verified(cid: CID, bytes: Uint8Array): Promise<void> {
   if (cid.multihash.code !== sha256.code) {
     throw new Error(`block ${cid.toString()} is not hashed with sha-256`)
   }
@@ -85,7 +86,7 @@ async function verified(cid: CID, bytes: Uint8Array): Promise<void> {
 }
 
 /** A response body as an async iterable, whether or not this browser's streams are iterable. */
-async function* bodyChunks(res: Response): AsyncGenerator<Uint8Array> {
+export async function* bodyChunks(res: Response): AsyncGenerator<Uint8Array> {
   if (res.body === null) return
   const reader = res.body.getReader()
   try {
@@ -112,7 +113,10 @@ async function fetchCar(host: string, cid: string, fetcher: typeof fetch): Promi
 }
 
 /** The files of a flat UnixFS directory (plain or sharded), by name. */
-function listDirectory(root: CID, blocks: ReadonlyMap<string, Uint8Array>): Map<string, CID> {
+export function listDirectory(
+  root: CID,
+  blocks: ReadonlyMap<string, Uint8Array>,
+): Map<string, CID> {
   const out = new Map<string, CID>()
   const visit = (cid: CID, top: boolean) => {
     const bytes = blocks.get(cid.toString())
@@ -136,7 +140,7 @@ function listDirectory(root: CID, blocks: ReadonlyMap<string, Uint8Array>): Map<
 }
 
 /** A file's bytes: one raw leaf, or a file node's raw leaves in order. */
-function fileBytes(cid: CID, blocks: ReadonlyMap<string, Uint8Array>): Uint8Array {
+export function fileBytes(cid: CID, blocks: ReadonlyMap<string, Uint8Array>): Uint8Array {
   const bytes = blocks.get(cid.toString())
   if (bytes === undefined) throw new Error(`the hosted CAR is missing block ${cid.toString()}`)
   if (cid.code !== dagPb.code) return bytes

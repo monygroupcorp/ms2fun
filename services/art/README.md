@@ -207,6 +207,14 @@ page does, in the visitor's browser, once the chain points at IPFS, and shows **
 when the chain points at the result. A bare upload's JSON (`{"name":"#1","image":...}`) migrates to
 exactly what it always did, so the shared test vectors from before still hold.
 
+**Holders keep copies too.** Every collection page has a "keep this collection alive" panel: any
+holder can pin the collection on their own IPFS node, ask their own pinning service to pin it, or
+download its CAR. For a hosted collection the CAR comes from `GET /car/<cid>`, and the holder's
+browser checks every block against its CID and every root against the chain before anything
+reaches their node; when this host no longer has the upload, the browser rebuilds the CAR from the
+public gateway roster instead (`?format=car`). Nothing here stores, pins or pays for those copies:
+they live on the holder's node or in the holder's account. See `app/src/lib/art/keep/`.
+
 **What the service knows.** The ledger's Durable Object alarm runs a watcher: at bind it reads the
 upload's image names and hosted metadata and works out that root once; every `HOSTED_CHECK_MINUTES` (60) it reads each
 collection's `graduated()` and `metadataURI()` over `UPLOAD_RPC_URL`. It **only informs** — it
