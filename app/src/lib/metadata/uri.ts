@@ -12,12 +12,14 @@
  * Pure TS (no React/wagmi) so NOEMA can reuse it; the deps are the pure, SSR-safe custom-gateway
  * store (W-A3/A4) and the gateway-health module that owns the ordering.
  */
+import { parseGatewayShapedUri } from '../art/hostingLimits'
 import { customGatewayStore } from '../storage/keys'
 import { normaliseArtServiceBase } from './artServiceBase'
 import {
   attemptTimeoutMs,
   classifyStatus,
   gatewayKey,
+  isCooling,
   nextAvailableAt,
   noteFault,
   noteOutcome,
@@ -55,6 +57,29 @@ export const CUSTOM_GATEWAY_PRIVACY_NOTICE =
  */
 const GATEWAY_TIMEOUT_MS = 12_000
 
+/**
+ * A gateway-shaped link (`https://<host>/ipfs/<cid>/<path>`) read as the content address it is.
+ *
+ * Hosted art is published under this shape, and so is a lot of art that was never hosted by us: a
+ * creator pastes the link their pinning service showed them. Either way the CID is the real
+ * identity and the host is only one place to get it. Read as an opaque URL, the pointer dies with
+ * that host; read as `ipfs://<cid>/<path>`, it falls back to the roster like any other.
+ *
+ * The host is kept, as `lead`: it is the place the creator chose, and for hosted art the only place
+ * the bytes exist until they move to IPFS. It is tried ahead of the public roster, health-tracked
+ * like a gateway, so a host that has gone quiet cools and is skipped.
+ */
+function asIpfs(uri: string): { uri: string; lead: IpfsGateway | null } {
+  const trimmed = uri.trim()
+  const shaped = parseGatewayShapedUri(trimmed)
+  if (shaped === null) return { uri: trimmed, lead: null }
+  const base = trimmed.slice(0, trimmed.indexOf('/ipfs/') + '/ipfs/'.length)
+  return {
+    uri: `ipfs://${shaped.cid}${shaped.path}`,
+    lead: { operator: 'origin', form: 'path', base },
+  }
+}
+
 /** Resolve a metadata URI to a fetchable URL for a given gateway (used for ipfs:// fallback). */
 export function resolveUri(uri: string, gatewayIndex = 0): string {
   const trimmed = uri.trim()
@@ -76,9 +101,9 @@ export function resolveUri(uri: string, gatewayIndex = 0): string {
  * to actually spend a request, use {@link resolveCandidates}, which is health-ordered.
  */
 export function resolveUriCandidates(uri: string): string[] {
-  const trimmed = uri.trim()
+  const { uri: trimmed, lead } = asIpfs(uri)
   if (trimmed.startsWith('ipfs://')) {
-    return ipfsUrls(ipfsPath(trimmed), getIpfsGateways())
+    return ipfsUrls(ipfsPath(trimmed), withLead(getIpfsGateways(), lead))
   }
   return [resolveUri(trimmed)]
 }
@@ -102,7 +127,8 @@ export function isResolvableUri(uri: string | undefined | null): uri is string {
  */
 export function isImmutableUri(uri: string | undefined | null): uri is string {
   if (!isResolvableUri(uri)) return false
-  return /^(ipfs:\/\/|ar:\/\/|data:)/.test(uri.trim())
+  // A gateway-shaped https link is a CID and a path, so it is as fixed as the ipfs:// form.
+  return /^(ipfs:\/\/|ar:\/\/|data:)/.test(asIpfs(uri).uri)
 }
 
 /**
@@ -110,7 +136,8 @@ export function isImmutableUri(uri: string | undefined | null): uri is string {
  * and `ipfs://ipfs/QmX` are one entry. Non-ipfs pointers key on the trimmed pointer itself.
  */
 export function contentKey(uri: string, width?: ArtWidth): string {
-  const trimmed = uri.trim()
+  // A gateway-shaped link and its ipfs:// form are the same content, so they share one entry.
+  const trimmed = asIpfs(uri).uri
   const base = trimmed.startsWith('ipfs://') ? `ipfs://${ipfsPath(trimmed)}` : trimmed
   // A resized variant is DIFFERENT BYTES under the same CID, so it cannot share the pointer's key.
   // Without this suffix a grid that cached a 320 px thumbnail would serve that thumbnail to the
@@ -162,6 +189,17 @@ export function getIpfsGateways(
 }
 
 /**
+ * The roster with a pointer's own host placed after the viewer's custom gateway (their explicit
+ * choice still comes first) and ahead of the public set.
+ */
+function withLead(gateways: IpfsGateway[], lead: IpfsGateway | null): IpfsGateway[] {
+  if (lead === null) return gateways
+  const rest = gateways.filter((g) => g.base !== lead.base)
+  const custom = rest.filter((g) => g.operator === 'custom')
+  return [...custom, lead, ...rest.filter((g) => g.operator !== 'custom')]
+}
+
+/**
  * The health-ordered URLs to try for a pointer, best-first, each tagged with the gateway identity
  * whose health it reports to.
  *
@@ -175,7 +213,7 @@ export function getIpfsGateways(
  * and no shared bucket to protect.
  */
 export function resolveCandidates(uri: string, width?: ArtWidth): UriCandidate[] {
-  const trimmed = uri.trim()
+  const { uri: trimmed, lead } = asIpfs(uri)
   if (!trimmed.startsWith('ipfs://')) return [{ url: resolveUri(trimmed), gatewayKey: null }]
   const path = ipfsPath(trimmed)
   const candidates: UriCandidate[] = []
@@ -188,14 +226,28 @@ export function resolveCandidates(uri: string, width?: ArtWidth): UriCandidate[]
   // Gateways stay underneath, and they serve the ORIGINAL rather than a variant. A viewer whose
   // art service is cold, over budget or gone therefore sees the right art at the wrong size, which
   // is a slower page and not a broken one.
-  candidates.push(...rosterCandidates(path))
+  candidates.push(...rosterCandidates(path, lead))
   return candidates
 }
 
-/** The public roster's candidates for a path, health-ordered, cooling entries dropped. */
-function rosterCandidates(path: string): UriCandidate[] {
+/**
+ * The public roster's candidates for a path, health-ordered, cooling entries dropped.
+ *
+ * A pointer's own host (`lead`, see {@link asIpfs}) is placed OUTSIDE the health ordering: ahead of
+ * the public set while it is healthy, last while it is cooling. Ranked among them by latency it
+ * would often lose to a fast public gateway, and for hosted art a public gateway has no copy — it
+ * would spend its whole timeout looking before the one host that does is asked.
+ */
+function rosterCandidates(path: string, lead: IpfsGateway | null = null): UriCandidate[] {
   const candidates: UriCandidate[] = []
-  for (const gateway of orderGateways(usableGateways(path))) {
+  const ordered = orderGateways(usableGateways(path))
+  const withHost =
+    lead === null || gatewayUrl(lead, path) === null
+      ? ordered
+      : isCooling(gatewayKey(lead))
+        ? [...ordered, lead]
+        : withLead(ordered, lead)
+  for (const gateway of withHost) {
     const url = gatewayUrl(gateway, path)
     if (url) candidates.push({ url, gatewayKey: gatewayKey(gateway) })
   }
@@ -212,13 +264,13 @@ function rosterCandidates(path: string): UriCandidate[] {
  * art, so one service that is down, over budget or switched off cools once and is skipped by both.
  */
 export function resolveMetaCandidates(uri: string): UriCandidate[] {
-  const trimmed = uri.trim()
+  const { uri: trimmed, lead } = asIpfs(uri)
   if (!trimmed.startsWith('ipfs://')) return [{ url: resolveUri(trimmed), gatewayKey: null }]
   const path = ipfsPath(trimmed)
   const candidates: UriCandidate[] = []
   const url = metaServiceUrl(path)
   if (url) candidates.push({ url, gatewayKey: ART_SERVICE_KEY })
-  candidates.push(...rosterCandidates(path))
+  candidates.push(...rosterCandidates(path, lead))
   return candidates
 }
 
@@ -322,8 +374,8 @@ export interface UriCandidate {
 }
 
 /** Every gateway that can address this path at all, regardless of health. */
-function usableGateways(path: string): IpfsGateway[] {
-  return getIpfsGateways().filter((gateway) => gatewayUrl(gateway, path) !== null)
+function usableGateways(path: string, lead: IpfsGateway | null = null): IpfsGateway[] {
+  return withLead(getIpfsGateways(), lead).filter((gateway) => gatewayUrl(gateway, path) !== null)
 }
 
 /**
@@ -331,9 +383,9 @@ function usableGateways(path: string): IpfsGateway[] {
  * first one can be asked again. 0 when at least one is askable now.
  */
 export function retryAtFor(uri: string): number {
-  const trimmed = uri.trim()
+  const { uri: trimmed, lead } = asIpfs(uri)
   if (!trimmed.startsWith('ipfs://')) return 0
-  return nextAvailableAt(usableGateways(ipfsPath(trimmed)))
+  return nextAvailableAt(usableGateways(ipfsPath(trimmed), lead))
 }
 
 /**
@@ -433,7 +485,7 @@ export async function fetchJson<T = unknown>(
   signal?: AbortSignal,
 ): Promise<MetadataResult<T>> {
   if (!isResolvableUri(uri)) return NOT_FOUND
-  const trimmed = uri.trim()
+  const { uri: trimmed, lead } = asIpfs(uri)
 
   // Non-ipfs: a single resolve + fetch. No gateway roster, so nothing to rotate or to cool.
   if (!trimmed.startsWith('ipfs://')) {
@@ -460,9 +512,9 @@ export async function fetchJson<T = unknown>(
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
 
   const path = ipfsPath(trimmed)
-  const addressable = usableGateways(path)
+  const addressable = usableGateways(path, lead)
   if (addressable.length === 0) return NOT_FOUND
-  const candidates = resolveMetaCandidates(trimmed)
+  const candidates = resolveMetaCandidates(uri)
   // Counted apart from the candidate list, which may hold the art service as well. With every
   // gateway cooling, the service is still worth asking — it answers on OUR quota, which is the whole
   // point of it — but a request that only ever reached the service says NOTHING about the roster.
