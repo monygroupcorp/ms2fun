@@ -28,16 +28,20 @@ enters the program only if its parent has a token with a real ETH pool.
 Note the gap that costs a row: **Uniswap V3 is a valid *reference* pool but NOT a valid *acquire*
 venue.** A target whose only real depth is V3 can be priced but not bought.
 
-**The counterfactual is arithmetic, not marketing.** `RevenueSplitLib` fixes it:
+**The counterfactual is arithmetic, not marketing.** `RevenueSplitLib.split()` fixes it, one split
+for every vault family, mint and graduation alike:
 
 | path | protocol | vault → alignment target | creator / LP |
 |---|---|---|---|
-| mint, liquidity-family vault (`UniswapV4LP`/`ZAMMLP`) | 1% | **19%** | 80% |
-| mint, yield-family vault (`AaveEndowment`) | 1% | **80%** — permanent principal, never refundable | 19% |
+| mint, any vault family | 1% | **19%** | 80% |
 | ERC404 graduation | 1% | **19%** | 80% to LP |
 
-So every row carries two headline numbers and both are defensible: 19% bought and LP'd into the
-parent's token, or 80% endowed forever with only the yield spent.
+So every row carries one headline number, and it is defensible precisely because it never varies:
+19% of every mint, bought and LP'd into the parent's token, with no family-picked alternative.
+
+*(Superseded 2026-11-11 — see §5: an earlier ruling had a yield-family vault take 80% as permanent
+principal instead of the 19% buy. That branch has since been removed from `contracts/src`
+entirely; `RevenueSplitLib.split()` now returns 1/19/80 unconditionally.)*
 
 ---
 
@@ -100,75 +104,75 @@ of them is measured on chain and re-derivable by anyone who doubts it.
 
 ### The derivative census — the collections that would align
 
-| collection | contract | supply | free | paid | mint ETH | 19% | 80% | metadata host | 404 base | confidence |
-|---|---|---|---|---|---|---|---|---|---|---|
-| SchizoPosters | `0xbfe47d…` | 5555 | 984 | 4,571 | **320.16** | 60.83 | 256.13 | centralized (schizoposters.xyz) | yes | measured |
-| Cigawrettes | `0xeed41d…` | 9998 | 975 | 9,023 | **259.27** | 49.26 | 207.41 | IPFS | no | measured |
-| BoredMilady | `0xafe128…` | 6911 | 151 | 6,760 | **223.08** | 42.38 | 178.46 | IPFS | yes | measured |
-| Radbro Webring V2 | `0xabcdb5…` | 5000 | 2,193 | 2,807 | **185.16** | 35.18 | 148.13 | centralized (radbro.xyz) | yes | measured |
-| Pixelady Maker | `0x8fc0d9…` | 10000 | 685 | 9,315 | **106.00** | 20.14 | 84.80 | IPFS | yes | measured |
-| milady mfers | `0x07e8d4…` | 10000 | 0 | 10,000 | **80.14** | 15.22 | 64.11 | IPFS | yes | measured |
-| Milad Maker | `0x61628d…` | 10000 | 2,798 | 7,202 | **72.59** | 13.79 | 58.07 | IPFS | yes | measured |
-| MiladyAura | `0x2fc722…` | 1888 | 39 | 1,849 | **61.09** | 11.60 | 48.87 | IPFS gateway (miladyaura.mypinata.cloud) | no | measured |
-| Streets of Milady | `0x94fe1d…` | 2121 | 508 | 1,613 | **34.42** | 6.54 | 27.53 | IPFS | no | measured |
-| Oekaki Maker | `0x8f7a23…` | 5555 | 4,134 | 1,421 | **32.21** | 6.12 | 25.76 | IPFS | yes | measured |
-| Milady Colombia | `0xed37c9…` | 1000 | 1 | 999 | **31.48** | 5.98 | 25.19 | IPFS | no | measured |
-| ELITE MAKER | `0x61b0e5…` | 777 | 15 | 762 | **30.45** | 5.78 | 24.36 | IPFS | yes | measured |
-| Azuki Milady | `0x4a519d…` | 1151 | 20 | 1,131 | **27.83** | 5.28 | 22.26 | IPFS | yes | measured |
-| Ghiblady Maker | `0x186e74…` | 2600 | 1,460 | 1,140 | **24.75** | 4.70 | 19.80 | IPFS | yes | measured |
-| NotOkayMiladys | `0xa5f1fc…` | 2090 | 1,300 | 790 | **22.18** | 4.21 | 17.74 | IPFS | yes | measured |
-| Mifairy Maker | `0x67b5ee…` | 3333 | 1,923 | 1,410 | **12.77** | 2.42 | 10.21 | IPFS | yes | measured |
-| Matrix Milady | `0x424620…` | 1337 | 407 | 930 | **12.43** | 2.36 | 9.94 | IPFS | yes | measured |
-| milAIdy | `0x0d8a33…` | 333 | 0 | 333 | **10.98** | 2.08 | 8.79 | IPFS | yes | measured |
-| spring miaura | `0x3a007a…` | 333 | 13 | 320 | **10.89** | 2.06 | 8.71 | IPFS gateway (miladyaura.mypinata.cloud) | yes | measured |
-| water mililys | `0x71481a…` | 333 | 42 | 291 | **9.60** | 1.82 | 7.68 | IPFS | yes | measured |
-| Tubby Milady Maker | `0xc0f820…` | 1133 | 48 | 1,085 | **9.52** | 1.81 | 7.62 | IPFS | yes | measured |
-| MiladyCola | `0xe0c839…` | 360 | 15 | 829 | **7.94** | 1.51 | 6.35 | IPFS | yes | measured |
-| MiladyRave | `0x880a96…` | 2500 | 2,282 | 218 | **7.74** | 1.47 | 6.19 | IPFS | no | measured |
-| Pixeladies | `0xe96f3a…` | 333 | 69 | 264 | **5.98** | 1.13 | 4.78 | centralized (cdn-api.niftykit.com) | yes | measured |
-| lawbsters | `0x0ef7ba…` | 420 | 112 | 308 | **5.96** | 1.13 | 4.77 | IPFS | yes | measured |
-| Milady Pocket | `0x3c9eab…` | 1111 | 661 | 450 | **5.65** | 1.07 | 4.52 | IPFS | yes | measured |
-| MiladyStation | `0xb24bab…` | 1212 | 519 | 693 | **5.58** | 1.06 | 4.47 | IPFS | yes | measured |
-| Midenza Maker | `0x4994cb…` | 244 | 52 | 192 | **5.09** | 0.96 | 4.07 | IPFS | yes | measured |
-| Meowlady Maker | `0x441121…` | 1080 | 587 | 493 | **4.86** | 0.92 | 3.89 | IPFS | yes | measured |
-| Anti-Miladies | `0x2a071e…` | 10000 | 9,732 | 268 | **4.01** | 0.76 | 3.20 | centralized (api.anti-miladies.com) | yes | measured |
-| coolmiladys | `0x3ac0cb…` | 392 | 10 | 382 | **3.87** | 0.73 | 3.09 | IPFS gateway (ipfs.omakasea.com) | yes | measured |
-| Zlady Maker | `0xd5e0b0…` | 151 | 72 | 79 | **2.82** | 0.53 | 2.25 | IPFS | yes | measured |
-| McLady Maker | `0x366918…` | 128 | 10 | 118 | **2.79** | 0.53 | 2.23 | IPFS | yes | measured |
-| Rorita Maker | `0x7a3d2f…` | 1945 | 484 | 1,461 | **2.54** | 0.48 | 2.03 | IPFS | no | measured |
-| Strawberry Juice | `0xdc71c7…` | 100 | 2 | 98 | **2.45** | 0.46 | 1.96 | IPFS | yes | measured |
-| Mosaiclady Maker | `0xe70a7b…` | 5560 | 4,315 | 1,245 | **2.38** | 0.45 | 1.90 | IPFS | yes | measured |
-| Milady Christmas | `0x57282f…` | 223 | 114 | 109 | **2.35** | 0.44 | 1.88 | IPFS | yes | measured |
-| R3DBRO | `0x392c4a…` | 169 | 51 | 118 | **1.87** | 0.35 | 1.49 | IPFS | yes | measured |
-| BEETLE GAME | `0x9a2aba…` | 161 | 6 | 155 | **1.23** | 0.23 | 0.99 | IPFS | yes | measured |
-| Pixel Miladies | `0xa20594…` | 6969 | 6,557 | 412 | **0.83** | 0.15 | 0.66 | IPFS | no | measured |
-| mimories | `0xa393b1…` | 1686 | 1,522 | 164 | **0.82** | 0.15 | 0.65 | IPFS | no | measured |
-| Milady Maker X LITE | `0xe6ec7d…` | 1000 | 980 | 20 | **0.20** | 0.03 | 0.16 | IPFS | no | measured |
-| Milady Christmas Pets | `0xf66450…` | 121 | 121 | 0 | **0.00** | 0.00 | 0.00 | IPFS | yes | measured |
-| Milady Rainbow Zorb | `0xf00efb…` | 91 | 91 | 0 | **0.00** | 0.00 | 0.00 | on-chain (data URI) | no | measured |
-| Sonora222 | `0xdb403f…` | 108 | 108 | 0 | **0.00** | 0.00 | 0.00 | IPFS gateway (seedoil.mypinata.cloud) | yes | measured |
-| Pixelady Maker WOTLK | `0xcdde79…` | 150 | 150 | 0 | **0.00** | 0.00 | 0.00 | IPFS | yes | measured |
-| KARDLADY | `0xcbaa32…` | 87 | 87 | 0 | **0.00** | 0.00 | 0.00 | IPFS | yes | measured |
-| Pixelady Maker: Radbro | `0xb2619d…` | 100 | 100 | 0 | **0.00** | 0.00 | 0.00 | IPFS | yes | measured |
-| SonoraMaker | `0x9a051c…` | 444 | 444 | 0 | **0.00** | 0.00 | 0.00 | IPFS gateway (ipfs.io) | yes | measured |
-| Milady333 | `0x8a45fb…` | 333 | 333 | 0 | **0.00** | 0.00 | 0.00 | centralized (miladymaker.net) | yes | measured |
-| Sudo Bastard Miladys | `0x58ae0d…` | — | 1,666 | 0 | **0.00** | 0.00 | 0.00 | on-chain (data URI) | no | measured |
-| Pixelady Maker BC | `0x4d40c6…` | 1000 | 1,000 | 0 | **0.00** | 0.00 | 0.00 | IPFS | yes | measured |
-| Rainbow Zorblady Maker | `0x43316b…` | 69 | 69 | 0 | **0.00** | 0.00 | 0.00 | on-chain (data URI) | no | measured |
-| Yona Honorary Service | `0x283d7a…` | 11 | 11 | 0 | **0.00** | 0.00 | 0.00 | IPFS | no | measured |
-| Merikuri | `0x0b121c…` | 125 | 125 | 0 | **0.00** | 0.00 | 0.00 | IPFS | yes | measured |
+| collection | contract | supply | free | paid | mint ETH | 19% aligned | metadata host | 404 base | confidence |
+|---|---|---|---|---|---|---|---|---|---|
+| SchizoPosters | `0xbfe47d…` | 5555 | 984 | 4,571 | **320.16** | 60.83 | centralized (schizoposters.xyz) | yes | measured |
+| Cigawrettes | `0xeed41d…` | 9998 | 975 | 9,023 | **259.27** | 49.26 | IPFS | no | measured |
+| BoredMilady | `0xafe128…` | 6911 | 151 | 6,760 | **223.08** | 42.38 | IPFS | yes | measured |
+| Radbro Webring V2 | `0xabcdb5…` | 5000 | 2,193 | 2,807 | **185.16** | 35.18 | centralized (radbro.xyz) | yes | measured |
+| Pixelady Maker | `0x8fc0d9…` | 10000 | 685 | 9,315 | **106.00** | 20.14 | IPFS | yes | measured |
+| milady mfers | `0x07e8d4…` | 10000 | 0 | 10,000 | **80.14** | 15.22 | IPFS | yes | measured |
+| Milad Maker | `0x61628d…` | 10000 | 2,798 | 7,202 | **72.59** | 13.79 | IPFS | yes | measured |
+| MiladyAura | `0x2fc722…` | 1888 | 39 | 1,849 | **61.09** | 11.60 | IPFS gateway (miladyaura.mypinata.cloud) | no | measured |
+| Streets of Milady | `0x94fe1d…` | 2121 | 508 | 1,613 | **34.42** | 6.54 | IPFS | no | measured |
+| Oekaki Maker | `0x8f7a23…` | 5555 | 4,134 | 1,421 | **32.21** | 6.12 | IPFS | yes | measured |
+| Milady Colombia | `0xed37c9…` | 1000 | 1 | 999 | **31.48** | 5.98 | IPFS | no | measured |
+| ELITE MAKER | `0x61b0e5…` | 777 | 15 | 762 | **30.45** | 5.78 | IPFS | yes | measured |
+| Azuki Milady | `0x4a519d…` | 1151 | 20 | 1,131 | **27.83** | 5.28 | IPFS | yes | measured |
+| Ghiblady Maker | `0x186e74…` | 2600 | 1,460 | 1,140 | **24.75** | 4.70 | IPFS | yes | measured |
+| NotOkayMiladys | `0xa5f1fc…` | 2090 | 1,300 | 790 | **22.18** | 4.21 | IPFS | yes | measured |
+| Mifairy Maker | `0x67b5ee…` | 3333 | 1,923 | 1,410 | **12.77** | 2.42 | IPFS | yes | measured |
+| Matrix Milady | `0x424620…` | 1337 | 407 | 930 | **12.43** | 2.36 | IPFS | yes | measured |
+| milAIdy | `0x0d8a33…` | 333 | 0 | 333 | **10.98** | 2.08 | IPFS | yes | measured |
+| spring miaura | `0x3a007a…` | 333 | 13 | 320 | **10.89** | 2.06 | IPFS gateway (miladyaura.mypinata.cloud) | yes | measured |
+| water mililys | `0x71481a…` | 333 | 42 | 291 | **9.60** | 1.82 | IPFS | yes | measured |
+| Tubby Milady Maker | `0xc0f820…` | 1133 | 48 | 1,085 | **9.52** | 1.81 | IPFS | yes | measured |
+| MiladyCola | `0xe0c839…` | 360 | 15 | 829 | **7.94** | 1.51 | IPFS | yes | measured |
+| MiladyRave | `0x880a96…` | 2500 | 2,282 | 218 | **7.74** | 1.47 | IPFS | no | measured |
+| Pixeladies | `0xe96f3a…` | 333 | 69 | 264 | **5.98** | 1.13 | centralized (cdn-api.niftykit.com) | yes | measured |
+| lawbsters | `0x0ef7ba…` | 420 | 112 | 308 | **5.96** | 1.13 | IPFS | yes | measured |
+| Milady Pocket | `0x3c9eab…` | 1111 | 661 | 450 | **5.65** | 1.07 | IPFS | yes | measured |
+| MiladyStation | `0xb24bab…` | 1212 | 519 | 693 | **5.58** | 1.06 | IPFS | yes | measured |
+| Midenza Maker | `0x4994cb…` | 244 | 52 | 192 | **5.09** | 0.96 | IPFS | yes | measured |
+| Meowlady Maker | `0x441121…` | 1080 | 587 | 493 | **4.86** | 0.92 | IPFS | yes | measured |
+| Anti-Miladies | `0x2a071e…` | 10000 | 9,732 | 268 | **4.01** | 0.76 | centralized (api.anti-miladies.com) | yes | measured |
+| coolmiladys | `0x3ac0cb…` | 392 | 10 | 382 | **3.87** | 0.73 | IPFS gateway (ipfs.omakasea.com) | yes | measured |
+| Zlady Maker | `0xd5e0b0…` | 151 | 72 | 79 | **2.82** | 0.53 | IPFS | yes | measured |
+| McLady Maker | `0x366918…` | 128 | 10 | 118 | **2.79** | 0.53 | IPFS | yes | measured |
+| Rorita Maker | `0x7a3d2f…` | 1945 | 484 | 1,461 | **2.54** | 0.48 | IPFS | no | measured |
+| Strawberry Juice | `0xdc71c7…` | 100 | 2 | 98 | **2.45** | 0.46 | IPFS | yes | measured |
+| Mosaiclady Maker | `0xe70a7b…` | 5560 | 4,315 | 1,245 | **2.38** | 0.45 | IPFS | yes | measured |
+| Milady Christmas | `0x57282f…` | 223 | 114 | 109 | **2.35** | 0.44 | IPFS | yes | measured |
+| R3DBRO | `0x392c4a…` | 169 | 51 | 118 | **1.87** | 0.35 | IPFS | yes | measured |
+| BEETLE GAME | `0x9a2aba…` | 161 | 6 | 155 | **1.23** | 0.23 | IPFS | yes | measured |
+| Pixel Miladies | `0xa20594…` | 6969 | 6,557 | 412 | **0.83** | 0.15 | IPFS | no | measured |
+| mimories | `0xa393b1…` | 1686 | 1,522 | 164 | **0.82** | 0.15 | IPFS | no | measured |
+| Milady Maker X LITE | `0xe6ec7d…` | 1000 | 980 | 20 | **0.20** | 0.03 | IPFS | no | measured |
+| Milady Christmas Pets | `0xf66450…` | 121 | 121 | 0 | **0.00** | 0.00 | IPFS | yes | measured |
+| Milady Rainbow Zorb | `0xf00efb…` | 91 | 91 | 0 | **0.00** | 0.00 | on-chain (data URI) | no | measured |
+| Sonora222 | `0xdb403f…` | 108 | 108 | 0 | **0.00** | 0.00 | IPFS gateway (seedoil.mypinata.cloud) | yes | measured |
+| Pixelady Maker WOTLK | `0xcdde79…` | 150 | 150 | 0 | **0.00** | 0.00 | IPFS | yes | measured |
+| KARDLADY | `0xcbaa32…` | 87 | 87 | 0 | **0.00** | 0.00 | IPFS | yes | measured |
+| Pixelady Maker: Radbro | `0xb2619d…` | 100 | 100 | 0 | **0.00** | 0.00 | IPFS | yes | measured |
+| SonoraMaker | `0x9a051c…` | 444 | 444 | 0 | **0.00** | 0.00 | IPFS gateway (ipfs.io) | yes | measured |
+| Milady333 | `0x8a45fb…` | 333 | 333 | 0 | **0.00** | 0.00 | centralized (miladymaker.net) | yes | measured |
+| Sudo Bastard Miladys | `0x58ae0d…` | — | 1,666 | 0 | **0.00** | 0.00 | on-chain (data URI) | no | measured |
+| Pixelady Maker BC | `0x4d40c6…` | 1000 | 1,000 | 0 | **0.00** | 0.00 | IPFS | yes | measured |
+| Rainbow Zorblady Maker | `0x43316b…` | 69 | 69 | 0 | **0.00** | 0.00 | on-chain (data URI) | no | measured |
+| Yona Honorary Service | `0x283d7a…` | 11 | 11 | 0 | **0.00** | 0.00 | IPFS | no | measured |
+| Merikuri | `0x0b121c…` | 125 | 125 | 0 | **0.00** | 0.00 | IPFS | yes | measured |
 
-**55 collections · 50,153 free mints · 71,828 paid mints · 1654.13 ETH → 314.28 ETH aligned (19%) or 1323.30 ETH endowed (80%).**
+**55 collections · 50,153 free mints · 71,828 paid mints · 1654.13 ETH minted → 314.28 ETH aligned at 19%, locked for every collection alike.**
 
 ### First-party Remilia — the TARGET side, shown for scale, never counted as owing
 
-| collection | contract | supply | free | paid | mint ETH | 19% | 80% | metadata host | 404 base | confidence |
-|---|---|---|---|---|---|---|---|---|---|---|
-| TEST NFT | `0xd3d9dd…` | 10000 | 2,153 | 7,847 | **862.37** | 163.85 | 689.89 | centralized (remilio.org) | yes | measured |
-| Milady Maker Party | `0x05c632…` | 3000 | 1,446 | 1,554 | **77.62** | 14.74 | 62.10 | IPFS | yes | measured |
-| This User... Banners | `0x135214…` | 2000 | 1,564 | 436 | **43.60** | 8.28 | 34.88 | centralized (miladymaker.net) | yes | measured |
+| collection | contract | supply | free | paid | mint ETH | 19% aligned | metadata host | 404 base | confidence |
+|---|---|---|---|---|---|---|---|---|---|
+| TEST NFT | `0xd3d9dd…` | 10000 | 2,153 | 7,847 | **862.37** | 163.85 | centralized (remilio.org) | yes | measured |
+| Milady Maker Party | `0x05c632…` | 3000 | 1,446 | 1,554 | **77.62** | 14.74 | IPFS | yes | measured |
+| This User... Banners | `0x135214…` | 2000 | 1,564 | 436 | **43.60** | 8.28 | centralized (miladymaker.net) | yes | measured |
 
-**3 collections · 5,163 free mints · 9,837 paid mints · 983.59 ETH → 186.88 ETH aligned (19%) or 786.87 ETH endowed (80%).**
+**3 collections · 5,163 free mints · 9,837 paid mints · 983.59 ETH minted → 186.88 ETH aligned at 19%, locked for every collection alike.**
 
 **`404 base` reads whether the collection's own art drops into an ERC404 instance verbatim.**
 `ERC404BondingInstance._tokenURI` concatenates `base + tokenId` with no suffix, so a `tokenURI`
@@ -180,7 +184,15 @@ ones," and the free-mint half is what makes the paid half legible.
 
 ---
 
-## 5. Vault-family assignment — rth's ruling, 2026-08-21
+## 5. Vault-family assignment — rth's ruling, 2026-08-21 (superseded 2026-11-11)
+
+**This section's mechanism no longer exists in the contracts.** `RevenueSplitLib.split()` now
+returns the same 1/19/80 split for every vault family — the 80%-endowment branch described below
+(`splitMintFor(amount, liquidityFamily=false)`) has been removed from `contracts/src` entirely
+(grep finds zero hits). Pixelady Figmata, the endowment instance this ruling names, now aligns at
+the same 19% as every other collection in the census (17.15 ETH on its 90.27 ETH raise, not the
+80%-framed 72.21 ETH this section once argued for). The rest of this section is kept for the
+record of the ruling and its reasoning, not as a description of current behavior.
 
 **The default is the liquidity family: 19% to the aligned community, 1% protocol — 20% off the top.**
 The 80% endowment is reserved, not spread.

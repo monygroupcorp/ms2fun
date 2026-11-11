@@ -28,16 +28,20 @@ enters the program only if its parent has a token with a real ETH pool.
 Note the gap that costs a row: **Uniswap V3 is a valid *reference* pool but NOT a valid *acquire*
 venue.** A target whose only real depth is V3 can be priced but not bought.
 
-**The counterfactual is arithmetic, not marketing.** `RevenueSplitLib` fixes it:
+**The counterfactual is arithmetic, not marketing.** `RevenueSplitLib.split()` fixes it, one split
+for every vault family, mint and graduation alike:
 
 | path | protocol | vault → alignment target | creator / LP |
 |---|---|---|---|
-| mint, liquidity-family vault (`UniswapV4LP`/`ZAMMLP`) | 1% | **19%** | 80% |
-| mint, yield-family vault (`AaveEndowment`) | 1% | **80%** — permanent principal, never refundable | 19% |
+| mint, any vault family | 1% | **19%** | 80% |
 | ERC404 graduation | 1% | **19%** | 80% to LP |
 
-So every row carries two headline numbers and both are defensible: 19% bought and LP'd into the
-parent's token, or 80% endowed forever with only the yield spent.
+So every row carries one headline number, and it is defensible precisely because it never varies:
+19% of every mint, bought and LP'd into the parent's token, with no family-picked alternative.
+
+*(Superseded 2026-11-11 — see §5: an earlier ruling had a yield-family vault take 80% as permanent
+principal instead of the 19% buy. That branch has since been removed from `contracts/src`
+entirely; `RevenueSplitLib.split()` now returns 1/19/80 unconditionally.)*
 
 ---
 
@@ -116,7 +120,15 @@ ones," and the free-mint half is what makes the paid half legible.
 
 ---
 
-## 5. Vault-family assignment — rth's ruling, 2026-08-21
+## 5. Vault-family assignment — rth's ruling, 2026-08-21 (superseded 2026-11-11)
+
+**This section's mechanism no longer exists in the contracts.** `RevenueSplitLib.split()` now
+returns the same 1/19/80 split for every vault family — the 80%-endowment branch described below
+(`splitMintFor(amount, liquidityFamily=false)`) has been removed from `contracts/src` entirely
+(grep finds zero hits). Pixelady Figmata, the endowment instance this ruling names, now aligns at
+the same 19% as every other collection in the census (17.15 ETH on its 90.27 ETH raise, not the
+80%-framed 72.21 ETH this section once argued for). The rest of this section is kept for the
+record of the ruling and its reasoning, not as a description of current behavior.
 
 **The default is the liquidity family: 19% to the aligned community, 1% protocol — 20% off the top.**
 The 80% endowment is reserved, not spread.

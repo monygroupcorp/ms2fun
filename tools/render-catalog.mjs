@@ -40,8 +40,10 @@ for (const f of readdirSync(dir).filter((f) => f.endsWith('.json')).sort()) {
   records.push(rec);
 }
 
-// RevenueSplitLib, exactly: mint on a liquidity-family vault sends 19% to the alignment target and
-// 1% to the protocol; on a yield-family vault, 80% is endowed as permanent principal.
+// RevenueSplitLib.split(), exactly: every mint and every graduation sends 1% to the protocol and
+// 19% to the alignment target, with no family branch. The old yield-family 80%-endowment path
+// (`splitMintFor(..., liquidityFamily=false)`) has been removed from contracts/src — see
+// narrative.md §5.
 const cut = (wei, pct) => ethStr((BigInt(wei) * BigInt(pct)) / 100n, 2);
 const n = (x) => x.toLocaleString('en-US');
 
@@ -49,13 +51,13 @@ const censusTable = (cls) => {
   const rows = records
     .filter((r) => r._item.class === cls && r.mint)
     .sort((a, b) => (BigInt(b.mint.grossWei) > BigInt(a.mint.grossWei) ? 1 : -1));
-  const head = '| collection | contract | supply | free | paid | mint ETH | 19% | 80% | metadata host | 404 base | confidence |\n'
-             + '|---|---|---|---|---|---|---|---|---|---|---|';
+  const head = '| collection | contract | supply | free | paid | mint ETH | 19% aligned | metadata host | 404 base | confidence |\n'
+             + '|---|---|---|---|---|---|---|---|---|---|';
   const body = rows.map((r) => {
     const m = r.mint;
     return `| ${r._item.label} | \`${r.address.slice(0, 8)}…\` | ${m.identity.totalSupply ?? '—'} `
       + `| ${n(m.free)} | ${n(m.paid)} | **${ethStr(m.grossWei, 2)}** | ${cut(m.grossWei, 19)} `
-      + `| ${cut(m.grossWei, 80)} | ${m.tokenURI.host} | ${m.tokenURI.erc404BaseReusable ? 'yes' : 'no'} `
+      + `| ${m.tokenURI.host} | ${m.tokenURI.erc404BaseReusable ? 'yes' : 'no'} `
       + `| ${m.confidence === 'measured' ? 'measured' : '**' + m.confidence + '**'} |`;
   }).join('\n');
 
@@ -63,7 +65,7 @@ const censusTable = (cls) => {
   const free = rows.reduce((a, r) => a + r.mint.free, 0);
   const paid = rows.reduce((a, r) => a + r.mint.paid, 0);
   const total = `\n\n**${rows.length} collections · ${n(free)} free mints · ${n(paid)} paid mints `
-    + `· ${ethStr(gross, 2)} ETH → ${cut(gross, 19)} ETH aligned (19%) or ${cut(gross, 80)} ETH endowed (80%).**`;
+    + `· ${ethStr(gross, 2)} ETH minted → ${cut(gross, 19)} ETH aligned at 19%, locked for every collection alike.**`;
   return rows.length ? head + '\n' + body + total : '_No records yet._';
 };
 
