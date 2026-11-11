@@ -6,11 +6,20 @@
  * Public gateways meter by client IP, so the grid that decides whether a stranger stays is the one
  * most likely to go grey. This serves those bytes from infrastructure we control instead.
  *
- * It is a CACHE AND NOT CUSTODY (rth 2026-09-25). It stores what it has served, it evicts on the
+ * The read path is a CACHE AND NOT CUSTODY. It stores what it has served, it evicts on the cache
  * bucket's own lifecycle rule, and it claims no permanence: a collection whose own pin dies
- * degrades visibly rather than being hosted by us forever. Nothing here pins, re-pins, or promises
- * to hold anything. That is a deliberate refusal — pinning work that is not ours is an unbounded
- * bill, a moderation surface, and a promise we would have to keep.
+ * degrades visibly rather than being hosted by us forever. Nothing on that path pins, re-pins, or
+ * promises to hold anything — pinning work that is not ours is an unbounded bill, a moderation
+ * surface, and a promise we would have to keep.
+ *
+ * ── The one exception: art uploaded through the site ──────────────────────────────────────────
+ * A creator may upload art through the launch wizard instead of setting up IPFS first. That art is
+ * HOSTED: held in a separate bucket with no eviction rule, addressed by the IPFS CIDs it was built
+ * under, for a limited time and with no permanence claim. Unlaunched uploads expire after a week; a
+ * launched collection's art is expected to move to IPFS after it graduates. The CID is what makes
+ * the move free — every pointer stays valid wherever the bytes end up. The code is in `hosted/`,
+ * and every read route here asks it first and falls through to the cache and roster when the CID is
+ * not hosted.
  *
  * ── Why the app is not required to know about it ──────────────────────────────────────────────
  * The app addresses this service only when `VITE_ART_SERVICE` names one, and it reports failures
@@ -19,9 +28,12 @@
  * exactly as it did before this existed. Unset is a supported state, not a degraded one. That is
  * what keeps a fork able to run with its own service or with none at all.
  *
- * ── The two requests this answers ─────────────────────────────────────────────────────────────
+ * ── The requests this answers ─────────────────────────────────────────────────────────────────
  *   GET /art/<ipfs-path>?w=<width>    the image, at one of the rungs the app snaps to
  *   GET /meta/<ipfs-path>             the collection's metadata JSON, verbatim
+ *   GET /ipfs/<cid>/<file>            gateway-shaped: hosted bytes first, else cache and roster
+ *   GET /car/<cid>                    the CAR a hosted root arrived in, to move it to IPFS
+ *   /upload/...                       sign-in, upload, bind — see `hosted/routes.ts`
  *
  * BOTH, because one without the other does not achieve the thing. A card cannot render art until it
  * has read the JSON that names the art's CID, so a grid served art from here and metadata from a
@@ -34,9 +46,16 @@
  * invent its own.
  */
 
+import { sniffImage } from '../../../app/src/lib/art/hostingLimits'
 import { gatewayUrl, IPFS_GATEWAYS, type IpfsGateway } from '../../../app/src/lib/metadata/gateways'
+import type { RootIndex } from './hosted/car'
+import type { HostingEnv } from './hosted/config'
+import { handleUpload, readHosted, serveCar, serveHostedFile } from './hosted/routes'
+import { loadIndex, readHostedFile } from './hosted/store'
 
-export interface Env {
+export { HostingLedger } from './hosted/ledgerObject'
+
+export interface Env extends HostingEnv {
   /** Where served bytes are cached. Eviction is the bucket's lifecycle rule, not this worker's job. */
   ART_CACHE: R2Bucket
   /**
@@ -171,6 +190,11 @@ function cidOf(path: string): string {
   return path.split('/')[0]!
 }
 
+/** The part of a request path after the CID; '' for a bare CID. */
+function fileOf(path: string): string {
+  return path.split('/').slice(1).join('/')
+}
+
 function isSafePath(path: string): boolean {
   if (!IPFS_PATH.test(path)) return false
   return !path.split('/').some((seg) => seg === '.' || seg === '..')
@@ -184,6 +208,11 @@ function cacheKey(path: string, width: number): string {
 /** The bucket key for a metadata document. Prefixed so it can never collide with a width key. */
 function metaKey(path: string): string {
   return `meta/${path}`
+}
+
+/** The bucket key for an original fetched through `/ipfs/`. Prefixed apart from both of the above. */
+function ipfsKey(path: string): string {
+  return `ipfs/${path}`
 }
 
 /**
@@ -201,7 +230,7 @@ function looksLikeJson(contentType: string, body: string): boolean {
 }
 
 /** The response for a metadata document: JSON, never interpreted, cacheable by content address. */
-function servedJson(body: string, cacheStatus: 'hit' | 'miss'): Response {
+function servedJson(body: string, cacheStatus: CacheStatus): Response {
   return new Response(body, {
     headers: {
       // Served as JSON whatever the gateway called it — gateways label IPFS JSON as octet-stream,
@@ -216,7 +245,10 @@ function servedJson(body: string, cacheStatus: 'hit' | 'miss'): Response {
   })
 }
 
-function served(body: BodyInit, contentType: string, cacheStatus: 'hit' | 'miss'): Response {
+/** Where an answer came from: the cache, the roster just now, or hosted storage. */
+type CacheStatus = 'hit' | 'miss' | 'hosted'
+
+function served(body: BodyInit, contentType: string, cacheStatus: CacheStatus): Response {
   return new Response(body, {
     headers: {
       'content-type': contentType,
@@ -309,6 +341,7 @@ function gone(env: Env, ctx: ExecutionContext, path: string, widths: readonly nu
     Promise.all([
       ...widths.map((w) => env.ART_CACHE.delete(cacheKey(path, w))),
       env.ART_CACHE.delete(metaKey(path)),
+      env.ART_CACHE.delete(ipfsKey(path)),
     ]).then(
       () => undefined,
       () => undefined,
@@ -341,6 +374,12 @@ async function serveMeta(
   widths: readonly number[],
 ): Promise<Response> {
   if (denylistOf(env).has(cidOf(path))) return gone(env, ctx, path, widths)
+
+  // Hosted first: those bytes are already ours and verified, so there is nothing to cache.
+  const hosted = await readHosted(env, cidOf(path), fileOf(path))
+  if (hosted !== null && hosted.type.startsWith('application/json')) {
+    return servedJson(new TextDecoder().decode(hosted.bytes), 'hosted')
+  }
 
   const key = metaKey(path)
   const hit = await env.ART_CACHE.get(key)
@@ -382,21 +421,57 @@ function readableCrossOrigin(response: Response): Response {
   })
 }
 
+/**
+ * The answer to a CORS preflight. Only the upload routes need one — a PUT with a bearer token is
+ * not a simple request — but answering it everywhere costs nothing and cannot be forgotten.
+ */
+function preflight(): Response {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'access-control-allow-origin': '*',
+      'access-control-allow-methods': 'GET, HEAD, POST, PUT, DELETE, OPTIONS',
+      'access-control-allow-headers': 'authorization, content-type',
+      'access-control-max-age': '86400',
+    },
+  })
+}
+
+/** A HEAD answers with the headers a GET would have, and no body. */
+function headOnly(request: Request, response: Response): Response {
+  if (request.method !== 'HEAD' || response.body === null) return response
+  return new Response(null, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  })
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    return readableCrossOrigin(await handle(request, env, ctx))
+    return readableCrossOrigin(headOnly(request, await handle(request, env, ctx)))
   },
 }
 
 async function handle(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  if (request.method === 'OPTIONS') return preflight()
+
+  const url = new URL(request.url)
+  if (url.pathname.startsWith('/upload/')) {
+    return handleUpload(request, env, (cid) => denylistOf(env).has(cid), undefined, (images) =>
+      ctx.waitUntil(warmHosted(env, images).catch(() => undefined)),
+    )
+  }
+
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     return new Response('method not allowed', { status: 405 })
   }
 
-  const url = new URL(request.url)
   const ART = '/art/'
   const META = '/meta/'
-  const prefix = url.pathname.startsWith(META) ? META : ART
+  const IPFS = '/ipfs/'
+  const CAR = '/car/'
+  const prefix = [META, IPFS, CAR].find((p) => url.pathname.startsWith(p)) ?? ART
   if (!url.pathname.startsWith(prefix)) return new Response('not found', { status: 404 })
 
   const path = decodeURIComponent(url.pathname.slice(prefix.length))
@@ -405,6 +480,12 @@ async function handle(request: Request, env: Env, ctx: ExecutionContext): Promis
   const widths = widthsOf(env)
 
   if (prefix === META) return serveMeta(path, env, ctx, widths)
+  if (prefix === IPFS) return serveIpfs(path, env, ctx, widths, request.method)
+  if (prefix === CAR) {
+    if (path.includes('/')) return new Response('bad request', { status: 400 })
+    if (denylistOf(env).has(path)) return gone(env, ctx, path, widths)
+    return serveCar(env, path, request.method)
+  }
 
   // BEFORE the bucket read and before any gateway is asked, so a denied object costs nothing and
   // cannot be re-cached by the request that asks for it — the difference between a takedown and a
@@ -423,6 +504,21 @@ async function handle(request: Request, env: Env, ctx: ExecutionContext): Promis
   if (hit !== null) {
     const type = hit.httpMetadata?.contentType ?? 'application/octet-stream'
     return served(hit.body, type, 'hit')
+  }
+
+  // Hosted art is served from our own storage before any gateway is asked: until it has moved to
+  // IPFS, the roster has no copy to give.
+  const hosted = await readHosted(env, cidOf(path), fileOf(path))
+  if (hosted !== null) {
+    if (!hosted.type.startsWith('image/')) return new Response('not an image', { status: 404 })
+    const resized = await resize(env, hosted.bytes, hosted.type, wanted)
+    if (resized === null) return served(hosted.bytes, hosted.type, 'hosted')
+    ctx.waitUntil(
+      env.ART_CACHE.put(key, resized.bytes, {
+        httpMetadata: { contentType: resized.type },
+      }).catch(() => undefined),
+    )
+    return served(resized.bytes, resized.type, 'miss')
   }
 
   const upstream = await fetchFromRoster(path, wanted, rosterOf(env))
@@ -448,4 +544,155 @@ async function handle(request: Request, env: Env, ctx: ExecutionContext): Promis
     }),
   )
   return served(toClient, type, 'miss')
+}
+
+/**
+ * A hosted image at one width rung, through the Images binding, or null when it cannot be made.
+ *
+ * Null is not a failure the viewer sees: the caller serves the original instead, which is exactly
+ * what a deployment without the binding does for every hosted image. GIFs are left alone, because a
+ * resize would keep one frame of an animation and that is a different piece of art.
+ */
+async function resize(
+  env: Env,
+  bytes: Uint8Array,
+  type: string,
+  width: number,
+): Promise<{ bytes: ArrayBuffer; type: string } | null> {
+  if (env.IMAGES === undefined || type === 'image/gif') return null
+  try {
+    const source = new Response(bytes).body!
+    const result = await env.IMAGES.input(source)
+      .transform({ width, fit: 'scale-down' })
+      .output({ format: 'image/webp' })
+    const response = result.response()
+    return { bytes: await response.arrayBuffer(), type: 'image/webp' }
+  } catch {
+    return null
+  }
+}
+
+/** How many of a new upload's images are resized ahead of the first visitor: one grid's worth. */
+const WARM_PIECES = 24
+
+/**
+ * Resize the first grid of a fresh upload into every rung, so the creator's own first look at their
+ * collection is not the request that pays for every resize. Bounded on purpose — warming ten
+ * thousand pieces would spend a transformation budget on art nobody may scroll to.
+ */
+async function warmHosted(env: Env, images: RootIndex): Promise<void> {
+  if (env.IMAGES === undefined || env.ART_HOSTED === undefined) return
+  const index = await loadIndex(env.ART_HOSTED, images.root)
+  if (index === null) return
+  const names = Object.keys(index.files)
+    .sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10))
+    .slice(0, WARM_PIECES)
+  for (const name of names) {
+    const file = index.files[name]!
+    const bytes = await readHostedFile(env.ART_HOSTED, index, file)
+    if (bytes === null) return
+    for (const width of widthsOf(env)) {
+      const resized = await resize(env, bytes, file.type, width)
+      if (resized === null) break
+      await env.ART_CACHE.put(cacheKey(`${images.root}/${name}`, width), resized.bytes, {
+        httpMetadata: { contentType: resized.type },
+      })
+    }
+  }
+}
+
+/**
+ * `/ipfs/<cid>/<file>`: the gateway-shaped route hosted art is published under.
+ *
+ * Hosted bytes first. When the CID is not hosted — never was, or has moved to IPFS since — this
+ * answers from the cache and the roster like any gateway would, so a link written while the art was
+ * hosted keeps working after it has moved. That is the whole reason hosted art is published under a
+ * gateway shape rather than a private one.
+ *
+ * NOT AN OPEN GATEWAY. Only what this service already knows how to serve safely comes back through
+ * the roster: a raster image in one of the hosted formats (sniffed, never taken from the upstream
+ * label) or a JSON document. Anything else — an HTML page, an SVG, a script — is refused, because
+ * this origin would otherwise be lending its name to whatever a CID happens to contain.
+ */
+async function serveIpfs(
+  path: string,
+  env: Env,
+  ctx: ExecutionContext,
+  widths: readonly number[],
+  method: string,
+): Promise<Response> {
+  if (denylistOf(env).has(cidOf(path))) return gone(env, ctx, path, widths)
+
+  const hosted = await serveHostedFile(env, cidOf(path), fileOf(path), method)
+  if (hosted !== null) return hosted
+
+  const metaHit = await env.ART_CACHE.get(metaKey(path))
+  if (metaHit !== null) return servedJson(await metaHit.text(), 'hit')
+  const hit = await env.ART_CACHE.get(ipfsKey(path))
+  if (hit !== null) {
+    return served(hit.body, hit.httpMetadata?.contentType ?? 'application/octet-stream', 'hit')
+  }
+
+  const answer = await fetchOriginalFromRoster(path, rosterOf(env))
+  if (answer === null) return new Response('no gateway answered', { status: 502 })
+
+  if (answer.kind === 'json') {
+    ctx.waitUntil(
+      env.ART_CACHE.put(metaKey(path), answer.text, {
+        httpMetadata: { contentType: 'application/json; charset=utf-8' },
+      }).catch(() => undefined),
+    )
+    return servedJson(answer.text, 'miss')
+  }
+  ctx.waitUntil(
+    env.ART_CACHE.put(ipfsKey(path), answer.bytes, {
+      httpMetadata: { contentType: answer.type },
+    }).catch(() => undefined),
+  )
+  return served(answer.bytes, answer.type, 'miss')
+}
+
+const SNIFFED_TYPES = {
+  png: 'image/png',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  gif: 'image/gif',
+} as const
+
+/**
+ * An original from the roster, classified by its bytes: a raster image, a JSON document, or
+ * nothing. One gateway at a time, for the same reason as every other roster walk here.
+ */
+async function fetchOriginalFromRoster(
+  path: string,
+  gateways: readonly IpfsGateway[],
+): Promise<
+  { kind: 'image'; type: string; bytes: ArrayBuffer } | { kind: 'json'; text: string } | null
+> {
+  for (const gateway of gateways) {
+    const url = gatewayUrl(gateway, path)
+    if (url === null) continue
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS) })
+      if (!res.ok) continue
+      const length = Number.parseInt(res.headers.get('content-length') ?? '', 10)
+      if (Number.isInteger(length) && length > MAX_CACHEABLE_BYTES) continue
+      const bytes = await res.arrayBuffer()
+      if (bytes.byteLength > MAX_CACHEABLE_BYTES) continue
+      const sniffed = sniffImage(new Uint8Array(bytes, 0, Math.min(16, bytes.byteLength)))
+      if (sniffed !== null) return { kind: 'image', type: SNIFFED_TYPES[sniffed], bytes }
+      if (bytes.byteLength > MAX_META_BYTES) continue
+      const text = new TextDecoder().decode(bytes)
+      if (!looksLikeJson(res.headers.get('content-type') ?? '', text)) continue
+      try {
+        JSON.parse(text)
+      } catch {
+        continue
+      }
+      return { kind: 'json', text }
+    } catch {
+      // Timed out, refused, DNS, a body that would not read — try the next operator.
+    }
+  }
+  return null
 }

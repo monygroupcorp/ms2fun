@@ -192,9 +192,10 @@ describe('the denylist', () => {
     await worker.fetch(req(CID), env({ ART_CACHE: b, ART_DENYLIST: CID }), c)
     await c.settle()
 
-    // The metadata document goes too: a takedown is about the work, not one representation of it.
+    // The metadata document and any original goes too: a takedown is about the work, not one
+    // representation of it.
     expect(b.deletedKeys.sort()).toEqual(
-      [`${CID}@w1024`, `${CID}@w320`, `${CID}@w640`, `meta/${CID}`].sort(),
+      [`${CID}@w1024`, `${CID}@w320`, `${CID}@w640`, `meta/${CID}`, `ipfs/${CID}`].sort(),
     )
     expect(b.objects.size).toBe(0)
   })
