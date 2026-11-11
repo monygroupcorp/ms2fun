@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x2fc722c1c77170a61f17962cc4d039692f033b43",
+  "label": "MiladyAura",
+  "provenance": null,
+  "mint": {
+    "label": "MiladyAura",
+    "method": "transfer-from-zero",
+    "total": 1888,
+    "free": 39,
+    "paid": 1849,
+    "mintTxs": 612,
+    "freeTxs": 1,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 429,
+    "uniqueSenders": 429,
+    "grossWei": "61096200000000000000",
+    "firstBlock": "14806417",
+    "lastBlock": "14806887",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "MiladyAura",
+      "symbol": "AURA",
+      "totalSupply": "1888"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "https://miladyaura.mypinata.cloud/ipfs/Qma3YqKeWEqqXcWBf7iWjPmwjdSPds5ubQYqDwbsMSq9oj/1/",
+      "host": "IPFS gateway (miladyaura.mypinata.cloud)",
+      "contentMutable": false,
+      "erc404BaseReusable": false,
+      "erc404Base": null
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "14804133",
+      "toBlock": "26388676",
+      "chainHead": "26388676",
+      "harvestedAt": "2026-11-11T02:24:48.014Z",
+      "complete": true
+    }
+  }
+}

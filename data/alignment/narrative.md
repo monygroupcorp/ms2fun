@@ -218,8 +218,16 @@ work list: a record with no entry there is not in the census, and the renderer r
 
 ## 10. Residual — what remains unchecked
 
-- **Rows still to harvest.** See the state table above. A `needs-address` row is one whose mainnet
-  address was only ever written down truncated; re-resolve it by name before harvesting.
+- **Mint re-harvested 2026-11-11.** All 56 rows that were `needs-address` or `needs-harvest` are
+  now measured by the v2 tool and schema-valid — including the 12 whose mainnet address had only
+  ever been written down truncated, re-resolved this pass via `resolve-slugs-scrape.mjs` against
+  `miladyderivatives.com/api/data.json` and verified on-chain against each contract's own `name()`.
+  Every re-measured mint-ETH figure reproduced the 2026-08-21 hand figure to within rounding.
+- **The secondary harvester is dead, not merely stale.** `tools/harvest-secondary.mjs` calls
+  Alchemy's `getNFTSales`, which Alchemy's own changelog (2026-08-18) sunset on 2026-09-30 with no
+  replacement endpoint. This is why only 2 of 58 records carry a `secondary` section. Re-measuring
+  secondary volume needs the tool rebuilt against a different source (Reservoir, SimpleHash, or a
+  direct marketplace-contract log scan) — a rebuild, not a retry.
 - **9 slugs unresolved.** Their OpenSea pages render no collection and the scraper's on-chain
   `name()` check refused them rather than guessing. Likely delisted; each needs a hand check.
 - **9 of the 83 listed collections are not on Ethereum** (Avalanche, Polygon, chain 900), out of

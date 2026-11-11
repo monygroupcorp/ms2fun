@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0xeed41d06ae195ca8f5cacace4cd691ee75f0683f",
+  "label": "Cigawrettes",
+  "provenance": null,
+  "mint": {
+    "label": "Cigawrettes",
+    "method": "transfer-from-zero",
+    "total": 9998,
+    "free": 975,
+    "paid": 9023,
+    "mintTxs": 2714,
+    "freeTxs": 688,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 1768,
+    "uniqueSenders": 1688,
+    "grossWei": "259273617000000006539",
+    "firstBlock": "15589133",
+    "lastBlock": "19684755",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Cigawrettes",
+      "symbol": "CIG",
+      "totalSupply": "9998"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeidgwnebxxrcjj3glcxtncvkeuokynlvb3oimrp4nwmv7sds34lela/1.json",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": false,
+      "erc404Base": null
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "15588792",
+      "toBlock": "26388662",
+      "chainHead": "26388662",
+      "harvestedAt": "2026-11-11T02:22:22.049Z",
+      "complete": true
+    }
+  }
+}

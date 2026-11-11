@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0xb2619d1aed8390af6d7056b0d312557d3d4d419a",
+  "label": "Pixelady Maker: Radbro",
+  "provenance": null,
+  "mint": {
+    "label": "Pixelady Maker: Radbro",
+    "method": "transfer-from-zero",
+    "total": 100,
+    "free": 100,
+    "paid": 0,
+    "mintTxs": 82,
+    "freeTxs": 82,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 65,
+    "uniqueSenders": 65,
+    "grossWei": "0",
+    "firstBlock": "16364677",
+    "lastBlock": "16370934",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Pixelady Maker: Radbro",
+      "symbol": "PXLBRO",
+      "totalSupply": "100"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeicxtgxb7c6lmemlynnlwc6lvcmnocvdhnskvl274cy5oooanv7t6y/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://bafybeicxtgxb7c6lmemlynnlwc6lvcmnocvdhnskvl274cy5oooanv7t6y/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "16353235",
+      "toBlock": "26388728",
+      "chainHead": "26388728",
+      "harvestedAt": "2026-11-11T02:35:39.740Z",
+      "complete": true
+    }
+  }
+}

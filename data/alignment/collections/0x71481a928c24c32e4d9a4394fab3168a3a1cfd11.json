@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x71481a928c24c32e4d9a4394fab3168a3a1cfd11",
+  "label": "water mililys",
+  "provenance": null,
+  "mint": {
+    "label": "water mililys",
+    "method": "transfer-from-zero",
+    "total": 333,
+    "free": 42,
+    "paid": 291,
+    "mintTxs": 198,
+    "freeTxs": 28,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 145,
+    "uniqueSenders": 145,
+    "grossWei": "9603000000000000000",
+    "firstBlock": "16079025",
+    "lastBlock": "16179105",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "water mililys",
+      "symbol": "milily",
+      "totalSupply": "333"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeigi2x7cgf3yqjuzbclfa3am4nwqufqw2k7gandze26oji4lpr72j4/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://bafybeigi2x7cgf3yqjuzbclfa3am4nwqufqw2k7gandze26oji4lpr72j4/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "16078831",
+      "toBlock": "26388690",
+      "chainHead": "26388690",
+      "harvestedAt": "2026-11-11T02:27:58.679Z",
+      "complete": true
+    }
+  }
+}

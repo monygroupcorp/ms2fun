@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x8f7a232af2347cc5c9c3a245c2f163d248178eaa",
+  "label": "Oekaki Maker",
+  "provenance": null,
+  "mint": {
+    "label": "Oekaki Maker",
+    "method": "transfer-from-zero",
+    "total": 5555,
+    "free": 4134,
+    "paid": 1421,
+    "mintTxs": 2209,
+    "freeTxs": 1822,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 1097,
+    "uniqueSenders": 884,
+    "grossWei": "32211000000000000000",
+    "firstBlock": "16390462",
+    "lastBlock": "16697558",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Oekaki Maker",
+      "symbol": "KAKI",
+      "totalSupply": "5555"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeigdjz4a6oij72vbk7wbeevkgjpllkwr3de7xv3gcrqgua5git4h3q/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://bafybeigdjz4a6oij72vbk7wbeevkgjpllkwr3de7xv3gcrqgua5git4h3q/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "16390438",
+      "toBlock": "26388680",
+      "chainHead": "26388680",
+      "harvestedAt": "2026-11-11T02:25:37.124Z",
+      "complete": true
+    }
+  }
+}

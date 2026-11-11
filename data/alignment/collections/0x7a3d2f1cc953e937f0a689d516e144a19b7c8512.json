@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x7a3d2f1cc953e937f0a689d516e144a19b7c8512",
+  "label": "Rorita Maker",
+  "provenance": null,
+  "mint": {
+    "label": "Rorita Maker",
+    "method": "transfer-from-zero",
+    "total": 1945,
+    "free": 484,
+    "paid": 1461,
+    "mintTxs": 625,
+    "freeTxs": 302,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 626,
+    "uniqueSenders": 585,
+    "grossWei": "2547880000000000000",
+    "firstBlock": "16687393",
+    "lastBlock": "17103472",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Rorita Maker",
+      "symbol": "RRMKRi",
+      "totalSupply": "1945"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeigcvvuwx6sjdlmnnqyw5u7o2s2boxxfsqmozhy644hvty6zuzofme/1.json",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": false,
+      "erc404Base": null
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "16687042",
+      "toBlock": "26388714",
+      "chainHead": "26388714",
+      "harvestedAt": "2026-11-11T02:32:17.698Z",
+      "complete": true
+    }
+  }
+}

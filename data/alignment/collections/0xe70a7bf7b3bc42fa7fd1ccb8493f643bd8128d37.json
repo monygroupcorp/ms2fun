@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0xe70a7bf7b3bc42fa7fd1ccb8493f643bd8128d37",
+  "label": "Mosaiclady Maker",
+  "provenance": null,
+  "mint": {
+    "label": "Mosaiclady Maker",
+    "method": "transfer-from-zero",
+    "total": 5560,
+    "free": 4315,
+    "paid": 1245,
+    "mintTxs": 1671,
+    "freeTxs": 1540,
+    "indirectMintTxs": 7,
+    "zeroValueIndirectTxs": 7,
+    "uniqueRecipients": 1440,
+    "uniqueSenders": 1411,
+    "grossWei": "2386400000000000000",
+    "firstBlock": "17105004",
+    "lastBlock": "25816822",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Mosaiclady Maker",
+      "symbol": "MOSA",
+      "totalSupply": "5560"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeifwyycp5zltgkmkh6loixp6pzvnfwnooeosehsshqzfmgkbnmtxb4/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://bafybeifwyycp5zltgkmkh6loixp6pzvnfwnooeosehsshqzfmgkbnmtxb4/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "17103675",
+      "toBlock": "26388715",
+      "chainHead": "26388715",
+      "harvestedAt": "2026-11-11T02:32:34.030Z",
+      "complete": true
+    }
+  }
+}

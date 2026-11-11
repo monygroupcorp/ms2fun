@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x05c63282c87f620af5a658cbb53548257f3a6186",
+  "label": "Milady Maker Party",
+  "provenance": null,
+  "mint": {
+    "label": "Milady Maker Party",
+    "method": "transfer-from-zero",
+    "total": 3000,
+    "free": 1446,
+    "paid": 1554,
+    "mintTxs": 1505,
+    "freeTxs": 1033,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 1280,
+    "uniqueSenders": 1286,
+    "grossWei": "77625000000000000000",
+    "firstBlock": "17330688",
+    "lastBlock": "17571490",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Milady Maker Party",
+      "symbol": "MMP",
+      "totalSupply": "3000"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeiepqozrfrv7qllex3yqmelkdasrz2r7lokduyf5z6jqwj26wxplua/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://bafybeiepqozrfrv7qllex3yqmelkdasrz2r7lokduyf5z6jqwj26wxplua/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "17311940",
+      "toBlock": "26388739",
+      "chainHead": "26388739",
+      "harvestedAt": "2026-11-11T02:37:19.496Z",
+      "complete": true
+    }
+  }
+}

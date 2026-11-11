@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x67b5ee6e29a4230177dda07ad7848e42d89cf9a0",
+  "label": "Mifairy Maker",
+  "provenance": null,
+  "mint": {
+    "label": "Mifairy Maker",
+    "method": "transfer-from-zero",
+    "total": 3333,
+    "free": 1923,
+    "paid": 1410,
+    "mintTxs": 1515,
+    "freeTxs": 1217,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 630,
+    "uniqueSenders": 627,
+    "grossWei": "12773100000000000000",
+    "firstBlock": "16594145",
+    "lastBlock": "17103888",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Mifairy Maker",
+      "symbol": "MIFAIRY",
+      "totalSupply": "3333"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeiay2g62ppxbtgoklgh2cfoeosdw57roxmo3y67mcjnclntqknqh6e/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://bafybeiay2g62ppxbtgoklgh2cfoeosdw57roxmo3y67mcjnclntqknqh6e/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "16593721",
+      "toBlock": "26388703",
+      "chainHead": "26388703",
+      "harvestedAt": "2026-11-11T02:31:11.734Z",
+      "complete": true
+    }
+  }
+}

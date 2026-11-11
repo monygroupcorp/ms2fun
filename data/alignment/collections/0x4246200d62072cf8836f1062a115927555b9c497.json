@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x4246200d62072cf8836f1062a115927555b9c497",
+  "label": "Matrix Milady",
+  "provenance": null,
+  "mint": {
+    "label": "Matrix Milady",
+    "method": "transfer-from-zero",
+    "total": 1337,
+    "free": 407,
+    "paid": 930,
+    "mintTxs": 539,
+    "freeTxs": 345,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 458,
+    "uniqueSenders": 450,
+    "grossWei": "12434100000000000000",
+    "firstBlock": "16817018",
+    "lastBlock": "17024596",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Matrix Milady",
+      "symbol": "MATMIL",
+      "totalSupply": "1337"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeibv3q2hfqt2iqob5budg2ztx4seo6kubi4me7ifewderwcq3nirvy/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://bafybeibv3q2hfqt2iqob5budg2ztx4seo6kubi4me7ifewderwcq3nirvy/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "16813493",
+      "toBlock": "26388688",
+      "chainHead": "26388688",
+      "harvestedAt": "2026-11-11T02:27:09.015Z",
+      "complete": true
+    }
+  }
+}

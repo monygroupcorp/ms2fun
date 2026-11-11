@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x9a051c1794c2f0ed9518fcb68973da84f756e29e",
+  "label": "SonoraMaker",
+  "provenance": null,
+  "mint": {
+    "label": "SonoraMaker",
+    "method": "transfer-from-zero",
+    "total": 444,
+    "free": 444,
+    "paid": 0,
+    "mintTxs": 412,
+    "freeTxs": 412,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 315,
+    "uniqueSenders": 315,
+    "grossWei": "0",
+    "firstBlock": "14838757",
+    "lastBlock": "14840824",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "SonoraMaker",
+      "symbol": "SNRM",
+      "totalSupply": "444"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "http://ipfs.io/ipfs/QmX89dvzA3TSwsGfY7SthYkDxSFjszec8JkEEZE7JP5QHF/1",
+      "host": "IPFS gateway (ipfs.io)",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "http://ipfs.io/ipfs/QmX89dvzA3TSwsGfY7SthYkDxSFjszec8JkEEZE7JP5QHF/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "14838734",
+      "toBlock": "26388732",
+      "chainHead": "26388732",
+      "harvestedAt": "2026-11-11T02:36:31.139Z",
+      "complete": true
+    }
+  }
+}

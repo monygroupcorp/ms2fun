@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0xcbaa32f436e00069d9e13fbb16086836c4ace3f9",
+  "label": "KARDLADY",
+  "provenance": null,
+  "mint": {
+    "label": "KARDLADY",
+    "method": "transfer-from-zero",
+    "total": 87,
+    "free": 87,
+    "paid": 0,
+    "mintTxs": 12,
+    "freeTxs": 12,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 70,
+    "uniqueSenders": 1,
+    "grossWei": "0",
+    "firstBlock": "16038092",
+    "lastBlock": "19256145",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "KARDLADY",
+      "symbol": "KDLY",
+      "totalSupply": "87"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeif7han6vbdqb3tbafcxojavo5q63htqzl3jcu4cutodvnai4hqlqq/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://bafybeif7han6vbdqb3tbafcxojavo5q63htqzl3jcu4cutodvnai4hqlqq/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "16038041",
+      "toBlock": "26388721",
+      "chainHead": "26388721",
+      "harvestedAt": "2026-11-11T02:34:14.068Z",
+      "complete": true
+    }
+  }
+}

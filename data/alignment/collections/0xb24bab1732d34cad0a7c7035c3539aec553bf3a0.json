@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0xb24bab1732d34cad0a7c7035c3539aec553bf3a0",
+  "label": "MiladyStation",
+  "provenance": null,
+  "mint": {
+    "label": "MiladyStation",
+    "method": "transfer-from-zero",
+    "total": 1212,
+    "free": 519,
+    "paid": 693,
+    "mintTxs": 280,
+    "freeTxs": 99,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 174,
+    "uniqueSenders": 173,
+    "grossWei": "5589000000000000020",
+    "firstBlock": "16228314",
+    "lastBlock": "16452389",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "MiladyStation",
+      "symbol": "MS",
+      "totalSupply": "1212"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "16228293",
+      "toBlock": "26388706",
+      "chainHead": "26388706",
+      "harvestedAt": "2026-11-11T02:31:11.089Z",
+      "complete": true
+    }
+  }
+}

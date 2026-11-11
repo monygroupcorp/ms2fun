@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0xe96f3ac4b352aafd8eb9d476c05e23b4aaef650e",
+  "label": "Pixeladies",
+  "provenance": null,
+  "mint": {
+    "label": "Pixeladies",
+    "method": "transfer-from-zero",
+    "total": 333,
+    "free": 69,
+    "paid": 264,
+    "mintTxs": 170,
+    "freeTxs": 37,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 129,
+    "uniqueSenders": 117,
+    "grossWei": "5982000000000000000",
+    "firstBlock": "15126911",
+    "lastBlock": "17281028",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Pixeladies",
+      "symbol": "PXLDY",
+      "totalSupply": "333"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "https://cdn-api.niftykit.com/reveal/RlqFXQJhOhXhkbpwyXgt/1",
+      "host": "centralized (cdn-api.niftykit.com)",
+      "contentMutable": true,
+      "erc404BaseReusable": true,
+      "erc404Base": "https://cdn-api.niftykit.com/reveal/RlqFXQJhOhXhkbpwyXgt/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "14949555",
+      "toBlock": "26388697",
+      "chainHead": "26388697",
+      "harvestedAt": "2026-11-11T02:29:25.907Z",
+      "complete": true
+    }
+  }
+}

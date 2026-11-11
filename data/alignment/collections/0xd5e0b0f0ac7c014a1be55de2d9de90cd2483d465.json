@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0xd5e0b0f0ac7c014a1be55de2d9de90cd2483d465",
+  "label": "Zlady Maker",
+  "provenance": null,
+  "mint": {
+    "label": "Zlady Maker",
+    "method": "transfer-from-zero",
+    "total": 151,
+    "free": 72,
+    "paid": 79,
+    "mintTxs": 123,
+    "freeTxs": 62,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 81,
+    "uniqueSenders": 81,
+    "grossWei": "2824500000000000000",
+    "firstBlock": "16564563",
+    "lastBlock": "17027212",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Zlady Maker",
+      "symbol": "ZLADY",
+      "totalSupply": "151"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeieh5aclbichfhhzgsqddgorw3kc2comxtzmqvrit74eio5iclv4ey/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://bafybeieh5aclbichfhhzgsqddgorw3kc2comxtzmqvrit74eio5iclv4ey/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "16531841",
+      "toBlock": "26388713",
+      "chainHead": "26388713",
+      "harvestedAt": "2026-11-11T02:32:14.796Z",
+      "complete": true
+    }
+  }
+}

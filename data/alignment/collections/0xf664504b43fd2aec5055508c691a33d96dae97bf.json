@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0xf664504b43fd2aec5055508c691a33d96dae97bf",
+  "label": "Milady Christmas Pets",
+  "provenance": null,
+  "mint": {
+    "label": "Milady Christmas Pets",
+    "method": "transfer-from-zero",
+    "total": 121,
+    "free": 121,
+    "paid": 0,
+    "mintTxs": 120,
+    "freeTxs": 120,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 92,
+    "uniqueSenders": 92,
+    "grossWei": "0",
+    "firstBlock": "16257618",
+    "lastBlock": "16466854",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Milady Christmas Pets",
+      "symbol": "MIPETS",
+      "totalSupply": "121"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://QmVeztdAjwnfbuUDLLq9KLp3yPNKY7pW8bY5v9zZ79TiR4/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://QmVeztdAjwnfbuUDLLq9KLp3yPNKY7pW8bY5v9zZ79TiR4/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "16257611",
+      "toBlock": "26388724",
+      "chainHead": "26388724",
+      "harvestedAt": "2026-11-11T02:34:28.604Z",
+      "complete": true
+    }
+  }
+}

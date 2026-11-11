@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x186e74ad45bf81fb3712e9657560f8f6361cbbef",
+  "label": "Ghiblady Maker",
+  "provenance": null,
+  "mint": {
+    "label": "Ghiblady Maker",
+    "method": "transfer-from-zero",
+    "total": 2600,
+    "free": 1460,
+    "paid": 1140,
+    "mintTxs": 982,
+    "freeTxs": 614,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 661,
+    "uniqueSenders": 661,
+    "grossWei": "24758000000000000000",
+    "firstBlock": "15771970",
+    "lastBlock": "19072916",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Ghiblady Maker",
+      "symbol": "GHIB",
+      "totalSupply": "2600"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeic5in4it4rsocajjvzn3zs5scsci4a7hhpbpd5fulqca42vqtjs2q/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://bafybeic5in4it4rsocajjvzn3zs5scsci4a7hhpbpd5fulqca42vqtjs2q/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "15771707",
+      "toBlock": "26388686",
+      "chainHead": "26388686",
+      "harvestedAt": "2026-11-11T02:26:52.759Z",
+      "complete": true
+    }
+  }
+}

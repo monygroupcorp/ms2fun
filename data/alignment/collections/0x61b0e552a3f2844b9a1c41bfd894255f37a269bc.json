@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x61b0e552a3f2844b9a1c41bfd894255f37a269bc",
+  "label": "ELITE MAKER",
+  "provenance": null,
+  "mint": {
+    "label": "ELITE MAKER",
+    "method": "transfer-from-zero",
+    "total": 777,
+    "free": 15,
+    "paid": 762,
+    "mintTxs": 314,
+    "freeTxs": 5,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 222,
+    "uniqueSenders": 222,
+    "grossWei": "30456531820000000000",
+    "firstBlock": "17368178",
+    "lastBlock": "17402552",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "ELITE MAKER",
+      "symbol": "ELITE",
+      "totalSupply": "777"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeicrcd4fgtumtkjfzkxkmlzqvy3w6cn2tlb3vm6jvbnxbojebvnwne/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://bafybeicrcd4fgtumtkjfzkxkmlzqvy3w6cn2tlb3vm6jvbnxbojebvnwne/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "17353525",
+      "toBlock": "26388681",
+      "chainHead": "26388681",
+      "harvestedAt": "2026-11-11T02:25:58.443Z",
+      "complete": true
+    }
+  }
+}

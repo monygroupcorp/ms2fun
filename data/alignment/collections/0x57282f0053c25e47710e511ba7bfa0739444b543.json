@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x57282f0053c25e47710e511ba7bfa0739444b543",
+  "label": "Milady Christmas",
+  "provenance": null,
+  "mint": {
+    "label": "Milady Christmas",
+    "method": "transfer-from-zero",
+    "total": 223,
+    "free": 114,
+    "paid": 109,
+    "mintTxs": 182,
+    "freeTxs": 99,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 143,
+    "uniqueSenders": 143,
+    "grossWei": "2352100000000000000",
+    "firstBlock": "16143795",
+    "lastBlock": "17251711",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Milady Christmas",
+      "symbol": "MILXMAS",
+      "totalSupply": "223"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://QmNyBuUaSEMBeAWfwCDb3P39mQhACPmDCLnvGt1nRVrC2p/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://QmNyBuUaSEMBeAWfwCDb3P39mQhACPmDCLnvGt1nRVrC2p/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "16143734",
+      "toBlock": "26388715",
+      "chainHead": "26388715",
+      "harvestedAt": "2026-11-11T02:32:39.460Z",
+      "complete": true
+    }
+  }
+}

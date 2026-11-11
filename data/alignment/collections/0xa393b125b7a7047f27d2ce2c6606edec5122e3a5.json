@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0xa393b125b7a7047f27d2ce2c6606edec5122e3a5",
+  "label": "mimories",
+  "provenance": null,
+  "mint": {
+    "label": "mimories",
+    "method": "transfer-from-zero",
+    "total": 1686,
+    "free": 1522,
+    "paid": 164,
+    "mintTxs": 331,
+    "freeTxs": 293,
+    "indirectMintTxs": 1,
+    "zeroValueIndirectTxs": 1,
+    "uniqueRecipients": 251,
+    "uniqueSenders": 248,
+    "grossWei": "820000000000000000",
+    "firstBlock": "14868701",
+    "lastBlock": "14962882",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "mimories",
+      "symbol": "MM",
+      "totalSupply": "1686"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://QmWiqTjUQ1iJsokggtkgZBcjuVsozM91wee3UnTuL8xAD9/1.json",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": false,
+      "erc404Base": null
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "14862955",
+      "toBlock": "26388721",
+      "chainHead": "26388721",
+      "harvestedAt": "2026-11-11T02:33:43.357Z",
+      "complete": true
+    }
+  }
+}

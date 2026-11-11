@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x1352149cd78d686043b504e7e7d96c5946b0c39c",
+  "label": "This User... Banners",
+  "provenance": null,
+  "mint": {
+    "label": "This User... Banners",
+    "method": "transfer-from-zero",
+    "total": 2000,
+    "free": 1564,
+    "paid": 436,
+    "mintTxs": 1000,
+    "freeTxs": 782,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 782,
+    "uniqueSenders": 782,
+    "grossWei": "43600000000000000000",
+    "firstBlock": "15124294",
+    "lastBlock": "15124534",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "This User... Banners",
+      "symbol": "USR",
+      "totalSupply": "2000"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "https://miladymaker.net/banners/nft/json/1",
+      "host": "centralized (miladymaker.net)",
+      "contentMutable": true,
+      "erc404BaseReusable": true,
+      "erc404Base": "https://miladymaker.net/banners/nft/json/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "15124172",
+      "toBlock": "26388739",
+      "chainHead": "26388739",
+      "harvestedAt": "2026-11-11T02:37:27.054Z",
+      "complete": true
+    }
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x0ef7ba09c38624b8e9cc4985790a2f5dbfc1dc42",
+  "label": "lawbsters",
+  "provenance": null,
+  "mint": {
+    "label": "lawbsters",
+    "method": "transfer-from-zero",
+    "total": 420,
+    "free": 112,
+    "paid": 308,
+    "mintTxs": 156,
+    "freeTxs": 76,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 176,
+    "uniqueSenders": 150,
+    "grossWei": "5965000000000000000",
+    "firstBlock": "16535057",
+    "lastBlock": "16573717",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "lawbsters",
+      "symbol": "LAWB",
+      "totalSupply": "420"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeibvgwjwuosoov6cfgwoyyrt7vocalqoprjayni6rfepda7bi2jdse/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://bafybeibvgwjwuosoov6cfgwoyyrt7vocalqoprjayni6rfepda7bi2jdse/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "16533110",
+      "toBlock": "26388700",
+      "chainHead": "26388700",
+      "harvestedAt": "2026-11-11T02:29:53.354Z",
+      "complete": true
+    }
+  }
+}

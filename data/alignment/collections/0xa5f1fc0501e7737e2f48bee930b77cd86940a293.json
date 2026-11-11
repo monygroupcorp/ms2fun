@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0xa5f1fc0501e7737e2f48bee930b77cd86940a293",
+  "label": "NotOkayMiladys",
+  "provenance": null,
+  "mint": {
+    "label": "NotOkayMiladys",
+    "method": "transfer-from-zero",
+    "total": 2090,
+    "free": 1300,
+    "paid": 790,
+    "mintTxs": 574,
+    "freeTxs": 245,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 472,
+    "uniqueSenders": 472,
+    "grossWei": "22180000000000000000",
+    "firstBlock": "14802764",
+    "lastBlock": "18230776",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "NotOkayMiladys",
+      "symbol": "NOM",
+      "totalSupply": "2090"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://QmXSY4Hwxdg7t7DUFLnTjMCAyPmgJAHjd91DHzasCQb5Ba/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://QmXSY4Hwxdg7t7DUFLnTjMCAyPmgJAHjd91DHzasCQb5Ba/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "14802718",
+      "toBlock": "26388687",
+      "chainHead": "26388687",
+      "harvestedAt": "2026-11-11T02:27:02.929Z",
+      "complete": true
+    }
+  }
+}
