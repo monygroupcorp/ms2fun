@@ -822,6 +822,30 @@ bucket, the lifecycle rule and the deploy. Publishing roster-only is a legitimat
 supports it and always has — but it is made out loud with `PUBLISH_WITHOUT_ART_SERVICE=1`, not by
 forgetting a variable.
 
+### 7.1.2 Art hosting is part of the bundle too
+
+The wizard's **Upload art** option is switched on by `VITE_ART_HOST`, which `app/.env.production`
+sets to the project's art host — the one place that default is written. A production build
+therefore ships the option, and its pinned CID addresses that host for uploads, sign-in and binding.
+Override it in the shell (`VITE_ART_HOST=https://<other-host>`, or `VITE_ART_HOST=` to ship without
+uploads); like `VITE_ART_SERVICE` it is inlined, so a change is another build and another pin.
+
+Before publishing a bundle that offers uploads, the worker must accept them — otherwise every
+creator who tries gets a 503 with "upload sign-in is not configured". Provision in this order (full
+detail under "Hosted uploads → Provisioning" in `services/art/README.md`):
+
+1. Workers Paid on the account (an upload is hashed in full as it is verified).
+2. `wrangler r2 bucket create noesis-art-hosted` — **no lifecycle rule** on it, unlike the cache.
+3. `wrangler secret put UPLOAD_SESSION_SECRET`.
+4. Vars: `UPLOAD_SIWE_DOMAINS` = the host the app is served from (for this chain's publish, the
+   gwei.domains host the release resolves at), `UPLOAD_CHAIN_ID=11155111`, `UPLOAD_RPC_URL` = a
+   Sepolia RPC, `UPLOAD_REGISTRY` = the master registry from the §5.3 record.
+5. A route or custom domain binding the worker to the art host's hostname, and its DNS record.
+6. `wrangler deploy` from `services/art/` — the first deploy applies the `hosting-v1` Durable Object
+   migration.
+
+Check it before pinning: `curl -s https://<art-host>/upload/nonce` answers a JSON nonce, not a 503.
+
 Build from the commit that carries the §5.3 address record. Both targets stamp their commit into the
 footer, so the running site names the build a bug report was found on. Record the CID next to the
 commit.

@@ -47,6 +47,11 @@ service at all: every card fetches its metadata and then its full-size art from 
 on each visitor's own metered IP, which is the grey-grid first impression `services/art/` exists to
 remove. Nothing breaks, nothing warns, and the only symptom is that the site is slow for strangers.
 
+**`VITE_ART_HOST` is baked in the same way.** It names the art host the wizard's **Upload art**
+option talks to, and `app/.env.production` sets it, so a release offers uploads unless the shell
+clears it (`VITE_ART_HOST=`). The worker behind it must already accept uploads — see
+`docs/SEPOLIA-DEPLOY-RUNBOOK.md` §7.1.2 and `services/art/README.md`.
+
 Three consequences of it being baked in, all of which follow from the pin being immutable:
 
 - **The service URL is published permanently.** It is in the pinned CID, which is public and cannot be
