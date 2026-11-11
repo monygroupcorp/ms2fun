@@ -4,6 +4,7 @@
  * real SQLite; the signature is a real one. What this cannot reach is the Cloudflare runtime itself
  * — the README's local walkthrough covers that against `wrangler dev`.
  */
+import { CarBlockIterator } from '@ipld/car'
 import { privateKeyToAccount } from 'viem/accounts'
 import { createSiweMessage } from 'viem/siwe'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -147,9 +148,17 @@ describe('hosting, end to end', () => {
     expect(head.status).toBe(200)
     expect(head.headers.get('content-length')).toBe(String(PIECES[0]!.bytes.byteLength))
 
-    const car = await call(`/car/${upload.metaCid}`)
+    const car = await call(`/car/${upload.imgCid}`)
     expect(car.headers.get('content-type')).toMatch(/^application\/vnd\.ipld\.car/)
     expect(new Uint8Array(await car.arrayBuffer())).toEqual(upload.car)
+
+    // The metadata root's CAR carries the metadata and nothing else: no image bytes.
+    const metaCar = await call(`/car/${upload.metaCid}`)
+    const blocks = await CarBlockIterator.fromBytes(new Uint8Array(await metaCar.arrayBuffer()))
+    expect((await blocks.getRoots()).map(String)).toEqual([upload.metaCid])
+    const carried: string[] = []
+    for await (const block of blocks) carried.push(block.cid.toString())
+    expect(carried.sort()).toEqual([...upload.metadata.blocks.keys()].sort())
   })
 
   it('refuses an upload without a session, or with a forged one', async () => {
@@ -211,7 +220,7 @@ describe('hosting, end to end', () => {
     expect(second.status).toBe(200)
     expect(await second.json()).toMatchObject({ duplicate: true, draft: { id: first.draft.id } })
     // One CAR and two indexes — the duplicate's copy was dropped.
-    expect([...env.hosted.objects.keys()].filter((k) => k.endsWith('.car'))).toHaveLength(1)
+    expect([...env.hosted.objects.keys()].filter((k) => k.startsWith('hosted/car/'))).toHaveLength(1)
   })
 
   it('refuses a denied CID at upload, and stops serving a hosted one once denied', async () => {

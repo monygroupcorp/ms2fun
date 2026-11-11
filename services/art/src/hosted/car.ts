@@ -62,6 +62,8 @@ export interface VerifiedCar {
   blocks: Map<string, BlockAt>
   /** Every dag-pb block, decoded. Raw blocks are file bytes and are not kept. */
   nodes: Map<string, dagPb.PBNode>
+  /** Every dag-pb block's bytes, as they arrived — small, and what a metadata CAR is built from. */
+  nodeBytes: Map<string, Uint8Array>
 }
 
 /**
@@ -155,6 +157,7 @@ export class CarVerifier {
   private roots: CID[] | null = null
   private readonly blocks = new Map<string, BlockAt>()
   private readonly nodes = new Map<string, dagPb.PBNode>()
+  private readonly nodeBytes = new Map<string, Uint8Array>()
 
   constructor(private readonly onRoots?: (roots: CID[]) => void) {}
 
@@ -181,7 +184,13 @@ export class CarVerifier {
   finish(): VerifiedCar {
     if (this.queue.length !== 0) throw new CarRejected('malformed CAR: it ends partway through')
     if (this.roots === null) throw new CarRejected('malformed CAR: it has no header')
-    return { roots: this.roots, bytes: this.offset, blocks: this.blocks, nodes: this.nodes }
+    return {
+      roots: this.roots,
+      bytes: this.offset,
+      blocks: this.blocks,
+      nodes: this.nodes,
+      nodeBytes: this.nodeBytes,
+    }
   }
 
   private readHeader(section: Uint8Array): void {
@@ -229,6 +238,7 @@ export class CarVerifier {
     if (cid.code === DAG_PB) {
       try {
         this.nodes.set(key, dagPb.decode(data))
+        this.nodeBytes.set(key, data)
       } catch {
         throw new CarRejected(`block ${cid} is not valid dag-pb`)
       }
@@ -298,6 +308,8 @@ export interface HostedIndex {
   kind: 'images' | 'metadata'
   /** The storage key of the CAR the ranges point into. */
   car: string
+  /** For a metadata root: the storage key of a CAR holding just the metadata, when one was kept. */
+  metaCar?: string
   files: Record<string, HostedFile>
 }
 
@@ -309,7 +321,8 @@ export type RootIndex = Omit<HostedIndex, 'car'>
  *
  * THE SHAPE IS FIXED, and the browser builds exactly this shape: two roots, in this order —
  *  1. a flat directory of images named `<piece>.<ext>`, and
- *  2. a flat directory of per-piece JSON named `<piece>`, each naming its image under root 1.
+ *  2. a flat directory of per-piece JSON named `<piece>`, each naming its image under root 1
+ *     (checked once the bytes are stored: see `metadata.ts`).
  * Anything else is refused. Accepting arbitrary DAGs would make this a general file host, and the
  * narrow shape is what lets every served byte carry a content type we chose.
  */

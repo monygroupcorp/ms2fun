@@ -3,7 +3,8 @@
  * collection page can say where its art stands.
  *
  * On each run, for every bound upload:
- *   1. learn its piece names from the images index and work out the migrated metadata root, once;
+ *   1. learn its image names from the images index, read its hosted metadata, and work out the
+ *      migrated metadata root from them, once;
  *   2. when a check is due, read the chain — `graduated()` and `metadataURI()` — and record what it
  *      says; a base of exactly `ipfs://<migrated root>/` marks the collection migrated.
  *
@@ -13,9 +14,10 @@
  * on the next run.
  */
 import { PIECE_IMAGE_NAME } from '../../../../app/src/lib/art/hostingLimits'
-import { isMigratedBase } from '../../../../app/src/lib/art/ipfsMigration'
+import { isMigratedBase, type HostedPiece } from '../../../../app/src/lib/art/ipfsMigration'
 import type { CollectionFacts } from './chain'
 import type { HostedCollection, Ledger } from './ledger'
+import { readHostedPieces } from './metadata'
 import { loadIndex } from './store'
 
 export interface WatchDeps {
@@ -24,9 +26,9 @@ export interface WatchDeps {
   checkMs: number
   /** Reads a collection's facts; null when this deployment has no RPC, so nothing is read. */
   readFacts: ((instance: `0x${string}`) => Promise<CollectionFacts>) | null
-  /** The hosted bucket, read for piece names; null when none is bound. */
+  /** The hosted bucket, read for piece names and metadata; null when none is bound. */
   bucket: R2Bucket | null
-  migrationCid: (imgCid: string, names: readonly string[]) => Promise<string>
+  migrationCid: (imgCid: string, pieces: readonly HostedPiece[]) => Promise<string>
 }
 
 /** When the watcher should run next, or null when there is nothing left to watch. */
@@ -59,7 +61,7 @@ export async function watchHosting(ledger: Ledger, deps: WatchDeps): Promise<num
   return next
 }
 
-/** Read the image names from the hosted index and record the migrated root they make. */
+/** Read the image names and hosted metadata, and record the migrated root they make. */
 async function learnPieces(
   ledger: Ledger,
   record: HostedCollection,
@@ -70,7 +72,12 @@ async function learnPieces(
   if (index === null) return null
   const names = Object.keys(index.files).filter((name) => PIECE_IMAGE_NAME.test(name))
   if (names.length === 0) return null
-  const migrationCid = await deps.migrationCid(record.imgCid, names)
+  const meta = await loadIndex(deps.bucket, record.metaCid)
+  if (meta === null) return null
+  const migrationCid = await deps.migrationCid(
+    record.imgCid,
+    await readHostedPieces(deps.bucket, meta),
+  )
   ledger.setMigrationTarget(record.draftId, names, migrationCid)
   return ledger.collection(record.draftId)
 }

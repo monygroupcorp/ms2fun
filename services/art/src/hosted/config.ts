@@ -30,14 +30,29 @@ export interface HostingEnv {
   UPLOADS_PAUSED?: string
   /** Bytes the deployment may hold in total, across every draft. The kill switch for the bill. */
   HOSTED_MAX_TOTAL_BYTES?: string
-  /** Largest single upload. Raise only on a plan whose request-body ceiling is above 100 MB. */
+  /**
+   * Largest request body: a one-request upload, or one part of an upload in parts. Raise only on a
+   * plan whose request-body ceiling is above 100 MB.
+   */
   UPLOAD_MAX_CAR_BYTES?: string
+  /**
+   * Bytes per part of an upload in parts. Leave empty: the default (16 MiB) is what the app expects,
+   * and storage refuses parts under 5 MiB. Tests set it small to exercise many parts.
+   */
+  UPLOAD_PART_BYTES?: string
   /** Minutes between on-chain checks of each launched collection. Informational only. */
   HOSTED_CHECK_MINUTES?: string
 }
 
-/** Bytes hosting may hold when a deployment sets no ceiling of its own: 50 GiB. */
-const DEFAULT_TOTAL_BYTES = 50 * 1024 * 1024 * 1024
+/**
+ * Bytes hosting may hold when a deployment sets no ceiling of its own: 500 GiB.
+ *
+ * Sized against the per-wallet cap: with a full-size collection at 2 GiB, the old 50 GiB filled with
+ * 25 creators' drafts. 500 GiB is room for 250 of them, and costs about $7.50 a month in R2
+ * storage if it is ever full (at $0.015 per GB-month, with no egress fees), which keeps it a bill
+ * ceiling a deployment can carry rather than one a handful of uploads would hit.
+ */
+const DEFAULT_TOTAL_BYTES = 500 * 1024 * 1024 * 1024
 
 /** How long a session token lasts. Long enough for one upload over a slow connection. */
 export const SESSION_TTL_MS = 60 * 60 * 1000
@@ -68,7 +83,9 @@ export function hostingConfig(env: HostingEnv) {
       : null,
     paused: env.UPLOADS_PAUSED?.trim() === '1',
     totalBytes: positiveInt(env.HOSTED_MAX_TOTAL_BYTES, DEFAULT_TOTAL_BYTES),
-    maxCarBytes: positiveInt(env.UPLOAD_MAX_CAR_BYTES, HOSTING_LIMITS.maxUploadBytes),
+    maxCarBytes: positiveInt(env.UPLOAD_MAX_CAR_BYTES, HOSTING_LIMITS.maxRequestBytes),
+    maxUploadBytes: HOSTING_LIMITS.maxUploadBytes,
+    partBytes: positiveInt(env.UPLOAD_PART_BYTES, HOSTING_LIMITS.partBytes),
     draftBytesPerWallet: HOSTING_LIMITS.draftBytesPerWallet,
     draftsPerWallet: HOSTING_LIMITS.draftsPerWallet,
     draftTtlMs: HOSTING_LIMITS.draftTtlDays * 24 * 60 * 60 * 1000,

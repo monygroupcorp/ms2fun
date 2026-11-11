@@ -14,10 +14,17 @@
  */
 import { readCollectionFacts, type CollectionFacts } from './chain'
 import { checkIntervalMs, hostingConfig, type HostingEnv } from './config'
-import { Ledger, type HostedCollection, type LedgerLimits, type Removal, type Sql } from './ledger'
+import {
+  Ledger,
+  type HostedCollection,
+  type LedgerLimits,
+  type Part,
+  type Removal,
+  type Sql,
+} from './ledger'
 import { watchHosting } from './lifecycle'
 import { migrationCidOf } from './migration'
-import { carKey, indexKey } from './store'
+import { carKey, indexKey, metaCarKey } from './store'
 
 /** The name of the one ledger instance. */
 const LEDGER_NAME = 'hosting-ledger'
@@ -37,6 +44,16 @@ export type LedgerOp =
   | { op: 'drafts'; wallet: string }
   | { op: 'remove'; wallet: string; id: string }
   | { op: 'hosting'; instance: string; now: number }
+  | {
+      op: 'begin'
+      wallet: string
+      want: { bytes: number; imgCid: string; metaCid: string; partSize: number }
+      now: number
+    }
+  | { op: 'attach'; id: string; uploadId: string }
+  | { op: 'upload'; wallet: string; id: string }
+  | { op: 'part'; id: string; part: Part }
+  | { op: 'parts'; id: string }
 
 /** What anyone may read about a launched collection's hosted art. There is no deadline in it. */
 export function publicHosting(record: HostedCollection) {
@@ -89,7 +106,14 @@ export class HostingLedger {
   async fetch(request: Request): Promise<Response> {
     const call = (await request.json()) as LedgerOp
     const result = this.run(call)
-    if (call.op === 'nonce' || call.op === 'reserve' || call.op === 'commit') await this.arm()
+    if (
+      call.op === 'nonce' ||
+      call.op === 'reserve' ||
+      call.op === 'commit' ||
+      call.op === 'begin'
+    ) {
+      await this.arm()
+    }
     // A fresh bind wakes the watcher straight away, to read the new collection's pieces. Only while
     // they are unknown: bind is open to anyone, and must not become a way to spin the alarm.
     if (call.op === 'bind' && result !== null) {
@@ -147,6 +171,18 @@ export class HostingLedger {
         return this.ledger.drafts(call.wallet)
       case 'remove':
         return this.ledger.remove(call.wallet, call.id)
+      case 'begin':
+        return this.ledger.begin(call.wallet, call.want, call.now)
+      case 'attach':
+        this.ledger.attach(call.id, call.uploadId)
+        return true
+      case 'upload':
+        return this.ledger.upload(call.wallet, call.id)
+      case 'part':
+        this.ledger.recordPart(call.id, call.part)
+        return true
+      case 'parts':
+        return this.ledger.parts(call.id)
       case 'hosting': {
         this.ledger.ensureCollections(call.now)
         const record = this.ledger.collectionFor(call.instance)
@@ -166,7 +202,20 @@ export class HostingLedger {
   private async drop(removals: readonly Removal[]): Promise<void> {
     const bucket = this.env.ART_HOSTED
     if (bucket === undefined || removals.length === 0) return
-    const keys = removals.flatMap((r) => [carKey(r.draftId), ...r.cids.map(indexKey)])
+    // An upload in parts still arriving is aborted, which drops the parts storage holds for it.
+    for (const removal of removals) {
+      if (removal.uploadId === null) continue
+      try {
+        await bucket.resumeMultipartUpload(carKey(removal.draftId), removal.uploadId).abort()
+      } catch {
+        // Already completed or aborted; nothing is left to drop.
+      }
+    }
+    const keys = removals.flatMap((r) => [
+      carKey(r.draftId),
+      metaCarKey(r.draftId),
+      ...r.cids.map(indexKey),
+    ])
     // R2 deletes up to 1000 keys per call.
     for (let i = 0; i < keys.length; i += 1000) await bucket.delete(keys.slice(i, i + 1000))
   }

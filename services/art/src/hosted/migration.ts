@@ -2,7 +2,7 @@
  * The migrated metadata root for a hosted upload, worked out on this side so the watcher can
  * recognise a finished move on chain.
  *
- * The JSON and the file layout come from `app/src/lib/art/ipfsMigration.ts` and the import
+ * The rewrite (only `image` changes) and the file layout come from `app/src/lib/art/ipfsMigration.ts` and the import
  * parameters from `app/src/lib/art/unixfsOptions.ts` — the same files the creator's browser uses, so
  * both sides arrive at the same CID. Only the importer is this package's own, because the service
  * cannot resolve the app's dependencies; the shared test vector in `migration.test.ts` and in the
@@ -11,7 +11,11 @@
 import { importer } from 'ipfs-unixfs-importer'
 import type { CID } from 'multiformats/cid'
 
-import { migratedMetaCid, type MigrationFile } from '../../../../app/src/lib/art/ipfsMigration'
+import {
+  migratedMetaCid,
+  type HostedPiece,
+  type MigrationFile,
+} from '../../../../app/src/lib/art/ipfsMigration'
 import { UNIXFS_OPTIONS } from '../../../../app/src/lib/art/unixfsOptions'
 
 /** Import files into one wrapped directory, keeping no blocks: only the root is wanted. */
@@ -26,6 +30,6 @@ async function importDirectory(files: readonly MigrationFile[]): Promise<string>
   return root.toString()
 }
 
-export function migrationCidOf(imgCid: string, imageNames: readonly string[]): Promise<string> {
-  return migratedMetaCid(imgCid, imageNames, importDirectory)
+export function migrationCidOf(imgCid: string, pieces: readonly HostedPiece[]): Promise<string> {
+  return migratedMetaCid(imgCid, pieces, importDirectory)
 }

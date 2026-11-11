@@ -14,6 +14,7 @@
 import { CarWriter } from '@ipld/car'
 import * as dagPb from '@ipld/dag-pb'
 import { importer, type ImportCandidate } from 'ipfs-unixfs-importer'
+import { varint } from 'multiformats'
 import { CID } from 'multiformats/cid'
 
 import { UNIXFS_OPTIONS } from './unixfsOptions'
@@ -37,8 +38,10 @@ export interface ImportedDag {
 export class MemoryBlocks {
   readonly blocks = new Map<string, Uint8Array>()
 
+  constructor(private readonly keepRaw = true) {}
+
   async put(cid: CID, block: Uint8Array): Promise<CID> {
-    this.blocks.set(cid.toString(), block)
+    if (this.keepRaw || cid.code === dagPb.code) this.blocks.set(cid.toString(), block)
     return cid
   }
 
@@ -71,17 +74,34 @@ function sameRealm(content: ImportFile['content']): ImportFile['content'] {
  * is an input to the DAG shape and a caller that forgot to sort would build a different CID for the
  * same files.
  */
-export async function importFiles(files: readonly ImportFile[]): Promise<ImportedDag> {
+export async function importFiles(
+  files: readonly ImportFile[],
+  options: {
+    /**
+     * Keep raw leaf blocks (file bytes) in the result. A caller that can read them back from the
+     * source files passes false, so a large import holds only its directory and file nodes.
+     */
+    keepRaw?: boolean
+    /** Files read at once. One keeps a large import to one file's bytes in memory at a time. */
+    fileConcurrency?: number
+  } = {},
+): Promise<ImportedDag> {
   if (files.length === 0) throw new Error('nothing to import')
   const sorted = [...files].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
-  const store = new MemoryBlocks()
+  const store = new MemoryBlocks(options.keepRaw ?? true)
   const source: ImportCandidate[] = sorted.map((file) => ({
     path: file.path,
     content: sameRealm(file.content),
   }))
 
   let root: CID | null = null
-  for await (const entry of importer(source, store, UNIXFS_OPTIONS)) {
+  for await (const entry of importer(source, store, {
+    ...UNIXFS_OPTIONS,
+    // Concurrency changes how fast the DAG is built, never its shape.
+    ...(options.fileConcurrency === undefined
+      ? {}
+      : { fileImportConcurrency: options.fileConcurrency }),
+  })) {
     // The wrapping directory is emitted last, once every child is persisted.
     root = entry.cid
   }
@@ -100,7 +120,7 @@ export async function importFiles(files: readonly ImportFile[]): Promise<Importe
 export type CarOrder = 'cid' | 'dag'
 
 /** Every block reachable from `roots`, children before parents, each block once. */
-function dagOrder(roots: readonly CID[], blocks: ReadonlyMap<string, Uint8Array>): string[] {
+export function dagOrder(roots: readonly CID[], blocks: ReadonlyMap<string, Uint8Array>): string[] {
   const out: string[] = []
   const seen = new Set<string>()
   const visit = (cid: CID) => {
@@ -146,4 +166,36 @@ export async function writeCarChunks(
   }
   await writer.close()
   await drain
+}
+
+/** The bytes of a CAR (v1) header naming `roots`: what every CAR starts with. */
+export async function carHeader(roots: readonly CID[]): Promise<Uint8Array> {
+  const { writer, out } = CarWriter.create([...roots])
+  const chunks: Uint8Array[] = []
+  const drain = (async () => {
+    for await (const chunk of out) chunks.push(chunk)
+  })()
+  await writer.close()
+  await drain
+  const header = new Uint8Array(chunks.reduce((n, c) => n + c.byteLength, 0))
+  let at = 0
+  for (const chunk of chunks) {
+    header.set(chunk, at)
+    at += chunk.byteLength
+  }
+  return header
+}
+
+/** The length prefix and CID that come before a block's bytes in a CAR. */
+export function carSectionPrefix(cid: CID, dataLength: number): Uint8Array {
+  const length = cid.bytes.byteLength + dataLength
+  const prefix = new Uint8Array(varint.encodingLength(length) + cid.bytes.byteLength)
+  varint.encodeTo(length, prefix, 0)
+  prefix.set(cid.bytes, prefix.byteLength - cid.bytes.byteLength)
+  return prefix
+}
+
+/** One block as it sits in a CAR: its prefix, then its bytes. */
+export function carSection(cid: CID, bytes: Uint8Array): [Uint8Array, Uint8Array] {
+  return [carSectionPrefix(cid, bytes.byteLength), bytes]
 }

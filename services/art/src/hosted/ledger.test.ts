@@ -61,7 +61,7 @@ describe('per-wallet caps on unlaunched art', () => {
     expect(ledger.reserve(BOB, MiB, T0).ok).toBe(true)
   })
 
-  it('refuses bytes past 200 MiB per wallet, counting uploads still in flight', () => {
+  it('refuses bytes past the per-wallet cap, counting uploads still in flight', () => {
     expect(ledger.reserve(ALICE, 150 * MiB, T0).ok).toBe(true)
     expect(ledger.reserve(ALICE, 51 * MiB, T0)).toMatchObject({ ok: false, status: 413 })
     expect(ledger.reserve(ALICE, 50 * MiB, T0).ok).toBe(true)
@@ -132,7 +132,7 @@ describe('expiry', () => {
     expect(ledger.sweep(T0 + LIMITS.draftTtlMs - 1)).toEqual([])
     expect(ledger.nextExpiry()).toBe(T0 + LIMITS.draftTtlMs)
     expect(ledger.sweep(T0 + LIMITS.draftTtlMs)).toEqual([
-      { draftId: draft.id, cids: ['img1', 'meta1'] },
+      { draftId: draft.id, cids: ['img1', 'meta1'], uploadId: null },
     ])
     expect(ledger.drafts(ALICE)).toEqual([])
   })
@@ -157,7 +157,11 @@ describe('bind and remove', () => {
   it('lets a wallet delete its own unbound draft and nobody else’s', () => {
     const draft = openDraft(ALICE, MiB, 1)
     expect(ledger.remove(BOB, draft.id)).toBeNull()
-    expect(ledger.remove(ALICE, draft.id)).toEqual({ draftId: draft.id, cids: ['img1', 'meta1'] })
+    expect(ledger.remove(ALICE, draft.id)).toEqual({
+      draftId: draft.id,
+      cids: ['img1', 'meta1'],
+      uploadId: null,
+    })
   })
 
   it('does not let the uploader delete art a launched collection uses', () => {
@@ -200,5 +204,57 @@ describe('collection records', () => {
       checkedAt: T0 + 3,
       lastUri: 'c',
     })
+  })
+})
+
+describe('uploads in parts', () => {
+  const want = { bytes: 50 * MiB, imgCid: 'img9', metaCid: 'meta9', partSize: 16 * MiB }
+
+  it('resumes the same upload for the same roots and size, and keeps its parts', () => {
+    const first = ledger.begin(ALICE, want, T0)
+    if (!first.ok || !('upload' in first)) throw new Error('not begun')
+    expect(first.fresh).toBe(true)
+    ledger.attach(first.upload.id, 'r2-upload')
+    ledger.recordPart(first.upload.id, { n: 2, etag: 'b', bytes: 16 * MiB })
+    ledger.recordPart(first.upload.id, { n: 1, etag: 'a', bytes: 16 * MiB })
+    const again = ledger.begin(ALICE.toLowerCase(), want, T0 + 1000)
+    expect(again).toMatchObject({ ok: true, fresh: false, upload: { id: first.upload.id, parts: [1, 2] } })
+    // A different size is a different upload.
+    const other = ledger.begin(ALICE, { ...want, bytes: want.bytes + 1 }, T0)
+    expect(other).toMatchObject({ ok: true, fresh: true })
+  })
+
+  it('holds its full size against the wallet, and expires with the draft clock', () => {
+    const begun = ledger.begin(ALICE, { ...want, bytes: 150 * MiB }, T0)
+    if (!begun.ok || !('upload' in begun)) throw new Error('not begun')
+    ledger.attach(begun.upload.id, 'r2-upload')
+    expect(ledger.reserve(ALICE, 60 * MiB, T0)).toMatchObject({ ok: false, status: 413 })
+    expect(ledger.sweep(T0 + LIMITS.draftTtlMs - 1)).toEqual([])
+    expect(ledger.sweep(T0 + LIMITS.draftTtlMs)).toEqual([
+      { draftId: begun.upload.id, cids: [], uploadId: 'r2-upload' },
+    ])
+    expect(ledger.parts(begun.upload.id)).toEqual([])
+  })
+
+  it('answers with the hosted draft when the roots are already up', () => {
+    const draft = openDraft(BOB, MiB, 9)
+    expect(ledger.begin(ALICE, want, T0)).toEqual({ ok: true, duplicate: draft })
+  })
+
+  it('adds its columns to a ledger created before uploads in parts existed', () => {
+    const sql = sqliteSql()
+    sql.exec(`CREATE TABLE drafts (
+      id TEXT PRIMARY KEY, wallet TEXT NOT NULL, state TEXT NOT NULL, bytes INTEGER NOT NULL,
+      files INTEGER NOT NULL DEFAULT 0, img_cid TEXT, meta_cid TEXT, created_at INTEGER NOT NULL,
+      expires_at INTEGER, instance TEXT, bound_at INTEGER)`)
+    sql.exec(
+      `INSERT INTO drafts (id, wallet, state, bytes, created_at, img_cid, meta_cid)
+       VALUES ('old', ?, 'open', 5, ?, 'i', 'm')`,
+      ALICE.toLowerCase(),
+      T0,
+    )
+    const upgraded = new Ledger(sql, LIMITS)
+    expect(upgraded.drafts(ALICE)[0]).toMatchObject({ id: 'old', uploadId: null, state: 'open' })
+    expect(upgraded.begin(ALICE, want, T0)).toMatchObject({ ok: true, fresh: true })
   })
 })

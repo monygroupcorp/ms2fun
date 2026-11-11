@@ -8,6 +8,7 @@
  * thousands of writes per collection to produce something that has to be reassembled later anyway.
  *
  *   hosted/car/<draft>.car     the upload, verified
+ *   hosted/meta/<draft>.car    just its metadata, for checking a move to IPFS without the images
  *   hosted/idx/<cid>.json      one per root: file name -> size, type, ranges
  *
  * The index existing IS what "hosted" means to the serving path. It is written only after the CAR
@@ -18,6 +19,10 @@ import type { HostedFile, HostedIndex } from './car'
 
 export function carKey(draftId: string): string {
   return `hosted/car/${draftId}.car`
+}
+
+export function metaCarKey(draftId: string): string {
+  return `hosted/meta/${draftId}.car`
 }
 
 export function indexKey(cid: string): string {
