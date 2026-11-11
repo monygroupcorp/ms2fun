@@ -372,6 +372,35 @@ If every piece's \`image\` already links your art on IPFS, nothing needs hosting
 `,
     related: ['onchain-image-cost', 'withholding-art'],
   },
+  'keeping-a-collection-alive': {
+    title: 'Keeping a collection alive',
+    summary:
+      'How any holder can keep a copy of a collection on IPFS, so its art outlives any one website.',
+    body: `
+A collection's art is named on chain by its **content address** — a CID, worked out from the bytes themselves. Anyone who has the bytes can serve them under that address, and anyone who asks for the address can check they got the right bytes. So the art lasts as long as somebody keeps a copy on IPFS, whoever that is.
+
+The panel at the foot of an ERC-404 collection's page, **Keep this collection alive**, makes keeping a copy one click for anyone who wants the collection to outlive any one website.
+
+## Three ways to keep a copy
+
+- **Pin to my IPFS node.** For [IPFS Desktop](https://docs.ipfs.tech/install/ipfs-desktop/) or a kubo node on your computer. The page fetches the collection, checks every block against its CID in your browser, sends it to your node, and asks the node to confirm the pins. Your node serves it to the network while it is running.
+- **Pin with my pinning service.** For an account you already have with a service that speaks the IPFS Pinning Service API — Pinata and Filebase are filled in for you. The service fetches the collection from IPFS by CID, so this opens up once the collection is on public IPFS. Your token goes from your browser straight to your service and is forgotten when you close the tab.
+- **Download the CAR, or copy the CIDs.** A CAR file holds the whole collection in one file, under the same CIDs. Keep it on a disk, run \`ipfs dag import\` on it, or upload it to a service that imports CAR files.
+
+## The one-time node setup
+
+A node does not answer web pages until you allow them. If the panel cannot reach yours, it shows two \`ipfs config\` commands for this site; run them once, restart IPFS, and press the button again. If your browser asks whether the site may reach devices on your local network, that is the request to your own node.
+
+## What the status line means
+
+For the images and the metadata, the panel asks public IPFS gateways — never this site's own host — for a small sample. A ✓ means somebody else is serving it right now. A ✗ on a collection whose art was uploaded here is expected until a copy is pinned somewhere online.
+
+## What this site does and does not do
+
+Art uploaded here is hosted as a convenience for launching, and it belongs on IPFS; its creator can move it there from the collection page. This site does not pin collections into an account of its own, and nothing here promises how long anything will be hosted. A copy you keep is yours.
+`,
+    related: ['preparing-your-files'],
+  },
   'cover-vs-banner': {
     title: 'Cover vs banner',
     summary: 'The cover is your collection image; the banner is the wide image DEX charts read.',
@@ -438,7 +467,13 @@ export const CONCEPT_GROUPS: { title: string; slugs: string[] }[] = [
   },
   {
     title: 'Collection page',
-    slugs: ['onchain-image-cost', 'preparing-your-files', 'cover-vs-banner', 'withholding-art'],
+    slugs: [
+      'onchain-image-cost',
+      'preparing-your-files',
+      'cover-vs-banner',
+      'withholding-art',
+      'keeping-a-collection-alive',
+    ],
   },
   { title: 'Support', slugs: ['support'] },
 ]
