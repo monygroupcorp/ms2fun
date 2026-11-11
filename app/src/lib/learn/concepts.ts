@@ -270,6 +270,8 @@ The collection's **base art is never overwritten** — the overlay augments it, 
     body: `
 Token Tiers turns pieces of your collection into **coin denominations**. A tier of weight \`w\` is one NFT worth \`w\` coin units — the same coin your collection already trades, just held as a single larger piece instead of \`w\` ordinary ones.
 
+Tiers are **not price levels**. The bonding curve prices every token, tiered or not; a tier only decides how many tokens one piece bundles. With a weight of 10, a holder of 10 base pieces' worth of coin can hold them as one tier piece instead — same coin, same price, one bigger piece.
+
 ## Converting up and down
 - **Mint up** converts coin into a tier NFT: it escrows \`(weight − 1) × unitSize\` and hands you the band piece.
 - **Mint down** reverses it: the band piece is returned and the escrow releases back to coin.

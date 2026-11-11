@@ -103,6 +103,12 @@ export interface FieldSchema {
   validation?: FieldValidation
   visibleWhen?: VisibleWhen
   unit?: 'wei' | 'eth' | 'gwei' | 'bps' | 'seconds' | 'tokens' | 'count'
+  /**
+   * Shown only when the creator turns on the wizard's Advanced settings. A hidden field still
+   * submits: its `default` (or whatever the creator set before hiding it) is what the create call
+   * carries, so every advanced field MUST have a default that deploys cleanly untouched.
+   */
+  advanced?: boolean
 }
 
 /**
@@ -117,6 +123,11 @@ export interface ModuleSlot {
   help?: string
   /** A /learn concept slug (lib/learn/concepts). Renders a LearnLink after the slot help. */
   learnMore?: string
+  /**
+   * Shown only under the wizard's Advanced settings. Only an OPTIONAL slot may be advanced: left
+   * untouched it submits the zero address (module off), which is what makes hiding it safe.
+   */
+  advanced?: boolean
 }
 
 /** A config form keyed by a module's metadata `configType` (e.g. `password-tier-gating`). */
