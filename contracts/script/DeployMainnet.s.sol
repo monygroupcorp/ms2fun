@@ -21,7 +21,7 @@ import { SepoliaSalts } from "./SepoliaSalts.sol";
 ///         rehearsed. CreateX reverts `InvalidSalt` for any other sender.
 ///
 ///         `hookFeeBips` / `lpFeeRate` (the perpetual swap tithe) ship LIVE at launch, matching
-///         Sepolia's rehearsed rate: ruled 2026-11-11 (rth) — mainnet launches on 1% fees, not zero,
+///         Sepolia's rehearsed rate: ruled 2026-11-10 (rth) — mainnet launches on 1% fees, not zero,
 ///         and not deferred to a later `EnableAlignmentTithe` switch-on. The rate is immutable per
 ///         hook, baked into its init code at graduation, so this is the number every pool graduating
 ///         from day one keeps for good.

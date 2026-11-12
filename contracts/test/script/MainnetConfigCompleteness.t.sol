@@ -188,7 +188,7 @@ contract MainnetConfigCompletenessTest is Test {
         assertEq(cfg.saltComponentReg, SepoliaSalts.COMPONENT_REG, "component registry salt");
     }
 
-    /// @dev The perpetual swap tithe's RATE. Ruled 2026-11-11 (rth): mainnet launches on 1% fees,
+    /// @dev The perpetual swap tithe's RATE. Ruled 2026-11-10 (rth): mainnet launches on 1% fees,
     ///      live from the first graduation, not deferred to a later `EnableAlignmentTithe`
     ///      switch-on. The rate is IMMUTABLE per hook, baked into the hook's init code at graduation,
     ///      so the number this config holds on the day is the number every pool graduating from
