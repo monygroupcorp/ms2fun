@@ -65,6 +65,10 @@ contract DeploymentRecordTest is Test {
             "ModuleUniV4Deployer"
         );
         assertEq(vm.parseJsonAddress(record, ".factories.UNI"), address(s.uniVaultFactory()), "factories.UNI");
+        // The ZAMM vault factory is deployer-owned until the handover, and the handover reads its
+        // address from this record; a record without it leaves the factory with the deployer.
+        assertTrue(address(s.zammVaultFactory()) != address(0), "precondition: the config builds a ZAMM vault factory");
+        assertEq(vm.parseJsonAddress(record, ".factories.ZAMM"), address(s.zammVaultFactory()), "factories.ZAMM");
         assertEq(
             vm.parseJsonAddress(record, ".contracts.AlignmentHookSwapRouter"),
             s.alignmentHookSwapRouter(),
@@ -132,12 +136,13 @@ contract DeploymentRecordTest is Test {
         contracts_[30] = "UniswapVaultPriceValidator";
         _assertKeys(".contracts", contracts_, "contracts");
 
-        string[] memory factories = new string[](5);
+        string[] memory factories = new string[](6);
         factories[0] = "ERC404";
         factories[1] = "ERC1155";
         factories[2] = "ERC721";
         factories[3] = "UNI";
         factories[4] = "AAVE";
+        factories[5] = "ZAMM";
         _assertKeys(".factories", factories, "factories");
 
         string[] memory uniswap = new string[](3);
@@ -178,7 +183,9 @@ contract DeploymentRecordTest is Test {
         cfg.v4PoolManager = address(1);
         cfg.v3Factory = address(0);
         cfg.v2Factory = address(0);
-        cfg.zamm = address(0);
+        // A ZAMM address is set so `DeployCore` builds the ZAMM vault factory and the record has a
+        // non-zero address to carry; no target deploys a ZAMM vault, so nothing calls into it.
+        cfg.zamm = STUB_LINK;
         cfg.zrouter = address(0);
         cfg.safe = address(0);
         cfg.saltMasterRegistry = bytes32(uint256(1));

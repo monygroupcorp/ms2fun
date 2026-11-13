@@ -41,10 +41,10 @@ contract DeploySepolia is DeployCore {
 
     /// @dev The ZAMM vault factory, written beside the deployment file.
     ///
-    ///      `DeployCore`'s own output publishes the Uni and Aave factories, the two a network deploys
-    ///      vaults from at deploy time. The Sepolia showcase deploys its ZAMM vaults from the seed,
-    ///      whose alignment tokens are fixtures it mints itself, so the seed needs the factory address
-    ///      in a Sepolia-local file and the cross-network core keeps one output shape.
+    ///      `DeployCore`'s own output carries it too, as `factories.ZAMM` (the ownership handover reads
+    ///      it from there), but the Sepolia seed predates that and reads this Sepolia-local file. The
+    ///      showcase deploys its ZAMM vaults from the seed, whose alignment tokens are fixtures it
+    ///      mints itself.
     ///
     ///      The address is zero when `cfg.zamm == 0` leaves the ZAMM factory undeployed; the seed
     ///      reads a zero as "this venue is not available here" and reports it rather than reverting.

@@ -734,6 +734,10 @@ contract DeployCore is Script {
         // Uniswap V4 alignment-vault factory: it owns every vault it deploys, so the per-vault
         // owner-only setters (`setVaultPoolKey`, `setVaultPriceValidator`) are reachable only through it.
         vm.serializeAddress(f, "UNI", address(uniVaultFactory));
+        // ZAMM alignment-vault factory: owner of every ZAMM vault, and deployer-owned until the
+        // handover. `MigrateOwnership` reads it as `ZAMM_VAULT_FACTORY`, so a record without it
+        // leaves the factory with the deployer. Zero when this network has no ZAMM.
+        vm.serializeAddress(f, "ZAMM", address(zammVaultFactory));
         // Aave endowment vault factory, for the app's permissionless Yield-vault creation. Zero when
         // this network has no Aave stataToken.
         string memory factories = vm.serializeAddress(f, "AAVE", address(aaveVaultFactory));
