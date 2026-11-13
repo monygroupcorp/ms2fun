@@ -66,4 +66,15 @@ describe('Content-Security-Policy', () => {
       expect(csp[name] ?? []).not.toContain('http:')
     }
   })
+
+  it('lets a holder reach their own IPFS node on loopback, and no other plain-http origin', () => {
+    const connect = csp['connect-src'] ?? []
+    expect(connect).toContain('http://127.0.0.1:*')
+    expect(connect).toContain('http://localhost:*')
+    const plainHttp = connect.filter((s) => s.startsWith('http://'))
+    expect(plainHttp.sort()).toEqual(['http://127.0.0.1:*', 'http://localhost:*'])
+    for (const name of ['img-src', 'script-src', 'style-src', 'font-src']) {
+      expect((csp[name] ?? []).some((s) => s.startsWith('http://'))).toBe(false)
+    }
+  })
 })

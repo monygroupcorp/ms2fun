@@ -101,3 +101,15 @@ export const themeStore = storage<'light' | 'dark'>('theme', {
   version: 1,
   parse: (r) => (r === 'light' || r === 'dark' ? r : undefined),
 })
+
+/**
+ * The holder's own IPFS node API address, when they changed it from the default
+ * (`http://127.0.0.1:5001`). Remembered only after the node answered; null means the default. The
+ * credential-bearing pinning-service settings are NOT here: they live in session storage only (see
+ * `lib/art/keep/psa.ts`).
+ */
+export const nodeApiStore = storage<string | null>('ipfsNodeApi', {
+  default: null,
+  version: 1,
+  parse: (r) => (r === null || (typeof r === 'string' && /^https?:\/\//.test(r)) ? r : undefined),
+})

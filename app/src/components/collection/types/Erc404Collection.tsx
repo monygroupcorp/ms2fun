@@ -3,10 +3,13 @@
  *   Primary — the phase-aware trading UI (buy/sell / free-mint / reroll / graduate, or the embedded
  *             graduated swap). Lives in the shell's "works" column.
  *   Gallery — the DN404 mirror art (a 404 is also an NFT collection) as a grid below the shell,
- *             with the art-hosting record above it when the art was uploaded for hosting.
+ *             with the art-hosting record above it when the art was uploaded for hosting, and the
+ *             "keep this collection alive" panel below it for any holder who wants a copy.
  *   Admin   — creator admin (bonding lifecycle, style, vault, delegation); self-hides unless owner.
  * See `collectionSurfaces` for how the page picks these by contractType.
  */
+import { lazy, Suspense } from 'react'
+
 import { BondingSurface } from '../erc404/BondingSurface'
 import { Erc404Charts } from '../erc404/Erc404Charts'
 import { Erc404Portfolio } from '../erc404/Erc404Portfolio'
@@ -15,6 +18,10 @@ import { Erc404AdminPanel } from '../erc404/Erc404AdminPanel'
 import { Erc404NftGallery } from '../erc404/Erc404NftGallery'
 import { HostedArtSection } from '../HostedArtSection'
 import styles from './TypeSection.module.css'
+
+// Loaded with the gallery, not the page: most visitors never scroll to it, and nobody needs it to
+// buy, sell or browse.
+const KeepAlivePanel = lazy(() => import('../keep/KeepAlivePanel'))
 
 export interface Erc404SurfaceProps {
   instance: `0x${string}`
@@ -60,6 +67,10 @@ export function Erc404Gallery({ instance }: Erc404SurfaceProps) {
         <h2 className={styles.title}>PIECES</h2>
         <Erc404NftGallery instance={instance} />
       </section>
+      {/* Self-hides unless the collection's base is content-addressed. */}
+      <Suspense fallback={null}>
+        <KeepAlivePanel instance={instance} />
+      </Suspense>
     </>
   )
 }
