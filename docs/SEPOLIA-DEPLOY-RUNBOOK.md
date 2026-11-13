@@ -467,8 +467,13 @@ will not run without one. Create it on Sepolia (`app.safe.global`, Sepolia netwo
 address. This is NOT `cfg.safe` in `DeployCore` — that field is read by nothing (see §9) and wiring
 a real Safe into it installs no governance at all.
 
-**5.5.2 — the Timelock.** `SAFE_ADDRESS` is the Safe from 5.5.1; the signer is the same keystore
-§5.1 broadcast with, and it is passed the same way — see §1.5.
+**On mainnet, skip 5.5.1.** The mainnet Safe already exists:
+`0xBCE7DF8d399F145745C660DecB9ef50CA723d262`, 1-of-1, sole owner rth's wallet
+(`0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6`), created 2026-11-10 and ruled on the `the-safe`
+decision record. That is the `SAFE_ADDRESS` for 5.5.2 on mainnet — go straight there.
+
+**5.5.2 — the Timelock.** `SAFE_ADDRESS` is the Safe from 5.5.1 (on mainnet, the address above);
+the signer is the same keystore §5.1 broadcast with, and it is passed the same way — see §1.5.
 
 ```
 cd contracts
