@@ -908,7 +908,7 @@
   ],
   "blindSpots": [
     {
-      "site": "app/src/components/wizard/useDeployGasEstimate.ts:63",
+      "site": "app/src/components/wizard/useDeployGasEstimate.ts:78",
       "why": "the abi is picked at runtime from a FACTORY table, so the scan cannot pair it. It is an estimateContractGas read, not a write, and the write it estimates is covered by C-1/C-2/C-3."
     },
     {
