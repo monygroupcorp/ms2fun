@@ -78,6 +78,17 @@ As Sepolia §4, against an anvil fork of mainnet, from the vanity deployer addre
   measured and checklist entry 3 can be struck;
 - gas totals recorded.
 
+One command runs all of it, starting and stopping its own fork, and writes the record:
+
+```
+cd app
+pnpm chain:rehearse:mainnet      # MAINNET_RPC_URL from the environment or the repo-root .env
+```
+
+It exits non-zero on any failed step, on any registry whose owner is not the Timelock, and on any
+contract the deploy created that is still owned by the deployer after the handover. What it fakes
+(the signing, and the waits it warps) is listed in `app/scripts/dev-chain/README.md`.
+
 Measured 2026-10-19 with `DeployAnvil` on a mainnet fork at block 26,225,916: 104 transactions,
 92,541,481 gas. At a 1 gwei effective price that is about 0.09 ETH; at a 30 gwei spike about 2.8 ETH.
 Fund the deployer for the spike case with margin (about 4.3 ETH) and do not broadcast into a spike.

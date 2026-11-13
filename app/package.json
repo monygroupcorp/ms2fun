@@ -29,6 +29,7 @@
     "chain:deploy:sepolia": "tsx scripts/dev-chain/deploy-sepolia.ts",
     "chain:check:sepolia": "tsx scripts/dev-chain/check-sepolia.ts",
     "chain:stop:sepolia": "bash scripts/dev-chain/stop-sepolia.sh",
+    "chain:rehearse:mainnet": "tsx scripts/dev-chain/fork-rehearsal-mainnet.ts",
     "tithe:report": "tsx scripts/tithe-report.ts",
     "ipfs:latency": "tsx scripts/ipfs-gateway-latency.ts",
     "publish:preflight": "tsx scripts/assert-publishable.ts",
