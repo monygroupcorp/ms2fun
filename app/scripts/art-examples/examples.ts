@@ -71,7 +71,10 @@ const PIECES = [
   { background: 'Blue', square: 'White' },
 ]
 
-const MTIME = new Date('2026-01-01T00:00:00Z')
+// Zip entries store a DOS date-time with no zone, and fflate fills it from the Date's LOCAL fields.
+// Built from local fields, the stored time reads 2026-01-01 00:00 on every machine and in every
+// zone, so the bytes match whether they were written on a laptop or checked in UTC on CI.
+const MTIME = new Date(2026, 0, 1, 0, 0, 0)
 
 /** The example collection: `images/<n>.png` and `json/<n>.json`, numbered from 1. */
 export function exampleCollectionZip(): Uint8Array {
