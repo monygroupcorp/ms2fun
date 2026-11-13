@@ -1,8 +1,8 @@
 {
   "forkRehearsal": {
     "channel": "mainnet-fork",
-    "forkBlock": "26408176",
-    "stampedAt": "2026-11-13T19:36:42.677Z",
+    "forkBlock": "26408328",
+    "stampedAt": "2026-11-13T20:07:30.397Z",
     "note": "Written against a local mainnet FORK. Every address below the six registries is fork-ephemeral and does not exist on mainnet."
   },
   "chainId": 1,

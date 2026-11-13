@@ -3,12 +3,12 @@
     "channel": "mainnet-fork",
     "note": "Fork only. Nothing here was broadcast to mainnet."
   },
-  "startedAt": "2026-11-13T19:36:17.329Z",
-  "finishedAt": "2026-11-13T19:37:12.229Z",
-  "commit": "1123d0d033daede40c44e75f985246ed7d471928",
+  "startedAt": "2026-11-13T20:07:11.312Z",
+  "finishedAt": "2026-11-13T20:07:55.407Z",
+  "commit": "a37800a3517d0b128847bb1a58d020a9e5564c55",
   "workingTreeDirty": false,
-  "forkBlock": "26408176",
-  "forkBaseFeeWei": "70682761",
+  "forkBlock": "26408328",
+  "forkBaseFeeWei": "81730424",
   "deployer": "0x000888695d3e361434f67D9dbd110f1A443822b9",
   "safe": "0xBCE7DF8d399F145745C660DecB9ef50CA723d262",
   "timelock": "0x076aa89f9c2d035d195cbc85c5f596fad70f45a4",
@@ -20,6 +20,11 @@
     "GlobalMessageRegistry": "0x076aA89F9C2d035D195CBC85c5F596fAD70f45a4",
     "AlignmentRegistry": "0x076aA89F9C2d035D195CBC85c5F596fAD70f45a4",
     "ComponentRegistry": "0x076aA89F9C2d035D195CBC85c5F596fAD70f45a4"
+  },
+  "ownershipSweep": {
+    "contractsCreated": 81,
+    "proxyImplementationsExcluded": 6,
+    "swept": 75
   },
   "contractsStillOwnedByDeployer": [],
   "gas": {
@@ -67,26 +72,26 @@
       {
         "step": "collections: mint, withdraw, buy out, graduate",
         "txs": 4,
-        "gas": "6214029"
+        "gas": "5799213"
       }
     ],
     "deployer": {
       "txs": 143,
       "gas": "93362511",
-      "spentAtForkBaseFeeWei": "612875693873161",
+      "spentAtForkBaseFeeWei": "719827191704339",
       "at1GweiEth": "0.093362511",
       "at30GweiEth": "2.80087533"
     },
-    "total": "103500484"
+    "total": "103085668"
   },
   "collections": {
     "coinBurned": "59340544",
     "creatorGainedEth": "275",
-    "erc1155": "0x7FfC01E11859f3eefd22b7E4a4B632F8BcF4817C",
+    "erc1155": "0xcb69Dca79E9249e351076F8D90AE18E26886527b",
     "erc1155CreatorPaid": "8000000000000000",
     "erc1155MintCost": "10000000000000000",
     "erc1155Withdrawn": "10000000000000000",
-    "erc404": "0xF8eA868492B95b2e80f5b801c729A2039f6283F3",
+    "erc404": "0xF18470337024C5c4D16AE8Cd81eE017EdEF5Be6a",
     "erc404BuyCost": "5050000000000000033",
     "erc404Hooked": true,
     "erc404LpLeg": "4000000000000000027",
@@ -98,6 +103,8 @@
     "moduleEthResidual": "0",
     "poolTookCoin": "9999999999999999940659456",
     "poolTookEth": "3999999999999999684",
-    "treasuryGainedEth": "50000000000000003"
+    "treasuryGainedEth": "50000000000000003",
+    "moduleEthResidualOnChain": "0",
+    "moduleCoinResidualOnChain": "0"
   }
 }
