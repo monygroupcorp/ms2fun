@@ -557,16 +557,18 @@ async function main(): Promise<void> {
     //
     // verify() asserts the contracts it was told about. This asks every contract the deploy created,
     // which is how a contract the record leaves out is caught.
+    // Keyed lowercase: forge's log writes addresses lowercase and the record checksums them, so a
+    // mixed-case set would count one contract twice.
     const created = new Set<Address>()
+    const add = (a: string) => created.add(a.toLowerCase() as Address)
     // CREATE transactions and the contracts created inside any transaction; a CALL's
     // `contractAddress` is its target, which the deploy did not create.
     for (const t of broadcastLog('DeployMainnet.s.sol').transactions) {
-      if (t.transactionType.startsWith('CREATE') && t.contractAddress)
-        created.add(t.contractAddress as Address)
-      for (const c of t.additionalContracts ?? []) created.add(c.address as Address)
+      if (t.transactionType.startsWith('CREATE') && t.contractAddress) add(t.contractAddress)
+      for (const c of t.additionalContracts ?? []) add(c.address)
     }
-    for (const a of Object.values(record.contracts)) if (BigInt(a) !== 0n) created.add(a)
-    for (const a of Object.values(record.factories)) if (BigInt(a) !== 0n) created.add(a)
+    for (const a of Object.values(record.contracts)) if (BigInt(a) !== 0n) add(a)
+    for (const a of Object.values(record.factories)) if (BigInt(a) !== 0n) add(a)
     const registryOwners: Record<string, Address | undefined> = {}
     for (const name of REGISTRIES) registryOwners[name] = await ownerOf(record.contracts[name])
     // The UUPS implementations behind the proxies are MigrateOwnership's stated exclusion: their
@@ -577,8 +579,10 @@ async function main(): Promise<void> {
       if (slot && BigInt(slot) !== 0n) implementations.add(`0x${slot.slice(-40)}`.toLowerCase())
     }
     const stillDeployer: Address[] = []
+    let swept = 0
     for (const a of created) {
-      if (implementations.has(a.toLowerCase())) continue
+      if (implementations.has(a)) continue
+      swept++
       if ((await ownerOf(a))?.toLowerCase() === deployer.toLowerCase()) stillDeployer.push(a)
     }
     const badRegistries = REGISTRIES.filter(
@@ -594,7 +598,7 @@ async function main(): Promise<void> {
       for (const a of stillDeployer) console.error(`    ${a}`)
     } else {
       console.log(
-        `✓ none of the ${created.size - implementations.size} contracts the deploy created (less ${implementations.size} proxy implementations) is still owned by the deployer`,
+        `✓ none of the ${swept} contracts the deploy created (less ${created.size - swept} proxy implementations) is still owned by the deployer`,
       )
     }
 
@@ -703,6 +707,11 @@ async function main(): Promise<void> {
       timelock,
       titheOn,
       registryOwners,
+      ownershipSweep: {
+        contractsCreated: created.size,
+        proxyImplementationsExcluded: created.size - swept,
+        swept,
+      },
       contractsStillOwnedByDeployer: stillDeployer,
       gas: {
         steps: gasLedger.map((g) => ({ ...g, gas: g.gas.toString() })),
