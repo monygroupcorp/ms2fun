@@ -137,7 +137,10 @@ const forgeEnv: NodeJS.ProcessEnv = {
   FOUNDRY_NO_STORAGE_CACHING: 'true',
   FOUNDRY_BROADCAST: BROADCAST_DIR,
 }
-delete forgeEnv.TIMELOCK_MIN_DELAY
+// Set rather than deleted: forge loads `contracts/.env` itself, and an unset variable there would be
+// filled back in. The rehearsal asserts the deployed Timelock carries it.
+const MAINNET_TIMELOCK_DELAY = 86_400n
+forgeEnv.TIMELOCK_MIN_DELAY = MAINNET_TIMELOCK_DELAY.toString()
 
 // ───────────────────────────── helpers ─────────────────────────────
 
@@ -172,7 +175,12 @@ function broadcast(script: string, sender: Address, extra: string[] = [], env = 
 }
 
 interface BroadcastLog {
-  transactions: { transactionType: string; contractName?: string; contractAddress?: string }[]
+  transactions: {
+    transactionType: string
+    contractName?: string
+    contractAddress?: string
+    additionalContracts?: { address: string }[]
+  }[]
   receipts: { gasUsed: string; transactionHash: string; contractAddress?: string | null }[]
 }
 
@@ -490,7 +498,16 @@ async function main(): Promise<void> {
       | Address
       | undefined
     if (!timelock) throw new Error('DeployTimelock created no contract')
-    console.log(`✓ Timelock at ${timelock}`)
+    const delay = await publicClient.readContract({
+      address: timelock,
+      abi: timelockAbi,
+      functionName: 'minDelay',
+    })
+    if (delay !== MAINNET_TIMELOCK_DELAY)
+      throw new Error(
+        `the Timelock's delay is ${delay}s, not the mainnet ${MAINNET_TIMELOCK_DELAY}s`,
+      )
+    console.log(`✓ Timelock at ${timelock}, delay ${delay}s`)
 
     // ── 3. Phase 1, as the Timelock ──
     const safeOwnable = [
@@ -541,8 +558,13 @@ async function main(): Promise<void> {
     // verify() asserts the contracts it was told about. This asks every contract the deploy created,
     // which is how a contract the record leaves out is caught.
     const created = new Set<Address>()
-    for (const t of broadcastLog('DeployMainnet.s.sol').transactions)
-      if (t.contractAddress) created.add(t.contractAddress as Address)
+    // CREATE transactions and the contracts created inside any transaction; a CALL's
+    // `contractAddress` is its target, which the deploy did not create.
+    for (const t of broadcastLog('DeployMainnet.s.sol').transactions) {
+      if (t.transactionType.startsWith('CREATE') && t.contractAddress)
+        created.add(t.contractAddress as Address)
+      for (const c of t.additionalContracts ?? []) created.add(c.address as Address)
+    }
     for (const a of Object.values(record.contracts)) if (BigInt(a) !== 0n) created.add(a)
     for (const a of Object.values(record.factories)) if (BigInt(a) !== 0n) created.add(a)
     const registryOwners: Record<string, Address | undefined> = {}
@@ -631,6 +653,30 @@ async function main(): Promise<void> {
       broadcastLog('ForkRehearsalCollections.s.sol', 'exercise()'),
     )
     const collections = JSON.parse(readFileSync(statePath, 'utf8')) as Record<string, unknown>
+    // The script's figures come from its own simulation. The residual is read back off the chain
+    // after the broadcast too, and the two must agree.
+    const module = record.contracts.ModuleUniV4Deployer
+    const coin = collections.erc404 as Address
+    const chainEth = await publicClient.getBalance({ address: module })
+    const chainCoin = await publicClient.readContract({
+      address: coin,
+      abi: parseAbi(['function balanceOf(address) view returns (uint256)']),
+      functionName: 'balanceOf',
+      args: [module],
+    })
+    collections.moduleEthResidualOnChain = chainEth.toString()
+    collections.moduleCoinResidualOnChain = chainCoin.toString()
+    if (
+      chainEth.toString() !== collections.moduleEthResidual ||
+      chainCoin.toString() !== collections.moduleCoinResidual
+    ) {
+      throw new Error(
+        `A-C5: the chain reads ${chainEth} wei / ${chainCoin} coin in the module, the simulation said otherwise`,
+      )
+    }
+    console.log(
+      `✓ A-C5 read back off the chain: the module holds ${chainEth} wei and ${chainCoin} coin`,
+    )
 
     // ── The record ──
     const deployerSpent = DEPLOYER_FUNDING - (await publicClient.getBalance({ address: deployer }))
