@@ -10,8 +10,39 @@ import { DeployGasBreakdown } from './DeployGasBreakdown'
 import type { GasPriceGwei } from './useGasPriceGwei'
 import { REF_GWEI, humanEth } from '../../lib/wizard/embedGas'
 import type { EmbedBreakdown } from '../../lib/wizard/deployGasBreakdown'
+import css from './DeployGasBreakdown.module.css?raw'
 
 afterEach(cleanup)
+
+describe('adjacent columns never touch', () => {
+  // border-collapse means a cell with zero horizontal padding on both its own right edge and the
+  // next cell's left edge renders two right-aligned numbers with nothing between them — on a
+  // narrow screen "479 B" and "14.0M gas" become "479 B14.0M gas". Read the actual rule rather than
+  // the computed style: jsdom doesn't resolve the design tokens these paddings are expressed in.
+  const rule = (selector: string) =>
+    css.match(new RegExp(`${selector}\\s*\\{([^}]*)\\}`))?.[1] ?? ''
+
+  // Shorthand `padding: V H` (or `T H B` / `T R B L`) — the horizontal component(s), second token
+  // onward alternating; good enough for this file's one- and two-value declarations.
+  const hasNonZeroHorizontal = (block: string): boolean => {
+    const shorthand = block
+      .match(/(?<!-)padding\s*:\s*([^;]+);/)?.[1]
+      ?.trim()
+      .split(/\s+/)
+    if (shorthand && shorthand.length >= 2 && shorthand[1] !== '0') return true
+    const right = block.match(/padding-right\s*:\s*([^;]+);/)?.[1]?.trim()
+    const left = block.match(/padding-left\s*:\s*([^;]+);/)?.[1]?.trim()
+    return (right !== undefined && right !== '0') || (left !== undefined && left !== '0')
+  }
+
+  test('table td has non-zero horizontal padding', () => {
+    expect(hasNonZeroHorizontal(rule('\\.table td'))).toBe(true)
+  })
+
+  test('table th has non-zero horizontal padding', () => {
+    expect(hasNonZeroHorizontal(rule('\\.table th'))).toBe(true)
+  })
+})
 
 const BREAKDOWN: EmbedBreakdown = {
   lines: [

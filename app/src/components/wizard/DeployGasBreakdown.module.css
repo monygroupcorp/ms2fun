@@ -36,17 +36,22 @@
   font-size: var(--font-size-caption);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 0 0 var(--space-2);
+  padding: 0 var(--space-2) var(--space-2);
   border-bottom: var(--border-width-thin, 1px) solid var(--color-border);
 }
 
 .table th:first-child {
   text-align: left;
+  padding-left: 0;
+}
+
+.table th:last-child {
+  padding-right: 0;
 }
 
 .table td {
   text-align: right;
-  padding: var(--space-2) 0;
+  padding: var(--space-2) var(--space-2);
   color: var(--color-text);
   white-space: nowrap;
 }
@@ -55,6 +60,11 @@
   text-align: left;
   color: var(--color-text-muted);
   white-space: normal;
+  padding-left: 0;
+}
+
+.table td:last-child {
+  padding-right: 0;
 }
 
 .zero td {
