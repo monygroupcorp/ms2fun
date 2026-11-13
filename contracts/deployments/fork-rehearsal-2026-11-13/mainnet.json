@@ -1,0 +1,58 @@
+{
+  "forkRehearsal": {
+    "channel": "mainnet-fork",
+    "forkBlock": "26408328",
+    "stampedAt": "2026-11-13T20:07:30.397Z",
+    "note": "Written against a local mainnet FORK. Every address below the six registries is fork-ephemeral and does not exist on mainnet."
+  },
+  "chainId": 1,
+  "contracts": {
+    "AlignmentHookSwapRouter": "0xB768c49a9F44E2c2eC16efD5e1912B6F6203173B",
+    "AlignmentRegistry": "0x00000000005d8eB87DAb4fF3D6AA9b7c6381FEA3",
+    "AlignmentTargetRequestRegistry": "0x72E3DDec5a8741c9D6aAa480AE3b51d640febE1a",
+    "ComponentRegistry": "0x0000000000A0022A42827319bE7F3CD40b5fEF9c",
+    "CurationRegistry": "0x51B12219962598E61593fc4c7F6BE873Ebf059B1",
+    "CurveParamsComputer": "0x0199A3077354cBE875e8A4F30317406001b2C48b",
+    "DeployBondEscrow": "0x9e5F7eefe627a065D5e60eD399fc2c2a3433757F",
+    "DynamicPricingModule": "0x6bEcf7331EA134f2e395c91FD445B5fEEFeB989C",
+    "ERC1155Instance": "0x38702be024Ee6CE378ca616d875729E89763AB9b",
+    "ERC404BondingInstance": "0x01434be109e5930fBb410aDc7b4b40d7D5b8d1C2",
+    "ERC404StakingModule": "0x4ed8D92FE992D8A451b59bD83Fd5CAc0FcD3f96E",
+    "FeaturedQueueManager": "0x0000000000D63383941E33A38082FF446712B259",
+    "GlobalMessageRegistry": "0x000000000016f898e9A381d0638c215Df95D3259",
+    "LaunchManager": "0x8C303C17DecDe41F3962caf7B613bA5C68E4d91a",
+    "MasterRegistry": "0x0000000000666868b0a9eC07fa495Da351718BcE",
+    "MetadataOverlayModule": "0x43E826a2f160C9e49D50e12fD5a04af773c02BD7",
+    "MetadataResolverRouter": "0x165E4AD14d72b869D938b73BF654a26B37bf7747",
+    "ModuleMerkleGating": "0xEc80D71793e7A10e21Be27758810e862dad4D920",
+    "ModuleUniV4Deployer": "0xb6d4426a4a8Aa02d284A0Af8e2F382c42A43fe04",
+    "ModuleZAMMDeployer": "0x7dA4F72Cfab372f387Ba567b634D5EFe8cB60B5a",
+    "ProfileRegistry": "0xAa46c28f04cDfc335026102A420eF9c386d4AD73",
+    "ProtocolTreasury": "0x00000000004C604d01a8A75106e62365B0CA6D18",
+    "QueryAggregator": "0x9d1A07E1ad95d695f6eD7259281f83431486cBDC",
+    "SeedAaveVault": "0x88Fe31b0E9329AfFeBdf46255d2909081E67c04D",
+    "SeedUniVault": "0x13a57A25FaA3DFAb74aDa62B6f4060f17b1823eb",
+    "SeedZammVault": "0x356C158D2dF04C556C2C56285aFe3FFa978670bE",
+    "TokenTierBandResolver": "0xE825b0e5402a26c325E743e139F31557c55B6Bb3",
+    "UniTitheHookFactory": "0x49540052daF6e423D4Ef78f6F7d7a8c72617b65A",
+    "UniswapVaultPriceValidator": "0xc18C80CBBF64364C87E4afC5b3CB80c997c6bD53",
+    "zQuoter": "0x0180Fe9Ae92Cd04dA670F974DE9d928EA69CfA66",
+    "zRouter": "0x000000000000FB114709235f1ccBFfb925F600e4"
+  },
+  "deployer": "0x000888695d3e361434f67D9dbd110f1A443822b9",
+  "factories": {
+    "AAVE": "0x95E4A35f05559fb5D202319534d325c346693276",
+    "ERC1155": "0x34EB3BFcFBe4bBbfb776a2bf5AEe957De87cb1C3",
+    "ERC404": "0x930b42DcA3cb10852B972D29c17e90Bf3E2A04B9",
+    "ERC721": "0x6B1Bcc07A3dF635A603C3727c98dE1683be43c68",
+    "UNI": "0x5524B257A9D5Da64a64159dE9bAd5162A86FF21A",
+    "ZAMM": "0x1F74d0A829670e1C3Aa44d0352eb8E6b8d8387Bc"
+  },
+  "instances": "[]",
+  "uniswap": {
+    "v2Factory": "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
+    "v3Factory": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+    "v4PoolManager": "0x000000000004444c5dc75cB358380D2e3dE08A90"
+  },
+  "vaults": "[{\"address\":\"0x13a57A25FaA3DFAb74aDa62B6f4060f17b1823eb\",\"type\":\"UNIv4\",\"alignmentToken\":\"0x0000000000c5dc95539589fbD24BE07c6C14eCa4\",\"targetId\":1},{\"address\":\"0x6bB3044bF2cD303a0B5C0197D76FB894d5C52913\",\"type\":\"UNIv4\",\"alignmentToken\":\"0x98Ed411B8cf8536657c660Db8aA55D9D4bAAf820\",\"targetId\":2},{\"address\":\"0xFf2a85BEEdB672a6412FC966c35590840B35F130\",\"type\":\"UNIv4\",\"alignmentToken\":\"0xE0f63A424a4439cBE457D80E4f4b51aD25b2c56C\",\"targetId\":3},{\"address\":\"0xC74372e98fa6074b3aB57fCA1944B9d86C304521\",\"type\":\"UNIv4\",\"alignmentToken\":\"0xaaeE1A9723aaDB7afA2810263653A34bA2C21C7a\",\"targetId\":4},{\"address\":\"0x2bBbDA9A65cE41438A584BFA363b30ae786499f5\",\"type\":\"UNIv4\",\"alignmentToken\":\"0xE9b1cFEA55BAA219e34301f2F31b9FD0921664ED\",\"targetId\":5},{\"address\":\"0x356C158D2dF04C556C2C56285aFe3FFa978670bE\",\"type\":\"ZAMM\",\"alignmentToken\":\"0x0000000000c5dc95539589fbD24BE07c6C14eCa4\",\"targetId\":1},{\"address\":\"0x3E9fb449b7dc11d22A6953687b8d88CEECBE14cB\",\"type\":\"ZAMM\",\"alignmentToken\":\"0x98Ed411B8cf8536657c660Db8aA55D9D4bAAf820\",\"targetId\":2},{\"address\":\"0xA3c1B8DFEb07a0B13CdD4B34d8c6a97C3EB39609\",\"type\":\"ZAMM\",\"alignmentToken\":\"0xE0f63A424a4439cBE457D80E4f4b51aD25b2c56C\",\"targetId\":3},{\"address\":\"0x0e9Dd6aE38Aa2C7340a3339217734c654CF2DFc1\",\"type\":\"ZAMM\",\"alignmentToken\":\"0xaaeE1A9723aaDB7afA2810263653A34bA2C21C7a\",\"targetId\":4},{\"address\":\"0x64192a641C8E9bE228C79e1F34061faff7431B04\",\"type\":\"ZAMM\",\"alignmentToken\":\"0xE9b1cFEA55BAA219e34301f2F31b9FD0921664ED\",\"targetId\":5},{\"address\":\"0x88Fe31b0E9329AfFeBdf46255d2909081E67c04D\",\"type\":\"AaveEndowment\",\"alignmentToken\":\"0x0000000000c5dc95539589fbD24BE07c6C14eCa4\",\"targetId\":1},{\"address\":\"0x59B8EFe76DaC5EbFA7C3d4e7f53748bE81A5003f\",\"type\":\"AaveEndowment\",\"alignmentToken\":\"0x98Ed411B8cf8536657c660Db8aA55D9D4bAAf820\",\"targetId\":2},{\"address\":\"0x853cB0abc34B4a0d8Bcd3436dD060e8c4b692913\",\"type\":\"AaveEndowment\",\"alignmentToken\":\"0xE0f63A424a4439cBE457D80E4f4b51aD25b2c56C\",\"targetId\":3},{\"address\":\"0xBE33fE817A71829c31c08ecE3cb8D4Aa75a8442a\",\"type\":\"AaveEndowment\",\"alignmentToken\":\"0xaaeE1A9723aaDB7afA2810263653A34bA2C21C7a\",\"targetId\":4},{\"address\":\"0x4cb757D8760C07Fe4C17B490e199d2774A11f623\",\"type\":\"AaveEndowment\",\"alignmentToken\":\"0xE9b1cFEA55BAA219e34301f2F31b9FD0921664ED\",\"targetId\":5}]"
+}

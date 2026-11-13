@@ -518,6 +518,7 @@ because on a network that does not have them, unset is correct:
 | --- | --- | --- |
 | `ZROUTER` | `contracts.zRouter` | **set** — Sepolia self-deploys the router, so the deployer owns it. Mainnet reuses the canonical singleton and leaves this unset. |
 | `UNI_VAULT_FACTORY` | `factories.UNI` | **set** — this network deploys Uni alignment vaults. |
+| `ZAMM_VAULT_FACTORY` | `factories.ZAMM`; a record written before 2026-11-13 lacks it, and on Sepolia it is also `zammVaultFactory` in `deployments/sepolia-venues.json` | **set** — `DeployCore` builds the ZAMM vault factory wherever `cfg.zamm` is set, deployer-owned. Left unset, phase 2 skips it and its read-back still passes, so the factory stays with the deployer; the mainnet fork rehearsal found exactly that. |
 | `UNI_TITHE_HOOK_FACTORY` | `contracts.UniTitheHookFactory` | **set** — Sepolia configures the Uni rail, so `DeployCore` built the tithe hook factory. |
 
 `UNI_TITHE_HOOK_FACTORY` is worth the extra line. The factory writes an owner into every graduation

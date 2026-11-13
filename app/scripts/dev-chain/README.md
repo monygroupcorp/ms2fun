@@ -40,6 +40,27 @@ channels cannot overwrite each other's and orphan a fork.
 > fork at a different chain id. Pointing the mainnet channel there while that one runs is refused
 > by the port guard; pick another port.
 
+## Mainnet fork rehearsal
+
+```bash
+pnpm chain:rehearse:mainnet [--port 8547] [--fork-block <n>] [--no-tithe] [--overwrite] [--keep-fork]
+```
+
+This is the gate in `docs/MAINNET-DEPLOY-RUNBOOK.md` §3, and it is not the dev loop above.
+It starts its own fork on `:8547` (chain id 1, mainnet's code-size limit) and runs the launch-day
+scripts in launch-day order: `DeployMainnet` from the vanity deployer, `DeployTimelock`,
+`MigrateOwnership` phase 1 executed by the Timelock (proposed by the Safe, delay crossed) and phase 2
+by the deployer, then `verify()`. Then it sweeps every contract the deploy created for one still owned
+by the deployer, switches the tithe on through the same governed path, and runs
+`ForkRehearsalCollections`: one ERC-1155 created, minted and withdrawn, and one ERC-404 bought out and
+graduated with the liquidity module's residual measured. The record is written to
+`contracts/deployments/fork-rehearsal-<date>/`, and the fork is stopped.
+
+What it fakes is stated in the script's header. Nothing is signed: the deployer, the Safe and the
+collection wallets are impersonated. The 24h Timelock delay and the bonding open time are warped.
+`contracts/deployments/mainnet.json` is the live record's path, so the run refuses to start while it
+exists and moves what `DeployMainnet` writes there into the record directory.
+
 ## Notes
 
 - **Addresses are non-deterministic.** `DeployAnvil.s.sol` derives CreateX salts from

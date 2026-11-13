@@ -1,0 +1,110 @@
+{
+  "forkRehearsal": {
+    "channel": "mainnet-fork",
+    "note": "Fork only. Nothing here was broadcast to mainnet."
+  },
+  "startedAt": "2026-11-13T20:07:11.312Z",
+  "finishedAt": "2026-11-13T20:07:55.407Z",
+  "commit": "a37800a3517d0b128847bb1a58d020a9e5564c55",
+  "workingTreeDirty": false,
+  "forkBlock": "26408328",
+  "forkBaseFeeWei": "81730424",
+  "deployer": "0x000888695d3e361434f67D9dbd110f1A443822b9",
+  "safe": "0xBCE7DF8d399F145745C660DecB9ef50CA723d262",
+  "timelock": "0x076aa89f9c2d035d195cbc85c5f596fad70f45a4",
+  "titheOn": true,
+  "registryOwners": {
+    "MasterRegistry": "0x076aA89F9C2d035D195CBC85c5F596fAD70f45a4",
+    "ProtocolTreasury": "0x076aA89F9C2d035D195CBC85c5F596fAD70f45a4",
+    "FeaturedQueueManager": "0x076aA89F9C2d035D195CBC85c5F596fAD70f45a4",
+    "GlobalMessageRegistry": "0x076aA89F9C2d035D195CBC85c5F596fAD70f45a4",
+    "AlignmentRegistry": "0x076aA89F9C2d035D195CBC85c5F596fAD70f45a4",
+    "ComponentRegistry": "0x076aA89F9C2d035D195CBC85c5F596fAD70f45a4"
+  },
+  "ownershipSweep": {
+    "contractsCreated": 81,
+    "proxyImplementationsExcluded": 6,
+    "swept": 75
+  },
+  "contractsStillOwnedByDeployer": [],
+  "gas": {
+    "steps": [
+      {
+        "step": "DeployMainnet",
+        "txs": 112,
+        "gas": "91331334"
+      },
+      {
+        "step": "DeployTimelock",
+        "txs": 2,
+        "gas": "1136798"
+      },
+      {
+        "step": "MigrateOwnership phase 1: Safe proposes",
+        "txs": 1,
+        "gas": "71953"
+      },
+      {
+        "step": "MigrateOwnership phase 1: Timelock executes",
+        "txs": 1,
+        "gas": "264939"
+      },
+      {
+        "step": "MigrateOwnership phase 2",
+        "txs": 29,
+        "gas": "894379"
+      },
+      {
+        "step": "alignment tithe on: Safe proposes",
+        "txs": 1,
+        "gas": "55688"
+      },
+      {
+        "step": "alignment tithe on: Timelock executes",
+        "txs": 1,
+        "gas": "65009"
+      },
+      {
+        "step": "collections: create",
+        "txs": 5,
+        "gas": "3466355"
+      },
+      {
+        "step": "collections: mint, withdraw, buy out, graduate",
+        "txs": 4,
+        "gas": "5799213"
+      }
+    ],
+    "deployer": {
+      "txs": 143,
+      "gas": "93362511",
+      "spentAtForkBaseFeeWei": "719827191704339",
+      "at1GweiEth": "0.093362511",
+      "at30GweiEth": "2.80087533"
+    },
+    "total": "103085668"
+  },
+  "collections": {
+    "coinBurned": "59340544",
+    "creatorGainedEth": "275",
+    "erc1155": "0xcb69Dca79E9249e351076F8D90AE18E26886527b",
+    "erc1155CreatorPaid": "8000000000000000",
+    "erc1155MintCost": "10000000000000000",
+    "erc1155Withdrawn": "10000000000000000",
+    "erc404": "0xF18470337024C5c4D16AE8Cd81eE017EdEF5Be6a",
+    "erc404BuyCost": "5050000000000000033",
+    "erc404Hooked": true,
+    "erc404LpLeg": "4000000000000000027",
+    "erc404Preset": "0",
+    "erc404Raise": "5000000000000000033",
+    "instanceEthAfter": "0",
+    "lpLegEthNotPlaced": "343",
+    "moduleCoinResidual": "0",
+    "moduleEthResidual": "0",
+    "poolTookCoin": "9999999999999999940659456",
+    "poolTookEth": "3999999999999999684",
+    "treasuryGainedEth": "50000000000000003",
+    "moduleEthResidualOnChain": "0",
+    "moduleCoinResidualOnChain": "0"
+  }
+}
