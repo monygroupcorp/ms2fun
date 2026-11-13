@@ -141,15 +141,27 @@ contract MainnetConfigCompletenessTest is Test {
         assertEq(cfg.aaveStataToken, MainnetAddresses.WETH_STATA_TOKEN, "aave stataToken");
     }
 
-    // ── What is still owed before this script may be run ─────────────────────
+    // ── The alignment roster is populated ─────────────────────────────────────
 
-    /// @dev Stated as a test so the launch-day preconditions are read back from the config rather than
-    ///      from a comment. TRUE while still owed — this file asserts the shape of the gap, and the
-    ///      seat that closes it flips the assertion. An empty roster launches with nothing to align to.
-    function test_theKnownLaunchTodosAreStillOpen() public view {
+    /// @dev The curated launch roster: five communities, each already rehearsed on Sepolia under a
+    ///      fixture standing in for the mainnet address asserted here
+    ///      (`SeedSepoliaShared._alignmentRoster`). Pins the tokens and the order, not merely the
+    ///      count, so a roster entry silently dropped or swapped is a named failure.
+    function test_theAlignmentRosterIsPopulated() public view {
         DeployCore.NetworkConfig memory cfg = harness.config();
-        assertEq(cfg.alignmentTargets.length, 0, "TODO 2: the alignment roster is still empty");
+        assertEq(cfg.alignmentTargets.length, 5, "the mainnet roster no longer carries the curated five");
+        assertEq(cfg.alignmentTargets[0].token, 0x0000000000c5dc95539589fbD24BE07c6C14eCa4, "CULT");
+        assertEq(cfg.alignmentTargets[1].token, 0x98Ed411B8cf8536657c660Db8aA55D9D4bAAf820, "MS2");
+        assertEq(cfg.alignmentTargets[2].token, 0xE0f63A424a4439cBE457D80E4f4b51aD25b2c56C, "SPX6900");
+        assertEq(cfg.alignmentTargets[3].token, 0xaaeE1A9723aaDB7afA2810263653A34bA2C21C7a, "MOG");
+        assertEq(cfg.alignmentTargets[4].token, 0xE9b1cFEA55BAA219e34301f2F31b9FD0921664ED, "ZAMM");
+        for (uint256 i = 0; i < cfg.alignmentTargets.length; i++) {
+            assertTrue(cfg.alignmentTargets[i].deployUniVault, "every roster entry opens the Uni venue");
+            assertEq(cfg.alignmentTargets[i].communityPayout, address(0), "payout is pinned post-deploy, not here");
+        }
     }
+
+    // ── What is still owed before this script may be run ─────────────────────
 
     /// @dev `cfg.safe` administers the Timelock that owns the protocol (`DeployTimelock`,
     ///      `MigrateOwnership`), so a zero here silently deploys a `MockSafe` instead — this is the
@@ -176,23 +188,15 @@ contract MainnetConfigCompletenessTest is Test {
         assertEq(cfg.saltComponentReg, SepoliaSalts.COMPONENT_REG, "component registry salt");
     }
 
-    /// @dev The perpetual swap tithe's RATE, which mainnet has not chosen. Sepolia carries 100 bips as
-    ///      a testnet rehearsal figure and that figure is not a proposal for this network: the rate is
-    ///      IMMUTABLE per hook, baked into the hook's init code at graduation, so the number this
-    ///      config holds on the day is the number every pool graduating after the switch keeps for
-    ///      good. Choosing it is an economic decision and there is no safe default — which is why the
-    ///      field's own doc in `NetworkConfig` marks it OPERATOR INPUT.
-    ///
-    ///      Held open as an assertion rather than as a comment because zero is not an inert
-    ///      placeholder here. If the switch is thrown over it — and `setAlignmentHookFactory` does not
-    ///      look at the rate — every graduated mainnet pool mints a hook that takes nothing on every
-    ///      swap, forever, with no revert and nothing in any log to say the community is earning zero.
-    ///      The seat that chooses the rate flips this assertion; `EnableAlignmentTithe` refuses to
-    ///      produce the call while it still reads zero.
-    function test_theMainnetTitheRateIsStillOwed() public view {
+    /// @dev The perpetual swap tithe's RATE. Ruled 2026-11-10 (rth): mainnet launches on 1% fees,
+    ///      live from the first graduation, not deferred to a later `EnableAlignmentTithe`
+    ///      switch-on. The rate is IMMUTABLE per hook, baked into the hook's init code at graduation,
+    ///      so the number this config holds on the day is the number every pool graduating from
+    ///      launch keeps for good — matched here to the rate Sepolia rehearsed.
+    function test_theMainnetTitheRateIsLiveAtLaunch() public view {
         DeployCore.NetworkConfig memory cfg = harness.config();
-        assertEq(cfg.hookFeeBips, 0, "TODO 4: mainnet's perpetual swap-tithe rate is still unchosen");
-        assertEq(uint256(cfg.lpFeeRate), 0, "TODO 4: mainnet's hooked-pool LP fee rate is still unchosen");
+        assertEq(cfg.hookFeeBips, 100, "mainnet's perpetual swap-tithe rate must be live at 1% from launch");
+        assertEq(uint256(cfg.lpFeeRate), 3000, "mainnet's hooked-pool LP fee rate must match the rehearsed 0.3%");
     }
 }
 
