@@ -12,6 +12,7 @@ import {
 import type { ProjectCard } from '../useCreatorCollections'
 import type { CollectionMetadata } from '../../lib/metadata'
 import { activeNetworkName } from '../../lib/network'
+import { explorerAddressUrl } from '../../lib/chains'
 import { cardStatus } from '../../lib/cardStatus'
 import { alignmentLawSentence } from '../../lib/vaults/alignmentWording'
 import styles from '../../routes/CollectionPage.module.css'
@@ -40,6 +41,12 @@ export interface CollectionHeroProps {
   metadata: CollectionMetadata | undefined
   /** The type-specific primary action surface (buy/sell/bid). Omitted in previews. */
   primary?: ReactNode
+  /**
+   * The chain `instance`/`card.vault` live on, for the Contract/Vault facts' explorer links.
+   * Omitted by the launch-wizard style preview, whose `instance` is a mock address on no real
+   * chain — the facts stay plain text rather than linking.
+   */
+  chainId?: number
 }
 
 /**
@@ -48,7 +55,13 @@ export interface CollectionHeroProps {
  * (same CSS-module classes) with mock data for a pixel-accurate preview. Presentational: no chain
  * reads; all data arrives via props.
  */
-export function CollectionHero({ instance, card, metadata, primary }: CollectionHeroProps) {
+export function CollectionHero({
+  instance,
+  card,
+  metadata,
+  primary,
+  chainId,
+}: CollectionHeroProps) {
   const title = metadata?.name || card.name || truncateAddress(instance)
   const fallbackGlyph = card.name?.slice(0, 1).toUpperCase() || '✦'
   const minted = card.totalSupply ?? 0n
@@ -60,6 +73,10 @@ export function CollectionHero({ instance, card, metadata, primary }: Collection
   // is a breadcrumb, "Collections / Ended · Ethereum" was an epitaph.
   const status = cardStatus(card)
   const vaultLabel = card.vaultName || 'Alignment'
+  const instanceExplorerUrl =
+    chainId !== undefined ? explorerAddressUrl(chainId, instance) : undefined
+  const vaultExplorerUrl =
+    chainId !== undefined && hasVault ? explorerAddressUrl(chainId, card.vault) : undefined
 
   return (
     <div className={styles.shell}>
@@ -133,12 +150,38 @@ export function CollectionHero({ instance, card, metadata, primary }: Collection
           </div>
           <div className={styles.fact}>
             <dt>Contract</dt>
-            <dd>{truncateAddress(instance)}</dd>
+            <dd>
+              {instanceExplorerUrl ? (
+                <a
+                  href={instanceExplorerUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={styles.factLink}
+                >
+                  {truncateAddress(instance)}
+                </a>
+              ) : (
+                truncateAddress(instance)
+              )}
+            </dd>
           </div>
           {hasVault && (
             <div className={styles.fact}>
               <dt>Vault</dt>
-              <dd>{truncateAddress(card.vault)}</dd>
+              <dd>
+                {vaultExplorerUrl ? (
+                  <a
+                    href={vaultExplorerUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={styles.factLink}
+                  >
+                    {truncateAddress(card.vault)}
+                  </a>
+                ) : (
+                  truncateAddress(card.vault)
+                )}
+              </dd>
             </div>
           )}
           {card.factoryTitle && (

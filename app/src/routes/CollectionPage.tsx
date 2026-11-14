@@ -250,6 +250,7 @@ function CollectionBody({ instance }: { instance: `0x${string}` }) {
             instance={instance}
             card={card}
             metadata={metadata}
+            chainId={chainId}
             primary={
               surfaces?.Primary ? (
                 <surfaces.Primary instance={instance} creator={card.creator} />
