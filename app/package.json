@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build && tsx scripts/check-precache.ts && tsx scripts/check-share-card.ts",
-    "build:ipfs": "tsc -b && VITE_DIST_TARGET=ipfs vite build && tsx scripts/ipfs-dist/smoke.ts && tsx scripts/ipfs-dist/pack.ts",
+    "build:ipfs": "tsx scripts/ipfs-dist/assert-chain-set.ts && tsc -b && VITE_DIST_TARGET=ipfs vite build && tsx scripts/ipfs-dist/smoke.ts && tsx scripts/ipfs-dist/pack.ts",
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "lint": "eslint . && stylelint \"src/**/*.css\"",
