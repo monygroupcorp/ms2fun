@@ -1,18 +1,12 @@
-.section {
+.panel {
   display: flex;
   flex-direction: column;
   gap: var(--gap-md);
-  padding-top: var(--padding-md);
-  border-top: 1px solid var(--border-secondary);
 }
 
-.title {
+.panel code {
   font-family: var(--font-mono);
-  font-size: var(--font-size-body-sm);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-secondary);
-  margin: 0;
+  word-break: break-all;
 }
 
 .note {
@@ -125,9 +119,4 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--gap-sm);
-}
-
-.section code {
-  font-family: var(--font-mono);
-  word-break: break-all;
 }

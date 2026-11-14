@@ -282,6 +282,10 @@ function CollectionBody({ instance }: { instance: `0x${string}` }) {
           {instance && <VaultPanel vault={card.vault} benefactor={instance} />}
           {/* W-H: user-facing featured-queue economics (boost / raise rank / renew / prune). */}
           <FeaturedPanel instance={instance} />
+          {/* "Keep this collection alive" (ERC404): a standing option for any holder who wants a
+              copy, not something every visitor needs to see — demoted down here with the other
+              collapsed panels instead of sitting open above the gallery. */}
+          {surfaces?.KeepAlive && <surfaces.KeepAlive instance={instance} creator={card.creator} />}
 
           {/* N5: creator admin, below the featured queue and outside the shell. Self-hides unless
               the connected wallet owns the instance. */}

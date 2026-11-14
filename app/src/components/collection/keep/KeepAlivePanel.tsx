@@ -1,7 +1,9 @@
 /**
- * "Keep this collection alive": a standing panel on the collection page that lets any holder keep a
+ * "Keep this collection alive": a collapsed disclosure, demoted to the bottom of the collection
+ * page alongside its other secondary panels (vault, featured queue), that lets any holder keep a
  * copy of the collection's art on IPFS — on their own node, with their own pinning service, or as a
- * file they download.
+ * file they download. It used to render open, inline above the gallery; nothing about what it
+ * does changed, only where it sits and that it starts closed.
  *
  * WHY IT IS HERE. Art that lives at one website lives as long as that website. On IPFS it lives as
  * long as somebody keeps a copy, and the people most likely to want it to last are the people who
@@ -20,6 +22,7 @@ import { artHostBase } from '../../../lib/art/hostClient'
 import type { KeepCar } from '../../../lib/art/keep/build'
 import { ROLE_LABEL, onChainRoots, type KeepPlan, type KeepRoot } from '../../../lib/art/keep/plan'
 import type { RootCheck } from '../../../lib/art/keep/retrievable'
+import { Disclosure } from '../../ui/Disclosure'
 import { LearnLink } from '../../wizard/LearnLink'
 import { useCollection } from '../../useCollection'
 import { useCollectionAddresses, useCollectionChainId } from '../useCollectionChain'
@@ -80,51 +83,52 @@ function Panel({ plan, host, name }: { plan: KeepPlan; host: string | null; name
   const filename = (keep: KeepCar) => carFilename(name, keep)
 
   return (
-    <section className={styles.section} data-testid="keep-alive">
-      <h2 className={styles.title}>KEEP THIS COLLECTION ALIVE</h2>
-      <p className={styles.note}>
-        If you want this collection to outlive any one website, you can keep a copy of its art. A
-        copy on your IPFS node or with your pinning service is stored under the same addresses the
-        collection names on chain, so it is one more place anyone can fetch the art from. The copy
-        is yours: it lives on your node or in your account, never in one of ours.{' '}
-        <LearnLink slug={KEEP_ALIVE_CONCEPT} label="Keeping a collection alive" />
-      </p>
-      <Readout
-        plan={plan}
-        checks={checks}
-        checking={status.isFetching}
-        onRecheck={() => void status.refetch()}
-      />
-      <ol className={styles.options}>
-        <NodeOption
-          enabled={buildable}
-          disabledReason={buildReason}
-          build={car.build}
-          building={progressLine(car.state)}
-          filename={filename}
-        />
-        <ServiceOption
-          enabled={allOnIpfs}
-          disabledReason={serviceReason}
-          roots={roots}
-          name={name === '' ? 'collection' : name}
-          refused={ourOrigins(host)}
-        />
-        <DownloadOption
-          enabled={buildable}
-          disabledReason={buildReason}
-          roots={shownRoots}
-          build={car.build}
-          building={progressLine(car.state)}
-          filename={filename}
-        />
-      </ol>
-      {car.state.kind === 'failed' && (
-        <p className={styles.error} role="alert" data-testid="keep-car-error">
-          The art could not be copied: {car.state.message}
+    <Disclosure summary="KEEP THIS COLLECTION ALIVE" testId="keep-alive">
+      <div className={styles.panel}>
+        <p className={styles.note}>
+          If you want this collection to outlive any one website, you can keep a copy of its art. A
+          copy on your IPFS node or with your pinning service is stored under the same addresses the
+          collection names on chain, so it is one more place anyone can fetch the art from. The copy
+          is yours: it lives on your node or in your account, never in one of ours.{' '}
+          <LearnLink slug={KEEP_ALIVE_CONCEPT} label="Keeping a collection alive" />
         </p>
-      )}
-    </section>
+        <Readout
+          plan={plan}
+          checks={checks}
+          checking={status.isFetching}
+          onRecheck={() => void status.refetch()}
+        />
+        <ol className={styles.options}>
+          <NodeOption
+            enabled={buildable}
+            disabledReason={buildReason}
+            build={car.build}
+            building={progressLine(car.state)}
+            filename={filename}
+          />
+          <ServiceOption
+            enabled={allOnIpfs}
+            disabledReason={serviceReason}
+            roots={roots}
+            name={name === '' ? 'collection' : name}
+            refused={ourOrigins(host)}
+          />
+          <DownloadOption
+            enabled={buildable}
+            disabledReason={buildReason}
+            roots={shownRoots}
+            build={car.build}
+            building={progressLine(car.state)}
+            filename={filename}
+          />
+        </ol>
+        {car.state.kind === 'failed' && (
+          <p className={styles.error} role="alert" data-testid="keep-car-error">
+            The art could not be copied: {car.state.message}
+          </p>
+        )}
+      </div>
+    </Disclosure>
   )
 }
 

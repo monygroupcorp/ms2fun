@@ -1,11 +1,14 @@
 /**
  * ERC404 collection surfaces (W-B1), split into the three page regions CollectionPage composes:
- *   Primary — the phase-aware trading UI (buy/sell / free-mint / reroll / graduate, or the embedded
- *             graduated swap). Lives in the shell's "works" column.
- *   Gallery — the DN404 mirror art (a 404 is also an NFT collection) as a grid below the shell,
- *             with the art-hosting record above it when the art was uploaded for hosting, and the
- *             "keep this collection alive" panel below it for any holder who wants a copy.
- *   Admin   — creator admin (bonding lifecycle, style, vault, delegation); self-hides unless owner.
+ *   Primary   — the phase-aware trading UI (buy/sell / free-mint / reroll / graduate, or the
+ *               embedded graduated swap). Lives in the shell's "works" column.
+ *   Gallery   — the DN404 mirror art (a 404 is also an NFT collection) as a grid below the shell,
+ *               with the art-hosting record above it when the art was uploaded for hosting.
+ *   KeepAlive — the "keep this collection alive" panel, a collapsed disclosure CollectionPage
+ *               places among its other demoted, bottom-of-page panels (vault, featured queue)
+ *               rather than inline with the gallery: a standing option for any holder who wants a
+ *               copy, not something every visitor needs to see to buy, sell or browse.
+ *   Admin     — creator admin (bonding lifecycle, style, vault, delegation); self-hides unless owner.
  * See `collectionSurfaces` for how the page picks these by contractType.
  */
 import { lazy, Suspense } from 'react'
@@ -19,7 +22,7 @@ import { Erc404NftGallery } from '../erc404/Erc404NftGallery'
 import { HostedArtSection } from '../HostedArtSection'
 import styles from './TypeSection.module.css'
 
-// Loaded with the gallery, not the page: most visitors never scroll to it, and nobody needs it to
+// Loaded with its own panel, not the page: most visitors never open it, and nobody needs it to
 // buy, sell or browse.
 const KeepAlivePanel = lazy(() => import('../keep/KeepAlivePanel'))
 
@@ -67,11 +70,16 @@ export function Erc404Gallery({ instance }: Erc404SurfaceProps) {
         <h2 className={styles.title}>PIECES</h2>
         <Erc404NftGallery instance={instance} />
       </section>
-      {/* Self-hides unless the collection's base is content-addressed. */}
-      <Suspense fallback={null}>
-        <KeepAlivePanel instance={instance} />
-      </Suspense>
     </>
+  )
+}
+
+export function Erc404KeepAlive({ instance }: Erc404SurfaceProps) {
+  // Self-hides unless the collection's base is content-addressed.
+  return (
+    <Suspense fallback={null}>
+      <KeepAlivePanel instance={instance} />
+    </Suspense>
   )
 }
 

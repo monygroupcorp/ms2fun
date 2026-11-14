@@ -19,6 +19,7 @@ import {
   Erc404Admin,
   Erc404ChartsSection,
   Erc404Gallery,
+  Erc404KeepAlive,
   Erc404PortfolioSection,
   Erc404Primary,
 } from './Erc404Collection'
@@ -35,6 +36,9 @@ export interface CollectionSurfaces {
   /** Holder's own pieces + reroll (ERC404); self-hides when disconnected / empty. */
   Portfolio: ComponentType<CollectionSurfaceProps> | null
   Gallery: ComponentType<CollectionSurfaceProps> | null
+  /** "Keep this collection alive" (ERC404) — a collapsed disclosure among the page's other
+   *  demoted panels (vault, featured queue), not inline with the gallery. */
+  KeepAlive: ComponentType<CollectionSurfaceProps> | null
   Admin: ComponentType<CollectionSurfaceProps> | null
 }
 
@@ -50,6 +54,7 @@ export function resolveCollectionSurfaces(contractType: string): CollectionSurfa
         Charts: null,
         Portfolio: null,
         Gallery: Erc1155Gallery,
+        KeepAlive: null,
         Admin: Erc1155Admin,
       }
     case 'ERC721':
@@ -58,6 +63,7 @@ export function resolveCollectionSurfaces(contractType: string): CollectionSurfa
         Charts: null,
         Portfolio: null,
         Gallery: Erc721Gallery,
+        KeepAlive: null,
         Admin: Erc721Admin,
       }
     case 'ERC404':
@@ -66,9 +72,17 @@ export function resolveCollectionSurfaces(contractType: string): CollectionSurfa
         Charts: Erc404ChartsSection,
         Portfolio: Erc404PortfolioSection,
         Gallery: Erc404Gallery,
+        KeepAlive: Erc404KeepAlive,
         Admin: Erc404Admin,
       }
     default:
-      return { Primary: null, Charts: null, Portfolio: null, Gallery: null, Admin: null }
+      return {
+        Primary: null,
+        Charts: null,
+        Portfolio: null,
+        Gallery: null,
+        KeepAlive: null,
+        Admin: null,
+      }
   }
 }
