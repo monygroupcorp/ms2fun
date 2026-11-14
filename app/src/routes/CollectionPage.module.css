@@ -188,6 +188,15 @@
   font-weight: var(--font-weight-bold);
 }
 
+.factLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.factLink:hover {
+  text-decoration: underline;
+}
+
 /* Works column — the wall (surface tint); the type component renders the actual works + mint. */
 .works {
   min-width: 0;

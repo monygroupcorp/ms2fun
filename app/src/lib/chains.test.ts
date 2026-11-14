@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { ANVIL_PORT, SUPPORTED_CHAINS, anvilFork, anvilRpcFor } from './chains'
+import { ANVIL_PORT, SUPPORTED_CHAINS, anvilFork, anvilRpcFor, explorerAddressUrl } from './chains'
+
+const ADDR = '0x1111111111111111111111111111111111aAaA'
 
 // The chain's declared rpc is what a WALLET is handed (`wallet_addEthereumChain`,
 // `WrongNetworkBanner`'s manual fallback). The wallet cannot use the dev server's same-origin
@@ -46,5 +48,23 @@ describe('anvilFork', () => {
 
   it('is one of the supported chains', () => {
     expect(SUPPORTED_CHAINS.map((chain) => chain.id)).toContain(anvilFork.id)
+  })
+})
+
+describe('explorerAddressUrl', () => {
+  it('points at Etherscan on mainnet', () => {
+    expect(explorerAddressUrl(1, ADDR)).toBe(`https://etherscan.io/address/${ADDR}`)
+  })
+
+  it('points at Sepolia Etherscan on Sepolia', () => {
+    expect(explorerAddressUrl(11155111, ADDR)).toBe(`https://sepolia.etherscan.io/address/${ADDR}`)
+  })
+
+  it('is undefined on a chain with no declared explorer (the local anvil fork)', () => {
+    expect(explorerAddressUrl(anvilFork.id, ADDR)).toBeUndefined()
+  })
+
+  it('is undefined on a chain this app does not support', () => {
+    expect(explorerAddressUrl(999999, ADDR)).toBeUndefined()
   })
 })

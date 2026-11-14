@@ -64,3 +64,16 @@ export const anvilFork = defineChain({
  * read on that chain has no transport.
  */
 export const SUPPORTED_CHAINS = [mainnet, sepolia, anvilFork] as const
+
+/**
+ * The block explorer's address page for `address` on `chainId` — Etherscan on mainnet, Sepolia
+ * Etherscan on Sepolia, each read off the matching `SUPPORTED_CHAINS` entry's own
+ * `blockExplorers.default` rather than a URL hardcoded here. `undefined` when the chain is
+ * unsupported or, like the local anvil fork, declares no explorer at all: a collection on a chain
+ * with no public explorer stays plain text instead of linking nowhere.
+ */
+export function explorerAddressUrl(chainId: number, address: string): string | undefined {
+  const chain = SUPPORTED_CHAINS.find((c) => c.id === chainId)
+  const base = chain?.blockExplorers?.default.url
+  return base ? `${base}/address/${address}` : undefined
+}

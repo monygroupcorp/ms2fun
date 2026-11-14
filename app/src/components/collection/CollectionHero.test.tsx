@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Router } from 'wouter'
 import { memoryLocation } from 'wouter/memory-location'
 import { activeNetworkName } from '../../lib/network'
+import { truncateAddress } from '../../lib/format'
 import type { CollectionHeroCard } from './CollectionHero'
 import { CollectionHero } from './CollectionHero'
 
@@ -43,11 +44,24 @@ function kicker(container: HTMLElement) {
   return container.querySelector('p')
 }
 
-function renderHero(c: CollectionHeroCard) {
+/** The `<dd>` beside the `<dt>` labelled `label` in the facts list (e.g. "Contract", "Vault"). */
+function factValue(container: HTMLElement, label: string): Element | null {
+  for (const dt of container.querySelectorAll('dt')) {
+    if (dt.textContent === label) return dt.nextElementSibling
+  }
+  return null
+}
+
+function renderHero(c: CollectionHeroCard, chainId?: number) {
   const { hook } = memoryLocation({ path: '/1/specimen' })
   return render(
     <Router hook={hook}>
-      <CollectionHero instance={ADDR} card={c} metadata={undefined} />
+      <CollectionHero
+        instance={ADDR}
+        card={c}
+        metadata={undefined}
+        {...(chainId !== undefined ? { chainId } : {})}
+      />
     </Router>,
   )
 }
@@ -95,5 +109,45 @@ describe('CollectionHero alignment line', () => {
   it("still says the split is not the creator's to change", () => {
     const { getByTestId } = renderHero(card({ vaultName: 'Nouns' }))
     expect(getByTestId('hero-alignment-law')).toHaveTextContent(/nobody can change|can’t change/i)
+  })
+})
+
+// ── The Contract/Vault facts link to the right explorer, by chain ──────────────────────────────
+//
+// rth: "the contracts listed on a collection page should link out to their contract on etherscan
+// or sepolia scan depending on the chain." No chainId (the launch-wizard preview, whose instance
+// is a mock address on no real chain) leaves the facts as plain text — nowhere to link them to.
+
+describe('CollectionHero contract/vault explorer links', () => {
+  it('links the Contract fact to Etherscan on mainnet', () => {
+    const { container } = renderHero(card({}), 1)
+    const link = factValue(container, 'Contract')?.querySelector('a')
+    expect(link).toHaveAttribute('href', `https://etherscan.io/address/${ADDR}`)
+  })
+
+  it('links the Contract fact to Sepolia Etherscan on Sepolia', () => {
+    const { container } = renderHero(card({}), 11155111)
+    const link = factValue(container, 'Contract')?.querySelector('a')
+    expect(link).toHaveAttribute('href', `https://sepolia.etherscan.io/address/${ADDR}`)
+  })
+
+  it('also links the Vault fact, to the same explorer', () => {
+    const { container } = renderHero(card({ vaultName: 'Nouns' }), 1)
+    const link = factValue(container, 'Vault')?.querySelector('a')
+    expect(link).toHaveAttribute('href', `https://etherscan.io/address/${ADDR}`)
+  })
+
+  it('renders plain text, not a link, with no chainId', () => {
+    const { container } = renderHero(card({}))
+    const contract = factValue(container, 'Contract')
+    expect(contract).toHaveTextContent(truncateAddress(ADDR))
+    expect(contract?.querySelector('a')).toBeNull()
+  })
+
+  it('renders plain text on a chain with no declared explorer (the local anvil fork)', () => {
+    const { container } = renderHero(card({}), 1337)
+    const contract = factValue(container, 'Contract')
+    expect(contract).toHaveTextContent(truncateAddress(ADDR))
+    expect(contract?.querySelector('a')).toBeNull()
   })
 })
