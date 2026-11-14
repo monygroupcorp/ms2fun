@@ -49,9 +49,14 @@ export function NodeOption({
   building: string | null
   filename: (keep: KeepCar) => string
 }) {
-  const [typed, setTyped] = useState(() => nodeApiStore.get() ?? DEFAULT_NODE_API)
+  // Empty, not pre-filled with the kubo default: a holder who has never pointed this at their own
+  // node should not see a 127.0.0.1 address sitting in the field as if it were already configured
+  // for them. `DEFAULT_NODE_API` still stands in as the PLACEHOLDER (what to type) and as the
+  // endpoint `pin()` uses while the field is blank, so a holder who does run IPFS Desktop or kubo
+  // on this computer can still just press the button.
+  const [typed, setTyped] = useState(() => nodeApiStore.get() ?? '')
   const [run, setRun] = useState<Run>({ kind: 'idle' })
-  const endpoint = normaliseEndpoint(typed)
+  const endpoint = normaliseEndpoint(typed === '' ? DEFAULT_NODE_API : typed)
   const busy =
     run.kind === 'detecting' ||
     run.kind === 'building' ||
@@ -109,6 +114,7 @@ export function NodeOption({
           className={styles.input}
           value={typed}
           onChange={(event) => setTyped(event.target.value)}
+          placeholder={DEFAULT_NODE_API}
           spellCheck={false}
           autoComplete="off"
           data-testid="keep-node-endpoint"
