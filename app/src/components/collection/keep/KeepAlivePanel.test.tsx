@@ -241,6 +241,17 @@ test('pins on a node that answers, and confirms every root with pin/ls', async (
   expect(confirmed).toEqual([IMG, META, NEXT])
 })
 
+test('the node address field starts empty, not pre-filled with a 127.0.0.1 address', async () => {
+  mocks.host = null
+  mocks.base = `ipfs://${META}/`
+  mocks.onIpfs = new Set([META, IMG])
+  render(<KeepAlivePanel instance={INSTANCE} />, { wrapper })
+  await waitFor(() => expect(screen.getByTestId('keep-node-pin')).not.toBeDisabled())
+  const input = screen.getByTestId('keep-node-endpoint') as HTMLInputElement
+  expect(input.value).toBe('')
+  expect(input.placeholder).toBe('http://127.0.0.1:5001')
+})
+
 test('refuses a node address that is not http(s)', async () => {
   mocks.host = null
   mocks.base = `ipfs://${META}/`
