@@ -37,11 +37,17 @@ interface IDN404Mirror {
 ///
 ///         Instances are resolved BY NAME from deployments/anvil-seed.json, which phase 1 wrote.
 contract SeedAnvilBuys is SeedAnvilShared {
-    /// @dev Tokens handed to ADMIN on the mid-curve instance. Must exceed ADMIN_VAPOR_STAKE by at
-    ///      least one whole unit (1e24) so ADMIN still holds an NFT after deploy.ts places the stake.
-    uint256 internal constant ADMIN_VAPOR_TOKENS = 2e24;
-    /// @dev The slice deploy.ts stakes as ADMIN; declared beside `ADMIN_VAPOR_TOKENS` so the two are read together.
-    uint256 internal constant ADMIN_VAPOR_STAKE = 5e23;
+    // Amounts on the non-catalog instances are stated in TENTHS of the instance's own `unit()` (one
+    // piece's worth of tokens), never as raw token counts. The unit is set by the launch preset, and
+    // a preset re-spacing that moved it tenfold once left every hard-coded buy here past the end of
+    // its curve.
+
+    /// @dev Tokens handed to ADMIN on the mid-curve instance, in tenths of a unit. Must exceed
+    ///      ADMIN_VAPOR_STAKE_TENTHS by at least one whole unit so ADMIN still holds an NFT after
+    ///      deploy.ts places the stake.
+    uint256 internal constant ADMIN_VAPOR_TENTHS = 20;
+    /// @dev The slice deploy.ts stakes as ADMIN, in tenths of a unit; deploy.ts reads the same unit.
+    uint256 internal constant ADMIN_VAPOR_STAKE_TENTHS = 5;
 
     /// @dev Whole units of `prism-stacked` handed to ADMIN — DN404 mints one NFT per whole unit.
     uint256 internal constant ADMIN_PRISM_UNITS = 3;
@@ -50,7 +56,6 @@ contract SeedAnvilBuys is SeedAnvilShared {
     /// @dev The artist-held piece carrying the already-paid, pinned commission. Sits outside the
     ///      reserved band range (the ladder derives id 11), so it is an ordinary buy-minted id.
     uint256 internal constant ARTIST_COMMISSION_ID = 3;
-    uint256 internal constant DN404_UNIT = 1e24;
 
     /// @dev Upper bound for the id sweep that LOGS which prism ids ADMIN ended up with. The instance
     ///      is created with nftCount 10 and one reserved band id (11), so 12 covers the space.
@@ -204,7 +209,7 @@ contract SeedAnvilBuys is SeedAnvilShared {
         ERC404BondingInstance vapor = ERC404BondingInstance(payable(s.vapor));
         uint256 adminVapor = vapor.balanceOf(ADMIN);
         require(
-            adminVapor >= ADMIN_VAPOR_STAKE + DN404_UNIT,
+            adminVapor >= (ADMIN_VAPOR_STAKE_TENTHS + 10) * vapor.unit() / 10,
             "phase2: ADMIN vapor balance too small to stake and still hold a piece"
         );
 
@@ -234,23 +239,24 @@ contract SeedAnvilBuys is SeedAnvilShared {
     function _buysMidCurve(address inst) internal {
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
 
-        // Buy amount: >= normalizationFactor (else cost rounds to 0 -> PurchaseTooSmall) and well
-        // under maxBondingSupply (~9e24 for preset 1: maxSupply 1e25 - 10% reserve). unit = 1e24.
-        uint256 buyAmount = 1e23; // 0.1 NFT-equivalent worth of tokens per buy
+        // A tenth of a piece per buy: far above normalizationFactor (else cost rounds to 0 ->
+        // PurchaseTooSmall), and the whole run below is 3.5 of the curve's 9 bondable pieces.
+        uint256 tenth = b.unit() / 10;
+        uint256 buyAmount = tenth;
 
         _buyBonding(b, deployerKey, buyAmount);
         _buyBonding(b, ACCOUNT_1_KEY, buyAmount);
         _buyBonding(b, deployerKey, buyAmount);
         // One larger deployer buy: enough to cover the deployer's own stake AND the ADMIN transfer
         // below, which must leave ADMIN a whole unit (an NFT) on top of what it later stakes.
-        _buyBonding(b, deployerKey, 32e23);
+        _buyBonding(b, deployerKey, 32 * tenth);
 
         vm.startBroadcast(deployerKey);
         b.activateStaking();
         b.stake(buyAmount / 2);
-        // DN404: whole units mint NFTs. ADMIN receives ADMIN_VAPOR_TOKENS so that after staking
-        // ADMIN_VAPOR_STAKE it still holds >= 1 whole unit, i.e. the portfolio NFT survives the stake.
-        b.transfer(ADMIN, ADMIN_VAPOR_TOKENS);
+        // DN404: whole units mint NFTs. ADMIN receives ADMIN_VAPOR_TENTHS so that after staking
+        // ADMIN_VAPOR_STAKE_TENTHS it still holds >= 1 whole unit, i.e. the portfolio NFT survives.
+        b.transfer(ADMIN, ADMIN_VAPOR_TENTHS * tenth);
         vm.stopBroadcast();
 
         console.log("MID-CURVE vapor bought + staked:", inst);
@@ -262,19 +268,19 @@ contract SeedAnvilBuys is SeedAnvilShared {
     ///      second clock advance unlocks the graduate button.
     function _buyReadyToGraduate(address inst, string memory label) internal {
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
-        _buyBonding(b, deployerKey, 1e23);
+        _buyBonding(b, deployerKey, b.unit() / 10);
         require(b.reserve() > 0, string.concat(label, ": reserve is 0, deployLiquidity would revert"));
         console.log("READY-TO-GRADUATE bought:", label, inst);
     }
 
     /// @dev Carve demo: walk the curve until the reserve clears 3 ETH so the carve has real headroom
-    ///      above the 1 ETH pool floor. Bounded: preset 1 targets ~25 ETH over ~9e24 bondable
-    ///      tokens, so 3 ETH arrives well inside the iteration cap. The final require is the seed's
+    ///      above the 1 ETH pool floor. Bounded: preset 1 targets ~25 ETH over 9 bondable pieces, and
+    ///      each buy is half a piece, so 3 ETH arrives well inside the iteration cap. The final require is the seed's
     ///      assertion about buy volume.
     function _buysCarveDemo(address inst) internal {
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         for (uint256 i = 0; i < 24 && b.reserve() < 3 ether; i++) {
-            _buyBonding(b, i % 2 == 0 ? ACCOUNT_1_KEY : deployerKey, 5e23);
+            _buyBonding(b, i % 2 == 0 ? ACCOUNT_1_KEY : deployerKey, b.unit() / 2);
         }
         require(b.reserve() >= 3 ether, "carve demo: reserve did not reach 3 ETH");
         console.log("CARVE demo reserve (wei):", b.reserve());
@@ -295,7 +301,7 @@ contract SeedAnvilBuys is SeedAnvilShared {
     ///      pieces first would revert it.
     function _buysStacked(Deployed memory d, address inst) internal {
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
-        _buyBondingMint(b, deployerKey, (ARTIST_PRISM_UNITS + ADMIN_PRISM_UNITS) * DN404_UNIT);
+        _buyBondingMint(b, deployerKey, (ARTIST_PRISM_UNITS + ADMIN_PRISM_UNITS) * b.unit());
 
         vm.startBroadcast(deployerKey);
         MetadataOverlayModule ov = MetadataOverlayModule(d.overlay);
@@ -330,7 +336,7 @@ contract SeedAnvilBuys is SeedAnvilShared {
         // Hand a set of pieces to ADMIN so the walk judges the metadata-precedence surface as the
         // holder rather than as a viewer. The token decides which ids ADMIN receives, so they are
         // read back below.
-        b.transfer(ADMIN, ADMIN_PRISM_UNITS * DN404_UNIT);
+        b.transfer(ADMIN, ADMIN_PRISM_UNITS * b.unit());
         vm.stopBroadcast();
 
         // Give ADMIN's set an unpaid commission, so the holder-side pay-and-pin path is a live

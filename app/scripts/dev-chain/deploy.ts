@@ -281,7 +281,17 @@ async function main(): Promise<void> {
   //   `rewardRate` is fed only by a vault fee delta, vaults receive nothing before graduation, and
   //   the mid-curve instance deliberately never graduates — so pending rewards are 0 for every
   //   address and the CLAIM surface is not walkable for anyone. Stake and unstake are.
-  const ADMIN_VAPOR_STAKE = 5n * 10n ** 23n // must match SeedAnvilBuys.ADMIN_VAPOR_STAKE
+  // Half a piece, in the instance's own unit: must match SeedAnvilBuys.ADMIN_VAPOR_STAKE_TENTHS.
+  const ADMIN_VAPOR_STAKE_TENTHS = 5n
+  const unitAbi = [
+    {
+      type: 'function',
+      name: 'unit',
+      inputs: [],
+      outputs: [{ type: 'uint256' }],
+      stateMutability: 'view',
+    },
+  ] as const
   const stakeAbi = [
     {
       type: 'function',
@@ -315,6 +325,12 @@ async function main(): Promise<void> {
   const vapor = seedState.instances.vapor
   if (!vapor) throw new Error('anvil-seed.json missing instances.vapor')
   const stakingModule = required(c, 'ERC404StakingModule')
+  const vaporUnit = await publicClient.readContract({
+    address: vapor,
+    abi: unitAbi,
+    functionName: 'unit',
+  })
+  const ADMIN_VAPOR_STAKE = (ADMIN_VAPOR_STAKE_TENTHS * vaporUnit) / 10n
   await test.impersonateAccount({ address: ADMIN })
   const stakeHash = await adminWallet.writeContract({
     address: vapor,
