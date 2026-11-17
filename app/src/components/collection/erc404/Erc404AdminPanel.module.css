@@ -4,6 +4,7 @@
   flex-direction: column;
   gap: var(--gap-sm);
   align-items: flex-end;
+  max-width: 100%;
 }
 
 .input {
@@ -39,4 +40,37 @@
   font-weight: var(--font-weight-bold);
   max-width: 22rem;
   text-align: right;
+}
+
+/* Bonding schedule — the rules stated before the open/maturity pickers, in the creator's own zone. */
+.schedule {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  padding-bottom: var(--gap-sm);
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.scheduleSteps {
+  margin: 0;
+  padding-left: 1.25rem;
+  list-style: decimal;
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+}
+
+.scheduleSteps b {
+  color: var(--text-primary);
+}
+
+/* One-press schedule choices above the picker; wraps on a narrow screen. */
+.quickPicks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--gap-xs);
+  max-width: min(22rem, 100%);
 }
