@@ -4,8 +4,6 @@
  * chain's clock, and every refusal must name a time to pick in the creator's zone, never an ISO
  * string or a chain timestamp.
  */
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import {
   MAX_BONDING_DURATION_SEC,
@@ -19,6 +17,7 @@ import {
   pickProblem,
   refusedSendCopy,
 } from './bondingSchedule'
+import storage from '../../../../../contracts/src/factories/erc404/ERC404BondingStorage.sol?raw'
 
 const DAY = 86_400
 const TZ = 'America/New_York'
@@ -28,10 +27,6 @@ const clock = { wallNow: WALL, timeZone: TZ }
 
 describe('the contract bound it mirrors', () => {
   test('MAX_BONDING_DURATION matches the contract constant', () => {
-    const storage = readFileSync(
-      resolve(__dirname, '../../../../../contracts/src/factories/erc404/ERC404BondingStorage.sol'),
-      'utf8',
-    )
     const m = /uint256 constant MAX_BONDING_DURATION = (\d+) days;/.exec(storage)
     expect(m).not.toBeNull()
     expect(MAX_BONDING_DURATION_SEC).toBe(Number(m![1]) * DAY)
