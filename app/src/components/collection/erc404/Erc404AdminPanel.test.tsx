@@ -7,12 +7,14 @@
  * post-graduation (style/metadata, vault, fee claim, delegation, allowlist) must stay present
  * regardless of phase — the over-gating guard (test 2).
  */
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { formatEther } from 'viem'
 import { carveCreatorNet } from '../../../lib/carve'
 import type { BondingView } from './bondingPhase'
 import { Erc404AdminPanel } from './Erc404AdminPanel'
+import { formatMoment, openWindow } from './bondingSchedule'
+import { localInputFromEpoch } from '../../../lib/time/scheduleInput'
 
 const NOW = 1_000_000n
 
@@ -82,11 +84,19 @@ const mockWriteContract = vi.hoisted(() => vi.fn())
 // resolved for a given request in bps. Both are per-test fixtures so the panel can be mounted in the
 // state that matters — a collection that DID declare carve rights, with the request left at its
 // default of 0.
+// The open/maturity times stored on chain, as the schedule rows read them (0 = not set).
+const mockStoredTimes = vi.hoisted(() =>
+  vi.fn<() => { open: bigint; maturity: bigint }>(() => ({ open: 0n, maturity: 0n })),
+)
 const mockDeclaredMax = vi.hoisted(() => vi.fn<() => number>())
 const mockPreviewCarve = vi.hoisted(() => vi.fn<(bps: bigint) => bigint | undefined>())
 
+// The schedule rows read the chain's clock from the pending block. Undefined (the default) leaves
+// them on the wall clock; a test that needs the chain ahead points this at a client.
+const mockPublicClient = vi.hoisted(() => vi.fn<() => unknown>(() => undefined))
+
 vi.mock('wagmi', () => ({
-  usePublicClient: () => undefined,
+  usePublicClient: () => mockPublicClient(),
   useBalance: () => ({ data: undefined, refetch: vi.fn() }),
   useWriteContract: () => ({
     writeContract: mockWriteContract,
@@ -115,8 +125,14 @@ vi.mock('../../../generated/contracts', () => ({
   useReadDeployBondEscrowBonds: () => ({ data: undefined, refetch: vi.fn() }),
   useReadErc404BondingInstanceAgentDelegationEnabled: () => ({ data: true, refetch: vi.fn() }),
   useReadErc404BondingInstanceBondingActive: () => ({ data: true, refetch: vi.fn() }),
-  useReadErc404BondingInstanceBondingMaturityTime: () => ({ data: 0n, refetch: vi.fn() }),
-  useReadErc404BondingInstanceBondingOpenTime: () => ({ data: 0n, refetch: vi.fn() }),
+  useReadErc404BondingInstanceBondingMaturityTime: () => ({
+    data: mockStoredTimes().maturity,
+    refetch: vi.fn(),
+  }),
+  useReadErc404BondingInstanceBondingOpenTime: () => ({
+    data: mockStoredTimes().open,
+    refetch: vi.fn(),
+  }),
   useReadErc404BondingInstanceDeclaredMaxAllowanceBps: () => ({ data: mockDeclaredMax() }),
   useReadErc404BondingInstanceLiquidityDeployer: () => ({ data: undefined }),
   useReadErc404BondingInstanceGatingModule: () => ({
@@ -196,6 +212,10 @@ afterEach(() => {
   mockPreviewCarve.mockReset()
   mockWriteContract.mockReset()
   mockStrandedTithe.mockReset()
+  mockStoredTimes.mockReset()
+  mockStoredTimes.mockReturnValue({ open: 0n, maturity: 0n })
+  mockPublicClient.mockReset()
+  mockPublicClient.mockReturnValue(undefined)
   strandedTithe({ amount: undefined, canFlush: false })
 })
 
@@ -415,4 +435,92 @@ test('stranded tithe: a real stash names the amount and sends the flush', () => 
   expect(screen.getByText(/0\.001 ETH stranded on the liquidity module/i)).toBeInTheDocument()
   fireEvent.click(button)
   expect(flush).toHaveBeenCalledTimes(1)
+})
+
+// ── the bonding schedule: every rule is stated before a pick, and an invalid pick cannot be sent.
+// A tester got stuck here twice: the only rule shown was "must be after chain time (<ISO UTC>)",
+// and only after a pick had already failed, on a chain whose clock ran ahead of theirs.
+
+const wallNow = () => Math.floor(Date.now() / 1000)
+const localClock = () => ({ wallNow: wallNow() })
+
+test('schedule: the rules and the earliest open time are stated before anything is picked', () => {
+  mount(PREOPEN)
+  const rules = screen.getByTestId('erc404-admin-schedule-rules')
+  const earliest = formatMoment(openWindow(wallNow(), 0).earliest, localClock())
+  expect(within(rules).getByText(/when buying starts/i)).toBeInTheDocument()
+  expect(rules.textContent).toContain(`Pick ${earliest} or later`)
+  expect(rules.textContent).toMatch(/no more than 210 days after it/)
+  expect(rules.textContent).toMatch(/in this order/)
+  expect(rules.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}T/)
+})
+
+test('schedule: with no open time, maturity and activate say to set the open time first', () => {
+  mount(PREOPEN)
+  expect(screen.getByTestId('erc404-admin-maturity-input')).toBeDisabled()
+  expect(screen.getByText(/^Set the open time first\./)).toBeInTheDocument()
+  expect(screen.getByTestId('erc404-admin-set-active')).toBeDisabled()
+  expect(screen.getByText(/Set the open time first \(step 1\), then activate/)).toBeInTheDocument()
+})
+
+test('schedule: the open picker carries its earliest time as min, and an earlier pick names what to pick', () => {
+  mount(PREOPEN)
+  const input = screen.getByTestId('erc404-admin-open-time-input')
+  const w = openWindow(wallNow(), 0)
+  expect(input).toHaveAttribute('min', localInputFromEpoch(w.earliest))
+  fireEvent.change(input, { target: { value: localInputFromEpoch(wallNow()) } })
+  const problem = screen.getByTestId('erc404-admin-open-time-problem')
+  expect(problem.textContent).toMatch(/^Pick .* or later\.$/)
+  expect(problem.textContent).not.toMatch(/chain time|\d{4}-\d{2}-\d{2}T|UTC/)
+  expect(screen.getByTestId('erc404-admin-open-time')).toBeDisabled()
+})
+
+test('schedule: "in 1 hour" fills a valid open time and the send carries it', () => {
+  mount(PREOPEN)
+  fireEvent.click(screen.getByRole('button', { name: 'in 1 hour' }))
+  expect(screen.getByTestId('erc404-admin-open-time-preview').textContent).toMatch(/^Opens /)
+  const button = screen.getByTestId('erc404-admin-open-time')
+  expect(button).toBeEnabled()
+  fireEvent.click(button)
+  const sent = mockWriteContract.mock.calls[0]![0] as { functionName: string; args: [bigint] }
+  expect(sent.functionName).toBe('setBondingOpenTime')
+  const at = Number(sent.args[0])
+  expect(at).toBeGreaterThanOrEqual(wallNow() + 3600 - 60)
+  expect(at % 60).toBe(0)
+})
+
+test('schedule: a chain clock ahead of the wall clock is said out loud and moves the bounds', async () => {
+  const ahead = 2 * 3600
+  mockPublicClient.mockReturnValue({
+    getBlock: () => Promise.resolve({ timestamp: BigInt(wallNow() + ahead) }),
+  })
+  mount(PREOPEN)
+  const note = await screen.findByTestId('erc404-admin-clock-skew')
+  expect(note.textContent).toMatch(/2 hours ahead of your clock/)
+  await waitFor(() =>
+    expect(screen.getByTestId('erc404-admin-open-time-input')).toHaveAttribute(
+      'min',
+      localInputFromEpoch(openWindow(wallNow() + ahead, 0).earliest),
+    ),
+  )
+  // A pick that is in the future by the creator's watch but not by the chain's is refused in words.
+  fireEvent.change(screen.getByTestId('erc404-admin-open-time-input'), {
+    target: { value: localInputFromEpoch(wallNow() + 3600) },
+  })
+  expect(screen.getByTestId('erc404-admin-open-time-problem').textContent).toMatch(/or later\.$/)
+})
+
+test('schedule: with an open time set, maturity offers "30 days after open" and caps its picker at 210 days', () => {
+  const open = wallNow() + 86_400
+  mockStoredTimes.mockReturnValue({ open: BigInt(open), maturity: 0n })
+  mount(PREOPEN)
+  const input = screen.getByTestId('erc404-admin-maturity-input')
+  expect(input).toBeEnabled()
+  expect(input).toHaveAttribute('max', localInputFromEpoch(open + 210 * 86_400))
+  fireEvent.click(screen.getByRole('button', { name: '30 days after open' }))
+  expect(screen.getByTestId('erc404-admin-maturity')).toBeEnabled()
+  // Past the cap is refused with the latest allowed time named.
+  fireEvent.change(input, { target: { value: localInputFromEpoch(open + 300 * 86_400) } })
+  expect(screen.getByTestId('erc404-admin-maturity-problem').textContent).toMatch(/or earlier\.$/)
+  expect(screen.getByTestId('erc404-admin-set-active')).toBeEnabled()
 })

@@ -18,7 +18,7 @@
  */
 import { useMemo, useState } from 'react'
 import { formatEther, type Log } from 'viem'
-import { useBalance, useBlock, useWaitForTransactionReceipt } from 'wagmi'
+import { useBalance, useWaitForTransactionReceipt } from 'wagmi'
 import {
   deployBondEscrowAbi,
   erc404BondingInstanceAbi,
@@ -60,13 +60,27 @@ import { AdminSection, ActionRow } from '../../ui/AdminSection'
 import { Disclosure } from '../../ui/Disclosure'
 import { TxButton } from '../../ui/TxButton'
 import { useOwnerGate } from '../../ui/useOwnerGate'
-import { epochFromLocalInput } from '../../../lib/time/scheduleInput'
+import { epochFromLocalInput, localInputFromEpoch } from '../../../lib/time/scheduleInput'
 import { useTxAction } from '../../ui/useTxAction'
 import { MetadataArtistPanel } from './MetadataArtistPanel'
 import { canDeployLiquidity, derivePhase } from './bondingPhase'
 import { useBondingData } from './useBondingData'
 import { useStrandedTithe } from './useStrandedTithe'
 import { useNowSec } from './useNowSec'
+import { useChainClock } from './useChainClock'
+import {
+  clockSkewNote,
+  formatMoment,
+  maturityQuickPicks,
+  maturityWindow,
+  openQuickPicks,
+  openWindow,
+  pickProblem,
+  refusedSendCopy,
+  zoneName,
+  type QuickPick,
+  type TimeWindow,
+} from './bondingSchedule'
 import styles from './Erc404AdminPanel.module.css'
 
 interface Erc404AdminPanelProps {
@@ -99,23 +113,7 @@ export function Erc404AdminPanel({ instance }: Erc404AdminPanelProps) {
           </p>
         ) : (
           <>
-            <SetBondingActiveRow instance={instance} />
-            <SetTimeRow
-              instance={instance}
-              functionName="setBondingOpenTime"
-              label="bonding open time"
-              hint="when the bonding sale opens"
-              testId="erc404-admin-open-time"
-              kind="open"
-            />
-            <SetTimeRow
-              instance={instance}
-              functionName="setBondingMaturityTime"
-              label="bonding maturity time"
-              hint="must be after open time and in the future"
-              testId="erc404-admin-maturity"
-              kind="maturity"
-            />
+            <BondingScheduleRows instance={instance} />
           </>
         )}
         <SetUriRow
@@ -150,9 +148,221 @@ export function Erc404AdminPanel({ instance }: Erc404AdminPanelProps) {
   )
 }
 
+// ── bonding schedule: open time → maturity time → arm ──────────────────────────
+//
+// The three writes have an order the contract enforces (maturity needs an open time; arming needs an
+// open time) and bounds measured against the CHAIN's clock. Every bound is worked out before the
+// creator picks (bondingSchedule.ts), stated in their own time zone, and fed to the picker as its
+// min/max, so a value the chain would refuse cannot be sent. A refusal after the send carries no
+// reason (the instance's delegatecall drops it), which is why the form has to be right beforehand.
+
+function BondingScheduleRows({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
+  const { data: openTime, refetch: refetchOpen } = useReadErc404BondingInstanceBondingOpenTime({
+    address: instance,
+    chainId: chainId,
+  })
+  const { data: maturityTime, refetch: refetchMaturity } =
+    useReadErc404BondingInstanceBondingMaturityTime({ address: instance, chainId: chainId })
+  const { chainNow, wallNow } = useChainClock(chainId)
+  const clock = { chainNow, wallNow }
+
+  const open = Number(openTime ?? 0n)
+  const maturity = Number(maturityTime ?? 0n)
+  const openWin = openWindow(chainNow, maturity)
+  const maturityWin = maturityWindow(chainNow, open)
+  const skew = clockSkewNote(clock)
+  const refetch = () => {
+    void refetchOpen()
+    void refetchMaturity()
+  }
+
+  return (
+    <>
+      <div className={styles.schedule} data-testid="erc404-admin-schedule-rules">
+        <p className={styles.hint}>
+          Bonding runs on a schedule you set in this order. Times are in your time zone (
+          {zoneName(undefined, wallNow)}).
+        </p>
+        <ol className={styles.scheduleSteps}>
+          <li>
+            <b>Open time</b>: when buying starts. Pick {formatMoment(openWin.earliest, clock)} or
+            later.
+          </li>
+          <li>
+            <b>Maturity time</b> (optional): when the sale is planned to end. It must come after the
+            open time and no more than 210 days after it.
+          </li>
+          <li>
+            <b>Activate bonding</b>: turns the sale on. It needs an open time; buying starts at that
+            time.
+          </li>
+        </ol>
+        {skew && (
+          <p className={styles.hint} data-testid="erc404-admin-clock-skew">
+            {skew}
+          </p>
+        )}
+      </div>
+      <SetTimeRow
+        instance={instance}
+        functionName="setBondingOpenTime"
+        kind="open"
+        label="1 · bonding open time"
+        testId="erc404-admin-open-time"
+        stored={open}
+        window={openWin}
+        quickPicks={openQuickPicks(chainNow, openWin)}
+        clock={clock}
+        onWritten={refetch}
+      />
+      <SetTimeRow
+        instance={instance}
+        functionName="setBondingMaturityTime"
+        kind="maturity"
+        label="2 · bonding maturity time"
+        testId="erc404-admin-maturity"
+        stored={maturity}
+        window={maturityWin}
+        quickPicks={maturityQuickPicks(open, maturityWin)}
+        clock={clock}
+        onWritten={refetch}
+      />
+      <SetBondingActiveRow instance={instance} openTime={openTime} />
+    </>
+  )
+}
+
+function SetTimeRow({
+  instance,
+  functionName,
+  kind,
+  label,
+  testId,
+  stored,
+  window,
+  quickPicks,
+  clock,
+  onWritten,
+}: {
+  instance: `0x${string}`
+  functionName: 'setBondingOpenTime' | 'setBondingMaturityTime'
+  kind: 'open' | 'maturity'
+  label: string
+  testId: string
+  stored: number
+  window: TimeWindow
+  quickPicks: QuickPick[]
+  clock: { chainNow: number; wallNow: number }
+  onWritten: () => void
+}) {
+  const chainId = useCollectionChainId()
+  const [value, setValue] = useState('')
+  const tx = useTxAction({ onSuccess: onWritten, instance })
+
+  const picked = epochFromLocalInput(value)
+  const problem = picked === null ? undefined : pickProblem(picked, window, clock)
+  const canSubmit = picked !== null && problem === undefined
+
+  const range =
+    window.latest === null
+      ? `${formatMoment(window.earliest, clock)} or later`
+      : `between ${formatMoment(window.earliest, clock)} and ${formatMoment(window.latest, clock)}`
+  const rule = window.blocked
+    ? window.blocked
+    : kind === 'open'
+      ? window.latest === null
+        ? `When buying starts. Pick ${range}.`
+        : `When buying starts. Pick a time ${range}, so it stays before the maturity time.`
+      : `Optional. Pick a time ${range} (up to 210 days after the open time).`
+  const current = stored > 0 ? ` Now set to ${formatMoment(stored, clock)}.` : ' Not set yet.'
+  // A wallet rejection is the creator's own choice and keeps the button's default wording; any other
+  // failure is a refusal whose reason the instance dropped, and the likeliest one is named.
+  const rejected = tx.reason !== undefined && /reject|denied/i.test(tx.reason)
+
+  return (
+    <ActionRow label={label} hint={rule + current}>
+      <div className={styles.control}>
+        {quickPicks.length > 0 && (
+          <div className={styles.quickPicks} data-testid={`${testId}-quick`}>
+            {quickPicks.map((q) => (
+              <button
+                key={q.label}
+                type="button"
+                className="btn btn-secondary"
+                disabled={!q.allowed || tx.isBusy}
+                title={formatMoment(q.at, clock)}
+                onClick={() => setValue(localInputFromEpoch(q.at))}
+              >
+                {q.label}
+              </button>
+            ))}
+          </div>
+        )}
+        <input
+          className={styles.input}
+          type="datetime-local"
+          value={value}
+          min={localInputFromEpoch(window.earliest)}
+          max={window.latest === null ? undefined : localInputFromEpoch(window.latest)}
+          onChange={(e) => setValue(e.target.value)}
+          disabled={tx.isBusy || window.blocked !== undefined}
+          aria-label={label}
+          aria-invalid={problem !== undefined}
+          data-testid={`${testId}-input`}
+        />
+        {problem !== undefined ? (
+          <p
+            className={`${styles.hint} ${styles.txError}`}
+            role="alert"
+            data-testid={`${testId}-problem`}
+          >
+            {problem}
+          </p>
+        ) : (
+          picked !== null && (
+            <p className={styles.hint} data-testid={`${testId}-preview`}>
+              {kind === 'open' ? 'Opens' : 'Matures'} {formatMoment(picked, clock)}.
+            </p>
+          )
+        )}
+        <TxButton
+          state={tx.state}
+          onClick={() => {
+            if (!canSubmit || picked === null) return
+            tx.send({
+              address: instance,
+              abi: erc404BondingInstanceAbi,
+              functionName,
+              args: [BigInt(picked)],
+              chainId: chainId,
+            })
+          }}
+          label={kind === 'open' ? 'set open time' : 'set maturity time'}
+          successLabel={'time updated'}
+          {...(rejected ? {} : { errorText: refusedSendCopy(kind) })}
+          onReset={() => {
+            tx.reset()
+            setValue('')
+          }}
+          disabled={!canSubmit}
+          className="btn btn-primary"
+          testId={testId}
+        />
+      </div>
+    </ActionRow>
+  )
+}
+
 // ── bonding active toggle ──────────────────────────────────────────────────────
 
-function SetBondingActiveRow({ instance }: { instance: `0x${string}` }) {
+function SetBondingActiveRow({
+  instance,
+  openTime,
+}: {
+  instance: `0x${string}`
+  openTime: bigint | undefined
+}) {
   const chainId = useCollectionChainId()
   const { data: active, refetch } = useReadErc404BondingInstanceBondingActive({
     address: instance,
@@ -160,11 +370,19 @@ function SetBondingActiveRow({ instance }: { instance: `0x${string}` }) {
   })
   const tx = useTxAction({ onSuccess: () => void refetch(), instance })
   const next = !active
+  // `setBondingActive` reverts `OpenTimeNotSet` with no open time; say so instead of offering it.
+  const needsOpenTime = openTime === 0n
 
   return (
     <ActionRow
-      label="bonding active"
-      hint={active === undefined ? 'current: …' : `current: ${active ? 'active' : 'inactive'}`}
+      label="3 · bonding active"
+      hint={
+        active === undefined
+          ? 'current: …'
+          : needsOpenTime
+            ? 'Set the open time first (step 1), then activate.'
+            : `current: ${active ? 'active' : 'inactive'}`
+      }
     >
       <TxButton
         state={tx.state}
@@ -180,108 +398,10 @@ function SetBondingActiveRow({ instance }: { instance: `0x${string}` }) {
         label={next ? 'activate bonding' : 'deactivate bonding'}
         successLabel={'bonding state updated'}
         onReset={tx.reset}
-        disabled={active === undefined}
+        disabled={active === undefined || needsOpenTime}
         className="btn btn-secondary"
         testId="erc404-admin-set-active"
       />
-    </ActionRow>
-  )
-}
-
-// ── open / maturity time setters ───────────────────────────────────────────────
-
-function SetTimeRow({
-  instance,
-  functionName,
-  label,
-  hint,
-  testId,
-  kind,
-}: {
-  instance: `0x${string}`
-  functionName: 'setBondingOpenTime' | 'setBondingMaturityTime'
-  label: string
-  hint: string
-  testId: string
-  kind: 'open' | 'maturity'
-}) {
-  const chainId = useCollectionChainId()
-  const [value, setValue] = useState('')
-  const { data: openTime, refetch: refetchOpen } = useReadErc404BondingInstanceBondingOpenTime({
-    address: instance,
-    chainId: chainId,
-  })
-  const { data: maturityTime, refetch: refetchMaturity } =
-    useReadErc404BondingInstanceBondingMaturityTime({ address: instance, chainId: chainId })
-
-  const tx = useTxAction({
-    onSuccess: () => {
-      void refetchOpen()
-      void refetchMaturity()
-    },
-    instance,
-  })
-
-  const picked = epochFromLocalInput(value)
-  const seconds = picked === null ? undefined : BigInt(picked)
-  // The contract checks `TimeMustBeInFuture` against `block.timestamp`, NOT the browser clock. Those
-  // differ — a mainnet-fork's chain time runs hours ahead of the wall clock, and even on live networks
-  // the two drift — so validating against `Date.now()` lets a value pass the UI and revert on-chain.
-  // Use chain time; fall back to the wall clock only until the first block loads.
-  const { data: block } = useBlock({ chainId: chainId, watch: true })
-  const nowSec = block?.timestamp ?? BigInt(Math.floor(Date.now() / 1000))
-
-  // Maturity must be > openTime AND in the future; surface the reason inline.
-  let invalidReason: string | undefined
-  if (seconds !== undefined) {
-    if (seconds <= nowSec)
-      invalidReason = `must be after chain time (${new Date(Number(nowSec) * 1000).toISOString()})`
-    else if (kind === 'maturity' && openTime !== undefined && seconds <= openTime)
-      invalidReason = 'must be after open time'
-  }
-  const canSubmit = seconds !== undefined && invalidReason === undefined
-
-  const current = kind === 'open' ? openTime : maturityTime
-  const currentHint =
-    current === undefined || current === 0n
-      ? hint
-      : `${hint} · current: ${new Date(Number(current) * 1000).toISOString()}`
-
-  return (
-    <ActionRow label={label} hint={invalidReason ?? currentHint}>
-      <div className={styles.control}>
-        <input
-          className={styles.input}
-          type="datetime-local"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          disabled={tx.isBusy}
-          aria-label={label}
-          data-testid={`${testId}-input`}
-        />
-        <TxButton
-          state={tx.state}
-          onClick={() => {
-            if (seconds === undefined) return
-            tx.send({
-              address: instance,
-              abi: erc404BondingInstanceAbi,
-              functionName,
-              args: [seconds],
-              chainId: chainId,
-            })
-          }}
-          label="set time"
-          successLabel={'time updated'}
-          onReset={() => {
-            tx.reset()
-            setValue('')
-          }}
-          disabled={!canSubmit}
-          className="btn btn-primary"
-          testId={testId}
-        />
-      </div>
     </ActionRow>
   )
 }
