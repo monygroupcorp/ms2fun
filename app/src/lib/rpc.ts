@@ -186,14 +186,20 @@ const PUBLIC_RPCS: Record<number, string[]> = {
 
 /**
  * Pool entries that refuse an `eth_getLogs` as wide as the app's window on their chain
- * (`logWindowForChain` in `logScan.ts`). They stay in the pool for everything else; a log scan
+ * (`logWindowForChain` in `logWindow.ts`). They stay in the pool for everything else; a log scan
  * skips them rather than spending a request on a refusal per window. `pnpm rpc:check` measures each
  * entry at the app's window and reads this list, so an entry that starts refusing shows up there.
  *
  * `exclude`, not `include`: the ranker pings with `eth_blockNumber`, and an include list without it
  * would fail every ping and rank the entry last for good.
  */
-const NARROW_LOG_RANGE: string[] = ['https://0xrpc.io/sep']
+const NARROW_LOG_RANGE: string[] = [
+  // Refuses 50,000; serves 10,001.
+  'https://0xrpc.io/sep',
+  // The free plan refuses an address-filtered range of a few hundred blocks ("ranges over 10000
+  // blocks are not supported", whatever the range asked for); it served 100 when measured.
+  'https://eth.drpc.org',
+]
 
 function poolEntry(url: string): Transport {
   const config: HttpTransportConfig = { batch: true }

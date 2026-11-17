@@ -5,7 +5,8 @@
  * Mainnet's public endpoints refuse wider ranges than Sepolia's: an address-filtered `eth_getLogs`
  * over more than 10,000 blocks is refused by publicnode (HTTP 403, "archive requests require a
  * personal token") and by 0xrpc (-32601), while the same endpoints serve it at 10,000. Sepolia's
- * pool serves 50,000 everywhere except one entry, which `rpc.ts` keeps off log scans instead.
+ * pool serves 50,000. An entry whose cap is narrower than its chain's window here (0xrpc on Sepolia,
+ * drpc on mainnet) is kept off log scans by `rpc.ts` rather than narrowing every scan for it.
  *
  * `pnpm rpc:check` measures each pool entry at these widths, so a provider that narrows its cap
  * shows up there rather than as a page that cannot load its history.
