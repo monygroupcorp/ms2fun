@@ -4,6 +4,7 @@
   flex-direction: column;
   gap: var(--gap-sm);
   align-items: flex-end;
+  max-width: 100%;
 }
 
 .input {
@@ -53,6 +54,7 @@
 .scheduleSteps {
   margin: 0;
   padding-left: 1.25rem;
+  list-style: decimal;
   font-size: var(--font-size-body-sm);
   color: var(--text-secondary);
   display: flex;
@@ -70,5 +72,5 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--gap-xs);
-  max-width: 22rem;
+  max-width: min(22rem, 100%);
 }

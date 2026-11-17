@@ -60,4 +60,6 @@
   flex-direction: column;
   gap: var(--gap-sm);
   align-items: flex-end;
+  min-width: 0;
+  max-width: 100%;
 }
