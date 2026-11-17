@@ -307,7 +307,7 @@
             "erc404BondingInstanceAbi.setBondingActive"
           ],
           "given": "your own ERC-404 collection from C-1",
-          "do": "set an open time a few minutes out and a maturity after it, arm bonding, and try to buy before the open time",
+          "do": "set an open time about ten minutes out (the form allows five minutes from now at the earliest) and a maturity after it, arm bonding, and try to buy before the open time",
           "expect": "the buy is not offered before the open time — the app refuses it rather than letting the chain revert it — and becomes available on its own once the time passes; a maturity at or before the open time is refused in the form, not on-chain",
           "blocking": true
         },

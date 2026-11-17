@@ -235,6 +235,58 @@ function BondingScheduleRows({ instance }: { instance: `0x${string}` }) {
   )
 }
 
+// ── bonding active toggle ──────────────────────────────────────────────────────
+
+function SetBondingActiveRow({
+  instance,
+  openTime,
+}: {
+  instance: `0x${string}`
+  openTime: bigint | undefined
+}) {
+  const chainId = useCollectionChainId()
+  const { data: active, refetch } = useReadErc404BondingInstanceBondingActive({
+    address: instance,
+    chainId: chainId,
+  })
+  const tx = useTxAction({ onSuccess: () => void refetch(), instance })
+  const next = !active
+  // `setBondingActive` reverts `OpenTimeNotSet` with no open time; say so instead of offering it.
+  const needsOpenTime = openTime === 0n
+
+  return (
+    <ActionRow
+      label="3 · bonding active"
+      hint={
+        active === undefined
+          ? 'current: …'
+          : needsOpenTime
+            ? 'Set the open time first (step 1), then activate.'
+            : `current: ${active ? 'active' : 'inactive'}`
+      }
+    >
+      <TxButton
+        state={tx.state}
+        onClick={() =>
+          tx.send({
+            address: instance,
+            abi: erc404BondingInstanceAbi,
+            functionName: 'setBondingActive',
+            args: [next],
+            chainId: chainId,
+          })
+        }
+        label={next ? 'activate bonding' : 'deactivate bonding'}
+        successLabel={'bonding state updated'}
+        onReset={tx.reset}
+        disabled={active === undefined || needsOpenTime}
+        className="btn btn-secondary"
+        testId="erc404-admin-set-active"
+      />
+    </ActionRow>
+  )
+}
+
 function SetTimeRow({
   instance,
   functionName,
@@ -357,58 +409,6 @@ function SetTimeRow({
           testId={testId}
         />
       </div>
-    </ActionRow>
-  )
-}
-
-// ── bonding active toggle ──────────────────────────────────────────────────────
-
-function SetBondingActiveRow({
-  instance,
-  openTime,
-}: {
-  instance: `0x${string}`
-  openTime: bigint | undefined
-}) {
-  const chainId = useCollectionChainId()
-  const { data: active, refetch } = useReadErc404BondingInstanceBondingActive({
-    address: instance,
-    chainId: chainId,
-  })
-  const tx = useTxAction({ onSuccess: () => void refetch(), instance })
-  const next = !active
-  // `setBondingActive` reverts `OpenTimeNotSet` with no open time; say so instead of offering it.
-  const needsOpenTime = openTime === 0n
-
-  return (
-    <ActionRow
-      label="3 · bonding active"
-      hint={
-        active === undefined
-          ? 'current: …'
-          : needsOpenTime
-            ? 'Set the open time first (step 1), then activate.'
-            : `current: ${active ? 'active' : 'inactive'}`
-      }
-    >
-      <TxButton
-        state={tx.state}
-        onClick={() =>
-          tx.send({
-            address: instance,
-            abi: erc404BondingInstanceAbi,
-            functionName: 'setBondingActive',
-            args: [next],
-            chainId: chainId,
-          })
-        }
-        label={next ? 'activate bonding' : 'deactivate bonding'}
-        successLabel={'bonding state updated'}
-        onReset={tx.reset}
-        disabled={active === undefined || needsOpenTime}
-        className="btn btn-secondary"
-        testId="erc404-admin-set-active"
-      />
     </ActionRow>
   )
 }
