@@ -71,9 +71,10 @@ export function readNarrowLogRange(source: string): string[] {
 const WIDE_LOG_WINDOW = 50_000n
 
 /**
- * A contract with few logs on a chain with no deployment file: the ENS registry, at the same
- * address on every chain. A probe needs an address filter (the app always sends one), and a quiet
- * contract keeps a refusal about the RANGE apart from one about how many logs came back.
+ * The contract probed on a chain with no deployment file: the ENS registry, at the same address on
+ * every chain. A probe needs an address filter (the app always sends one). Its volume is moderate
+ * (about 1,250 logs per 10,000 mainnet blocks), well under the result caps public endpoints set, so
+ * a refusal here is about the range asked for.
  */
 const QUIET_CONTRACT = '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e'
 

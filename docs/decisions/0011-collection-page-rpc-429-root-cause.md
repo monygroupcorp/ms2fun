@@ -1,8 +1,10 @@
 # ADR-0011 — Collection-page RPC load: root cause and fix
 
-**Status:** Accepted (2026-11-17). Proposed 2026-11-16; items 1–3 below shipped with this
-acceptance, along with three causes the proposal had not found. Item 4 stays open; item 5 is an
-option, not a decision.
+**Status:** Accepted (2026-11-17). Proposed 2026-11-16. The proposal's first three items (creation
+block floor, feed early-stop, no whole-scan retries) shipped with this acceptance, along with fixes
+for three transport causes the proposal had not found; see [What shipped](#what-shipped). Its
+fourth (a 429 as the failover signal) stays open, and its fifth (shared caching) is an option, not a
+decision.
 **Context owner:** Mony
 
 ## Why this exists
@@ -191,8 +193,9 @@ can rate-limit the user's next signature as well as the page.
 5. **The ranked pool is built once per chain** (`oncePerChain`): one ranking loop at the 30 s
    interval, and requests see its ranking. A test (`src/lib/rpc.leak.test.ts`) drives 20 reads
    through the transport and bounds the pings; the transport before this change sends 164.
-6. **The log window is per chain** (`lib/logWindow.ts`): 10,000 blocks on mainnet, 50,000 elsewhere,
-   used by every caller of `DEFAULT_LOG_WINDOW`.
+6. **The log window follows the chain a build targets** (`lib/logWindow.ts`): 10,000 blocks on
+   mainnet, 50,000 elsewhere, used by every caller of `DEFAULT_LOG_WINDOW`. It is chosen per build,
+   not per scan, which is the same thing while each build serves one chain.
 7. **The pool lists only what serves it.** The Sepolia thirdweb entry is removed. Entries that
    serve calls but refuse the app's log window stay in the pool with `eth_getLogs` excluded
    (`NARROW_LOG_RANGE`): `0xrpc.io/sep` and mainnet `eth.drpc.org`.
@@ -215,7 +218,7 @@ ranking round (3 `eth_blockNumber`) and 8 `eth_getBlockByNumber`.
 | chain | endpoint | app window | 50,000 blocks |
 |---|---|---|---|
 | mainnet | publicnode | ok (10,000) | HTTP 403, `-32602 Archive requests require a personal token` |
-| mainnet | drpc | refused at every width tried from 200 up (HTTP 400, code 35, "ranges over 10000 blocks are not supported on free plan"); 100 served | refused |
+| mainnet | drpc | refused at every width tried from 200 up (HTTP 400, code 35, "ranges over 10000 blocks are not supported on free plan"), including 1,000 and 10,000 on an address with no logs; 100 served | refused |
 | mainnet | tenderly gateway | ok (10,000) | `-32602 invalid params` |
 | mainnet | 0xrpc.io/eth | ok (10,000) | `-32601 Request contains invalid block params` |
 | Sepolia | publicnode | ok (50,000) in 2 of 8 tries; `4444 pruned history unavailable` in 6 | same |
@@ -236,6 +239,10 @@ backend, and on Sepolia deep history is served by one endpoint.
   does expose `onResponse` and `shouldThrow`). With one ranking loop now actually ranking, an
   endpoint that rate-limits real traffic but answers its ping still keeps its place until the ping
   catches it.
+- **The `fallback` retry multiplier.** Both `fallback` layers keep viem's default `retryCount: 3`,
+  so one window that every endpoint answers with a 429 still costs up to 64 pool requests before it
+  errors. `retry: false` removed react-query's layer on top, and the creation-block floor makes most
+  scans one window, but the per-window multiplier itself is unchanged.
 - **Shared caching across visitors (item 5) stays an option, not a requirement.** Nothing here needs
   a cache shared across different visitors' browsers to fix the 429 — per-visitor IndexedDB
   persistence (already shipped, ADR-0010 Tier 0) only helps a *returning* visitor, not the first wave
