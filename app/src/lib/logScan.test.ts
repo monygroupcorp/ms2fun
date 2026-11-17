@@ -44,6 +44,19 @@ describe('reverseWindows', () => {
 })
 
 describe('scanBackward', () => {
+  it('stops at the first window that returns anything when untilFound is set', async () => {
+    const seen: bigint[] = []
+    const out = await scanBackward(
+      async (from) => {
+        seen.push(from)
+        return from === 41n ? ['hit'] : []
+      },
+      { latest: 100n, floor: 0n, window: 30n, untilFound: true },
+    )
+    expect(seen).toEqual([71n, 41n])
+    expect(out).toEqual(['hit'])
+  })
+
   it('fetches newest window first and concatenates in window order', async () => {
     const seen: Array<[bigint, bigint]> = []
     const out = await scanBackward(

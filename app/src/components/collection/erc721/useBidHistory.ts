@@ -6,8 +6,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { usePublicClient } from 'wagmi'
 import { erc721AuctionInstanceAbi } from '../../../generated/contracts'
-import { deployBlock } from '../../../lib/addresses'
 import { useCollectionChainId } from '../useCollectionChain'
+import { useInstanceFloor } from '../useInstanceFloor'
 import { scanBackward } from '../../../lib/logScan'
 
 export interface BidRecord {
@@ -22,13 +22,17 @@ export function useBidHistory(
 ): { data: BidRecord[]; isPending: boolean } {
   const chainId = useCollectionChainId()
   const client = usePublicClient({ chainId })
+  const floor = useInstanceFloor(instance, chainId)
 
   const { data, isPending } = useQuery({
     queryKey: ['erc721-bids', instance, tokenId?.toString() ?? null],
-    enabled: !!client && tokenId !== undefined,
+    enabled: !!client && tokenId !== undefined && floor !== undefined,
     staleTime: 10_000,
+    // A failed walk is not retried here: react-query restarts the whole walk from its newest
+    // window, and under a provider's rate limit that adds load where it is already refused.
+    retry: false,
     queryFn: async (): Promise<BidRecord[]> => {
-      if (!client || tokenId === undefined) return []
+      if (!client || tokenId === undefined || floor === undefined) return []
       const latest = await client.getBlockNumber()
       const logs = await scanBackward(
         (fromBlock, toBlock) =>
@@ -40,7 +44,7 @@ export function useBidHistory(
             fromBlock,
             toBlock,
           }),
-        { latest, floor: deployBlock },
+        { latest, floor },
       )
 
       const bids: BidRecord[] = []

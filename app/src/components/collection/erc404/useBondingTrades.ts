@@ -11,8 +11,8 @@ import { useQuery } from '@tanstack/react-query'
 import { formatEther, formatUnits } from 'viem'
 import { usePublicClient } from 'wagmi'
 import { erc404BondingInstanceAbi } from '../../../generated/contracts'
-import { deployBlock } from '../../../lib/addresses'
 import { useCollectionChainId } from '../useCollectionChain'
+import { useInstanceFloor } from '../useInstanceFloor'
 import { scanBackward } from '../../../lib/logScan'
 import type { Trade } from './candleAggregator'
 
@@ -31,13 +31,17 @@ export function useBondingTrades(
 ): { data: BondingTrade[]; isPending: boolean; isError: boolean } {
   const chainId = useCollectionChainId()
   const client = usePublicClient({ chainId })
+  const floor = useInstanceFloor(instance, chainId)
 
   const { data, isPending, isError } = useQuery({
     queryKey: ['erc404-trades', instance, decimals],
-    enabled: !!client,
+    enabled: !!client && floor !== undefined,
     staleTime: 10_000,
+    // A failed walk is not retried here: react-query restarts the whole walk from its newest
+    // window, and under a provider's rate limit that adds load where it is already refused.
+    retry: false,
     queryFn: async (): Promise<BondingTrade[]> => {
-      if (!client) return []
+      if (!client || floor === undefined) return []
       const latest = await client.getBlockNumber()
       const logs = await scanBackward(
         (fromBlock, toBlock) =>
@@ -48,7 +52,7 @@ export function useBondingTrades(
             fromBlock,
             toBlock,
           }),
-        { latest, floor: deployBlock },
+        { latest, floor },
       )
 
       const trades: BondingTrade[] = []

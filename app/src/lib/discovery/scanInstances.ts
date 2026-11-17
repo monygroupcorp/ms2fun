@@ -1,6 +1,7 @@
 import type { PublicClient } from 'viem'
 import { masterRegistryV1Abi } from '../../generated/contracts'
-import { deployBlock, forkAddresses } from '../addresses'
+import { deployBlock, forkAddresses, forkChainId } from '../addresses'
+import { rememberInstanceCreatedBlock } from './instanceCreatedBlock'
 import { scanBackward } from '../logScan'
 
 /** One registry log, reduced to the fields the discovery index actually reads. */
@@ -100,6 +101,8 @@ async function scanLiveInstances(
     if (!seen.has(inst)) {
       seen.add(inst)
       instances.push(inst)
+      if (event.blockNumber !== null)
+        rememberInstanceCreatedBlock(forkChainId, inst, event.blockNumber)
     }
   }
   // A set subtraction, not a last-event-wins reduction: `revokeInstance` only ever sets

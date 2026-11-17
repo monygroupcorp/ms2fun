@@ -13,8 +13,8 @@ import {
   useReadErc404BondingInstanceTotalSupply,
   useReadErc404BondingInstanceUnit,
 } from '../../../generated/contracts'
-import { deployBlock } from '../../../lib/addresses'
 import { useCollectionChainId } from '../useCollectionChain'
+import { useInstanceFloor } from '../useInstanceFloor'
 import { exec404MirrorAbi, ownedIdsFromTransfers, type MirrorTransfer } from '../../../lib/exec404'
 import { scanBackward } from '../../../lib/logScan'
 import { fetchJson, jsonOrNull } from '../../../lib/metadata'
@@ -57,6 +57,7 @@ export function useErc404OwnedPieces(
 ): OwnedPieces {
   const chainId = useCollectionChainId()
   const client = usePublicClient({ chainId })
+  const floor = useInstanceFloor(instance, chainId)
   const { data: mirror } = useReadErc404BondingInstanceMirrorErc721({
     address: instance,
     chainId: chainId,
@@ -96,13 +97,17 @@ export function useErc404OwnedPieces(
     ],
     // `idLimit` gates the query as well: labelling a piece before it is known would render an
     // ordinary piece as protected (or the reverse) for one frame.
-    enabled: !!client && !!mirror && !!owner && idLimit !== undefined,
+    enabled: !!client && !!mirror && !!owner && idLimit !== undefined && floor !== undefined,
     staleTime: 15_000,
+    // A failed walk is not retried here: react-query restarts the whole walk from its newest
+    // window, and under a provider's rate limit that adds load where it is already refused.
+    retry: false,
     queryFn: async (): Promise<OwnedPiece[]> => {
-      if (!client || !mirror || !owner || idLimit === undefined) return []
+      if (!client || !mirror || !owner || idLimit === undefined || floor === undefined) return []
 
       // Owned-set reconstruction: full Transfer replay touching this wallet (can't early-stop), but
-      // floored at our deploy block (ADR-0010, not `0n`) and windowed (cap-safe).
+      // floored at the collection's own registration block (its mirror is deployed with it) and
+      // windowed (cap-safe).
       const latest = await client.getBlockNumber()
       const scan = (args: { to: `0x${string}` } | { from: `0x${string}` }) =>
         scanBackward(
@@ -115,7 +120,7 @@ export function useErc404OwnedPieces(
               fromBlock,
               toBlock,
             }),
-          { latest, floor: deployBlock },
+          { latest, floor },
         )
 
       const [inbound, outbound] = await Promise.all([scan({ to: owner }), scan({ from: owner })])

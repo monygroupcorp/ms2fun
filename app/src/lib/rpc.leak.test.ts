@@ -75,6 +75,7 @@ function readClient() {
   return { config, client: getPublicClient(config)! }
 }
 
+const TO = '0x1111111111111111111111111111111111111111' as const
 const getLogs = { method: 'eth_getLogs', params: [{ fromBlock: '0x1', toBlock: '0x2' }] } as const
 const count = (log: string[], method: string) => log.filter((m) => m === method).length
 /** Let ranking loops started during the requests send their first round of pings. */
@@ -108,7 +109,7 @@ describe('decentralizedTransport request budget', () => {
       connector: { getProvider: async () => provider },
     }))
 
-    await client.request({ method: 'eth_call', params: [{ to: '0x' + '11'.repeat(20) }, 'latest'] })
+    await client.request({ method: 'eth_call', params: [{ to: TO }, 'latest'] })
     await client.request(getLogs as never)
 
     expect(wallet).toEqual(['eth_call'])
@@ -124,7 +125,7 @@ describe('decentralizedTransport request budget', () => {
       connector: { getProvider: async () => provider },
     }))
 
-    await client.request({ method: 'eth_call', params: [{ to: '0x' + '11'.repeat(20) }, 'latest'] })
+    await client.request({ method: 'eth_call', params: [{ to: TO }, 'latest'] })
 
     expect(wallet).toEqual([])
     expect(count(pool, 'eth_call')).toBe(1)

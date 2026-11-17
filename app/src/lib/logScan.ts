@@ -13,10 +13,12 @@
  * `reverseWindows` is pure (tested); `scanBackward` drives it over a caller-supplied per-window fetch
  * so it stays generic over event type / abi.
  */
+import { activeChainId } from './addresses'
+import { logWindowForChain } from './logWindow'
 
-/** Default window width (blocks per `getLogs`). Anvil has no cap; on a public RPC tune to `≤` the
- *  endpoint's `eth_getLogs` range limit. */
-export const DEFAULT_LOG_WINDOW = 50_000n
+/** Default window width (blocks per `getLogs`) on the chain this build talks to: `≤` every pool
+ *  endpoint's `eth_getLogs` range cap there (`logWindowForChain`). */
+export const DEFAULT_LOG_WINDOW = logWindowForChain(activeChainId)
 
 export interface BlockWindow {
   fromBlock: bigint
@@ -45,12 +47,19 @@ export function reverseWindows(latest: bigint, floor: bigint, size: bigint): Blo
 
 /**
  * Walk `[floor..latest]` newest-first, calling `fetchWindow(from, to)` per window and concatenating.
- * Stops after `maxWindows` windows if given (feed early-stop). Results are in window order
+ * Stops after `maxWindows` windows if given (feed early-stop), or after the first window that
+ * returns anything when `untilFound` is set (a lookup for one log). Results are in window order
  * (newest window first); callers that need strict global order should sort by their own key.
  */
 export async function scanBackward<T>(
   fetchWindow: (fromBlock: bigint, toBlock: bigint) => Promise<T[]>,
-  opts: { latest: bigint; floor: bigint; window?: bigint; maxWindows?: number },
+  opts: {
+    latest: bigint
+    floor: bigint
+    window?: bigint
+    maxWindows?: number
+    untilFound?: boolean
+  },
 ): Promise<T[]> {
   const windows = reverseWindows(opts.latest, opts.floor, opts.window ?? DEFAULT_LOG_WINDOW)
   const out: T[] = []
@@ -60,6 +69,7 @@ export async function scanBackward<T>(
     out.push(...logs)
     count += 1
     if (opts.maxWindows !== undefined && count >= opts.maxWindows) break
+    if (opts.untilFound && out.length > 0) break
   }
   return out
 }

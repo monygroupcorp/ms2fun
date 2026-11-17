@@ -17,6 +17,7 @@ import {
   erc721AuctionFactoryAbi,
 } from '../../generated/contracts'
 import { forkAddresses, forkChainId } from '../../lib/addresses'
+import { rememberInstanceCreatedBlock } from '../../lib/discovery/instanceCreatedBlock'
 import type { CreateCall } from '../../lib/wizard/submit'
 
 const FACTORY_ABI = {
@@ -99,6 +100,9 @@ export function useCreateSubmit(): CreateSubmit {
     const first = events[0]
     if (first && 'instance' in first.args) {
       instance = first.args.instance
+      // The new collection's page floors its history scans here; the receipt already says where,
+      // so the page the wizard redirects to has no lookup to make. Idempotent, so safe per render.
+      rememberInstanceCreatedBlock(forkChainId, instance, receipt.blockNumber)
     }
   }
 
