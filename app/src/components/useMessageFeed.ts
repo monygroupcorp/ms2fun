@@ -4,8 +4,9 @@ import {
   globalMessageRegistryAbi,
   useReadGlobalMessageRegistryPostThreshold,
 } from '../generated/contracts'
-import { deployBlock, forkAddresses, forkChainId } from '../lib/addresses'
-import { scanBackward } from '../lib/logScan'
+import { forkAddresses, forkChainId } from '../lib/addresses'
+import { DEFAULT_LOG_WINDOW, scanBackward } from '../lib/logScan'
+import { useInstanceFloor } from './collection/useInstanceFloor'
 
 export interface FeedFilter {
   instance?: `0x${string}`
@@ -36,21 +37,36 @@ export function usePostThreshold(): bigint {
   return data ?? 0n
 }
 
+/**
+ * How far back a collection's comment feed reads, in blocks: about two weeks at 12 s blocks. Held
+ * in blocks rather than windows so it covers the same span on a chain with a narrower window.
+ */
+const COLLECTION_FEED_DEPTH = 100_000n
+
+const collectionFeedWindows = Number(
+  (COLLECTION_FEED_DEPTH + DEFAULT_LOG_WINDOW - 1n) / DEFAULT_LOG_WINDOW,
+)
+
 export function useMessageFeed(filter: FeedFilter): {
   data: FeedMessage[] | undefined
   isPending: boolean
   isError: boolean
 } {
   const client = usePublicClient({ chainId: forkChainId })
+  // A collection's feed starts at its registration; a sender's spans the protocol.
+  const floor = useInstanceFloor(filter.instance, forkChainId)
 
   const hasFilter = filter.instance !== undefined || filter.sender !== undefined
 
   const { data, isPending, isError } = useQuery({
     queryKey: ['message-feed', filter.instance ?? null, filter.sender ?? null],
-    enabled: !!client && hasFilter,
+    enabled: !!client && hasFilter && floor !== undefined,
     staleTime: 15_000,
+    // A failed walk is not retried here: react-query restarts the whole walk from its newest
+    // window, and under a provider's rate limit that adds load where it is already refused.
+    retry: false,
     queryFn: async (): Promise<FeedMessage[]> => {
-      if (!client) return []
+      if (!client || floor === undefined) return []
 
       const args: {
         instance?: `0x${string}`
@@ -70,7 +86,13 @@ export function useMessageFeed(filter: FeedFilter): {
             fromBlock,
             toBlock,
           }),
-        { latest, floor: deployBlock },
+        {
+          latest,
+          floor,
+          // A collection's comment feed is a recency feed, like home's activity preview: it shows
+          // the most recent COLLECTION_FEED_DEPTH blocks and does not walk to the floor.
+          ...(filter.instance !== undefined ? { maxWindows: collectionFeedWindows } : {}),
+        },
       )
 
       const messages: FeedMessage[] = []

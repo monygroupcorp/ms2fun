@@ -3,7 +3,7 @@ import { mainnet, sepolia } from 'wagmi/chains'
 import { SUPPORTED_CHAINS, anvilFork } from './chains'
 import { injected } from 'wagmi/connectors'
 import { sepoliaForkEnabled } from './addresses'
-import { decentralizedTransport } from './rpc'
+import { bindWalletConnection, decentralizedTransport } from './rpc'
 
 // The APP's own read transport for the mainnet-fork channel — same-origin, proxied server-side to
 // anvil by `vite.config.ts`'s `devChainProxy`. Same-origin is covered by the page's
@@ -62,6 +62,13 @@ export const config = createConfig({
       : (decentralizedTransport(sepolia.id) ?? http(undefined, { batch: true })),
     [anvilFork.id]: http(ANVIL_RPC_PROXY, { batch: true }),
   },
+})
+
+// The wallet hop in `decentralizedTransport` carries reads only while a wallet is connected, and it
+// learns that from the config built above.
+bindWalletConnection(() => {
+  const { current, connections } = config.state
+  return current === null ? undefined : connections.get(current)
 })
 
 export { anvilFork } from './chains'
