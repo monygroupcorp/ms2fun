@@ -66,11 +66,61 @@
   color: var(--text-primary);
 }
 
-/* One-press schedule choices above the picker; wraps on a narrow screen. */
+/*
+ * One-press schedule choices above the picker, as wide as the picker. Every choice in both rows is
+ * one cell of the same track size, so the open and maturity rows line up and a narrow screen drops
+ * to two columns instead of letting a long label wrap inside its button.
+ */
 .quickPicks {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  flex-direction: column;
   gap: var(--gap-xs);
-  max-width: min(22rem, 100%);
+  width: 100%;
+  max-width: 22rem;
+}
+
+.quickCaption {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--text-secondary);
+}
+
+.quickGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(4.75rem, 1fr));
+  gap: var(--gap-xs);
+}
+
+.quickPick {
+  height: var(--button-height-sm);
+  min-width: 0;
+  padding: 0 var(--space-1);
+  background: transparent;
+  border: 1px solid var(--border-secondary);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition:
+    color 0.1s ease,
+    border-color 0.1s ease;
+}
+
+.quickPick:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--border-primary);
+}
+
+.quickPick:focus-visible {
+  outline: 2px solid var(--state-focus-outline);
+  outline-offset: 2px;
+}
+
+.quickPick:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }

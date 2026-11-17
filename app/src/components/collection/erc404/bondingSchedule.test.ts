@@ -150,6 +150,24 @@ describe('quick picks', () => {
     expect(picks.every((p) => p.allowed)).toBe(true)
   })
 
+  test('every choice fits one short line, so the buttons can share one cell size', () => {
+    const open = WALL + DAY
+    const picks = [
+      ...openQuickPicks(WALL, openWindow(WALL, 0)),
+      ...maturityQuickPicks(open, maturityWindow(WALL, open)),
+    ]
+    expect(picks.map((p) => p.short)).toEqual([
+      '1 hour',
+      '1 day',
+      '1 week',
+      '7 days',
+      '30 days',
+      '90 days',
+      '210 days',
+    ])
+    expect(picks.every((p) => p.short.length <= 8 && !p.short.includes('('))).toBe(true)
+  })
+
   test('maturity: none offered before an open time exists', () => {
     expect(maturityQuickPicks(0, maturityWindow(WALL, 0))).toEqual([])
   })

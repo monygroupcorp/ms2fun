@@ -195,7 +195,10 @@ export function pickProblem(
 }
 
 export interface QuickPick {
+  /** The full wording, read out as the button's name. */
   label: string
+  /** The words on the button itself, under a caption that carries the rest of `label`. */
+  short: string
   at: number
   /** False when the choice would fall outside the window; shown, but not pressable. */
   allowed: boolean
@@ -208,12 +211,12 @@ function inWindow(at: number, w: TimeWindow): boolean {
 /** One-press choices for the open time, counted from the chain's clock. */
 export function openQuickPicks(chainNow: number, window: TimeWindow): QuickPick[] {
   return [
-    { label: 'in 1 hour', offset: HOUR },
-    { label: 'in 1 day', offset: DAY },
-    { label: 'in 1 week', offset: 7 * DAY },
-  ].map(({ label, offset }) => {
+    { label: 'in 1 hour', short: '1 hour', offset: HOUR },
+    { label: 'in 1 day', short: '1 day', offset: DAY },
+    { label: 'in 1 week', short: '1 week', offset: 7 * DAY },
+  ].map(({ label, short, offset }) => {
     const at = ceilToMinute(chainNow + offset)
-    return { label, at, allowed: inWindow(at, window) }
+    return { label, short, at, allowed: inWindow(at, window) }
   })
 }
 
@@ -221,13 +224,13 @@ export function openQuickPicks(chainNow: number, window: TimeWindow): QuickPick[
 export function maturityQuickPicks(open: number, window: TimeWindow): QuickPick[] {
   if (open <= 0) return []
   return [
-    { label: '7 days after open', offset: 7 * DAY },
-    { label: '30 days after open', offset: 30 * DAY },
-    { label: '90 days after open', offset: 90 * DAY },
-    { label: 'longest allowed (210 days)', offset: MAX_BONDING_DURATION_SEC },
-  ].map(({ label, offset }) => {
+    { label: '7 days after open', short: '7 days', offset: 7 * DAY },
+    { label: '30 days after open', short: '30 days', offset: 30 * DAY },
+    { label: '90 days after open', short: '90 days', offset: 90 * DAY },
+    { label: 'longest allowed (210 days)', short: '210 days', offset: MAX_BONDING_DURATION_SEC },
+  ].map(({ label, short, offset }) => {
     const at = floorToMinute(open + offset)
-    return { label, at, allowed: inWindow(at, window) }
+    return { label, short, at, allowed: inWindow(at, window) }
   })
 }
 

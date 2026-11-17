@@ -539,3 +539,26 @@ test('schedule: with an open time set, maturity offers "30 days after open" and 
   expect(screen.getByTestId('erc404-admin-maturity-problem').textContent).toMatch(/or earlier\.$/)
   expect(screen.getByTestId('erc404-admin-set-active')).toBeEnabled()
 })
+
+test('schedule: quick picks are one grid of same-styled cells, named in full for a screen reader', async () => {
+  chainClock()
+  const open = wallNow() + 86_400
+  mockStoredTimes.mockReturnValue({ open: BigInt(open), maturity: 0n })
+  mount(PREOPEN)
+  const cells = [
+    ...screen.getByTestId('erc404-admin-open-time-quick').querySelectorAll('button'),
+    ...screen.getByTestId('erc404-admin-maturity-quick').querySelectorAll('button'),
+  ]
+  expect(cells).toHaveLength(7)
+  expect(new Set(cells.map((b) => b.className)).size).toBe(1)
+  expect(cells.map((b) => b.textContent)).toEqual([
+    '1 hour',
+    '1 day',
+    '1 week',
+    '7 days',
+    '30 days',
+    '90 days',
+    '210 days',
+  ])
+  expect(screen.getByRole('button', { name: 'longest allowed (210 days)' })).toBe(cells[6])
+})
