@@ -475,12 +475,28 @@ test('schedule: the open picker carries its earliest time as min, and an earlier
   expect(screen.getByTestId('erc404-admin-open-time')).toBeDisabled()
 })
 
-test('schedule: "in 1 hour" fills a valid open time and the send carries it', () => {
+/** A chain client whose pending block reads the wall clock plus `ahead` seconds. */
+function chainClock(ahead = 0) {
+  mockPublicClient.mockReturnValue({
+    getBlock: () => Promise.resolve({ timestamp: BigInt(wallNow() + ahead) }),
+  })
+}
+
+test('schedule: the send waits for the chain clock; the wall clock alone never sets a time', () => {
+  // No client: the bounds rest on the wall clock, which a chain running ahead would refuse.
+  mount(PREOPEN)
+  fireEvent.click(screen.getByRole('button', { name: 'in 1 hour' }))
+  expect(screen.getByTestId('erc404-admin-open-time-preview')).toBeInTheDocument()
+  expect(screen.getByTestId('erc404-admin-open-time')).toBeDisabled()
+})
+
+test('schedule: "in 1 hour" fills a valid open time and the send carries it', async () => {
+  chainClock()
   mount(PREOPEN)
   fireEvent.click(screen.getByRole('button', { name: 'in 1 hour' }))
   expect(screen.getByTestId('erc404-admin-open-time-preview').textContent).toMatch(/^Opens /)
   const button = screen.getByTestId('erc404-admin-open-time')
-  expect(button).toBeEnabled()
+  await waitFor(() => expect(button).toBeEnabled())
   fireEvent.click(button)
   const sent = mockWriteContract.mock.calls[0]![0] as { functionName: string; args: [bigint] }
   expect(sent.functionName).toBe('setBondingOpenTime')
@@ -491,9 +507,7 @@ test('schedule: "in 1 hour" fills a valid open time and the send carries it', ()
 
 test('schedule: a chain clock ahead of the wall clock is said out loud and moves the bounds', async () => {
   const ahead = 2 * 3600
-  mockPublicClient.mockReturnValue({
-    getBlock: () => Promise.resolve({ timestamp: BigInt(wallNow() + ahead) }),
-  })
+  chainClock(ahead)
   mount(PREOPEN)
   const note = await screen.findByTestId('erc404-admin-clock-skew')
   expect(note.textContent).toMatch(/2 hours ahead of your clock/)
@@ -510,7 +524,8 @@ test('schedule: a chain clock ahead of the wall clock is said out loud and moves
   expect(screen.getByTestId('erc404-admin-open-time-problem').textContent).toMatch(/or later\.$/)
 })
 
-test('schedule: with an open time set, maturity offers "30 days after open" and caps its picker at 210 days', () => {
+test('schedule: with an open time set, maturity offers "30 days after open" and caps its picker at 210 days', async () => {
+  chainClock()
   const open = wallNow() + 86_400
   mockStoredTimes.mockReturnValue({ open: BigInt(open), maturity: 0n })
   mount(PREOPEN)
@@ -518,7 +533,7 @@ test('schedule: with an open time set, maturity offers "30 days after open" and 
   expect(input).toBeEnabled()
   expect(input).toHaveAttribute('max', localInputFromEpoch(open + 210 * 86_400))
   fireEvent.click(screen.getByRole('button', { name: '30 days after open' }))
-  expect(screen.getByTestId('erc404-admin-maturity')).toBeEnabled()
+  await waitFor(() => expect(screen.getByTestId('erc404-admin-maturity')).toBeEnabled())
   // Past the cap is refused with the latest allowed time named.
   fireEvent.change(input, { target: { value: localInputFromEpoch(open + 300 * 86_400) } })
   expect(screen.getByTestId('erc404-admin-maturity-problem').textContent).toMatch(/or earlier\.$/)

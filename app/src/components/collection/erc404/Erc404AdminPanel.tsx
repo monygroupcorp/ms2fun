@@ -164,7 +164,7 @@ function BondingScheduleRows({ instance }: { instance: `0x${string}` }) {
   })
   const { data: maturityTime, refetch: refetchMaturity } =
     useReadErc404BondingInstanceBondingMaturityTime({ address: instance, chainId: chainId })
-  const { chainNow, wallNow } = useChainClock(chainId)
+  const { chainNow, wallNow, synced } = useChainClock(chainId)
   const clock = { chainNow, wallNow }
 
   const open = Number(openTime ?? 0n)
@@ -214,6 +214,7 @@ function BondingScheduleRows({ instance }: { instance: `0x${string}` }) {
         window={openWin}
         quickPicks={openQuickPicks(chainNow, openWin)}
         clock={clock}
+        synced={synced}
         onWritten={refetch}
       />
       <SetTimeRow
@@ -226,6 +227,7 @@ function BondingScheduleRows({ instance }: { instance: `0x${string}` }) {
         window={maturityWin}
         quickPicks={maturityQuickPicks(open, maturityWin)}
         clock={clock}
+        synced={synced}
         onWritten={refetch}
       />
       <SetBondingActiveRow instance={instance} openTime={openTime} />
@@ -243,6 +245,7 @@ function SetTimeRow({
   window,
   quickPicks,
   clock,
+  synced,
   onWritten,
 }: {
   instance: `0x${string}`
@@ -254,6 +257,8 @@ function SetTimeRow({
   window: TimeWindow
   quickPicks: QuickPick[]
   clock: { chainNow: number; wallNow: number }
+  /** False until the chain's clock has been read; the bounds rest on the wall clock until then. */
+  synced: boolean
   onWritten: () => void
 }) {
   const chainId = useCollectionChainId()
@@ -262,7 +267,9 @@ function SetTimeRow({
 
   const picked = epochFromLocalInput(value)
   const problem = picked === null ? undefined : pickProblem(picked, window, clock)
-  const canSubmit = picked !== null && problem === undefined
+  // Until the chain's clock is read the bounds are the wall clock's, which a chain running ahead would
+  // refuse; hold the send for that one read rather than let it revert.
+  const canSubmit = synced && picked !== null && problem === undefined
 
   const range =
     window.latest === null
