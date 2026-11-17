@@ -29,7 +29,8 @@
  * The lists are READ from `src/lib/rpc.ts` rather than repeated here, so this cannot pass while
  * checking endpoints the app does not use.
  *
- * Run: `pnpm rpc:check`. Exits 0 when every entry passes all four; 1 naming each that does not.
+ * Run: `pnpm rpc:check` (every chain) or `pnpm rpc:check --chain 1` (one). Exits 0 when every
+ * entry passes all four; 1 naming each that does not.
  */
 import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
@@ -213,6 +214,12 @@ async function main() {
   const here = dirname(fileURLToPath(import.meta.url))
   const source = readFileSync(resolve(here, '../src/lib/rpc.ts'), 'utf-8')
   const pools = readPools(source)
+  const only = process.argv.indexOf('--chain')
+  if (only !== -1) {
+    const chainId = Number(process.argv[only + 1])
+    if (!pools.has(chainId)) throw new Error(`--chain ${process.argv[only + 1]}: no pool in rpc.ts`)
+    for (const id of [...pools.keys()]) if (id !== chainId) pools.delete(id)
+  }
   const narrow = readNarrowLogRange(source)
   const registries = readRegistries(resolve(here, '../src/config'))
 
