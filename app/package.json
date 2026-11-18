@@ -36,6 +36,7 @@
     "rpc:check": "tsx scripts/check-rpcs.ts",
     "release:sepolia": "tsx scripts/ipfs-dist/release.ts",
     "release:verify": "tsx scripts/ipfs-dist/verify-release.ts",
+    "release:point": "tsx scripts/ipfs-dist/release-point.ts",
     "art:examples": "tsx scripts/art-examples/write.ts"
   },
   "dependencies": {
