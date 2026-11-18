@@ -22,7 +22,7 @@ contract BurnSafetyLiquidityDeployer is ILiquidityDeployerModule {
 }
 
 /**
- * @dev Cross-boundary reentrancy probe (the same shape as the reroll one). Holds a band NFT, sells to the curve —
+ * @dev Cross-boundary reentrancy probe. Holds a band NFT, sells to the curve —
  *      which burns the band NFT and fires the release hook — and then, from the ETH-refund callback
  *      that `SmartTransferLib.smartTransferETH` hands it (all remaining gas forwarded), tries to
  *      re-enter both the PULL leg (`claimReleasedEscrow`) and the tier op (`mintUp`).
