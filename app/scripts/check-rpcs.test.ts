@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { readNarrowLogRange, readPools, readRegistries } from './check-rpcs'
+import { logScanPaths, readNarrowLogRange, readPools, readRegistries } from './check-rpcs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const rpcSource = readFileSync(resolve(here, '../src/lib/rpc.ts'), 'utf-8')
@@ -35,5 +35,21 @@ describe('check-rpcs reads what the app ships', () => {
     const registries = readRegistries(resolve(here, '../src/config'))
     expect(registries.get(11155111)).toMatch(/^0x[0-9a-fA-F]{40}$/)
     expect(registries.has(1337)).toBe(false)
+  })
+
+  it('finds no log path on a chain whose only serving entries are kept off log scans', () => {
+    const ok = { app: 'ok (4 logs)' }
+    expect(
+      logScanPaths([
+        { url: 'https://narrow', logs: ok, skipped: true },
+        { url: 'https://refuses', logs: { app: 'refused: -32601' }, skipped: false },
+      ]),
+    ).toEqual([])
+    expect(
+      logScanPaths([
+        { url: 'https://narrow', logs: ok, skipped: true },
+        { url: 'https://wide', logs: ok, skipped: false },
+      ]),
+    ).toEqual(['https://wide'])
   })
 })

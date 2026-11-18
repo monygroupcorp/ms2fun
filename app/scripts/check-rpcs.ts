@@ -67,6 +67,17 @@ export function readNarrowLogRange(source: string): string[] {
   return [...block[1]!.matchAll(/'([^']+)'/g)].map((m) => m[1]!)
 }
 
+/**
+ * The pool entries a log scan on this chain can use and that served the app's window: every entry
+ * outside `NARROW_LOG_RANGE` whose measurement came back ok. Empty means no scan on the chain can
+ * load its history, even when every entry passes on its own (all of them kept off log scans).
+ */
+export function logScanPaths(
+  results: ReadonlyArray<{ url: string; logs: { app: string }; skipped: boolean }>,
+): string[] {
+  return results.filter((r) => !r.skipped && r.logs.app.startsWith('ok')).map((r) => r.url)
+}
+
 /** The width every pool entry's range cap is also measured at, as a report. */
 const WIDE_LOG_WINDOW = 50_000n
 
@@ -253,6 +264,12 @@ async function main() {
       if (window !== WIDE_LOG_WINDOW) {
         console.log(`            getLogs ${WIDE_LOG_WINDOW} blocks: ${logs.wide}`)
       }
+    }
+    if (logScanPaths(results).length === 0) {
+      failed += 1
+      console.log(
+        `  FAILED  no pool entry outside NARROW_LOG_RANGE serves eth_getLogs at ${window} blocks on chain ${chainId}`,
+      )
     }
   }
 
