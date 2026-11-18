@@ -1713,7 +1713,7 @@
     },
     {
       "match": "TierRevealModule.tiers",
-      "why": "TierRevealModule was retired (noesis-141). Its bindings stay generated so a collection deployed against it still renders, but nothing new resolves through it and no surface configures one."
+      "why": "TierRevealModule was retired. Its bindings stay generated so a collection deployed against it still renders, but nothing new resolves through it and no surface configures one."
     },
     {
       "match": "TierRevealModule.tierCount",

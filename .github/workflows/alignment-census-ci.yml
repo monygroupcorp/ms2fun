@@ -6,7 +6,7 @@ name: alignment-census
 #
 # Read-only, no network, no RPC key, no model in the loop. It checks schema shape, provenance
 # completeness, exact-wei fields and internal arithmetic. It does NOT check whether the numbers are
-# true; that is verify-record.mjs, which re-harvests and needs a key, and so runs from a seat.
+# true; that is verify-record.mjs, which re-harvests and needs a key, and so is run by hand with one.
 
 on:
   push:

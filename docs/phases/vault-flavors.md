@@ -191,7 +191,7 @@ archive fork before Phase 4.
 
 ## Per-venue economics — what changes by venue (creator-facing disclosure)
 
-> Added by noesis-069 (graduation-venue tithe divergence + LP-lock permanence). Source of truth for
+> Added with the graduation-venue tithe divergence and LP-lock permanence work. Source of truth for
 > the venue tradeoff a creator is choosing. The `/learn` "How it works" page + the wizard family→venue
 > step should surface the one-liner below; the on-chain guarantees are pinned by NatSpec on each
 > deployer module + `contracts/test/factories/LpLockInvariant.t.sol`.

@@ -53,12 +53,12 @@ const RULES = [
   },
   {
     name: 'ruling language',
-    re: /\brul(?:ed|ings?)\b(?! out\b)/gi,
+    re: /\brul(?:ed|ings?)\b(?! out\b)|\brules? (?:it|them) in\b/gi,
     fix: 'state the reason for the decision instead of who made it',
   },
   {
     name: 'work-tracking vocabulary',
-    re: /\b(?:pinfactory|helm|fronts\.yml|goals\.yml|decisions\.log|outbox|proprietor|foreman)\b|\bthis seat\b|\b(?:from|for|by) a seat\b|\b(?:worker|reviewer|review) seats?\b|\bthis goal\b|\bthe goal's\b|\bgoal's clauses?\b|\bexit clauses?\b|\b(?:noesis|noema|this) lane\b/gi,
+    re: /\b(?:pinfactory|helm|fronts\.yml|goals\.yml|decisions\.log|outbox|proprietor|foreman)\b|\b(?:this|later|next|source|previous|fresh) seat\b|\b(?:from|for|by) a seat\b|\b(?:worker|reviewer|review) seats?\b|\bthis(?: whole| same)? goal\b|\bthis front\b(?! (?:door|page|end)\b)|\bthe goal's\b|\bgoal's clauses?\b|\bexit clauses?\b|\b(?:noesis|noema|this) lane\b/gi,
     fix: 'describe the code, not the process that produced it',
   },
 ];
@@ -137,6 +137,11 @@ const SELF_TEST = [
   ['a work item', "The goal's clause asks for this notice to go", 1],
   ['a work item, demonstrative', 'what it was before this goal.', 1],
   ['a line of work', 'merged into the noesis lane', 1],
+  ['a session in the future', 'recorded so a later seat does not re-open it', 1],
+  ['a session as a source', 'Not individually enumerated by the source seat', 1],
+  ['a work item, qualified', 'the failure this whole goal is', 1],
+  ['a work stream', 'nothing else lands on this front', 1],
+  ['a ruling as a verb', 'the owner disagrees and rules them in', 1],
 
   // quiet: product vocabulary and plain English that shares the words
   ['the ambassador seat', 'renders nothing when the connected wallet holds no seat on this community', 0],
@@ -144,6 +149,8 @@ const SELF_TEST = [
   ['the retry lane', 'The treasury is trusted, so there is no pending-retry lane.', 0],
   ['in front of', 'the art service in front of the roster', 0],
   ['ruled out', 'a reentrancy path was ruled out by the lock', 0],
+  ['rule it out, as English', 'a fork test would rule it out', 0],
+  ['the front door, as English', 'this front door to the registry', 0],
   ['a word containing the handle', 'the north fork and the earth', 0],
   ['a hyphenated name that is not a ticket', 'the noesis-app package', 0],
   ['clause as grammar', 'const clauses = tiers.map((t) => t.label)', 0],

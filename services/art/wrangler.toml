@@ -1,7 +1,7 @@
 # Art delivery service — deployment template.
 #
 # THIS FILE CARRIES NO ACCOUNT IDENTIFIER, CREDENTIAL OR HOSTNAME, and it must stay that way
-# (rth 2026-09-25: open source, and lean). A fork stands up its own with `wrangler deploy` after
+# (the service is open source, and kept lean). A fork stands up its own with `wrangler deploy` after
 # filling the two blanks below in its OWN environment; this repository never learns either value.
 #
 #   account_id  -> set CLOUDFLARE_ACCOUNT_ID in the environment, never here

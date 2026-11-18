@@ -84,10 +84,10 @@ inverts the argument: Remilio is not a collection that should have aligned, it i
 should have aligned *to*. The split is sourced from remilia.org's own property links and the Remilia
 wiki, then adjudicated. Machine-readable: `tools/provenance.json`.
 
-**Rulings, rth, 2026-08-21:**
+**Adjudicated 2026-08-21:**
 
-- **Cigawrette Packs — DERIVATIVE.** They maintain they are not a Milady derivative. Ruled in
-  anyway, deliberately, and the catalog holds them to it.
+- **Cigawrette Packs — DERIVATIVE.** They maintain they are not a Milady derivative. Counted
+  in anyway, deliberately, and the catalog holds them to it.
 - **Radbro Webring and SchizoPosters — DERIVATIVE.** The wiki's "parallel umbrella" framing does not
   exempt them. R3DBRO follows.
 
@@ -121,7 +121,7 @@ ones," and the free-mint half is what makes the paid half legible.
 
 ---
 
-## 5. Vault-family assignment — rth's ruling, 2026-08-21
+## 5. Vault-family assignment — decided 2026-08-21
 
 **The default is the liquidity family: 19% to the aligned community, 1% protocol — 20% off the top.**
 The 80% endowment is reserved, not spread.
@@ -180,14 +180,14 @@ table above, plus a permanent LP position, against the royalties that actually g
 ## 7. Scope — closed
 
 The Milady/Remilia tranche IS the catalog. BAYC→`APE`, Azuki→`ANIME`, Doodles→`DOOD`, Pepe→`PEPE`,
-mfers→`MFER` are **dropped** (rth, 2026-08-21): those families have no real alignment need and the
-point is already made. This is a scope decision, recorded so a later seat does not re-open it as an
+mfers→`MFER` are **dropped** (2026-08-21): those families have no real alignment need and the
+point is already made. This is a scope decision, recorded so it is not re-opened later as an
 oversight.
 
 ## 8. The alignment target — $CULT, measured
 
-**LADYS is OUT (rth, 2026-08-21).** Milady Meme Coin launched on Solana as an extractive grift coin
-and is out of our jurisprudence. It is not a candidate and should not be re-proposed by a later seat
+**LADYS is OUT (2026-08-21).** Milady Meme Coin launched on Solana as an extractive grift coin
+and is out of our jurisprudence. It is not a candidate and should not be re-proposed later
 on the strength of its ETH liquidity — the objection is to what it is, not to how deep it trades.
 
 **The target is `$CULT` — Milady Cult Coin, `0x0000000000c5dc95539589fbD24BE07c6C14eCa4`.** Remilia

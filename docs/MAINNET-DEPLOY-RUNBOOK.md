@@ -18,7 +18,7 @@ Read on 2026-10-19 against `main` at 8a3f798b and live chain state:
   carries no chain id and the collision proxy is per chain. Read 2026-10-30: CreateX is on mainnet
   and all six derived addresses are empty there.
 - Read 2026-11-10: `cfg.safe` is the 1-of-1 Safe at `0xBCE7DF8d399F145745C660DecB9ef50CA723d262`,
-  owned solely by `0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6` (rth), ruled on the `the-safe`
+  owned solely by `0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6` (the project owner), as recorded in the `the-safe`
   decision record and wired into `_mainnetConfig()`.
 - The two-phase ownership handover (`script/MigrateOwnership.s.sol`) has never been executed on any
   chain: `MasterRegistry.owner()` on Sepolia is still the deployer. `DeployCore` now installs the
@@ -51,7 +51,7 @@ below keeps that order; the chain work does not wait for it.
 
 | decision | where it lands |
 | --- | --- |
-| ~~Safe signers and threshold~~ ruled 1-of-1, rth sole owner | `the-safe` decision record; address in `DeployMainnet._mainnetConfig` |
+| ~~Safe signers and threshold~~ decided: 1-of-1, the project owner as sole signer | `the-safe` decision record; address in `DeployMainnet._mainnetConfig` |
 | tithe rate, or "OFF at launch, rate decided before the first enable" | `DeployMainnet._mainnetConfig` |
 | the first curated alignment target | `DeployMainnet` targets array |
 | pinning account on a paid plan | operator's account |
@@ -109,7 +109,7 @@ As Sepolia §3 (preflight: salts unspent on this chain, deployer nonce 0, balanc
 with `--slow --verify`), §5.3 (address record, `deployments/mainnet.json`), §5.4 (bindings),
 §5.5 (Timelock and handover, executed the same day), §6 (presets, quoter wiring, families, ownership
 moved). Mainnet has no showcase seed (§5.2 does not apply) and the tithe stays off (§5.6 does not
-apply until the rate is ruled and the first graduation has been watched).
+apply until the rate is decided and the first graduation has been watched).
 
 Then §7: `VITE_CHAIN_ID=1`, the art service probed, both targets built from the commit that carries
 the address record, the CAR pinned, an independent gateway fetch, the contenthash set, the footer

@@ -2,7 +2,7 @@
 
 **Status:** Display requirement recorded, not implemented. Transfer semantics: DECIDED and enforced on-chain.
 **Applies to:** any holder-facing surface for a factory-launched ERC404 instance with a sealed tier ladder
-**Source:** noesis-153 (tier cross-feature test expansion), measured against `contracts/src/factories/erc404/**`
+**Source:** the tier cross-feature test expansion, measured against `contracts/src/factories/erc404/**`
 
 > A tier NFT is a coin DENOMINATION. A holder-facing UI must make that denomination visible, because
 > the ERC20 balance alone does not describe what a holder owns.

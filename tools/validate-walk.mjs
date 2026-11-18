@@ -316,7 +316,7 @@ const STRUCK_READINGS = [
 // parting: each side is green on its own tree with its own list. So the names are read off the app
 // side and compared. Names rather than patterns, because the two runtimes need different escaping
 // for the same ban and a byte comparison would red on that alone — what must not happen is a
-// reading added on one side and forgotten on the other, which is the failure this whole goal is.
+// reading added on one side and forgotten on the other, which is the failure this check exists to catch.
 const SIBLING = 'app/src/lib/vaults/alignmentWordingSurfaces.test.ts';
 const siblingNames = (() => {
   const src = readFileSync(SIBLING, 'utf8');

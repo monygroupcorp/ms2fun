@@ -10,9 +10,9 @@
   },
   "_scope": {
     "closed": true,
-    "ruling": "rth, 2026-08-21: the Milady/Remilia tranche IS the catalog. BAYC->APE, Azuki->ANIME, Doodles->DOOD, Pepe->PEPE and mfers->MFER are dropped — those families have no real alignment need and the point is already made. Recorded so a later seat does not re-open it as an oversight.",
+    "decision": "2026-08-21: the Milady/Remilia tranche IS the catalog. BAYC->APE, Azuki->ANIME, Doodles->DOOD, Pepe->PEPE and mfers->MFER are dropped — those families have no real alignment need and the point is already made. Recorded so it is not re-opened later as an oversight.",
     "outOfScopeChainCount": 9,
-    "outOfScopeChainNote": "9 of the 83 listed collections are on Avalanche, Polygon or chain 900. Not individually enumerated by the source seat; enumerate on the next pass over miladyderivatives.com/api/data.json."
+    "outOfScopeChainNote": "9 of the 83 listed collections are on Avalanche, Polygon or chain 900. Not individually enumerated by the source survey; enumerate on the next pass over miladyderivatives.com/api/data.json."
   },
   "families": {
     "milady": {
@@ -27,7 +27,7 @@
         "milady-maker-party",
         "remilio-babies"
       ],
-      "firstPartyNote": "A first-party collection is the TARGET side of alignment, never the aligned side. Shown for scale, never counted as owing. Adjudicated by rth 2026-08-21; see tools/provenance.json for the contested rulings.",
+      "firstPartyNote": "A first-party collection is the TARGET side of alignment, never the aligned side. Shown for scale, never counted as owing. Adjudicated 2026-08-21; see tools/provenance.json for the contested cases.",
       "alignmentTarget": {
         "symbol": "CULT",
         "name": "Milady Cult Coin",
@@ -43,7 +43,7 @@
           "address": "0xC4ce8E63921b8B6cBdB8fCB6Bd64cC701Fb926f2",
           "tier": "1%"
         },
-        "note": "Both registry legs measured on a mainnet fork 2026-08-21. LADYS is OUT (rth): a Solana-launched extractive grift coin, out of jurisprudence — the objection is to what it is, not to how deep it trades. Do not re-propose it.",
+        "note": "Both registry legs measured on a mainnet fork 2026-08-21. LADYS is OUT: a Solana-launched extractive grift coin, out of jurisprudence — the objection is to what it is, not to how deep it trades. Do not re-propose it.",
         "residual": "The scan covered the four standard fee tiers only. A non-standard tier, a hooked V4 pool, or a ZAMM pool under an unprobed fee selector is still invisible."
       }
     }
