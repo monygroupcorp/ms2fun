@@ -217,6 +217,39 @@ const LOG_SCAN_LAST_RESORT: Record<number, string[]> = {
   11155111: ['https://0xrpc.io/sep'],
 }
 
+/**
+ * `pool`, with an `eth_getLogs` it fails asked again of each of `urls` in turn. Every other method,
+ * and a log request no last-resort entry serves, fails with the pool's own error. Not a member of
+ * the outer `fallback`: viem decides once per request whether any later transport accepts the
+ * method, so an `eth_getLogs`-only member there turns every other failed read into "method not
+ * supported" and drops its retries.
+ */
+export function withLogLastResort(pool: Transport, urls: string[]): Transport {
+  if (urls.length === 0) return pool
+  return (params) => {
+    const inner = pool(params)
+    const lastResort = urls.map((url) => http(url, { batch: true })(params))
+    return {
+      ...inner,
+      request: (async (args: Parameters<typeof inner.request>[0]) => {
+        try {
+          return await inner.request(args)
+        } catch (error) {
+          if (args.method !== 'eth_getLogs') throw error
+          for (const entry of lastResort) {
+            try {
+              return await entry.request(args)
+            } catch {
+              // the next entry, or the pool's error
+            }
+          }
+          throw error
+        }
+      }) as typeof inner.request,
+    }
+  }
+}
+
 function poolEntry(url: string): Transport {
   const config: HttpTransportConfig = { batch: true }
   if (NARROW_LOG_RANGE.includes(url)) config.methods = { exclude: ['eth_getLogs'] }
@@ -249,15 +282,10 @@ export function decentralizedTransport(chainId: number): Transport | undefined {
     },
   })
   // The connected wallet first, for the methods it carries, bounded so a silent wallet cannot
-  // stall reads; else the ranked public pool, built once (`oncePerChain`); else, for log scans, the
-  // chain's last-resort entries.
-  // An `include` list is safe here: these sit outside the ranked pool, so nothing pings them.
-  const lastResort = (LOG_SCAN_LAST_RESORT[chainId] ?? []).map((url) =>
-    http(url, { batch: true, methods: { include: ['eth_getLogs'] } }),
-  )
+  // stall reads; else the ranked public pool, built once (`oncePerChain`), and for a log scan the
+  // pool fails, the chain's last-resort entries.
   return fallback([
     withRequestTimeout(connectedWallet(), WALLET_HOP_TIMEOUT_MS),
-    oncePerChain(publicPool),
-    ...lastResort,
+    oncePerChain(withLogLastResort(publicPool, LOG_SCAN_LAST_RESORT[chainId] ?? [])),
   ])
 }

@@ -12,12 +12,18 @@ type Rpc = { id: number; method: string }
 
 const LAST_RESORT = 'https://0xrpc.io/sep'
 let asked: Array<{ url: string; method: string }>
+let down = false
 
 beforeEach(() => {
   asked = []
+  down = false
   vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
     const body = JSON.parse(String(init.body)) as Rpc | Rpc[]
     const rows = Array.isArray(body) ? body : [body]
+    if (down) {
+      for (const r of rows) asked.push({ url, method: r.method })
+      return new Response('unavailable', { status: 503 })
+    }
     const out = rows.map((r) => {
       asked.push({ url, method: r.method })
       if (r.method === 'eth_chainId') return { jsonrpc: '2.0', id: r.id, result: '0xaa36a7' }
@@ -37,7 +43,26 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+function client() {
+  const config = createConfig({
+    chains: [sepolia],
+    multiInjectedProviderDiscovery: false,
+    transports: { [sepolia.id]: rpc.decentralizedTransport(sepolia.id)! },
+  })
+  return getPublicClient(config)!
+}
+
 describe('Sepolia log-scan path', () => {
+  it("leaves any other read failing with the pool's own error", async () => {
+    down = true
+    const error = await client()
+      .request({ method: 'eth_chainId' } as never)
+      .catch((e: unknown) => e)
+    expect((error as Error).name).toBe('HttpRequestError')
+    // The pool's retries still run (viem retries a failed HTTP request), so it is asked repeatedly.
+    expect(asked.filter((a) => a.method === 'eth_chainId').length).toBeGreaterThan(3)
+  }, 60_000)
+
   it('reaches the last-resort entry when the pool cannot serve eth_getLogs', async () => {
     const config = createConfig({
       chains: [sepolia],

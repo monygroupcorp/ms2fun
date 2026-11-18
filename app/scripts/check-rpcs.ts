@@ -117,6 +117,22 @@ export function readRegistries(configDir: string): Map<number, string> {
   return registries
 }
 
+/** Chain id -> the block its deployment record says the contracts were deployed at. */
+export function readDeployBlocks(configDir: string): Map<number, bigint> {
+  const blocks = new Map<number, bigint>()
+  for (const name of readdirSync(configDir)) {
+    if (!name.endsWith('-deployment.json') || name.startsWith('local')) continue
+    const config = JSON.parse(readFileSync(resolve(configDir, name), 'utf-8')) as {
+      chainId?: number
+      deployBlock?: number
+    }
+    if (config.chainId !== undefined && config.deployBlock) {
+      blocks.set(config.chainId, BigInt(config.deployBlock))
+    }
+  }
+  return blocks
+}
+
 async function withTimeout(url: string, init: RequestInit): Promise<Response> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
@@ -245,6 +261,7 @@ async function main() {
   }
   const narrow = readNarrowLogRange(source)
   const lastResort = readLastResort(source)
+  const deployBlocks = readDeployBlocks(resolve(here, '../src/config'))
   const registries = readRegistries(resolve(here, '../src/config'))
 
   let failed = 0
@@ -282,6 +299,18 @@ async function main() {
       try {
         const head = BigInt((await rpc(url, 'eth_blockNumber', [])) as string)
         line = await probeLogs(url, address, head, FALLBACK_LOG_WINDOW)
+        // A scan walks back to the deploy block, and pruned history is refused there, not at head.
+        const deployed = deployBlocks.get(chainId)
+        if (line.startsWith('ok') && deployed !== undefined) {
+          const deep = await probeLogs(
+            url,
+            address,
+            deployed + FALLBACK_LOG_WINDOW - 1n,
+            FALLBACK_LOG_WINDOW,
+          )
+          line = `${line}; from the deploy block ${deployed}: ${deep}`
+          if (!deep.startsWith('ok')) line = `refused ${line}`
+        }
       } catch (error) {
         line = `no head: ${error instanceof Error ? error.message : String(error)}`
       }
