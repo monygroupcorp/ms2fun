@@ -194,6 +194,9 @@ const PUBLIC_RPCS: Record<number, string[]> = {
  * would fail every ping and rank the entry last for good.
  */
 const NARROW_LOG_RANGE: string[] = [
+  // Refuses a log range that reaches into pruned history (4444, pruned history unavailable), which
+  // every scan of the deployment events does; it served no window when measured.
+  'https://ethereum-sepolia-rpc.publicnode.com',
   // Refuses 50,000; serves 10,001.
   'https://0xrpc.io/sep',
   // The free plan refuses an address-filtered range of a few hundred blocks ("ranges over 10000
