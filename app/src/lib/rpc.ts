@@ -205,6 +205,18 @@ const NARROW_LOG_RANGE: string[] = [
   'https://eth.drpc.org',
 ]
 
+/**
+ * Endpoints asked for `eth_getLogs` only after the whole ranked pool has failed, per chain. Each
+ * serves `FALLBACK_LOG_WINDOW` (`logWindow.ts`) but not its chain's full window, so a scan reaches
+ * them by splitting a refused window (`scanBackward`). They give a chain whose full-width log path
+ * rests on one provider a second one, at no cost while that provider answers. `pnpm rpc:check`
+ * measures each at `FALLBACK_LOG_WINDOW`.
+ */
+const LOG_SCAN_LAST_RESORT: Record<number, string[]> = {
+  // Serves 10,001 back to the deploy block; tenderly is Sepolia's only full-width path.
+  11155111: ['https://0xrpc.io/sep'],
+}
+
 function poolEntry(url: string): Transport {
   const config: HttpTransportConfig = { batch: true }
   if (NARROW_LOG_RANGE.includes(url)) config.methods = { exclude: ['eth_getLogs'] }
@@ -237,9 +249,15 @@ export function decentralizedTransport(chainId: number): Transport | undefined {
     },
   })
   // The connected wallet first, for the methods it carries, bounded so a silent wallet cannot
-  // stall reads; else the ranked public pool, built once (`oncePerChain`).
+  // stall reads; else the ranked public pool, built once (`oncePerChain`); else, for log scans, the
+  // chain's last-resort entries.
+  // An `include` list is safe here: these sit outside the ranked pool, so nothing pings them.
+  const lastResort = (LOG_SCAN_LAST_RESORT[chainId] ?? []).map((url) =>
+    http(url, { batch: true, methods: { include: ['eth_getLogs'] } }),
+  )
   return fallback([
     withRequestTimeout(connectedWallet(), WALLET_HOP_TIMEOUT_MS),
     oncePerChain(publicPool),
+    ...lastResort,
   ])
 }

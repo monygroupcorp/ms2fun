@@ -35,7 +35,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { logWindowForChain } from '../src/lib/logWindow'
+import { FALLBACK_LOG_WINDOW, logWindowForChain } from '../src/lib/logWindow'
 
 /** The origin a published bundle asks from; CORS answers differ by origin, so it is not invented. */
 const ORIGIN = 'https://noesis.gwei.domains'
@@ -50,9 +50,18 @@ const BATCH = [
 
 /** Endpoint -> the chain id it is listed under, read out of the module the app imports. */
 export function readPools(source: string): Map<number, string[]> {
+  return readChainLists(source, 'PUBLIC_RPCS')
+}
+
+/** Chain id -> the `LOG_SCAN_LAST_RESORT` entries in rpc.ts: asked for logs after the whole pool. */
+export function readLastResort(source: string): Map<number, string[]> {
+  return readChainLists(source, 'LOG_SCAN_LAST_RESORT')
+}
+
+function readChainLists(source: string, name: string): Map<number, string[]> {
   const pools = new Map<number, string[]>()
-  const block = source.match(/const PUBLIC_RPCS[^{]*\{([\s\S]*?)\n\}/)
-  if (block === null) throw new Error('rpc.ts: could not find PUBLIC_RPCS')
+  const block = source.match(new RegExp(`const ${name}[^{]*\\{([\\s\\S]*?)\\n\\}`))
+  if (block === null) throw new Error(`rpc.ts: could not find ${name}`)
   for (const entry of block[1]!.matchAll(/(\d+):\s*\[([\s\S]*?)\]/g)) {
     const urls = [...entry[2]!.matchAll(/'([^']+)'/g)].map((m) => m[1]!)
     pools.set(Number(entry[1]), urls)
@@ -235,6 +244,7 @@ async function main() {
     for (const id of [...pools.keys()]) if (id !== chainId) pools.delete(id)
   }
   const narrow = readNarrowLogRange(source)
+  const lastResort = readLastResort(source)
   const registries = readRegistries(resolve(here, '../src/config'))
 
   let failed = 0
@@ -266,6 +276,22 @@ async function main() {
       if (window !== WIDE_LOG_WINDOW) {
         console.log(`            getLogs ${WIDE_LOG_WINDOW} blocks: ${logs.wide}`)
       }
+    }
+    for (const url of lastResort.get(chainId) ?? []) {
+      let line: string
+      try {
+        const head = BigInt((await rpc(url, 'eth_blockNumber', [])) as string)
+        line = await probeLogs(url, address, head, FALLBACK_LOG_WINDOW)
+      } catch (error) {
+        line = `no head: ${error instanceof Error ? error.message : String(error)}`
+      }
+      if (line.startsWith('ok')) {
+        console.log(`  ok      ${url} (last resort for log scans)`)
+      } else {
+        failed += 1
+        console.log(`  FAILED  ${url} (last resort for log scans)`)
+      }
+      console.log(`            getLogs ${FALLBACK_LOG_WINDOW} blocks: ${line}`)
     }
     if (logScanPaths(results).length === 0) {
       failed += 1

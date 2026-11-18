@@ -17,6 +17,14 @@ export const MAINNET_LOG_WINDOW = 10_000n
 
 export const TESTNET_LOG_WINDOW = 50_000n
 
+/**
+ * The width a scan falls back to when a window at the chain's width is refused. Every endpoint a
+ * log scan can reach serves it, including the last-resort entries in `rpc.ts` whose cap is
+ * narrower than their chain's window (0xrpc on Sepolia), so a scan whose wide path is down still
+ * loads, in more requests.
+ */
+export const FALLBACK_LOG_WINDOW = 10_000n
+
 export function logWindowForChain(chainId: number): bigint {
   return chainId === 1 ? MAINNET_LOG_WINDOW : TESTNET_LOG_WINDOW
 }

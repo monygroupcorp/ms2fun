@@ -3,7 +3,13 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { logScanPaths, readNarrowLogRange, readPools, readRegistries } from './check-rpcs'
+import {
+  logScanPaths,
+  readLastResort,
+  readNarrowLogRange,
+  readPools,
+  readRegistries,
+} from './check-rpcs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const rpcSource = readFileSync(resolve(here, '../src/lib/rpc.ts'), 'utf-8')
@@ -25,6 +31,12 @@ describe('check-rpcs reads what the app ships', () => {
   it('lists each NARROW_LOG_RANGE entry once', () => {
     const narrow = readNarrowLogRange(rpcSource)
     expect(narrow).toEqual([...new Set(narrow)])
+  })
+
+  it('reads a last-resort log path for Sepolia, and it is a pool entry there', () => {
+    const lastResort = readLastResort(rpcSource).get(11155111) ?? []
+    expect(lastResort.length).toBeGreaterThan(0)
+    for (const url of lastResort) expect(readPools(rpcSource).get(11155111)).toContain(url)
   })
 
   it('reads NARROW_LOG_RANGE entries across lines and past comments', () => {

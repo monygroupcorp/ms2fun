@@ -14,7 +14,7 @@
  * so it stays generic over event type / abi.
  */
 import { activeChainId } from './addresses'
-import { logWindowForChain } from './logWindow'
+import { FALLBACK_LOG_WINDOW, logWindowForChain } from './logWindow'
 
 /** Default window width (blocks per `getLogs`) on the chain this build talks to: `≤` every pool
  *  endpoint's `eth_getLogs` range cap there (`logWindowForChain`). */
@@ -47,6 +47,9 @@ export function reverseWindows(latest: bigint, floor: bigint, size: bigint): Blo
 
 /**
  * Walk `[floor..latest]` newest-first, calling `fetchWindow(from, to)` per window and concatenating.
+ * A window wider than `FALLBACK_LOG_WINDOW` that fails is fetched again in `FALLBACK_LOG_WINDOW`
+ * pieces, newest first: the transport's last-resort entries serve only that width, so this is how a
+ * scan reaches them when every endpoint serving the full width is down. A piece that fails throws.
  * Stops after `maxWindows` windows if given (feed early-stop), or after the first window that
  * returns anything when `untilFound` is set (a lookup for one log). Results are in window order
  * (newest window first); callers that need strict global order should sort by their own key.
@@ -65,11 +68,26 @@ export async function scanBackward<T>(
   const out: T[] = []
   let count = 0
   for (const w of windows) {
-    const logs = await fetchWindow(w.fromBlock, w.toBlock)
-    out.push(...logs)
+    out.push(...(await fetchOrSplit(fetchWindow, w)))
     count += 1
     if (opts.maxWindows !== undefined && count >= opts.maxWindows) break
     if (opts.untilFound && out.length > 0) break
   }
   return out
+}
+
+async function fetchOrSplit<T>(
+  fetchWindow: (fromBlock: bigint, toBlock: bigint) => Promise<T[]>,
+  w: BlockWindow,
+): Promise<T[]> {
+  try {
+    return await fetchWindow(w.fromBlock, w.toBlock)
+  } catch (error) {
+    if (w.toBlock - w.fromBlock + 1n <= FALLBACK_LOG_WINDOW) throw error
+    const out: T[] = []
+    for (const piece of reverseWindows(w.toBlock, w.fromBlock, FALLBACK_LOG_WINDOW)) {
+      out.push(...(await fetchWindow(piece.fromBlock, piece.toBlock)))
+    }
+    return out
+  }
 }
