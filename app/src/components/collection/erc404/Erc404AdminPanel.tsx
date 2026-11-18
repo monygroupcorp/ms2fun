@@ -343,19 +343,33 @@ function SetTimeRow({
     <ActionRow label={label} hint={rule + current}>
       <div className={styles.control}>
         {quickPicks.length > 0 && (
-          <div className={styles.quickPicks} data-testid={`${testId}-quick`}>
-            {quickPicks.map((q) => (
-              <button
-                key={q.label}
-                type="button"
-                className="btn btn-secondary"
-                disabled={!q.allowed || tx.isBusy}
-                title={formatMoment(q.at, clock)}
-                onClick={() => setValue(localInputFromEpoch(q.at))}
-              >
-                {q.label}
-              </button>
-            ))}
+          <div
+            className={styles.quickPicks}
+            role="group"
+            aria-label={
+              kind === 'open'
+                ? 'quick picks for the open time'
+                : 'quick picks for the maturity time'
+            }
+          >
+            <span className={styles.quickCaption} aria-hidden="true">
+              {kind === 'open' ? 'from now' : 'after open'}
+            </span>
+            <div className={styles.quickGrid} data-testid={`${testId}-quick`}>
+              {quickPicks.map((q) => (
+                <button
+                  key={q.label}
+                  type="button"
+                  className={styles.quickPick}
+                  aria-label={q.label}
+                  disabled={!q.allowed || tx.isBusy}
+                  title={formatMoment(q.at, clock)}
+                  onClick={() => setValue(localInputFromEpoch(q.at))}
+                >
+                  {q.short}
+                </button>
+              ))}
+            </div>
           </div>
         )}
         <input
