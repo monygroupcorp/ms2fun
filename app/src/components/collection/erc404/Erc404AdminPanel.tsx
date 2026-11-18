@@ -343,7 +343,15 @@ function SetTimeRow({
     <ActionRow label={label} hint={rule + current}>
       <div className={styles.control}>
         {quickPicks.length > 0 && (
-          <div className={styles.quickPicks} role="group" aria-label={`quick ${label}`}>
+          <div
+            className={styles.quickPicks}
+            role="group"
+            aria-label={
+              kind === 'open'
+                ? 'quick picks for the open time'
+                : 'quick picks for the maturity time'
+            }
+          >
             <span className={styles.quickCaption} aria-hidden="true">
               {kind === 'open' ? 'from now' : 'after open'}
             </span>
