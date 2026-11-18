@@ -35,7 +35,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { logWindowForChain } from '../src/lib/logWindow'
+import { FALLBACK_LOG_WINDOW, logWindowForChain } from '../src/lib/logWindow'
 
 /** The origin a published bundle asks from; CORS answers differ by origin, so it is not invented. */
 const ORIGIN = 'https://noesis.gwei.domains'
@@ -50,9 +50,18 @@ const BATCH = [
 
 /** Endpoint -> the chain id it is listed under, read out of the module the app imports. */
 export function readPools(source: string): Map<number, string[]> {
+  return readChainLists(source, 'PUBLIC_RPCS')
+}
+
+/** Chain id -> the `LOG_SCAN_LAST_RESORT` entries in rpc.ts: asked for logs after the whole pool. */
+export function readLastResort(source: string): Map<number, string[]> {
+  return readChainLists(source, 'LOG_SCAN_LAST_RESORT')
+}
+
+function readChainLists(source: string, name: string): Map<number, string[]> {
   const pools = new Map<number, string[]>()
-  const block = source.match(/const PUBLIC_RPCS[^{]*\{([\s\S]*?)\n\}/)
-  if (block === null) throw new Error('rpc.ts: could not find PUBLIC_RPCS')
+  const block = source.match(new RegExp(`const ${name}[^{]*\\{([\\s\\S]*?)\\n\\}`))
+  if (block === null) throw new Error(`rpc.ts: could not find ${name}`)
   for (const entry of block[1]!.matchAll(/(\d+):\s*\[([\s\S]*?)\]/g)) {
     const urls = [...entry[2]!.matchAll(/'([^']+)'/g)].map((m) => m[1]!)
     pools.set(Number(entry[1]), urls)
@@ -65,6 +74,17 @@ export function readNarrowLogRange(source: string): string[] {
   const block = source.match(/const NARROW_LOG_RANGE[^=]*=\s*\[([\s\S]*?)\]/)
   if (block === null) throw new Error('rpc.ts: could not find NARROW_LOG_RANGE')
   return [...block[1]!.matchAll(/'([^']+)'/g)].map((m) => m[1]!)
+}
+
+/**
+ * The pool entries a log scan on this chain can use and that served the app's window: every entry
+ * outside `NARROW_LOG_RANGE` whose measurement came back ok. Empty means no scan on the chain can
+ * load its history, even when every entry passes on its own (all of them kept off log scans).
+ */
+export function logScanPaths(
+  results: ReadonlyArray<{ url: string; logs: { app: string }; skipped: boolean }>,
+): string[] {
+  return results.filter((r) => !r.skipped && r.logs.app.startsWith('ok')).map((r) => r.url)
 }
 
 /** The width every pool entry's range cap is also measured at, as a report. */
@@ -88,11 +108,29 @@ export function readRegistries(configDir: string): Map<number, string> {
       contracts?: { MasterRegistryV1?: string }
     }
     const registry = config.contracts?.MasterRegistryV1
-    if (config.chainId !== undefined && registry !== undefined) {
+    // A chain the contracts are not deployed on yet carries a record of zero addresses; probing the
+    // zero address measures nothing, so that chain takes QUIET_CONTRACT like one with no record.
+    if (config.chainId !== undefined && registry !== undefined && BigInt(registry) !== 0n) {
       registries.set(config.chainId, registry)
     }
   }
   return registries
+}
+
+/** Chain id -> the block its deployment record says the contracts were deployed at. */
+export function readDeployBlocks(configDir: string): Map<number, bigint> {
+  const blocks = new Map<number, bigint>()
+  for (const name of readdirSync(configDir)) {
+    if (!name.endsWith('-deployment.json') || name.startsWith('local')) continue
+    const config = JSON.parse(readFileSync(resolve(configDir, name), 'utf-8')) as {
+      chainId?: number
+      deployBlock?: number
+    }
+    if (config.chainId !== undefined && config.deployBlock) {
+      blocks.set(config.chainId, BigInt(config.deployBlock))
+    }
+  }
+  return blocks
 }
 
 async function withTimeout(url: string, init: RequestInit): Promise<Response> {
@@ -222,6 +260,8 @@ async function main() {
     for (const id of [...pools.keys()]) if (id !== chainId) pools.delete(id)
   }
   const narrow = readNarrowLogRange(source)
+  const lastResort = readLastResort(source)
+  const deployBlocks = readDeployBlocks(resolve(here, '../src/config'))
   const registries = readRegistries(resolve(here, '../src/config'))
 
   let failed = 0
@@ -253,6 +293,40 @@ async function main() {
       if (window !== WIDE_LOG_WINDOW) {
         console.log(`            getLogs ${WIDE_LOG_WINDOW} blocks: ${logs.wide}`)
       }
+    }
+    for (const url of lastResort.get(chainId) ?? []) {
+      let line: string
+      try {
+        const head = BigInt((await rpc(url, 'eth_blockNumber', [])) as string)
+        line = await probeLogs(url, address, head, FALLBACK_LOG_WINDOW)
+        // A scan walks back to the deploy block, and pruned history is refused there, not at head.
+        const deployed = deployBlocks.get(chainId)
+        if (line.startsWith('ok') && deployed !== undefined) {
+          const deep = await probeLogs(
+            url,
+            address,
+            deployed + FALLBACK_LOG_WINDOW - 1n,
+            FALLBACK_LOG_WINDOW,
+          )
+          line = `${line}; from the deploy block ${deployed}: ${deep}`
+          if (!deep.startsWith('ok')) line = `refused ${line}`
+        }
+      } catch (error) {
+        line = `no head: ${error instanceof Error ? error.message : String(error)}`
+      }
+      if (line.startsWith('ok')) {
+        console.log(`  ok      ${url} (last resort for log scans)`)
+      } else {
+        failed += 1
+        console.log(`  FAILED  ${url} (last resort for log scans)`)
+      }
+      console.log(`            getLogs ${FALLBACK_LOG_WINDOW} blocks: ${line}`)
+    }
+    if (logScanPaths(results).length === 0) {
+      failed += 1
+      console.log(
+        `  FAILED  no pool entry outside NARROW_LOG_RANGE serves eth_getLogs at ${window} blocks on chain ${chainId}`,
+      )
     }
   }
 

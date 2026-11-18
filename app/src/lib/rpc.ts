@@ -205,6 +205,51 @@ const NARROW_LOG_RANGE: string[] = [
   'https://eth.drpc.org',
 ]
 
+/**
+ * Endpoints asked for `eth_getLogs` only after the whole ranked pool has failed, per chain. Each
+ * serves `FALLBACK_LOG_WINDOW` (`logWindow.ts`) but not its chain's full window, so a scan reaches
+ * them by splitting a refused window (`scanBackward`). They give a chain whose full-width log path
+ * rests on one provider a second one, at no cost while that provider answers. `pnpm rpc:check`
+ * measures each at `FALLBACK_LOG_WINDOW`.
+ */
+const LOG_SCAN_LAST_RESORT: Record<number, string[]> = {
+  // Serves 10,001 back to the deploy block; tenderly is Sepolia's only full-width path.
+  11155111: ['https://0xrpc.io/sep'],
+}
+
+/**
+ * `pool`, with an `eth_getLogs` it fails asked again of each of `urls` in turn. Every other method,
+ * and a log request no last-resort entry serves, fails with the pool's own error. Not a member of
+ * the outer `fallback`: viem decides once per request whether any later transport accepts the
+ * method, so an `eth_getLogs`-only member there turns every other failed read into "method not
+ * supported" and drops its retries.
+ */
+export function withLogLastResort(pool: Transport, urls: string[]): Transport {
+  if (urls.length === 0) return pool
+  return (params) => {
+    const inner = pool(params)
+    const lastResort = urls.map((url) => http(url, { batch: true })(params))
+    return {
+      ...inner,
+      request: (async (args: Parameters<typeof inner.request>[0]) => {
+        try {
+          return await inner.request(args)
+        } catch (error) {
+          if (args.method !== 'eth_getLogs') throw error
+          for (const entry of lastResort) {
+            try {
+              return await entry.request(args)
+            } catch {
+              // the next entry, or the pool's error
+            }
+          }
+          throw error
+        }
+      }) as typeof inner.request,
+    }
+  }
+}
+
 function poolEntry(url: string): Transport {
   const config: HttpTransportConfig = { batch: true }
   if (NARROW_LOG_RANGE.includes(url)) config.methods = { exclude: ['eth_getLogs'] }
@@ -237,9 +282,10 @@ export function decentralizedTransport(chainId: number): Transport | undefined {
     },
   })
   // The connected wallet first, for the methods it carries, bounded so a silent wallet cannot
-  // stall reads; else the ranked public pool, built once (`oncePerChain`).
+  // stall reads; else the ranked public pool, built once (`oncePerChain`), and for a log scan the
+  // pool fails, the chain's last-resort entries.
   return fallback([
     withRequestTimeout(connectedWallet(), WALLET_HOP_TIMEOUT_MS),
-    oncePerChain(publicPool),
+    oncePerChain(withLogLastResort(publicPool, LOG_SCAN_LAST_RESORT[chainId] ?? [])),
   ])
 }

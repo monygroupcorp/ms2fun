@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { reverseWindows, scanBackward } from './logScan'
+import { FALLBACK_LOG_WINDOW } from './logWindow'
 
 describe('reverseWindows', () => {
   it('splits a range into newest-first windows of width <= size', () => {
@@ -81,5 +82,36 @@ describe('scanBackward', () => {
     )
     expect(calls).toBe(2)
     expect(out).toEqual(['999001-1000000', '998001-999000'])
+  })
+})
+
+describe('scanBackward when a wide window is refused', () => {
+  it('fetches the refused window again in FALLBACK_LOG_WINDOW pieces, newest first', async () => {
+    const asked: Array<[bigint, bigint]> = []
+    const logs = await scanBackward(
+      async (from, to) => {
+        asked.push([from, to])
+        if (to - from + 1n > FALLBACK_LOG_WINDOW) throw new Error('range too wide')
+        return [`${from}-${to}`]
+      },
+      { latest: 49_999n, floor: 30_000n, window: 50_000n },
+    )
+    expect(asked).toEqual([
+      [30_000n, 49_999n],
+      [40_000n, 49_999n],
+      [30_000n, 39_999n],
+    ])
+    expect(logs).toEqual(['40000-49999', '30000-39999'])
+  })
+
+  it('throws when a piece is refused too', async () => {
+    await expect(
+      scanBackward(
+        async () => {
+          throw new Error('down')
+        },
+        { latest: 49_999n, floor: 0n, window: 50_000n },
+      ),
+    ).rejects.toThrow('down')
   })
 })
