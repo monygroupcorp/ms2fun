@@ -52,6 +52,7 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 export const CONFIG_BY_CHAIN_ID: Readonly<Record<number, string>> = {
   1337: 'src/config/local-deployment.json',
   11155111: 'src/config/sepolia-deployment.json',
+  1: 'src/config/mainnet-deployment.json',
 }
 
 export interface AssertPublishableOptions {
@@ -274,6 +275,11 @@ async function main() {
   }
 
   if (configReasons.length === 0 && artReasons.length === 0) {
+    // Name the record that cleared, so a release log says which deployment the bundle was built on.
+    console.log(
+      `✓ publishable: chain ${chainId}, ${CONFIG_BY_CHAIN_ID[chainId]} ` +
+        `(generated ${deployment.generatedAt}, MasterRegistryV1 ${deployment.contracts?.MasterRegistryV1})`,
+    )
     process.exit(0)
   }
 

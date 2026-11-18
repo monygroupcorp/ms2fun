@@ -1,4 +1,5 @@
 import localDeployment from '../config/local-deployment.json'
+import mainnetDeployment from '../config/mainnet-deployment.json'
 import sepoliaDeployment from '../config/sepolia-deployment.json'
 import sepoliaForkDeployment from '../config/local-deployment.sepolia.json'
 
@@ -155,7 +156,9 @@ export function buildAddressesByChain(
  * overwrites it. `sepolia-deployment.json` is written from the `DeploySepolia` output by
  * `scripts/dev-chain/sepolia-config.ts`; its committed copy is likewise a zero placeholder, so a Sepolia build
  * made before that deploy is broadcast resolves zero addresses rather than a guess, and dropping the
- * real file in is config rather than code. Adding a further chain is a file plus a line here.
+ * real file in is config rather than code. `mainnet-deployment.json` is the same arrangement for chain
+ * 1: an all-zero placeholder until `DeployMainnet` is broadcast and the same bridge, run with
+ * `--chain mainnet`, writes the real one. Adding a further chain is a file plus a line here.
  *
  * The Sepolia entry is a SUBSTITUTION, never an addition: `local-deployment.sepolia.json` is the
  * dev channel's own artifact and carries the same chain id (11155111), so both files at once would
@@ -165,6 +168,7 @@ export function buildAddressesByChain(
 const DEPLOYMENTS: readonly Deployment[] = [
   localDeployment,
   sepoliaForkEnabled ? sepoliaForkDeployment : sepoliaDeployment,
+  mainnetDeployment,
 ]
 
 /**
@@ -212,6 +216,7 @@ export type SupportedChainId = 1 | typeof anvilChainId | typeof sepoliaChainId
  *
  *   pnpm dev                          -> 1337, the local anvil fork (unchanged default)
  *   VITE_CHAIN_ID=11155111 pnpm build -> Sepolia
+ *   VITE_CHAIN_ID=1 pnpm build        -> mainnet
  *
  * An id with no deployment file throws at app load, naming the chains that do have one, rather than
  * falling back silently to another chain's addresses. (The throw is at load, not at build: the

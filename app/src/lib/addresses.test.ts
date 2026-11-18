@@ -93,14 +93,14 @@ test('the log-scan floor is per chain', () => {
   expect(deployBlockForChain(999)).toBe(BigInt(0))
 })
 
-test('the shipped map carries both chains, and no others', () => {
+test('the shipped map carries mainnet, Sepolia and the local fork, and no others', () => {
   expect(
     Object.keys(addressesByChain)
       .map(Number)
       .sort((a, b) => a - b),
-  ).toEqual([anvilChainId, sepoliaChainId])
+  ).toEqual([1, anvilChainId, sepoliaChainId])
   expect(addressesForChain(sepoliaChainId)).toBeDefined()
-  expect(addressesForChain(1)).toBeUndefined()
+  expect(addressesForChain(8453)).toBeUndefined()
   // Sepolia's file carries a live deployment; the anvil one is the all-zero placeholder a local chain
   // overwrites at start. Being in the map and being deployed to are separate questions, and the two
   // chains answering them differently is what keeps this case from passing vacuously.
@@ -112,6 +112,13 @@ test('chain selection defaults to the local fork and refuses an unknown id', () 
   expect(resolveActiveChainId(undefined)).toBe(anvilChainId)
   expect(resolveActiveChainId('')).toBe(anvilChainId)
   expect(resolveActiveChainId(String(sepoliaChainId))).toBe(sepoliaChainId)
+  expect(resolveActiveChainId('1')).toBe(1)
   expect(() => resolveActiveChainId('8453')).toThrow(/no deployment config/)
   expect(() => resolveActiveChainId('sepolia')).toThrow(/no deployment config/)
+})
+
+test('mainnet resolves to a known chain whose committed record is still the zero placeholder', () => {
+  expect(addressesForChain(1)).toBeDefined()
+  expect(isChainDeployed(1)).toBe(false)
+  expect(deployBlockForChain(1)).toBe(BigInt(0))
 })
