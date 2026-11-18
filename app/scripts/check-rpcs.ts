@@ -99,7 +99,9 @@ export function readRegistries(configDir: string): Map<number, string> {
       contracts?: { MasterRegistryV1?: string }
     }
     const registry = config.contracts?.MasterRegistryV1
-    if (config.chainId !== undefined && registry !== undefined) {
+    // A chain the contracts are not deployed on yet carries a record of zero addresses; probing the
+    // zero address measures nothing, so that chain takes QUIET_CONTRACT like one with no record.
+    if (config.chainId !== undefined && registry !== undefined && BigInt(registry) !== 0n) {
       registries.set(config.chainId, registry)
     }
   }

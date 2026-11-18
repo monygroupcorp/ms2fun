@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { logScanPaths, readNarrowLogRange, readPools, readRegistries } from './check-rpcs'
@@ -35,6 +36,16 @@ describe('check-rpcs reads what the app ships', () => {
     const registries = readRegistries(resolve(here, '../src/config'))
     expect(registries.get(11155111)).toMatch(/^0x[0-9a-fA-F]{40}$/)
     expect(registries.has(1337)).toBe(false)
+  })
+
+  it('skips a chain whose registry is still the zero address', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'check-rpcs-'))
+    const zero = `0x${'0'.repeat(40)}`
+    writeFileSync(
+      join(dir, 'mainnet-deployment.json'),
+      JSON.stringify({ chainId: 1, contracts: { MasterRegistryV1: zero } }),
+    )
+    expect(readRegistries(dir).has(1)).toBe(false)
   })
 
   it('finds no log path on a chain whose only serving entries are kept off log scans', () => {
