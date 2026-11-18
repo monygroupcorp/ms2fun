@@ -67,16 +67,16 @@
 }
 
 /*
- * One-press schedule choices above the picker, as wide as the picker. Every choice in both rows is
- * one cell of the same track size, so the open and maturity rows line up and a narrow screen drops
- * to two columns instead of letting a long label wrap inside its button.
+ * One-press schedule choices above the picker. The block has a set width, not one that shrinks to
+ * its row, so the open and maturity rows divide the same width into the same tracks and every
+ * choice is one size. A phone-width panel drops to two columns instead of wrapping a label.
  */
 .quickPicks {
   display: flex;
   flex-direction: column;
   gap: var(--gap-xs);
-  width: 100%;
-  max-width: 22rem;
+  width: 22rem;
+  max-width: 100%;
 }
 
 .quickCaption {
