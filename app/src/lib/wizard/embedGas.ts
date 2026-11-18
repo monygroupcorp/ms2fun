@@ -37,9 +37,10 @@ export const humanGas = (g: number): string =>
  * is how a constant ends up rendered as if it were read off the chain.
  */
 export function humanEth(gas: number, gwei: number): string {
-  const eth = (gas * gwei) / 1e9
-  if (eth >= 0.001) return `~${eth.toFixed(3)} ETH`
-  if (eth <= 0) return '0 ETH'
+  // Rounded to two significant digits first, so a cost just under 0.001 reads as ~0.001.
+  const eth = Number(((gas * gwei) / 1e9).toPrecision(2))
+  if (eth >= 0.001) return `~${((gas * gwei) / 1e9).toFixed(3)} ETH`
+  if (!(eth > 0)) return '0 ETH'
   // A cheap network still charges something, and the creator compares this to the wallet's figure,
   // so a small cost keeps two significant digits instead of collapsing to "<0.001".
   const digits = Math.min(20, 1 - Math.floor(Math.log10(eth)))

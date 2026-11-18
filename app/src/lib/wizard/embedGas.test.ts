@@ -13,6 +13,10 @@ describe('humanEth', () => {
     expect(humanEth(2_900_000, 0.001)).toBe('~0.0000029 ETH')
   })
 
+  test('a cost just under a thousandth rounds up to ~0.001, not ~0.00100', () => {
+    expect(humanEth(999_600, 1)).toBe('~0.001 ETH')
+  })
+
   test('no fee reads as zero, not as a bound', () => {
     expect(humanEth(14_000_000, 0)).toBe('0 ETH')
   })
