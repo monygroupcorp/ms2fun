@@ -202,6 +202,9 @@ const NARROW_LOG_RANGE: string[] = [
   // The free plan refuses an address-filtered range of a few hundred blocks ("ranges over 10000
   // blocks are not supported", whatever the range asked for); it served 100 when measured.
   'https://eth.drpc.org',
+  // Pruned Sepolia history back near the chain deploy block; refuses a 50,000-block eth_getLogs
+  // window with "4444 pruned history unavailable".
+  'https://ethereum-sepolia-rpc.publicnode.com',
 ]
 
 function poolEntry(url: string): Transport {
