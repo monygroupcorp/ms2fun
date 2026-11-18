@@ -194,17 +194,15 @@ const PUBLIC_RPCS: Record<number, string[]> = {
  * would fail every ping and rank the entry last for good.
  */
 const NARROW_LOG_RANGE: string[] = [
-  // Refuses a log range that reaches into pruned history (4444, pruned history unavailable), which
-  // every scan of the deployment events does; it served no window when measured.
+  // Pruned Sepolia history back near the chain deploy block: refuses a log range that reaches into
+  // it (4444, pruned history unavailable), which every scan of the deployment events does, and
+  // refuses a 50,000-block window the same way; it served no window when measured.
   'https://ethereum-sepolia-rpc.publicnode.com',
   // Refuses 50,000; serves 10,001.
   'https://0xrpc.io/sep',
   // The free plan refuses an address-filtered range of a few hundred blocks ("ranges over 10000
   // blocks are not supported", whatever the range asked for); it served 100 when measured.
   'https://eth.drpc.org',
-  // Pruned Sepolia history back near the chain deploy block; refuses a 50,000-block eth_getLogs
-  // window with "4444 pruned history unavailable".
-  'https://ethereum-sepolia-rpc.publicnode.com',
 ]
 
 function poolEntry(url: string): Transport {
