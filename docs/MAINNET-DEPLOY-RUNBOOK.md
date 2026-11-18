@@ -1,4 +1,4 @@
-# Mainnet deployment — runbook (dated 2026-10-19, target Tuesday 2026-11-17)
+# Mainnet deployment — runbook (dated 2026-10-19, first target Tuesday 2026-11-17, not taken)
 
 The mainnet sequence is the Sepolia sequence (`docs/SEPOLIA-DEPLOY-RUNBOOK.md`) with the mainnet
 script substituted and the mainnet-only steps added. Where a step below says "as Sepolia §N", that
