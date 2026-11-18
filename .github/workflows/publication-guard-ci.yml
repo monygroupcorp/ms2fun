@@ -38,3 +38,11 @@ jobs:
 
       - name: No tracked file describes the machine it was written on
         run: node tools/check-no-local-paths.mjs
+
+      # The same discipline for prose: a comment or doc explains itself to whoever cloned the repo,
+      # not by pointing at internal tickets or at who decided something. Self-test first, as above.
+      - name: The process-language guard still catches what it claims to catch
+        run: node tools/check-process-language.mjs --self-test
+
+      - name: No tracked file speaks in internal process language
+        run: node tools/check-process-language.mjs
