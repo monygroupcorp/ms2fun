@@ -161,8 +161,7 @@ export function AlignmentTargetPicker({
     return m
   }, [offeredVaults])
 
-  // Level 1 rows: targets sharing a token collapse into one row (rider on noesis-403's second
-  // ruling — the registry may carry the same token under more than one target, one per acquisition
+  // Level 1 rows: targets sharing a token collapse into one row (the registry may carry the same token under more than one target, one per acquisition
   // route, but the picker must show it once with the route as an add-on, never the same token twice).
   const targetGroups = useMemo(() => groupTargetsByToken(targets), [targets])
 
@@ -297,7 +296,7 @@ export function AlignmentTargetPicker({
           ))}
 
           {/* Venues this community doesn't have — the "request it" affordance. Yield (Aave endowment)
-              takes an on-chain request the protocol reviews and deploys (noesis-367); the LP venues stay
+              takes an on-chain request the protocol reviews and deploys; the LP venues stay
               static "coming soon" until their priceValidator/pool-config lockdown lands (spec §4.2). */}
           {missingVenues.length > 0 && (
             <div className={styles.familyBlock}>

@@ -1,5 +1,5 @@
 /**
- * Routing-mode matrix for the two distribution targets (noesis-409).
+ * Routing-mode matrix for the two distribution targets.
  *
  * The app ships twice from one tree: ms2.fun (history routing, server-backed SPA fallback) and the
  * IPFS pin behind noesis.gwei.domains (hash routing, because a public gateway answers an unknown

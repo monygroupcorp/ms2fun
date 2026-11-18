@@ -1,5 +1,5 @@
 /**
- * Per-chain address resolution (noesis-408).
+ * Per-chain address resolution.
  *
  * The app used to carry one deployment file and one chain id, so "which addresses" was never a
  * question. With Sepolia in the picture it is: a chain-scoped route hands the resolver a chainId and

@@ -1,9 +1,9 @@
 /**
- * Mint-side merkle-proof resolution for an ERC404 bonding instance (noesis-080) — the erc404 twin of
+ * Mint-side merkle-proof resolution for an ERC404 bonding instance — the erc404 twin of
  * `erc1155/useMerkleAllowlist.ts`. ERC404 has no per-edition concept (single curve), so the allowlist
  * row is always looked up at `(editionId 0, tierIndex 0)`.
  *
- * DENOMINATION (noesis-266). This family forwards COIN to `MerkleGatingModule` — `buyBonding` forwards
+ * DENOMINATION. This family forwards COIN to `MerkleGatingModule` — `buyBonding` forwards
  * the purchase amount, `claimFreeMint` forwards `unit` — so the leaf cap the module compares against is
  * coin at wei scale, while the creator authored NFTs. The proof is therefore resolved under the
  * instance's own `unit()`, the same scale the admin panel rooted the tree under, and the query does not

@@ -4,7 +4,7 @@ import { orderFeatured } from './featuredOrder'
 const card = (id: string, featuredRank: bigint) => ({ id, featuredRank })
 
 describe('orderFeatured', () => {
-  // noesis-311: the defect this function exists for. The chain sells placement by rank score;
+  // The defect this function exists for. The chain sells placement by rank score;
   // the grid must lead with the biggest payer, not the smallest.
   it('leads with the biggest payer', () => {
     const ordered = orderFeatured([card('small', 1n * 10n ** 18n), card('big', 5n * 10n ** 18n)])

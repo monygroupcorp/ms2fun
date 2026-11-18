@@ -443,7 +443,7 @@ async function main(): Promise<void> {
 
   // 4. Write the slim config the frontend consumes (src/lib/addresses.ts).
   // The `contracts` field is a name->address map keyed under this deploy's chain id. Map-merge
-  // onto whatever is already on disk (chain-scoped-slug-routes, noesis-079) rather than replacing
+  // onto whatever is already on disk rather than replacing
   // wholesale, so a partial/older config's entries for names this deploy doesn't touch survive.
   // `required()` always supplies every current key, so today (single chain, full redeploy every
   // run) this is behaviourally a no-op — it only matters once the contract set or chain count
@@ -480,7 +480,7 @@ async function main(): Promise<void> {
       DeployBondEscrow: required(c, 'DeployBondEscrow'),
       ERC1155Factory: required(f, 'ERC1155'),
       ERC721AuctionFactory: required(f, 'ERC721'),
-      // Aave endowment vault factory (noesis-077) — permissionless Yield-vault creation.
+      // Aave endowment vault factory — permissionless Yield-vault creation.
       AaveEndowmentVaultFactory: required(f, 'AAVE'),
       ComponentRegistry: required(c, 'ComponentRegistry'),
       ProfileRegistry: required(c, 'ProfileRegistry'),

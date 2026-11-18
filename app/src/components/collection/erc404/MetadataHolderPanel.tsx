@@ -1,5 +1,5 @@
 /**
- * MetadataHolderPanel (noesis-010) — the holder-side controls for a token whose collection has a
+ * MetadataHolderPanel — the holder-side controls for a token whose collection has a
  * `MetadataOverlayModule` wired (ADR-0006/0007): unlock a pay-gated commission/wave, and pin the
  * displayed version (AUTO / BASE / COMMISSION / a specific wave). Mounted on `TokenDetailPage` for
  * ERC404 tokens; only rendered for the connected wallet that owns this token id (the on-chain

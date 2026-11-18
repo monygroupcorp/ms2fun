@@ -1,5 +1,5 @@
 /**
- * Module-card → /learn concept bridge (noesis-047).
+ * Module-card → /learn concept bridge.
  *
  * A module card's blurb is parsed from on-chain metadata (`ComponentModuleMeta`), so the only
  * stable per-module key is its `configType` string. This static map bridges that key to a
@@ -13,7 +13,7 @@
 
 export const MODULE_CONCEPT_BY_CONFIG_TYPE: Record<string, string> = {
   'merkle-allowlist-gating': 'merkle-allowlist',
-  // Wired once noesis-046 landed the concepts (contract-verified).
+  // Wired once the concepts landed (contract-verified).
   'metadata-overlay': 'metadata-overlay',
   'metadata-tier': 'token-tiers', // configType 'metadata-tier' → the token-tiers concept (NOT tier-upgrade)
 }

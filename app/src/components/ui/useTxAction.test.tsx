@@ -93,7 +93,7 @@ describe('queryKeyIncludesAddress', () => {
   })
 })
 
-// ── shared invalidation guard (noesis-352) ──────────────────────────────────────────────────────
+// ── shared invalidation guard ──────────────────────────────────────────────────────
 //
 // The defect: every ERC-404 panel refetched only its OWN reads on transaction success, so a buy on
 // the swap panel left the tier panel / portfolio grid rendering pre-trade state. The fix is a SHARED

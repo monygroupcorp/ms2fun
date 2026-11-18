@@ -75,7 +75,7 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
 
   // Gating config for the paid mint path. When a module is set and scope isn't FREE_MINT_ONLY, `mint`
   // consults the module — today the ONLY deployed gating module is MerkleGatingModule (PasswordTier
-  // was dropped, noesis-065), so `gated` means "resolve a merkle proof", not "ask for a password".
+  // was dropped), so `gated` means "resolve a merkle proof", not "ask for a password".
   const { data: gatingModule } = useReadErc1155InstanceGatingModule({
     address: instance,
     chainId: chainId,
@@ -87,8 +87,8 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
   const gated = isPaidMintGated(gatingModule, gatingScope)
   const allowlist = useMerkleAllowlistProof(instance, edition.id, gated)
 
-  // The leaf cap is a lifetime number; `allowlist.remainingNfts` is what this wallet may still mint
-  // (noesis-280). Undefined means the counter did not read — block rather than assume the cap.
+  // The leaf cap is a lifetime number; `allowlist.remainingNfts` is what this wallet may still mint.
+  // Undefined means the counter did not read — block rather than assume the cap.
   const overRemaining =
     allowlist.remainingNfts === undefined || BigInt(amount) > allowlist.remainingNfts
 

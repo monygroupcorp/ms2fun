@@ -6,7 +6,7 @@ import type { ProjectCard } from '../components/useCreatorCollections'
 import { CollectionPage, LegacyCollectionRedirect } from './CollectionPage'
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
-// The resolver read (chain-scoped-slug-routes noesis-079's core new surface).
+// The resolver read (the core surface of the chain-scoped slug routes).
 const mockResolveName = vi.hoisted(() =>
   vi.fn<() => { data: `0x${string}` | undefined; isPending: boolean; isError: boolean }>(),
 )

@@ -285,7 +285,7 @@
   margin: var(--space-3) 0 0;
 }
 
-/* Route-scoped wrong-chain prompt (chain-scoped-slug-routes noesis-079) — read-only page still
+/* Route-scoped wrong-chain prompt — read-only page still
    renders normally; this only offers the one-click switch. Mirrors WrongNetworkBanner's inverted
    bar treatment, scoped to the page instead of the top bar. */
 .wrongChain {

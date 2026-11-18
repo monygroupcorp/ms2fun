@@ -3,7 +3,7 @@ import type { FieldSchema } from './schema'
 import { PROJECT_TYPES } from './projectTypes'
 import { CONFIG_SCHEMAS } from './configTypes'
 
-// noesis-131 — every user-facing amount input is entered in a HUMAN unit (ETH for prices/bids, whole
+// Every user-facing amount input is entered in a HUMAN unit (ETH for prices/bids, whole
 // tokens for balances) and scaled to exact wei only at encode. Raw-wei input is forbidden: a creator
 // must never type `10000000000000000000` for "10". This walks EVERY field descriptor the wizard
 // renders and asserts none advertises `unit: 'wei'`.
@@ -29,7 +29,7 @@ function allFields(): FieldSchema[] {
   return out
 }
 
-describe('humanized amount units (noesis-131)', () => {
+describe('humanized amount units', () => {
   it('no user-facing field advertises unit: "wei"', () => {
     const weiFields = allFields().filter((f) => f.unit === 'wei')
     expect(weiFields.map((f) => f.key)).toEqual([])
@@ -40,7 +40,7 @@ describe('humanized amount units (noesis-131)', () => {
     expect(byKey.get('basePrice')?.unit).toBe('eth')
     expect(byKey.get('bidIncrement')?.unit).toBe('eth')
     expect(byKey.get('minBid')?.unit).toBe('eth')
-    // `tierMinBalance` was deleted with the TierReveal min-balance field (noesis-141): Token Tiers
+    // `tierMinBalance` was deleted with the TierReveal min-balance field: Token Tiers
     // bands are static id ranges, so there is no balance amount left to humanize here.
   })
 })

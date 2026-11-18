@@ -347,7 +347,7 @@ export function WizardPage() {
   const [postCreateDone, setPostCreateDone] = useState(false)
 
   // Redirect to the new collection once the InstanceCreated event is mined. Slug form — the
-  // just-deployed name is in hand (chain-scoped-slug-routes noesis-079 step 9).
+  // just-deployed name is in hand.
   //
   // Held back while the post-create step is on screen: `postCreate` offers the creator the first
   // edition against the instance that has just been deployed, and leaving for the collection page
@@ -512,7 +512,7 @@ export function WizardPage() {
   if (!projectType) return null
   const pt = projectType
 
-  // Piece art (noesis-211): `tokenBaseURI` composes as `<base><tokenId>`, so the FIRST piece is
+  // Piece art: `tokenBaseURI` composes as `<base><tokenId>`, so the FIRST piece is
   // `<base>1` — exact concat, no inserted slash (a normalized preview would lie about the calldata).
   // A resolver, when wired, overrides the base entirely (ADR-0006/0007 precedence), so a blank base
   // with a resolver selected is not an art gap — only blank-base-with-no-resolver is.

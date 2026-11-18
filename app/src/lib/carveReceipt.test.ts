@@ -85,7 +85,7 @@ describe('carveSettlementFromLogs', () => {
   })
 })
 
-// noesis-220 acceptance leg 6: the union must have exactly ONE implementation. Reading
+// The union must have exactly ONE implementation. Reading
 // `CreatorCarvePaid.paid` alone understates the settlement whenever the parity clamp leaves excess,
 // and reports nothing at all in the common defaulted-to-zero-request case — a second hand-rolled
 // decode anywhere in the tree is how that comes back. This walks the source rather than trusting a

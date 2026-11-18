@@ -55,7 +55,7 @@ function buildCommit(): string {
   }
 }
 
-// Share-card origin (noesis-338). `index.html`'s og:/twitter: tags have to name an absolute
+// Share-card origin. `index.html`'s og:/twitter: tags have to name an absolute
 // origin — a scraper fetches them with no page context — and that origin used to be typed into the
 // markup three times. It was typed wrong: it named an ENS-gateway front that answers 404 and is not
 // ours, so a shared link rendered a title beside a picture nobody could fetch, and the card guard

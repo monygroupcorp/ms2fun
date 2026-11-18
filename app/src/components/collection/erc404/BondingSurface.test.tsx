@@ -1,5 +1,5 @@
 /**
- * BondingSurface — the post-graduation carve disclosure (noesis-220).
+ * BondingSurface — the post-graduation carve disclosure.
  *
  * The graduated surface is PUBLIC: a buyer who priced the declared carve ceiling in before buying
  * needs to be able to see what actually left the pool, after the fact and from any wallet. That means

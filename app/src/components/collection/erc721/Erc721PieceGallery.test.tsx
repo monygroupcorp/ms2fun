@@ -1,6 +1,6 @@
 /**
- * Erc721PieceGallery — the grid must browse a whole collection without paying for it up front
- * (noesis-382), and must still state the collection's TRUE piece count (noesis-381).
+ * Erc721PieceGallery — the grid must browse a whole collection without paying for it up front,
+ * and must still state the collection's TRUE piece count.
  *
  * The load-bearing assertion here is the READ BUDGET on mount: one chunk of candidate ids in one
  * multicall, at most one metadata resolution per resolved id in that chunk, and at most

@@ -46,11 +46,11 @@ export default defineConfig({
         'AlignmentEndowmentVault.sol/**',
         'ERC721AuctionFactory.sol/**',
         'ERC721AuctionInstance.sol/**',
-        // Merkle allowlist gating (#25). Bindings are consumed by noesis-029/030; harmless here.
+        // Merkle allowlist gating (#25). Harmless here.
         'MerkleGatingModule.sol/**',
         'IMerkleGatingModule.sol/**',
         'MetadataResolverRouter.sol/**',
-        // Retired (noesis-141) but still in-tree so existing deployments stay readable.
+        // Retired but still in-tree so existing deployments stay readable.
         'TierRevealModule.sol/**',
         'TokenTierBandResolver.sol/**',
         'MetadataOverlayModule.sol/**',

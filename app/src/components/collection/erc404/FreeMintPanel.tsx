@@ -1,7 +1,7 @@
 /**
  * Free-mint claim. Shown only when the instance has a free-mint allocation AND the connected wallet
  * hasn't claimed yet; hidden otherwise. `claimFreeMint(gatingData)` — when gating applies to the free
- * tier (noesis-080: the only deployed gating module is MerkleGatingModule) we resolve the connected
+ * tier (the only deployed gating module is MerkleGatingModule) we resolve the connected
  * wallet's merkle proof and pass the encoded gatingData, else `0x`.
  *
  * Two of `claimFreeMint`'s three reverts used to be invisible here. `ERC404BondingOps.claimFreeMint`
@@ -71,7 +71,7 @@ export function FreeMintPanel({
   const claim = useWriteErc404BondingInstanceClaimFreeMint()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: claim.data })
 
-  // Shared invalidation (noesis-352): a free-mint claim moves coin balance AND NFT ids in the same
+  // Shared invalidation: a free-mint claim moves coin balance AND NFT ids in the same
   // transaction, so every cached read for this instance — not just this panel's own — must
   // invalidate the moment the receipt lands, not only when the holder clicks "reset". See
   // useTxAction's `instance` opt for the rationale.

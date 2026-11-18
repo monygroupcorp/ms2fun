@@ -41,7 +41,7 @@ describe('deploy-blocker surfacing (W8/W7)', () => {
   })
 
   it('a malformed tier rung surfaces the exact row + reason', () => {
-    // Id ranges stopped being app input (noesis-160) — the contract derives them — so the row-level
+    // Id ranges stopped being app input — the contract derives them — so the row-level
     // validation that survives is the LADDER's own: row 1 carries a weight below the minimum.
     const metaErrors = validateMetadataConfig({ tier: TIER_ADDR }, { 'tierWeights.0': '1' }, 0n)
     const blockers = buildDeployBlockers({ ...okInput(), metaErrors })

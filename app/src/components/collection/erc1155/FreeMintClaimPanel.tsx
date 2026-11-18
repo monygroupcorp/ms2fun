@@ -1,7 +1,7 @@
 /**
  * FreeMintClaimPanel — lets an eligible wallet claim its zero-cost free-mint allocation.
  * Renders nothing unless the instance has a free-mint allocation and the connected wallet has not
- * already claimed. When the free-mint path is gated (module set AND scope != PAID_ONLY, noesis-080) we
+ * already claimed. When the free-mint path is gated (module set AND scope != PAID_ONLY) we
  * resolve the connected wallet's merkle proof against the owner-configured allowlist and encode it;
  * otherwise we pass '0x'.
  *
@@ -26,7 +26,7 @@ import styles from './Erc1155Actions.module.css'
 
 interface FreeMintClaimPanelProps {
   instance: `0x${string}`
-  /** A free mint is PER edition (noesis-135) — allocation, claim counter, and the per-user claimed
+  /** A free mint is PER edition — allocation, claim counter, and the per-user claimed
    *  flag are all keyed by this editionId. */
   editionId: bigint
   /** Unix timestamp; 0 = open immediately. Gates this edition's free-claim path exactly like the

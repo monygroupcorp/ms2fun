@@ -1,5 +1,5 @@
 /**
- * The ERC-1155 allowlist hook reports what is LEFT, read off the chain (noesis-280).
+ * The ERC-1155 allowlist hook reports what is LEFT, read off the chain.
  *
  * `mintPanelAllowlistRemaining.test.tsx` pins what the panel does with `remainingNfts`; this pins
  * where the number comes from. `MerkleGatingModule.claimed` is public and edition-scoped, and the

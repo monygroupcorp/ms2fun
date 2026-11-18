@@ -1,5 +1,5 @@
 /**
- * noesis-330 — the portfolio's own Claim button, for the vaults that actually implement the write.
+ * The portfolio's own Claim button, for the vaults that actually implement the write.
  *
  * `claimFees()` is real on the Uni and ZAMM liquidity families (it pays `msg.sender`'s own accrued
  * share) and a `pure` revert stub on the Aave endowment vault, whose payout path is

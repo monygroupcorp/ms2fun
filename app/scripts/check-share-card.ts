@@ -2,14 +2,14 @@
  * G5c — share-card emission guard. Runs as the last step of `pnpm build`, so `app-ci`'s existing
  * build gate covers it with no new CI step, exactly as the precache guard beside it does.
  *
- * Four merged items built the share card — the tags (`noesis-221`), the SPA fallback
- * (`noesis-229`), the payload (`noesis-244`) — and nothing asserted a line of it. Each of these
+ * Several separate changes built the share card — the tags, the SPA fallback, the payload — and
+ * nothing asserted a line of it. Each of these
  * is a silently green CI run and a card nobody can render: the icon renamed, a plugin reordered so
  * `404.html` stops matching `index.html`, `_redirects` deleted, a tag dropped, or the pending
  * origin substitution landing on two of its three sites.
  *
  * It reads the *emitted* `dist/`, never the source, and it knows no origin, title or description —
- * structure and resolvability only, so the origin ruling never has to edit this file.
+ * structure and resolvability only, so a decision about the origin never has to edit this file.
  */
 import { readFileSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'

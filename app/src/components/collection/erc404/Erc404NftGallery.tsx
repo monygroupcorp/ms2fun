@@ -4,7 +4,7 @@
  * We resolve the mirror via `mirrorERC721()` then read `totalSupply()` for the collection's true
  * piece count.
  *
- * The grid is virtualized (noesis-382): the whole collection is browsable, and the cost of a mount
+ * The grid is virtualized: the whole collection is browsable, and the cost of a mount
  * is a fixed window rather than a function of collection size.
  *
  * ## Row model: a compacted list of surviving pieces, not the id space

@@ -17,8 +17,7 @@ vi.mock('../useCollectionMetadata', () => ({
 }))
 
 // The picker no longer excludes any family — a target missing its yield vault now renders
-// YieldVaultRequestCard in the "not deployed" affordance (ERC404+endowment is a real pairing now,
-// per rth's ruling), which needs a wagmi context this test doesn't otherwise set up.
+// YieldVaultRequestCard in the "not deployed" affordance (ERC404+endowment is a real pairing now), which needs a wagmi context this test doesn't otherwise set up.
 vi.mock('wagmi', () => ({
   useAccount: () => ({ address: undefined }),
   useReadContract: () => ({ data: undefined }),
@@ -101,7 +100,7 @@ function renderPicker(overrides?: { targets?: AlignmentTargetRow[]; vaults?: Reg
   return { onSelectVault }
 }
 
-describe('AlignmentTargetPicker — token grouping (noesis-412)', () => {
+describe('AlignmentTargetPicker — token grouping', () => {
   test('a token registered under two targets renders ONE row, not two', () => {
     renderPicker()
     expect(screen.getAllByText('CULT')).toHaveLength(1)
@@ -137,7 +136,7 @@ describe('AlignmentTargetPicker — token grouping (noesis-412)', () => {
 
   test('non-vacuity: without grouping, the same two targets would render as two separate rows', () => {
     // Simulates "grouping removed" by feeding the raw ungrouped target list straight through — this
-    // is the shape the picker rendered before noesis-412, and it must show CULT twice.
+    // is the shape the picker rendered before grouping, and it must show CULT twice.
     renderPicker({ targets: [CULT_TARGET_UNI, CULT_TARGET_ZAMM] })
     // With grouping (the real behavior under test), it still collapses to one — proving the assertion
     // below is a real constraint the grouping enforces, not a vacuous one.

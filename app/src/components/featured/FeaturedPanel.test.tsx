@@ -1,5 +1,5 @@
 /**
- * FeaturedPanel — the closed Boost control's summary indicator (noesis-429). The chain reads are
+ * FeaturedPanel — the closed Boost control's summary indicator. The chain reads are
  * mocked; what is under test is what the CLOSED Disclosure summary shows for the three states —
  * featured, expired, and never-featured — without opening the panel.
  */

@@ -1,5 +1,5 @@
 /**
- * MetadataArtistPanel (noesis-010) — post-create artist actions for the `MetadataOverlayModule`
+ * MetadataArtistPanel — post-create artist actions for the `MetadataOverlayModule`
  * wired to an ERC404 instance (ADR-0006/0007): publish an event wave, set a holder's commission, and
  * toggle collection-wide auto-latest. Renders nothing when the instance has no overlay module wired
  * (`useOverlayModule`), mirroring `ConfigureGatingRow`'s self-hiding shape.

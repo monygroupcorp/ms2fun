@@ -19,7 +19,7 @@ import { useTxAction } from '../ui/useTxAction'
 import styles from './PortfolioPanels.module.css'
 
 /** Slug link when the holding's name is in hand; else the address link (301s via the legacy
- * redirect route — chain-scoped-slug-routes noesis-079 step 9). */
+ * redirect route). */
 function holdingHref(instance: `0x${string}`, name: string | undefined, suffix = ''): string {
   return name
     ? `/${forkChainId}/${name.toLowerCase()}${suffix}`
@@ -175,8 +175,8 @@ function AuctionPositions({ positions }: { positions: readonly AuctionPosition[]
  *
  * It must render in the EMPTY case above all: a partially-hidden portfolio at least shows something,
  * but a fully-hidden one renders "nothing held yet" — the opposite of the truth — so the empty state
- * is exactly where the caveat is load-bearing. It sat below the empty-state early return until
- * noesis-327, which is the one place it could never appear.
+ * is exactly where the caveat is load-bearing. It once sat below the empty-state early return,
+ * which is the one place it could never appear.
  *
  * The copy names what was checked rather than what is shown, because in the empty case nothing is
  * being shown at all. It names no count: the read width is a client-side strategy that has already
@@ -231,7 +231,7 @@ const vaultTypeAbi = [
   },
 ] as const
 
-/** Per-vault Claim affordance (noesis-330). `claimFees()` is real on the Uni and ZAMM liquidity
+/** Per-vault Claim affordance. `claimFees()` is real on the Uni and ZAMM liquidity
  * families — it pays `msg.sender`'s own accrued share — and a `pure` revert stub on the Aave
  * endowment vault, whose payout path is `claimYieldPurse` on the vault page instead. The family is
  * read per vault rather than assumed, so the button is wired exactly where the write exists and

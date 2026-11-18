@@ -58,7 +58,7 @@ export function escrowBehind(weight: bigint, unit: bigint): bigint {
 /**
  * Local reconstruction of `coinBalanceOf`: liquid `balance` plus the escrow behind every owned band
  * piece. The contract value is authoritative for display — this exists because a future caller
- * (noesis-173) must predict a position that does not exist on-chain yet, which no view can answer.
+ * must predict a position that does not exist on-chain yet, which no view can answer.
  */
 export function coinHoldings(
   balance: bigint,

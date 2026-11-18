@@ -1,5 +1,5 @@
 /**
- * Erc404Portfolio — the three tier-aware holder surfaces (noesis-159). The chain reads and the
+ * Erc404Portfolio — the three tier-aware holder surfaces. The chain reads and the
  * owned-pieces replay are mocked; what is under test is what a holder is shown and whether the
  * submit is reachable.
  */
@@ -30,7 +30,7 @@ interface MockBandPiece {
   weight: bigint
 }
 
-// noesis-172: mocked directly (per the item spec) rather than the chain reads underneath it —
+// Mocked directly rather than the chain reads underneath it —
 // this component only consumes `bandPieces`.
 const mockTierPosition = vi.hoisted(() =>
   vi.fn<
@@ -73,7 +73,7 @@ vi.mock('../../../generated/contracts', () => {
 
 vi.mock('../useCollectionChain', () => ({ useCollectionChainId: () => 1 }))
 
-// The shared invalidation seam (noesis-352) needs a QueryClient; these tests aren't exercising
+// The shared invalidation seam needs a QueryClient; these tests aren't exercising
 // caching, so a stub with a spy-able `invalidateQueries` is enough (no QueryClientProvider needed).
 const mockInvalidateQueries = vi.hoisted(() => vi.fn())
 vi.mock('@tanstack/react-query', () => ({

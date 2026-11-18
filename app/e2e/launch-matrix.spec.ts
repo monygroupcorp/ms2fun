@@ -338,7 +338,7 @@ const CASES: LaunchCase[] = [
     align: { community: 'MS2|Milady', venue: 'Aave' },
   },
   {
-    // Empty symbol is accepted end-to-end for ERC1155 (noesis-084) — asserted here, not just in unit tests.
+    // Empty symbol is accepted end-to-end for ERC1155 — asserted here, not just in unit tests.
     id: 'lm1155-gated-lp',
     type: 'erc1155',
     fields: { Symbol: '' },

@@ -1,21 +1,21 @@
 /**
- * moneySurfaces.ts (noesis-212, hardened noesis-215) — the ratchet guard for terminal money
+ * moneySurfaces.ts — the ratchet guard for terminal money
  * receipts. Rule: an audit ships a gate, so this list doesn't need re-walking by hand next
  * time.
  *
- * `MONEY_SURFACES` is every component this item's audit found where value leaves or arrives the
+ * `MONEY_SURFACES` is every component the money-surface audit found where value leaves or arrives the
  * acting wallet — hand-kept, because judging "does this call move value" is not a lint's job.
  * `UNCONVERTED` is the subset that still confirms with a bare, amountless `successLabel` instead
  * of a `MoneyReceipt`. This list may only SHRINK, and `MONEY_SURFACES` may only GROW — see
  * `moneySurfaces.test.ts`.
  *
- * `CONVERTED_ACTIONS` is the per-money-action census noesis-215 added. A converted FILE can hold
+ * `CONVERTED_ACTIONS` is the per-money-action census, added when this guard was hardened. A converted FILE can hold
  * several independent money-moving actions (AuctionCard has three: bid, settle, reclaim) plus
  * several non-money config actions (migrate vault, toggle delegation, …) — checking "does this file
- * contain a `formatReceipt` call ANYWHERE" (the original noesis-212 check) is satisfied by exactly
+ * contain a `formatReceipt` call ANYWHERE" (the original check) is satisfied by exactly
  * one converted action and says nothing about the rest, and a hand-rolled confirmation that never
  * touches `TxButton`'s `successLabel` prop at all was invisible to a regex keyed on that prop. Both
- * were real gaps found on this item's audit (AuctionCard's `createBid` bid confirmation). Each entry
+ * were real gaps found by the audit (AuctionCard's `createBid` bid confirmation). Each entry
  * here is `{ file, testId }`: `testId` is the `TxButton`'s own `testId` prop (which auto-renders its
  * confirmation as `data-testid="${testId}-success"`, see `TxButton.tsx`) OR, for a hand-rolled
  * confirmation that doesn't use `TxButton`, a `data-testid="${testId}-success"` added directly to the
@@ -32,7 +32,7 @@
  * nobody adds here is invisible to this guard; the disk-existence check catches a rename, not an
  * omission. An ABI-level check (does this `functionName` carry a nonzero `value`, or move ETH per
  * the contract's own accounting) would catch that class and is explicitly out of scope for this
- * item, same as it was for noesis-212.
+ * guard.
  */
 
 export interface MoneyAction {
@@ -59,13 +59,13 @@ export const MONEY_SURFACES: string[] = [
   'app/src/components/collection/erc404/MetadataHolderPanel.tsx',
   'app/src/components/admin/AlignmentPanel.tsx',
   'app/src/components/collection/erc404/StakingPanel.tsx',
-  // noesis-215 Step 4: an existing surface the noesis-212 audit missed, in a directory it DID
+  // An existing surface the original audit missed, in a directory it DID
   // convert (ERC-1155 creator withdraw / claimVaultFees / claimAllFees, real ETH out under the
   // 1/19/80 split — ERC1155Instance.sol:550+). Not the documented "brand-new surface" residual; the
   // first pass's census was not exhaustive. Placed in UNCONVERTED rather than converted in this item
   // (budget raised below) — see the PR body for the re-walk this item did before adding it.
   'app/src/components/collection/erc1155/CreatorAdminPanel.tsx',
-  // noesis-215 census re-walk (`git grep` for `value:`/`smartTransferETH` across
+  // Census re-walk (`git grep` for `value:`/`smartTransferETH` across
   // app/src/components, see the PR body for the count): collection creation pays an optional
   // creation fee (`useCreateSubmit.ts` → factory `createInstance(..., { value: call.value })`) and
   // on success the wizard simply redirects to the new collection page — no confirmation text at
@@ -126,7 +126,7 @@ export const CONVERTED_ACTIONS: MoneyAction[] = [
  * Does the source of a converted file's ONE money action carry a receipt? `block` is the substring
  * around that action's confirmation — from a `<TxButton … testId="X" … />` element, or from a
  * hand-rolled `data-testid="X-success"` element, up through its close. Content-based, not
- * syntax-based (noesis-215 Step 2): the noesis-212 regex matched only the bare-string-literal
+ * syntax-based: the original regex matched only the bare-string-literal
  * ATTRIBUTE form (`successLabel="…"`) and missed the identical defect spelled
  * `successLabel={'…'}` — braces around the same literal — which is exactly the evasion the first
  * pass's own rewrite produced on ten labels while reporting it as a syntactic no-op.

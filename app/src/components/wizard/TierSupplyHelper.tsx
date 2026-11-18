@@ -1,5 +1,5 @@
 /**
- * TierSupplyHelper — the derived tier geometry shown beside the ladder form (noesis-133/141/160).
+ * TierSupplyHelper — the derived tier geometry shown beside the ladder form.
  *
  * The creator supplies a LADDER (denomination, how many, art prefix); the factory derives every id
  * range from it and seals both the instance's economic ladder and the resolver's art table from the

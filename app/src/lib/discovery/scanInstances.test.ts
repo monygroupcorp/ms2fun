@@ -65,7 +65,7 @@ describe('scanAllInstances', () => {
   })
 
   it('subtracts a revoked instance from the listing', async () => {
-    // The chain honours revocation; before noesis-336 the app never asked, so the revoked
+    // The chain honours revocation; the app once never asked, so the revoked
     // collection stayed browsable while shedding the creator attribution that identified it.
     const { client } = clientWith(
       [

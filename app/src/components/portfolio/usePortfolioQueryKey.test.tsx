@@ -1,5 +1,5 @@
 /**
- * usePortfolio — query key regression (noesis-337 / noesis-368).
+ * usePortfolio — query key regression.
  *
  * The aggregator query must key on the CONTENTS of the instance/vault sets, not their lengths.
  * A same-length swap (all-new addresses, same count) has to be indistinguishable from a no-op to

@@ -1,4 +1,4 @@
-/* TierPanel (noesis-171) — layout only; field/input/button chrome comes from BondingSurface.module.css
+/* TierPanel — layout only; field/input/button chrome comes from BondingSurface.module.css
    (imported as `bonding` in the component), same split StakingPanel uses. */
 
 .formSection {
@@ -26,7 +26,7 @@
   width: 100%;
 }
 
-/* Mint-up sacrifice preview (noesis-356) — the pieces that leave, as art. Deliberately the same tile
+/* Mint-up sacrifice preview — the pieces that leave, as art. Deliberately the same tile
    language as the portfolio's keep-selection grid (Erc404Portfolio.module.css): a holder recognises
    their own pieces there, and this is the same act read backwards. Presentational, never a control —
    the set is decided by the tier's weight and the wallet's own order, not by clicking. */

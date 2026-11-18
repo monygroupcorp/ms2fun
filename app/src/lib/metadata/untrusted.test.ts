@@ -67,7 +67,7 @@ describe('sanitizeImageUri', () => {
     expect(sanitizeImageUri(null)).toBe('')
   })
 
-  it('treats a remote http(s) pointer per the ALLOW_REMOTE_HTTP_URIS ruling', () => {
+  it('treats a remote http(s) pointer per the ALLOW_REMOTE_HTTP_URIS setting', () => {
     const remote = 'https://tracker.example/pixel.png'
     expect(sanitizeImageUri(remote)).toBe(ALLOW_REMOTE_HTTP_URIS ? remote : '')
     expect(sanitizeImageUri('http://tracker.example/p.png')).toBe(

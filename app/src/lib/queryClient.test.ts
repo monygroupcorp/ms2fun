@@ -1,5 +1,5 @@
 /**
- * queryClient (noesis-371) — the persistence invariant, asserted rather than commented.
+ * queryClient — the persistence invariant, asserted rather than commented.
  *
  * A query is only persisted/restored while it is still in cache, so `gcTime` must be at least the
  * persistence maxAge (ADR-0010): a shorter one evicts entries before they can rehydrate, and the

@@ -7,7 +7,7 @@
  * broken, or the collection does. Neither is true — the limit is per-browser and temporary. So it
  * is stated once, at app level, in plain language, with roughly how long it lasts.
  *
- * Two tiers, per the product ruling:
+ * Two tiers, as a product decision:
  *
  *  - **Tier 1**, for everyone: the honest notice. Non-blocking, dismissible, and it never blanks the
  *    page — art already held in the art cache keeps rendering while this is up.
@@ -25,9 +25,8 @@
  * as blank, so it gets the same door rather than no notice.
  *
  * ── Why this still exists once the art service is deployed ────────────────────────────────────
- * The goal's clause asks for this notice to be REMOVED, or for a seat to write down why a visitor is
- * still being asked to fix our infrastructure. This is that writing-down, and the answer has two
- * parts.
+ * Either this notice should be REMOVED, or there should be a written reason why a visitor is still
+ * being asked to fix our infrastructure. This is that reason, and it has two parts.
  *
  * It stays because it is the honest last-resort signal, not the mitigation. It only ever appears
  * when the roster has already failed; with the art service in front of that roster for BOTH art and

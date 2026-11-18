@@ -214,7 +214,7 @@ describe('allowlistConfig', () => {
     })
   })
 
-  // ── Denomination (noesis-266) ───────────────────────────────────────────────
+  // ── Denomination ───────────────────────────────────────────────
   //
   // `MerkleGatingModule.canMint` checks `claimed + amount > maxQty` against whatever the calling instance
   // forwards. ERC-1155 forwards an NFT count; ERC-404 forwards COIN at wei scale — `buyBonding` forwards
