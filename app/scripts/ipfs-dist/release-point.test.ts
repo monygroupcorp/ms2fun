@@ -2,7 +2,7 @@
  * `release:point`: the contenthash it hands the forge script, and what it refuses before forge runs.
  */
 import { expect, test } from 'vitest'
-import { contenthashFor, forgeArgs, usageReasons } from './release-point'
+import { contenthashFor, forgeArgs, recordReasons, usageReasons } from './release-point'
 
 // A record both names carried on mainnet, read back with `contenthash(tokenId)`, and its CID.
 const LIVE_CID = 'bafybeibdt5gqchyxc5qippwdoiz7k2e3y6rwrynvgz7goyydkomutxyns4'
@@ -48,5 +48,19 @@ test('asks for one CID, a mainnet RPC and a keystore account', () => {
   expect(usageReasons([LIVE_CID], {})).toEqual([
     'MAINNET_RPC_URL is not set',
     'NOESIS_NAMES_ACCOUNT is not set',
+  ])
+})
+
+test('after a broadcast, passes only when both names carry the new record', () => {
+  const both = {
+    'noesis.gwei': LIVE_RECORD,
+    'noesis.wei': LIVE_RECORD.toUpperCase().replace('0X', '0x'),
+  }
+  expect(recordReasons(both, LIVE_RECORD)).toEqual([])
+  expect(recordReasons({ ...both, 'noesis.wei': '0x' }, LIVE_RECORD)).toEqual([
+    `noesis.wei carries 0x, not ${LIVE_RECORD}`,
+  ])
+  expect(recordReasons({ 'noesis.wei': LIVE_RECORD }, LIVE_RECORD)).toEqual([
+    `noesis.gwei carries nothing readable, not ${LIVE_RECORD}`,
   ])
 })

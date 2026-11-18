@@ -59,8 +59,8 @@ records. `setContenthash` accepts only the name's owner (no operator or delegate
 keystore account must be the account that owns the names, imported once with
 `cast wallet import <name> --interactive`. The command runs `contracts/script/PointNoesisNames.s.sol`,
 which refuses a CID that is not CIDv1 dag-pb, a signer that does not own both names and an expired
-name, all before anything is sent. It then reads both records back and fails unless they equal the
-new contenthash. It is two transactions rather than one: a single transaction would need the owner
+name, all before anything is sent. After `--broadcast` it reads both records from the chain and
+fails unless they equal the new contenthash. It is two transactions rather than one: a single transaction would need the owner
 account delegated to a pointing contract with EIP-7702, replacing any delegation its wallet already
 uses, while two plain calls need nothing deployed.
 

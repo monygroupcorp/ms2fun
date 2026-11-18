@@ -14,7 +14,7 @@ interface INameNFT {
 /**
  * @title PointNoesisNames
  * @notice Points noesis.gwei and noesis.wei at one IPFS release by setting the same contenthash on
- *         both names, then reads both records back and fails unless they equal it.
+ *         both names, and fails unless both records equal it afterwards.
  *
  * @dev What this rests on, as measured on Ethereum mainnet at block 26444734 against the verified
  *      source of both contracts (Sourcify, exact match, contract `NameNFT`):
@@ -31,7 +31,9 @@ interface INameNFT {
  *
  *      Two transactions, one per name, sent by one `forge script` run. Every refusal below is
  *      checked before the first one is sent, so a run either sends both or neither (barring a
- *      transaction that fails on chain after the simulation passed).
+ *      transaction that fails on chain after the simulation passed). The read-back at the end runs
+ *      in forge's local execution, before anything is sent; `pnpm release:point --broadcast` reads
+ *      both records again from the chain once forge has the receipts.
  *
  *      `hash` is the ENSIP-7 contenthash of a CIDv1 dag-pb sha2-256 CID: `0xe301` (the varint of
  *      the ipfs namespace, 0xe3) followed by the binary CID `0x01 0x70 0x12 0x20 <32-byte digest>`.
@@ -53,9 +55,15 @@ contract PointNoesisNames is Script {
     error NameExpired(string name, uint256 expiresAt);
     error RecordMismatch(string name, bytes record, bytes expected);
 
-    /// @notice Set `hash` on both names, signed by the account the script runs as (`--account`).
+    /// @notice Set `hash` on both names, signed by the one wallet forge unlocked (`--account`).
+    /// @dev `msg.sender` here is forge's default sender, not the `--account` address; the account
+    ///      is the broadcaster a bare `vm.startBroadcast()` picks, so it is read from there. With no
+    ///      wallet unlocked that is the default sender too, and the ownership check refuses it.
     function run(bytes calldata hash) external {
-        point(msg.sender, hash);
+        vm.startBroadcast();
+        (, address signer,) = vm.readCallers();
+        vm.stopBroadcast();
+        point(signer, hash);
     }
 
     /// @notice Set `hash` on both names, broadcast as `signer`.

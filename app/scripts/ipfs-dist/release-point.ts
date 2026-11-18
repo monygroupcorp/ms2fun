@@ -4,8 +4,8 @@
  * Both names are NameNFT tokens on Ethereum mainnet whose contenthash only the names' owner can set,
  * so this runs `contracts/script/PointNoesisNames.s.sol` signed by a Foundry keystore account that
  * owns both: one command, one password prompt, one transaction per name. The script refuses a signer
- * that does not own both names or a name that has expired, and after sending reads both records
- * back and fails unless they equal the new contenthash.
+ * that does not own both names or a name that has expired. After a broadcast this reads both records
+ * from the chain and fails unless they equal the new contenthash.
  *
  * Without `--broadcast` forge only simulates the run against mainnet state and signs nothing; run
  * that first. The shell supplies:
@@ -26,6 +26,20 @@ const SHA2_256 = 0x12
 const IPFS_NAMESPACE = '0xe301'
 
 const CONTRACTS_DIR = resolve(import.meta.dirname, '..', '..', '..', 'contracts')
+
+/** Each name's NameNFT contract and token id, as PointNoesisNames.s.sol states them. */
+export const NAMES = [
+  {
+    name: 'noesis.gwei',
+    contract: '0x9D51D507BC7264d4fE8Ad1cf7Fe191933A0a81d6',
+    tokenId: '0x13f9141e9f9a586ce7d30fd429baa7462c85f6d8715610ff9259843ccb5f358a',
+  },
+  {
+    name: 'noesis.wei',
+    contract: '0x0000000000696760E15f265e828DB644A0c242EB',
+    tokenId: '0x2cf2bc9ace67c3ca4a9abed6121b9c7dcb19cfc9df7a911e45283ffb71e27b27',
+  },
+]
 
 /**
  * The ENSIP-7 contenthash for `cid`: the `ipfs` namespace followed by the binary CID. Throws unless
@@ -73,6 +87,29 @@ export function forgeArgs(options: PointOptions): string[] {
   return args
 }
 
+/** Why the records read from the chain are not `contenthash`; empty when both names carry it. */
+export function recordReasons(records: Record<string, string>, contenthash: string): string[] {
+  return NAMES.flatMap(({ name }) =>
+    records[name]?.toLowerCase() === contenthash.toLowerCase()
+      ? []
+      : [`${name} carries ${records[name] ?? 'nothing readable'}, not ${contenthash}`],
+  )
+}
+
+/** Each name's contenthash as the chain at `rpcUrl` returns it now. */
+function readRecords(rpcUrl: string): Record<string, string> {
+  const records: Record<string, string> = {}
+  for (const { name, contract, tokenId } of NAMES) {
+    const result = spawnSync(
+      'cast',
+      ['call', contract, 'contenthash(uint256)(bytes)', tokenId, '--rpc-url', rpcUrl],
+      { encoding: 'utf8' },
+    )
+    if (result.status === 0) records[name] = result.stdout.trim()
+  }
+  return records
+}
+
 /** What is wrong with the command line and environment; empty when the run can start. */
 export function usageReasons(argv: string[], env: NodeJS.ProcessEnv): string[] {
   const reasons: string[] = []
@@ -115,11 +152,17 @@ function main(): void {
     console.error('point: FAILED — forge script exited', result.status)
     process.exit(1)
   }
-  console.log(
-    broadcast
-      ? `point: ok — both names carry ${cid}; next: pnpm release:verify ${cid}`
-      : 'point: simulated only, nothing was signed; run again with --broadcast to send',
-  )
+  if (!broadcast) {
+    console.log('point: simulated only, nothing was signed; run again with --broadcast to send')
+    return
+  }
+  const mismatches = recordReasons(readRecords(process.env.MAINNET_RPC_URL as string), contenthash)
+  if (mismatches.length > 0) {
+    console.error('point: FAILED — the chain does not carry the new record')
+    for (const reason of mismatches) console.error(`  - ${reason}`)
+    process.exit(1)
+  }
+  console.log(`point: ok — both names carry ${cid} on chain; next: pnpm release:verify ${cid}`)
 }
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === resolve(import.meta.filename)) {
