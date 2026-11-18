@@ -83,7 +83,11 @@ export async function pollForCid(origin: string, cid: string, options: PollOptio
   let seen: string | null = null
   for (;;) {
     try {
-      const response = await fetchImpl(origin, { method: 'HEAD', cache: 'no-store' })
+      const response = await fetchImpl(origin, {
+        method: 'HEAD',
+        cache: 'no-store',
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      })
       seen = response.headers.get('x-ipfs-cid')
     } catch {
       seen = null
@@ -93,8 +97,14 @@ export async function pollForCid(origin: string, cid: string, options: PollOptio
   }
 }
 
+/** How long one gateway request may take before it counts as a miss. */
+const REQUEST_TIMEOUT_MS = 60_000
+
 async function getText(url: string, fetchImpl: Fetch): Promise<string> {
-  const response = await fetchImpl(url, { cache: 'no-store' })
+  const response = await fetchImpl(url, {
+    cache: 'no-store',
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  })
   if (!response.ok) throw new Error(`${url} answered ${response.status}`)
   return response.text()
 }

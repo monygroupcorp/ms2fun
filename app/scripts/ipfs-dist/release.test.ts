@@ -114,5 +114,6 @@ test('existing pins are listed across every page', async () => {
 
   expect(await listPinnedReleases('jwt', fetchImpl)).toEqual(['noesis_v1', 'noesis_v7'])
   expect(urls).toHaveLength(2)
-  expect(urls[1]).toContain('pageToken=p2')
+  expect(urls[0]).toBe('https://api.pinata.cloud/v3/files/public')
+  expect(urls[1]).toBe('https://api.pinata.cloud/v3/files/public?pageToken=p2')
 })

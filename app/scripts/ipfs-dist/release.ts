@@ -94,14 +94,17 @@ export function nextReleaseNumber(names: Iterable<string>): number {
 
 type Fetch = typeof fetch
 
-/** Names of every public Pinata file whose name starts `noesis_v`, across all pages. */
+/**
+ * Names of every public Pinata file, across all pages; the caller picks out `noesis_v<N>`. The
+ * listing is not filtered by name on the server: Pinata does not document whether that filter is
+ * exact or a prefix, and an exact match would return nothing and let a fresh checkout reuse a number.
+ * No `limit` either, for the same reason — the page size is Pinata's default, so it cannot be refused.
+ */
 export async function listPinnedReleases(jwt: string, fetchImpl: Fetch = fetch): Promise<string[]> {
   const names: string[] = []
   let pageToken: string | undefined
   do {
     const url = new URL(PINATA_LIST_URL)
-    url.searchParams.set('name', 'noesis_v')
-    url.searchParams.set('limit', '1000')
     if (pageToken) url.searchParams.set('pageToken', pageToken)
     const response = await fetchImpl(url, { headers: { Authorization: `Bearer ${jwt}` } })
     if (!response.ok) {
