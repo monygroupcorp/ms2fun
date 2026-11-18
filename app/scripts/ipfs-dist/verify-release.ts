@@ -23,8 +23,17 @@ import { RELEASE_CHAIN_ID } from './release'
 /** The names a Sepolia release is pointed at, as their gateways serve them. */
 export const RELEASE_ORIGINS = ['https://noesis.gwei.domains/', 'https://noesis.wei.domains/']
 
-/** A gateway that reads neither name's record: retrieving the CID here proves it is on IPFS. */
-export const INDEPENDENT_GATEWAY = 'https://ipfs.io/ipfs/'
+/**
+ * Gateways that read neither name's record: retrieving the CID from one proves it is on IPFS. Tried
+ * in order and the first good answer counts, because the public gateways rate-limit by address and
+ * a 429 says nothing about the CID. Filebase is left out on purpose: both names' gateways already
+ * fetch through it, so it would not be an independent look.
+ */
+export const INDEPENDENT_GATEWAYS = [
+  'https://ipfs.io/ipfs/',
+  'https://dweb.link/ipfs/',
+  'https://gateway.pinata.cloud/ipfs/',
+]
 
 type Fetch = typeof fetch
 
@@ -94,7 +103,7 @@ export interface VerifyInput {
   localIndex: string
   registry: string
   origins?: string[]
-  gateway?: string
+  gateways?: string[]
   poll?: PollOptions
   fetchImpl?: Fetch
   log?: (line: string) => void
@@ -107,7 +116,7 @@ export async function verifyRelease(input: VerifyInput): Promise<string[]> {
     localIndex,
     registry,
     origins = RELEASE_ORIGINS,
-    gateway = INDEPENDENT_GATEWAY,
+    gateways = INDEPENDENT_GATEWAYS,
     fetchImpl = fetch,
     log = () => {},
   } = input
@@ -146,19 +155,22 @@ export async function verifyRelease(input: VerifyInput): Promise<string[]> {
     }
   }
 
-  const independent = `${gateway}${cid}/`
-  try {
-    const index = await getText(independent, fetchImpl)
-    if (index !== localIndex) {
-      reasons.push(`${independent} serves an index.html that differs from the local build`)
-    } else {
-      log(`${independent} retrieves the release`)
+  const misses: string[] = []
+  for (const gateway of gateways) {
+    const independent = `${gateway}${cid}/`
+    try {
+      const index = await getText(independent, fetchImpl)
+      if (index === localIndex) {
+        log(`${independent} retrieves the release`)
+        return reasons
+      }
+      misses.push(`${independent} serves an index.html that differs from the local build`)
+    } catch (error) {
+      misses.push(`${independent}: ${error instanceof Error ? error.message : String(error)}`)
     }
-  } catch (error) {
-    reasons.push(`${independent}: ${error instanceof Error ? error.message : String(error)}`)
   }
 
-  return reasons
+  return [...reasons, ...misses]
 }
 
 const APP_DIR = resolve(import.meta.dirname, '..', '..')

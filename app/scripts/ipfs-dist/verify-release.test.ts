@@ -15,6 +15,7 @@ const SEPOLIA_BUNDLE = `const e={VITE_CHAIN_ID:\`11155111\`};const r="${REGISTRY
 
 const ORIGINS = ['https://a.example/', 'https://b.example/']
 const GATEWAY = 'https://gw.example/ipfs/'
+const BACKUP = 'https://backup.example/ipfs/'
 
 interface Site {
   cid: string | null
@@ -22,11 +23,18 @@ interface Site {
   bundle?: string
 }
 
-function network(sites: Record<string, Site>, gatewayIndex: string | null = INDEX) {
+/** What each independent gateway answers: an index.html body, or an HTTP status. */
+type Gateways = Record<string, string | number>
+
+function network(sites: Record<string, Site>, gateways: Gateways = { [GATEWAY]: INDEX }) {
   return (async (input: string | URL, init?: RequestInit) => {
     const url = String(input)
-    if (url.startsWith(GATEWAY)) {
-      return gatewayIndex === null ? new Response('', { status: 504 }) : new Response(gatewayIndex)
+    const gateway = Object.keys(gateways).find((g) => url.startsWith(g))
+    if (gateway) {
+      const answer = gateways[gateway]
+      return typeof answer === 'number'
+        ? new Response('', { status: answer })
+        : new Response(answer)
     }
     const origin = ORIGINS.find((o) => url.startsWith(o))
     const site = origin ? sites[origin] : undefined
@@ -42,15 +50,15 @@ function network(sites: Record<string, Site>, gatewayIndex: string | null = INDE
 const live = (overrides: Partial<Site> = {}): Site => ({ cid: CID, ...overrides })
 const fast = { intervalMs: 1, timeoutMs: 0, sleep: async () => {} }
 
-function verify(sites: Record<string, Site>, gatewayIndex?: string | null) {
+function verify(sites: Record<string, Site>, gateways?: Gateways) {
   return verifyRelease({
     cid: CID,
     localIndex: INDEX,
     registry: REGISTRY,
     origins: ORIGINS,
-    gateway: GATEWAY,
+    gateways: [GATEWAY, BACKUP],
     poll: fast,
-    fetchImpl: network(sites, gatewayIndex),
+    fetchImpl: network(sites, gateways),
   })
 }
 
@@ -112,7 +120,21 @@ test('a served bundle that is not Sepolia fails', async () => {
   expect(reasons).toEqual([`https://b.example/: the bundle does not bake VITE_CHAIN_ID 11155111`])
 })
 
-test('a CID the independent gateway cannot retrieve fails', async () => {
-  const reasons = await verify({ [ORIGINS[0]]: live(), [ORIGINS[1]]: live() }, null)
-  expect(reasons).toEqual([`${GATEWAY}${CID}/: ${GATEWAY}${CID}/ answered 504`])
+test('a rate-limited gateway falls through to the next one', async () => {
+  const reasons = await verify(
+    { [ORIGINS[0]]: live(), [ORIGINS[1]]: live() },
+    { [GATEWAY]: 429, [BACKUP]: INDEX },
+  )
+  expect(reasons).toEqual([])
+})
+
+test('a CID no independent gateway retrieves fails, naming every gateway', async () => {
+  const reasons = await verify(
+    { [ORIGINS[0]]: live(), [ORIGINS[1]]: live() },
+    { [GATEWAY]: 504, [BACKUP]: '<!doctype html>other' },
+  )
+  expect(reasons).toEqual([
+    `${GATEWAY}${CID}/: ${GATEWAY}${CID}/ answered 504`,
+    `${BACKUP}${CID}/ serves an index.html that differs from the local build`,
+  ])
 })
