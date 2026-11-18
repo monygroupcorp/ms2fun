@@ -29,7 +29,7 @@ contract ToggleRegistry {
         info.factory = instFactory[inst_];
     }
 
-    // noesis-126: the SPLIT route now re-checks the vault's alignment target. Default true so the pre-existing
+    // The SPLIT route now re-checks the vault's alignment target. Default true so the pre-existing
     // SPLIT tests are unaffected; a test flips a specific vault to false to drive the revocation redirect.
     bool public defaultVaultRegistered = true;
     mapping(address => bool) internal _vaultRegOverride;
@@ -432,7 +432,7 @@ contract MetadataOverlayModuleTest is Test {
         assertEq(artist.balance, artistBefore + 80);
     }
 
-    /// noesis-126 (site 6) / noesis-435: if the instance's alignment target is de-curated, the SPLIT
+    /// If the instance's alignment target is de-curated, the SPLIT
     /// community cut must be returned to the ARTIST — NOT fed to the de-curated vault and NOT taken by the
     /// protocol. De-curation may destroy value; it may not transfer value to the protocol.
     function test_unlock_splitDecuratedTarget_ReturnsVaultCutToArtist() public {
@@ -461,7 +461,7 @@ contract MetadataOverlayModuleTest is Test {
         assertEq(artist.balance, artistBefore + 99, "artist got their 80 plus the returned community cut");
     }
 
-    /// noesis-126 (site 6) / noesis-435: the fold is now unconditional on de-curation — a zero treasury
+    /// The fold is now unconditional on de-curation — a zero treasury
     /// changes nothing about where the community cut goes, and the wei is never stranded.
     function test_unlock_splitDecuratedTarget_ZeroTreasury_FoldsToArtist() public {
         MockSplitVault vault = new MockSplitVault();
@@ -656,7 +656,7 @@ contract MetadataOverlayModuleTest is Test {
         assertEq(address(ov).balance, 0);
     }
 
-    // ── noesis-392: a registered vault that reverts must not brick the unlock ────
+    // ── A registered vault that reverts must not brick the unlock ────────────────
     // The SPLIT tithe leg feeds a registered vault via receiveContribution. A registered, healthy vault
     // can still revert — on a sub-minimum contribution, or with a full conversion-participant cap. The
     // guard isolates that revert and folds the tithe into the artist payout, so the holder's unlock always
@@ -938,12 +938,12 @@ contract MetadataOverlayModuleTest is Test {
         assertFalse(ov.commissionVisible(address(inst), 1));
     }
 
-    // ── noesis-104 §4.6: overlay PAY revenue conserves the 1/19/80 cut ──────────
+    // ── Overlay PAY revenue conserves the 1/19/80 cut ───────────────────────────
     // For the cut-subject overlay PAY paths (Payout.SPLIT), every wei of the payment must leave the
     // module in exactly three legs — protocol 1% / target(vault) 19% / creator 80% (remainder-safe) —
     // that sum to the input, across fuzzed amounts. The module holds no custody, so it must strand
     // nothing. NOTE: the Payout.ARTIST path (100%→artist, P3 O1 — an OPEN product decision) is
-    // deliberately NOT exercised here; its conservation is gated pending that ruling.
+    // deliberately NOT exercised here; its conservation is gated pending that decision.
 
     /// @dev Wire a real split-receiving vault (nonzero) alongside the nonzero treasury from setUp, so
     ///      no leg folds — the three cuts land at three distinct sinks and must conserve exactly.
@@ -1015,7 +1015,7 @@ contract MetadataOverlayModuleTest is Test {
         assertEq(address(ov).balance, 0, "module holds no custody");
     }
 
-    // ── noesis-273: the buyer signs for the art, not only for the price ─────────────────────────
+    // ── The buyer signs for the art, not only for the price ─────────────────────────────────────
 
     /// @dev The F-G1 sequence. The artist publishes art at a price, the buyer reads it and sends, and
     ///      the artist replaces the URI at the SAME price before the buyer's transaction is mined. The
@@ -1093,7 +1093,7 @@ contract MetadataOverlayModuleTest is Test {
         );
     }
 
-    // ── noesis-274: the artist's own misconfiguration is not the buyer's problem ────────────────
+    // ── The artist's own misconfiguration is not the buyer's problem ────────────────────────────
 
     /// @dev An instance owner whose `receive()` reverts. The ARTIST payout leg used to be a plain send,
     ///      so the holder's unlock reverted in full and `paid` stayed false — every PAY commission and

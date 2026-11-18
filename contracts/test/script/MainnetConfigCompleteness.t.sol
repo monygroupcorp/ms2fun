@@ -16,7 +16,7 @@ import { SepoliaSalts } from "../../script/SepoliaSalts.sol";
 ///         named no Aave stataToken at all, so a mainnet deploy would have shipped with no endowment
 ///         family, no revert, and no line in the output saying so, while the app carries endowment
 ///         surfaces and `DeployAnvil` — the mainnet-fork REHEARSAL — wired the family from its own
-///         separate copy of the same addresses. noesis-404 found exactly this omission on Sepolia
+///         separate copy of the same addresses. This exact omission was found on Sepolia
 ///         and fixed it there; nobody checked mainnet, because nothing read mainnet's config back.
 ///
 ///         So these assertions are deliberately about the gates and not about the addresses: an
@@ -188,7 +188,7 @@ contract MainnetConfigCompletenessTest is Test {
         assertEq(cfg.saltComponentReg, SepoliaSalts.COMPONENT_REG, "component registry salt");
     }
 
-    /// @dev The perpetual swap tithe's RATE. Ruled 2026-11-10 (rth): mainnet launches on 1% fees,
+    /// @dev The perpetual swap tithe's RATE. Decided by the owner on 2026-11-10: mainnet launches on 1% fees,
     ///      live from the first graduation, not deferred to a later `EnableAlignmentTithe`
     ///      switch-on. The rate is IMMUTABLE per hook, baked into the hook's init code at graduation,
     ///      so the number this config holds on the day is the number every pool graduating from

@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
 import { ERC404BondingInstance } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
-// noesis-148: `withdrawDust`'s body moved to ERC404BondingOps behind a discard-returndata trampoline,
+// `withdrawDust`'s body moved to ERC404BondingOps behind a discard-returndata trampoline,
 // so its `NothingToWithdraw` guard reaches the caller as the generic `WithdrawDustFailed()`.
 import { WithdrawDustFailed } from "../../../src/factories/erc404/ERC404BondingStorage.sol";
 import { ERC404BondingOps } from "../../../src/factories/erc404/ERC404BondingOps.sol";
@@ -43,7 +43,7 @@ contract MockDeployer is ILiquidityDeployerModule {
 
 /**
  * @title ERC404StakingReserveOverlockTest
- * @notice noesis-127 — F6 stream over-lock. When a fee stream outlives its stakers, the ETH the stream
+ * @notice F6 stream over-lock. When a fee stream outlives its stakers, the ETH the stream
  *         schedules during the zero-stake gap can never accrue to anyone AND was counted in
  *         `stakingReserve`, which `withdrawDust` refuses to sweep — permanently locked ETH. The fix
  *         tracks that un-accruable "stream leak" in the module and releases it from `stakingReserve`
@@ -224,7 +224,7 @@ contract ERC404StakingReserveOverlockTest is Test {
     }
 
     /// @notice Guard: while a staker is still live and the window is active, NOTHING is released. The
-    ///         genuinely-owed streamed ETH stays locked (noesis-061 F1 preserved); withdrawDust reverts
+    ///         genuinely-owed streamed ETH stays locked (F1 preserved); withdrawDust reverts
     ///         with no true surplus and the staker can still claim the full delta afterwards.
     function test_stillStaked_unaffected_noPrematureRelease() public {
         ERC404BondingInstance inst = _newInstance();

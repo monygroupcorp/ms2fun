@@ -61,7 +61,7 @@ contract UniAlignmentVaultTest is Test {
         mockAlignmentRegistry = new MockAlignmentRegistry();
         mockAlignmentRegistry.setTargetActive(TARGET_ID, true);
         mockAlignmentRegistry.setTokenInTarget(TARGET_ID, address(alignmentToken), true);
-        // Canonical-reference wiring (noesis-037): the floor now reads the DAO-pinned ReferencePool and
+        // Canonical-reference wiring: the floor now reads the DAO-pinned ReferencePool and
         // prices it via the pinned-pool TWAP path — mandatory (no fail-open), so convert tests need it.
         mockAlignmentRegistry.setReferencePool(
             TARGET_ID,
@@ -882,7 +882,7 @@ contract UniAlignmentVaultTest is Test {
         assertEq(unclaimed, 0, "Unclaimed should be 0 after full claim");
     }
 
-    /// @dev noesis-115 finding: calculateClaimableAmount must net the reward-debt watermark, matching
+    /// @dev Finding: calculateClaimableAmount must net the reward-debt watermark, matching
     ///      getUnclaimedFees and the claimFees write path. Previously it returned lifetime-gross, so a
     ///      benefactor who had already claimed showed an inflated "claimable" to integrators.
     function test_CalculateClaimableAmount_NetsPastClaims_MatchesUnclaimed() public {
@@ -1238,7 +1238,7 @@ contract UniAlignmentVaultTest is Test {
         assertEq(vault.accumulatedProtocolFees(), 0, "no protocol cut on direct accrual");
     }
 
-    // ── 80/19/1 fee split + per-target sink (noesis-051) ──────────────────────
+    // ── 80/19/1 fee split + per-target sink ───────────────────────────────────
 
     function test_FeeSplit_80_19_1() public {
         // Establish a sole shareholder so the 80% leg is attributable.
@@ -1510,7 +1510,7 @@ contract UniAlignmentVaultTest is Test {
         assertGt(vault.totalShares(), 0, "honest conversion should succeed");
     }
 
-    /// @dev noesis-037: the floor no longer fails open. With the DAO-pinned ReferencePool unset, a
+    /// @dev The floor no longer fails open. With the DAO-pinned ReferencePool unset, a
     ///      convert reverts {NoReferencePool} rather than swapping unguarded — a permissionless caller
     ///      cannot disable the anti-sandwich floor by clearing/racing the reference.
     function test_convertRevertsWhenNoReferencePool() public {
@@ -1530,7 +1530,7 @@ contract UniAlignmentVaultTest is Test {
         vault.convertAndAddLiquidity(1);
     }
 
-    /// @dev noesis-037 self-sandwich sim: the attacker degrades the thin VENUE pool (modeled by a
+    /// @dev Self-sandwich sim: the attacker degrades the thin VENUE pool (modeled by a
     ///      degraded router out-ratio) and calls convert with minOut=1, but the floor is priced from
     ///      the UNMOVED canonical ReferencePool TWAP — so the swap cannot clear it and reverts. The
     ///      attacker cannot extract beyond maxPriceDeviationBps of the canonical price.

@@ -76,7 +76,7 @@ contract VaultUniGraduationForkTest is ForkTestBase {
         MockAlignmentRegistry registry = new MockAlignmentRegistry();
         registry.setTargetActive(TARGET_ID, true);
         registry.setTokenInTarget(TARGET_ID, alignmentToken, true);
-        // Canonical reference pool (noesis-035/037): the vault's swap floor reads the pinned
+        // Canonical reference pool: the vault's swap floor reads the pinned
         // ReferencePool for (target, token) and reverts NoReferencePool when it is unset, so a fork run
         // needs it wired to a real pool. The WETH/USDC V3 0.05% pool is the deepest mainnet reference
         // for this alignment token and carries the observation history the TWAP path requires.
@@ -140,7 +140,7 @@ contract VaultUniGraduationForkTest is ForkTestBase {
         uint256 lpUnits = vault.totalLPUnits();
         assertGt(lpUnits, 0, "vault must book LP units");
         assertGt(vault.benefactorShares(alice), 0, "contributor earns shares");
-        // Post-noesis-034 the dragnet clears down to at most a rounding residual, not exactly 0:
+        // Since the swap-proportion fix the dragnet clears down to at most a rounding residual, not exactly 0:
         // ETH offered to the position but not pulled by modifyLiquidity is re-credited to
         // totalPendingETH (never stranded). On convert #1 the stale-tick guard swaps ~50%, so the
         // residual is tiny relative to the 5 ETH deployed.
@@ -166,7 +166,7 @@ contract VaultUniGraduationForkTest is ForkTestBase {
         emit log_named_uint("Live V4 position liquidity", posLiquidity);
     }
 
-    /// @notice REGRESSION (noesis-034) — THE TWO-CONVERT TEST THAT NEVER EXISTED.
+    /// @notice REGRESSION (swap proportion) — THE TWO-CONVERT TEST THAT NEVER EXISTED.
     /// @dev The swap-proportion defect does NOT fire on convert #1: stale lastTickLower/Upper == 0
     ///      short-circuits calculateSwapProportion to 5e17. It fires on convert #2+, once #1 stamps
     ///      nonzero full-range ticks and the real _computeProportionFromSqrtPrice path runs against the

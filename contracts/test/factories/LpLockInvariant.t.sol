@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-// Graduation-LP permanence invariant (noesis-069 / finding 2, Medium).
+// Graduation-LP permanence invariant (audit finding, Medium severity).
 //
 // The "permanent liquidity depth" promise across the ERC404 graduation venues was proven only
 // by absence-of-removal-code — no test pinned "after graduation on venue X, no actor can remove the

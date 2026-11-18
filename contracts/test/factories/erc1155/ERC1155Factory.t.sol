@@ -98,7 +98,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
     {
         return ERC1155Factory.CreateParams({
             name: _name,
-            symbol: "", // optional collection symbol (noesis-084)
+            symbol: "", // optional collection symbol
             metadataURI: "ipfs://test",
             creator: _creator,
             vault: _vault,
@@ -225,7 +225,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
             _nextSalt(),
             ERC1155Factory.CreateParams({
                 name: "Test Collection",
-                symbol: "", // optional collection symbol (noesis-084)
+                symbol: "", // optional collection symbol
                 metadataURI: "ipfs://test",
                 creator: creator,
                 vault: address(vault),
@@ -574,7 +574,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         assertEq(creator.balance - creatorBefore, expectedCreator, "creator cut should be ~80%");
     }
 
-    /// noesis-113 Part 2 / noesis-435: an already-created instance whose alignment target is revoked AFTER
+    /// An already-created instance whose alignment target is revoked AFTER
     /// bind must NOT feed the 19% tithe to the de-curated vault at withdraw. It is returned to the CREATOR
     /// and the protocol treasury balance is unchanged beyond its own 1% — de-curation may destroy value,
     /// it may not transfer value to the protocol. `VaultCutReturnedToCreator` is emitted and — critically —
@@ -626,7 +626,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         assertEq(instanceContract.pendingVaultCut(), 0, "the return is not the pending-retry lane");
     }
 
-    /// noesis-269/noesis-314: the two returns are distinguishable in the log. Drives BOTH branches — a cut
+    /// The two returns are distinguishable in the log. Drives BOTH branches — a cut
     /// returned at withdraw as it is earned, and a stashed cut returned on `retryVaultContribution` — and
     /// asserts each path emits its own signal and only its own. Same money, same destination, but one is
     /// new revenue and the other is a re-route of revenue already reported; a tithe report reading a
@@ -696,7 +696,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         inst.mint{ value: 1 ether }(1, 1, bytes(""), bytes(""), 0);
     }
 
-    /// noesis-126/noesis-435: a vault cut STASHED at withdraw (the vault reverted) while the target was live
+    /// A vault cut STASHED at withdraw (the vault reverted) while the target was live
     /// must NOT be force-fed to the vault on `retryVaultContribution` once the target has since been revoked
     /// — it is returned to the CREATOR, mirroring the `withdraw` primary path, and the treasury balance is
     /// unchanged. The stashed cut is the same money as a fresh one and must not survive as a treasury path.
@@ -1136,7 +1136,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
             _nextSalt(),
             ERC1155Factory.CreateParams({
                 name: "GatedProject",
-                symbol: "", // optional collection symbol (noesis-084)
+                symbol: "", // optional collection symbol
                 metadataURI: "ipfs://Qm",
                 creator: artist,
                 vault: address(vault),
@@ -1236,7 +1236,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
             _nextSalt(),
             ERC1155Factory.CreateParams({
                 name: "TestProject",
-                symbol: "", // optional collection symbol (noesis-084)
+                symbol: "", // optional collection symbol
                 metadataURI: "ipfs://Qm",
                 creator: artist,
                 vault: address(vault),
@@ -1259,7 +1259,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
             _nextSalt(),
             ERC1155Factory.CreateParams({
                 name: "GatedProject",
-                symbol: "", // optional collection symbol (noesis-084)
+                symbol: "", // optional collection symbol
                 metadataURI: "ipfs://Qm",
                 creator: artist,
                 vault: address(vault),
@@ -1317,7 +1317,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
             _nextSalt(),
             ERC1155Factory.CreateParams({
                 name: "Test",
-                symbol: "", // optional collection symbol (noesis-084)
+                symbol: "", // optional collection symbol
                 metadataURI: "ipfs://test",
                 creator: creator,
                 vault: address(vault),
@@ -1395,7 +1395,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
             _nextSalt(),
             ERC1155Factory.CreateParams({
                 name: string(abi.encodePacked("Merkle", vm.toString(_saltCounter))),
-                symbol: "", // optional collection symbol (noesis-084)
+                symbol: "", // optional collection symbol
                 metadataURI: "ipfs://m",
                 creator: creator,
                 vault: address(vault),
@@ -1406,8 +1406,8 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
                 freeMint: FreeMintParams({ allocation: 0, scope: scope })
             })
         );
-        // Edition 1: unlimited, fixed price 0.01 ETH, open immediately. Free-mint is per edition now
-        // (noesis-135) — thread the requested allocation into this edition (unlimited supply, so any
+        // Edition 1: unlimited, fixed price 0.01 ETH, open immediately. Free-mint is per edition
+        // — thread the requested allocation into this edition (unlimited supply, so any
         // allocation is permitted).
         vm.prank(creator);
         ERC1155Instance(payable(instance))
@@ -1490,7 +1490,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
     }
 
     // ============================================================
-    // noesis-038 — tag-scoped approval (§3.1)
+    // Tag-scoped approval (§3.1)
     // An approved-but-wrong-typed module must not pass a foreign slot.
     // ============================================================
 
@@ -1535,7 +1535,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         factory.setDynamicPricingModule(address(wrongTag));
     }
 
-    // ── noesis-072 — constructor weth zero-check (mirrors setWeth guard) ────────
+    // ── constructor weth zero-check (mirrors setWeth guard) ─────────────────────
 
     function test_constructor_revertsOnZeroWeth() public {
         // The factory clones THIS, so it must be a real implementation and not itself a clone.
@@ -1558,7 +1558,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         );
     }
 
-    // ── noesis-084 — ERC-7572 collection contractURI + optional symbol ─────────
+    // ── ERC-7572 collection contractURI + optional symbol ──────────────────────
 
     function _createWithSymbol(string memory sym) internal returns (ERC1155Instance) {
         ERC1155Factory.CreateParams memory p = _params("SymCollection", creator, address(vault));

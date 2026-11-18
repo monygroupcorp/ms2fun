@@ -46,7 +46,7 @@ contract ValidateSepoliaHarness is ValidateSepolia {
     }
 }
 
-/// @notice noesis-191. Two properties of the Sepolia validator, both of which the earlier
+/// @notice Two properties of the Sepolia validator, both of which the earlier
 ///         implementation left unenforced:
 ///
 ///           1. A check that gates `ERC404Factory.createInstance` must make the script exit

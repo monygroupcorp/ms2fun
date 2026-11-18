@@ -166,7 +166,7 @@ contract MetadataResolverRouterTest is Test {
         assertEq(router.resolve(inst, 1, address(0)), "GOOD");
     }
 
-    /// @dev noesis-107: a child that SUCCEEDS but returns ABI-undecodable bytes must also degrade, not
+    /// @dev A child that SUCCEEDS but returns ABI-undecodable bytes must also degrade, not
     ///      brick the router read. The old raw `try…returns(string){}catch{}` let that decode failure
     ///      escape the catch and revert `resolve`; `SafeResolverLib.tryResolve` guards the framing so the
     ///      malformed child is skipped to the next good child, exactly like a reverting child.

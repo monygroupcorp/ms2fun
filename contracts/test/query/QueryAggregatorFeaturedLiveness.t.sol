@@ -5,7 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { QueryAggregator } from "../../src/query/QueryAggregator.sol";
 import { IMasterRegistry } from "../../src/master/interfaces/IMasterRegistry.sol";
 
-/// @notice noesis-312 — the featured badge on a `getProjectCardsBatch` card follows registry liveness.
+/// @notice The featured badge on a `getProjectCardsBatch` card follows registry liveness.
 /// @dev `getHomePageData` is already revocation-safe: its address list comes from
 ///      `getFeaturedInstances`, which filters on expiry AND registry liveness. `getProjectCardsBatch`
 ///      hydrates caller-supplied addresses and never passes through that filter, so the badge gate in

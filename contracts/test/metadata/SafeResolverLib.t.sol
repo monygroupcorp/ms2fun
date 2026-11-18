@@ -35,7 +35,7 @@ contract RawResolver {
     }
 }
 
-/// @title SafeResolverLib unit tests (noesis-107)
+/// @title SafeResolverLib unit tests
 /// @notice Exercises the guarded staticcall+decode directly on every return shape: a valid string, a
 ///         decodable empty string (decline), a revert, an out-of-gas (gas-bomb), a wrong offset, a
 ///         length-overrun (the 2**256-1 malformed probe), a truncated payload, and empty returndata /

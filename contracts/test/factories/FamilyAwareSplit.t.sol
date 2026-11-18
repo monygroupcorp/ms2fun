@@ -17,7 +17,7 @@ contract MockMRFam {
         return false;
     }
 
-    // noesis-113: the settle path now reads `masterRegistry.isVaultRegistered(vault)` before the tithe.
+    // The settle path now reads `masterRegistry.isVaultRegistered(vault)` before the tithe.
     // These tests exercise the NORMAL (active-target) settle, so the registry answers true — unchanged path.
     function isVaultRegistered(address) external pure returns (bool) {
         return true;

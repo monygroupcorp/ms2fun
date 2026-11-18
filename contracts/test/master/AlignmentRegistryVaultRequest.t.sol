@@ -6,7 +6,7 @@ import { LibClone } from "solady/utils/LibClone.sol";
 import { AlignmentRegistryV1 } from "../../src/master/AlignmentRegistryV1.sol";
 import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
 
-/// @notice noesis-367 — `requestVault`: the permissionless ASK that pairs with owner-only vault deployment.
+/// @notice `requestVault`: the permissionless ASK that pairs with owner-only vault deployment.
 ///         The wizard no longer deploys a vault from the visitor's wallet; it emits a request the owner
 ///         fulfils by deploying a curated vault through the (owner-gated) factories.
 contract AlignmentRegistryVaultRequestTest is Test {

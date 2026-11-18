@@ -46,7 +46,7 @@ contract MockV3DepthFactory {
 }
 
 /// @title ValidatorTwapGuardTest
-/// @notice noesis-398 — the TWAP deviation reference in `UniswapVaultPriceValidator._getTwapSqrtPriceX96`
+/// @notice The TWAP deviation reference in `UniswapVaultPriceValidator._getTwapSqrtPriceX96`
 ///         must be depth-gated: a pool below the minimum reference liquidity can never be selected as the
 ///         reference the manipulable spot price is cross-checked against, so a dust / single-wei pool with
 ///         attacker-controlled `observe` cumulatives cannot drive the guard.
@@ -152,7 +152,7 @@ contract ValidatorTwapGuardTest is Test {
 
     /// @notice With no eligible pool at any tier there is no TWAP reference, so the deviation check is
     ///         skipped and the absolute [35%,65%] clamp is the sole backstop — the escalated no-reference
-    ///         design question is out of scope for this item and this pins that it is untouched. At a spot
+    ///         design question is out of scope for this suite and this pins that it is untouched. At a spot
     ///         near the top of the range the unclamped proportion is far above 65%, so the clamp fires.
     function test_noEligiblePool_clampOnlyPathUnchanged() public view {
         uint256 proportion = validator.calculateSwapProportionFromSqrtPrice(

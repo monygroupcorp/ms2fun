@@ -2,7 +2,7 @@
 
 **Read this before any mainnet deploy — every entry below, in full, before the first transaction is
 signed.** This document exists so that these four things are *read*, not rediscovered. Each was
-deliberately accepted for testnet by a dated ruling, and each has a condition that discharges it. An
+deliberately accepted for testnet by a dated decision, and each has a condition that discharges it. An
 entry is live until its discharge condition is met and the entry is struck with the date and the
 evidence; anything else on this page is still open, whatever anyone remembers.
 
@@ -10,13 +10,13 @@ Four entries, one trigger. This is not a general deferral register — a registe
 exact failure this page exists to prevent. Do not add an entry here unless a mainnet deploy is the
 thing that makes it matter.
 
-Filed 2026-09-10 (noesis-451).
+Filed 2026-09-10.
 
 ---
 
 ## 1. There is no publish pipeline that has ever published — STRUCK 2026-11-06
 
-**Struck 2026-11-06, worker seat on noesis/pre-mainnet-checklist-stale-low.** `fc0cb3de`
+**Struck 2026-11-06.** `fc0cb3de`
 (2026-09-29) rewrote `.github/workflows/deploy.yml` to redirect `ms2.fun` to the live
 distribution instead of building the retired root stack. gh run **36590068562** on that commit
 ("Deploy to GitHub Pages", `.github/workflows/deploy.yml`) completed with conclusion `success`
@@ -33,29 +33,29 @@ longer `workflow_dispatch`-only and it has now succeeded — see the strike abov
 
 **Location.** `.github/workflows/deploy.yml` (header comment and `on:` block).
 
-**Why accepted for testnet.** Ruled 2026-09-02 (rth): a publish pipeline does not block the testnet
+**Why accepted for testnet.** Decided 2026-09-02 by the owner: a publish pipeline does not block the testnet
 deploy and comes after it. Rewriting the workflow to publish `app/dist` was deliberately excluded at
 the time, because `ms2.fun` still serves the old pre-quarantine artifact wired to the old contracts,
 and swapping what the brand domain serves is itself gated on the testnet deploy landing.
 
 **Discharges when.** A pipeline has actually published, at least once, *observed* — not a workflow
-that looks correct, a run that succeeded. Owned by **noesis-449**, which is itself blocked on the
+that looks correct, a run that succeeded. Owned by the **publish-pipeline work**, which is itself blocked on the
 Sepolia testnet deploy landing.
 
-**One thing noesis-449 must also carry, recorded here because it is uncovered today and would
+**One thing the publish-pipeline work must also carry, recorded here because it is uncovered today and would
 otherwise sit unowned for a stage:** the app's emission guards run on the default build target only.
 `pnpm build` runs `app/scripts/check-precache.ts` and `app/scripts/check-share-card.ts`;
 `pnpm build:ipfs` runs `app/scripts/ipfs-dist/smoke.ts` and `app/scripts/ipfs-dist/pack.ts` instead.
 So `dist/ipfs/` carries no card assertion and no precache assertion. That is correct today — the
 hash target ships no service worker, and its share cards are inert behind a fragment no crawler
-reads — and it breaks silently the moment either target changes. noesis-449 owns the fix, because
+reads — and it breaks silently the moment either target changes. The publish-pipeline work owns the fix, because
 the pipeline that would publish that target is what makes the gap load-bearing.
 
 ---
 
 ## 2. The deep invariant profile is not run by anything — STRUCK 2026-11-06
 
-**Struck 2026-11-06, worker seat on noesis/pre-mainnet-checklist-stale-low.**
+**Struck 2026-11-06.**
 `gh run list --workflow=contracts-deep-invariant.yml` shows the scheduled job has now run and
 completed with conclusion `success` on 2026-10-04 (run 37191568103), 2026-10-11 (run
 38128939688), 2026-10-18 (run 39108671468) and 2026-10-25 (run 40175066047) — each `event:
@@ -225,7 +225,7 @@ this repository calls the script — the only runbooks checked in are app-side
 (`app/scripts/*/RUNBOOK.md`), so the Sepolia and mainnet handover steps have nowhere here to be
 ticked yet.
 
-**Why it is here.** Carried from the 2026-09-02 ruling on protocol ownership: rth will run a
+**Why it is here.** Carried from the 2026-09-02 decision on protocol ownership: the owner will run a
 Safe/multisig/Timelock as the protocol matures, and in the meantime the redirect capability is
 removed rather than relying on wallet security. The handover is required **regardless of either of
 those**, which is why it is a checklist entry and not a comment.

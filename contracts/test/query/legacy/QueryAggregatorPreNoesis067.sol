@@ -4,12 +4,12 @@ pragma solidity ^0.8.20;
 import { SafeOwnableUUPS } from "../../../src/shared/SafeOwnableUUPS.sol";
 
 /// @title QueryAggregatorPreNoesis067
-/// @notice LOAD-BEARING storage-layout snapshot of QueryAggregator as deployed BEFORE noesis-067.
+/// @notice LOAD-BEARING storage-layout snapshot of QueryAggregator as deployed BEFORE its read-path fixes.
 /// @dev Reproduces the EXACT pre-067 state-var order — the layout live behind the UUPS proxy:
 ///
 ///        slot 0: masterRegistry          (address)
 ///        slot 1: featuredQueueManager     (address)
-///        slot 2: globalMessageRegistry     (address)   <-- the slot noesis-067 deprecates in place
+///        slot 2: globalMessageRegistry     (address)   <-- the slot the read-path fixes deprecate in place
 ///        (MAX_QUERY_LIMIT is constant — no slot)
 ///        slot 3: _initialized              (bool)
 ///

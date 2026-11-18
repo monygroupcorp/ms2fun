@@ -20,7 +20,7 @@ contract MockVaultERC1155Reserve {
     receive() external payable { }
 }
 
-/// @dev Reserve-from-supply on the PAID path (noesis-395). A limited edition's free-mint allocation is a
+/// @dev Reserve-from-supply on the PAID path. A limited edition's free-mint allocation is a
 ///      RESERVE carved out of `supply`: paid minting must never consume supply that unclaimed free mints
 ///      are still owed. The paid `mint` supply gate now withholds `freeMintAllocation - freeMintsClaimed`,
 ///      clamped at zero because the owner can lower the allocation below the claimed count at any time.
@@ -121,7 +121,7 @@ contract ERC1155FreeMintReserveTest is Test {
         return address(uint160(uint256(keccak256(abi.encodePacked("claimer", i)))));
     }
 
-    // ── the noesis-395 defect regression ───────────────────────────────────────
+    // ── the paid-path reserve defect regression ────────────────────────────────
 
     /// A paid buyer cannot buy the whole edition out from under the reserve: a paid `mint(id, supply)` on
     /// an edition with a free allocation now reverts `ExceedsSupply`, and every free claim still lands.

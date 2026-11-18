@@ -14,7 +14,7 @@ contract StubRegistry {
 
 /**
  * @title ERC404StakingDischargeInvariant
- * @notice noesis-341 — pins the DIRECTION in which the staking module may err when it discharges the
+ * @notice Pins the DIRECTION in which the staking module may err when it discharges the
  *         instance's `stakingReserve`.
  *
  *         The instance credits `stakingReserve += delta` for the whole fee delta it hands the module
@@ -35,7 +35,7 @@ contract StubRegistry {
  *         money; that is what these tests pin against.
  *
  *         Deliberately NOT asserted: the exact residue, or any claim that it is zero. It is neither,
- *         and asserting it away would encode a source change nobody has ruled on.
+ *         and asserting it away would encode a source change nobody has decided to make.
  */
 contract ERC404StakingDischargeInvariantTest is Test {
     ERC404StakingModule internal module;

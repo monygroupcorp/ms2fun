@@ -449,7 +449,7 @@ on a one-wei rise, which is what allowed a flat curve to read green.
   buyer sees is not the price they pay. A cross-implementation gate is not in this document's scope.
 The free-mint reserve drain (§7) is **not** on this list. Locking free-mint tokens from `sellBonding`
 until graduation, or counting them into `totalBondingSupply`, was considered and declined: the
-tranche is a design decision (ruling, rth, 2026-09-17), and what the decision owes is disclosure
+tranche is a design decision (the owner's, 2026-09-17), and what the decision owes is disclosure
 rather than a mechanism change. The three surfaces that owe it are §7's figure, the app's learn copy,
 and a fixture that actually evaluates the curve with an allocation on — all three named in §7 and
 §13.

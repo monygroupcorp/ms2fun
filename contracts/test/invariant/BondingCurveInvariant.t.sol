@@ -26,7 +26,7 @@ contract MockLiqDeployer is ILiquidityDeployerModule {
 /**
  * @title BondingCurveInvariantTest
  * @notice The stateful, multi-actor, fuzzer-sequenced money-code suite over `ERC404BondingInstance`.
- * @dev noesis-152 (Token Tiers T4) SEALED A LADDER on this fixture and put the tier ops in the handler.
+ * @dev Token Tiers SEALED A LADDER on this fixture and put the tier ops in the handler.
  *      Until then every curve invariant here had only ever been evaluated on a tier-free instance, and
  *      no test anywhere interleaved curve ops with tier ops: the two shipped tier suites are bounded
  *      single-purpose loops that never return to the curve once tier ops begin. That interleaving is
@@ -61,7 +61,7 @@ contract BondingCurveInvariantTest is StdInvariant, Test {
 
     address[] public actors;
 
-    // ── Fixture geometry (retuned by noesis-152) ─────────────────────────────────────────────────
+    // ── Fixture geometry (retuned for the tier ladder) ───────────────────────────────────────────
     // A tier ladder needs a wide ORDINARY id space: the seal sizes each band `band_N = S / w_N`, where
     // S = idLimit = totalSupply / unit. With the original `UNIT = 1_000_000 ether` this fixture's S was
     // 10, so a weight-10 band would have been ONE id wide and the whole ladder unusable.
@@ -124,7 +124,7 @@ contract BondingCurveInvariantTest is StdInvariant, Test {
         vm.startPrank(owner);
 
         // A REAL Ops address is load-bearing here. `initializeProtocol`, `setBondingOpenTime` and
-        // `setBondingActive` are `_ops.delegatecall(msg.data)` trampolines (noesis-149), and a
+        // `setBondingActive` are `_ops.delegatecall(msg.data)` trampolines, and a
         // delegatecall to a CODE-LESS address returns SUCCESS while writing nothing. With `address(0)`
         // this whole setUp silently no-ops: `bondingActive` stays false, every handler `buy` reverts
         // `BondingNotActive`, `totalBondingSupply` never leaves 0, and all four money-code invariants
@@ -317,7 +317,7 @@ contract BondingCurveInvariantTest is StdInvariant, Test {
     // cumulative rounding drift — because every intermediate F(s) is evaluated identically on the way
     // up and down. This invariant pins that exact-reserve claim (spec §4.1) that Inv1 leaves untested.
     //
-    // noesis-152: this is now the strongest claim in the repo evaluated across TIER interleavings. It is
+    // With the ladder sealed, this is now the strongest claim in the repo evaluated across TIER interleavings. It is
     // exact, with zero tolerance, and it stays that way — a tolerance or a tier-instance early-return
     // here would delete the only reason the ladder was sealed onto this fixture.
 
@@ -331,7 +331,7 @@ contract BondingCurveInvariantTest is StdInvariant, Test {
     }
 
     // ┌──────────────────────────────────────────────────────────────────────────────────────────┐
-    // │  Token Tiers invariants (noesis-152) — asserted alongside the four above, after EVERY    │
+    // │  Token Tiers invariants — asserted alongside the four above, after EVERY                 │
     // │  handler call. Each one names what breaking it would MEAN.                               │
     // └──────────────────────────────────────────────────────────────────────────────────────────┘
 
@@ -441,7 +441,7 @@ contract BondingCurveInvariantTest is StdInvariant, Test {
     /// @dev Runs once at the end of EVERY fuzz run (all 256 of them), after the whole call sequence.
     ///      Two jobs:
     ///
-    ///      (1) NON-VACUITY. Without this, every invariant this item adds passes vacuously the moment a
+    ///      (1) NON-VACUITY. Without this, every Token Tiers invariant here passes vacuously the moment a
     ///          handler guard silently rejects every tier call — which is the single most likely way the
     ///          work ships green and worthless. A run that never landed a tier
     ///          op tested nothing about tiers.

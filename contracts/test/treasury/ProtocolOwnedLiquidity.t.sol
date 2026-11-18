@@ -221,7 +221,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         pol.receivePOL(alice, key, -887220, 887220, 1 ether, 1 ether);
     }
 
-    // ========== receivePOL escrow / drain-regression (noesis-111) ==========
+    // ========== receivePOL escrow / drain-regression ==========
     //
     // Live-pool fixture: a real V4 PoolManager with a native/token pool at 1:1, so `receivePOL`
     // exercises the true `modifyLiquidity` + settle path. These prove the §2f fix: the V4 position is
@@ -397,7 +397,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         pol.receivePOL{ value: 1 ether }(alice, key, TICK_LOWER, TICK_UPPER, 1 ether, 1 ether);
     }
 
-    // ========== polInstances enumeration (noesis-304) ==========
+    // ========== polInstances enumeration ==========
     //
     // `polInstances` is append-only with no removal path, and `polInstanceCount()` is the only
     // enumeration the contract offers, so every append has to correspond to a real, distinct position.
@@ -467,7 +467,7 @@ contract ProtocolOwnedLiquidityTest is Test {
         assertEq(pol.polInstances(0), alice, "entry is still the depositing instance");
     }
 
-    // ========== withdrawPOL — the principal exit (noesis-303) ==========
+    // ========== withdrawPOL — the principal exit ==========
     //
     // The deposit seam has a matching exit: an owner-gated negative `liquidityDelta` through the same
     // `unlock` callback. These assert the principal actually comes back and that partial exits keep the

@@ -86,12 +86,12 @@ interface IERC20Like {
 
 /**
  * @title GraduationFundsProtocolOwnedLiquidityTest
- * @notice Closes the gap this goal exists to close: nothing in `src/` ever called
+ * @notice Closes a gap: nothing in `src/` ever called
  *         `ProtocolOwnedLiquidityV1.receivePOL`. `LiquidityDeployerModule._fundProtocolOwnedLiquidity`
  *         now does, from the graduation's own protocol-fee leg, once the owner has pointed
  *         `protocolOwnedLiquidity` at a deployed POL contract and that contract's `approvedDeployer`
  *         back at the module. Both knobs default off, so a graduation with neither set is byte-for-byte
- *         what it was before this goal.
+ *         what it was before this change.
  *
  *         This rig runs the REAL `ERC404BondingInstance` through a REAL graduation against the REAL
  *         `LiquidityDeployerModule` and the REAL `ProtocolOwnedLiquidityV1` (behind its real UUPS

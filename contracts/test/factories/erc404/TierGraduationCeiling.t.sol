@@ -37,7 +37,7 @@ contract CeilingDeployer is ILiquidityDeployerModule {
 
 /**
  * @title TierGraduationCeiling
- * @notice noesis-397: the ordinary-id ceiling the tier paths enforce is SEALED at create against
+ * @notice The ordinary-id ceiling the tier paths enforce is SEALED at create against
  *         `maxSupply / unit`, not re-derived from live `totalSupply`. Graduation burns instance-held
  *         coin (`ERC404BondingOps._sizePoolAtCurvePrice`), which permanently lowers live `totalSupply`.
  *         `mintUp` / `mintDown` / `_effectiveExemptions` therefore must NOT read live supply for the

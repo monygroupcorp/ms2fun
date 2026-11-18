@@ -60,7 +60,7 @@ contract MockInstance {
     }
 }
 
-/// @notice noesis-113 Part 1 (MRV1-01 MED + MRV1-02 LOW): the `registerInstance` and `migrateVault`
+/// @notice (MRV1-01 MED + MRV1-02 LOW): the `registerInstance` and `migrateVault`
 ///         WRITE gates must reject a vault whose alignment target has been revoked — not just the raw
 ///         two-flag subset (`registeredVaults && active`) that stays true after a target revocation.
 ///         `registerInstance` is the SOLE vault-legitimacy gate for the ERC1155/721 families

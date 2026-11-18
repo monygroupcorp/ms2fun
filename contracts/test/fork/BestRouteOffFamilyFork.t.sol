@@ -18,7 +18,7 @@ import { IHooks } from "v4-core/interfaces/IHooks.sol";
 
 /**
  * @title BestRouteOffFamilyFork
- * @notice noesis-106 (a) — the RPC-gated regression pin for swap-path finding 1: with a REAL zQuoter
+ * @notice The RPC-gated regression pin for swap-path finding 1: with a REAL zQuoter
  *         set, a Uni-family vault buying a token whose DEEPEST liquidity is on a NON-family venue
  *         (e.g. a V2-only token) actually routes through best-route (off-family), instead of being
  *         confined to its fixed V4 family pool. Together with the in-gate fallback pin

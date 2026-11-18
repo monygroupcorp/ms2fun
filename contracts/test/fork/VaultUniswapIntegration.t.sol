@@ -46,7 +46,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         mockRegistry = new MockAlignmentRegistry();
         mockRegistry.setTargetActive(TARGET_ID, true);
         mockRegistry.setTokenInTarget(TARGET_ID, alignmentToken, true);
-        // Canonical reference pool (noesis-035/037): the vault's swap floor reads the pinned
+        // Canonical reference pool: the vault's swap floor reads the pinned
         // ReferencePool for (target, token) and reverts NoReferencePool when it is unset, so a fork run
         // needs it wired to a real pool. The WETH/USDC V3 0.05% pool is the deepest mainnet reference
         // for this alignment token and carries the observation history the TWAP path requires.
@@ -630,10 +630,9 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // Each claim is exact-or-floored, never over. `expected*Claim` above is computed from the
         // share split in one step; the vault reaches the same figure through its fee accumulator,
         // which floors on the way. Against a real AMM the two agree at some blocks and differ by a
-        // wei at others, so `assertEq` here asserts the block and not the code -- see the three-block
-        // measurement in the goal this test is filed under. `_assertClaimFloors` is what the rest of
-        // this file already uses, and it keeps the property that matters: a claim ABOVE entitlement
-        // is a leak, a claim below by a bounded amount is rounding left in the vault.
+        // wei at others, so `assertEq` here asserts the block and not the code. `_assertClaimFloors` is
+        // what the rest of this file already uses, and it keeps the property that matters: a claim
+        // ABOVE entitlement is a leak, a claim below by a bounded amount is rounding left in the vault.
         vm.prank(alice);
         uint256 aliceClaimed = vault.claimFees();
         _assertClaimFloors(aliceClaimed, expectedAliceClaim, "alice, proportional claim");

@@ -37,7 +37,7 @@ contract PostUnlockHarness is LiquidityDeployerModule {
     }
 }
 
-/// @notice noesis-097: a reverting alignment vault must not brick the ERC404 (Uniswap V4) graduation
+/// @notice A reverting alignment vault must not brick the ERC404 (Uniswap V4) graduation
 ///         fee dispatch. The vaultCut send is isolated in try/catch; on failure the ETH is retained in the
 ///         module and stashed as pendingVaultCut, recoverable later via flushPendingVaultCut.
 contract LiquidityDeployerGraduationVaultCutDoSTest is Test {
@@ -137,7 +137,7 @@ contract LiquidityDeployerGraduationVaultCutDoSTest is Test {
         assertEq(stashedAmount, 0, "no stash on the happy path");
     }
 
-    // ── noesis-126/noesis-435: de-curation returns the cut to the creator, primary send + flush retry ──
+    // ── De-curation returns the cut to the creator, primary send + flush retry ──
 
     /// @notice If the alignment target is de-curated, the graduation community cut is returned to the
     ///         CREATOR instead of being fed to (or stashed for) the de-curated vault, and the protocol
@@ -213,7 +213,7 @@ contract LiquidityDeployerGraduationVaultCutDoSTest is Test {
         assertEq(stashedAfter, 0, "stash cleared");
     }
 
-    /// @notice noesis-435 acceptance 3: the returned cut keeps the brick-proof send. A creator contract
+    /// @notice The returned cut keeps the brick-proof send. A creator contract
     ///         that rejects plain ETH still receives the flushed cut and the flush does not revert.
     function test_flushPendingVaultCut_DecuratedTarget_EthRejectingCreator() public {
         MockToggleVault vault = new MockToggleVault(); // broken -> forces the stash
@@ -242,7 +242,7 @@ contract LiquidityDeployerGraduationVaultCutDoSTest is Test {
         assertEq(stashedAfter, 0, "stash cleared");
     }
 
-    /// @notice noesis-314: the two returns are distinguishable in the log. Drives BOTH branches — a cut
+    /// @notice The two returns are distinguishable in the log. Drives BOTH branches — a cut
     ///         returned as it is earned, and a stashed cut returned on flush — and asserts each path emits
     ///         its own signal and only its own. Same money, same destination, but one is new revenue and
     ///         the other is a re-route of revenue already reported; a tithe report reading a single event
@@ -299,7 +299,7 @@ contract LiquidityDeployerGraduationVaultCutDoSTest is Test {
 }
 
 /// @notice A creator that rejects plain ETH. Proves the returned community cut keeps the brick-proof
-///         property the redirect leg had before noesis-435 folded it into the creator payout.
+///         property the redirect leg had before it was folded into the creator payout.
 contract EthRejectingCreator {
     receive() external payable {
         revert("no ETH");

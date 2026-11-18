@@ -7,7 +7,7 @@ import { ERC404BondingOps } from "../../../src/factories/erc404/ERC404BondingOps
 
 /**
  * @title ERC404OpsSelectorParityTest
- * @notice The externalization diet (noesis-091 reroll, -142 tier ops, -148 value paths, -149 config
+ * @notice The externalization diet (reroll, tier ops, value paths, config
  *         paths) rests on ONE unstated assumption: every `ERC404BondingInstance` trampoline forwards raw
  *         `msg.data` to `ERC404BondingOps`, so the two declarations of each function must have a
  *         BYTE-IDENTICAL selector. If a parameter type ever drifts on one side, the delegatecall lands on
@@ -28,7 +28,7 @@ contract ERC404OpsSelectorParityTest is Test {
         assertEq(instanceSel, opsSel, what);
     }
 
-    // ── noesis-149: the thirteen config paths (+ setContractURI, noesis-085) ─────────────────────
+    // ── The thirteen config paths (+ setContractURI) ─────────────────────
 
     function test_configSelectorsMatchAcrossTheDelegatecallSeam() public pure {
         _assertParity(
@@ -44,7 +44,7 @@ contract ERC404OpsSelectorParityTest is Test {
         );
         // The two URI setters must never collapse into one: a copy-paste that left `setContractURI`
         // forwarding `setMetadataURI`'s selector would silently write the PER-TOKEN base URI instead of
-        // the collection URI, and every assertion about the write would still pass (noesis-085).
+        // the collection URI, and every assertion about the write would still pass.
         assertTrue(
             ERC404BondingInstance.setContractURI.selector != ERC404BondingInstance.setMetadataURI.selector,
             "setContractURI must be its own entry point, not an alias of setMetadataURI"
@@ -106,7 +106,7 @@ contract ERC404OpsSelectorParityTest is Test {
         assertEq(ERC404BondingOps.initializeProtocol.selector, pinned, "ops ABI moved");
     }
 
-    // ── noesis-091 / -142 / -148: everything externalized before this item ───────────────────────
+    // ── Reroll, tier ops, value paths: everything externalized before the config paths ───────────────
 
     function test_priorDietSelectorsMatchAcrossTheDelegatecallSeam() public pure {
         _assertParity(
@@ -137,7 +137,7 @@ contract ERC404OpsSelectorParityTest is Test {
     /// @notice The three bodies that deliberately did NOT move must have NO counterpart on Ops — if one
     ///         ever appears there, the "value-extracting fns stay in the instance" boundary has moved
     ///         without anyone deciding to move it.
-    /// @dev `migrateVault` is also noesis-148's CONTROL for the error-collapse argument, so its staying
+    /// @dev `migrateVault` is also the value-path move's CONTROL for the error-collapse argument, so its staying
     ///      put is load-bearing for the auth-boundary suites, not just for the boundary itself.
     function test_valueAndInitBodiesHaveNoOpsCounterpart() public {
         ERC404BondingOps ops = new ERC404BondingOps();
@@ -148,7 +148,7 @@ contract ERC404OpsSelectorParityTest is Test {
                 "initialize(address,address,(uint256,uint256,uint256,uint16,(uint256,uint256,uint256,uint256,uint256)),address,address,address)"
             )
         );
-        // noesis-085 appended the collection-URI argument: five strings, not four.
+        // The collection-URI argument was appended: five strings, not four.
         mustBeAbsent[2] = bytes4(keccak256("initializeMetadata(string,string,string,string,string)"));
 
         for (uint256 i = 0; i < mustBeAbsent.length; i++) {

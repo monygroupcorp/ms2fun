@@ -7,7 +7,7 @@ import { LibClone } from "solady/utils/LibClone.sol";
 import { AlignmentRegistryV1 } from "../../src/master/AlignmentRegistryV1.sol";
 import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
 
-/// @notice noesis-031 — owner-curated acquisition routing (setAcquireRoute / getAcquireRoute).
+/// @notice Owner-curated acquisition routing (setAcquireRoute / getAcquireRoute).
 contract AlignmentRegistryAcquireRouteTest is Test {
     AlignmentRegistryV1 public registry;
 

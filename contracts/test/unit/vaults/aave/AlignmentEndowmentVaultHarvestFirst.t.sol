@@ -162,7 +162,7 @@ contract AlignmentEndowmentVaultHarvestFirstTest is Test {
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // unset community sink (noesis-339) — crystallize accrues, it never reverts
+    // unset community sink — crystallize accrues, it never reverts
     // ════════════════════════════════════════════════════════════════════════
 
     /// @dev A clone whose `communityPayout` is unset at initialize. Crystallize is the first statement of

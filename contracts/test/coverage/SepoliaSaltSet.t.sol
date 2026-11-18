@@ -7,7 +7,7 @@ import { DeploySepolia } from "../../script/DeploySepolia.s.sol";
 import { CREATEX, ICreateX } from "../../src/shared/CreateXConstants.sol";
 import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
 
-/// @notice noesis-411. The Sepolia salt set is six hand-pasted 32-byte literals produced by an
+/// @notice The Sepolia salt set is six hand-pasted 32-byte literals produced by an
 ///         out-of-tree miner, and a wrong one is not visible by reading it: an address is three
 ///         keccaks away from the salt, and the failure mode of a spent or malformed salt is a
 ///         revert partway through a broadcast rather than a compile error.

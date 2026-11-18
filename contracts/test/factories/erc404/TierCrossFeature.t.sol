@@ -34,7 +34,7 @@ contract CrossFeatureLiquidityDeployer is ILiquidityDeployerModule {
 
 /**
  * @title TierCrossFeature
- * @notice Token Tiers, run against the REST of the instance rather than in isolation (noesis-153).
+ * @notice Token Tiers, run against the REST of the instance rather than in isolation.
  * @dev MONEY-CODE (test-only: this suite changes no behaviour, it measures it).
  *
  *      THE FRAME. A band NFT is one DN404 unit of balance plus `(w_N - 1) * unit` of the holder's own

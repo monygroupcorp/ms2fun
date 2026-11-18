@@ -373,7 +373,7 @@ contract ERC721AuctionFactoryTest is Test {
         assertTrue(auction.settled);
     }
 
-    /// noesis-113 Part 2 / noesis-435: if the vault's alignment target is revoked AFTER the instance bound
+    /// If the vault's alignment target is revoked AFTER the instance bound
     /// it, the 19% tithe at auction settle must be returned to the CREATOR (not fed to the de-curated
     /// vault, not stranded, and NOT taken by the protocol — de-curation may destroy value, it may not
     /// transfer value to the protocol), `VaultCutReturnedToCreator` emitted, and the auction must still
@@ -424,7 +424,7 @@ contract ERC721AuctionFactoryTest is Test {
         assertEq(inst.pendingVaultCut(), 0, "the return is not the pending-retry lane");
     }
 
-    /// noesis-269/noesis-314: the two returns are distinguishable in the log. Drives BOTH branches — a cut
+    /// The two returns are distinguishable in the log. Drives BOTH branches — a cut
     /// returned at settle as it is earned, and a stashed cut returned on `flushPendingVaultCut` — and
     /// asserts each path emits its own signal and only its own. Same money, same destination, but one is
     /// new revenue and the other is a re-route of revenue already reported; a tithe report reading a
@@ -557,7 +557,7 @@ contract ERC721AuctionFactoryTest is Test {
         assertEq(inst2.timeBuffer(), BASE_DURATION);
     }
 
-    /// noesis-126/noesis-435: a vault cut STASHED at settle (the vault reverted) while the target was live
+    /// A vault cut STASHED at settle (the vault reverted) while the target was live
     /// must NOT be force-fed to the vault on `flushPendingVaultCut` once the target has since been revoked —
     /// it is returned to the CREATOR, mirroring the `settleAuction` primary path, and the treasury balance
     /// is unchanged.
@@ -610,7 +610,7 @@ contract ERC721AuctionFactoryTest is Test {
         assertEq(inst.pendingVaultCut(), 0, "stash cleared");
     }
 
-    /// noesis-418: the flush's success branch must be legible on-chain too. `VaultContributionFailed` marks a
+    /// The flush's success branch must be legible on-chain too. `VaultContributionFailed` marks a
     /// tithe going pending and `VaultCutReturnedToCreator` marks one going back to the creator, but until now a stash
     /// that was successfully re-sent to a healed vault emitted nothing — so a reader summing the events saw
     /// the family's pending figure only ever grow. The retry now emits its own signal, distinct from the
@@ -1124,7 +1124,7 @@ contract ERC721AuctionFactoryTest is Test {
         );
     }
 
-    // ── noesis-072 — constructor weth zero-check (mirrors setWeth guard) ────────
+    // ── constructor weth zero-check (mirrors setWeth guard) ─────────────────────
 
     function test_constructor_revertsOnZeroWeth() public {
         GlobalMessageRegistry msgRegistry = new GlobalMessageRegistry();
@@ -1133,7 +1133,7 @@ contract ERC721AuctionFactoryTest is Test {
         new ERC721AuctionFactory(address(mockRegistry), address(msgRegistry), address(0));
     }
 
-    // ── noesis-084 — ERC-7572 collection contractURI ───────────────────────────
+    // ── ERC-7572 collection contractURI ────────────────────────────────────────
 
     /// @notice contractURI() is populated at create from the collection metadataURI arg.
     function test_contractURI_setAtCreate() public {

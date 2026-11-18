@@ -1,4 +1,4 @@
-# Companion Foundry config for the real-v4 end-to-end regression (noesis-116 audit #1 guard).
+# Companion Foundry config for the real-v4 end-to-end regression.
 #
 # WHY A SEPARATE FILE (not an in-toml `[profile.v4]`): Foundry merges `[profile.default]`
 # into every named profile in the SAME config, so a `[profile.v4]` in `foundry.toml` would
@@ -7,7 +7,7 @@
 # pin it hard-errors on version validation (and `skip=` only drops a file from the compile
 # set — it does not exempt an imported dependency from the solc-version check). Keeping the
 # main `foundry.toml` default deterministically pinned to 0.8.28 (deploy-determinism) is the
-# whole point of noesis-120, so we cannot reopen auto-detect there.
+# whole point of that pin, so we cannot reopen auto-detect there.
 #
 # This standalone config's own `[profile.default]` sets `auto_detect_solc = true`, so forge
 # independently selects 0.8.26 for the RealSettlement test + its v4-core/forge-std graph.

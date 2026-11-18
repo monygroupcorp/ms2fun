@@ -7,7 +7,7 @@ import { InsufficientBalance } from "../../src/factories/erc1155/ERC1155Instance
 import { MockRevertingVault } from "../mocks/MockRevertingVault.sol";
 import { newERC1155InstanceClone } from "../helpers/ERC1155InstanceClone.sol";
 
-/// @notice Minimal master-registry stub. noesis-113 made the ERC1155 settle path read
+/// @notice Minimal master-registry stub. The ERC1155 settle path read
 ///         `masterRegistry.isVaultRegistered(vault)` before the tithe; a zero `masterRegistry` reverts
 ///         that read. These force-fed-ETH tests exercise the NORMAL (active-target) settle, so the stub
 ///         answers `isVaultRegistered`→true (unchanged behavior — they do not test revocation).

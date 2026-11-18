@@ -7,7 +7,7 @@ import { ERC404BondingOps } from "src/factories/erc404/ERC404BondingOps.sol";
 
 /**
  * @title ERC404OpsCodeGuardTest
- * @notice noesis-150. `delegatecall` to an address with NO CODE returns success and writes nothing.
+ * @notice `delegatecall` to an address with NO CODE returns success and writes nothing.
  *         Every externalized entry point on `ERC404BondingInstance` is a trampoline whose only failure
  *         check is that boolean:
  *
@@ -15,7 +15,7 @@ import { ERC404BondingOps } from "src/factories/erc404/ERC404BondingOps.sol";
  *             if (!ok) revert XFailed();
  *
  *         so a master deployed with a code-less `ops` turns every one of them into a SILENT NO-OP —
- *         the call succeeds, no state changes, nothing reverts. After noesis-091/-142/-148/-149 that is
+ *         the call succeeds, no state changes, nothing reverts. After the externalization diet that is
  *         the majority of the contract's write surface, including `initTierBands` (the ladder SEAL,
  *         which T3's burn-safety hook assumes) and `initializeProtocol`/`initModule` (both called by
  *         `ERC404Factory.createInstance`, so a misconfigured master yields launches that report success

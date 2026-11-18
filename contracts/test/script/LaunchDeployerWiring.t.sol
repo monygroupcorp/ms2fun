@@ -13,7 +13,7 @@ import { zRouter, mainnetChainConfig } from "../../src/peripherals/zRouter.sol";
 
 /**
  * @title LaunchDeployerWiring
- * @notice The audit invariant for noesis-039: a production-shaped deploy must NEVER approve a
+ * @notice The audit invariant behind the graduation-brick fix: a production-shaped deploy must NEVER approve a
  *         MockComponentModule under the functional LIQUIDITY_DEPLOYER tag — an approved stub in a
  *         functional slot bricks ERC404 graduation. Also proves:
  *           - a configured zRouter singleton is REUSED (not a freshly-deployed throwaway).

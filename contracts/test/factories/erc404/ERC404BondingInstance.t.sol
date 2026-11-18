@@ -256,8 +256,8 @@ contract ERC404BondingInstanceTest is Test {
     }
 
     /// @dev The shapes the finding actually named — a maturity nobody will live to see. The config
-    ///      trampolines discard Ops' returndata and re-revert with one generic error per entry point
-    ///      (noesis-149), so out here the refusal is the trampoline's; the selector-level assertion
+    ///      trampolines discard Ops' returndata and re-revert with one generic error per entry point,
+    ///      so out here the refusal is the trampoline's; the selector-level assertion
     ///      lives in the test above.
     function test_SetBondingMaturityTime_AbsurdMaturitiesRefused() public {
         vm.startPrank(owner);
@@ -662,7 +662,7 @@ contract ERC404BondingInstanceTest is Test {
 
     // ── deployLiquidity Tests ─────────────────────────────────────────────────
 
-    /// @dev `deployLiquidity`'s body lives in `ERC404BondingOps` (noesis-188), reached by the same
+    /// @dev `deployLiquidity`'s body lives in `ERC404BondingOps`, reached by the same
     ///      discard-returndata trampoline the other externalized paths use, so Ops's specific
     ///      `BondingNotConfigured()` reaches the caller as the entry point's generic
     ///      `GraduationFailed()`. The specific error is still raised and still visible in traces;
@@ -1101,7 +1101,7 @@ contract ERC404BondingInstanceTest is Test {
         assertGt(instance.balanceOf(user1), 0);
     }
 
-    // ── DN404 mirror supplied by the factory (noesis-140) ─────────────────────
+    // ── DN404 mirror supplied by the factory ─────────────────────
     //
     // The mirror used to be built inside `initialize` (`new DN404Mirror(msg.sender)`), which forced
     // DN404Mirror's ~3.1KB of creation code to live inline in the instance's runtime bytecode. It is

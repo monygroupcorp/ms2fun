@@ -169,7 +169,7 @@ contract LaunchManagerTest is Test, ReserveBandPin {
         launchMgr.getPreset(99);
     }
 
-    // ── The admissible reserve band (noesis-257) ────────────────────────────────────────────────
+    // ── The admissible reserve band ────────────────────────────────────────────────
     //
     // `(0, 10000)` is the arithmetic range, not the serviceable one. `setPreset` now asks the
     // preset's OWN curve computer which reserves it can solve for, so a preset that would revert

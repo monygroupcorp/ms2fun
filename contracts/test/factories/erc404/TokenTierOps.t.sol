@@ -94,15 +94,15 @@ contract TierOpsPolicyProbe is ERC404BondingOps {
 
 /**
  * @title TokenTierOps
- * @notice Token Tiers T2 (noesis-142): ladder seal + mintUp/mintDown + aggregate `coinBalanceOf`.
+ * @notice Token Tiers T2: ladder seal + mintUp/mintDown + aggregate `coinBalanceOf`.
  * @dev MONEY-CODE. The suite's spine is the pair of invariants the design rests on:
  *      (1) CURVE ISOLATION — no tier op moves `reserve` or `totalBondingSupply`;
  *      (2) COIN CONSERVATION — Σ holders' `coinBalanceOf` + the instance's unescrowed balance is the
  *          constant total supply, whatever sequence of tier ops runs.
  *      Ops-side reverts reach the caller as the generic `TierOpFailed()` (the trampoline discards
- *      returndata — noesis-091); the specific errors stay visible in traces. Seal-side reverts
- *      (`InvalidBand`, `OnlyFactory`, `AlreadyInitialized`) now do the same: noesis-149
- *      moved `initTierBands` behind its own trampoline, so they surface as `InitTierBandsFailed()`.
+ *      returndata); the specific errors stay visible in traces. Seal-side reverts
+ *      (`InvalidBand`, `OnlyFactory`, `AlreadyInitialized`) now do the same:
+ *      `initTierBands` moved behind its own trampoline, so they surface as `InitTierBandsFailed()`.
  */
 contract TokenTierOpsTest is Test {
     ERC404BondingInstance token;
@@ -136,7 +136,7 @@ contract TokenTierOpsTest is Test {
         token = ERC404BondingInstance(payable(LibClone.clone(address(impl))));
 
         // factory == address(this): this test contract seals the ladder, exactly as ERC404Factory will
-        // (wiring the factory to call `initTierBands` is noesis-141's create path, out of scope here).
+        // (wiring the factory to call `initTierBands` is the create path's job, out of scope here).
         token.initialize(
             owner,
             address(0xBEEF),
@@ -258,7 +258,7 @@ contract TokenTierOpsTest is Test {
     // ┌─────────────────────────┐
     // │   Seal (initTierBands)  │
     // └─────────────────────────┘
-    // noesis-149 moved `initTierBands` into `ERC404BondingOps` behind the discard-returndata
+    // `initTierBands` moved into `ERC404BondingOps` behind the discard-returndata
     // trampoline, so EVERY seal-invariant rejection below — `OnlyFactory`, `AlreadyInitialized`,
     // `InvalidBand` — now reaches the caller as the single generic
     // `InitTierBandsFailed()`. The checks themselves moved byte-for-byte and still fire; only the
@@ -788,7 +788,7 @@ contract TokenTierOpsTest is Test {
     }
 
     function _assertCoinConserved() internal view {
-        // T3 (noesis-143) split a third bucket out of the instance's balance: coin owed to a holder
+        // T3 split a third bucket out of the instance's balance: coin owed to a holder
         // whose band NFT was burned. The coin-path transfer tests in this suite exercise it directly —
         // every ERC20 debit on a sealed instance now burns the band and credits `pendingEscrowRelease`,
         // so this bucket is load-bearing here, not a placeholder.
@@ -853,9 +853,9 @@ contract TokenTierOpsTest is Test {
         assertFalse(probe.probeAddToBurnedPool(0, 0), "burn pool must stay INACTIVE");
         assertFalse(probe.probeAddToBurnedPool(type(uint96).max, type(uint96).max), "burn pool must stay INACTIVE");
         assertTrue(probe.probeUseExistsLookup(), "exists lookup must stay ON");
-        // T3 (noesis-143) turned the after-transfer hook ON — it is what keeps a LIFO-burned band NFT
+        // T3 turned the after-transfer hook ON — it is what keeps a LIFO-burned band NFT
         // from stranding its escrow. Turning it back off silently re-opens that orphan.
-        assertTrue(probe.probeUseAfterNFTTransfers(), "the burn-safety hook must stay ON (T3, noesis-143)");
+        assertTrue(probe.probeUseAfterNFTTransfers(), "the burn-safety hook must stay ON (T3)");
 
         // Ops executes in the instance's storage — its policy hooks must agree with the instance's.
         assertEq(opsProbe.probeAddToBurnedPool(0, 0), probe.probeAddToBurnedPool(0, 0), "burn pool parity");
@@ -966,8 +966,8 @@ contract TokenTierOpsTest is Test {
     /// @notice Graduation with outstanding band ids: escrow never leaks into the LP leg and stays
     ///         redeemable afterwards.
     /// @dev The LP leg is no longer `liquidityReserve` — it is the coin the curve's marginal price buys
-    ///      with the LP share of the raise, and everything else the instance was free to place is burned
-    ///      (noesis-188). That makes the escrow assertion STRONGER than the old equality: after
+    ///      with the LP share of the raise, and everything else the instance was free to place is burned.
+    ///      That makes the escrow assertion STRONGER than the old equality: after
     ///      graduation the instance's entire coin balance must be the escrow and nothing but the escrow,
     ///      so escrow that had leaked into either the pool leg or the burn would show up here.
     function test_graduationWithOutstandingBandsIsUnaffected() public {
@@ -1108,7 +1108,7 @@ contract TokenTierOpsTest is Test {
         _assertCoinConserved();
     }
 
-    /// @notice The T2 GAP, now CLOSED by T3 (noesis-143). When the balance-losing leg is not matched by
+    /// @notice The T2 GAP, now CLOSED by T3. When the balance-losing leg is not matched by
     ///         an NFT-taking recipient (recipient skips NFTs: a sell back to the curve, `stake`, or any
     ///         skipNFT holder), DN404 BURNS the band NFT to reconcile `ownedLength == balance / unit`.
     ///         Under T2 alone the escrow was then ORPHANED — still counted in `totalTierEscrow`, no

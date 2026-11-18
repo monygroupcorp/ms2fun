@@ -100,7 +100,7 @@ contract MockFQM {
     }
 }
 
-/// @notice noesis-084 §6: minimal instance exposing instanceType() + ERC-7572 contractURI().
+/// @notice §6: minimal instance exposing instanceType() + ERC-7572 contractURI().
 contract MockContractURIInstance {
     bytes32 private immutable _type;
     string private _cu;
@@ -119,7 +119,7 @@ contract MockContractURIInstance {
     }
 }
 
-/// @notice noesis-084 §6: instance with a type but NO contractURI() — the never-brick fallback case
+/// @notice §6: instance with a type but NO contractURI() — the never-brick fallback case
 ///         (a legacy/foreign instance, or any address that does not implement the getter).
 contract MockNoContractURIInstance {
     bytes32 private immutable _type;
@@ -248,7 +248,7 @@ contract QueryAggregatorCardsTest is Test {
     }
 
     // ── §6 anti-drift: card.metadataURI reads the instance's own ERC-7572 contractURI() for ALL THREE
-    //    instance types (noesis-084 did ERC1155/ERC721; noesis-085 added ERC404), and falls back to the
+    //    instance types (ERC1155/ERC721 first, ERC404 added later), and falls back to the
     //    registry copy only when the instance has nothing to say — a revert or an EMPTY string. ───────
 
     function test_s6_erc1155_card_reads_instance_contractURI() public {
@@ -280,11 +280,11 @@ contract QueryAggregatorCardsTest is Test {
         assertEq(
             card.metadataURI,
             "instance://erc404",
-            "ERC404 card must read the instance contractURI, not the registry copy (noesis-085)"
+            "ERC404 card must read the instance contractURI, not the registry copy"
         );
     }
 
-    /// The read-through must never BLANK a card. Every ERC404 instance deployed before noesis-085 reads
+    /// The read-through must never BLANK a card. Every ERC404 instance deployed before the ERC404 read-through reads
     /// back "" for contractURI(), and so does any instance created with an empty collection URI — an
     /// unconditional override would replace a usable registry URI with nothing.
     function test_s6_empty_instance_contractURI_keeps_registry_copy() public {
@@ -296,7 +296,7 @@ contract QueryAggregatorCardsTest is Test {
             "an empty instance contractURI must not blank the ERC404 card"
         );
 
-        // Same guard for the two types noesis-084 already read through — a strict improvement there too.
+        // Same guard for the two types already read through before it — a strict improvement there too.
         MockContractURIInstance e1155 = new MockContractURIInstance(keccak256("erc1155"), "");
         registry.setInstanceMetadataURI(address(e1155), "registry://erc1155-kept");
         assertEq(

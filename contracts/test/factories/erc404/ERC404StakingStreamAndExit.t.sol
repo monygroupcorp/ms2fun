@@ -20,7 +20,7 @@ contract MockReg {
 
 /**
  * @title ERC404StakingStreamAndExit
- * @notice noesis-098 — F6 (stream rewards, kill the flash-stake sandwich) + F7 (exit paths survive
+ * @notice F6 (stream rewards, kill the flash-stake sandwich) + F7 (exit paths survive
  *         deregistration) + the load-bearing adversarial invariant (Σ claims ≤ Σ fees, any ordering).
  */
 contract ERC404StakingStreamAndExitTest is Test {

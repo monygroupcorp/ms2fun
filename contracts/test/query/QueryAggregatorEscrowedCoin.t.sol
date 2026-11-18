@@ -47,8 +47,8 @@ contract EscrowCoinFQM {
 
 /**
  * @title QueryAggregatorEscrowedCoin
- * @notice noesis-316 option A: the portfolio lens reports coin a holder owns but cannot transfer.
- * @dev The three cases the goal names, each against a REAL `ERC404BondingInstance` rather than a mock,
+ * @notice The portfolio lens reports coin a holder owns but cannot transfer.
+ * @dev The three cases below, each against a REAL `ERC404BondingInstance` rather than a mock,
  *      so the lens is proved to agree with the escrow accounting itself and not with a second copy of
  *      it written here. The ladder, funding and burn mechanics are the ones `TierBurnSafety` pins.
  *
@@ -151,7 +151,7 @@ contract QueryAggregatorEscrowedCoinTest is Test {
     // ── case 3: released escrow ──────────────────────────────────────────────────────────────────
 
     /// The case the old inclusion filter erased. Burning the band NFT drops `balanceOf` to zero and
-    /// moves the 9 units into `pendingEscrowRelease`. Before noesis-316 this holder had NO ROW AT ALL:
+    /// moves the 9 units into `pendingEscrowRelease`. Before the lens reported escrowed coin this holder had NO ROW AT ALL:
     /// `tokenBalance > 0 || stakedBalance > 0` was false while the instance still owed them 9 units.
     function test_releasedEscrow_isReportedEvenWhenTheBalanceIsZero() public {
         _seal();
@@ -336,7 +336,7 @@ contract QueryAggregatorEscrowedCoinTest is Test {
     }
 }
 
-/// @dev An ERC404-typed instance predating noesis-316: it answers `balanceOf`/`unit` but neither
+/// @dev An ERC404-typed instance predating escrowed-coin reporting: it answers `balanceOf`/`unit` but neither
 ///      `coinBalanceOf` nor `pendingEscrowRelease`.
 contract NoEscrowSymbols {
     function instanceType() external pure returns (bytes32) {

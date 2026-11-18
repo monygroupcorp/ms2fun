@@ -116,7 +116,7 @@ contract MetadataStackIntegrationTest is Test {
             })
         );
 
-        // A REAL Ops target, not `address(0)`: `initModule` is a delegatecall trampoline (noesis-149), and
+        // A REAL Ops target, not `address(0)`: `initModule` is a delegatecall trampoline, and
         // a delegatecall to a code-less address SUCCEEDS while writing nothing — the module slot would
         // silently stay unwired and every assertion below would read `address(0)`.
         ERC404BondingInstance instImpl = new ERC404BondingInstance(address(new ERC404BondingOps()));
@@ -351,7 +351,7 @@ contract MetadataStackIntegrationTest is Test {
     function test_initModule_onlyFactory() public {
         (ERC404BondingInstance b,) = _createStacked();
         vm.prank(address(0xBAD));
-        // noesis-149: `initModule` now runs in `ERC404BondingOps` behind the discard-returndata
+        // `initModule` now runs in `ERC404BondingOps` behind the discard-returndata
         // trampoline, so its `OnlyFactory()` reaches the caller as the entry point's generic error.
         // The gate itself is unchanged — the call is still REJECTED, which is what this asserts.
         vm.expectRevert(InitModuleFailed.selector);
@@ -362,7 +362,7 @@ contract MetadataStackIntegrationTest is Test {
         (ERC404BondingInstance b,) = _createStacked();
         // The factory already wired METADATA_RESOLVER during create → a second wire is rejected.
         vm.prank(address(factory));
-        // noesis-149: `ModuleAlreadySet()` collapses into the trampoline's generic error (see above).
+        // `ModuleAlreadySet()` collapses into the trampoline's generic error (see above).
         vm.expectRevert(InitModuleFailed.selector);
         b.initModule(keccak256("metadata.resolver"), address(0x1234));
     }
@@ -436,7 +436,7 @@ contract MetadataStackIntegrationTest is Test {
         assertEq(_uri(b, 7), "solo-7");
     }
 
-    // ── noesis-038: tag-scoped resolver family (§3.1) ──────────────────────────
+    // ── Tag-scoped resolver family (§3.1) ──────────────────────────────────────
     // The resolver slot and its child resolvers accept the RESOLVER/OVERLAY/TIER family only.
     // A module that IS approved but under a foreign tag (e.g. GATING) must still be rejected —
     // that is the cross-slot hole tag-scoping closes. (A never-approved address is already covered
@@ -467,7 +467,7 @@ contract MetadataStackIntegrationTest is Test {
 
     /// @dev Positive control: [overlay, tier] are both resolver-family → the family check permits them,
     ///      TIER children included. Asserted ON THE TIERED PATH (`cfg.tier` + a one-rung ladder), which
-    ///      is the only shape a TIER module may be wired in under: noesis-162 refuses a TIER-tagged
+    ///      is the only shape a TIER module may be wired in under: the factory refuses a TIER-tagged
     ///      resolver or child with `cfg.tier` unset, because on that path neither `initTierBands` nor
     ///      `initBands` runs and the instance is sealed as permanently untiered. The family admission
     ///      being proved here is unchanged — only its untiered variant is now illegal.
@@ -481,7 +481,7 @@ contract MetadataStackIntegrationTest is Test {
         assertEq(router.resolverCount(inst), 2, "overlay+tier children should seal under family check");
     }
 
-    // ── noesis-141 T1 / noesis-160: the factory DERIVES the ranges and seals both tables ────────
+    // ── The factory DERIVES the ranges and seals both tables ────────────────────────────────────
     // There is no minBalance any more (the old zero-threshold guard went with it — static art has no
     // threshold to defeat), and the creator no longer supplies id ranges at all: the factory packs
     // them from the ladder, so an overlapping or inverted range is unrepresentable rather than
@@ -525,7 +525,7 @@ contract MetadataStackIntegrationTest is Test {
         assertEq(e1, 17, "10 / 5 = 2 ids");
     }
 
-    /// @dev noesis-267 — the tier module named by `cfg.tier` must sit IN the resolution chain: it is
+    /// @dev The tier module named by `cfg.tier` must sit IN the resolution chain: it is
     ///      either the resolver itself, or one of the router children. `cfg.tier` says only where the
     ///      band art is sealed and wires nothing on its own, so a tier module outside the chain gets a
     ///      full art table that no `tokenURI` lookup can reach, while the economic ladder IS sealed onto
@@ -648,12 +648,12 @@ contract MetadataStackIntegrationTest is Test {
         );
     }
 
-    // ── noesis-104 §4.5: a hostile resolver can't brick a DN404 transfer ─────────
+    // ── A hostile resolver can't brick a DN404 transfer ──────────────────────────
     // The `_tokenURI` seam is the ONLY place the instance calls a wired resolver, behind a defensive
-    // guard (now `SafeResolverLib.tryResolve`, noesis-107) — the DN404 TRANSFER path never touches it. So
+    // guard (now `SafeResolverLib.tryResolve`) — the DN404 TRANSFER path never touches it. So
     // a maximally hostile resolver (revert / gas-bomb / malformed return) wired as the instance's sole
     // resolver must never block a transfer. That is the load-bearing invariant, and it HOLDS for all three
-    // variants. The metadata READ now degrades to base for ALL THREE variants: noesis-107 replaced the
+    // variants. The metadata READ now degrades to base for ALL THREE variants: `SafeResolverLib` replaced the
     // naive try/returns/catch (which let a successful-but-ABI-undecodable return ESCAPE the catch and
     // revert the read) with a low-level staticcall + guarded decode, closing that former KNOWN-GAP.
 
@@ -716,14 +716,14 @@ contract MetadataStackIntegrationTest is Test {
     }
 
     function test_hostileResolver_malformedReturn_cannotBrickTransfer() public {
-        // noesis-107: the former KNOWN-GAP is CLOSED. A successful-but-ABI-undecodable resolver return
+        // The former KNOWN-GAP is CLOSED. A successful-but-ABI-undecodable resolver return
         // used to escape `_tokenURI`'s `try … returns (string){} catch {}` and revert the metadata READ;
         // `SafeResolverLib.tryResolve` now guards the return framing before decoding, so the malformed
         // success degrades to base identically to a revert/gas-bomb. Assert BOTH invariants: the transfer
         // lands (as before) AND the read no longer reverts — it degrades to base for every id.
         ERC404BondingInstance b =
             _wireHostileAndAssertTransferLands(MockHostileResolver.Mode.MALFORMED, "hostileMalformed");
-        assertEq(_uri(b, 5), "base/5", "malformed-resolver read must degrade to base (noesis-107)");
+        assertEq(_uri(b, 5), "base/5", "malformed-resolver read must degrade to base");
         assertEq(_uri(b, 1), "base/1", "post-transfer malformed read still degrades to base");
     }
 }

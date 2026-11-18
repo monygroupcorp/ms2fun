@@ -4,10 +4,10 @@ pragma solidity ^0.8.24;
 import { Test } from "forge-std/Test.sol";
 import { ERC404Factory } from "../../../src/factories/erc404/ERC404Factory.sol";
 import { ERC404BondingInstance } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
-// noesis-148: the `claimFreeMint` body moved into ERC404BondingOps behind a discard-returndata
+// The `claimFreeMint` body moved into ERC404BondingOps behind a discard-returndata
 // trampoline, so Ops's specific reverts (FreeMintDisabled / FreeMintAlreadyClaimed / FreeMintExhausted)
 // reach the caller as the generic `FreeMintFailed()` — the same collapse `rerollSelectedNFTs` has had
-// since noesis-091. The revert STILL happens; only its name at the boundary changed.
+// since it moved to Ops. The revert STILL happens; only its name at the boundary changed.
 import { FreeMintFailed } from "../../../src/factories/erc404/ERC404BondingStorage.sol";
 import { ERC404BondingOps } from "../../../src/factories/erc404/ERC404BondingOps.sol";
 import { LaunchManager } from "../../../src/factories/erc404/LaunchManager.sol";
@@ -251,7 +251,7 @@ contract ERC404FreeMintTest is Test {
 
         // A non-allowlisted claimer is rejected — proving the free path is gated under BOTH.
         // The gating module's `InvalidProof` reaches the caller as the generic `FreeMintFailed()`:
-        // `claimFreeMint` runs in ERC404BondingOps behind a discard-returndata trampoline (noesis-148).
+        // `claimFreeMint` runs in ERC404BondingOps behind a discard-returndata trampoline.
         // The gate still fires and the claim still reverts — only the boundary error name changed.
         vm.prank(makeAddr("nonlistedFree"));
         vm.expectRevert(FreeMintFailed.selector); // gating module: InvalidProof
@@ -356,7 +356,7 @@ contract ERC404FreeMintTest is Test {
         assertEq(merkle.claimed(address(inst), 0, user1), inst.unit());
 
         // Non-allowlisted intruder replaying user1's proof → rejected. Surfaces as the generic
-        // `FreeMintFailed()` (noesis-148 trampoline); the module's `InvalidProof` is what actually
+        // `FreeMintFailed()` (Ops trampoline); the module's `InvalidProof` is what actually
         // reverted, and stays visible in the trace.
         vm.prank(makeAddr("intruder404"));
         vm.expectRevert(FreeMintFailed.selector); // gating module: InvalidProof

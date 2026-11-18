@@ -38,7 +38,7 @@ contract RevocationFactory {
 }
 
 /// @title GlobalMessageRegistryRevocation
-/// @notice noesis-289: pins that revoking an instance stops its comments and NOT its trades.
+/// @notice Pins that revoking an instance stops its comments and NOT its trades.
 /// @dev `GlobalMessageRegistry.postForAction` refuses any caller for which
 ///      `isInstanceFromApprovedFactory` is false, and `revokeInstance` is exactly that flip. Every
 ///      ERC-404 / ERC-1155 / ERC-721 instance forwards a user's comment through that call on its

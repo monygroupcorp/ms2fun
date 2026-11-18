@@ -165,7 +165,7 @@ contract TokenTierBandResolverTest is Test {
     }
 
     /// @dev Blank baseURI → fall through to collection base (""), NOT a bare id string. Without the
-    ///      guard, string.concat("", id) would serve "102" — a broken non-URI (noesis-136).
+    ///      guard, string.concat("", id) would serve "102" — a broken non-URI.
     function test_resolve_blankBaseURI_fallsThrough() public {
         TokenTierBandResolver.Band[] memory bs = new TokenTierBandResolver.Band[](1);
         bs[0] = TokenTierBandResolver.Band({ idStart: 101, idEnd: 103, baseURI: "" });

@@ -49,7 +49,7 @@ contract MockWETH {
     }
 }
 
-/// @notice Minimal master-registry stub. noesis-113 made the ERC1155 settle path read
+/// @notice Minimal master-registry stub. The ERC1155 settle path reads
 ///         `masterRegistry.isVaultRegistered(vault)` before the tithe; a zero `masterRegistry` reverts
 ///         that read at withdraw. These hardening tests exercise the NORMAL (active-target) settle, so the
 ///         stub answers `isVaultRegistered`→true (unchanged behavior — they do not test target revocation).
@@ -64,7 +64,7 @@ contract MockMRHard {
 }
 
 /// @notice Master-registry stub whose target is DE-CURATED: `isVaultRegistered` answers false, so the
-///         withdraw path takes the noesis-435 return-to-creator branch.
+///         withdraw path takes the return-to-creator branch.
 contract MockMRDecurated {
     function isAgent(address) external pure returns (bool) {
         return false;
@@ -76,7 +76,7 @@ contract MockMRDecurated {
 }
 
 /// @notice A creator that rejects plain ETH. Proves the returned community cut keeps the brick-proof
-///         property the redirect leg had before noesis-435 folded it into the creator payout.
+///         property the redirect leg had before it was folded into the creator payout.
 contract EthRejectingCreator {
     receive() external payable {
         revert("no ETH");
@@ -230,7 +230,7 @@ contract ERC1155HardeningTest is Test {
         assertEq(weth.balanceOf(address(treasury)), 0.01 ether);
     }
 
-    // ── noesis-435: the returned community cut stays brick-proof ──────────────
+    // ── The returned community cut stays brick-proof ──────────────────────────
 
     /// A de-curated target folds the community cut into the creator's remainder. A creator that rejects
     /// plain ETH must still be paid — `smartTransferETH` wraps to WETH — the withdraw must not revert, and

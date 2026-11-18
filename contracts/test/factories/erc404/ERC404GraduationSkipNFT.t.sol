@@ -205,7 +205,7 @@ contract ERC404GraduationSkipNFTTest is Test {
     }
 
     /// @dev SELL THE WHOLE CURVE. Graduation's coin side is derived from the price the curve actually
-    ///      reached (noesis-188), so the reserved-id count this file is about is only in play at a full
+    ///      reached, so the reserved-id count this file is about is only in play at a full
     ///      sale — where the derived side reproduces `liquidityReserve`, i.e. the 20,000 ids' worth
     ///      measured here. The buyer flags itself NFT-skipping first: its own 80,000 ids are not the
     ///      subject, the graduation counterparties' are.

@@ -9,7 +9,7 @@ contract MockInstance is IInstanceLifecycle {
     address public protocolTreasury;
     address public globalMessageRegistryAddr;
     /// @dev IFactoryInstance.owner() — the creator a shared module reads back when a de-curated target
-    ///      sends the community cut home (noesis-435).
+    ///      sends the community cut home.
     address public owner;
 
     constructor(address _vault) {

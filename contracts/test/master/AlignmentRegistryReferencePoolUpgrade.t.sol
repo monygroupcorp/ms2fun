@@ -8,10 +8,10 @@ import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegist
 import { AlignmentRegistryV1Pre035 } from "./legacy/AlignmentRegistryV1Pre035.sol";
 import { MockUniV3RefFactory, MockUniV3RefPool } from "./AlignmentRegistryReferencePool.t.sol";
 
-/// @notice noesis-035 — LOAD-BEARING storage-layout proof for the appended `referencePools` mapping.
-/// @dev Seeds curated targets/assets/ambassadors/payouts AND acquire routes against the PRE-noesis-035
+/// @notice LOAD-BEARING storage-layout proof for the appended `referencePools` mapping.
+/// @dev Seeds curated targets/assets/ambassadors/payouts AND acquire routes against the PRE-`referencePools`
 ///      implementation (AlignmentRegistryV1Pre035 — the exact layout deployed on origin/main, with
-///      `acquireRoutes` as the last state var), upgrades the SAME proxy to the post-noesis-035
+///      `acquireRoutes` as the last state var), upgrades the SAME proxy to the post-`referencePools`
 ///      AlignmentRegistryV1 (which appends `referencePools` strictly after `acquireRoutes`), and asserts every
 ///      pre-existing value — crucially `getAcquireRoute` — reads back byte-for-byte identical. A layout break
 ///      in the appended mapping would silently corrupt curated routes behind the UUPS proxy; this fails loudly.
@@ -59,7 +59,7 @@ contract AlignmentRegistryReferencePoolUpgradeTest is Test {
 
         // ── upgrade the SAME proxy to the NEW (post-035) implementation ──
         // The new impl carries the canonical factories as IMMUTABLES — impl bytecode, never proxy storage.
-        // That is precisely why this layout proof still holds across the noesis-283 upgrade: two addresses
+        // That is precisely why this layout proof still holds across the provenance upgrade: two addresses
         // were added to the implementation and not one storage slot moved.
         MockUniV3RefFactory uniFactory = new MockUniV3RefFactory();
         AlignmentRegistryV1 newImpl = new AlignmentRegistryV1(weth, address(uniFactory));

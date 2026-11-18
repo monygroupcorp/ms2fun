@@ -130,7 +130,7 @@ contract AlignmentTargetRequestRegistryTest is Test {
         assertEq(id, 1);
     }
 
-    /// @dev Exact dup guard (noesis-055): a token registered under multiple targets where the FIRST is
+    /// @dev Exact dup guard: a token registered under multiple targets where the FIRST is
     ///      inactive but a LATER one is active must still be rejected. The old guard probed only index 0 and
     ///      let this duplicate slip through.
     function test_submit_revertsWhenLaterTargetActive() public {
