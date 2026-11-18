@@ -29,7 +29,10 @@ Read on 2026-10-19 against `main` at 8a3f798b and live chain state:
 
 ## 1. Decisions that gate the date
 
-The target is **Tuesday 2026-11-17**, chosen 2026-10-19: mainnet goes after one tester who is
+**Read 2026-11-17: the 11-17 window below was not taken, and no replacement date is set yet.** The
+table is kept as the order of work; its dates are history until a new launch day is chosen.
+
+The target was **Tuesday 2026-11-17**, chosen 2026-10-19: mainnet goes after one tester who is
 not the operator has completed a run end to end on Sepolia and after the testnet announcement
 has been posted, so the launch lands on an audience rather than ahead of one. The sequence
 below keeps that order; the chain work does not wait for it.
@@ -95,6 +98,10 @@ Fund the deployer for the spike case with margin (about 4.3 ETH) and do not broa
 
 Record the run under `contracts/deployments/fork-rehearsal-<date>/` as the 2026-09-28 Sepolia
 rehearsal was.
+
+Runs on record: `fork-rehearsal-2026-11-13/` (a37800a3) and `fork-rehearsal-2026-11-17/` (f5fcfa65),
+both green. Neither is the freeze run: the rehearsal is re-run on the exact commit that will be
+broadcast.
 
 ## 4. Launch day
 
