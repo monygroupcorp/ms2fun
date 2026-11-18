@@ -14,8 +14,8 @@ import { PointNoesisNames, INameNFT } from "../../script/PointNoesisNames.s.sol"
  *      MAINNET_RPC_URL=<url> forge test --mp test/fork/PointNoesisNamesFork.t.sol -vv
  *
  *      The owner's key is not available here, so the test calls `point(owner, hash)`, the function
- *      `run(hash)` calls with the `--account` address as `msg.sender`. A test broadcast needs no key:
- *      it sends each call from `owner`, which is all the names check.
+ *      `run(hash)` calls with the `--account` address it reads from the broadcaster. A test broadcast
+ *      needs no key: it sends each call from `owner`, which is all the names check.
  */
 contract PointNoesisNamesForkTest is Test {
     PointNoesisNames script;

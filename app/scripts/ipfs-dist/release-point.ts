@@ -103,11 +103,21 @@ function readRecords(rpcUrl: string): Record<string, string> {
     const result = spawnSync(
       'cast',
       ['call', contract, 'contenthash(uint256)(bytes)', tokenId, '--rpc-url', rpcUrl],
-      { encoding: 'utf8' },
+      { encoding: 'utf8', env: readOnlyEnv(process.env) },
     )
     if (result.status === 0) records[name] = result.stdout.trim()
+    else console.error(`point: reading ${name} failed: ${result.stderr?.trim() || result.error}`)
   }
   return records
+}
+
+/**
+ * `env` without Foundry's `ETH_*` variables. A shell that unlocks the keystore through them (for
+ * example `ETH_PASSWORD`, a password file) makes `cast call` demand a keystore and exit before it
+ * reads anything; a read needs no wallet, and the RPC is passed as a flag.
+ */
+export function readOnlyEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return Object.fromEntries(Object.entries(env).filter(([key]) => !key.startsWith('ETH_')))
 }
 
 /** What is wrong with the command line and environment; empty when the run can start. */
