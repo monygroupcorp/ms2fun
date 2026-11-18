@@ -7,3 +7,6 @@ test-results
 *.local
 *.tsbuildinfo
 .tmp
+
+# pnpm release:sepolia output: noesis_v<N>.car and its record
+releases
