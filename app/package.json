@@ -34,6 +34,8 @@
     "ipfs:latency": "tsx scripts/ipfs-gateway-latency.ts",
     "publish:preflight": "tsx scripts/assert-publishable.ts",
     "rpc:check": "tsx scripts/check-rpcs.ts",
+    "release:sepolia": "tsx scripts/ipfs-dist/release.ts",
+    "release:verify": "tsx scripts/ipfs-dist/verify-release.ts",
     "art:examples": "tsx scripts/art-examples/write.ts"
   },
   "dependencies": {

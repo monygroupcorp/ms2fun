@@ -27,6 +27,35 @@ resolves to the one document that is actually pinned. The same reasoning is why 
 under a path-prefixed gateway URL (`/ipfs/<cid>/…`) a root-anchored asset URL leaves the pin
 entirely. `scripts/ipfs-dist/smoke.ts` asserts both against the emitted bytes on every ipfs build.
 
+## Sepolia: one command
+
+For a Sepolia release, steps 1 and 2 below are one command, and the check after step 3 is another:
+
+```
+cd app
+export VITE_ART_SERVICE=https://<your-art-service>
+export PINATA_JWT=…   # in your shell only; omit it to build and record without pinning
+pnpm release:sepolia
+```
+
+It refuses a `VITE_CHAIN_ID` other than 11155111, a dirty tree, and a HEAD that is not
+`origin/main`; runs `publish:preflight --probe` and `build:ipfs`; copies the CAR to
+`releases/noesis_v<N>.car` beside a `noesis_v<N>.json` record (commit, CID, art service, CAR
+sha256); and with `PINATA_JWT` set pins the CAR to Pinata under the same name, failing unless Pinata
+reports the CAR's root. `releases/` is git-ignored: the record is the operator's, the pin is the
+copy that matters.
+
+After the names point at the printed CID:
+
+```
+pnpm release:verify <cid>
+```
+
+It polls noesis.gwei.domains and noesis.wei.domains until both serve `<cid>`, then fails unless the
+served `index.html` equals the local build, the scripts it loads bake `VITE_CHAIN_ID` 11155111 and
+the Sepolia master registry, and a gateway other than the names' and the pinning host's retrieves
+the CID.
+
 ## Steps
 
 ### 1. Build and package
