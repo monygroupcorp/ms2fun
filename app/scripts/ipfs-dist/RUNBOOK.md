@@ -45,7 +45,26 @@ sha256); and with `PINATA_JWT` set pins the CAR to Pinata under the same name, f
 reports the CAR's root. `releases/` is git-ignored: the record is the operator's, the pin is the
 copy that matters.
 
-After the names point at the printed CID:
+Then point both names at the printed CID:
+
+```
+export MAINNET_RPC_URL=…              # an Ethereum mainnet RPC endpoint
+export NOESIS_NAMES_ACCOUNT=<name>    # a Foundry keystore account (`cast wallet list`) that owns both names
+pnpm release:point <cid>              # simulates against mainnet; signs nothing
+pnpm release:point <cid> --broadcast  # one password prompt, one transaction per name
+```
+
+noesis.gwei and noesis.wei are NameNFT tokens on Ethereum mainnet, and each contract holds its own
+records. `setContenthash` accepts only the name's owner (no operator or delegate path), so the
+keystore account must be the account that owns the names, imported once with
+`cast wallet import <name> --interactive`. The command runs `contracts/script/PointNoesisNames.s.sol`,
+which refuses a CID that is not CIDv1 dag-pb, a signer that does not own both names and an expired
+name, all before anything is sent. It then reads both records back and fails unless they equal the
+new contenthash. It is two transactions rather than one: a single transaction would need the owner
+account delegated to a pointing contract with EIP-7702, replacing any delegation its wallet already
+uses, while two plain calls need nothing deployed.
+
+Then:
 
 ```
 pnpm release:verify <cid>
@@ -152,8 +171,10 @@ content from wherever it is pinned. The pinning host's own gateway answering is 
 
 ### 3. Point the name at it
 
-**This is rth's transaction, like every broadcast.** It is a wallet transaction from the address that
+**This is the name owner's transaction, like every broadcast.** It is signed by the address that
 holds the name — no key, endpoint or account belonging to it appears anywhere in this repository.
+For noesis.gwei and noesis.wei together, `pnpm release:point` (see "Sepolia: one command") does this
+from a keystore account. By hand, one name at a time:
 
 1. Open the gwei.domains dapp and select the name.
 2. **Set Website** → paste the CID from step 1.
