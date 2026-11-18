@@ -24,15 +24,16 @@ import { RELEASE_CHAIN_ID } from './release'
 export const RELEASE_ORIGINS = ['https://noesis.gwei.domains/', 'https://noesis.wei.domains/']
 
 /**
- * Gateways that read neither name's record: retrieving the CID from one proves it is on IPFS. Tried
- * in order and the first good answer counts, because the public gateways rate-limit by address and
- * a 429 says nothing about the CID. Filebase is left out on purpose: both names' gateways already
- * fetch through it, so it would not be an independent look.
+ * Gateways that read neither name's record and are not the pinning host: retrieving the CID from
+ * one proves another node can find the pin on IPFS. The pinning host (Pinata) is left out on
+ * purpose, since it answering from its own store proves nothing about discovery. Tried in order and
+ * the first good answer counts, because the public gateways rate-limit by address (ipfs.io answers
+ * 429 with a 15-minute Retry-After) and a 429 says nothing about the CID.
  */
 export const INDEPENDENT_GATEWAYS = [
   'https://ipfs.io/ipfs/',
   'https://dweb.link/ipfs/',
-  'https://gateway.pinata.cloud/ipfs/',
+  'https://ipfs.filebase.io/ipfs/',
 ]
 
 type Fetch = typeof fetch
