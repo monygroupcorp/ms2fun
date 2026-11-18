@@ -1,7 +1,7 @@
 /**
  * `pnpm spend` — what this deployment cost so far this month, against a budget.
  *
- * The goal's clause is that the bill is a QUERY AND NEVER A SURPRISE. Two things follow from taking
+ * The requirement is that the bill is a QUERY AND NEVER A SURPRISE. Two things follow from taking
  * that literally, and they are the whole design of this file.
  *
  * First, a cost is measured usage times a published price, and the price is the half that rots. A

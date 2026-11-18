@@ -453,7 +453,7 @@ answer against the tree actually being deployed, on the day.
 ### 5.5 Hand ownership to the Timelock
 
 **This step is the rehearsal.** Everything above it this network has done before; this it has not.
-`MigrateOwnership.s.sol` has existed and been tested since noesis-093 and **no deploy path has ever
+`MigrateOwnership.s.sol` has existed and been tested for a long time and **no deploy path has ever
 called it**, so without this section the first two-phase ownership handover this protocol performs
 would be the one on mainnet, with real money behind it and no dry run. That is the whole reason
 Sepolia is run as a dress rehearsal rather than a smoke test.
@@ -468,8 +468,8 @@ address. This is NOT `cfg.safe` in `DeployCore` — that field is read by nothin
 a real Safe into it installs no governance at all.
 
 **On mainnet, skip 5.5.1.** The mainnet Safe already exists:
-`0xBCE7DF8d399F145745C660DecB9ef50CA723d262`, 1-of-1, sole owner rth's wallet
-(`0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6`), created 2026-11-10 and ruled on the `the-safe`
+`0xBCE7DF8d399F145745C660DecB9ef50CA723d262`, 1-of-1, sole owner the project owner's wallet
+(`0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6`), created 2026-11-10 and recorded in the `the-safe`
 decision record. That is the `SAFE_ADDRESS` for 5.5.2 on mainnet — go straight there.
 
 **5.5.2 — the Timelock.** `SAFE_ADDRESS` is the Safe from 5.5.1 (on mainnet, the address above);
@@ -876,7 +876,7 @@ up in §6.5. Publish the bundle only after the module it reads from is the one i
 
 ### 7.2 Pin — **Pinata**
 
-The pin host is **Pinata**, and rth holds the account. This supersedes the self-pinning note in
+The pin host is **Pinata**, and the project owner holds the account. This supersedes the self-pinning note in
 `app/scripts/ipfs-dist/RUNBOOK.md` §2: standing up and operating our own node is not a prerequisite
 for this deployment.
 
@@ -898,7 +898,7 @@ record points at it.
 
 ### 7.3 Point the name
 
-This is rth's wallet transaction, from the address that holds the name. Set the `contenthash` record
+This is the name owner's transaction, from the address that holds the name. Set the `contenthash` record
 to the CID, then load `https://noesis.gwei.domains/`, confirm the footer shows the expected commit,
 and walk one deep link (`#/collections`).
 
@@ -936,4 +936,4 @@ Stated plainly, because everything else in this runbook is retryable and these a
   `DeployMainnet` carries `// TODO: real Safe address`, so an operator who wires a real Safe there
   will have installed nothing and have no error to tell them. Governance is `TIMELOCK_ADDRESS` plus
   the §5.5 handover, and the Safe belongs in `SAFE_ADDRESS` at 5.5.2. The disposition of the dead
-  field is open (noesis/testnet-deploy clause 49) and does not block this deploy.
+  field is still undecided and does not block this deploy.

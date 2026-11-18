@@ -2,9 +2,6 @@
 # The list only shrinks: the check fails on an entry whose file is clean, so a cleanup removes
 # its entries in the same change. Do not add to it; fix the file instead.
 
-.github/workflows/alignment-census-ci.yml
-.github/workflows/contracts-ci.yml
-.gitignore
 app/e2e/launch-matrix.spec.ts
 app/scripts/check-share-card.ts
 app/scripts/dev-chain/deploy.ts
@@ -253,15 +250,3 @@ contracts/test/vaults/ValidatorTwapGuard.t.sol
 contracts/test/vaults/VaultFlavors.t.sol
 contracts/test/vaults/ZAMMAlignmentVault.t.sol
 contracts/test/vaults/aave/AlignmentEndowmentVaultPooledLaw.t.sol
-data/alignment/index.json
-data/alignment/narrative.md
-docs/ALIGNMENT-CATALOG.md
-docs/MAINNET-DEPLOY-RUNBOOK.md
-docs/SEPOLIA-DEPLOY-RUNBOOK.md
-docs/phases/tier-denomination-visibility.md
-docs/phases/vault-flavors.md
-services/art/scripts/spend.ts
-services/art/wrangler.toml
-tools/contract-surface.json
-tools/provenance.json
-tools/resolve-slugs-scrape.mjs

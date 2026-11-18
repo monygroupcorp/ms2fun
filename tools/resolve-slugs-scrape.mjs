@@ -68,7 +68,7 @@ for (const line of readFileSync(file, 'utf8').split('\n').filter(Boolean)) {
     }
     const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
 
-    // Read every candidate's name BEFORE ruling, so "no other candidate shares this prefix" is a
+    // Read every candidate's name BEFORE deciding, so "no other candidate shares this prefix" is a
     // statement about the whole candidate set rather than about whichever one was tried first.
     const cands = [];
     for (const [address] of ranked) {
