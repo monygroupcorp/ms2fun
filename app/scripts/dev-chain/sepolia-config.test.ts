@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { FORK_STAMP_KEY, liveProjectionReasons, projectConfig } from './sepolia-config'
+import { FORK_STAMP_KEY, TARGETS, liveProjectionReasons, projectConfig } from './sepolia-config'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -87,5 +87,40 @@ describe('projectConfig', () => {
     expect(Object.keys(projected.contracts).sort()).toEqual(
       Object.keys(placeholder.contracts).sort(),
     )
+  })
+})
+
+describe('the mainnet target', () => {
+  const repoRoot = resolve(here, '..', '..', '..')
+  const rehearsal = JSON.parse(
+    readFileSync(
+      resolve(repoRoot, 'contracts/deployments/fork-rehearsal-2026-11-13/mainnet.json'),
+      'utf8',
+    ),
+  )
+
+  it('reads and writes the mainnet record under chain 1', () => {
+    expect(TARGETS.mainnet.chainId).toBe(1)
+    expect(TARGETS.mainnet.record).toBe('contracts/deployments/mainnet.json')
+    expect(TARGETS.mainnet.config).toBe('src/config/mainnet-deployment.json')
+  })
+
+  it('accepts a live-claiming chain-1 record only when chain 1 is expected', () => {
+    const live = forgeRecord({ chainId: 1 })
+    expect(liveProjectionReasons(live, 1)).toEqual([])
+    expect(liveProjectionReasons(live)[0]).toContain('names chain 1')
+  })
+
+  it("refuses the fork rehearsal's record as a live one", () => {
+    const reasons = liveProjectionReasons(rehearsal, 1)
+    expect(reasons).toHaveLength(1)
+    expect(reasons[0]).toContain(FORK_STAMP_KEY)
+  })
+
+  it('projects every name the app reads out of what DeployMainnet writes', () => {
+    const config = projectConfig(rehearsal, 0, 'fork-rehearsal-2026-11-13/mainnet.json')
+    expect(config.chainId).toBe(1)
+    expect(config.contracts.MasterRegistryV1).toBe(rehearsal.contracts.MasterRegistry)
+    expect(config.contracts.ERC1155Factory).toBe(rehearsal.factories.ERC1155)
   })
 })

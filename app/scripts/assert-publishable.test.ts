@@ -97,6 +97,7 @@ describe('resolvePublishChainId', () => {
   it('resolves the chains the app ships a config for', () => {
     expect(resolvePublishChainId('1337')).toBe(1337)
     expect(resolvePublishChainId('11155111')).toBe(11155111)
+    expect(resolvePublishChainId('1')).toBe(1)
   })
 })
 
@@ -114,6 +115,12 @@ describe('the shipped configs, read through the map the CLI uses', () => {
 
   it('clears the committed Sepolia record for publishing', () => {
     expect(assertPublishable(shipped(11155111), { allowChainIds: [11155111] })).toEqual([])
+  })
+
+  it('refuses the mainnet placeholder until the broadcast writes the real record', () => {
+    const reasons = assertPublishable(shipped(1), { allowChainIds: [1] })
+    expect(reasons.some((r) => r.includes('zero address'))).toBe(true)
+    expect(reasons.some((r) => r.includes('epoch sentinel'))).toBe(true)
   })
 
   it('still refuses the anvil placeholder, which is never committed with real values', () => {

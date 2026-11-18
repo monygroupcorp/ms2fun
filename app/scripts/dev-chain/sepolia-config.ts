@@ -1,5 +1,5 @@
 /**
- * Sepolia deploy-config bridge.
+ * Sepolia (and mainnet) deploy-config bridge.
  *
  * The local sibling of this script (`deploy.ts`) runs the anvil deploy AND writes the frontend
  * config. A public testnet deploy is not ours to run from a script — it is broadcast by hand, with a
@@ -14,6 +14,15 @@
  *
  *   SEPOLIA_RPC_URL=<sepolia rpc> pnpm exec tsx scripts/dev-chain/sepolia-config.ts \
  *     --deploy-block <block>
+ *
+ * Mainnet is the same projection with `--chain mainnet`: it reads `contracts/deployments/mainnet.json`
+ * (what `DeployMainnet` writes on launch day), writes `src/config/mainnet-deployment.json`, and
+ * checks every address against `MAINNET_RPC_URL` (or `--rpc-url`) on chain 1:
+ *
+ *   MAINNET_RPC_URL=<mainnet rpc> pnpm exec tsx scripts/dev-chain/sepolia-config.ts \
+ *     --chain mainnet --deploy-block <block>
+ *
+ * The mainnet fork rehearsal stamps its record `forkRehearsal` too, so the same refusal holds there.
  *
  * `--deploy-block` is the block the deploy landed at; it becomes the log-scan floor (ADR-0010 Tier
  * 1B) so the app never scans Sepolia from genesis. Omitted, it keeps whatever the current config
@@ -53,6 +62,24 @@ const repoRoot = resolve(appDir, '..')
 
 const SEPOLIA_CHAIN_ID = 11155111
 
+/** The networks this bridge projects for: where each one's record is read from and written to. */
+export const TARGETS = {
+  sepolia: {
+    chainId: SEPOLIA_CHAIN_ID,
+    record: 'contracts/deployments/sepolia.json',
+    config: 'src/config/sepolia-deployment.json',
+    rpcEnv: 'SEPOLIA_RPC_URL',
+  },
+  mainnet: {
+    chainId: 1,
+    record: 'contracts/deployments/mainnet.json',
+    config: 'src/config/mainnet-deployment.json',
+    rpcEnv: 'MAINNET_RPC_URL',
+  },
+} as const
+
+export type TargetName = keyof typeof TARGETS
+
 /**
  * The key `deploy-sepolia.ts` stamps into every artifact a fork rehearsal produces. Its presence is
  * the record saying, in its own words, that it describes a fork and not the public network.
@@ -73,21 +100,24 @@ interface ForgeDeployment {
  * the record is at least claiming to be a live Sepolia deploy — which the on-chain check then has to
  * confirm. Never throws on a malformed shape: an unexpected value is itself a reason.
  */
-export function liveProjectionReasons(deployment: unknown): string[] {
+export function liveProjectionReasons(
+  deployment: unknown,
+  expectedChainId: number = SEPOLIA_CHAIN_ID,
+): string[] {
   if (typeof deployment !== 'object' || deployment === null) {
     return [`deployment record is not an object (got ${JSON.stringify(deployment)})`]
   }
   const d = deployment as Record<string, unknown>
   const reasons: string[] = []
 
-  if (d.chainId !== SEPOLIA_CHAIN_ID) {
+  if (d.chainId !== expectedChainId) {
     reasons.push(
-      `names chain ${JSON.stringify(d.chainId)}, expected ${SEPOLIA_CHAIN_ID} (wrong file, or a stale one)`,
+      `names chain ${JSON.stringify(d.chainId)}, expected ${expectedChainId} (wrong file, or a stale one)`,
     )
   }
   if (d[FORK_STAMP_KEY] !== undefined) {
     reasons.push(
-      `carries a "${FORK_STAMP_KEY}" stamp — it was produced by the Sepolia-fork dev channel, ` +
+      `carries a "${FORK_STAMP_KEY}" stamp — it was produced by a fork rehearsal, ` +
         "and its addresses exist only on that fork. Pass --fork to write the channel's own config, " +
         'or re-run the live broadcast to produce a live record',
     )
@@ -190,21 +220,26 @@ export async function addressesWithoutCode(
 
 async function main(): Promise<void> {
   const isFork = flag('fork')
-  const inPath = resolve(repoRoot, arg('in') ?? 'contracts/deployments/sepolia.json')
-  const outPath = resolve(appDir, arg('out') ?? 'src/config/sepolia-deployment.json')
+  const targetName = arg('chain') ?? 'sepolia'
+  if (!Object.hasOwn(TARGETS, targetName)) {
+    throw new Error(`--chain must be one of ${Object.keys(TARGETS).join(', ')}, got: ${targetName}`)
+  }
+  const target = TARGETS[targetName as TargetName]
+  const inPath = resolve(repoRoot, arg('in') ?? target.record)
+  const outPath = resolve(appDir, arg('out') ?? target.config)
 
   const deployed = JSON.parse(readFileSync(inPath, 'utf8')) as ForgeDeployment
 
   if (isFork) {
-    // The channel's own config. The record still has to be a Sepolia-shaped one, but its addresses
+    // The channel's own config. The record still has to name the target chain, but its addresses
     // are fork-local by definition and there is no live chain to check them against.
-    if (deployed.chainId !== SEPOLIA_CHAIN_ID) {
+    if (deployed.chainId !== target.chainId) {
       throw new Error(
-        `${inPath} names chain ${deployed.chainId}, expected ${SEPOLIA_CHAIN_ID} (wrong file, or a stale one)`,
+        `${inPath} names chain ${deployed.chainId}, expected ${target.chainId} (wrong file, or a stale one)`,
       )
     }
   } else {
-    const reasons = liveProjectionReasons(deployed)
+    const reasons = liveProjectionReasons(deployed, target.chainId)
     if (reasons.length > 0) {
       throw new Error(
         [`Refusing to write ${outPath} from ${inPath}:`, ...reasons.map((r) => `  - ${r}`)].join(
@@ -234,17 +269,17 @@ async function main(): Promise<void> {
     // The decisive test, and the one a file cannot fake: does the public network actually hold what
     // this record claims? Fail-closed — with no endpoint there is nothing to check against, and a
     // config written on the strength of a filename is exactly the mistake this guard exists for.
-    const rpcUrl = arg('rpc-url') ?? process.env.SEPOLIA_RPC_URL
+    const rpcUrl = arg('rpc-url') ?? process.env[target.rpcEnv]
     if (!rpcUrl) {
       throw new Error(
-        `Refusing to write ${outPath} unverified: pass --rpc-url <sepolia rpc> or set ` +
-          'SEPOLIA_RPC_URL so the projected addresses can be checked on the live network. ' +
+        `Refusing to write ${outPath} unverified: pass --rpc-url <${targetName} rpc> or set ` +
+          `${target.rpcEnv} so the projected addresses can be checked on the live network. ` +
           "(A fork rehearsal's config is written with --fork and is not checked.)",
       )
     }
     const { chainId, empty } = await addressesWithoutCode(config.contracts, rpcUrl)
-    if (chainId !== SEPOLIA_CHAIN_ID) {
-      throw new Error(`the endpoint reports chain ${chainId}, expected ${SEPOLIA_CHAIN_ID}`)
+    if (chainId !== target.chainId) {
+      throw new Error(`the endpoint reports chain ${chainId}, expected ${target.chainId}`)
     }
     if (empty.length > 0) {
       throw new Error(
