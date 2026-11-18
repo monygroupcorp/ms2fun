@@ -6,7 +6,7 @@ import { QueryAggregator, IERC1155EditionReader } from "../../src/query/QueryAgg
 
 /// @notice Answers 0 to `nextEditionId()` and nothing else — the shape the ERC1155 card leg is
 ///         designated to tolerate ("a non-ERC1155 instance yields a zero card there",
-///         QueryAggregator.sol:572). Before noesis-320 the `nextId - 1` decrement ran in the parent
+///         QueryAggregator.sol:572). Before this fix the `nextId - 1` decrement ran in the parent
 ///         frame, so this answer underflowed to panic 0x11 outside the reach of the attached
 ///         `catch {}` and reverted the whole batch.
 contract ZeroEditionCounter {
@@ -74,7 +74,7 @@ contract OverflowingEditionCounter {
     }
 }
 
-/// @notice noesis-320 — the ERC1155 card leg was the one card path doing its arithmetic in the
+/// @notice The ERC1155 card leg was the one card path doing its arithmetic in the
 ///         parent frame, so a zero edition counter took every sibling card in the batch with it.
 ///         `getProjectCardsBatch` takes a caller-supplied, unfiltered address array, and the two
 ///         comments at QueryAggregator.sol:572 and :578 promise this leg is revert-safe.

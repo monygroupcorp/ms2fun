@@ -6,7 +6,7 @@ import { QueryAggregator } from "../../src/query/QueryAggregator.sol";
 import { IMasterRegistry } from "../../src/master/interfaces/IMasterRegistry.sol";
 
 /// @dev A stand-in ERC404 sized by the two things that drive the lens's cost: how many ids the holder
-///      owns (`coinBalanceOf` walks them) and whether the instance answers the noesis-316 symbols.
+///      owns (`coinBalanceOf` walks them) and whether the instance answers the escrowed-coin symbols (`coinBalanceOf`, `pendingEscrowRelease`).
 contract GasProbeInstance {
     uint256 public immutable ownedIds;
     bool public immutable tiered;
@@ -65,7 +65,7 @@ contract GasProbeFQM {
 
 /**
  * @title QueryAggregatorPortfolioGas
- * @notice noesis-316 clause 12 — what a 50-instance portfolio batch costs as ONE eth_call.
+ * @notice What a 50-instance portfolio batch costs as ONE eth_call.
  * @dev 50 is not an arbitrary round number: it is `QueryAggregator.MAX_QUERY_LIMIT`, the largest batch
  *      `getPortfolioData` will accept, so these are the worst cases the endpoint can be asked for.
  *
@@ -88,7 +88,7 @@ contract GasProbeFQM {
  *
  *      This is a MEASUREMENT, not a gate. It prints; it asserts only the one thing worth failing on,
  *      that the worst case stays under a node's default `eth_call` ceiling. The numbers it prints are
- *      what clause 12 records, and they are read off `gasleft()` around the call itself so that test
+ *      the recorded cost, and they are read off `gasleft()` around the call itself so that test
  *      setup is outside the measurement.
  */
 contract QueryAggregatorPortfolioGasTest is Test {
@@ -125,7 +125,7 @@ contract QueryAggregatorPortfolioGasTest is Test {
         assertEq(rowsB, 50, "every instance produced a row");
         assertEq(rowsC, 50, "every instance produced a row");
 
-        console.log("noesis-316 clause 12 - getPortfolioData, 50 instances (MAX_QUERY_LIMIT), one eth_call");
+        console.log("getPortfolioData, 50 instances (MAX_QUERY_LIMIT), one eth_call");
         console.log("  untiered, 1 id each       gas:", untieredGas);
         console.log("  tiered,  10 ids each      gas:", tieredSmallGas);
         console.log("  tiered, 200 ids each      gas:", tieredFatGas);

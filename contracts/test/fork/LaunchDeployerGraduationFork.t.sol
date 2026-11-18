@@ -13,7 +13,7 @@ import { LibClone } from "solady/utils/LibClone.sol";
 
 /**
  * @title LaunchDeployerGraduationFork
- * @notice The graduation-brick regression (noesis-039). Proves the REAL launch liquidity deployers —
+ * @notice The graduation-brick regression. Proves the REAL launch liquidity deployers —
  *         the ones DeployMainnet now wires under LIQUIDITY_DEPLOYER — actually stand up an LP at
  *         graduation against live mainnet infrastructure, instead of the MockComponentModule stubs
  *         that reverted graduation permanently:

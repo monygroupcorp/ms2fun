@@ -6,7 +6,7 @@ import { Ownable } from "solady/auth/Ownable.sol";
 import { AlignmentRegistryV1 } from "../../src/master/AlignmentRegistryV1.sol";
 import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
 
-/// @notice Proves the ambassador metadata-write capability boundary (noesis-054):
+/// @notice Proves the ambassador metadata-write capability boundary:
 ///         an appointed ambassador may update ONLY the SAFE metadata field of the target it represents
 ///         (description/metadataURI) and has NO fund- or price-authority power.
 contract AlignmentRegistryAmbassadorMetadataWriteTest is Test {

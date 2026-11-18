@@ -9,7 +9,7 @@ file this report does not name; see §1.5 for what it counts today and why the t
 **Method:** map → twelve-lane parallel hunt → adversarial judge pass → Foundry proof-of-concept
 for each surviving High.
 
-This audit is what `testnet-deploy` clause 1 waits on; that clause was ruled NO-GO on 2026-09-15
+This audit is what the testnet deploy waits on; that deploy was judged NO-GO by the owner on 2026-09-15
 "until the contract work wanted before the test is finished and the audit is done".
 
 ---
@@ -52,8 +52,8 @@ it crosses.
 Trusted-by-design, and therefore not findings on their own: T0 is trusted to be **honest but not
 infallible**, so "the owner could rug" is only reported where it is reachable *without* owner
 intent, or where it contradicts a promise the code itself makes. The de-curation freeze on
-ambassador deploy rights is intended (rth, noesis-276). The owner-settable-number class is an
-accepted class (rth, 2026-09-04).
+ambassador deploy rights is intended (the owner's decision). The owner-settable-number class is an
+accepted class (the owner, 2026-09-04).
 
 ### 1.3 External calls — what each contract talks to
 
@@ -228,7 +228,7 @@ on a keyword. They are grouped by what they can do to money.
 
 Twelve hunt lanes filed 118 candidate findings. Every one was put through a skeptic pass that
 tried to disprove it against the code, and the majority did not survive: struck as already fixed
-on `main`, already defended by a test, already ruled, or simply wrong about what the code does.
+on `main`, already defended by a test, already decided by the owner, or simply wrong about what the code does.
 What follows is what survived, with the evidence that made it survive.
 
 **Severity means:** *High* — direct loss or lock of user or protocol funds reachable by someone
@@ -236,7 +236,7 @@ who is not the trusted owner. *Medium* — conditional loss, griefing with real 
 a broken invariant needing an unusual-but-reachable precondition. *Low* — a correctness defect
 with bounded impact. *Info* — hardening, clarity, dead code.
 
-### Already ruled, and not re-reported
+### Already decided, and not re-reported
 
 Cited so the reader knows they were looked at, not missed:
 
@@ -245,14 +245,14 @@ Cited so the reader knows they were looked at, not missed:
   into `roundResidue` before the basis is zeroed, so `totalPrincipal == 0` with ETH still in the
   position is unreachable. Landed in PR #383.
 - The endowment share model (immutable per-benefactor shares, `fundingRound`,
-  `MIN_SHARE_PRICE_INVERSE`) is rth's accepted design, option (a), 2026-09-10.
+  `MIN_SHARE_PRICE_INVERSE`) is the owner's accepted design, option (a), 2026-09-10.
 - The endowment factory's `setVaultCommunityPayout` capability is **gone** — it survives only as a
   deliberate tombstone at `AlignmentEndowmentVaultFactory.sol:88` with two negative tests pinning
   the selector's absence.
-- De-curation freezing an ambassador's deploy rights is intended (noesis-276).
+- De-curation freezing an ambassador's deploy rights is intended (the owner's decision).
 - `setBondingOpenTime` re-checking the stored maturity against `MAX_BONDING_DURATION` (PR #380's
   hold) **is present** at `ERC404BondingOps.sol:974-984`, landed in `63fa1c10`.
-- The 80/19/1 split, the ERC404+endowment pairing, and the owner-settable-number class are ruled.
+- The 80/19/1 split, the ERC404+endowment pairing, and the owner-settable-number class are decided by the owner.
 
 One correction worth recording: the audit branch was cut 30 commits behind `main` and was missing
 six contract fixes, #418, #420 and #421 among them. It was merged up to `main` (`71b22fc8`) before
@@ -320,8 +320,8 @@ paid buyers cannot eat into the free allocation." The panel warns in detail abou
 price-curve effect and presents ERC-404 as the protected case. The spec's own sizing (62% at a 10%
 allocation) also disagrees with the measured 42.5%.
 
-Neither an in-code comment nor a spec paragraph is an owner ruling, and no ruling for this exists
-in `decisions.log`.
+Neither an in-code comment nor a spec paragraph is an owner decision, and no decision for this exists
+in the project's decision record.
 
 **Default is off, one field away from on.** `freeMintAllocation` is a per-create parameter, not a
 preset field; the wizard defaults it to 0 and every deploy script passes 0. The only bounds are
@@ -336,15 +336,15 @@ run against this configuration. The test's own comment shows the author knew why
 **Proof:** `test/audit/FreeMintCurveSolvency.t.sol` — 3 failing, 1 passing control (the same script
 at `allocation = 0`).
 
-**Ruled, 2026-09-17.** The finding above is as it was found, and the sentence in it that no longer
-holds is the one about `decisions.log`: the ruling now exists. The free-mint tranche is a design
+**Decided, 2026-09-17.** The finding above is as it was found, and the sentence in it that no longer
+holds is the one about the project's decision record: the decision now exists. The free-mint tranche is a design
 decision, accepted as designed and not a defect — the mechanism stands, and what was owed was
 describing it honestly on the three surfaces that did not. See §4.
 
 `test/audit/FreeMintCurveSolvency.t.sol` stays as written and stays skipped, and that is now a
 different thing from the other skipped proofs: it does not await a fix, because there will not be
-one. It asserts a solvency property the owner has ruled the protocol does not offer, so it is a
-record of the mechanism and not a defect ticket. The proofs that measure the ruled behaviour and run
+one. It asserts a solvency property the owner has decided the protocol does not offer, so it is a
+record of the mechanism and not a defect ticket. The proofs that measure the accepted behaviour and run
 *inside* the gate arrive with #430 — `BondingCurveFreeMintInvariant.t.sol` and
 `FreeMintReserveDrain.t.sol`.
 
@@ -818,7 +818,7 @@ to asserting it closed, and its line was deleted from `foundry.toml`'s `skip`. T
 finished; four files remain outside the default set, and their two reasons are no longer symmetric.
 
 1. **Pragma, not state.** Three drive v4-core's real `PoolManager`, whose pragma is exactly `0.8.26`,
-   while the default profile is pinned to `0.8.28` for deploy-determinism (noesis-120) — the same
+   while the default profile is pinned to `0.8.28` for deploy-determinism — the same
    constraint that already put `UniAlignmentV4Hook_RealSettlement.t.sol` behind `foundry.v4.toml`.
    All three pass. They are excluded for what they import, not for what they assert, and because no
    job selected that config, nothing caught them going red on their own — which is exactly what
@@ -828,8 +828,8 @@ finished; four files remain outside the default set, and their two reasons are n
    a job will keep honest rather than something the next reader has to re-check by hand. The job's
    path is now the whole `skip` list bar `FreeMintCurveSolvency.t.sol`, which compiles under the
    default profile and is out for the other reason entirely.
-2. **Ruled, not open.** `FreeMintCurveSolvency.t.sol` asserts a solvency property the protocol does
-   not offer, and after the 2026-09-17 ruling it never will. It is the one proof here not waiting on
+2. **Decided, not open.** `FreeMintCurveSolvency.t.sol` asserts a solvency property the protocol does
+   not offer, and after the 2026-09-17 decision it never will. It is the one proof here not waiting on
    a fix, and its `skip` line must not be deleted: that would make the contracts gate permanently red
    for a mechanism the protocol sells deliberately. What measures that mechanism *inside* the gate is
    `test/invariant/BondingCurveFreeMintInvariant.t.sol` and
@@ -851,7 +851,7 @@ Measured on the current tree. "in the gate" means the file is in the default set
 | `CreateXSaltSquat.t.sol` | L-1 | yes | 6 pass |
 | `CurveExactOutRoundingBuffer.t.sol` | L-5 | yes | 3 pass |
 | `CypherVaultTokenResidue.t.sol` | L-12 | yes | 5 pass |
-| `FreeMintCurveSolvency.t.sol` | H-1 | **no — ruled** | 1 pass, **3 fail by design** |
+| `FreeMintCurveSolvency.t.sol` | H-1 | **no — decided** | 1 pass, **3 fail by design** |
 | `GraduationLpResidue.t.sol` | M-1 | yes | 15 pass (v4 9, ZAMM 3, Cypher 3) |
 | `HookQueuedFeesMigratedVault.t.sol` | M-4 | no — pragma | 3 pass |
 | `HookSecondPoolNotBound.t.sol` | L-6 | no — pragma | 3 pass |
@@ -895,7 +895,7 @@ in the tree has it.
 
 **When a fix lands, delete that proof's line from `skip` in `foundry.toml`** so it joins the default
 set and the gate keeps it honest. A proof left skipped awaiting a fix is a fix nobody verified. H-1's
-is the exception and the only one: it is skipped because it is ruled, not because it is open.
+is the exception and the only one: it is skipped because it is decided as designed, not because it is open.
 
 ### One proof had gone stale against its own fix
 
@@ -1066,31 +1066,31 @@ test/audit/CypherVaultTokenResidue.t.sol   (as it stands, on `audit-l12-cypher-t
 
 ## 4. Disposition
 
-The line is careful: nothing merges without rth's hand. Every item below is either a branch with a
-PR — open, or merged by him since — or a named question for his ruling.
+The line is careful: nothing merges without the owner's hand. Every item below is either a branch with a
+PR — open, or merged by the owner since — or a named question for the owner's decision.
 
-**As of 2026-09-20 every PR this section names has been merged by him.** Checked with `gh pr view`
+**As of 2026-09-20 every PR this section names has been merged by the owner.** Checked with `gh pr view`
 against each number below: #423, #424, #426, #427, #428, #429, #430, #431, #432, #434, #435, #436 and
-#445 are all `MERGED`, and the one High is ruled. One PR was opened against this disposition
+#445 are all `MERGED`, and the one High is decided. One PR was opened against this disposition
 since, #461 for L-12 — filed on 2026-09-21 by re-reading L-10 as a shape — and it merged the same
 day, so the sentence above holds for it too; see the Lows table. What is otherwise left open is
-clause 5 of this audit's own goal — rth's go/no-go on `testnet-deploy` clause 1 — and the items
+the owner's go/no-go on the testnet deploy, and the items
 §"What this audit does not cover" names as out of scope.
 
 All five Mediums now carry fixes. Two of them were written with the audit, because each is a single
 guard with a sibling in this same tree that already has it — a consistency repair rather than a new
 design: **#423** (`uni-vault-poolkey-lock`) and **#424** (`auction-timebuffer-bound`). The other
-three turned on decisions that were rth's rather than an auditor's, were named here with the shapes
+three turned on decisions that were the owner's rather than an auditor's, were named here with the shapes
 each could take, and were then taken: **#427** (M-2), **#426** (M-4) and **#434** (M-1). The High is
-still a ruling and is still unfixed, deliberately — see below. Every branch is green on the full
+still decided as designed and is still unfixed, deliberately — see below. Every branch is green on the full
 contracts gate.
 
 ### The one High
 
-**H-1 (free-mint curve solvency) was named for rth's ruling rather than fixed on a branch, and on
-2026-09-17 he ruled: the free-mint tranche is a design decision, accepted as designed and not a
+**H-1 (free-mint curve solvency) was named for the owner's decision rather than fixed on a branch, and on
+2026-09-17 the owner decided: the free-mint tranche is a design decision, accepted as designed and not a
 defect.** Nothing under `src/` changes, and none of the three shapes below was taken. They are kept
-here because they are what the ruling was made against — the question was which product the protocol
+here because they are what the decision was made against — the question was which product the protocol
 sells, not which implementation is correct:
 
 - **(a) Lock free-minted coin from `sellBonding` until graduation.** The tranche keeps its
@@ -1105,8 +1105,8 @@ sells, not which implementation is correct:
   current behaviour below that bound.
 
 Each of those was an economic decision about what the protocol sells, which is why the finding went
-to rth rather than being settled by an auditor. What was *not* a judgment call was the three
-surfaces that described the mechanism wrongly or not at all, and a ruling of "as designed" is what
+to the owner rather than being settled by an auditor. What was *not* a judgment call was the three
+surfaces that described the mechanism wrongly or not at all, and a decision of "as designed" is what
 makes describing it correctly the whole of the work. All three are done on branch
 `h1-free-mint-made-true`, **PR #430**:
 
@@ -1126,8 +1126,8 @@ makes describing it correctly the whole of the work. All three are done on branc
    `reserve == balance` and `reserve == F(totalBondingSupply)` both hold at zero tolerance over free
    coin, and the excess of circulating coin over tracked supply is asserted rather than avoided.
 
-**No High is left both unfixed and unruled:** H-1 is ruled — designed, not a defect — with the proof
-that measures it committed, the three options it was ruled against costed above, and the three
+**No High is left both unfixed and undecided:** H-1 is decided — designed, not a defect — with the proof
+that measures it committed, the three options it was decided against costed above, and the three
 surfaces that misdescribed it corrected on #430.
 
 ### The five Mediums
@@ -1226,7 +1226,7 @@ ETH fields is non-zero for a given graduation, and a report summing the ETH a gr
 
 Stated plainly so the gap is not mistaken for a clean bill:
 
-- **No fork testing.** `noesis-249` deferred a fork suite before mainnet, and that deferral stands.
+- **No fork testing.** A fork suite was deferred to before mainnet, and that deferral stands.
   Every proof here runs against mocks or an in-memory PoolManager, so real Aave, real Uniswap v4 and
   real Algebra behaviour on a live chain is unverified by this pass.
 - **The `deep` fuzz/invariant profile was not run.** It has no selector and is entry 2 of
@@ -1263,7 +1263,7 @@ outside it — see §3.
 
 **Re-measured on this branch, 2026-09-19,** because the figures above describe the audit branch before
 this report's own fixes merged, and because the contracts gate was red on `main` from #436 (2026-09-18)
-until #447 merged today. The clause this audit is gated on names the plain chain, so that is what was
+until #447 merged today. The check this audit is gated on names the plain chain, so that is what was
 run:
 
 ```
@@ -1305,7 +1305,7 @@ refuses to run unless every file in `foundry.toml`'s `skip=` list is either in i
 recorded beside it with the reason it is deliberately out, and it asks forge which files its path
 actually reaches before running them — because a `--match-path` that matches nothing exits 0. So a
 proof can no longer be skipped and unwatched at the same time without something going red.
-`FreeMintCurveSolvency.t.sol` is the one file recorded as out, red by the H-1 ruling and for as long
+`FreeMintCurveSolvency.t.sol` is the one file recorded as out, red by the H-1 decision and for as long
 as it stands.
 
 ---

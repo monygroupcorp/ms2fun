@@ -7,11 +7,11 @@ import { IAlignmentRegistry } from "../../../src/master/interfaces/IAlignmentReg
 /**
  * @title AlignmentRegistryV1Pre035
  * @notice Byte-for-byte-layout copy of the AlignmentRegistryV1 implementation as it existed on origin/main
- *         AFTER noesis-031 but BEFORE noesis-035 (i.e. WITH the appended `acquireRoutes` mapping as the last
+ *         AFTER acquisition routing but BEFORE reference pools (i.e. WITH the appended `acquireRoutes` mapping as the last
  *         state var, but WITHOUT the newly-appended `referencePools` mapping and WITHOUT the `weth` immutable).
- * @dev Test-only fixture for the noesis-035 storage-layout proof. A proxy is deployed on this "old"
+ * @dev Test-only fixture for the `referencePools` storage-layout proof. A proxy is deployed on this "old"
  *      implementation, seeded with curated targets/assets/ambassadors/payouts AND acquire routes, then
- *      upgraded to the real (post-noesis-035) AlignmentRegistryV1 (which appends `referencePools` after
+ *      upgraded to the real (current) AlignmentRegistryV1 (which appends `referencePools` after
  *      `acquireRoutes`). The proof asserts every pre-existing value — crucially `getAcquireRoute` — reads
  *      back identical. Intentionally does NOT inherit IAlignmentRegistry so it is not forced to implement the
  *      new reference-pool members; this frozen version predates them. Struct/enum types are reused from
@@ -26,7 +26,7 @@ contract AlignmentRegistryV1Pre035 is SafeOwnableUUPS {
     error TokenNotInTarget();
     error InvalidRoute();
 
-    // ── State (must mirror AlignmentRegistryV1 post-noesis-031 / pre-noesis-035, in the same order) ──
+    // ── State (must mirror AlignmentRegistryV1 post-`acquireRoutes` / pre-`referencePools`, in the same order) ──
     bool private _initialized;
     uint256 public nextAlignmentTargetId;
     mapping(uint256 => IAlignmentRegistry.AlignmentTarget) public alignmentTargets;
@@ -35,7 +35,7 @@ contract AlignmentRegistryV1Pre035 is SafeOwnableUUPS {
     mapping(uint256 => mapping(address => bool)) internal _isAmbassador;
     mapping(address => uint256[]) public tokenToTargetIds;
     mapping(uint256 => address) public communityPayout;
-    // Last state var in the pre-noesis-035 layout.
+    // Last state var in the pre-`referencePools` layout.
     mapping(uint256 => mapping(address => IAlignmentRegistry.AcquireRoute)) internal acquireRoutes;
 
     constructor() {
@@ -91,7 +91,7 @@ contract AlignmentRegistryV1Pre035 is SafeOwnableUUPS {
         communityPayout[targetId] = payout;
     }
 
-    /// @dev Mirrors the pre-noesis-035 `setAcquireRoute` so the proof can seed the `acquireRoutes` slot on the
+    /// @dev Mirrors the pre-`referencePools` `setAcquireRoute` so the proof can seed the `acquireRoutes` slot on the
     ///      old impl before upgrading.
     function setAcquireRoute(uint256 targetId, address token, IAlignmentRegistry.AcquireRoute calldata route)
         external

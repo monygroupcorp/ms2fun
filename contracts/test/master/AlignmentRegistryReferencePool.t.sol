@@ -152,7 +152,7 @@ contract AlignmentRegistryReferencePoolTest is Test {
         registry.setReferencePool(targetId, cultToken, _ref(address(pool), 1, 900));
     }
 
-    /// noesis-285: a caller's 0 is RESOLVED at set time and the proved window is what is stored, so the
+    /// A caller's 0 is RESOLVED at set time and the proved window is what is stored, so the
     /// reader is never left to resolve the same 0 against a different constant of its own. `1800` is
     /// `AlignmentRegistryV1.DEFAULT_TWAP_WINDOW`, transcribed because it is `internal`.
     function test_SetReferencePool_DefaultWindowWhenZero() public {
@@ -257,7 +257,7 @@ contract AlignmentRegistryReferencePoolTest is Test {
         registry.setReferencePool(targetId, cultToken, _ref(address(pool), KIND_UNI, 0));
     }
 
-    // ── provenance (noesis-283): shape is not origin ────────────────────────────
+    // ── provenance: shape is not origin ─────────────────────────────────────────
 
     /**
      * The defect this closes. Before provenance, the setter's whole test was SHAPE: answer `token0`,

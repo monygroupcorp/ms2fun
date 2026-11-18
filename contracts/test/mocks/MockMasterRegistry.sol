@@ -153,7 +153,7 @@ contract MockMasterRegistry is IMasterRegistry {
     }
 
     // Alignment registry, address(0) until a test wires one. The zero default is what every historic
-    // caller of this mock expects (noesis-058 added the getter as a no-op); a suite that drives a real
+    // caller of this mock expects (the getter was added as a no-op); a suite that drives a real
     // alignment vault through this registry — the vault resolves its community sink through
     // `alignmentRegistry().getCommunityPayout()` on every send — sets one here.
     IAlignmentRegistry private _alignmentRegistry;

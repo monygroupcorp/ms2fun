@@ -8,7 +8,7 @@ import { MasterRegistryV1 } from "../../src/master/MasterRegistryV1.sol";
 
 /**
  * @title MasterRegistryImplGuardTest
- * @notice noesis-151. `delegatecall` to an address with NO CODE returns SUCCESS and writes nothing.
+ * @notice `delegatecall` to an address with NO CODE returns SUCCESS and writes nothing.
  *         `MasterRegistry` is the ERC1967 proxy used for every protocol registry (and, via
  *         `DeployCore._deployProxyCreate3`, for the treasury/queue/alignment/component proxies too),
  *         and its constructor used to write the caller-supplied implementation straight to the slot
@@ -20,14 +20,14 @@ import { MasterRegistryV1 } from "../../src/master/MasterRegistryV1.sol";
  *
  *         Every ERC404/ERC1155/ERC721 instance holds this proxy as `masterRegistry` and trusts its
  *         answers (`isVaultRegistered`, `isAgent`, `getInstanceVaults`, `registerInstance`), all of
- *         which decode empty returndata as `false`/zero/empty. noesis-149 showed what a wrong registry
- *         answer buys an attacker on the config setters gated by `_requireOwnerOrAgent`.
+ *         which decode empty returndata as `false`/zero/empty. A wrong registry answer is exploitable, for
+ *         example on the config setters gated by `_requireOwnerOrAgent`.
  *
  *         The constructor now rejects it. These tests pin that the guard is a CODE-LENGTH check and
  *         not a zero-address check (a non-zero EOA is exactly as broken, and a naive
  *         `implementation == address(0)` branch would wave it through), and — so the rejection tests
  *         cannot pass vacuously — `test_Unguarded_*` proves the rejection tests are falsifiable by exhibiting the state the
- *         guard removes: a byte-for-byte copy of the pre-noesis-151 constructor that deploys happily
+ *         guard removes: a byte-for-byte copy of the pre-guard constructor that deploys happily
  *         around `address(0)` and then reports success for everything.
  *
  *         Byte budget: the guard is CONSTRUCTOR code, so the proxy's deployed runtime is untouched.
@@ -67,7 +67,7 @@ contract MasterRegistryImplGuardTest is Test {
     // ────────────────── falsifiability control ──────────────────
 
     /// @dev The rejection tests above are only meaningful if an UNGUARDED constructor would visibly
-    ///      SUCCEED on the same arguments. `UnguardedERC1967Proxy` is the pre-noesis-151 constructor
+    ///      SUCCEED on the same arguments. `UnguardedERC1967Proxy` is the pre-guard constructor
     ///      verbatim: it deploys around `address(0)`, does not fire `InitializationFailed` despite
     ///      non-empty init data, and then returns success-with-no-data for the very calls instances
     ///      make. That is the state the guard removes.
@@ -118,7 +118,7 @@ contract MasterRegistryImplGuardTest is Test {
     // The upgrade path lives in the implementation — solady `UUPSUpgradeable.upgradeToAndCall`, reached
     // through `SafeOwnableUUPS` — and already rejects a code-less target: it staticcalls
     // `proxiableUUID()` and requires the ERC1967 slot back, which an address with no code cannot
-    // return, so it reverts `UpgradeFailed`. Nothing to add there (and it is out of this item's scope);
+    // return, so it reverts `UpgradeFailed`. Nothing to add there (and it is out of this suite's scope);
     // these pin that it stays true, since an upgrade to a code-less impl would brick the proxy
     // PERMANENTLY — no constructor guard can help after deployment.
 
@@ -162,7 +162,7 @@ contract MasterRegistryImplGuardTest is Test {
 }
 
 /**
- * @dev The pre-noesis-151 `MasterRegistry` constructor + `fallback`, copied verbatim, used ONLY to
+ * @dev The pre-guard `MasterRegistry` constructor + `fallback`, copied verbatim, used ONLY to
  *      prove the guard tests are falsifiable: without the code-length precondition this deploys
  *      around any address and reports success forever. Never used outside this test.
  */

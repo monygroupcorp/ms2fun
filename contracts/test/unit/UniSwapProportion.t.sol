@@ -7,7 +7,7 @@ import { UniswapVaultPriceValidator } from "../../src/peripherals/UniswapVaultPr
 import { TickMath } from "v4-core/libraries/TickMath.sol";
 
 /// @title UniSwapProportionTest
-/// @notice noesis-034 — unit proof that the zap-in swap proportion is numeraire-correct and points in
+/// @notice Unit proof that the zap-in swap proportion is numeraire-correct and points in
 ///         the RIGHT direction. These are pure math over _computeProportionFromSqrtPrice (via a
 ///         harness), plus direct tests of the guard/clamp. They run in the default (non-fork) suite —
 ///         they are the theorems the whole fix exists to establish, and unlike a fork test they cannot

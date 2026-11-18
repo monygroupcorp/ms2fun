@@ -162,14 +162,14 @@ contract ZAMMAlignmentVaultTest is Test {
         vault.receiveContribution{ value: 0 }(Currency.wrap(address(alignmentToken)), 1 ether, alice);
     }
 
-    /// @dev Uni-parity hardening (noesis-119): the declared `amount` must equal the ETH sent.
+    /// @dev Uni-parity hardening: the declared `amount` must equal the ETH sent.
     function test_receiveContribution_revertsOnAmountMismatch() public {
         vm.prank(alice);
         vm.expectRevert(ZAMMAlignmentVault.AmountMismatch.selector);
         vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 2 ether, alice);
     }
 
-    /// @dev Uni-parity hardening (noesis-119): receiveContribution is `nonReentrant`. A benefactor that
+    /// @dev Uni-parity hardening: receiveContribution is `nonReentrant`. A benefactor that
     ///      re-enters it from its claim-payout callback is blocked by the guard, so no phantom pending
     ///      contribution is registered mid-claim. Without the guard the reentrant call would succeed.
     function test_receiveContribution_reentrancyBlocked() public {
@@ -590,7 +590,7 @@ contract ZAMMAlignmentVaultTest is Test {
 
     // ── Governance ────────────────────────────────────────────────────────
 
-    // ── 80/19/1 fee split + per-target sink (noesis-051) ──────────────────────
+    // ── 80/19/1 fee split + per-target sink ───────────────────────────────────
 
     function test_harvest_splits_80_19_1() public {
         _setupWithLiquidity();
@@ -950,7 +950,7 @@ contract ZAMMAlignmentVaultTest is Test {
         assertGt(vault.totalContributions(), 0, "honest conversion should succeed");
     }
 
-    /// @dev noesis-037: the floor no longer fails open. With the DAO-pinned ReferencePool unset, a
+    /// @dev The floor no longer fails open. With the DAO-pinned ReferencePool unset, a
     ///      convert reverts {NoReferencePool} instead of swapping unguarded — a permissionless caller
     ///      cannot disable the anti-sandwich floor by racing an approval or clearing the reference.
     function test_convertRevertsWhenNoReferencePool() public {
@@ -967,7 +967,7 @@ contract ZAMMAlignmentVaultTest is Test {
         vault.convertAndAddLiquidity(0, 0, 0);
     }
 
-    /// @dev noesis-037 self-sandwich sim: an attacker degrades the thin VENUE pool (modeled by a
+    /// @dev Self-sandwich sim: an attacker degrades the thin VENUE pool (modeled by a
     ///      degraded router out-ratio) and calls convert with minTokenOut=1, but the floor is priced
     ///      from the UNMOVED canonical ReferencePool — so the swap cannot clear it and reverts. The
     ///      attacker cannot extract beyond maxPriceDeviationBps of the canonical price.
@@ -1046,7 +1046,7 @@ contract ZAMMAlignmentVaultTest is Test {
 
     /// @dev A pool ratio where the ETH leg binds leaves unconsumed alignment TOKEN in the vault:
     ///      `_swapAndAddLiquidity` buys `tokenBought` and ZAMM takes only `tokenUsed`. The ETH half of
-    ///      that rounding has been re-credited since noesis-034 (the two tests above); the token half
+    ///      that rounding has been re-credited since the swap-proportion fix (the two tests above); the token half
     ///      had no reader at all, so it accreted monotonically with no path out. It is now sold on the
     ///      next harvest and split 80/19/1 like any other yield.
     function _convertLeavingTokenResidue() internal returns (uint256 residue) {

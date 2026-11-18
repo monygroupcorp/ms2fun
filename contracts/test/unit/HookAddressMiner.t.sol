@@ -19,7 +19,7 @@ contract HookAddressMinerTest is Test {
 
     // Required flags for UniAlignmentV4Hook
     // beforeSwap + afterSwap + beforeSwapReturnDelta + afterSwapReturnDelta (the ETH-input fee added in
-    // noesis-116 needs beforeSwapReturnDelta so the tithe settles on every swap shape).
+    // the hook needs beforeSwapReturnDelta so the tithe settles on every swap shape).
     uint160 constant REQUIRED_FLAGS = uint160(
         Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
             | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG

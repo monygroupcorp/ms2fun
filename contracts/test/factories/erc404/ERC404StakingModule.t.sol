@@ -115,7 +115,7 @@ contract ERC404StakingModuleTest is Test {
         vm.prank(instance1);
         module.recordFeesReceived(50 ether);
 
-        // STREAMED, not lump (noesis-098 F6): nothing has accrued at the instant the fee is posted.
+        // STREAMED, not lump (F6): nothing has accrued at the instant the fee is posted.
         assertEq(module.rewardPerToken(instance1), 0, "no accrual at t0: stream, not instant lump");
 
         // After the full window the whole delta has streamed: 50 ETH / 100 tokens = 0.5 ETH/token (scaled).

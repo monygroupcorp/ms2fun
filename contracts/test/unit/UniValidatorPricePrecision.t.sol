@@ -27,7 +27,7 @@ contract MockV3Observe {
     }
 }
 
-/// @notice The pre-noesis-063 lossy `(sqrtPriceX96 >> 48)**2` price derivation, kept ONLY to prove the
+/// @notice The earlier lossy `(sqrtPriceX96 >> 48)**2` price derivation, kept ONLY to prove the
 ///         validator's new canonical FullMath path (F2) both survives inputs that overflow-reverted here
 ///         and never rounds below the truncated value.
 contract LegacyShiftPrice {
@@ -38,7 +38,7 @@ contract LegacyShiftPrice {
 }
 
 /// @title UniValidatorPricePrecisionTest
-/// @notice Pins finding F2 (noesis-063): the pinned-pool oracle floor (`quoteEthForTokensVia`) must use
+/// @notice Pins finding F2: the pinned-pool oracle floor (`quoteEthForTokensVia`) must use
 ///         the canonical 512-bit FullMath price derivation, NOT the lossy/overflow-prone `>>48`-then-square
 ///         shift. The floor feeds `minOut` for all three vault families, so a wrong or reverting quote
 ///         directly bricks vault ETH protection.

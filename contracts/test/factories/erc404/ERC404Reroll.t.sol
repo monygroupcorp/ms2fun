@@ -37,7 +37,7 @@ contract ERC404RerollTest is Test {
 
         // Note: factory = msg.sender (address(this)) is set during initialize()
         // The externalized reroll body lives in a shared immutable Ops reached by a delegatecall
-        // trampoline (noesis-091). Deploy it and wire it into the master implementation's ctor; every
+        // trampoline. Deploy it and wire it into the master implementation's ctor; every
         // clone reads this same immutable Ops.
         ERC404BondingOps ops = new ERC404BondingOps();
         ERC404BondingInstance impl2 = new ERC404BondingInstance(address(ops));
@@ -131,7 +131,7 @@ contract ERC404RerollTest is Test {
 
         // The reroll body is externalized to Ops via a discard-returndata delegatecall trampoline; Ops
         // still reverts with the specific InsufficientTokenBalance internally (visible in traces), but the
-        // trampoline surfaces the generic RerollFailed() to the caller (noesis-091). The revert STILL
+        // trampoline surfaces the generic RerollFailed() to the caller. The revert STILL
         // HAPPENS — safety is preserved, only the reason is generic.
         vm.prank(user1);
         vm.expectRevert(RerollFailed.selector);
@@ -141,7 +141,7 @@ contract ERC404RerollTest is Test {
     function test_RerollRevert_ZeroTokenAmount() public {
         uint256[] memory exemptedIds = new uint256[](0);
 
-        // Ops reverts TokenAmountMustPositive internally; caller sees generic RerollFailed() (noesis-091).
+        // Ops reverts TokenAmountMustPositive internally; caller sees generic RerollFailed().
         vm.prank(user1);
         vm.expectRevert(RerollFailed.selector);
         token.rerollSelectedNFTs(0, exemptedIds);
@@ -154,7 +154,7 @@ contract ERC404RerollTest is Test {
         uint256 rerollAmount = UNIT / 2; // 500k tokens (less than 1 NFT)
         uint256[] memory exemptedIds = new uint256[](0);
 
-        // Ops reverts TokenAmountMustRepresentNFT internally; caller sees generic RerollFailed() (noesis-091).
+        // Ops reverts TokenAmountMustRepresentNFT internally; caller sees generic RerollFailed().
         vm.prank(user1);
         vm.expectRevert(RerollFailed.selector);
         token.rerollSelectedNFTs(rerollAmount, exemptedIds);
@@ -371,7 +371,7 @@ contract ERC404RerollTest is Test {
     }
 
     /// @notice EXPLICIT proof that the ReentrancyGuard slot is SHARED across the delegatecall boundary
-    ///         (noesis-091). The reroll body now lives in Ops and is reached by a delegatecall trampoline;
+    ///         The reroll body now lives in Ops and is reached by a delegatecall trampoline;
     ///         its `nonReentrant` runs in the instance's storage context via the fixed guard slot. We hold
     ///         that guard by entering another instance-side `nonReentrant` function (`withdrawDust`, which
     ///         pushes ETH to the owner), and from the owner's `receive()` we re-enter `rerollSelectedNFTs`.

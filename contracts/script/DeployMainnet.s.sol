@@ -21,7 +21,7 @@ import { SepoliaSalts } from "./SepoliaSalts.sol";
 ///         rehearsed. CreateX reverts `InvalidSalt` for any other sender.
 ///
 ///         `hookFeeBips` / `lpFeeRate` (the perpetual swap tithe) ship LIVE at launch, matching
-///         Sepolia's rehearsed rate: ruled 2026-11-10 (rth) — mainnet launches on 1% fees, not zero,
+///         Sepolia's rehearsed rate: decided 2026-11-10 by the owner — mainnet launches on 1% fees, not zero,
 ///         and not deferred to a later `EnableAlignmentTithe` switch-on. The rate is immutable per
 ///         hook, baked into its init code at graduation, so this is the number every pool graduating
 ///         from day one keeps for good.
@@ -108,7 +108,7 @@ contract DeployMainnet is DeployCore {
         cfg.aaveStataToken = MainnetAddresses.WETH_STATA_TOKEN;
         cfg.zrouter = MainnetAddresses.ZROUTER;
         cfg.zQuoter = MainnetAddresses.ZQUOTER;
-        cfg.safe = 0xBCE7DF8d399F145745C660DecB9ef50CA723d262; // 1-of-1 Safe, owner rth (0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6)
+        cfg.safe = 0xBCE7DF8d399F145745C660DecB9ef50CA723d262; // 1-of-1 Safe, sole owner (0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6)
         cfg.saltMasterRegistry = SepoliaSalts.MASTER_REGISTRY;
         cfg.saltTreasury = SepoliaSalts.TREASURY;
         cfg.saltQueueManager = SepoliaSalts.QUEUE_MANAGER;

@@ -43,7 +43,7 @@ contract WindowHonouringRefPool {
 
 /**
  * @title ReferenceWindowCoupling
- * @notice noesis-280 — pins the TWAP-window coupling between the two contracts that together make the
+ * @notice Pins the TWAP-window coupling between the two contracts that together make the
  *         anti-sandwich floor work, and which are configured INDEPENDENTLY:
  *
  *           * `AlignmentRegistryV1.DEFAULT_TWAP_WINDOW` — a hardcoded `internal constant` (1800) that
@@ -56,7 +56,7 @@ contract WindowHonouringRefPool {
  *         produces a TWAP over the window". That guarantee only transfers to the vault floor if the
  *         window the setter proved is the window the reader asks for.
  *
- *         noesis-285 CLOSED that coupling from the registry side: `setReferencePool` now stores the
+ *         The registry now CLOSES that coupling from the registry side: `setReferencePool` now stores the
  *         window it RESOLVED and probed with, so a caller's `0` is written back as the default rather
  *         than kept raw, and `quoteEthForTokensVia` is handed an explicit window it never has to fall
  *         back on. These tests were written against the old behaviour, where both sides resolved `0`
@@ -81,11 +81,11 @@ contract ReferenceWindowCouplingTest is Test {
     ///      the REGISTRY side (moving `DEFAULT_TWAP_WINDOW` alone turns
     ///      `test_setterProvedWindowIsTheWindowTheReaderAsksFor` red). A change to `cfg.twapSeconds` in
     ///      a deploy script ALONE would not be caught here — the scripts build the value inside a
-    ///      function, so there is nothing to import. See `noesis-279`.
+    ///      function, so there is nothing to import.
     uint32 internal constant SHIPPED_VALIDATOR_WINDOW = 1800;
 
     /// @dev `AlignmentRegistryV1.DEFAULT_TWAP_WINDOW`, which is `internal` and so cannot be read from a
-    ///      test. Transcribed for the same reason as the line above, and load-bearing since noesis-285:
+    ///      test. Transcribed for the same reason as the line above, and load-bearing since the setter stores the proved window:
     ///      it is now the value the setter WRITES, not only the value it probes with.
     uint32 internal constant REGISTRY_DEFAULT_WINDOW = 1800;
 
@@ -109,7 +109,7 @@ contract ReferenceWindowCouplingTest is Test {
         return new UniswapVaultPriceValidator(weth, address(0), address(0), 1000, window);
     }
 
-    /// @dev This file is about the WINDOW coupling, not provenance (noesis-283), so every pool it builds is
+    /// @dev This file is about the WINDOW coupling, not provenance, so every pool it builds is
     ///      a canonical one — registered here so the setter's factory check is satisfied and the window
     ///      assertions stay the only thing under test.
     function _canonical(WindowHonouringRefPool p) internal returns (WindowHonouringRefPool) {
@@ -139,7 +139,7 @@ contract ReferenceWindowCouplingTest is Test {
         assertEq(
             uint256(ref.twapWindow),
             REGISTRY_DEFAULT_WINDOW,
-            "noesis-285: the setter stores the window it PROVED, not the caller's 0"
+            "the setter stores the window it PROVED, not the caller's 0"
         );
 
         uint256 quoted =
@@ -147,7 +147,7 @@ contract ReferenceWindowCouplingTest is Test {
         assertGt(quoted, 0, "shipped validator window can price a reference the setter accepted");
     }
 
-    /// THE noesis-285 CASE. A reference pinned with `twapWindow: 0` against a pool holding exactly the
+    /// THE CASE THIS FILE EXISTS FOR. A reference pinned with `twapWindow: 0` against a pool holding exactly the
     /// registry's default of history, read by a validator configured to a DIFFERENT window.
     ///
     /// Before the fix the registry stored the raw `0`, so `quoteEthForTokensVia` fell back to its own
@@ -170,7 +170,7 @@ contract ReferenceWindowCouplingTest is Test {
     }
 
     /// The residual the fix does NOT reach, pinned so nobody reads this file as claiming more than it does.
-    /// A pool pinned before noesis-285 kept a stored `0`, and a `0` still means "resolve against my own
+    /// A pool pinned before the setter stored the proved window kept a stored `0`, and a `0` still means "resolve against my own
     /// default" to the reader. Simulated by handing the reader the `0` such a pin left behind: against a
     /// validator whose window outruns the pool's history it still reverts, and re-pinning is the only cure.
     function test_aLegacyZeroPinStillDependsOnTheReadersFallback() public {

@@ -306,7 +306,7 @@ contract AlignmentEndowmentVaultPooledLawTest is Test {
     ///
     ///      It is RED at 9ae810c for F1's reason, not the accumulator's: today a close leaves the residue
     ///      in Aave, so the next round's first harvest pays 80% of it to that round's depositor (C claims
-    ///      ~1.6 ETH here, not 0.8). Under the ruled close (residue redeemed out and accrued as corpus) the
+    ///      ~1.6 ETH here, not 0.8). Under the intended close (residue redeemed out and accrued as corpus) the
     ///      only thing this test can still catch is the accumulator misleading a fresh-round depositor.
     function test_roundClose_accumulatorStaysExactAcrossTwoResidueClosesForEveryBenefactor() public {
         MockOwnable a = _benefactor(address(0xA11CE));

@@ -17,7 +17,7 @@ contract MockMRPin721 {
         return false;
     }
 
-    // noesis-113: settle reads `isVaultRegistered(vault)` before the tithe; active target → true.
+    // Settle reads `isVaultRegistered(vault)` before the tithe; active target → true.
     function isVaultRegistered(address) external pure returns (bool) {
         return true;
     }

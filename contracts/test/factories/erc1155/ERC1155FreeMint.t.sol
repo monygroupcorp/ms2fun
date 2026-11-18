@@ -28,7 +28,7 @@ contract MockVaultERC1155FM {
     receive() external payable { }
 }
 
-/// @dev Free-mint is PER EDITION (noesis-135): each edition carries its own allocation, running claim
+/// @dev Free-mint is PER EDITION: each edition carries its own allocation, running claim
 ///      counter, and per-user claimed flag. Allocation is set at edition creation (`addEdition`'s
 ///      `freeMintAlloc` arg) or adjusted anytime by owner/agent (`setEditionFreeMintAllocation`). The
 ///      collection-wide free-mint API is retired — the factory REFUSES a non-zero
@@ -78,7 +78,7 @@ contract ERC1155FreeMintTest is Test {
     function _params(address _creator, GatingScope scope) internal view returns (ERC1155Factory.CreateParams memory) {
         return ERC1155Factory.CreateParams({
             name: "FreeMintEdition",
-            symbol: "", // optional collection symbol (noesis-084)
+            symbol: "", // optional collection symbol
             metadataURI: "ipfs://meta",
             creator: _creator,
             vault: address(mockVault),
@@ -201,7 +201,7 @@ contract ERC1155FreeMintTest is Test {
         inst.claimFreeMint(editionId, "");
     }
 
-    // ── per-edition independence (the core noesis-135 behaviour) ────────────────
+    // ── per-edition independence (the core behaviour) ───────────────────────────
 
     /// Draining edition A's allocation must NOT consume edition B's — the counters are per edition.
     function test_erc1155_freeMint_perEditionIndependence() public {
@@ -367,7 +367,7 @@ contract ERC1155FreeMintTest is Test {
         assertEq(inst.freeMintAllocation(editionId), type(uint128).max);
     }
 
-    // ── openTime gate on the free path (noesis-115 finding #3) ──────────────────
+    // ── openTime gate on the free path ──────────────────────────────────────────
 
     /// Free claim before the scheduled open must revert even on the ungated path
     /// (gatingModule == address(0), so the gating block is skipped) — no bot pre-drain.

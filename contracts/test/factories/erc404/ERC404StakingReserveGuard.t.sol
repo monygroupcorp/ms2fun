@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
 import { ERC404BondingInstance } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
-// noesis-148: `withdrawDust` and `claimFreeMint` now run in ERC404BondingOps behind discard-returndata
+// `withdrawDust` and `claimFreeMint` now run in ERC404BondingOps behind discard-returndata
 // trampolines, so their specific reverts (NothingToWithdraw / BondingEnded) reach the caller as the
 // generic per-entry-point errors. The guards themselves are unchanged and still fire.
 import {
@@ -52,7 +52,7 @@ contract MockDeployer is ILiquidityDeployerModule {
 
 /// @dev A vault whose `claimFees()` always reverts — the AlignmentEndowmentVault shape (no pull-claim
 ///      model). `claimAllFees` wraps each vault call in `try/catch` precisely so one of these cannot
-///      brick fee delivery for the whole instance (noesis-148 kept that try/catch verbatim).
+///      brick fee delivery for the whole instance (the move to Ops kept that try/catch verbatim).
 contract MockRevertingFeeVault {
     error NotSupported();
 
@@ -63,7 +63,7 @@ contract MockRevertingFeeVault {
     receive() external payable { }
 }
 
-/// @dev THE reentrancy probe (noesis-148). Every probe below re-enters the instance through the SAME
+/// @dev THE reentrancy probe. Every probe below re-enters the instance through the SAME
 ///      neutral target — `claimStakingRewards()` with a zero pending reward, which is a guarded but
 ///      otherwise side-effect-free call (`SmartTransferLib.smartTransferETH` returns early on 0). That
 ///      makes each probe an exact A/B: the identical call SUCCEEDS outside a guarded window and MUST
@@ -250,7 +250,7 @@ contract ReentrantOwnerVault {
 
 /**
  * @title ERC404StakingReserveGuardTest
- * @notice noesis-061: withdrawDust must never sweep ETH owed to stakers (F1), and claimFreeMint
+ * @notice withdrawDust must never sweep ETH owed to stakers (F1), and claimFreeMint
  *         must revert once the curve has graduated (F2).
  */
 contract ERC404StakingReserveGuardTest is Test {
@@ -398,7 +398,7 @@ contract ERC404StakingReserveGuardTest is Test {
         assertEq(owner.balance - ownerBefore, 1 ether, "only true surplus is swept");
         assertEq(inst.stakingReserve(), 5 ether, "staking reserve untouched by dust sweep");
 
-        // Rewards now STREAM over the window (noesis-098 F6): let it fully elapse so the staker's
+        // Rewards now STREAM over the window (F6): let it fully elapse so the staker's
         // entitlement reaches the full delta. The liability was credited in full at fee-arrival time,
         // so the 061 guard is unaffected — streaming defers WHEN it's claimable, not the amount owed.
         vm.warp(block.timestamp + module.rewardsDuration());
@@ -490,7 +490,7 @@ contract ERC404StakingReserveGuardTest is Test {
         assertEq(inst.freeMintsClaimed(), 1, "no post-graduation claim was recorded");
     }
 
-    // ── F7: instance exit paths survive registry de-listing (noesis-098) ───────
+    // ── F7: instance exit paths survive registry de-listing ───────
 
     /// @notice End-to-end: after MasterRegistry de-lists the instance, its staker can still
     ///         claimStakingRewards() + unstake() (principal + accrued rewards recovered), but a fresh
@@ -527,14 +527,14 @@ contract ERC404StakingReserveGuardTest is Test {
 
         // But ACCEPTING a fresh stake is refused — recordStake remains gated. The module's
         // `NotRegisteredInstance` reaches the caller as the generic `StakeFailed()`: `stake` runs in
-        // ERC404BondingOps behind a discard-returndata trampoline (noesis-148). The gate still fires.
+        // ERC404BondingOps behind a discard-returndata trampoline. The gate still fires.
         vm.prank(user1);
         vm.expectRevert(StakeFailed.selector); // staking module: NotRegisteredInstance
         inst.stake(UNIT);
     }
 
     // ══════════════════════════════════════════════════════════════════════════════════════════════
-    //  noesis-148 (D3 diet): the six value-path bodies now run in ERC404BondingOps under delegatecall.
+    //  D3 diet: the six value-path bodies now run in ERC404BondingOps under delegatecall.
     //  Everything below proves the MOVE changed nothing that matters:
     //    (a) the reentrancy guard still engages, from the far side of the delegatecall, for all six;
     //    (b) claimAllFees's anti-brick try/catch survives a mixed vault set;
@@ -699,7 +699,7 @@ contract ERC404StakingReserveGuardTest is Test {
         _activateStaking(inst);
         _openActivate(inst);
 
-        // A live staker, so the noesis-061 credit guard (`totalStaked != 0`) is satisfied.
+        // A live staker, so the F1 credit guard (`totalStaked != 0`) is satisfied.
         _buy(inst, user1, 1);
         vm.prank(user1);
         inst.stake(UNIT);

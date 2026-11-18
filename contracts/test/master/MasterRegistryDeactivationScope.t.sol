@@ -41,7 +41,7 @@ contract DeactivationScopeInstance {
 }
 
 /// @title MasterRegistryDeactivationScope
-/// @notice noesis-291: pins the BLAST RADIUS of `deactivateFactory` — it stops NEW instances and
+/// @notice Pins the BLAST RADIUS of `deactivateFactory` — it stops NEW instances and
 ///         touches nothing about the ones already deployed.
 /// @dev Why this exists. `isInstanceFromApprovedFactory` is the only registry read that reaches a live
 ///      trade: every ERC-404 / ERC-1155 / ERC-721 instance calls `GlobalMessageRegistry.postForAction`

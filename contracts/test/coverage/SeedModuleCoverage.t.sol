@@ -34,7 +34,7 @@ import { MockUniV3RefFactory } from "../master/AlignmentRegistryReferencePool.t.
 contract MockV3ReferencePool {
     address public token0;
     address public token1;
-    /// @dev noesis-283: the setter now proves PROVENANCE, so a stand-in pool must be reachable through the
+    /// @dev The setter now proves PROVENANCE, so a stand-in pool must be reachable through the
     ///      canonical factory. The tier is the lookup key it is registered under, not a priced quantity.
     uint24 public fee = 3000;
 
@@ -181,9 +181,9 @@ contract SeedModuleCoverageHarness is SeedAnvil {
     }
 }
 
-/// @title SeedModuleCoverageTest (noesis-358)
+/// @title SeedModuleCoverageTest
 /// @notice Module coverage is a property of `SeedAnvil.s.sol` that nobody could read without
-///         re-deriving it (noesis-357's census). This suite runs the seed's own phase functions —
+///         re-deriving it. This suite runs the seed's own phase functions —
 ///         unmodified, via `SeedModuleCoverageHarness`, never `forge script` — against a protocol
 ///         deployed locally through `DeployCore` (the same no-fork pattern `VaultFlavorsTest` and
 ///         `ValidateSepoliaTest` already use), then reads the RESULTING on-chain wiring back off the
@@ -207,7 +207,7 @@ contract SeedModuleCoverageTest is Test {
     // ── ERC1155 instances ──
     address internal c0; // neon-drift: aave vault, LIMITED_FIXED/UNLIMITED/LIMITED_DYNAMIC editions
     address internal c2; // ghost-mint: uni vault, free-claim edition
-    address internal veil; // gated (noesis-357)
+    address internal veil; // gated
 
     // ── ERC404 instances ──
     address internal ember; // preopen: uni vault + uni deployer, ungated, no staking
@@ -215,7 +215,7 @@ contract SeedModuleCoverageTest is Test {
     address internal cinder; // ready-to-graduate: uni vault + uni deployer
     address internal molten; // ready-to-graduate: zamm vault + zamm deployer
     address internal prism; // stacked metadata: zamm vault + zamm deployer + resolver/overlay/tier
-    address internal sigil; // gated (noesis-357)
+    address internal sigil; // gated
 
     // ── the alignment catalog roster ──
     address internal schizo; // flagship curve: real supply, real raise, the target's own uni vault

@@ -22,7 +22,7 @@ contract BurnSafetyLiquidityDeployer is ILiquidityDeployerModule {
 }
 
 /**
- * @dev Cross-boundary reentrancy probe (noesis-091's shape). Holds a band NFT, sells to the curve —
+ * @dev Cross-boundary reentrancy probe (the same shape as the reroll one). Holds a band NFT, sells to the curve —
  *      which burns the band NFT and fires the release hook — and then, from the ETH-refund callback
  *      that `SmartTransferLib.smartTransferETH` hands it (all remaining gas forwarded), tries to
  *      re-enter both the PULL leg (`claimReleasedEscrow`) and the tier op (`mintUp`).
@@ -75,7 +75,7 @@ contract BurnReenterer {
 
 /**
  * @title TierBurnSafety
- * @notice Token Tiers T3 (noesis-143): the `_afterNFTTransfers` burn-safety hook.
+ * @notice Token Tiers T3: the `_afterNFTTransfers` burn-safety hook.
  * @dev MONEY-CODE, HOT PATH. DN404 reconciles NFTs to balance on every debit — `numNFTBurns =
  *      _zeroFloorSub(ownedLength, balance / unit)` ids burned LIFO off the tail of `owned[holder]` —
  *      and that loop knows nothing about bands. Without the hook a band NFT burned by an ordinary

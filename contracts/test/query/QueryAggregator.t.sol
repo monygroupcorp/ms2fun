@@ -9,7 +9,7 @@ import { QueryAggregatorPreNoesis067 } from "./legacy/QueryAggregatorPreNoesis06
 import { IMasterRegistry } from "../../src/master/interfaces/IMasterRegistry.sol";
 import { TYPE_ERC404 } from "../../src/interfaces/IInstanceLifecycle.sol";
 
-/// @notice noesis-067 — QueryAggregator read-path correctness fixes.
+/// @notice QueryAggregator read-path correctness fixes.
 /// @dev Covers: F1 featured pagination window, F2 ERC1155 honest `isActive`, F4 portfolio length guard,
 ///      and the F3 UUPS slot-layout proof (deprecated `globalMessageRegistry` placeholder).
 contract QueryAggregatorTest is Test {

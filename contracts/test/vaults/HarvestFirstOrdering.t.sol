@@ -19,7 +19,7 @@ import { PoolKey } from "v4-core/types/PoolKey.sol";
 import { IHooks } from "v4-core/interfaces/IHooks.sol";
 
 /// @title HarvestFirstOrdering
-/// @notice Cross-vault regression for the crystallize-first ordering (noesis-393): every path that
+/// @notice Cross-vault regression for the crystallize-first ordering: every path that
 ///         grows a vault's fee-accumulator weight must first crystallize the LP fees accrued up to that
 ///         point, so a benefactor arriving later cannot claim a share of fees earned before they joined.
 ///         The invariant asserted throughout: an incumbent's claimable fees are UNCHANGED by a later

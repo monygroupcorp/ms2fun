@@ -51,7 +51,7 @@ contract MockV3TwapFactory {
 }
 
 /// @title UniSwapProportionTwapTest
-/// @notice noesis-295 — the first unit coverage of `UniswapVaultPriceValidator._getTwapSqrtPriceX96`, the
+/// @notice The first unit coverage of `UniswapVaultPriceValidator._getTwapSqrtPriceX96`, the
 ///         reference the swap-proportion deviation guard cross-checks the manipulable spot price against.
 ///         `UniPriceValidatorHarness` deliberately tests the proportion math WITHOUT a TWAP pool, and
 ///         `UniValidatorPinnedTwap.t.sol` covers the pinned `quoteEthForTokensVia` reader, which is a
@@ -64,17 +64,17 @@ contract MockV3TwapFactory {
 ///         scan continues; (4) with no pool at any tier the deviation check does not run and the absolute
 ///         [35%, 65%] clamp still applies.
 ///
-///         noesis-294 is pinned here now that it is fixed: the TWAP leg is computed in the coordinates of
+///         The TWAP-coordinates fix is pinned here: the TWAP leg is computed in the coordinates of
 ///         the V3 pool the TWAP was read out of, not the caller's. See the three tests at the foot of this
 ///         file, which use a token sorting BELOW WETH — the only case where the two orderings differ.
 ///
-///         Deliberately NOT pinned: which pool the scan picks when several are usable (`noesis-293`).
+///         Deliberately NOT pinned: which pool the scan picks when several are usable.
 contract UniSwapProportionTwapTest is Test {
     address constant WETH = address(0x1111);
     address constant TOKEN = address(0xBEEF);
     /// @dev Sorts BELOW WETH, so the V3 `weth`/`token` pool orders WETH SECOND and its price is the
     ///      inverse of the V4 native-ETH pool's. Every other address in this file sorts above WETH, where
-    ///      the two orderings agree and noesis-294 is invisible.
+    ///      the two orderings agree and the coordinate bug is invisible.
     address constant TOKEN_BELOW_WETH = address(0x0011);
     int24 constant SPACING = 60;
 
@@ -186,7 +186,7 @@ contract UniSwapProportionTwapTest is Test {
         assertEq(proportion, 65e16, "the absolute clamp must apply with no TWAP present");
     }
 
-    // ── (5) noesis-294 — the TWAP leg is read in the TWAP pool's coordinates ──────────────────────
+    // ── (5) the TWAP leg is read in the TWAP pool's coordinates ──────────────────────
 
     /// @notice An HONEST market must not trip the deviation guard. A V4 alignment pool is native-ETH
     ///         paired, so its price is tokens-per-ETH and the caller's flag is unconditionally `true`; the

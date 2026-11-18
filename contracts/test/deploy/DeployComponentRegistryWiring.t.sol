@@ -13,7 +13,7 @@ import { TokenTierBandResolver } from "../../src/metadata/TokenTierBandResolver.
 import { FreeMintParams } from "../../src/interfaces/IFactoryTypes.sol";
 import { GatingScope } from "../../src/gating/IGatingModule.sol";
 
-/// @notice noesis-129 regression guard. `DeployCore` must wire
+/// @notice Regression guard. `DeployCore` must wire
 ///         `masterRegistry.setComponentRegistry(componentRegistry)` — without it
 ///         `MasterRegistryV1.componentRegistry()` stays `address(0)` on every deploy and
 ///         `MetadataResolverRouter.initResolvers` (the seal, read by every overlay/tier stack) reverts
@@ -75,7 +75,7 @@ contract DeployComponentRegistryWiringTest is Test {
         cfg.jsonOutputPath = "";
     }
 
-    /// @dev The pointer DeployCore forgot to set (fixed in noesis-129): non-zero AND the deployed registry.
+    /// @dev The pointer DeployCore once forgot to set: non-zero AND the deployed registry.
     function test_deployCore_wiresComponentRegistryPointer() public view {
         address wired = address(MasterRegistryV1(s.masterRegistry()).componentRegistry());
         assertTrue(wired != address(0), "componentRegistry pointer must be non-zero after deploy");

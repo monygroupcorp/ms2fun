@@ -16,7 +16,7 @@ contract MockVaultSimple {
     }
 }
 
-/// @notice Regression suite for noesis-109: revoking an alignment target must propagate to the
+/// @notice Regression suite: revoking an alignment target must propagate to the
 ///         vault-registration read, so a vault bound to a now-revoked target immediately reports
 ///         unregistered — cascading to the ERC404 create-time vault gate — WITHOUT mutating the
 ///         vault's own `active` flag.

@@ -6,7 +6,7 @@ libs = ["lib"]
 # solc so the deployed bytecode is never ambiguous. Do NOT re-enable auto_detect_solc on
 # the default (deploy) profile — the real-v4 RealSettlement test imports v4-core's real
 # PoolManager (exact pragma 0.8.26), which would silently float the default compiler off
-# 0.8.28. That regression is what noesis-120 fixes: the RealSettlement test is skip-excluded
+# 0.8.28. That regression is what this pin prevents: the RealSettlement test is skip-excluded
 # here and runs under the companion config `foundry.v4.toml` (auto-detect) instead.
 solc = "0.8.28"
 optimizer = true
@@ -55,15 +55,15 @@ skip = [
     # test in the default set would make the contracts gate red for a defect the gate did
     # not cause. Every one of those fixes has since landed and its proof has left this
     # group. The one below is NOT waiting for a fix and must not be read as an open
-    # defect: H-1 is ruled as designed (rth, 2026-09-17), so this proof asserts a solvency
-    # property the protocol does not offer and stays red for as long as the ruling stands.
+    # defect: H-1 is accepted as designed (the owner, 2026-09-17), so this proof asserts a solvency
+    # property the protocol does not offer and stays red for as long as that decision stands.
     # It is kept, and kept out of the gate, as the record of what the mechanism costs —
     # see §2 and §4 of contracts/audits/2026-09-17-pre-testnet.md. The proofs that measure
-    # the RULED behaviour and do run in the gate are BondingCurveFreeMintInvariant.t.sol
+    # the ACCEPTED behaviour and do run in the gate are BondingCurveFreeMintInvariant.t.sol
     # and FreeMintReserveDrain.t.sol.
     #
     # So do NOT delete its line to let the gate keep it honest: nothing under src/ will
-    # ever turn it green while the ruling stands, and deleting it makes the gate
+    # ever turn it green while that decision stands, and deleting it makes the gate
     # permanently red.
     #
     # If a line is ever added here for an open defect again: WHEN ITS FIX LANDS, DELETE IT

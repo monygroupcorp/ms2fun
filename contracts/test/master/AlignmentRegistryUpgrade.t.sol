@@ -7,10 +7,10 @@ import { AlignmentRegistryV1 } from "../../src/master/AlignmentRegistryV1.sol";
 import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
 import { AlignmentRegistryV1Legacy } from "./legacy/AlignmentRegistryV1Legacy.sol";
 
-/// @notice noesis-031 — LOAD-BEARING storage-layout proof.
-/// @dev Seeds curated targets/assets/ambassadors/payouts against the PRE-noesis-031 implementation
+/// @notice LOAD-BEARING storage-layout proof.
+/// @dev Seeds curated targets/assets/ambassadors/payouts against the PRE-`acquireRoutes` implementation
 ///      (AlignmentRegistryV1Legacy — the exact layout deployed on origin/main), upgrades the SAME proxy to
-///      the post-noesis-031 AlignmentRegistryV1 (which appends `acquireRoutes` as the last state var), and
+///      the current AlignmentRegistryV1 (which appends `acquireRoutes` as the last state var), and
 ///      asserts every pre-existing value reads back identical. A layout break in the appended mapping would
 ///      silently corrupt curated targets behind the UUPS proxy; this test fails loudly if it ever does.
 contract AlignmentRegistryUpgradeTest is Test {

@@ -13,7 +13,7 @@ contract EmptyV3Factory {
 }
 
 /// @notice Test-only harness exposing the validator's internal, pool-independent pure math so the
-///         swap-proportion theorems (noesis-034) can be asserted directly, without mocking a V4
+///         swap-proportion theorems can be asserted directly, without mocking a V4
 ///         PoolManager or a V3 TWAP pool. Immutables are irrelevant here — the exposed functions are
 ///         pure and read no state — so the constructor passes dummy addresses. `v3Factory` is a real
 ///         (but pool-less) contract, not `address(0)`: a codeless factory is a config error the

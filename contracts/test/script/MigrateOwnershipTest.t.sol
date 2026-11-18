@@ -56,7 +56,7 @@ contract MigrateOwnershipHarnessNoTitheFactoryEnv is MigrateOwnershipHarness {
     }
 }
 
-/// @notice Proves noesis-093 + noesis-192: the two-step handover lands ownership on the timelock for
+/// @notice Proves the two-step handover lands ownership on the timelock for
 ///         every SafeOwnableUUPS contract (D1), the single-step transfers cover every plain-Ownable
 ///         contract DeployCore leaves with the deployer (D2), the emergency revoker is re-pointed
 ///         (D3), PROTOCOL_ROLE on the ERC404 factory moves with it (D4), and the pre-fix single-step
@@ -483,7 +483,7 @@ contract MigrateOwnershipTest is Test {
         factory.setHookOwner(deployer);
     }
 
-    /// @notice The clause this whole item exists for. After Phase 2, a hook the factory deploys is
+    /// @notice The property the migration exists for. After Phase 2, a hook the factory deploys is
     ///         owned by the Timelock: the deployer key cannot reach `setLpFeeRate` or
     ///         `rescueQueuedFees` on it, and the Timelock can. Driven through the REAL `deployHook`
     ///         (real salt mine, real CREATE2, real hook constructor) rather than a hand-placed hook,
@@ -564,7 +564,7 @@ contract MigrateOwnershipTest is Test {
         assertEq(abi.decode(ret, (address)), address(routeQuoter), "and it is the one under test");
     }
 
-    /// @notice The clause this item exists for. After Phase 2 the deployer key cannot write the route
+    /// @notice The property the migration exists for. After Phase 2 the deployer key cannot write the route
     ///         table and the Timelock can — asserted through real `setRoute` calls, not just by
     ///         reading `operator()` back.
     function test_routeQuoter_operatorMovesToTheTimelock() public {

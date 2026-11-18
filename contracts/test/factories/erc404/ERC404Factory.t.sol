@@ -1168,7 +1168,7 @@ contract ERC404FactoryTest is Test {
     }
 
     // ============================================================
-    // noesis-038 — tag-scoped approval (§3.1)
+    // Tag-scoped approval (§3.1)
     // A component approved under tag A must NOT pass a slot requiring tag B.
     // Each ERC404 slot surfaces its OWN error selector (not a uniform one).
     // ============================================================
@@ -1230,7 +1230,7 @@ contract ERC404FactoryTest is Test {
         );
     }
 
-    // ── noesis-072 — constructor weth zero-check (mirrors setWeth guard) ────────
+    // ── Constructor weth zero-check (mirrors setWeth guard) ────────
 
     function test_constructor_revertsOnZeroWeth() public {
         ERC404BondingInstance impl = new ERC404BondingInstance(address(new ERC404BondingOps()));

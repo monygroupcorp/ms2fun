@@ -173,7 +173,7 @@ contract ProtocolTreasuryTest is Test {
         treasury.withdrawETH(address(0), 1 ether);
     }
 
-    // ========== Aggregate `totalWithdrawn` accounting (noesis-066 fix) ==========
+    // ========== Aggregate `totalWithdrawn` accounting ==========
 
     function test_totalWithdrawn_startsZero() public view {
         assertEq(treasury.totalWithdrawn(), 0);
@@ -247,7 +247,7 @@ contract ProtocolTreasuryTest is Test {
         treasury.withdrawERC20(address(token), alice, 1000);
     }
 
-    // ========== UUPS storage-layout safety (noesis-066) ==========
+    // ========== UUPS storage-layout safety ==========
     // The treasury is a live-deployed UUPS proxy. The POL/conductor carve-out replaced removed vars
     // with same-position `deprecated_*` placeholders. These tests assert the load-bearing slots did
     // NOT shift — read directly from proxy storage via vm.load.

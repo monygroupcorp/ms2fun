@@ -48,7 +48,7 @@ contract ERC1155AgentDelegationTest is GlobalMessagingTestBase {
     function _params(string memory _name, address _creator) internal view returns (ERC1155Factory.CreateParams memory) {
         return ERC1155Factory.CreateParams({
             name: _name,
-            symbol: "", // optional collection symbol (noesis-084)
+            symbol: "", // optional collection symbol
             metadataURI: "ipfs://test",
             creator: _creator,
             vault: address(vault),
@@ -219,7 +219,7 @@ contract ERC1155AgentDelegationTest is GlobalMessagingTestBase {
         ERC1155Instance(payable(instance)).setAgentDelegation(true);
     }
 
-    // ── Config-fn delegation (noesis-096): non-custodial config extends to agents ──
+    // ── Config-fn delegation: non-custodial config extends to agents ───────────────
 
     /// Agent-created instance (delegation on) with one edition already added by the agent.
     function _agentInstanceWithEdition() internal returns (ERC1155Instance inst) {

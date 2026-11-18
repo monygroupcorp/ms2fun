@@ -80,7 +80,7 @@
 # at the call site, and the comment above that line (ERC404Factory.sol:605) gives the reason in so
 # many words: the mirror's creation code "would otherwise have to live inline in the instance's
 # runtime bytecode — and the instance is the contract fighting the EIP-170 limit". So 3,100B was
-# moved OFF ERC404BondingInstance, which carries rth's 2,000B floor, and ONTO ERC404Factory, which
+# moved OFF ERC404BondingInstance, which carries the owner's 2,000B floor, and ONTO ERC404Factory, which
 # carried no size check of any kind until this gate. That is lever B below, taken deliberately and
 # for a good reason, landing in an unwatched contract. ERC404Factory has 6,532B of runtime headroom
 # and 3,100B of it is the mirror. Nothing was wrong with the move; what was missing was the row.
@@ -179,11 +179,12 @@ EIP170=24576
 EIP3860=49152
 
 # ── FLOORS ────────────────────────────────────────────────────────────────────────────────────────
-# A floor is a decision about how much room to keep in reserve, and it is rth's to type, not a
-# seat's to invent. The ERC404 family has two, both his: a 2,000B instance floor (2026-08-06) and a
-# 500B ERC404BondingOps floor (2026-08-12), enforced in test/factories/erc404/eip170-diet-gate.sh.
+# A floor is a decision about how much room to keep in reserve, and it is the owner's to set, not a
+# number to invent here. The ERC404 family has two, both set by the owner: a 2,000B instance floor
+# (2026-08-06) and a 500B ERC404BondingOps floor (2026-08-12), enforced in
+# test/factories/erc404/eip170-diet-gate.sh.
 #
-# TWO FLOORS ARE RULED, both on the ERC1155 pair and both against the EIP-170 runtime budget:
+# TWO FLOORS ARE SET, both on the ERC1155 pair and both against the EIP-170 runtime budget:
 #
 #   ERC1155Instance   2,000B — the same number ERC404Instance carries, so one figure means one thing
 #                              across the tree. Against the 6,325B the clone left real, that allows
@@ -196,10 +197,10 @@ EIP3860=49152
 #
 # The other seven rows are empty. Leave a value empty and this gate checks the ceilings only, and
 # says so on that row every run so the absence stays visible rather than reading as a gate that
-# passed. To arm one, put the ruled number in the table for the budget it is about; nothing else
+# passed. To arm one, put the chosen number in the table for the budget it is about; nothing else
 # changes.
 #
-# A FLOOR THAT CANNOT TRIP IS THE DEFECT; A NUMBER NOBODY HAS RULED IS NOT. An empty value is the
+# A FLOOR THAT CANNOT TRIP IS THE DEFECT; A NUMBER NOBODY HAS SET IS NOT. An empty value is the
 # second: it is announced on its own row and again in the closing line, so the absence is loud. The
 # first is what this script refuses outright, in the two shapes a hand-typed table produces it. A
 # value that is not a whole number of bytes — `2,000`, `2000B`, `4_000` — makes
@@ -337,7 +338,7 @@ floorsTyped=0
 fail=0
 
 # A floor is typed by hand into a table keyed by label, so a key that matches no row is a number
-# somebody ruled and nothing enforces. Bash would not say a word about it.
+# somebody chose and nothing enforces. Bash would not say a word about it.
 for floorTable in FLOOR_RUNTIME FLOOR_CREATION; do
   declare -n floors="$floorTable"
   for key in "${!floors[@]}"; do
@@ -540,7 +541,7 @@ if [ "$fail" -ne 0 ]; then
 fi
 
 if [ "$floorsTyped" -eq 0 ]; then
-  echo "EIP-170 embed gate: PASS (ceilings only — no headroom floor is ruled for any row above,"
+  echo "EIP-170 embed gate: PASS (ceilings only — no headroom floor is set for any row above,"
   echo "                    so the next item to touch one finds the limit by a red build, not"
   echo "                    by a guard)"
 else

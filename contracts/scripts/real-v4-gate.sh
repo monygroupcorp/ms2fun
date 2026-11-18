@@ -66,7 +66,7 @@ OUT_FILES=(
     test/audit/FreeMintCurveSolvency.t.sol
 )
 OUT_WHY=(
-    "RED BY RULING. H-1 is as designed (2026-09-17), so this proof asserts a solvency property the protocol does not offer and stays red for as long as that ruling stands. Kept as the record of what the mechanism costs: see audits/2026-09-17-pre-testnet.md sections 2 and 4."
+    "RED BY DESIGN. H-1 is accepted as designed (2026-09-17), so this proof asserts a solvency property the protocol does not offer and stays red for as long as that decision stands. Kept as the record of what the mechanism costs: see audits/2026-09-17-pre-testnet.md sections 2 and 4."
 )
 
 fail() {

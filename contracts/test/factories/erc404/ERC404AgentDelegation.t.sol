@@ -44,7 +44,7 @@ import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
  * Uses the real ERC404Factory + ERC404BondingInstance (only the master registry is mocked, to
  * authorize the agent). Mirrors the ERC1155/ERC721 agent-delegation suites.
  *
- * Config-only boundary (asserted below, noesis-096): when `agentDelegationEnabled` is true the agent may
+ * Config-only boundary (asserted below): when `agentDelegationEnabled` is true the agent may
  * run every NON-CUSTODIAL config/lifecycle fn (setMetadataURI, setBondingOpenTime, setBondingMaturityTime,
  * setBondingActive, setStyle, activateStaking, deployLiquidity) via `_requireOwnerOrAgent`, but the
  * value-extracting fns (withdrawDust, claimAllFees, migrateVault) stay bare `onlyOwner`. Delegation off,
@@ -59,7 +59,7 @@ contract MockVault {
 
 /// @dev Minimal staking module so `activateStaking()` can actually SUCCEED for an authorized caller.
 ///      Without a wired module it reverts `StakingModuleNotSet` for EVERY caller, which would make the
-///      authorization assertions on that entry point unfalsifiable (noesis-148's `_assertCannotSweepSurplus`
+///      authorization assertions on that entry point unfalsifiable (the `_assertCannotSweepSurplus`
 ///      lesson: a rejection that would also happen with the gate deleted proves nothing).
 contract MockStakingModule is IERC404StakingModule {
     bool public enabled;
@@ -224,7 +224,7 @@ contract ERC404AgentDelegationTest is Test {
         );
     }
 
-    // ── Config-only delegation boundary (noesis-096) ─────────────────────────────
+    // ── Config-only delegation boundary ─────────────────────────────
 
     /// Calldata for every NON-CUSTODIAL config/lifecycle fn now gated by `_requireOwnerOrAgent`.
     function _delegableCalls() internal view returns (bytes[] memory calls) {
@@ -237,7 +237,7 @@ contract ERC404AgentDelegationTest is Test {
         calls[4] = abi.encodeWithSelector(ERC404BondingInstance.setStyle.selector, "ipfs://style");
         calls[5] = abi.encodeWithSelector(ERC404BondingInstance.activateStaking.selector);
         calls[6] = abi.encodeWithSelector(ERC404BondingInstance.deployLiquidity.selector, uint256(0));
-        // noesis-085: the ERC-7572 collection-URI setter rides the same trampoline + the same gate.
+        // The ERC-7572 collection-URI setter rides the same trampoline + the same gate.
         calls[7] = abi.encodeWithSelector(ERC404BondingInstance.setContractURI.selector, "ipfs://hijacked-collection");
     }
 
@@ -247,7 +247,7 @@ contract ERC404AgentDelegationTest is Test {
     }
 
     /// Assert the call reverted with EXACTLY `expected`. Used for the value paths whose bodies moved
-    /// to `ERC404BondingOps` (noesis-148): the owner gate lives on the Ops side and its `Unauthorized`
+    /// to `ERC404BondingOps`: the owner gate lives on the Ops side and its `Unauthorized`
     /// is collapsed by the instance trampoline into that entry point's generic error.
     function _assertRejectedWith(address inst, address caller, bytes memory data, bytes4 expected) internal {
         vm.prank(caller);
@@ -266,12 +266,12 @@ contract ERC404AgentDelegationTest is Test {
     }
 
     /// Expected rejection selector for each entry of `_delegableCalls()`, in the same order.
-    /// @dev noesis-149 externalized six of the seven config fns into `ERC404BondingOps`. The
+    /// @dev Six of the seven config fns were externalized into `ERC404BondingOps`. The
     ///      `_requireOwnerOrAgent` gate moved WITH them and still resolves against the same caller and
     ///      the same Ownable slot (`msg.sender` is preserved under `delegatecall`) — but the instance's
     ///      discard-returndata trampoline collapses `Unauthorized` into that entry point's generic
     ///      error. So the assertion is per-selector rather than blanket-`Unauthorized`. `deployLiquidity`
-    ///      joined them in noesis-188. The CONTROL proving the collapse is a trampoline artifact and
+    ///      joined them later. The CONTROL proving the collapse is a trampoline artifact and
     ///      not a weakened gate is `migrateVault`, which kept its body in the instance and still
     ///      surfaces `Unauthorized` verbatim (`test_delegated_agent_cannot_call_value_fns`) — and
     ///      `setStyle` is now a second one, having come back into the instance to free Ops-side bytes
@@ -287,12 +287,12 @@ contract ERC404AgentDelegationTest is Test {
         // the caller verbatim — exactly like `migrateVault` below.
         sels[4] = Ownable.Unauthorized.selector;
         sels[5] = ActivateStakingFailed.selector;
-        sels[6] = GraduationFailed.selector; // body externalized by noesis-188
+        sels[6] = GraduationFailed.selector; // body externalized to Ops
         sels[7] = SetContractURIFailed.selector;
     }
 
     /// Assert every config fn REJECTS `caller` **and changed nothing**.
-    /// @dev Falsifiability (noesis-148's `_assertCannotSweepSurplus` lesson): a bare "it reverted"
+    /// @dev Falsifiability (the `_assertCannotSweepSurplus` lesson): a bare "it reverted"
     ///      assertion would also pass with `_requireOwnerOrAgent` DELETED, because each of these fns
     ///      still has domain preconditions that can revert on their own. So this drives the instance to
     ///      a state where an UNGATED call would visibly SUCCEED — `setBondingOpenTime` with a future
@@ -320,7 +320,7 @@ contract ERC404AgentDelegationTest is Test {
 
         // Pre-state: everything an ungated call would move is at a value the calls below would CHANGE.
         assertEq(i.metadataURI(), "", "pre: metadataURI");
-        // Non-empty at create (noesis-085 threads the create call's collection URI in), and DIFFERENT from
+        // Non-empty at create (the create call threads its collection URI in), and DIFFERENT from
         // what calls[7] would write — so an ungated `setContractURI` would visibly move it.
         assertEq(i.contractURI(), "ipfs://metadata", "pre: contractURI is the create-time collection URI");
         assertEq(i.styleUri(), "", "pre: styleUri");
@@ -359,7 +359,7 @@ contract ERC404AgentDelegationTest is Test {
         i.setMetadataURI("ipfs://moved");
         assertEq(i.metadataURI(), "ipfs://moved", "setMetadataURI took effect through the trampoline");
 
-        // noesis-085: the collection URI is its OWN slot behind its OWN entry point. Both directions are
+        // The collection URI is its OWN slot behind its OWN entry point. Both directions are
         // asserted, because the failure mode worth catching is the two setters writing the same string.
         vm.prank(caller);
         i.setContractURI("ipfs://collection-moved");
@@ -398,7 +398,7 @@ contract ERC404AgentDelegationTest is Test {
     ///      (owner included), so a bare rejection assertion on a fresh instance passes even with
     ///      `onlyOwner` deleted from `ERC404BondingOps.withdrawDust`. Funding the instance first makes the
     ///      assertion falsifiable: an ungated sweep would SUCCEED here. The owner sweep at the end is the
-    ///      positive control, so this is a full A/B across the noesis-148 delegatecall seam.
+    ///      positive control, so this is a full A/B across the Ops delegatecall seam.
     function _assertCannotSweepSurplus(address inst, address caller) internal {
         ERC404BondingInstance i = ERC404BondingInstance(payable(inst));
         assertEq(inst.balance, 0, "fresh instance holds no ETH");
@@ -522,7 +522,7 @@ contract ERC404AgentDelegationTest is Test {
         assertEq(i.freeMintAllocation(), 0, "initializeFreeMint ran (allocation 0 = disabled)");
     }
 
-    /// noesis-085: the create path hands the instance the SAME collection URI it registers, so the
+    /// The create path hands the instance the SAME collection URI it registers, so the
     /// registry copy is no longer the only one. `_create` passes "ipfs://metadata" as the create call's
     /// collection URI and leaves `params.tokenBaseURI` empty — which is what makes this falsifiable: if
     /// the factory wired `params.tokenBaseURI` into the new slot instead, `contractURI()` would be "".
@@ -534,7 +534,7 @@ contract ERC404AgentDelegationTest is Test {
         assertEq(i.metadataURI(), "", "the per-token base URI stays params.tokenBaseURI (empty here)");
     }
 
-    /// noesis-085: the set-once guard still holds now that `initializeMetadata` also writes the collection
+    /// The set-once guard still holds now that `initializeMetadata` also writes the collection
     /// URI — a second call cannot re-point `contractURI` at another document, even from the factory.
     /// @dev Falsifiable: the rejected calldata carries a DIFFERENT value for every field it would write,
     ///      so a dropped guard would visibly land.
@@ -552,7 +552,7 @@ contract ERC404AgentDelegationTest is Test {
         assertEq(i.metadataURI(), "", "per-token base URI untouched");
     }
 
-    // ── The three factory-only INIT entry points, negatively (noesis-149 gauntlet) ───────────────
+    // ── The three factory-only INIT entry points, negatively ───────────────
     //
     // `initializeProtocol`, `initializeStaking` and `initializeFreeMint` are the only three of the
     // thirteen whose `if (msg.sender != factory) revert OnlyFactory()` gate had NO negative assertion
@@ -568,7 +568,7 @@ contract ERC404AgentDelegationTest is Test {
     // driven at a state where an UNGATED call would visibly land, the observable target is asserted
     // unchanged after all three rejections, and the factory then runs the IDENTICAL calldata and the
     // write is observed. Without that control a bare "it reverted" would also pass with the gate
-    // deleted (`_assertCannotSweepSurplus`'s lesson from noesis-148).
+    // deleted (`_assertCannotSweepSurplus`'s lesson).
 
     /// A clone that is `initialize`d but whose free-mint slot is still UNSEALED, with THIS test
     /// contract as its factory (`initialize` records `factory = msg.sender`).
@@ -707,7 +707,7 @@ contract ERC404AgentDelegationTest is Test {
     }
 
     /// Config-only boundary: value-extracting fns stay owner-only — a delegated agent STILL reverts.
-    /// @dev noesis-148 moved `withdrawDust` / `claimAllFees` into `ERC404BondingOps`. The `onlyOwner`
+    /// @dev `withdrawDust` / `claimAllFees` moved into `ERC404BondingOps`. The `onlyOwner`
     ///      gate moved WITH them and still resolves against the same caller and the same Ownable slot
     ///      (`msg.sender` is preserved under `delegatecall`) — but the instance's discard-returndata
     ///      trampoline collapses Ownable's `Unauthorized` into that entry point's generic error. So the

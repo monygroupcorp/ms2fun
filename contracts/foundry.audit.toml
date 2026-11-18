@@ -7,7 +7,7 @@
 #
 #   1. PRAGMA. Three of the proofs drive v4-core's real `PoolManager`, whose pragma is EXACTLY
 #      `0.8.26`. The default profile is deterministically pinned to `solc = "0.8.28"` for
-#      deploy-determinism (noesis-120), and `skip=` drops a file from the compile set without
+#      deploy-determinism, and `skip=` drops a file from the compile set without
 #      exempting an imported dependency from the version check — so, exactly as with
 #      `foundry.v4.toml`, the only way to compile them is a standalone config whose own
 #      `[profile.default]` sets `auto_detect_solc = true`.
@@ -17,10 +17,10 @@
 #      gate report a failure the gate did not cause, and a gate that is red for a known reason
 #      stops being read. So it is excluded there and run by name here.
 #
-#      H-1 was RULED on 2026-09-17: the free-mint tranche is a design decision, accepted as
+#      H-1 was DECIDED on 2026-09-17: the free-mint tranche is a design decision, accepted as
 #      designed and not a defect. So this proof is not a defect ticket waiting on a fix — it is
 #      the record of a mechanism the protocol sells, and no src/ change will turn it green. The
-#      proofs that measure the ruled behaviour and run inside the gate are
+#      proofs that measure the accepted behaviour and run inside the gate are
 #      test/invariant/BondingCurveFreeMintInvariant.t.sol and
 #      test/factories/erc404/FreeMintReserveDrain.t.sol.
 #
@@ -46,7 +46,7 @@
 #     which is the only thing that executes these files.
 #
 # Every proof this audit wrote for a defect has now made one of those two moves except H-1's,
-# which is ruled rather than open and must stay skipped — see above, and do not delete its line.
+# which is accepted as designed rather than open and must stay skipped — see above, and do not delete its line.
 #
 # Doing neither is the failure this arrangement is most prone to, because leaving the line in
 # `skip` is a complete and self-consistent act and nothing asks what will run the file. That is

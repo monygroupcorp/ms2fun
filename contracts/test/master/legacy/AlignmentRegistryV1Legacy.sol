@@ -7,10 +7,10 @@ import { IAlignmentRegistry } from "../../../src/master/interfaces/IAlignmentReg
 /**
  * @title AlignmentRegistryV1Legacy
  * @notice Byte-for-byte-layout copy of the AlignmentRegistryV1 implementation as it existed on
- *         origin/main BEFORE noesis-031 (i.e. WITHOUT the appended `acquireRoutes` mapping).
+ *         origin/main BEFORE acquisition routing (i.e. WITHOUT the appended `acquireRoutes` mapping).
  * @dev Test-only fixture. It reproduces the exact pre-upgrade storage layout so the upgrade test can
  *      deploy a proxy on this "old" implementation, seed curated targets/assets/ambassadors/payouts,
- *      upgrade to the real (post-noesis-031) AlignmentRegistryV1, and assert every value reads back
+ *      upgrade to the real (current) AlignmentRegistryV1, and assert every value reads back
  *      identical. Intentionally does NOT inherit IAlignmentRegistry so it is not forced to implement the
  *      new routing members — the whole point is that this frozen version predates them. The struct types
  *      are reused from IAlignmentRegistry so element layouts match the live contract exactly.
@@ -21,7 +21,7 @@ contract AlignmentRegistryV1Legacy is SafeOwnableUUPS {
     error NoAssets();
     error TargetNotFound();
 
-    // ── State (must mirror AlignmentRegistryV1 pre-noesis-031, in the same order) ──
+    // ── State (must mirror AlignmentRegistryV1 pre-`acquireRoutes`, in the same order) ──
     bool private _initialized;
     uint256 public nextAlignmentTargetId;
     mapping(uint256 => IAlignmentRegistry.AlignmentTarget) public alignmentTargets;

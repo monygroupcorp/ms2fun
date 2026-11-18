@@ -39,7 +39,7 @@ contract MockInstance {
     }
 }
 
-/// @notice noesis-052: de-listing (`revokeInstance`) must be honored by ALL three existence/legitimacy
+/// @notice De-listing (`revokeInstance`) must be honored by ALL three existence/legitimacy
 ///         read paths — `getInstanceInfo`, `isRegisteredInstance`, `isInstanceFromApprovedFactory` — while
 ///         `resolveName` stays deliberately revocation-blind so the slug remains reserved (anti-squat).
 contract MasterRegistryRevocationVisibilityTest is Test {

@@ -323,7 +323,7 @@ contract CurveParamsComputerTest is Test, ReserveBandPin {
     }
 
     // ============================================
-    // The admissible reserve band (noesis-255)
+    // The admissible reserve band
     // ============================================
 
     /// @dev The shape constants MIN_POLE_WAD / MAX_POLE_WAD do not merely bound the pole — they decide

@@ -165,7 +165,7 @@ contract VaultFlavorsTest is Test {
         f.setVaultPoolKey(vault, key);
     }
 
-    // ── F1: best-route enablement wiring (noesis-063) ────────────────────────
+    // ── F1: best-route enablement wiring ────────────────────────────────────
 
     /// @dev The finding-1 regression: the default deploy config carries no zQuoter (`cfg.zQuoter == 0`),
     ///      so every deployed vault ships best-route DISABLED (fixed-pool fallback only). This pins that

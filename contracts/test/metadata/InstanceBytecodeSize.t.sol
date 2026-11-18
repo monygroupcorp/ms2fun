@@ -25,7 +25,7 @@ import { console2 } from "forge-std/console2.sol";
 ///
 ///      There is no headroom FLOOR here — only the ceiling. The ERC404 family has two floors (a
 ///      2,000B instance floor and a 500B Ops floor, test/factories/erc404/eip170-diet-gate.sh); each
-///      is a ruling about how much room to keep in reserve, and no such ruling has been made for
+///      is a decision about how much room to keep in reserve, and no such decision has been made for
 ///      these two families. Until one is, the sizes logged below are evidence and the EIP-170 limit
 ///      is the only line that blocks. Run with -vv to read them.
 ///
@@ -37,7 +37,7 @@ import { console2 } from "forge-std/console2.sol";
 ///      `test/factories/eip170-embed-gate.sh` prints the same accounting unconditionally, adds the
 ///      third factory with this shape (UniTitheHookFactory, embedding UniAlignmentV4Hook), proves the
 ///      instance initcode really is one contiguous blob inside the factory runtime rather than
-///      assuming it, and holds the empty slot a headroom floor goes into once one is ruled. These
+///      assuming it, and holds the empty slot a headroom floor goes into once one is set. These
 ///      assertions stay because they run inside the sharded `forge test` and block there.
 ///
 ///      ERC404BondingInstance is excluded: it carries its own gate, which holds both a ceiling and

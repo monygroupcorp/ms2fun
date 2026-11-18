@@ -6,7 +6,7 @@ import { QueryAggregator, IERC721Card } from "../../src/query/QueryAggregator.so
 import { IMasterRegistry } from "../../src/master/interfaces/IMasterRegistry.sol";
 import { TYPE_ERC721, TYPE_ERC404 } from "../../src/interfaces/IInstanceLifecycle.sol";
 
-/// @notice noesis-355 — the ERC721 leg of `getPortfolioData`.
+/// @notice The ERC721 leg of `getPortfolioData`.
 /// @dev ETH escrowed inside an auction (a live high bid, a won-but-unsettled high bid, a creator's queue
 ///      deposit) is money the portfolio must be able to show. These pin the three positions, the
 ///      release-act flags, the failure tolerance of the leg, and the invariant that escrow never enters

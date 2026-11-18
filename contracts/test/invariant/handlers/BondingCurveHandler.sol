@@ -6,7 +6,7 @@ import { ERC404BondingInstance } from "../../../src/factories/erc404/ERC404Bondi
 import { BondingCurveMath } from "../../../src/factories/erc404/libraries/BondingCurveMath.sol";
 
 /// @notice Invariant handler for ERC404BondingInstance bonding curve reserve accounting.
-/// @dev noesis-152 added the Token Tiers legs (`mintUp` / `mintDown` / `claimReleasedEscrow`) so the
+/// @dev The Token Tiers legs (`mintUp` / `mintDown` / `claimReleasedEscrow`) so the
 ///      fuzzer can INTERLEAVE tier ops with curve ops. Before that, every curve invariant in
 ///      `BondingCurveInvariant.t.sol` had only ever been evaluated on a tier-free instance: the two
 ///      shipped tier suites are bounded single-purpose loops that never return to the curve once tier
@@ -75,7 +75,7 @@ contract BondingCurveHandler is Test {
     uint256 public ghost_expectedBondingSupply;
 
     // Token Tiers activity counters. `ghost_tierOpCount` is the non-vacuity spine: a completed fuzz run
-    // that never landed a single tier op has tested nothing this item exists to test.
+    // that never landed a single tier op has tested nothing these legs exist to test.
     uint256 public ghost_mintUpCount;
     uint256 public ghost_mintDownCount;
     uint256 public ghost_claimCount;
@@ -309,7 +309,7 @@ contract BondingCurveHandler is Test {
             attempts++;
             vm.prank(actor);
             // Low-level call: a guard miss must not revert the fuzzer's sequence. The instance trampoline
-            // collapses every Ops-side revert into the generic `TierOpFailed()` anyway (noesis-091).
+            // collapses every Ops-side revert into the generic `TierOpFailed()` anyway.
             (bool ok,) = address(instance).call(abi.encodeWithSignature("mintUp(uint8,uint256)", uint8(idx + 1), id));
             if (!ok) continue;
 

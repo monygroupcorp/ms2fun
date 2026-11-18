@@ -23,7 +23,7 @@ contract OrderMockLiquidityDeployer is ILiquidityDeployerModule {
 
 /**
  * @title TierOwnedIdsOrder
- * @notice noesis-356: pins `ownedIdsOf` as an ORDERED view, and pins that its order is the order
+ * @notice Pins `ownedIdsOf` as an ORDERED view, and pins that its order is the order
  *         DN404 actually burns in.
  * @dev MONEY-CODE ADJACENT. `ownedIdsOf` exists so a holder can be shown the exact pieces a pending
  *      `mintUp` will take before they sign it. A view that returned the right SET in the wrong ORDER

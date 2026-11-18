@@ -45,7 +45,7 @@ contract TierCreateDeployer is ILiquidityDeployerModule {
 
 /**
  * @title TierCreatePath
- * @notice noesis-160: Token Tiers END TO END through the REAL `ERC404Factory` create path.
+ * @notice Token Tiers END TO END through the REAL `ERC404Factory` create path.
  * @dev MONEY-CODE. Every other tier suite seals its own ladder with `factory == address(this)`, which
  *      proves the seal's arithmetic but says nothing about whether a token a creator actually launches
  *      ever GETS a ladder. This suite only ever goes through `factory.createInstance(...)`: it asserts
@@ -252,7 +252,7 @@ contract TierCreatePathTest is Test {
     // └───────────────────────────────────────────────────────────────────┘
 
     /// @notice A two-tier ladder supplied at create is sealed on the instance, with both ranges packed
-    ///         contiguously and strictly ABOVE the id ceiling. Before noesis-160 `tierBands` was empty
+    ///         contiguously and strictly ABOVE the id ceiling. Before this wiring `tierBands` was empty
     ///         on every factory-created instance, which the gas short-circuit reads as "no tiers".
     function test_create_sealsLadderAboveIdLimit() public {
         ERC404Factory.TierSpec[] memory ts = new ERC404Factory.TierSpec[](2);
@@ -536,7 +536,7 @@ contract TierCreatePathTest is Test {
     }
 
     // ┌───────────────────────────────────────────────────────────────────┐
-    // │  noesis-162: the untiered mirror states are unconstructible       │
+    // │  The untiered mirror states are unconstructible                   │
     // └───────────────────────────────────────────────────────────────────┘
     // The empty-ladder refusal above keys on `cfg.tier`, so it only sees configs that set it. Two mirror
     // states reach the same silent-no-op instance without ever setting `cfg.tier`: routing the TIER
@@ -630,7 +630,7 @@ contract TierCreatePathTest is Test {
     }
 
     // ┌───────────────────────────────────────────────────────────────────┐
-    // │  The ceiling MOVES; the band floor must not follow it (noesis-261)│
+    // │  The ceiling MOVES; the band floor must not follow it             │
     // └───────────────────────────────────────────────────────────────────┘
 
     /// @notice Graduation BURNS the coin it could not place (`ERC404BondingOps._sizePoolAtCurvePrice`,

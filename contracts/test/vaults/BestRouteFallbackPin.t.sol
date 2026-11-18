@@ -64,7 +64,7 @@ contract RecordingFallbackRouter {
 }
 
 /// @title BestRouteFallbackPin
-/// @notice noesis-106 (b) — regression pin for swap-path finding 1, VAULT level: a vault configured
+/// @notice Regression pin for swap-path finding 1, VAULT level: a vault configured
 ///         with `zQuoter == address(0)` must still acquire its alignment token via the fixed-pool
 ///         fallback and complete a convert (no revert, best-route NOT engaged). This is the half of
 ///         the best-route enablement pin that RUNS in the standard gate (the off-family real-route
@@ -101,7 +101,7 @@ contract BestRouteFallbackPinTest is Test {
         registry = new MockAlignmentRegistry();
         registry.setTargetActive(TARGET_ID, true);
         registry.setTokenInTarget(TARGET_ID, address(alignmentToken), true);
-        // Canonical-reference wiring (noesis-037): the oracle floor reads the DAO-pinned ReferencePool.
+        // Canonical-reference wiring: the oracle floor reads the DAO-pinned ReferencePool.
         registry.setReferencePool(
             TARGET_ID,
             address(alignmentToken),
