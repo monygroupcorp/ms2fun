@@ -21,6 +21,11 @@ describe('check-rpcs reads what the app ships', () => {
     for (const url of narrow) expect(pooled).toContain(url)
   })
 
+  it('lists each NARROW_LOG_RANGE entry once', () => {
+    const narrow = readNarrowLogRange(rpcSource)
+    expect(narrow).toEqual([...new Set(narrow)])
+  })
+
   it('reads NARROW_LOG_RANGE entries across lines and past comments', () => {
     const source = `const NARROW_LOG_RANGE: string[] = [\n  // why\n  'https://a',\n  'https://b',\n]`
     expect(readNarrowLogRange(source)).toEqual(['https://a', 'https://b'])
