@@ -171,7 +171,7 @@ anyone.** Royalties are opt-in, marketplace-enforced, and were competed to nothi
 structural failure, not a run of bad luck, and no amount of goodwill fixes it — a majority of the
 largest collections' sales run through a zero-royalty venue.
 
-**Alignment does not rely on a royalty.** The vault's claim is taken at settlement (the 19%/80% at
+**Alignment does not rely on a royalty.** The vault's claim is taken at settlement (the 19% at
 mint) and held as an LP position that earns from the pool itself. There is no marketplace that can
 route around it and no toggle that switches it off. That is the difference worth putting on the site:
 not a bigger percentage, an **uncircumventable** one.

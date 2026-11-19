@@ -240,7 +240,7 @@ anyone.** Royalties are opt-in, marketplace-enforced, and were competed to nothi
 structural failure, not a run of bad luck, and no amount of goodwill fixes it — a majority of the
 largest collections' sales run through a zero-royalty venue.
 
-**Alignment does not rely on a royalty.** The vault's claim is taken at settlement (the 19%/80% at
+**Alignment does not rely on a royalty.** The vault's claim is taken at settlement (the 19% at
 mint) and held as an LP position that earns from the pool itself. There is no marketplace that can
 route around it and no toggle that switches it off. That is the difference worth putting on the site:
 not a bigger percentage, an **uncircumventable** one.
@@ -298,9 +298,8 @@ the `IMPROVEMENTS #16` shape exactly: the green was a statement about the tool, 
 
 | state | count | meaning |
 |---|---|---|
-| needs-harvest | 56 | Address known. No schema-valid v2 record exists yet. |
+| harvested | 58 | A schema-valid record exists at data/alignment/collections/<address>.json. |
 | unresolved-slug | 9 | Slug does not resolve to a mainnet contract. A legitimate result, not a failure. |
-| harvested | 2 | A schema-valid record exists at data/alignment/collections/<address>.json. |
 
 Full detail, one entry per collection, in `data/alignment/index.json`. That file is the census's
 work list: a record with no entry there is not in the census, and the renderer refuses it.
