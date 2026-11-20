@@ -110,6 +110,24 @@ their names claim more than they prove.
 Worker-hours are the wall time of each hunter run, summed across 21 runs. Up to four ran at once, from
 10:12 to 12:04 on 2026-11-10.
 
+**Worth it against one frontier-model session, per lane** (reading each lane's own result against who actually
+produced it — the file history behind section 2):
+
+- **endowment** — no. The hunter's one surviving test (`LateJoinerYield`) passed unchanged and needed no
+  correction, but the decisive step — showing the rejected POL-dust claim has no reachable caller — was
+  the reviewer's, not the hunter's.
+- **bonding** — not decided either way. The hunter's defended test (`RoundTripRounding`) stood on its own
+  with no reviewer rescue, and the one open hypothesis (staking-reward timing) ran out of turn budget
+  rather than failing on the merits. Nothing here argues for the setup or against it.
+- **liquidity** — no. The hunter's only committed output, `SkewedPoolInitBricksGraduation`, was rejected
+  — built on a mock `PoolManager` with no `swap`, unable to express the real defense. The one proof that
+  survived (`PreInitRecoverableRealV4`) is the reviewer's, written from scratch against the real
+  PoolManager; the hunter produced nothing usable in this lane.
+- **peripheral** — yes, but only under review. The hunter found the hunt's one real, confirmed finding
+  (H02), real code the audit had not looked at. Unsupervised, though, it would have shipped overclaimed:
+  the reviewer still had to trace the mainnet deploy path to scope H02 to the testnet fork and write the
+  control that refuted H03, a sibling claim the hunter's own test could not tell from H02 itself.
+
 ## 4. Every changed file
 
 Verdicts: *hunted* means a hypothesis aimed at the file was tested. *Exercised* means a proof ran the
@@ -224,6 +242,15 @@ true (H02, H03).
   not made.
 - *Destructive cleanup.* One hunter wrote a file to a doubled path, ran `rm -rf` on the repository's real
   test directory to clean up, and restored it from git. Nothing was lost, but nothing stopped it either.
+
+**On whether a crashing service caused the false positives.** It did not. The three rejected claims
+(section 2) were rejected for reasoning errors a working run still made — trusting an untested mock,
+pranking a trusted role, misreading a duplicate — not because a run was cut short. The output-cap and
+turn-budget failures above landed on a different outcome: they stopped three hypotheses from producing
+any test at all (the "no result" row in section 2), which is a gap in coverage, not a false positive.
+Both failure modes belong entirely to the shared inference host the hunters ran on — it refusing the
+next request once a reply overran its 8,192-token cap, or a hunter exhausting its own turn budget — and
+neither is a crash in any of this project's own services.
 
 **Against one frontier-model session in the same hours.** Four of them did not beat one. The decisive
 work in this hunt was the reviewer's, not the hunters':
