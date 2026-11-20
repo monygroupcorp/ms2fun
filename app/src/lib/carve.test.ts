@@ -151,7 +151,7 @@ describe('parseBps', () => {
   })
 })
 
-// noesis-220 acceptance leg 2. The admin panel names the creator's TAKE-HOME at the moment the carve
+// The admin panel names the creator's TAKE-HOME at the moment the carve
 // is committed, and it must be the same number `graduationPreview` reports — not a re-derivation that
 // can drift from it. `graduationPreview` calls `carveCreatorNet`, and this table is what keeps the
 // contract honest across the regimes that matter: zero, sub-floor, bracket boundaries, and the

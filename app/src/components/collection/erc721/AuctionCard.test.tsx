@@ -1,9 +1,9 @@
 /**
- * AuctionCard (noesis-212) — the settled state must show the creator's net alongside the existing
+ * AuctionCard — the settled state must show the creator's net alongside the existing
  * gross sale line, and the reclaim state must state the 1% cut before the action and never imply
  * an NFT (`reclaimUnsold` is a deposit refund, it never mints).
  *
- * AuctionCard (noesis-353) — the active-state bid form seeds its input at the minimum legal next
+ * AuctionCard — the active-state bid form seeds its input at the minimum legal next
  * bid instead of starting empty, offers a +/- stepper that moves by the auction's own
  * `bidIncrement` and clamps at the floor, and re-seeds when the floor moves (another bid landing
  * while the card is open) as long as the bidder hasn't diverged from the seed by typing or

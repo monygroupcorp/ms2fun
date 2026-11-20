@@ -15,9 +15,9 @@
  *   - retryVaultContribution()    ✦ permissionless — re-send a vault cut an earlier withdraw could
  *     not deliver (a de-curated or reverting vault), reading `pendingVaultCut` so the row says how
  *     much is actually stranded instead of offering a button that reverts on an empty stash
- *   - configure allowlist        ✦ (noesis-080) submit a merkle root on-chain + persist its listURI —
+ *   - configure allowlist        ✦ submit a merkle root on-chain + persist its listURI —
  *     shown only when the instance's gating module is set (today the only deployed gating module IS
- *     MerkleGatingModule; PasswordTierGating was dropped in noesis-065).
+ *     MerkleGatingModule; PasswordTierGating was dropped).
  * (✦ = added in W-E; all but retry are onlyOwner.)
  *
  * Every write goes through `useTxAction` (one per action) with `erc1155InstanceAbi`, so the
@@ -314,7 +314,7 @@ function UpdateMetadataRow({
   )
 }
 
-// ── Set edition free-mint allocation (noesis-135) ─────────────────────────────
+// ── Set edition free-mint allocation ─────────────────────────────
 //
 // Per-edition free-mint: the owner (or a delegated agent) can adjust an edition's zero-cost
 // allocation at any time via `setEditionFreeMintAllocation(editionId, allocation)`. The reserve cap
@@ -612,10 +612,10 @@ function RetryVaultRow({ instance }: { instance: `0x${string}` }) {
   )
 }
 
-// ── Configure allowlist (noesis-080) ──────────────────────────────────────────
+// ── Configure allowlist ──────────────────────────────────────────
 //
 // Only shown when the instance has a gating module set — today that can only be MerkleGatingModule
-// (PasswordTierGating was dropped in noesis-065). Two independently-retryable transactions:
+// (PasswordTierGating was dropped). Two independently-retryable transactions:
 //   1. configureFor(instance, {editionId:0, roots:[root], tierOpenTimes:[0]}) on the gating module —
 //      requires Ownable(instance).owner() (the connected wallet, since useOwnerGate already asserted it).
 //   2. updateInstanceMetadata(instance, newMetadataUri) on MasterRegistry — requires the ORIGINAL

@@ -3,7 +3,7 @@ import { renderHook } from '@testing-library/react'
 import type { ProjectCard } from '../../lib/discovery/types'
 
 /**
- * noesis-327, acceptance 4 — the ordering assertion has to run through the REAL `useAllCollections`.
+ * The ordering assertion has to run through the REAL `useAllCollections`.
  *
  * `usePortfolio.test.ts` builds its own `cards` array and feeds it straight to
  * `derivePortfolioInputs`, so it can prove the cap but never WHICH collections the cap kept. The
@@ -65,7 +65,7 @@ describe('portfolio coverage over the real collection index', () => {
     const { instances, vaultAddrs, truncated } = derivePortfolioInputs(result.current.data ?? [])
 
     expect(instances).toHaveLength(COUNT)
-    expect(instances).toContain(addr(1)) // the oldest — silently unqueried before noesis-327
+    expect(instances).toContain(addr(1)) // the oldest — once silently unqueried
     expect(vaultAddrs).toHaveLength(COUNT)
     expect(truncated).toBe(false)
   })

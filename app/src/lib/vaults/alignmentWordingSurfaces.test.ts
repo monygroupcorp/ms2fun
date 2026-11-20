@@ -50,7 +50,7 @@ const MARKUP_FILES = import.meta.glob(['/index.html', '/vite.config.ts'], {
   eager: true,
 }) as Record<string, string>
 
-/** The surfaces clause 28 names. The two vault pages landed earlier and are covered separately. */
+/** The five surfaces listed above. The two vault pages landed earlier and are covered separately. */
 const WORDING_SURFACES = [
   '/src/components/collection/CollectionHero.tsx',
   '/src/components/wizard/AlignmentTargetPicker.tsx',
@@ -147,7 +147,7 @@ function SHARE_OF(base: RegExp): RegExp {
   )
 }
 
-/** The readings the ruling struck out. None of them is true of any family, on any surface. */
+/** The readings struck out above. None of them is true of any family, on any surface. */
 const STRUCK_READINGS = [
   ['takes a share of every resale', /every resale/i],
   ['takes a percentage of a resale', /\d+% of (every |each |the )?resale/i],

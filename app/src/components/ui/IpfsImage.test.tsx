@@ -1,5 +1,5 @@
 /**
- * IpfsImage (noesis-371) — request budget and the lazy default.
+ * IpfsImage — request budget and the lazy default.
  *
  * Three properties, each of which a grid of a thousand thumbnails depends on:
  *  - many components sharing one CID cost ONE request, and a re-mount costs none;

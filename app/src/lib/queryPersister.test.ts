@@ -1,5 +1,5 @@
 /**
- * queryPersister — buster-bump regression (noesis-422 amendment).
+ * queryPersister — buster-bump regression.
  *
  * The key-collision fix (see `BoardPage.test.tsx`) only covers new writes. The read cache
  * persists to localStorage (`PersistQueryClientProvider` in `App.tsx`), so a visitor who loaded

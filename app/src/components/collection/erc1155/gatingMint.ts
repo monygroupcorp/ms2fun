@@ -19,7 +19,7 @@
  *
  * MERKLE SEAM: an allowlist (MerkleGatingModule) would instead expect an ABI-encoded merkle proof as
  * `data`. Resolving a proof needs the full leaf set / a proof service, out of scope for this slice —
- * see `resolveMerkleGatingData` for the clearly-marked seam (noesis-029/030 own it). Until that lands,
+ * see `resolveMerkleGatingData` for the clearly-marked seam. Until that lands,
  * a user with no password supplied falls back to the zero credential so the call reaches the module
  * and reverts visibly (normal tx-failed UX) rather than fabricating a credential.
  */
@@ -112,7 +112,7 @@ export function encodeMintMessage(message: string): Hex {
 
 /**
  * Encode the `bytes gatingData` credential for a MerkleGatingModule-gated paid `mint`/`claimFreeMint`
- * call (noesis-080). Matches `MerkleGatingModule.sol:117`'s decode shape EXACTLY —
+ * call. Matches `MerkleGatingModule.sol:117`'s decode shape EXACTLY —
  * `abi.decode(data, (uint256 tierId, uint256 maxQty, bytes32[] proof))` — `tierId`/`maxQty`/`proof`
  * come from `app/src/lib/collection/allowlistConfig.ts`'s `resolveMemberProof` (which wraps
  * `app/src/lib/merkle.ts`'s `getProof`); `tierId` is `0n` for the single-list authoring this slice

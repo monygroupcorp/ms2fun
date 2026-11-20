@@ -34,7 +34,7 @@ describe('fetchProjectCardsBatched', () => {
   /**
    * A client whose `getProjectCardsBatch` mirrors the contract's own first statement:
    * `if (instances.length > MAX_QUERY_LIMIT) revert TooManyInstances()`. A caller that windows
-   * correctly never sees it; the pre-noesis-335 whole-array call sees it at the 51st instance and
+   * correctly never sees it; the earlier whole-array call sees it at the 51st instance and
    * keeps seeing it, because the registry only grows.
    */
   function boundedClient() {

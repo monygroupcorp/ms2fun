@@ -11,7 +11,7 @@ import type { FeedMessage } from '../useMessageFeed'
  * but the cache ENTRY under this exact key is not, and must never be. The board's `useGlobalFeed`
  * (BoardPage) is an infinite query caching `{ pages, pageParams }`; this is a plain query caching
  * `FeedMessage[]`. Two shapes under one key means whichever query populates the cache first
- * poisons the other's read — see noesis-422.
+ * poisons the other's read.
  */
 export const homeActivityQueryKey = ['message-feed', 'global', 'preview'] as const
 

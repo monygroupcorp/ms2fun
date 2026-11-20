@@ -53,9 +53,9 @@ describe('artPointerError', () => {
   })
 
   // Asserted against the CONSTANT, not the literal `true`: `ALLOW_REMOTE_HTTP_URIS` is a product
-  // ruling that can flip, and this test states the invariant (authoring agrees with the ruling)
-  // rather than the ruling itself.
-  test('remote http(s) art is accepted exactly when the product ruling allows it', () => {
+  // decision that can flip, and this test states the invariant (authoring agrees with the setting)
+  // rather than the setting itself.
+  test('remote http(s) art is accepted exactly when ALLOW_REMOTE_HTTP_URIS allows it', () => {
     const refused = artPointerError('https://example.test/art.png') !== null
     expect(refused).toBe(!ALLOW_REMOTE_HTTP_URIS)
     expect(acceptedArtSchemes().includes('https://')).toBe(ALLOW_REMOTE_HTTP_URIS)

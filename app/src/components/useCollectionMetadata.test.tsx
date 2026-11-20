@@ -1,5 +1,5 @@
 /**
- * useCollectionMetadata (noesis-371) — immutability governs the refetch, and only where it holds.
+ * useCollectionMetadata — immutability governs the refetch, and only where it holds.
  *
  * A content-addressed pointer names its own bytes, so a cached value can never be stale and must not
  * be refetched at all. An `http(s)://` pointer is mutable and must keep revalidating on its finite

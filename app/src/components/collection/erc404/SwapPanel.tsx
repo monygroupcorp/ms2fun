@@ -90,7 +90,7 @@ export function SwapPanel({
   const isBuy = direction === 'buy'
   const slippageBps = Math.round((Number(slippagePct) || 0) * 100)
 
-  // BUY gating (noesis-080): the only deployed gating module is MerkleGatingModule, so `gatingActive`
+  // BUY gating: the only deployed gating module is MerkleGatingModule, so `gatingActive`
   // on the buy side means "resolve a merkle proof", not "ask for a password" — the password field below
   // stays for SELL, which still takes a raw `bytes32 passwordHash` untouched by the gating module (see
   // gating.ts's doc comment).
@@ -231,7 +231,7 @@ export function SwapPanel({
     query: { enabled: Boolean(address) },
   })
 
-  // Holdings readout (noesis-172): `balance` above stays the ONLY read used for the sell quote,
+  // Holdings readout: `balance` above stays the ONLY read used for the sell quote,
   // limit, and quick-fill presets (the balanceOf-primacy rule — see useTierPosition's docstring).
   // `tiered`/`holdings`/`pendingEscrowRelease` here drive display only.
   const {
@@ -242,7 +242,7 @@ export function SwapPanel({
     balance: tierBalance,
   } = useTierPosition(instance, address)
 
-  // Debit-burns-your-band preview (noesis-173): fed `tierBalance` (balanceOf-primacy, never
+  // Debit-burns-your-band preview: fed `tierBalance` (balanceOf-primacy, never
   // `holdings`) and the view's `unit` — SEE its own module doc for the arithmetic.
   const bandBurnPreview = previewBandBurn({
     balance: tierBalance,
@@ -259,7 +259,7 @@ export function SwapPanel({
     hash: activeWrite.data,
   })
 
-  // Shared invalidation (noesis-352): a buy/sell moves coin balance AND NFT ids in the same
+  // Shared invalidation: a buy/sell moves coin balance AND NFT ids in the same
   // transaction, so every cached read for this instance — the piece grid, tier position, staking,
   // not just this panel's own quote/balance — must invalidate the moment the receipt lands, not only
   // when the holder happens to click "reset". Fires once per confirmed receipt, mirroring
@@ -449,7 +449,7 @@ export function SwapPanel({
             — not yet in your balance.
           </p>
         )}
-        {/* Debit-burns-your-band warning (noesis-173): informational only — never blocks the sell,
+        {/* Debit-burns-your-band warning: informational only — never blocks the sell,
             never implies the coin is at risk. Named exactly when the holder owns one band and the
             debit empties the whole position; bounded otherwise. */}
         {!isBuy && tiered && bandBurnPreview.bandsBurnedMax > 0 && (

@@ -1,5 +1,5 @@
 /**
- * The zero-state of the other two activity surfaces — noesis-427 clause 1, "one state device".
+ * The zero-state of the other two activity surfaces — "one state device".
  *
  * The salon was fixed on its own (see `BoardPage.emptyState.test.tsx`); the collection/vault/
  * profile feed and home's preview had the same bug and kept it, because each surface hand-rolled

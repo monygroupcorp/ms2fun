@@ -13,7 +13,7 @@
  * `send` is wagmi's `writeContract` returned verbatim, so the call site keeps full type inference
  * over abi/functionName/args (pass `chainId: forkChainId` as the existing readers do).
  *
- * `instance` (noesis-352) — pass the collection instance a write acts on and every cached read
+ * `instance` — pass the collection instance a write acts on and every cached read
  * touching that address is invalidated the moment the receipt lands, on top of `onSuccess`. This is
  * the SHARED invalidation seam: a panel's own `onSuccess` only reaches that panel's own reads, but a
  * write on an instance can move state multiple panels read independently — a bonding buy/sell moves

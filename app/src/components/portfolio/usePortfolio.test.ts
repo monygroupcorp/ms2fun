@@ -43,7 +43,7 @@ describe('derivePortfolioInputs', () => {
   })
 
   it('keeps every instance and vault past MAX_QUERY_LIMIT — no clipping, no truncation flag', () => {
-    // noesis-327: this used to `.slice(0, 50)`. Because `useAllCollections` sorts newest-first, the
+    // This used to `.slice(0, 50)`. Because `useAllCollections` sorts newest-first, the
     // prefix was the 50 NEWEST collections, so a holding in an older one was reported as "nothing
     // held" and each new registration evicted another. The read is windowed now, so nothing drops.
     const cards = Array.from({ length: MAX_QUERY_LIMIT + 5 }, (_, i) => ({
@@ -205,7 +205,7 @@ describe('auction escrow', () => {
   })
 })
 
-// noesis-331: the vaults tab never mounted with `truncated` before this file — F-W2's window
+// The vaults tab never mounted with `truncated` before this file — the window
 // notice was reachable only in HeldPanel. VaultsPanel is a .tsx component but this file stays
 // .ts (its established home per the plan), so the elements are built with `createElement` rather
 // than JSX.
@@ -334,7 +334,7 @@ describe('fetchPortfolioDataBatched', () => {
   })
 })
 
-// noesis-327: the notice sat BELOW the `isPortfolioEmpty` early return, so the one case where it is
+// The notice once sat BELOW the `isPortfolioEmpty` early return, so the one case where it is
 // load-bearing — a portfolio hidden entirely, rendering "nothing held yet" — was the one case it
 // could never appear in. A partially-hidden portfolio warns; a fully-hidden one asserted the
 // opposite.

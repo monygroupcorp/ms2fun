@@ -117,7 +117,7 @@ describe('the art service contract', () => {
   })
 
   it('carries no account identifier, credential or deployment hostname', () => {
-    // rth 2026-09-25: open source, and lean. A fork stands up its own service; this repository
+    // Open source, and lean. A fork stands up its own service; this repository
     // never learns ours. Asserted rather than trusted, because a deploy is one paste away from
     // putting an account id in the file that configures it.
     //

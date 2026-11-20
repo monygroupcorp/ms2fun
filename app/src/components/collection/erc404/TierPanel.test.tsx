@@ -1,5 +1,5 @@
 /**
- * TierPanel — self-hiding, id-eligibility, and claim-affordance behavior (noesis-171). The chain
+ * TierPanel — self-hiding, id-eligibility, and claim-affordance behavior. The chain
  * reads (`useTierPosition`, `useErc404OwnedPieces`) and the write hooks are mocked; what is under
  * test is what a holder is shown and offered.
  */
@@ -56,7 +56,7 @@ vi.mock('../../../generated/contracts', () => {
 
 vi.mock('../useCollectionChain', () => ({ useCollectionChainId: () => 1 }))
 
-// The shared invalidation seam (noesis-352) needs a QueryClient; these tests aren't exercising
+// The shared invalidation seam needs a QueryClient; these tests aren't exercising
 // caching, so a stub with a spy-able `invalidateQueries` is enough (no QueryClientProvider needed).
 const mockInvalidateQueries = vi.hoisted(() => vi.fn())
 vi.mock('@tanstack/react-query', () => ({
@@ -89,7 +89,7 @@ function mountPosition(opts: {
     tiered: opts.tiered,
     ladder: opts.ladder ?? [],
     bandPieces: opts.bandPieces ?? [],
-    // `ownedIdsOf` order (noesis-356). Ten entries by default, matching the ten-unit balance below:
+    // `ownedIdsOf` order. Ten entries by default, matching the ten-unit balance below:
     // DN404 keeps `ownedLength == balance / unit`, so a mock that disagreed would model a position
     // the chain cannot hold.
     ownedOrder: opts.orderPending
@@ -217,7 +217,7 @@ test('mint up stays available when the balance covers the escrow', () => {
   expect(screen.getByTestId('tier-panel-mint-up')).not.toBeDisabled()
 })
 
-// ── The sacrifice preview (noesis-356) ────────────────────────────────────────────────────────────
+// ── The sacrifice preview ────────────────────────────────────────────────────────────
 
 const ORDER_8 = [1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n]
 const PIECES_8 = ORDER_8.map((id) => ({ id, image: `ipfs://art/${id}`, isTier: false }))

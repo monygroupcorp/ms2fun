@@ -1,5 +1,5 @@
 /**
- * TierPanel (noesis-171) — the holder-facing surface for Token Tiers: fold coin into a band NFT
+ * TierPanel — the holder-facing surface for Token Tiers: fold coin into a band NFT
  * (mint up), unfold a band NFT back into coin (mint down), and claim coin released by a burn
  * (claimReleasedEscrow). Until this panel existed none of the three was reachable from the app, so
  * no band NFT could be minted on any tiered instance even though the contracts were live.
@@ -7,10 +7,10 @@
  * All three actions read the same position (`useTierPosition`) — ladder, owned band pieces, balance,
  * Holdings, pending escrow release — which is why this is one panel rather than three.
  *
- * Vocabulary, ruled by rth 2026-08-10: `coinBalanceOf` is "Holdings" on screen; `balanceOf` keeps the
+ * Vocabulary: `coinBalanceOf` is "Holdings" on screen; `balanceOf` keeps the
  * word "balance". `balance` is the PRIMARY read for every guard here — Holdings is display-only.
  *
- * Mint up NAMES one id and CONSUMES `weight` of them (noesis-356). Its first leg escrows
+ * Mint up NAMES one id and CONSUMES `weight` of them. Its first leg escrows
  * `(weight - 1) * unit` of coin, and DN404 reconciles every debit by burning ids LIFO off the TAIL of
  * the holder's `owned` array — so `weight - 1` further pieces leave alongside the named one, picked by
  * position rather than by the holder. This panel therefore renders the whole sacrifice set as ART
@@ -63,7 +63,7 @@ export function TierPanel({ instance }: { instance: `0x${string}` }) {
   const mintDownRx = useWaitForTransactionReceipt({ hash: mintDown.data })
   const claimRx = useWaitForTransactionReceipt({ hash: claim.data })
 
-  // Shared invalidation (noesis-352): mintUp/mintDown/claim move a band NFT and coin balance
+  // Shared invalidation: mintUp/mintDown/claim move a band NFT and coin balance
   // together — SwapPanel's balance/quote and Erc404Portfolio's piece grid read the same instance and
   // must not keep showing the pre-mint position. See useTxAction's `instance` opt for the rationale.
   const queryClient = useQueryClient()
@@ -74,7 +74,7 @@ export function TierPanel({ instance }: { instance: `0x${string}` }) {
   }
 
   // ── What mint up actually takes ─────────────────────────────────────────────────────────────
-  // Order comes from `ownedIdsOf` (noesis-356) and art from `useErc404OwnedPieces`; the two are
+  // Order comes from `ownedIdsOf` and art from `useErc404OwnedPieces`; the two are
   // joined rather than duplicated. The hook replays mirror Transfer logs and yields a SET with no
   // order, and order is exactly what a LIFO tail burn needs — hence the view.
   const selectedTierIdx = tierN === '' ? undefined : Number(tierN) - 1
@@ -259,7 +259,7 @@ export function TierPanel({ instance }: { instance: `0x${string}` }) {
           </p>
         )}
 
-        {/* The ruled deliverable: the pieces that leave, as art, before the signature. */}
+        {/* The point of this panel: the pieces that leave, as art, before the signature. */}
         {selectedTierBand && sacrificeIds && (
           <div className={styles.sacrifice} data-testid="tier-panel-sacrifice">
             <p className={styles.hint}>

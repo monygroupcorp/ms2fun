@@ -215,7 +215,7 @@ function BidForm({
     highBidder: auction.highBidder,
     bidIncrement: config.bidIncrement,
   })
-  // Seeded at the minimum legal next bid (W-B3/noesis-353) rather than starting empty — the bidder
+  // Seeded at the minimum legal next bid rather than starting empty — the bidder
   // never has to derive the floor by hand. `touched` tracks whether the bidder has diverged from the
   // seed (typing, or the +/- stepper); while untouched the field re-seeds itself whenever `min` moves
   // (another bid landing while the card is open), since a stale floor is a guaranteed revert. Once

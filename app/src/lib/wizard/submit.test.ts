@@ -86,8 +86,8 @@ describe('buildErc1155Create', () => {
   it('coerces freeMint.allocation to bigint and scope to number', () => {
     const call = buildErc1155Create(baseCtx())
     if (call.type !== 'erc1155') throw new Error('unexpected type')
-    // ERC1155 allocation is hard-zeroed: `initializeFreeMint` ignores it since noesis-135
-    // (free mint moved to per-edition allocation), so the app never sends a form value here.
+    // ERC1155 allocation is hard-zeroed: `initializeFreeMint` ignores it since free mint
+    // moved to per-edition allocation, so the app never sends a form value here.
     expect(call.args[1].freeMint.allocation).toBe(0n)
     expect(typeof call.args[1].freeMint.allocation).toBe('bigint')
     expect(call.args[1].freeMint.scope).toBe(2)
@@ -194,7 +194,7 @@ describe('buildErc404Create', () => {
   })
 })
 
-// ── Piece art (noesis-211): tokenBaseURI passthrough + composed-preview invariant ──────────────
+// ── Piece art: tokenBaseURI passthrough + composed-preview invariant ──────────────
 // The wizard's confirm step warns when this is blank; the calldata contract must stay untouched by
 // that warning — no invented default, ever.
 describe('erc404 tokenBaseURI (piece art)', () => {

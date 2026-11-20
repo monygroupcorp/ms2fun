@@ -1,10 +1,10 @@
 /**
- * ArtPointerNotice (noesis-384) — tell the creator, on their own admin view, that their collection's
+ * ArtPointerNotice — tell the creator, on their own admin view, that their collection's
  * art pointer is not reaching anyone.
  *
  * A refused or unresolvable pointer is invisible from the outside: every viewer sees the fallback
- * tile and nobody tells the creator. This is the creator-side half only. rth ruled 2026-08-21 that
- * the public browse grid gets nothing — a viewer cannot act on a broken pointer, and a warning they
+ * tile and nobody tells the creator. This is the creator-side half only. The public
+ * browse grid gets nothing — a viewer cannot act on a broken pointer, and a warning they
  * cannot act on is noise.
  */
 import { ActionRow } from '../ui/AdminSection'

@@ -56,8 +56,8 @@ export type CollectionRouteResolution =
   | { status: 'ok'; instance: `0x${string}`; chainId: SupportedChainId; slug: string }
 
 /**
- * Shared resolver for the three chain-scoped collection routes (`/:chainId/:slug[/edition|/token]`,
- * chain-scoped-slug-routes noesis-079). Always calls `useReadMasterRegistryV1ResolveName`
+ * Shared resolver for the three chain-scoped collection routes (`/:chainId/:slug[/edition|/token]`).
+ * Always calls `useReadMasterRegistryV1ResolveName`
  * unconditionally (Rules of Hooks) — invalid states disable the read via `query.enabled` rather
  * than skipping the hook call.
  */
@@ -342,7 +342,7 @@ function CollectionBody({ instance }: { instance: `0x${string}` }) {
 
 /**
  * Legacy address-keyed route (`/collection/:instance[/edition|/token]`) — permanently redirects to
- * the slug URL (chain-scoped-slug-routes noesis-079 step 8). Chain-blind by design: legacy links
+ * the slug URL. Chain-blind by design: legacy links
  * predate multi-chain, so they resolve against the default fork chain via `useCollection`'s
  * fallback scope. While the card is pending, shows a light loading state; on an unresolvable
  * instance, falls through to the existing invalid/not-found copy.

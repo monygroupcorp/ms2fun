@@ -133,15 +133,15 @@ function freeMint(c: CreateContext): { allocation: bigint; scope: number } {
 export function buildErc1155Create(c: CreateContext): CreateCall {
   const params = {
     name: str(c.values.name),
-    symbol: str(c.values.symbol), // optional ERC1155 collection symbol (empty allowed) — noesis-084
+    symbol: str(c.values.symbol), // optional ERC1155 collection symbol (empty allowed)
     metadataURI: c.metadataURI,
     creator: c.creator,
     vault: c.modules.vault,
     styleUri: str(c.values.styleUri),
     gatingModule: addr(c.modules.gatingModule),
     // The freeMint tuple is shared ABI shape with ERC404Factory (do-not-change per the contract's
-    // NatSpec), but `ERC1155Instance.initializeFreeMint` ignores `allocation` since noesis-135 (free
-    // mint moved to per-edition allocation). Send a deterministic 0n rather than a stale form value;
+    // NatSpec), but `ERC1155Instance.initializeFreeMint` ignores `allocation` since free
+    // mint moved to per-edition allocation. Send a deterministic 0n rather than a stale form value;
     // `scope` is still live as collection-level `gatingScope`.
     freeMint: { allocation: 0n, scope: num(c.values['freeMint.scope']) },
   }

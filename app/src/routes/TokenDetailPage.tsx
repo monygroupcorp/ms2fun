@@ -83,7 +83,7 @@ function invalidTokenState() {
 }
 
 /** Chain-scoped route: `/:chainId/:slug/token/:id`. Resolves the slug, then renders the existing
- * per-type token body inside a `<CollectionChainProvider>` (chain-scoped-slug-routes noesis-079). */
+ * per-type token body inside a `<CollectionChainProvider>`. */
 export function TokenDetailPage() {
   const params = useParams<{ chainId?: string; slug?: string; id?: string }>()
   const resolution = useResolvedCollectionRoute(params.chainId, params.slug)
@@ -139,7 +139,7 @@ function TokenDetail({ instance, id }: { instance: `0x${string}`; id: bigint }) 
 }
 
 /** Legacy address-keyed route (`/collection/:instance/token/:id`) — permanently redirects to the
- * slug URL (chain-scoped-slug-routes noesis-079 step 8). Chain-blind by design; see
+ * slug URL. Chain-blind by design; see
  * `LegacyCollectionRedirect` in `./CollectionPage`. */
 export function LegacyTokenRedirect() {
   const params = useParams<{ instance?: string; id?: string }>()
@@ -327,7 +327,7 @@ function Erc404Token({ instance, id, collectionName, creator, vaultName }: Token
         </div>
       </div>
 
-      {/* noesis-010: holder-side metadata controls (unlock / pin) — only for the connected wallet
+      {/* Holder-side metadata controls (unlock / pin) — only for the connected wallet
           that owns THIS token; self-hides when the collection has no overlay module wired. */}
       {connected && data?.owner && connected.toLowerCase() === data.owner.toLowerCase() && (
         <MetadataHolderPanel instance={instance} id={id} holder={connected} />

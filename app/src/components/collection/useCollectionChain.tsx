@@ -13,7 +13,7 @@ const CollectionChainContext = createContext<CollectionChainContextValue | undef
  * Scopes the collection subtree to one route-resolved `(chainId, slug)` pair. Mounted by the three
  * collection route pages (`CollectionPage`, `EditionDetailPage`, `TokenDetailPage`) AFTER slug
  * resolution succeeds, so every read inside passes the route's chain explicitly instead of the
- * module-level `forkChainId`/`forkAddresses` default (chain-scoped-slug-routes, noesis-079).
+ * module-level `forkChainId`/`forkAddresses` default.
  */
 export function CollectionChainProvider({
   chainId,

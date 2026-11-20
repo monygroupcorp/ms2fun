@@ -38,7 +38,7 @@ describe('formatReceipt', () => {
     expect(out.indexOf('0.0495')).toBeLessThan(out.indexOf('0.0005'))
   })
 
-  it('leg sum plus net equals gross, at the wei this seat measured (reclaim)', () => {
+  it('leg sum plus net equals gross, at the wei measured on-chain (reclaim)', () => {
     const deposit = 50000000000000000n // 0.05 ETH
     expect(RECLAIM_NET + RECLAIM_PROTOCOL_LEG).toBe(deposit)
   })
@@ -49,7 +49,7 @@ describe('formatReceipt', () => {
     // exercising nothing about the app's actual split. This version goes the other way: it applies
     // `RevenueSplitLib`'s own 1% protocol / 19% vault / residual-creator split to the GROSS (mirroring
     // `carveReceiptFromLogs` in `Erc404AdminPanel.tsx`), independently of `CARVE_NET`, and only then
-    // checks the result against the net this seat separately measured on-chain.
+    // checks the result against the net separately measured on-chain.
     const protocolLeg = CARVE_GROSS / 100n
     const vaultLeg = (CARVE_GROSS * 19n) / 100n
     const net = CARVE_GROSS - protocolLeg - vaultLeg // residual — absorbs all truncation dust
@@ -95,7 +95,7 @@ describe('formatReceipt', () => {
   })
 })
 
-// noesis-215 Step 1 acceptance: `carveReceiptFromLogs` (Erc404AdminPanel.tsx) must produce a
+// `carveReceiptFromLogs` (Erc404AdminPanel.tsx) must produce a
 // receipt from the UNION of `CreatorCarvePaid.paid` and `GraduationExcessTithed.amount` — the
 // deployer module caps `CreatorCarvePaid.paid` to the requested leg alone and reports any
 // LP-share ETH the parity clamp couldn't place (`excessEth`) on a separate event

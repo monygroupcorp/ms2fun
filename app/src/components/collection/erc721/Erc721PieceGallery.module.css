@@ -1,4 +1,4 @@
-/* Virtualized grid (noesis-382). The scroller owns the scrollbar, `.canvas` is sized to the whole
+/* Virtualized grid. The scroller owns the scrollbar, `.canvas` is sized to the whole
    collection so the bar reads true, and each `.row` is absolutely positioned by the virtualizer.
    The column count is set inline from the measured width — `auto-fill` cannot be used here because
    the row model needs to know how many pieces a row holds. */

@@ -207,7 +207,7 @@ describe('GatewayThrottleNotice — fault starvation', () => {
 /**
  * Whose fault the notice says it is.
  *
- * The goal's clause asks for this notice to go, or for a reason it stays. It stays — it is the
+ * This notice should either go, or have a stated reason to stay. It stays — it is the
  * last-resort explanation and not the mitigation, and with no service deployed it is the ONLY
  * explanation a rate-limited viewer gets. What could not stay is the claim: "not a problem with this
  * app" was true while every byte came from a public gateway on the viewer's own quota, and is false

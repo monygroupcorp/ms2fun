@@ -114,8 +114,8 @@ describe('CollectionHero alignment line', () => {
 
 // ── The Contract/Vault facts link to the right explorer, by chain ──────────────────────────────
 //
-// rth: "the contracts listed on a collection page should link out to their contract on etherscan
-// or sepolia scan depending on the chain." No chainId (the launch-wizard preview, whose instance
+// The contracts listed on a collection page link out to their contract on Etherscan or Sepolia
+// Etherscan, depending on the chain. No chainId (the launch-wizard preview, whose instance
 // is a mock address on no real chain) leaves the facts as plain text — nowhere to link them to.
 
 describe('CollectionHero contract/vault explorer links', () => {

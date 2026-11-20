@@ -9,14 +9,14 @@
  * viewer — and the pointer is on-chain, where correcting it costs another transaction.
  *
  * So the wizard asks the SAME function the renderer asks, and refuses what it blanks. The rules
- * live in one place: `ALLOW_REMOTE_HTTP_URIS` is a product ruling that can flip, and a second copy
+ * live in one place: `ALLOW_REMOTE_HTTP_URIS` is a product decision that can flip, and a second copy
  * of the scheme list here is exactly how the authoring form and the renderer come to disagree.
  */
 import { ALLOW_REMOTE_HTTP_URIS, sanitizeImageUri } from '../metadata'
 
 /**
  * The accepted schemes, in prose, derived from the same constant the allowlist reads — so the
- * message cannot claim a scheme the renderer would drop (or omit one it would keep) if the ruling
+ * message cannot claim a scheme the renderer would drop (or omit one it would keep) if the setting
  * flips.
  */
 export function acceptedArtSchemes(): string {
