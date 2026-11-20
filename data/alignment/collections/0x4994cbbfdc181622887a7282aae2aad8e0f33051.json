@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x4994cbbfdc181622887a7282aae2aad8e0f33051",
+  "label": "Midenza Maker",
+  "provenance": null,
+  "mint": {
+    "label": "Midenza Maker",
+    "method": "transfer-from-zero",
+    "total": 244,
+    "free": 52,
+    "paid": 192,
+    "mintTxs": 128,
+    "freeTxs": 9,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 105,
+    "uniqueSenders": 100,
+    "grossWei": "5094900000000000000",
+    "firstBlock": "16550510",
+    "lastBlock": "25110680",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Midenza Maker",
+      "symbol": "MIDENZA",
+      "totalSupply": "244"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeiha5yr3oane3t2mcnjyp24sgu4d3eqaejiz2luobykgueblr6savi/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://bafybeiha5yr3oane3t2mcnjyp24sgu4d3eqaejiz2luobykgueblr6savi/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "16537324",
+      "toBlock": "26388709",
+      "chainHead": "26388709",
+      "harvestedAt": "2026-11-11T02:31:21.532Z",
+      "complete": true
+    }
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x0b121ccefc74f350b1e6cc8d5f9e2223e0859d85",
+  "label": "Merikuri",
+  "provenance": null,
+  "mint": {
+    "label": "Merikuri",
+    "method": "transfer-from-zero",
+    "total": 125,
+    "free": 125,
+    "paid": 0,
+    "mintTxs": 125,
+    "freeTxs": 125,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 125,
+    "uniqueSenders": 125,
+    "grossWei": "0",
+    "firstBlock": "16223827",
+    "lastBlock": "16237260",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Merikuri",
+      "symbol": "MERI",
+      "totalSupply": "125"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeicmg2uugvhsw36nsi3yft6ihdch2u3amqthh7t6xjrpcacmuokhsu/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://bafybeicmg2uugvhsw36nsi3yft6ihdch2u3amqthh7t6xjrpcacmuokhsu/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "16223806",
+      "toBlock": "26388724",
+      "chainHead": "26388724",
+      "harvestedAt": "2026-11-11T02:34:21.471Z",
+      "complete": true
+    }
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0xbfe47d6d4090940d1c7a0066b63d23875e3e2ac5",
+  "label": "SchizoPosters",
+  "provenance": null,
+  "mint": {
+    "label": "SchizoPosters",
+    "method": "transfer-from-zero",
+    "total": 5555,
+    "free": 984,
+    "paid": 4571,
+    "mintTxs": 1886,
+    "freeTxs": 477,
+    "indirectMintTxs": 3,
+    "zeroValueIndirectTxs": 3,
+    "uniqueRecipients": 1188,
+    "uniqueSenders": 1188,
+    "grossWei": "320169053137111645706",
+    "firstBlock": "16752351",
+    "lastBlock": "16765837",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "SchizoPosters",
+      "symbol": "SCHIZO",
+      "totalSupply": "5555"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "https://schizoposters.xyz/api/tokens/metadata/1",
+      "host": "centralized (schizoposters.xyz)",
+      "contentMutable": true,
+      "erc404BaseReusable": true,
+      "erc404Base": "https://schizoposters.xyz/api/tokens/metadata/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "16752138",
+      "toBlock": "26388661",
+      "chainHead": "26388661",
+      "harvestedAt": "2026-11-11T02:21:54.075Z",
+      "complete": true
+    }
+  }
+}

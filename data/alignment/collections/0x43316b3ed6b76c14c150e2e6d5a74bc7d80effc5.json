@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x43316b3ed6b76c14c150e2e6d5a74bc7d80effc5",
+  "label": "Rainbow Zorblady Maker",
+  "provenance": null,
+  "mint": {
+    "label": "Rainbow Zorblady Maker",
+    "method": "transfer-from-zero",
+    "total": 69,
+    "free": 69,
+    "paid": 0,
+    "mintTxs": 69,
+    "freeTxs": 69,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 69,
+    "uniqueSenders": 69,
+    "grossWei": "0",
+    "firstBlock": "16130259",
+    "lastBlock": "16130292",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Rainbow Zorblady Maker",
+      "symbol": "RZM",
+      "totalSupply": "69"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "data:application/json;base64,eyJuYW1lIjogIlJhaW5ib3cgWm9yYmxhZHkgTWFrZXIgMS82OSIsICJkZXNjcmlwdGlvbiI6ICJab3JibGFkeSIsICJpbWFnZSI6ICJpcGZzOi8vYmFma3JlaWNjNnl5N3l4Zm10bXV0aXFzb3VlZXZkc251enBjMjJ1dTNid2tza3ZkMjQyd3QzeXBydXkiLCAicHJvcGVydGllcyI6IHsibnVtYmVyIjogMSwgIm5hbWUiOiAiUmFpbmJvdyBab3JibGFkeSBNYWtlciJ9fQ==",
+      "host": "on-chain (data URI)",
+      "contentMutable": false,
+      "erc404BaseReusable": false,
+      "erc404Base": null
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "16130236",
+      "toBlock": "26388731",
+      "chainHead": "26388731",
+      "harvestedAt": "2026-11-11T02:35:56.632Z",
+      "complete": true
+    }
+  }
+}

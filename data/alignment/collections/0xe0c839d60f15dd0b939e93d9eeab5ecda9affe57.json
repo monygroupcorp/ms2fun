@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0xe0c839d60f15dd0b939e93d9eeab5ecda9affe57",
+  "label": "MiladyCola",
+  "provenance": null,
+  "mint": {
+    "label": "MiladyCola",
+    "method": "transfer-from-zero",
+    "total": 844,
+    "free": 15,
+    "paid": 829,
+    "mintTxs": 222,
+    "freeTxs": 15,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 141,
+    "uniqueSenders": 141,
+    "grossWei": "7947500000000000000",
+    "firstBlock": "16750714",
+    "lastBlock": "18199772",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "MiladyCola",
+      "symbol": "MC",
+      "totalSupply": "360"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeicyx3t6ex3ei3ye3lhpsaoe4chvheon46jjkkr2pirtcflhtxblty/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://bafybeicyx3t6ex3ei3ye3lhpsaoe4chvheon46jjkkr2pirtcflhtxblty/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "16730947",
+      "toBlock": "26388696",
+      "chainHead": "26388696",
+      "harvestedAt": "2026-11-11T02:28:45.143Z",
+      "complete": true
+    }
+  }
+}

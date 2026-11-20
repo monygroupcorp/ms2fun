@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0xcdde7902fd9d8b2f142f39b11a6f30e213d00964",
+  "label": "Pixelady Maker WOTLK",
+  "provenance": null,
+  "mint": {
+    "label": "Pixelady Maker WOTLK",
+    "method": "transfer-from-zero",
+    "total": 150,
+    "free": 150,
+    "paid": 0,
+    "mintTxs": 150,
+    "freeTxs": 150,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 150,
+    "uniqueSenders": 150,
+    "grossWei": "0",
+    "firstBlock": "16120233",
+    "lastBlock": "16120578",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Pixelady Maker WOTLK",
+      "symbol": "PXLDY3",
+      "totalSupply": "150"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeifxf2xnossezzaywoni3gf5dfyqotn36vdvhnjkvldgkavyc2kx2q/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://bafybeifxf2xnossezzaywoni3gf5dfyqotn36vdvhnjkvldgkavyc2kx2q/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "16088315",
+      "toBlock": "26388715",
+      "chainHead": "26388715",
+      "harvestedAt": "2026-11-11T02:32:42.404Z",
+      "complete": true
+    }
+  }
+}

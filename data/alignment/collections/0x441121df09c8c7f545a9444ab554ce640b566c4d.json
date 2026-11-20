@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x441121df09c8c7f545a9444ab554ce640b566c4d",
+  "label": "Meowlady Maker",
+  "provenance": null,
+  "mint": {
+    "label": "Meowlady Maker",
+    "method": "transfer-from-zero",
+    "total": 1080,
+    "free": 587,
+    "paid": 493,
+    "mintTxs": 706,
+    "freeTxs": 543,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 414,
+    "uniqueSenders": 414,
+    "grossWei": "4867200000000000000",
+    "firstBlock": "16521231",
+    "lastBlock": "16840852",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Meowlady Maker",
+      "symbol": "MEOW",
+      "totalSupply": "1080"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeiaaoqaxoji6ybsv73niluf5tp7hbiwz7b57gkgsyub3bo2rk72vrm/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://bafybeiaaoqaxoji6ybsv73niluf5tp7hbiwz7b57gkgsyub3bo2rk72vrm/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "16518329",
+      "toBlock": "26388709",
+      "chainHead": "26388709",
+      "harvestedAt": "2026-11-11T02:32:08.789Z",
+      "complete": true
+    }
+  }
+}

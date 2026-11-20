@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x9a2abacd20885c1645d2d4e86e41493c73e0c5cb",
+  "label": "BEETLE GAME",
+  "provenance": null,
+  "mint": {
+    "label": "BEETLE GAME",
+    "method": "transfer-from-zero",
+    "total": 161,
+    "free": 6,
+    "paid": 155,
+    "mintTxs": 61,
+    "freeTxs": 2,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 48,
+    "uniqueSenders": 48,
+    "grossWei": "1237500000000000000",
+    "firstBlock": "15157427",
+    "lastBlock": "17368372",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "BEETLE GAME",
+      "symbol": "MB",
+      "totalSupply": "161"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://QmPGsZFLZ9whdy1MpezEFPwWR6csYQqW5DGyLwWsjeDxZp/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://QmPGsZFLZ9whdy1MpezEFPwWR6csYQqW5DGyLwWsjeDxZp/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "15157386",
+      "toBlock": "26388716",
+      "chainHead": "26388716",
+      "harvestedAt": "2026-11-11T02:32:44.957Z",
+      "complete": true
+    }
+  }
+}

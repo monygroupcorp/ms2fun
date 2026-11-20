@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x94fe1d5de3a4208c7411ae21968e044abc17be48",
+  "label": "Streets of Milady",
+  "provenance": null,
+  "mint": {
+    "label": "Streets of Milady",
+    "method": "transfer-from-zero",
+    "total": 2121,
+    "free": 508,
+    "paid": 1613,
+    "mintTxs": 899,
+    "freeTxs": 505,
+    "indirectMintTxs": 4,
+    "zeroValueIndirectTxs": 4,
+    "uniqueRecipients": 743,
+    "uniqueSenders": 743,
+    "grossWei": "34424200000000000000",
+    "firstBlock": "15186464",
+    "lastBlock": "16621398",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Streets of Milady",
+      "symbol": "STREETS",
+      "totalSupply": "2121"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeibrjmn42xfrs5rfiosurigragxkqtqzp76fpj3tiapevkdjsx7ska/1.json",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": false,
+      "erc404Base": null
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "15177099",
+      "toBlock": "26388677",
+      "chainHead": "26388677",
+      "harvestedAt": "2026-11-11T02:25:30.033Z",
+      "complete": true
+    }
+  }
+}

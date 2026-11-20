@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0xed37c99f3000d751c460c5e386f02a6de7581407",
+  "label": "Milady Colombia",
+  "provenance": null,
+  "mint": {
+    "label": "Milady Colombia",
+    "method": "transfer-from-zero",
+    "total": 1000,
+    "free": 1,
+    "paid": 999,
+    "mintTxs": 158,
+    "freeTxs": 1,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 114,
+    "uniqueSenders": 114,
+    "grossWei": "31489999999999999600",
+    "firstBlock": "15664564",
+    "lastBlock": "17246670",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Milady Colombia",
+      "symbol": "MCOL",
+      "totalSupply": "1000"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeigx4exftagwhet2osuzkg3554r5gi7kc5bqjbozd5gvhqwxzmcnei/1.json",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": false,
+      "erc404Base": null
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "15664474",
+      "toBlock": "26388680",
+      "chainHead": "26388680",
+      "harvestedAt": "2026-11-11T02:25:48.205Z",
+      "complete": true
+    }
+  }
+}

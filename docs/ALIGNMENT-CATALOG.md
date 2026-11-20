@@ -8,7 +8,7 @@
 catalog of *real* derivative collections replayed as if they had launched aligned. A visitor pokes
 the testnet and sees, against names they know, the ETH the parent community never got.
 
-**2 schema-valid records, harvested 2026-08-21 to 2026-08-21.** Every figure on this page
+**58 schema-valid records, harvested 2026-08-21 to 2026-11-11.** Every figure on this page
 is computed at render time from exact wei in those records. Nothing here is hand-entered, and a
 record that cannot state the block range it covered does not reach this page at all.
 
@@ -28,16 +28,20 @@ enters the program only if its parent has a token with a real ETH pool.
 Note the gap that costs a row: **Uniswap V3 is a valid *reference* pool but NOT a valid *acquire*
 venue.** A target whose only real depth is V3 can be priced but not bought.
 
-**The counterfactual is arithmetic, not marketing.** `RevenueSplitLib` fixes it:
+**The counterfactual is arithmetic, not marketing.** `RevenueSplitLib.split()` fixes it, one split
+for every vault family, mint and graduation alike:
 
 | path | protocol | vault → alignment target | creator / LP |
 |---|---|---|---|
-| mint, liquidity-family vault (`UniswapV4LP`/`ZAMMLP`) | 1% | **19%** | 80% |
-| mint, yield-family vault (`AaveEndowment`) | 1% | **80%** — permanent principal, never refundable | 19% |
+| mint, any vault family | 1% | **19%** | 80% |
 | ERC404 graduation | 1% | **19%** | 80% to LP |
 
-So every row carries two headline numbers and both are defensible: 19% bought and LP'd into the
-parent's token, or 80% endowed forever with only the yield spent.
+So every row carries one headline number, and it is defensible precisely because it never varies:
+19% of every mint, bought and LP'd into the parent's token, with no family-picked alternative.
+
+*(Superseded 2026-11-11 — see §5: an earlier ruling had a yield-family vault take 80% as permanent
+principal instead of the 19% buy. That branch has since been removed from `contracts/src`
+entirely; `RevenueSplitLib.split()` now returns 1/19/80 unconditionally.)*
 
 ---
 
@@ -91,6 +95,10 @@ wiki, then adjudicated. Machine-readable: `tools/provenance.json`.
 - **Radbro Webring and SchizoPosters — DERIVATIVE.** The wiki's "parallel umbrella" framing does not
   exempt them. R3DBRO follows.
 
+**Ruling, rth, 2026-11-11:**
+
+- **Milady333 — FIRST-PARTY.** An official Remilia collection, struck from the derivative census.
+
 These are peers being put on the spot on purpose. The numbers are the whole argument, so every one
 of them is measured on chain and re-derivable by anyone who doubts it.
 
@@ -100,16 +108,75 @@ of them is measured on chain and re-derivable by anyone who doubts it.
 
 ### The derivative census — the collections that would align
 
-| collection | contract | supply | free | paid | mint ETH | 19% | 80% | metadata host | 404 base | confidence |
-|---|---|---|---|---|---|---|---|---|---|---|
-| Milady333 | `0x8a45fb…` | 333 | 333 | 0 | **0.00** | 0.00 | 0.00 | centralized (miladymaker.net) | yes | measured |
-| Yona Honorary Service | `0x283d7a…` | 11 | 11 | 0 | **0.00** | 0.00 | 0.00 | IPFS | no | measured |
+| collection | contract | supply | free | paid | mint ETH | 19% aligned | metadata host | 404 base | confidence |
+|---|---|---|---|---|---|---|---|---|---|
+| SchizoPosters | `0xbfe47d…` | 5555 | 984 | 4,571 | **320.16** | 60.83 | centralized (schizoposters.xyz) | yes | measured |
+| Cigawrettes | `0xeed41d…` | 9998 | 975 | 9,023 | **259.27** | 49.26 | IPFS | no | measured |
+| BoredMilady | `0xafe128…` | 6911 | 151 | 6,760 | **223.08** | 42.38 | IPFS | yes | measured |
+| Radbro Webring V2 | `0xabcdb5…` | 5000 | 2,193 | 2,807 | **185.16** | 35.18 | centralized (radbro.xyz) | yes | measured |
+| Pixelady Maker | `0x8fc0d9…` | 10000 | 685 | 9,315 | **106.00** | 20.14 | IPFS | yes | measured |
+| milady mfers | `0x07e8d4…` | 10000 | 0 | 10,000 | **80.14** | 15.22 | IPFS | yes | measured |
+| Milad Maker | `0x61628d…` | 10000 | 2,798 | 7,202 | **72.59** | 13.79 | IPFS | yes | measured |
+| MiladyAura | `0x2fc722…` | 1888 | 39 | 1,849 | **61.09** | 11.60 | IPFS gateway (miladyaura.mypinata.cloud) | no | measured |
+| Streets of Milady | `0x94fe1d…` | 2121 | 508 | 1,613 | **34.42** | 6.54 | IPFS | no | measured |
+| Oekaki Maker | `0x8f7a23…` | 5555 | 4,134 | 1,421 | **32.21** | 6.12 | IPFS | yes | measured |
+| Milady Colombia | `0xed37c9…` | 1000 | 1 | 999 | **31.48** | 5.98 | IPFS | no | measured |
+| ELITE MAKER | `0x61b0e5…` | 777 | 15 | 762 | **30.45** | 5.78 | IPFS | yes | measured |
+| Azuki Milady | `0x4a519d…` | 1151 | 20 | 1,131 | **27.83** | 5.28 | IPFS | yes | measured |
+| Ghiblady Maker | `0x186e74…` | 2600 | 1,460 | 1,140 | **24.75** | 4.70 | IPFS | yes | measured |
+| NotOkayMiladys | `0xa5f1fc…` | 2090 | 1,300 | 790 | **22.18** | 4.21 | IPFS | yes | measured |
+| Mifairy Maker | `0x67b5ee…` | 3333 | 1,923 | 1,410 | **12.77** | 2.42 | IPFS | yes | measured |
+| Matrix Milady | `0x424620…` | 1337 | 407 | 930 | **12.43** | 2.36 | IPFS | yes | measured |
+| milAIdy | `0x0d8a33…` | 333 | 0 | 333 | **10.98** | 2.08 | IPFS | yes | measured |
+| spring miaura | `0x3a007a…` | 333 | 13 | 320 | **10.89** | 2.06 | IPFS gateway (miladyaura.mypinata.cloud) | yes | measured |
+| water mililys | `0x71481a…` | 333 | 42 | 291 | **9.60** | 1.82 | IPFS | yes | measured |
+| Tubby Milady Maker | `0xc0f820…` | 1133 | 48 | 1,085 | **9.52** | 1.81 | IPFS | yes | measured |
+| MiladyCola | `0xe0c839…` | 360 | 15 | 829 | **7.94** | 1.51 | IPFS | yes | measured |
+| MiladyRave | `0x880a96…` | 2500 | 2,282 | 218 | **7.74** | 1.47 | IPFS | no | measured |
+| Pixeladies | `0xe96f3a…` | 333 | 69 | 264 | **5.98** | 1.13 | centralized (cdn-api.niftykit.com) | yes | measured |
+| lawbsters | `0x0ef7ba…` | 420 | 112 | 308 | **5.96** | 1.13 | IPFS | yes | measured |
+| Milady Pocket | `0x3c9eab…` | 1111 | 661 | 450 | **5.65** | 1.07 | IPFS | yes | measured |
+| MiladyStation | `0xb24bab…` | 1212 | 519 | 693 | **5.58** | 1.06 | IPFS | yes | measured |
+| Midenza Maker | `0x4994cb…` | 244 | 52 | 192 | **5.09** | 0.96 | IPFS | yes | measured |
+| Meowlady Maker | `0x441121…` | 1080 | 587 | 493 | **4.86** | 0.92 | IPFS | yes | measured |
+| Anti-Miladies | `0x2a071e…` | 10000 | 9,732 | 268 | **4.01** | 0.76 | centralized (api.anti-miladies.com) | yes | measured |
+| coolmiladys | `0x3ac0cb…` | 392 | 10 | 382 | **3.87** | 0.73 | IPFS gateway (ipfs.omakasea.com) | yes | measured |
+| Zlady Maker | `0xd5e0b0…` | 151 | 72 | 79 | **2.82** | 0.53 | IPFS | yes | measured |
+| McLady Maker | `0x366918…` | 128 | 10 | 118 | **2.79** | 0.53 | IPFS | yes | measured |
+| Rorita Maker | `0x7a3d2f…` | 1945 | 484 | 1,461 | **2.54** | 0.48 | IPFS | no | measured |
+| Strawberry Juice | `0xdc71c7…` | 100 | 2 | 98 | **2.45** | 0.46 | IPFS | yes | measured |
+| Mosaiclady Maker | `0xe70a7b…` | 5560 | 4,315 | 1,245 | **2.38** | 0.45 | IPFS | yes | measured |
+| Milady Christmas | `0x57282f…` | 223 | 114 | 109 | **2.35** | 0.44 | IPFS | yes | measured |
+| R3DBRO | `0x392c4a…` | 169 | 51 | 118 | **1.87** | 0.35 | IPFS | yes | measured |
+| BEETLE GAME | `0x9a2aba…` | 161 | 6 | 155 | **1.23** | 0.23 | IPFS | yes | measured |
+| Pixel Miladies | `0xa20594…` | 6969 | 6,557 | 412 | **0.83** | 0.15 | IPFS | no | measured |
+| mimories | `0xa393b1…` | 1686 | 1,522 | 164 | **0.82** | 0.15 | IPFS | no | measured |
+| Milady Maker X LITE | `0xe6ec7d…` | 1000 | 980 | 20 | **0.20** | 0.03 | IPFS | no | measured |
+| Milady Christmas Pets | `0xf66450…` | 121 | 121 | 0 | **0.00** | 0.00 | IPFS | yes | measured |
+| Milady Rainbow Zorb | `0xf00efb…` | 91 | 91 | 0 | **0.00** | 0.00 | on-chain (data URI) | no | measured |
+| Sonora222 | `0xdb403f…` | 108 | 108 | 0 | **0.00** | 0.00 | IPFS gateway (seedoil.mypinata.cloud) | yes | measured |
+| Pixelady Maker WOTLK | `0xcdde79…` | 150 | 150 | 0 | **0.00** | 0.00 | IPFS | yes | measured |
+| KARDLADY | `0xcbaa32…` | 87 | 87 | 0 | **0.00** | 0.00 | IPFS | yes | measured |
+| Pixelady Maker: Radbro | `0xb2619d…` | 100 | 100 | 0 | **0.00** | 0.00 | IPFS | yes | measured |
+| SonoraMaker | `0x9a051c…` | 444 | 444 | 0 | **0.00** | 0.00 | IPFS gateway (ipfs.io) | yes | measured |
+| Sudo Bastard Miladys | `0x58ae0d…` | — | 1,666 | 0 | **0.00** | 0.00 | on-chain (data URI) | no | measured |
+| Pixelady Maker BC | `0x4d40c6…` | 1000 | 1,000 | 0 | **0.00** | 0.00 | IPFS | yes | measured |
+| Rainbow Zorblady Maker | `0x43316b…` | 69 | 69 | 0 | **0.00** | 0.00 | on-chain (data URI) | no | measured |
+| Yona Honorary Service | `0x283d7a…` | 11 | 11 | 0 | **0.00** | 0.00 | IPFS | no | measured |
+| Merikuri | `0x0b121c…` | 125 | 125 | 0 | **0.00** | 0.00 | IPFS | yes | measured |
 
-**2 collections · 344 free mints · 0 paid mints · 0.00 ETH → 0.00 ETH aligned (19%) or 0.00 ETH endowed (80%).**
+**54 collections · 49,820 free mints · 71,828 paid mints · 1654.13 ETH minted → 314.28 ETH aligned at 19%, locked for every collection alike.**
 
 ### First-party Remilia — the TARGET side, shown for scale, never counted as owing
 
-_No records yet._
+| collection | contract | supply | free | paid | mint ETH | 19% aligned | metadata host | 404 base | confidence |
+|---|---|---|---|---|---|---|---|---|---|
+| TEST NFT | `0xd3d9dd…` | 10000 | 2,153 | 7,847 | **862.37** | 163.85 | centralized (remilio.org) | yes | measured |
+| Milady Maker Party | `0x05c632…` | 3000 | 1,446 | 1,554 | **77.62** | 14.74 | IPFS | yes | measured |
+| This User... Banners | `0x135214…` | 2000 | 1,564 | 436 | **43.60** | 8.28 | centralized (miladymaker.net) | yes | measured |
+| Milady333 | `0x8a45fb…` | 333 | 333 | 0 | **0.00** | 0.00 | centralized (miladymaker.net) | yes | measured |
+
+**4 collections · 5,496 free mints · 9,837 paid mints · 983.59 ETH minted → 186.88 ETH aligned at 19%, locked for every collection alike.**
 
 **`404 base` reads whether the collection's own art drops into an ERC404 instance verbatim.**
 `ERC404BondingInstance._tokenURI` concatenates `base + tokenId` with no suffix, so a `tokenURI`
@@ -121,7 +188,15 @@ ones," and the free-mint half is what makes the paid half legible.
 
 ---
 
-## 5. Vault-family assignment — rth's ruling, 2026-08-21
+## 5. Vault-family assignment — rth's ruling, 2026-08-21 (superseded 2026-11-11)
+
+**This section's mechanism no longer exists in the contracts.** `RevenueSplitLib.split()` now
+returns the same 1/19/80 split for every vault family — the 80%-endowment branch described below
+(`splitMintFor(amount, liquidityFamily=false)`) has been removed from `contracts/src` entirely
+(grep finds zero hits). Pixelady Figmata, the endowment instance this ruling names, now aligns at
+the same 19% as every other collection in the census (17.15 ETH on its 90.27 ETH raise, not the
+80%-framed 72.21 ETH this section once argued for). The rest of this section is kept for the
+record of the ruling and its reasoning, not as a description of current behavior.
 
 **The default is the liquidity family: 19% to the aligned community, 1% protocol — 20% off the top.**
 The 80% endowment is reserved, not spread.
@@ -165,7 +240,7 @@ anyone.** Royalties are opt-in, marketplace-enforced, and were competed to nothi
 structural failure, not a run of bad luck, and no amount of goodwill fixes it — a majority of the
 largest collections' sales run through a zero-royalty venue.
 
-**Alignment does not rely on a royalty.** The vault's claim is taken at settlement (the 19%/80% at
+**Alignment does not rely on a royalty.** The vault's claim is taken at settlement (the 19% at
 mint) and held as an LP position that earns from the pool itself. There is no marketplace that can
 route around it and no toggle that switches it off. That is the difference worth putting on the site:
 not a bigger percentage, an **uncircumventable** one.
@@ -223,18 +298,24 @@ the `IMPROVEMENTS #16` shape exactly: the green was a statement about the tool, 
 
 | state | count | meaning |
 |---|---|---|
-| needs-harvest | 44 | Address known. No schema-valid v2 record exists yet. |
-| needs-address | 12 | Label known, mainnet address not. Re-resolve, then harvest. |
+| harvested | 58 | A schema-valid record exists at data/alignment/collections/<address>.json. |
 | unresolved-slug | 9 | Slug does not resolve to a mainnet contract. A legitimate result, not a failure. |
-| harvested | 2 | A schema-valid record exists at data/alignment/collections/<address>.json. |
 
 Full detail, one entry per collection, in `data/alignment/index.json`. That file is the census's
 work list: a record with no entry there is not in the census, and the renderer refuses it.
 
 ## 10. Residual — what remains unchecked
 
-- **Rows still to harvest.** See the state table above. A `needs-address` row is one whose mainnet
-  address was only ever written down truncated; re-resolve it by name before harvesting.
+- **Mint re-harvested 2026-11-11.** All 56 rows that were `needs-address` or `needs-harvest` are
+  now measured by the v2 tool and schema-valid — including the 12 whose mainnet address had only
+  ever been written down truncated, re-resolved this pass via `resolve-slugs-scrape.mjs` against
+  `miladyderivatives.com/api/data.json` and verified on-chain against each contract's own `name()`.
+  Every re-measured mint-ETH figure reproduced the 2026-08-21 hand figure to within rounding.
+- **The secondary harvester is dead, not merely stale.** `tools/harvest-secondary.mjs` calls
+  Alchemy's `getNFTSales`, which Alchemy's own changelog (2026-08-18) sunset on 2026-09-30 with no
+  replacement endpoint. This is why only 2 of 58 records carry a `secondary` section. Re-measuring
+  secondary volume needs the tool rebuilt against a different source (Reservoir, SimpleHash, or a
+  direct marketplace-contract log scan) — a rebuild, not a retry.
 - **9 slugs unresolved.** Their OpenSea pages render no collection and the scraper's on-chain
   `name()` check refused them rather than guessing. Likely delisted; each needs a hand check.
 - **9 of the 83 listed collections are not on Ethereum** (Avalanche, Polygon, chain 900), out of

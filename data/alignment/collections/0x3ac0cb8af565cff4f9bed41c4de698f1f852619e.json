@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x3ac0cb8af565cff4f9bed41c4de698f1f852619e",
+  "label": "coolmiladys",
+  "provenance": null,
+  "mint": {
+    "label": "coolmiladys",
+    "method": "transfer-from-zero",
+    "total": 392,
+    "free": 10,
+    "paid": 382,
+    "mintTxs": 212,
+    "freeTxs": 1,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 182,
+    "uniqueSenders": 182,
+    "grossWei": "3870000000000000000",
+    "firstBlock": "14803495",
+    "lastBlock": "18074603",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "coolmiladys",
+      "symbol": "COOL",
+      "totalSupply": "392"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "https://ipfs.omakasea.com/ipfs/QmaCErfVZNVdun67Uok2CmAEuPtVyW4iMHP1eKcsZcpwCD/1",
+      "host": "IPFS gateway (ipfs.omakasea.com)",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "https://ipfs.omakasea.com/ipfs/QmaCErfVZNVdun67Uok2CmAEuPtVyW4iMHP1eKcsZcpwCD/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "14803393",
+      "toBlock": "26388712",
+      "chainHead": "26388712",
+      "harvestedAt": "2026-11-11T02:32:03.475Z",
+      "complete": true
+    }
+  }
+}

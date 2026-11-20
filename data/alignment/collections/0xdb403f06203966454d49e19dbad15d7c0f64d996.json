@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0xdb403f06203966454d49e19dbad15d7c0f64d996",
+  "label": "Sonora222",
+  "provenance": null,
+  "mint": {
+    "label": "Sonora222",
+    "method": "transfer-from-zero",
+    "total": 108,
+    "free": 108,
+    "paid": 0,
+    "mintTxs": 88,
+    "freeTxs": 88,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 87,
+    "uniqueSenders": 87,
+    "grossWei": "0",
+    "firstBlock": "14950068",
+    "lastBlock": "16423323",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Sonora222",
+      "symbol": "SN2",
+      "totalSupply": "108"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "https://seedoil.mypinata.cloud/ipfs/QmeYd2wwMCvF8jaJ51jemH9AKeG5qfMbPhp3gJT5ava9bx/json/1",
+      "host": "IPFS gateway (seedoil.mypinata.cloud)",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "https://seedoil.mypinata.cloud/ipfs/QmeYd2wwMCvF8jaJ51jemH9AKeG5qfMbPhp3gJT5ava9bx/json/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "14947952",
+      "toBlock": "26388716",
+      "chainHead": "26388716",
+      "harvestedAt": "2026-11-11T02:33:19.237Z",
+      "complete": true
+    }
+  }
+}

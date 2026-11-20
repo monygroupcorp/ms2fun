@@ -25,6 +25,7 @@
         "milady-fumo",
         "milady-maker",
         "milady-maker-party",
+        "milady333",
         "remilio-babies"
       ],
       "firstPartyNote": "A first-party collection is the TARGET side of alignment, never the aligned side. Shown for scale, never counted as owing. Adjudicated by rth 2026-08-21; see tools/provenance.json for the contested rulings.",
@@ -54,7 +55,7 @@
       "address": "0xbfe47d6d4090940d1c7a0066b63d23875e3e2ac5",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -69,7 +70,7 @@
       "address": "0xeed41d06ae195ca8f5cacace4cd691ee75f0683f",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -84,7 +85,7 @@
       "address": "0xafe12842e3703a3cc3a71d9463389b1bf2c5bc1c",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -99,7 +100,7 @@
       "address": "0xabcdb5710b88f456fed1e99025379e2969f29610",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -114,7 +115,7 @@
       "address": "0x8fc0d90f2c45a5e7f94904075c952e0943cfccfd",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -126,11 +127,11 @@
     },
     {
       "label": "milady mfers",
-      "address": null,
+      "address": "0x07e8d4a25d36d7259879337a923170453944614f",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-address",
-      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "state": "harvested",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest. Address resolved 2026-11-11 via resolve-slugs-scrape.mjs against miladyderivatives.com/api/data.json; VERIFIED on-chain name() match.",
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
         "mintEth": 80.14,
@@ -141,11 +142,11 @@
     },
     {
       "label": "Milad Maker",
-      "address": null,
+      "address": "0x61628d84d0871a38f102d5f16f4e69ee91d6cdd9",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-address",
-      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "state": "harvested",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest. Address resolved 2026-11-11 via resolve-slugs-scrape.mjs against miladyderivatives.com/api/data.json; VERIFIED on-chain name() match.",
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
         "mintEth": 72.6,
@@ -159,7 +160,7 @@
       "address": "0x2fc722c1c77170a61f17962cc4d039692f033b43",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -174,7 +175,7 @@
       "address": "0x94fe1d5de3a4208c7411ae21968e044abc17be48",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -189,7 +190,7 @@
       "address": "0x8f7a232af2347cc5c9c3a245c2f163d248178eaa",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -204,7 +205,7 @@
       "address": "0xed37c99f3000d751c460c5e386f02a6de7581407",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -219,7 +220,7 @@
       "address": "0x61b0e552a3f2844b9a1c41bfd894255f37a269bc",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -234,7 +235,7 @@
       "address": "0x4a519d24a9d03e51e6da5732b16420b68943bc32",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -249,7 +250,7 @@
       "address": "0x186e74ad45bf81fb3712e9657560f8f6361cbbef",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -264,7 +265,7 @@
       "address": "0xa5f1fc0501e7737e2f48bee930b77cd86940a293",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -276,11 +277,11 @@
     },
     {
       "label": "Mifairy Maker",
-      "address": null,
+      "address": "0x67b5ee6e29a4230177dda07ad7848e42d89cf9a0",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-address",
-      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "state": "harvested",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest. Address resolved 2026-11-11 via resolve-slugs-scrape.mjs against miladyderivatives.com/api/data.json; VERIFIED on-chain name() match.",
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
         "mintEth": 12.77,
@@ -294,7 +295,7 @@
       "address": "0x4246200d62072cf8836f1062a115927555b9c497",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -309,7 +310,7 @@
       "address": "0x0d8a3359182dca59ccaf36f5c6c6008b83ceb4a6",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -324,7 +325,7 @@
       "address": "0x3a007afa2dff13c9dc5020acae1bcb502d4312e2",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -339,7 +340,7 @@
       "address": "0x71481a928c24c32e4d9a4394fab3168a3a1cfd11",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -354,7 +355,7 @@
       "address": "0xc0f820c8414e8b43737311b1227de4cad70335b6",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -369,7 +370,7 @@
       "address": "0xe0c839d60f15dd0b939e93d9eeab5ecda9affe57",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -384,7 +385,7 @@
       "address": "0x880a965fae95f72fe3a3c8e87ed2c9478c8e0a29",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -399,7 +400,7 @@
       "address": "0xe96f3ac4b352aafd8eb9d476c05e23b4aaef650e",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -414,7 +415,7 @@
       "address": "0x0ef7ba09c38624b8e9cc4985790a2f5dbfc1dc42",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -429,7 +430,7 @@
       "address": "0x3c9eab7168443e4c962a2bcfa983501b8894547e",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -444,7 +445,7 @@
       "address": "0xb24bab1732d34cad0a7c7035c3539aec553bf3a0",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -456,11 +457,11 @@
     },
     {
       "label": "Midenza Maker",
-      "address": null,
+      "address": "0x4994cbbfdc181622887a7282aae2aad8e0f33051",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-address",
-      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "state": "harvested",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest. Address resolved 2026-11-11 via resolve-slugs-scrape.mjs against miladyderivatives.com/api/data.json; VERIFIED on-chain name() match.",
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
         "mintEth": 5.09,
@@ -471,11 +472,11 @@
     },
     {
       "label": "Meowlady Maker",
-      "address": null,
+      "address": "0x441121df09c8c7f545a9444ab554ce640b566c4d",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-address",
-      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "state": "harvested",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest. Address resolved 2026-11-11 via resolve-slugs-scrape.mjs against miladyderivatives.com/api/data.json; VERIFIED on-chain name() match.",
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
         "mintEth": 4.87,
@@ -489,7 +490,7 @@
       "address": "0x2a071ec9714249d68eec015d3aaf998ba448a5ba",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -504,7 +505,7 @@
       "address": "0x3ac0cb8af565cff4f9bed41c4de698f1f852619e",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -516,11 +517,11 @@
     },
     {
       "label": "Zlady Maker",
-      "address": null,
+      "address": "0xd5e0b0f0ac7c014a1be55de2d9de90cd2483d465",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-address",
-      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "state": "harvested",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest. Address resolved 2026-11-11 via resolve-slugs-scrape.mjs against miladyderivatives.com/api/data.json; VERIFIED on-chain name() match.",
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
         "mintEth": 2.82,
@@ -534,7 +535,7 @@
       "address": "0x36691812a21758fb684122664faba9b3c41afb48",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -549,7 +550,7 @@
       "address": "0x7a3d2f1cc953e937f0a689d516e144a19b7c8512",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -564,7 +565,7 @@
       "address": "0xdc71c729e6adf29fd1dbfd1d79e3e7558271a177",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -579,7 +580,7 @@
       "address": "0xe70a7bf7b3bc42fa7fd1ccb8493f643bd8128d37",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -594,7 +595,7 @@
       "address": "0x57282f0053c25e47710e511ba7bfa0739444b543",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -606,11 +607,11 @@
     },
     {
       "label": "R3DBRO",
-      "address": null,
+      "address": "0x392c4a12044c7990f9fe66ca9f119b1df83f24ad",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-address",
-      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "state": "harvested",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest. Address resolved 2026-11-11 via resolve-slugs-scrape.mjs against miladyderivatives.com/api/data.json; VERIFIED on-chain name() match.",
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
         "mintEth": 1.87,
@@ -624,7 +625,7 @@
       "address": "0x9a2abacd20885c1645d2d4e86e41493c73e0c5cb",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -639,7 +640,7 @@
       "address": "0xa2059400f50100c5950f5f121ce5d576fe1ec39a",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -654,7 +655,7 @@
       "address": "0xa393b125b7a7047f27d2ce2c6606edec5122e3a5",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -666,11 +667,11 @@
     },
     {
       "label": "Milady Maker X LITE",
-      "address": null,
+      "address": "0xe6ec7dd8a31ae3efdf9e8c774d73053b0ee42cea",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-address",
-      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "state": "harvested",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest. Address resolved 2026-11-11 via resolve-slugs-scrape.mjs against miladyderivatives.com/api/data.json; VERIFIED on-chain name() match.",
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
         "mintEth": 0.2,
@@ -684,7 +685,7 @@
       "address": "0xcbaa32f436e00069d9e13fbb16086836c4ace3f9",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -699,7 +700,7 @@
       "address": "0x0b121ccefc74f350b1e6cc8d5f9e2223e0859d85",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -714,7 +715,7 @@
       "address": "0xf664504b43fd2aec5055508c691a33d96dae97bf",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -729,7 +730,7 @@
       "address": "0xf00efb98fdb9844b4edc701e0aa02e83570012a7",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -743,7 +744,7 @@
       "label": "Milady333",
       "address": "0x8a45fb65311ac8434aad5b8a93d1eba6ac4e813b",
       "family": "milady",
-      "class": "derivative",
+      "class": "first-party",
       "state": "harvested",
       "note": null,
       "priorCatalog": {
@@ -756,11 +757,11 @@
     },
     {
       "label": "Pixelady Maker BC",
-      "address": null,
+      "address": "0x4d40c64a8e41ac96b85ee557a434410672221750",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-address",
-      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "state": "harvested",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest. Address resolved 2026-11-11 via resolve-slugs-scrape.mjs against miladyderivatives.com/api/data.json; VERIFIED on-chain name() match.",
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
         "mintEth": 0,
@@ -774,7 +775,7 @@
       "address": "0xb2619d1aed8390af6d7056b0d312557d3d4d419a",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -786,11 +787,11 @@
     },
     {
       "label": "Pixelady Maker WOTLK",
-      "address": null,
+      "address": "0xcdde7902fd9d8b2f142f39b11a6f30e213d00964",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-address",
-      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "state": "harvested",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest. Address resolved 2026-11-11 via resolve-slugs-scrape.mjs against miladyderivatives.com/api/data.json; VERIFIED on-chain name() match.",
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
         "mintEth": 0,
@@ -804,7 +805,7 @@
       "address": "0x43316b3ed6b76c14c150e2e6d5a74bc7d80effc5",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -816,11 +817,11 @@
     },
     {
       "label": "Sonora222",
-      "address": null,
+      "address": "0xdb403f06203966454d49e19dbad15d7c0f64d996",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-address",
-      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "state": "harvested",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest. Address resolved 2026-11-11 via resolve-slugs-scrape.mjs against miladyderivatives.com/api/data.json; VERIFIED on-chain name() match.",
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
         "mintEth": 0,
@@ -834,7 +835,7 @@
       "address": "0x9a051c1794c2f0ed9518fcb68973da84f756e29e",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -846,11 +847,11 @@
     },
     {
       "label": "Sudo Bastard Miladys",
-      "address": null,
+      "address": "0x58ae0de454f76a1cf71cb3cb4dc7d1b3d655f86d",
       "family": "milady",
       "class": "derivative",
-      "state": "needs-address",
-      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest.",
+      "state": "harvested",
+      "note": "Address was only ever recorded truncated in ALIGNMENT-CATALOG-2026-08-21.md and the raw harvest output did not survive. Re-resolve by name/slug against miladyderivatives.com/api/data.json, then harvest. Address resolved 2026-11-11 via resolve-slugs-scrape.mjs against miladyderivatives.com/api/data.json; VERIFIED on-chain name() match.",
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
         "mintEth": 0,
@@ -879,7 +880,7 @@
       "address": "0xd3d9ddd0cf0a5f0bfb8f7fceae075df687eaebab",
       "family": "milady",
       "class": "first-party",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -894,7 +895,7 @@
       "address": "0x05c63282c87f620af5a658cbb53548257f3a6186",
       "family": "milady",
       "class": "first-party",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",
@@ -909,7 +910,7 @@
       "address": "0x1352149cd78d686043b504e7e7d96c5946b0c39c",
       "family": "milady",
       "class": "first-party",
-      "state": "needs-harvest",
+      "state": "harvested",
       "note": null,
       "priorCatalog": {
         "_warning": "Figures from the 2026-08-21 hand-assembled catalog, produced by harvest tool v1. NOT a measurement of record: v1 wrote no provenance and cannot be reproduced. Kept only as a cross-check target for the v2 harvest.",

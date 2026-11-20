@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x392c4a12044c7990f9fe66ca9f119b1df83f24ad",
+  "label": "R3DBRO",
+  "provenance": null,
+  "mint": {
+    "label": "R3DBRO",
+    "method": "transfer-from-zero",
+    "total": 169,
+    "free": 51,
+    "paid": 118,
+    "mintTxs": 92,
+    "freeTxs": 27,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 78,
+    "uniqueSenders": 78,
+    "grossWei": "1872520000000000000",
+    "firstBlock": "16601261",
+    "lastBlock": "16707171",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "R3DBRO",
+      "symbol": "R3D",
+      "totalSupply": "169"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeiczapuqv7afbunjk6rwz6edu3qtljbyhoox5uct4odlpeyii2hqoy/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://bafybeiczapuqv7afbunjk6rwz6edu3qtljbyhoox5uct4odlpeyii2hqoy/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "16521247",
+      "toBlock": "26388714",
+      "chainHead": "26388714",
+      "harvestedAt": "2026-11-11T02:32:19.737Z",
+      "complete": true
+    }
+  }
+}

@@ -4,7 +4,9 @@
 //
 //   node tools/sync-index.mjs [--apply]        # dry by default
 //
-// A collection is `harvested` when a schema-valid record exists for it, and `verified` only when a
+// A collection is `harvested` when a schema-valid record with a mint section exists for it. The
+// secondary section is optional: its only source (Alchemy getNFTSales) was retired on 2026-09-30,
+// so requiring it would hold every newer record at needs-harvest. `verified` is set only when a
 // human or a run has recorded that verify-record.mjs reproduced it. This tool never sets `verified`
 // — that state is earned by an independent re-harvest, and a bookkeeping script must not be able to
 // award it.
@@ -20,7 +22,7 @@ const indexPath = 'data/alignment/index.json';
 const valid = new Set();
 for (const f of readdirSync(dir).filter((f) => f.endsWith('.json'))) {
   const rec = JSON.parse(readFileSync(join(dir, f), 'utf8'));
-  if (validate(rec).ok && rec.mint && rec.secondary) valid.add(rec.address.toLowerCase());
+  if (validate(rec).ok && rec.mint) valid.add(rec.address.toLowerCase());
 }
 
 const index = JSON.parse(readFileSync(indexPath, 'utf8'));

@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0xafe12842e3703a3cc3a71d9463389b1bf2c5bc1c",
+  "label": "BoredMilady",
+  "provenance": null,
+  "mint": {
+    "label": "BoredMilady",
+    "method": "transfer-from-zero",
+    "total": 6911,
+    "free": 151,
+    "paid": 6760,
+    "mintTxs": 1681,
+    "freeTxs": 2,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 996,
+    "uniqueSenders": 996,
+    "grossWei": "223080000000000000000",
+    "firstBlock": "14588979",
+    "lastBlock": "14669090",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "BoredMilady",
+      "symbol": "BMIL",
+      "totalSupply": "6911"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://QmZ7K6hG5uiTvLVvmxZgm72Nv3kmvTq4CVAEG6JoMFvpkW/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://QmZ7K6hG5uiTvLVvmxZgm72Nv3kmvTq4CVAEG6JoMFvpkW/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "14588957",
+      "toBlock": "26388665",
+      "chainHead": "26388665",
+      "harvestedAt": "2026-11-11T02:22:33.356Z",
+      "complete": true
+    }
+  }
+}

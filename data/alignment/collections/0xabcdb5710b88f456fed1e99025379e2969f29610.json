@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0xabcdb5710b88f456fed1e99025379e2969f29610",
+  "label": "Radbro Webring V2",
+  "provenance": null,
+  "mint": {
+    "label": "Radbro Webring V2",
+    "method": "transfer-from-zero",
+    "total": 5000,
+    "free": 2193,
+    "paid": 2807,
+    "mintTxs": 1362,
+    "freeTxs": 437,
+    "indirectMintTxs": 6,
+    "zeroValueIndirectTxs": 6,
+    "uniqueRecipients": 587,
+    "uniqueSenders": 588,
+    "grossWei": "185164976375130014432",
+    "firstBlock": "16557352",
+    "lastBlock": "16808227",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Radbro Webring V2",
+      "symbol": "RADBROS",
+      "totalSupply": "5000"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "https://radbro.xyz/api/tokens/metadata/1",
+      "host": "centralized (radbro.xyz)",
+      "contentMutable": true,
+      "erc404BaseReusable": true,
+      "erc404Base": "https://radbro.xyz/api/tokens/metadata/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "16557348",
+      "toBlock": "26388665",
+      "chainHead": "26388665",
+      "harvestedAt": "2026-11-11T02:23:18.133Z",
+      "complete": true
+    }
+  }
+}

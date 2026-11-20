@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x0d8a3359182dca59ccaf36f5c6c6008b83ceb4a6",
+  "label": "milAIdy",
+  "provenance": null,
+  "mint": {
+    "label": "milAIdy",
+    "method": "transfer-from-zero",
+    "total": 333,
+    "free": 0,
+    "paid": 333,
+    "mintTxs": 211,
+    "freeTxs": 0,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 151,
+    "uniqueSenders": 151,
+    "grossWei": "10989000000000000000",
+    "firstBlock": "14857120",
+    "lastBlock": "14857590",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "milAIdy",
+      "symbol": "AILADY",
+      "totalSupply": "333"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://QmVBdokATvwPvDxw14c8j6vG3H9Qi5DJaiwcunZvYTFb5Y/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://QmVBdokATvwPvDxw14c8j6vG3H9Qi5DJaiwcunZvYTFb5Y/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "14845695",
+      "toBlock": "26388688",
+      "chainHead": "26388688",
+      "harvestedAt": "2026-11-11T02:27:16.764Z",
+      "complete": true
+    }
+  }
+}

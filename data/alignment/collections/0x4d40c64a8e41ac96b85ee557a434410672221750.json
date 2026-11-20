@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x4d40c64a8e41ac96b85ee557a434410672221750",
+  "label": "Pixelady Maker BC",
+  "provenance": null,
+  "mint": {
+    "label": "Pixelady Maker BC",
+    "method": "transfer-from-zero",
+    "total": 1000,
+    "free": 1000,
+    "paid": 0,
+    "mintTxs": 516,
+    "freeTxs": 516,
+    "indirectMintTxs": 1,
+    "zeroValueIndirectTxs": 1,
+    "uniqueRecipients": 248,
+    "uniqueSenders": 248,
+    "grossWei": "0",
+    "firstBlock": "15852947",
+    "lastBlock": "15884159",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Pixelady Maker BC",
+      "symbol": "PXLDY2",
+      "totalSupply": "1000"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://bafybeihx6j6b5eo6yazeodttuqhw76vqboeldmdzj5cerik324ulpbebdq/1",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "ipfs://bafybeihx6j6b5eo6yazeodttuqhw76vqboeldmdzj5cerik324ulpbebdq/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "15848295",
+      "toBlock": "26388715",
+      "chainHead": "26388715",
+      "harvestedAt": "2026-11-11T02:32:32.666Z",
+      "complete": true
+    }
+  }
+}

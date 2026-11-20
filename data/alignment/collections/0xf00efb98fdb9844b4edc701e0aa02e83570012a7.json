@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0xf00efb98fdb9844b4edc701e0aa02e83570012a7",
+  "label": "Milady Rainbow Zorb",
+  "provenance": null,
+  "mint": {
+    "label": "Milady Rainbow Zorb",
+    "method": "transfer-from-zero",
+    "total": 91,
+    "free": 91,
+    "paid": 0,
+    "mintTxs": 77,
+    "freeTxs": 77,
+    "indirectMintTxs": 2,
+    "zeroValueIndirectTxs": 2,
+    "uniqueRecipients": 91,
+    "uniqueSenders": 75,
+    "grossWei": "0",
+    "firstBlock": "16130478",
+    "lastBlock": "16131158",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Milady Rainbow Zorb",
+      "symbol": "KYS",
+      "totalSupply": "91"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "data:application/json;base64,eyJuYW1lIjogIk1pbGFkeSBSYWluYm93IFpvcmIgMS8xMDAiLCAiZGVzY3JpcHRpb24iOiAiNSUgb2YgZnJlZSBpcyBmcmVlIiwgImltYWdlIjogImlwZnM6Ly9iYWZrcmVpZWNuN255bXpuYXh4cTZzdXNvaXR3dXJyenN1Y3NpNnZwenR3YWwzdnBlbTZxaWpiaHluZSIsICJwcm9wZXJ0aWVzIjogeyJudW1iZXIiOiAxLCAibmFtZSI6ICJNaWxhZHkgUmFpbmJvdyBab3JiIn19",
+      "host": "on-chain (data URI)",
+      "contentMutable": false,
+      "erc404BaseReusable": false,
+      "erc404Base": null
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "16130471",
+      "toBlock": "26388725",
+      "chainHead": "26388725",
+      "harvestedAt": "2026-11-11T02:35:03.379Z",
+      "complete": true
+    }
+  }
+}

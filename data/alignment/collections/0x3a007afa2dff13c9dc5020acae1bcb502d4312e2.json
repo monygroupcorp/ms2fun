@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0x3a007afa2dff13c9dc5020acae1bcb502d4312e2",
+  "label": "spring miaura",
+  "provenance": null,
+  "mint": {
+    "label": "spring miaura",
+    "method": "transfer-from-zero",
+    "total": 333,
+    "free": 13,
+    "paid": 320,
+    "mintTxs": 192,
+    "freeTxs": 3,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 128,
+    "uniqueSenders": 128,
+    "grossWei": "10890000000000000000",
+    "firstBlock": "14957318",
+    "lastBlock": "14966579",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "spring miaura",
+      "symbol": "SPRNG",
+      "totalSupply": "333"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "https://miladyaura.mypinata.cloud/ipfs/QmeUVxNF9a67JMFBg1QHTqBVxHbGGUzMN346HehFVKeZGH/1",
+      "host": "IPFS gateway (miladyaura.mypinata.cloud)",
+      "contentMutable": false,
+      "erc404BaseReusable": true,
+      "erc404Base": "https://miladyaura.mypinata.cloud/ipfs/QmeUVxNF9a67JMFBg1QHTqBVxHbGGUzMN346HehFVKeZGH/"
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "14957261",
+      "toBlock": "26388689",
+      "chainHead": "26388689",
+      "harvestedAt": "2026-11-11T02:27:28.440Z",
+      "complete": true
+    }
+  }
+}

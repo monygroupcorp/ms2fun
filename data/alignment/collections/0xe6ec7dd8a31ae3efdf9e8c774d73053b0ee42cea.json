@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "address": "0xe6ec7dd8a31ae3efdf9e8c774d73053b0ee42cea",
+  "label": "Milady Maker X LITE",
+  "provenance": null,
+  "mint": {
+    "label": "Milady Maker X LITE",
+    "method": "transfer-from-zero",
+    "total": 1000,
+    "free": 980,
+    "paid": 20,
+    "mintTxs": 104,
+    "freeTxs": 102,
+    "indirectMintTxs": 0,
+    "zeroValueIndirectTxs": 0,
+    "uniqueRecipients": 97,
+    "uniqueSenders": 97,
+    "grossWei": "200000000000000000",
+    "firstBlock": "15372310",
+    "lastBlock": "15373047",
+    "confidence": "measured",
+    "confidenceNote": null,
+    "identity": {
+      "name": "Milady Maker X LITE",
+      "symbol": "MXLT",
+      "totalSupply": "1000"
+    },
+    "tokenURI": {
+      "id": 1,
+      "uri": "ipfs://QmRuHykDa1AK3Mw4MRu5uEMHZviN3T1NdWsVFkT4MboEVx/1.json",
+      "host": "IPFS",
+      "contentMutable": false,
+      "erc404BaseReusable": false,
+      "erc404Base": null
+    },
+    "harvest": {
+      "tool": "harvest-collection.mjs",
+      "toolVersion": 2,
+      "fromBlock": "15361918",
+      "toBlock": "26388714",
+      "chainHead": "26388714",
+      "harvestedAt": "2026-11-11T02:32:25.625Z",
+      "complete": true
+    }
+  }
+}
