@@ -45,6 +45,7 @@ import { useCollectionAddresses, useCollectionChainId } from '../useCollectionCh
 import { ArtPointerNotice } from '../ArtPointerNotice'
 import { carveCreatorNet, parseBps } from '../../../lib/carve'
 import { carveSettlementFromLogs } from '../../../lib/carveReceipt'
+import { GRADUATION_GAS_LIMIT } from '../../../lib/graduationGas'
 import { collectionToDataUri } from '../../../lib/metadata'
 import type { MoneyReceipt } from '../../ui/receipt'
 import {
@@ -673,6 +674,9 @@ function DeployLiquidityRow({
               functionName: 'deployLiquidity',
               args: [BigInt(requestBps)],
               chainId: chainId,
+              // Fixed, not estimated: see graduationGas.ts — a wallet's single-block estimate is
+              // exposed to the same hook-mine variance the fixed limit is sized to cover.
+              gas: GRADUATION_GAS_LIMIT,
             })
           }
           label={requestBps > 0 ? `graduate + carve ${requestBps} bps` : 'deploy liquidity'}

@@ -11,6 +11,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { formatEther } from 'viem'
 import { carveCreatorNet } from '../../../lib/carve'
+import { GRADUATION_GAS_LIMIT } from '../../../lib/graduationGas'
 import type { BondingView } from './bondingPhase'
 import { Erc404AdminPanel } from './Erc404AdminPanel'
 import { formatMoment, openWindow } from './bondingSchedule'
@@ -394,6 +395,18 @@ test('leg 7 — the request still defaults to 0 and deployLiquidity is still cal
     address: INSTANCE,
     functionName: 'deployLiquidity',
     args: [0n],
+  })
+})
+
+// hooked-graduation-gas-holds-across-blocks: the hook factory's salt scan can land in a different
+// block than a wallet's single-block gas estimate, so the send carries a fixed worst-case limit
+// instead of leaving gas to be estimated.
+test('deployLiquidity is sent with the fixed worst-case graduation gas limit, not an estimate', () => {
+  mountWithCarveRights()
+  fireEvent.click(screen.getByRole('button', { name: /deploy liquidity/i }))
+  expect(mockWriteContract.mock.calls[0]?.[0]).toMatchObject({
+    functionName: 'deployLiquidity',
+    gas: GRADUATION_GAS_LIMIT,
   })
 })
 
