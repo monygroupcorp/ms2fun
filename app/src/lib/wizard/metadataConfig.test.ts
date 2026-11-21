@@ -284,7 +284,7 @@ describe('tierSupplySummary', () => {
   })
 
   it('derives the same geometry the factory does: packed above supply, sized supply ÷ weight', () => {
-    // rth's canonical case: 4000 mintable, a ×10 tier → 400 ids reserved at 4001–4400.
+    // The canonical case: 4000 mintable, a ×10 tier → 400 ids reserved at 4001–4400.
     const s = tierSupplySummary({ 'tierWeights.0': '10' }, 4000n)
     expect(s.tiers).toHaveLength(1)
     expect(s.tiers[0]).toEqual({

@@ -1027,12 +1027,12 @@
 /* 404 · "Not on view" — the catch-all route as a wall-label card: a mono plate
    header (404 · not found) over a big Syne 404, the museum-voice title + honest
    copy, and two ways back (black primary + outline secondary). */
-[data-brand='noesis'] .noesis-404 {
+[data-brand='noesis'] .noesis-not-found {
   max-width: 560px;
   width: 100%;
   border: 2px solid var(--color-border);
 }
-[data-brand='noesis'] .noesis-404 .plate {
+[data-brand='noesis'] .noesis-not-found .plate {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1040,14 +1040,14 @@
   border-bottom: 2px solid var(--color-border);
   background: var(--color-surface);
 }
-[data-brand='noesis'] .noesis-404 .plate .k {
+[data-brand='noesis'] .noesis-not-found .plate .k {
   font-family: var(--brand-font-mono);
   font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--color-text-muted);
 }
-[data-brand='noesis'] .noesis-404 .plate .e {
+[data-brand='noesis'] .noesis-not-found .plate .e {
   font-family: var(--brand-font-mono);
   font-size: 11px;
   letter-spacing: 0.1em;
@@ -1055,24 +1055,24 @@
   border: 2px solid var(--color-border);
   padding: 4px 9px;
 }
-[data-brand='noesis'] .noesis-404 .inner {
+[data-brand='noesis'] .noesis-not-found .inner {
   padding: 48px 44px;
 }
-[data-brand='noesis'] .noesis-404 .big {
+[data-brand='noesis'] .noesis-not-found .big {
   font-family: var(--brand-font-display);
   font-weight: 800;
   font-size: 104px;
   line-height: 0.9;
   letter-spacing: -0.03em;
 }
-[data-brand='noesis'] .noesis-404 .ttl {
+[data-brand='noesis'] .noesis-not-found .ttl {
   font-family: var(--brand-font-display);
   font-weight: 800;
   font-size: 26px;
   letter-spacing: -0.01em;
   margin-top: 18px;
 }
-[data-brand='noesis'] .noesis-404 .cap {
+[data-brand='noesis'] .noesis-not-found .cap {
   font-size: 14.5px;
   line-height: 1.6;
   color: var(--color-text-subtle);

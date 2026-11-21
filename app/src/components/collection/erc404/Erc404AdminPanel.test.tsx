@@ -1,5 +1,5 @@
 /**
- * Erc404AdminPanel — phase gate (noesis-209). A graduated collection must not offer bonding-lifecycle
+ * Erc404AdminPanel — phase gate. A graduated collection must not offer bonding-lifecycle
  * actions (activate bonding, deploy liquidity, the two time setters) alongside the page's own
  * "graduated to DEX" notice; a still-bonding one must not have `deploy liquidity` hidden by the
  * stricter `canDeployLiquidity` helper (early graduation and a functionally-sold-out-but-not-`full`
@@ -68,7 +68,7 @@ vi.mock('../useCollectionChain', () => ({
   }),
 }))
 
-// The shared invalidation seam (noesis-352) needs a QueryClient; these tests aren't exercising
+// The shared invalidation seam needs a QueryClient; these tests aren't exercising
 // caching, so a stub with a spy-able `invalidateQueries` is enough (no QueryClientProvider needed).
 const mockInvalidateQueries = vi.hoisted(() => vi.fn())
 vi.mock('@tanstack/react-query', () => ({
@@ -146,7 +146,7 @@ vi.mock('../../../generated/contracts', () => ({
   useReadErc404BondingInstanceStakingActive: () => ({ data: false, refetch: vi.fn() }),
   useReadErc404BondingInstanceReserve: () => ({ data: 0n, refetch: vi.fn() }),
   useReadErc404BondingInstanceStakingReserve: () => ({ data: 0n, refetch: vi.fn() }),
-  // `unit()` — coin per whole NFT. The allowlist row roots its tree at this scale (noesis-266).
+  // `unit()` — coin per whole NFT. The allowlist row roots its tree at this scale.
   useReadErc404BondingInstanceUnit: () => ({ data: 10n ** 24n }),
 }))
 
@@ -299,7 +299,7 @@ test('preopen: bonding-time setters are present, deploy liquidity is absent', ()
   expect(screen.queryByTestId('erc404-admin-deploy-liquidity')).not.toBeInTheDocument()
 })
 
-// ── noesis-220: the carve is a one-shot, irreversible choice, and the panel is the only place it can
+// ── The carve is a one-shot, irreversible choice, and the panel is the only place it can
 // be made. These assert what the panel SAYS. Nothing here asserts (or permits) a change to what is
 // taken: the request still defaults to 0 and `deployLiquidity` still receives exactly that.
 

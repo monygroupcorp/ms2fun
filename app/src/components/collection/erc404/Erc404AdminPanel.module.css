@@ -18,7 +18,7 @@
   max-width: 22rem;
 }
 
-/* Allowlist config row (noesis-080) — build summary / error text below the listURI/paste input. */
+/* Allowlist config row — build summary / error text below the listURI/paste input. */
 .hint {
   margin: 0;
   font-size: var(--font-size-body-sm);
@@ -30,7 +30,7 @@
   font-weight: var(--font-weight-bold);
 }
 
-/* Carve permanence statement (noesis-220) — the graduation carve cannot be revisited, so the one
+/* Carve permanence statement — the graduation carve cannot be revisited, so the one
    moment it can be set carries the consequence in words. A statement, never a guardrail: the
    graduate button beside it stays enabled. */
 .warning {

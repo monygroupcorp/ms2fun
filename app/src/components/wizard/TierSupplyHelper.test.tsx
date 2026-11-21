@@ -4,7 +4,7 @@ import { TierSupplyHelper } from './TierSupplyHelper'
 
 afterEach(cleanup)
 
-// rth's canonical 4,400 case, re-read for the derived ladder: 4000 mintable ids and a ×10 tier. The
+// The canonical 4,400 case, re-read for the derived ladder: 4000 mintable ids and a ×10 tier. The
 // creator types the DENOMINATION; the contract derives the 400-id band at 4001–4400 above the supply.
 const LADDER_X10 = { 'tierWeights.0': '10' }
 

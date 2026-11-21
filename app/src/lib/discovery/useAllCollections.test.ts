@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import type { ProjectCard } from './types'
 
-// ── vault filter, case-insensitivity (noesis-332) ───────────────────────────────────────────────
+// ── vault filter, case-insensitivity ───────────────────────────────────────────────
 //
 // `useAllCollectionsRaw` returns `c.vault` EIP-55 checksummed (from a live contract read). A caller
 // may pass a lowercase address (e.g. `/vault/:address` from a route param, which is validated but
@@ -69,7 +69,7 @@ describe('useAllCollections vault filter', () => {
   })
 })
 
-// ── search matches name OR creator (noesis-325 clause 2) ────────────────────────────────────────
+// ── search matches name OR creator ────────────────────────────────────────
 //
 // The box is labelled "Search collections, creators…". A pasted creator address must return that
 // creator's collections, not an empty wall.
@@ -108,7 +108,7 @@ describe('useAllCollections search', () => {
   })
 })
 
-// ── every sort the control offers is a real, distinct ordering (noesis-326 clause 4) ────────────
+// ── every sort the control offers is a real, distinct ordering ────────────
 //
 // The /collections TVL chip was removed because it silently aliased 'recent'. These pin that the
 // two sorts left are each backed by a field on the card, and that they genuinely differ — a sort

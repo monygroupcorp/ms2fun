@@ -17,7 +17,7 @@
 /**
  * Whether a collection-authored URI may point at an arbitrary `http(s)` host.
  *
- * `true` (RULED BY rth 2026-08-21): accept `https://…` / `http://…` alongside the content-addressed
+ * `true` (a product decision): accept `https://…` / `http://…` alongside the content-addressed
  * and inline schemes.
  *
  * The tracking channel is real — the pointer is fetched automatically as a card scrolls into view,
@@ -39,8 +39,8 @@
  * that pass the alignment gate, reject it for arbitrary ones — not a warning banner the viewer
  * cannot act on.
  *
- * The choice is a product ruling, not a code detail; it is a single constant so the ruling is one
- * edit.
+ * The choice is a product decision, not a code detail; it is a single constant so changing it is
+ * one edit.
  */
 export const ALLOW_REMOTE_HTTP_URIS = true
 

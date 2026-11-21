@@ -5,7 +5,7 @@
  * derive a state badge via `deriveAuctionState`, and link each tile to the shareable token detail
  * page. Read idiom mirrors useAuctions.
  *
- * The grid is virtualized (noesis-382): the whole collection is browsable, and the cost of a mount
+ * The grid is virtualized: the whole collection is browsable, and the cost of a mount
  * is a fixed window rather than a function of collection size.
  *
  * ## Row model: a compacted list of pieces that resolved

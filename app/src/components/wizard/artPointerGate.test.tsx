@@ -71,7 +71,7 @@ describe('a pointer the app would refuse cannot reach deploy', () => {
     ).toEqual([])
   })
 
-  // Against the constant, not the literal: if the remote-art ruling flips, the gate must flip with
+  // Against the constant, not the literal: if the remote-art setting flips, the gate must flip with
   // it rather than this test needing an edit.
   test('a https:// pointer blocks deploy exactly when the renderer would blank it', () => {
     const blockers = buildDeployBlockers({

@@ -105,7 +105,7 @@ interface FeedPage {
   nextCursor: bigint | null
 }
 
-/** Exported for `BoardPage.test.tsx` — the cache-key isolation regression (noesis-422). */
+/** Exported for `BoardPage.test.tsx` — the cache-key isolation regression. */
 export function useGlobalFeed(): {
   data: FeedMessage[] | undefined
   isPending: boolean
@@ -122,7 +122,7 @@ export function useGlobalFeed(): {
     // Keyed under 'message-feed' so reply/react refetches (which invalidate that key) refresh the
     // board. This key is intentionally NOT shared with home's `useGlobalActivity` — the two cache
     // different shapes (infinite-query pages vs a plain array) and sharing a key lets whichever
-    // populates the cache first poison the other's read (noesis-422).
+    // populates the cache first poison the other's read.
     queryKey: ['message-feed', 'global'],
     enabled: !!client,
     staleTime: 15_000,

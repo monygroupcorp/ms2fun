@@ -5,7 +5,7 @@
  * the portfolio/swap readout, the debit warning) all need these same facts — this hook is the one
  * place they read them from, so they cannot drift from each other or from the contract.
  *
- * **`balance` (transferable) is the PRIMARY read and stays that way** (rth, 2026-08-10). `holdings`
+ * **`balance` (transferable) is the PRIMARY read and stays that way.** `holdings`
  * (`coinBalanceOf`) is a display aggregate that sits beside it — never a substitute in a guard, a
  * quote, a limit, an amount sent to a contract, or any write path. `rerollMath.ts:19` is the existing
  * precedent for this rule; it applies here too, to every one of this hook's consumers.
@@ -52,7 +52,7 @@ export interface TierPosition {
    *  Authoritative for display. Undefined until the read lands. */
   holdings: bigint | undefined
   /** `holdings` reconstructed locally from `balance` and `bandPieces` (`coinHoldings`), for callers
-   *  that must predict a position that does not exist on-chain yet (noesis-173's post-debit
+   *  that must predict a position that does not exist on-chain yet (the post-debit
    *  preview). Agrees with `holdings` once both have landed; `holdings` is authoritative for
    *  display. Undefined until its own inputs land. */
   localHoldings: bigint | undefined

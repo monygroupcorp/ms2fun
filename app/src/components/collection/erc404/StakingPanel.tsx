@@ -34,8 +34,7 @@ interface StakingPanelProps {
   instance: `0x${string}`
   /** Instance token decimals — passed in by the parent (already read for the swap surface). */
   decimals: number
-  /** `unit()` — coin per whole NFT, passed in by the parent (already read for the swap surface;
-   *  see noesis-173's spec for why this is threaded rather than re-read here). */
+  /** `unit()` — coin per whole NFT, passed in by the parent (already read for the swap surface). */
   unit: bigint | undefined
 }
 
@@ -56,7 +55,7 @@ export function StakingPanel({ instance, decimals, unit }: StakingPanelProps) {
   const { address } = useAccount()
   const { stakingActive, tokenBalance, userStaked, globalTotalStaked, pendingRewards, refetch } =
     useStaking(instance)
-  // Tier awareness (noesis-173): `useStaking` resolves the holder itself and does not return the
+  // Tier awareness: `useStaking` resolves the holder itself and does not return the
   // address, so it is read again here via `useAccount()` rather than changing `useStaking`'s shape
   // (it has other consumers). Hooks run unconditionally, before the stakingActive early return.
   const { tiered, bandPieces } = useTierPosition(instance, address)
@@ -78,7 +77,7 @@ export function StakingPanel({ instance, decimals, unit }: StakingPanelProps) {
 
   // Refetch reads once each write confirms; clear the corresponding input on stake/unstake.
   // Effects (not in-render side effects) keep this safe across re-renders / strict mode.
-  // Shared invalidation (noesis-352): stake/unstake move the token balance SwapPanel and TierPanel
+  // Shared invalidation: stake/unstake move the token balance SwapPanel and TierPanel
   // read for this same instance — see useTxAction's `instance` opt for the rationale.
   const queryClient = useQueryClient()
   useEffect(() => {
@@ -120,7 +119,7 @@ export function StakingPanel({ instance, decimals, unit }: StakingPanelProps) {
   const unstakeOverStaked =
     unstakeAmount !== undefined && userStaked !== undefined && unstakeAmount > userStaked
 
-  // Debit-burns-your-band preview (noesis-173): stake is a coin-path debit and DN404 reconciles it
+  // Debit-burns-your-band preview: stake is a coin-path debit and DN404 reconciles it
   // the same way a sell is reconciled — see bandBurnPreview.ts's module doc. Additive only: the
   // existing `stakeOverBalance` guard is unchanged and still the only thing that disables submit.
   const stakeBandBurn = previewBandBurn({

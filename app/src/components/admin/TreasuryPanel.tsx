@@ -5,7 +5,7 @@
  *
  * The DAO revenue-conductor and POL-instance concepts were retired on-chain (the getters were deleted
  * and their storage moved to `deprecated_*` slots in ProtocolTreasuryV1), so the conductor/POL reads
- * and the set-revenue-conductor action were removed here (noesis-083 bindings reconciliation).
+ * and the set-revenue-conductor action were removed here when the bindings were reconciled.
  *
  * Built on the Phase-0 primitives (useOwnerGate + AdminSection/ActionRow + useTxAction/TxButton +
  * AmountField/parseAmount), so it matches the other admin panels.

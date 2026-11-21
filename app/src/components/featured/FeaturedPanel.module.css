@@ -4,7 +4,7 @@
 /* The panel now renders inside <Disclosure>; mono lives on the content blocks
    (.status, .action) that previously inherited it from the old .panel wrapper. */
 
-/* ---- Summary (closed-Disclosure state indicator, noesis-429) -- */
+/* ---- Summary (closed-Disclosure state indicator) -- */
 
 .summary {
   display: inline-flex;

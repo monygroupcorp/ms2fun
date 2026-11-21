@@ -1,5 +1,5 @@
 /**
- * Post-create merkle-allowlist authoring + resolution (noesis-080). Pure TS (no React/wagmi), mirrors
+ * Post-create merkle-allowlist authoring + resolution. Pure TS (no React/wagmi), mirrors
  * `app/src/lib/merkle.ts` (the byte-identical leaf/root/proof primitives, done in #26) one layer up: this
  * module turns owner input (a hosted listURI OR a small pasted list) into the on-chain `MerkleConfig` +
  * the `allowlists` row persisted in `CollectionMetadata`, and turns a persisted row back into a connected
@@ -13,7 +13,7 @@
  *     way. Keep this to TINY lists — a large list as a data-URI in `metadataURI` is gas-heavy (persisted
  *     on-chain via `MasterRegistry.updateInstanceMetadata`).
  *
- * DENOMINATION (noesis-266). A creator authors caps in NFTs and the hosted list states them in NFTs, but
+ * DENOMINATION. A creator authors caps in NFTs and the hosted list states them in NFTs, but
  * `MerkleGatingModule` compares the leaf's cap against whatever the calling instance forwards — an NFT
  * count on ERC-1155, coin at wei scale on ERC-404. So every entry point here takes an explicit
  * `qtyScale` (`merkle.ts`'s `NO_QTY_SCALE` for ERC-1155, the instance's `unit()` for ERC-404) and the

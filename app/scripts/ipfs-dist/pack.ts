@@ -1,5 +1,5 @@
 /**
- * UnixFS packaging for the IPFS distribution build (noesis-409).
+ * UnixFS packaging for the IPFS distribution build.
  *
  * Turns the emitted `dist/ipfs/` directory into (a) a root CID and (b) a CAR file carrying every
  * block under it, so the release can be handed to a pinning node in one request and the CID can be

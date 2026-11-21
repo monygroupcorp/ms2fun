@@ -10,7 +10,7 @@
  *      batch, the delay is crossed, and the open executor role executes it;
  *   4. `MigrateOwnership` phase 2 as the deployer, then `verify()`;
  *   5. an independent ownership sweep over every contract the deploy created;
- *   6. the alignment tithe switched on through the same governed path (ruled live at launch, see the
+ *   6. the alignment tithe switched on through the same governed path (live at launch, see the
  *      `DeployMainnet` header), unless `--no-tithe`;
  *   7. `ForkRehearsalCollections`: one ERC-1155 created, minted once and withdrawn; one ERC-404
  *      bought out and graduated, with the liquidity module's residual (A-C5) measured;

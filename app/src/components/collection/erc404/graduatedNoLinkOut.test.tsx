@@ -1,5 +1,5 @@
 /**
- * The graduated surface offers a TRADE, never a redirect (noesis-349).
+ * The graduated surface offers a TRADE, never a redirect.
  *
  * Before this, a graduated collection whose venue the app could not resolve rendered a link to an
  * unrelated exchange, with the chain hardcoded into the URL. Two things were wrong with that at

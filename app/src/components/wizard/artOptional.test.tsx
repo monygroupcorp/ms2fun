@@ -6,7 +6,7 @@ import { buildDeployBlockers } from '../../routes/WizardPage'
 
 afterEach(cleanup)
 
-// The concepts wired onto the bespoke (non-SchemaForm) surfaces by noesis-044. Each must resolve to a
+// The concepts wired onto the bespoke (non-SchemaForm) surfaces. Each must resolve to a
 // real /learn concept (dead-link guard) and render as an anchor to its doc.
 const WIRED_SLUGS = [
   'alignment-vault', // AlignmentTargetPicker
@@ -30,8 +30,8 @@ describe('bespoke-surface LearnLinks', () => {
   }
 })
 
-// noesis-044 HARD CONSTRAINT (folds 045): art must NEVER gate deploy. `buildDeployBlockers` is the
-// single source of truth for whether the Deploy button fires (noesis-132 lifted it out of the
+// HARD CONSTRAINT: art must NEVER gate deploy. `buildDeployBlockers` is the
+// single source of truth for whether the Deploy button fires (it was lifted out of the
 // component as a pure, exported function), so proving no blocker ever references the cover image proves
 // an empty cover cannot block deploy — even with everything else broken.
 describe('empty cover image is not a deploy blocker', () => {

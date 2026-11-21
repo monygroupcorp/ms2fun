@@ -38,7 +38,7 @@ describe('preview resolution goes through the shared gateway roster', () => {
   })
 })
 
-// The acceptance criterion for noesis-378: the wizard carries no gateway host of its own, so the
+// The invariant: the wizard carries no gateway host of its own, so the
 // preview and the renderer can never disagree about which hosts to try. Asserted over the directory's
 // source rather than over one file, because a second copy anywhere in the wizard is the same defect.
 describe('no gateway host is hardcoded in the wizard', () => {

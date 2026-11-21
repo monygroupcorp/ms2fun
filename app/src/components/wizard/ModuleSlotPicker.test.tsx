@@ -33,7 +33,7 @@ const MAPPED: ModuleOption = {
   meta: meta('metadata-overlay'),
 }
 // A configType with no entry in MODULE_CONCEPT_BY_CONFIG_TYPE (synthetic, so it stays unmapped
-// even as real modules get wired — e.g. metadata-overlay was wired in noesis-049).
+// even as real modules get wired — e.g. metadata-overlay has since been wired).
 const UNMAPPED: ModuleOption = {
   address: '0x0000000000000000000000000000000000000002',
   meta: meta('no-such-mapped-config-type'),

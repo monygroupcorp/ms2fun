@@ -1,5 +1,5 @@
 /**
- * Mint-side merkle-proof resolution for an ERC1155 edition (noesis-080). Wraps the pure
+ * Mint-side merkle-proof resolution for an ERC1155 edition. Wraps the pure
  * `allowlistConfig.resolveMemberProof` in a React-Query hook: reads the instance's collection metadata
  * (the SAME `useCollectionMetadata` the collection page uses), finds the `allowlists` row for this
  * edition (tierIndex 0 — single-list authoring), and resolves the connected wallet's proof against it.
@@ -11,7 +11,7 @@
  * the creator's number unscaled. The scale is passed explicitly rather than defaulted — see
  * `merkle.ts`'s `scaleQty` for why the ERC-404 twin of this hook must pass `unit()` instead.
  *
- * REMAINING, not the cap (noesis-280). The leaf cap is a LIFETIME per-wallet number; the module
+ * REMAINING, not the cap. The leaf cap is a LIFETIME per-wallet number; the module
  * enforces it against a cumulative counter (`MerkleGatingModule.claimed`, keyed by instance/edition/
  * user and bumped by `onMint` on BOTH the paid and the free-claim path), so after a wallet's first
  * mint the cap and what it may still mint diverge. The counter is public and on the ABI, so the hook

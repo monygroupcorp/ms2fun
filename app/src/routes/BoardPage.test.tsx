@@ -1,5 +1,5 @@
 /**
- * BoardPage — `useGlobalFeed` cache-key isolation regression (noesis-422).
+ * BoardPage — `useGlobalFeed` cache-key isolation regression.
  *
  * Home's activity preview and the board's infinite feed used to share one cache key
  * (`['message-feed', 'global']`) with incompatible shapes: home cached a plain `FeedMessage[]`,

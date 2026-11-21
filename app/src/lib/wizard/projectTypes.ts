@@ -40,7 +40,7 @@ const freeMintGroup: FieldSchema = {
 }
 
 // ERC1155-only gating-scope select. `ERC1155Instance.initializeFreeMint` ignores the collection-wide
-// `allocation` argument since noesis-135 (free mint is per-edition); the `scope` argument is still live
+// `allocation` argument since free mint became per-edition; the `scope` argument is still live
 // as collection-level `gatingScope`, so ERC1155 keeps a standalone scope field, always visible (no
 // `freeMint.allocation` sibling gates it here).
 const erc1155FreeMintScope: FieldSchema = {
@@ -182,7 +182,7 @@ const erc404: ProjectTypeSchema = {
     // tier are its children, wired + frozen at create. Selecting the resolver turns the feature on;
     // the overlay/tier slots supply the concrete modules the router stacks. A single child can also
     // be pointed at directly with no resolver — except tier, which always requires one (see
-    // `validateMetadataConfig`). (Tier reveal is retired from the wizard — noesis-138 — Token Tiers
+    // `validateMetadataConfig`). (Tier reveal is retired from the wizard — Token Tiers
     // replaces it; see tier-denominations-productdef.md.)
     {
       key: 'resolver',
@@ -227,7 +227,7 @@ const erc1155: ProjectTypeSchema = {
     // `name` + `metadataURI` are authored on the "Collection page" step (CollectionMetaForm) — name is
     // mirrored into the create params, metadataURI is assembled at submit. See the ERC-404 note above.
     // `symbol` is OPTIONAL for ERC1155 (ERC1155 has no standard symbol) — no `required` validation,
-    // unlike ERC404/ERC721. Empty is accepted end-to-end (noesis-084).
+    // unlike ERC404/ERC721. Empty is accepted end-to-end.
     {
       key: 'symbol',
       label: 'Symbol',

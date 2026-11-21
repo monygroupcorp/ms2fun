@@ -44,7 +44,7 @@ export interface CollectionMetadata {
   category: string
   links: ProfileLink[]
   /**
-   * Merkle-allowlist listURIs (noesis-080), one row per gated (editionId, tierIndex) — today always a
+   * Merkle-allowlist listURIs, one row per gated (editionId, tierIndex) — today always a
    * single `{editionId:0, tierIndex:0}` row (single list, no per-edition/tier authoring UI yet). The
    * `listURI` points at the off-chain `{address,maxQty}[]` entries the mint page fetches to build a
    * proof; the ROOT itself lives on-chain in `MerkleGatingModule`, not here. Optional/omitted when no

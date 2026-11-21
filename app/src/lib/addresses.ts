@@ -53,7 +53,7 @@ export interface Addresses {
   ERC1155Factory: `0x${string}`
   ERC721AuctionFactory: `0x${string}`
   /**
-   * Aave endowment vault factory (noesis-077) — permissionless Yield-vault creation. A vault
+   * Aave endowment vault factory — permissionless Yield-vault creation. A vault
    * factory, NOT a wizardable token factory; see VAULT_FACTORY_ADDRESSES below.
    */
   AaveEndowmentVaultFactory: `0x${string}`
@@ -172,7 +172,7 @@ const DEPLOYMENTS: readonly Deployment[] = [
 ]
 
 /**
- * Chain-scoped address map (chain-scoped-slug-routes, noesis-079). Every chain this build carries a
+ * Chain-scoped address map. Every chain this build carries a
  * deployment file for appears here, populated or not; `isChainDeployed` is the separate question of
  * whether that chain's addresses are known yet.
  */
@@ -254,7 +254,7 @@ export const forkChainId = activeChainId
 export const forkAddresses = activeAddresses
 
 /**
- * Vault-family factories (noesis-077). These self-register as `IFactory` in the MasterRegistry so any
+ * Vault-family factories. These self-register as `IFactory` in the MasterRegistry so any
  * wallet can permissionlessly create an alignment vault — but they are NOT wizardable token factories.
  * Any registry-driven factory enumeration filters these out (so the roster promotion stays cosmetic and
  * a vault factory never appears as a wizard project type). Lowercased for case-insensitive membership,

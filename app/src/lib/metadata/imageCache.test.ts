@@ -1,5 +1,5 @@
 /**
- * imageCache (noesis-371) — one request per CID, and never for a mutable pointer.
+ * imageCache — one request per CID, and never for a mutable pointer.
  *
  * The property under test is request COUNT, not pixels: a grid where many cards share one
  * collection's art must spend one request, a re-mount must spend none, an inline `data:` must spend
@@ -81,7 +81,7 @@ describe('loadArt', () => {
 
     await loadArt(CID)
 
-    // The roster carries per-entry URL FORM (noesis-372), so a candidate URL is built by the
+    // The roster carries per-entry URL FORM, so a candidate URL is built by the
     // resolver, not by concatenating a base. A CIDv0 is also skipped by subdomain-form entries,
     // which is why the expected order comes from resolveUriCandidates rather than the roster.
     const candidates = resolveUriCandidates(CID)

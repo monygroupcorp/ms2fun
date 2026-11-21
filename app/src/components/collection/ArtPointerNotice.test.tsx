@@ -1,5 +1,5 @@
 /**
- * ArtPointerNotice (noesis-384) — the creator is told when their collection's art reaches nobody,
+ * ArtPointerNotice — the creator is told when their collection's art reaches nobody,
  * on their own admin view and nowhere else.
  *
  * Two failures look identical from outside the app (every viewer gets the fallback tile) and need

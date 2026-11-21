@@ -1,5 +1,5 @@
 /**
- * The salon's zero-state — noesis-427 clause 1, "one state device".
+ * The salon's zero-state — "one state device".
  *
  * The box's empty state was keyed on the RAW feed (`data.length === 0`) while the transcript
  * renders the filtered rows. Pick a channel whose posts all sit under the spam threshold — or raise

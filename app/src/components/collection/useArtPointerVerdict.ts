@@ -1,5 +1,5 @@
 /**
- * useArtPointerVerdict (noesis-384) — can this collection's own art be rendered at all?
+ * useArtPointerVerdict — can this collection's own art be rendered at all?
  *
  * Two ways a collection ends up showing every viewer the fallback tile, and they need different
  * words: the pointer is a scheme the app refuses (`sanitizeImageUri` blanked it, recorded by

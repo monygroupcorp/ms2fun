@@ -1,5 +1,5 @@
 /**
- * The mint-side wiring of the allowlist cap's denomination (noesis-266).
+ * The mint-side wiring of the allowlist cap's denomination.
  *
  * `lib/collection/allowlistConfig.test.ts` pins the arithmetic: one scale function, applied to both the
  * tree and the proof. What it cannot see is which scale each family's hook actually hands it, and that
@@ -54,7 +54,7 @@ vi.mock('./useCollectionChain', () => ({
 vi.mock('../../generated/contracts', () => ({
   useReadErc404BondingInstanceUnit: () => ({ data: state.unit }),
   // The ERC-1155 hook also reads the wallet's cumulative claim, to report REMAINING rather than the
-  // lifetime cap (noesis-280). Held at 0 throughout this file so `remainingNfts === maxQtyNfts` and
+  // lifetime cap. Held at 0 throughout this file so `remainingNfts === maxQtyNfts` and
   // the denomination assertions below read the same numbers they always did.
   useReadErc1155InstanceGatingModule: () => ({ data: state.gatingModule }),
   useReadMerkleGatingModuleClaimed: () => ({ data: state.claimed, isPending: false }),

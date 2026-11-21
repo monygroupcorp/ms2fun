@@ -12,7 +12,7 @@
  *  - `claimFreeMint(bytes gatingData)` likewise forwards the blob to the same decoder; `encodeGatingData`
  *    still carries the hash in the first word (the trailing openTime word it appends is now ignored).
  *
- * MERKLE (noesis-080): `buyBonding`/`claimFreeMint`'s gatingData instead carries
+ * MERKLE: `buyBonding`/`claimFreeMint`'s gatingData instead carries
  * `abi.encode(uint256 tierId, uint256 maxQty, bytes32[] proof)` — matching
  * `MerkleGatingModule.sol:117`'s decode shape exactly (NOT the `abi.encode(bytes32[] proof)` this
  * comment used to say). `SwapPanel`/`FreeMintPanel` resolve the connected wallet's proof via
@@ -100,7 +100,7 @@ export const CURVE_COMPUTER_TAG: Hex = toHex('curve_computer', { size: 32 })
 
 /**
  * Encode the `bytes gatingData` credential for a MerkleGatingModule-gated `buyBonding`/`claimFreeMint`
- * call (noesis-080). Matches `MerkleGatingModule.sol:117`'s decode shape EXACTLY —
+ * call. Matches `MerkleGatingModule.sol:117`'s decode shape EXACTLY —
  * `abi.decode(data, (uint256 tierId, uint256 maxQty, bytes32[] proof))`. `tierId`/`maxQty`/`proof` come
  * from `allowlistConfig.ts`'s `resolveMemberProof`; `tierId` is `0n` (single list, single curve — ERC404
  * has no per-edition concept, so `editionId`/`tierId` are always 0). A wallet with no proof (not on the

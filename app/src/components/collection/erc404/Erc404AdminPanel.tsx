@@ -5,9 +5,9 @@
  * generated `erc404BondingInstanceAbi` on the fork chain, refetching the relevant read on success.
  *
  * Actions: bonding lifecycle (active toggle, open/maturity time), metadata/style URIs, vault
- * (migrate, claim all fees, flush a stranded graduation tithe), agent delegation, and (noesis-080)
+ * (migrate, claim all fees, flush a stranded graduation tithe), agent delegation, and
  * configure allowlist — shown only when the instance has a gating module set (today the only deployed
- * gating module IS MerkleGatingModule; PasswordTierGating was dropped in noesis-065).
+ * gating module IS MerkleGatingModule; PasswordTierGating was dropped).
  *
  * The stranded-tithe row is the one action here that is not the owner's alone: a graduation cut the
  * alignment vault could not take is stashed on the liquidity module, and re-sending it is
@@ -92,7 +92,7 @@ export function Erc404AdminPanel({ instance }: Erc404AdminPanelProps) {
   const { isOwner } = useOwnerGate(instance)
   const { view } = useBondingData(instance)
   const nowSec = useNowSec()
-  // Phase gate (noesis-209): the panel's own reads were never consulted, so a graduated collection
+  // Phase gate: the panel's own reads were never consulted, so a graduated collection
   // kept offering "activate bonding" / "deploy liquidity" / the bonding-time setters alongside the
   // page's own "graduated to DEX" notice. `deployLiquidity` visibility is keyed on the PHASE alone
   // (bonding), not on `canDeployLiquidity` — that helper is stricter than the contract (it also
@@ -622,7 +622,7 @@ function DeployLiquidityRow({
     ? `${baseHint} · curve not full yet — graduating now closes the sale early`
     : baseHint
 
-  // Piece 1 (noesis-220): the permanence statement, at the ONE moment the carve can be chosen.
+  // Piece 1: the permanence statement, at the ONE moment the carve can be chosen.
   // Graduation happens once, `deployLiquidity` resolves the carve inside that same transaction, and
   // there is no setter — so a request below the declared max forfeits the difference for good. The
   // forfeited figure is named in NET terms (what the wallet would have received) so the sentence is
@@ -984,14 +984,14 @@ function SetAgentDelegationRow({ instance }: { instance: `0x${string}` }) {
   )
 }
 
-// ── Configure allowlist (noesis-080) ──────────────────────────────────────────
+// ── Configure allowlist ──────────────────────────────────────────
 //
 // Only shown when the instance has a gating module set — today that can only be MerkleGatingModule
-// (PasswordTierGating was dropped in noesis-065). ERC404 has no per-edition concept: editionId/tierIndex
+// (PasswordTierGating was dropped). ERC404 has no per-edition concept: editionId/tierIndex
 // are always 0. Two independently-retryable transactions — see the erc1155/CreatorAdminPanel.tsx twin
 // for the full rationale (configureFor auth vs updateInstanceMetadata's creator-vs-owner asymmetry).
 //
-// The cap is authored in NFTs and rooted at `unit()` (noesis-266): this family forwards coin, at wei
+// The cap is authored in NFTs and rooted at `unit()`: this family forwards coin, at wei
 // scale, to the gating module, so a leaf holding the creator's raw number would deny every listed
 // wallet. Nothing can be rooted before `unit()` lands — a root built at the wrong scale is submitted
 // on-chain and only reveals itself when buyers report reverts.

@@ -6,7 +6,7 @@
  * DESCENDING ("position 1 first"). Higher rank = paid more = higher placement.
  *
  * The landing page previously re-sorted the chain's array ascending, on the belief that rank was a
- * position — which led the grid with the SMALLEST payer (noesis-311). This is the one place that
+ * position — which led the grid with the SMALLEST payer. This is the one place that
  * ordering is expressed, so the direction is stated once and tested.
  */
 export interface RankedCard {

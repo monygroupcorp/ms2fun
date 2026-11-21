@@ -182,7 +182,7 @@ export interface UsePortfolioResult {
   isError: boolean
   /**
    * True when the collection index was clipped and holdings may be missing. False by construction
-   * since the read was windowed (noesis-327) — kept as the panels' fail-safe so any future path that
+   * since the read was windowed — kept as the panels' fail-safe so any future path that
    * does drop collections has a correct notice already wired to it.
    */
   truncated: boolean

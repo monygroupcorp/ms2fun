@@ -88,7 +88,7 @@ export function validateEditionDraft(form: EditionDraft): string | null {
     const alloc = parseInt(allocRaw, 10)
     if (isNaN(alloc) || alloc < 0 || String(alloc) !== allocRaw)
       return 'Free-mint allocation must be a whole number ≥ 0'
-    // Reserve-from-supply cap (noesis-135): for a limited edition the free allocation is drawn from
+    // Reserve-from-supply cap: for a limited edition the free allocation is drawn from
     // supply, so it cannot exceed it. Unlimited editions (supply 0) accept any allocation.
     if (form.pricingModel !== 0) {
       const sup = parseInt(form.supply, 10)

@@ -5,7 +5,7 @@
  * visually — click pieces in this grid to mark them "keep", then open the reroll dropdown. The
  * selected ids become `rerollSelectedNFTs`'s exempted list.
  *
- * TIER AWARENESS (noesis-159). On a tiered collection some owned ids are tier (band) NFTs, and the
+ * TIER AWARENESS. On a tiered collection some owned ids are tier (band) NFTs, and the
  * contract exempts every one of them from a reroll whether or not the holder selects it. So this
  * surface (a) marks them as protected rather than selectable, (b) states how many ORDINARY pieces a
  * given amount will actually reroll — the auto-exempted tier NFTs consume the amount too — and
@@ -217,7 +217,7 @@ function RerollDropdown({
     if (rerollRx.isSuccess) {
       reroll.reset()
       setAmountStr('')
-      // Shared invalidation (noesis-352): a reroll reassigns which ids this holder owns — TierPanel's
+      // Shared invalidation: a reroll reassigns which ids this holder owns — TierPanel's
       // band-piece read and any other instance-scoped read must not keep showing the pre-reroll ids.
       // See useTxAction's `instance` opt for the rationale.
       invalidateInstanceQueries(queryClient, instance)

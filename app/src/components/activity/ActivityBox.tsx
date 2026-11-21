@@ -2,7 +2,7 @@
  * ActivityBox — the one window every activity surface is drawn in: home's recent-activity preview,
  * the collection/profile/vault feed, and the salon.
  *
- * The shape is the one rth asked for on the 2026-08-28 walk — an AIM/AOL-era chat box, read through
+ * The shape is an AIM/AOL-era chat box, read through
  * the brand: a named plate across the top, a transcript below it, and a well at the floor where you
  * speak. Each surface used to bring its own chrome (a heading here, a header row with a link there,
  * a toolbar and a detached compose section on the salon), so three renderings of the same room

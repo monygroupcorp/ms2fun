@@ -1,4 +1,4 @@
-/* MetadataHolderPanel (noesis-010) — readouts + the pin-version button row. */
+/* MetadataHolderPanel — readouts + the pin-version button row. */
 .readout {
   font-family: var(--font-mono);
   color: var(--text-primary);

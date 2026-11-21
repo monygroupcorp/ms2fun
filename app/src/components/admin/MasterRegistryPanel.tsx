@@ -86,7 +86,7 @@ function RegisterFactoryRow() {
     features !== undefined &&
     !tx.isBusy
 
-  // Vault-family factories (noesis-077) are registered as IFactory to allow permissionless vault
+  // Vault-family factories are registered as IFactory to allow permissionless vault
   // creation, but they are NOT wizardable token factories — subtract them so this roster count reflects
   // token factories only and the promotion stays cosmetic. Clamp at 0 in case none are registered yet.
   const tokenFactoryTotal =

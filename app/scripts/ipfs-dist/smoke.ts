@@ -1,5 +1,5 @@
 /**
- * Path-prefix smoke for the IPFS distribution build (noesis-409). Runs as the last step of
+ * Path-prefix smoke for the IPFS distribution build. Runs as the last step of
  * `pnpm build:ipfs`, the same way the precache and share-card guards close `pnpm build`.
  *
  * The failure mode it exists for: a public gateway serves the pinned directory from under a path

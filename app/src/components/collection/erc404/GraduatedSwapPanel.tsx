@@ -1,5 +1,5 @@
 /**
- * Embedded post-graduation swap (B19 · noesis-349). Once an ERC-404 curve graduates, its token
+ * Embedded post-graduation swap. Once an ERC-404 curve graduates, its token
  * trades on the venue it deployed liquidity to — and it trades IN-SITE on every one of them. Two
  * routers cover it:
  *  - zRouter, which handles Uni-V4 (`swapV4`) and ZAMM (`swapVZ`) natively;
@@ -260,7 +260,7 @@ export function GraduatedSwapPanel({
   })
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: swapData })
 
-  // Shared invalidation (noesis-352): a graduated buy/sell still moves the underlying DN404 token's
+  // Shared invalidation: a graduated buy/sell still moves the underlying DN404 token's
   // coin balance AND NFT ids in the same transaction (the venue changed, the mint/burn-on-transfer
   // mechanics didn't) — every cached read for this instance must invalidate the moment the receipt
   // lands. See SwapPanel's twin effect / useTxAction's `instance` opt for the full rationale.

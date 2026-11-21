@@ -1,5 +1,5 @@
 /**
- * Venue resolution (noesis-349) — including the degrade paths, which are the ones that decide
+ * Venue resolution — including the degrade paths, which are the ones that decide
  * whether a user gets a trade or a redirect.
  *
  * The case most likely to be dropped when a venue is added is a deployer that matches by address but

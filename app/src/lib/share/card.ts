@@ -4,7 +4,7 @@
  * The runner (`scripts/check-share-card.ts`) does the filesystem reads; everything that decides
  * pass or fail lives here so it is covered by vitest rather than only by a build that happened to
  * be run. Nothing here knows an origin string, a title or a description — the guard asserts
- * structure and resolvability, never content, so the pending origin ruling never has to edit it.
+ * structure and resolvability, never content, so a later decision about the origin never has to edit it.
  */
 
 /** The card tags a scraper reads. Declared by name so a missing one is named, not counted. */
@@ -77,7 +77,7 @@ export function originOf(value: string): string | null {
 /**
  * A4 — `og:url`, `og:image` and `twitter:image` must share one origin.
  *
- * This is what makes `noesis-230`'s three-site origin substitution safe: a substitution that
+ * This is what makes the three-site origin substitution safe: a substitution that
  * misses one site leaves a working title beside a picture nobody can fetch.
  */
 export function findOriginSplit(tags: Map<string, string>): string[] | null {

@@ -18,7 +18,7 @@ import { deserialize, serialize } from 'wagmi'
  * Bump to discard all previously-persisted cache (breaking read/schema change).
  *
  * v2: the board's infinite-query key (`['message-feed', 'global']`) and home's plain query used
- * to share one cache key with incompatible shapes (noesis-422) — home's `FeedMessage[]` restored
+ * to share one cache key with incompatible shapes — home's `FeedMessage[]` restored
  * under the board's key could crash the board's `InfiniteQueryObserver`. The key split alone only
  * covers new writes; a persisted v1 blob still carries an entry poisoned before the split. This
  * bump discards it on the next restore.

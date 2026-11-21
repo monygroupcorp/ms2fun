@@ -1,9 +1,9 @@
 /**
- * YieldVaultRequestCard (noesis-367) — ask the protocol for a curated Aave endowment vault.
+ * YieldVaultRequestCard — ask the protocol for a curated Aave endowment vault.
  *
  * When a community (alignment target) has no Yield vault yet, this card lets any connected wallet
  * register an ASK: `AlignmentRegistryV1.requestVault(targetId, token)` emits `VaultRequested` and
- * nothing more. Vault deployment is owner-only (noesis-366), because every parameter that defines a
+ * nothing more. Vault deployment is owner-only, because every parameter that defines a
  * vault — its price validator, pool and acquisition route — is curated by the protocol rather than
  * supplied by whoever asks for it. So the card sends a target and a token, and no vault parameters.
  *

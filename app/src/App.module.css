@@ -87,7 +87,7 @@
   display: block;
 }
 
-/* Centers the .noesis-404 wall-label card (the device owns the card's own look). */
+/* Centers the .noesis-not-found wall-label card (the device owns the card's own look). */
 .notFound {
   display: flex;
   justify-content: center;

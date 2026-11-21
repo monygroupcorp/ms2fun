@@ -90,7 +90,7 @@ describe('findOriginSplit', () => {
     expect(findOriginSplit(extractMetaTags(html(wholeCard)))).toBeNull()
   })
 
-  it('catches a partial origin substitution — the noesis-230 failure mode', () => {
+  it('catches a partial origin substitution that misses one site', () => {
     const split = findOriginSplit(
       extractMetaTags(html({ ...wholeCard, 'og:image': 'https://other.test/icon-512.png' })),
     )

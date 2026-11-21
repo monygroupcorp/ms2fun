@@ -1,5 +1,5 @@
 /**
- * The wizard's post-create Editions step (noesis/open-edition-cannot-close clause 4).
+ * The wizard's post-create Editions step.
  *
  * `ProjectTypeSchema.postCreate` has declared this step — its title and all nine of its fields,
  * `closeTime` and `maxPerWallet` among them — since it was written, and until now nothing rendered
@@ -121,7 +121,7 @@ test('a filled step sends addEdition carrying the close time and the per-wallet 
   expect(call.address).toBe(INSTANCE)
   expect(call.functionName).toBe('addEdition')
   // `addEdition(pieceTitle, basePrice, supply, metadataURI, pricingModel, rate, openTime,
-  //  freeMintAllocation, closeTime, maxPerWallet)` — the last two are what this goal is about.
+  //  freeMintAllocation, closeTime, maxPerWallet)` — the last two are the ones under test here.
   expect(call.args[0]).toBe('Genesis')
   expect(call.args[8]).toBe(BigInt(closeAt))
   expect(call.args[9]).toBe(3n)

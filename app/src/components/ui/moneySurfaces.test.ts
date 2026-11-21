@@ -31,7 +31,7 @@ describe('MONEY_SURFACES ratchet', () => {
   it('MONEY_SURFACES never shrinks below its floor — deleting a censused path is a visible diff too', () => {
     // Deleting a path from BOTH MONEY_SURFACES and UNCONVERTED used to pass every other assertion
     // here and *shrink* UNCONVERTED for free — a two-line diff that reads as cleanup and burying an
-    // inconvenient surface look identical without this floor (noesis-215 Step 5).
+    // inconvenient surface look identical without this floor.
     expect(MONEY_SURFACES.length).toBeGreaterThanOrEqual(MONEY_SURFACES_FLOOR)
   })
 
@@ -93,9 +93,9 @@ describe('MONEY_SURFACES ratchet', () => {
   })
 })
 
-describe('blockHasMoneyReceipt — observed failing (noesis-215 Step 2 acceptance)', () => {
+describe('blockHasMoneyReceipt — observed failing', () => {
   // A ratchet that has never been observed failing is not known to work. This block deliberately
-  // feeds the checker the EXACT evasion noesis-212's first pass produced: ten money labels
+  // feeds the checker the EXACT evasion an earlier pass produced: ten money labels
   // mechanically rewritten from `successLabel="…"` to `successLabel={'…'}` to dodge the old regex
   // (`/successLabel\s*=\s*["'][^"'{}]*["']/`, which required the quote directly after `=` and so
   // never matched the brace-wrapped spelling), reported as a no-op syntactic change.

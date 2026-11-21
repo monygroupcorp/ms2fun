@@ -280,8 +280,8 @@ function AppShell() {
                       the chain-scoped routes: this wouter version's matcher (regexparam@3) does
                       NOT support the `:param(regex)` inline-constraint syntax the spec assumed —
                       `:chainId(\d+)` parses the WHOLE `chainId(\d+)` string as one literal param
-                      key, silently breaking `params.chainId` (discovered in test — see
-                      noesis-079). `/:chainId/:slug` below is a plain, unconstrained 2-segment
+                      key, silently breaking `params.chainId` (discovered in
+                      test). `/:chainId/:slug` below is a plain, unconstrained 2-segment
                       match, so every OTHER 2-/4-segment literal-prefixed route (this block,
                       /vault/:address, /learn/:slug, /profile/:address) must come first in the
                       `Switch` to avoid being shadowed; `useResolvedCollectionRoute` validates
@@ -294,14 +294,14 @@ function AppShell() {
                   <Route path="/collection/:instance" component={LegacyCollectionRedirect} />
                   <Route path="/profile" component={ProfilePage} />
                   <Route path="/profile/:address" component={ProfilePage} />
-                  {/* Chain-scoped collection routes (chain-scoped-slug-routes noesis-079) — MUST
+                  {/* Chain-scoped collection routes — MUST
                       stay below every other literal-prefixed route above (see comment above). */}
                   <Route path="/:chainId/:slug/edition/:id" component={EditionDetailPage} />
                   <Route path="/:chainId/:slug/token/:id" component={TokenDetailPage} />
                   <Route path="/:chainId/:slug" component={CollectionPage} />
                   <Route>
                     <section className={styles.notFound}>
-                      <div className="noesis-404">
+                      <div className="noesis-not-found">
                         <div className="plate">
                           <span className="k">Wall label</span>
                           <span className="e">404 · not found</span>

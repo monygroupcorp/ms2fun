@@ -1,5 +1,5 @@
 /**
- * The profile wall is drawn in the box like every other activity surface — noesis-427 clause 1,
+ * The profile wall is drawn in the box like every other activity surface:
  * "one component … one state device".
  *
  * The collection feed, the vault board and the salon all dock their composer in the box's well, so

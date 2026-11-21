@@ -136,8 +136,8 @@ bug report from the pinned site names the build it was found on.
 
 ### 2. Pin it
 
-**Decision point — pin host. The host is Pinata**, and rth holds the account. Ruled for the testnet
-release, superseding the earlier self-pinning ruling: standing up and operating our own node is real
+**Decision point — pin host. The host is Pinata**, and the project owner holds the account. Chosen
+for the testnet release over the earlier plan to self-pin: standing up and operating our own node is real
 work with a lead time, and it is not work the testnet should wait on. The tradeoff taken with it is
 a dependency that can drop the pin or read our publishing cadence — which is why the retrievability
 check below is not optional, and why revisiting self-pinning stays open for mainnet.
@@ -183,15 +183,15 @@ from a keystore account. By hand, one name at a time:
    one deep link (`https://noesis.gwei.domains/#/collections`).
 
 **Decision point — CID vs IPNS.** This runbook repoints the `contenthash` record per release, which
-is rth's ruling: one transaction per publish, and the record always names the exact bytes being
+is the chosen approach: one transaction per publish, and the record always names the exact bytes being
 served. The alternative is to set the record to an IPNS name once and republish the IPNS pointer per
 release — no further transactions, at the cost of an extra indirection whose resolution can lag or
 fail, and a record that no longer tells you what is being served. Not chosen; noted because it is
-the standard answer to "must rth sign every release".
+the standard answer to "must the owner sign every release".
 
 ### 4. Skew
 
-Hot patches go to ms2.fun first; the pin is repointed on rth's cadence, so the pinned build can lag.
+Hot patches go to ms2.fun first; the pin is repointed on the owner's cadence, so the pinned build can lag.
 That is expected, not a defect — which is why both builds stamp their commit into the footer and the
 console. When triaging a report from noesis.gwei.domains, read the stamp before reproducing.
 

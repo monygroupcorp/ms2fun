@@ -78,7 +78,7 @@ function invalidReferenceState() {
 }
 
 /** Chain-scoped route: `/:chainId/:slug/edition/:id`. Resolves the slug, then renders the existing
- * `EditionDetail` body inside a `<CollectionChainProvider>` (chain-scoped-slug-routes noesis-079). */
+ * `EditionDetail` body inside a `<CollectionChainProvider>`. */
 export function EditionDetailPage() {
   const params = useParams<{ chainId?: string; slug?: string; id?: string }>()
   const resolution = useResolvedCollectionRoute(params.chainId, params.slug)
@@ -99,7 +99,7 @@ export function EditionDetailPage() {
 }
 
 /** Legacy address-keyed route (`/collection/:instance/edition/:id`) — permanently redirects to the
- * slug URL (chain-scoped-slug-routes noesis-079 step 8). Chain-blind by design; see
+ * slug URL. Chain-blind by design; see
  * `LegacyCollectionRedirect` in `./CollectionPage`. */
 export function LegacyEditionRedirect() {
   const params = useParams<{ instance?: string; id?: string }>()

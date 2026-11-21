@@ -1,5 +1,5 @@
 /**
- * The allowlist line states what this wallet can mint NOW, and the button refuses more (noesis-280).
+ * The allowlist line states what this wallet can mint NOW, and the button refuses more.
  *
  * `MerkleGatingModule` enforces the leaf cap against a CUMULATIVE counter — `claimed[instance]
  * [editionId][user]`, bumped by `onMint` on both the paid and the free-claim path — so

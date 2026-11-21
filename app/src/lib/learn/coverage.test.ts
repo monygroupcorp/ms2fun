@@ -4,7 +4,7 @@ import { getConcept } from './concepts'
 import { MODULE_CONCEPT_BY_CONFIG_TYPE } from './moduleConcepts'
 
 /**
- * COVERAGE guard (noesis-049) — the inverse of `deadLinks.test.ts`.
+ * COVERAGE guard — the inverse of `deadLinks.test.ts`.
  *
  * `deadLinks` asserts every wired `learnMore` slug RESOLVES. This asserts the other direction:
  * every decision-bearing wizard surface either carries a resolving `learnMore` OR is on the
@@ -61,7 +61,7 @@ const EXEMPT: Record<string, string> = {
   // Raw-URI fields — paste-a-link inputs, no decision to explain.
   'erc404.styleUri': 'raw URI field',
   'erc1155.styleUri': 'raw URI field',
-  // Piece-art consequence (noesis-211): stated inline (field help + composed-URI preview on the
+  // Piece-art consequence: stated inline (field help + composed-URI preview on the
   // bespoke render, plus the review-step no-art acknowledgement), mirroring how the carve field
   // documents itself below — no dedicated concept.
   'erc404.tokenBaseURI':

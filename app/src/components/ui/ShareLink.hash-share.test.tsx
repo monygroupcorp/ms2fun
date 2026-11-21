@@ -1,5 +1,5 @@
 /**
- * The share round trip under the hash distribution target (noesis-450).
+ * The share round trip under the hash distribution target.
  *
  * `ShareLink` copies whatever URL the visitor is actually on — it hardcodes no origin, so the link
  * is already constructive to whichever host served the page. What used to make a copied link die
